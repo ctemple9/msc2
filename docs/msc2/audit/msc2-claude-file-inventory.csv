@@ -1,0 +1,247 @@
+file,loc,bucket,blind_bucket,difficulty,confidence,recommended_action
+AboutView.swift,119,ui,ui,low,high,Rebuild in Svelte; no engine port.
+AddServerWizardView.swift,2780,mixed,ui,very_high,high,"Extract staging, process checks, archive handling, source inspection before rebuild."
+AddonUpdateResolver.swift,314,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+AddonUpdateSheet.swift,318,ui,ui,low,high,Rebuild in Svelte; no engine port.
+AppConfig.swift,884,mixed,io_orchestration,high,high,Split domain model / persistence schema / secrets / UI labels into versioned config domain.
+AppModels.swift,299,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+AppUpdateChecker.swift,135,platform,platform,medium,high,Split release metadata from platform installer behavior; Tauri updater.
+AppUtilities.swift,241,platform,platform,medium,medium,Split networking / process / platform-presentation helpers.
+AppViewModel+APIWiring.swift,230,api_contract,vm_orchestration,low,high,Delete after capturing route mappings and edge behavior.
+AppViewModel+APIWiringAddons.swift,624,api_contract,vm_orchestration,low,high,Delete after capturing route mappings and edge behavior.
+AppViewModel+APIWiringBackupsHealth.swift,251,api_contract,vm_orchestration,low,high,Delete after capturing route mappings and edge behavior.
+AppViewModel+APIWiringContent.swift,383,api_contract,vm_orchestration,low,high,Delete after capturing route mappings and edge behavior.
+AppViewModel+APIWiringServerMgmt.swift,588,api_contract,vm_orchestration,low,high,Delete after capturing route mappings and edge behavior.
+AppViewModel+APIWiringSettings.swift,430,api_contract,vm_orchestration,low,high,Delete after capturing route mappings and edge behavior.
+AppViewModel+APIWiringWorlds.swift,202,api_contract,vm_orchestration,low,high,Delete after capturing route mappings and edge behavior.
+AppViewModel+AddonUpdates.swift,415,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+Backups.swift,998,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+BedrockPerformance.swift,197,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+BedrockProperties.swift,83,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+Broadcasting.swift,477,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ClientExport.swift,239,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ComponentsVersions.swift,927,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ConfigHelpers.swift,221,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ConfigRecovery.swift,185,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+FinderTools.swift,126,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+HealthCards.swift,1169,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+JavaProcessCleanup.swift,153,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+Metrics.swift,134,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ModManagement.swift,867,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+Notifications.swift,131,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+OutputHandling.swift,667,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+PaperTemplateDownload.swift,68,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+PlayerProfiles.swift,581,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+Playit.swift,1006,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+PluginManagement.swift,383,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ResourcePacks.swift,294,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ServerControls.swift,1135,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ServerCreation.swift,736,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ServerImport.swift,512,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ServerInfo.swift,111,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ServerSettings.swift,415,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+ServerTransfer.swift,604,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+SessionLog.swift,99,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+Templates.swift,782,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+Watchdog.swift,77,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+WorldConversion.swift,285,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+WorldManagement.swift,314,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+WorldRepair.swift,138,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+WorldSlots.swift,783,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel+XboxBroadcastDownload.swift,173,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AppViewModel.swift,1606,mixed,ui,very_high,high,Delete as engine object; replace with agent services + client stores.
+AppViewModelModels.swift,354,mixed,vm_orchestration,high,high,Extract explicit inputs/outputs/side-effects; re-home as Rust service. High implicit AVM coupling.
+AuditLogger.swift,140,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+BackupsView.swift,285,ui,ui,low,high,Rebuild in Svelte; no engine port.
+BannerView.swift,33,ui,ui,low,high,Rebuild in Svelte; no engine port.
+BedrockBroadcastManager.swift,215,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+BedrockHiddenProfiles.swift,44,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+BedrockLevelDB.swift,385,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+BedrockNBTReader.swift,426,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+BedrockNameCache.swift,59,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+BedrockPlayerDataManager.swift,162,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+BedrockPropertiesManager.swift,316,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+BedrockProvisioner.swift,231,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+BedrockServerBackend.swift,658,legacy,platform,none,high,Do not port; Docker backend superseded by VZ. Keep as behavioral reference only.
+BedrockSkinFetcher.swift,175,platform,platform,low,high,Return portable image data; never expose NSImage from the agent.
+BedrockVersionFetcher.swift,138,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+BroadcastConfigManager.swift,347,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+ChunkerManager.swift,462,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+ClientExportSheet.swift,308,ui,ui,low,high,Rebuild in Svelte; no engine port.
+CommandPaletteView.swift,652,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ComponentVersionParsing.swift,111,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+ConceptGuideDiagrams.swift,271,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ConceptGuideView.swift,734,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ConfigManager.swift,309,mixed,io_orchestration,high,high,Rust config repository + platform secret store; preserve atomicity and corruption recovery.
+ConsoleManager.swift,474,mixed,pure_domain,medium,high,Split pure line parsing from Combine/UI filter state; agent buffer + client filters.
+ConsoleView.swift,485,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ContentView.swift,1371,mixed,ui,medium,medium,Symbol-level review: extract embedded parsing/validation/IO before deleting the view.
+ContentViewRunnerSupport.swift,110,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ContextualHelpFoundation.swift,457,ui,ui,low,high,Rebuild in Svelte; no engine port.
+CreateServerView.swift,798,ui,ui,low,high,Rebuild in Svelte; no engine port.
+CreateWorldSlotSheet.swift,131,ui,ui,low,high,Rebuild in Svelte; no engine port.
+CrossPlatformGuideSheet.swift,946,ui,ui,low,high,Rebuild in Svelte; no engine port.
+CurseForgeAPI.swift,145,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+CurseForgeManualDownloadSheet.swift,344,mixed,ui,medium,medium,Symbol-level review: extract embedded parsing/validation/IO before deleting the view.
+CurseForgeModpack.swift,239,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+DetailsClipboardAndHUDHelpers.swift,29,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsComponentsActions.swift,46,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsComponentsTabView.swift,1529,mixed,ui,medium,medium,Symbol-level review: extract embedded parsing/validation/IO before deleting the view.
+DetailsHeaderSectionView.swift,184,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsOverviewTabView.swift,353,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsPacksTabView.swift,406,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsPerformanceCharts.swift,162,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsPerformanceComponents.swift,170,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsPerformanceHelpers.swift,127,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsPerformanceTabContent.swift,340,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsPerformanceTabView.swift,24,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsPlayersTabView.swift,478,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsSettingsTabView.swift,207,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsView.swift,330,ui,ui,low,high,Rebuild in Svelte; no engine port.
+DetailsWorldsTabView.swift,928,ui,ui,low,high,Rebuild in Svelte; no engine port.
+EULAManager.swift,44,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+FirstStartSheetView.swift,540,ui,ui,low,high,Rebuild in Svelte; no engine port.
+GeyserConfigManager.swift,166,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+GitHubReleaseChecker.swift,94,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+HangarAPI.swift,104,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+HeadlessScriptGenerator.swift,234,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+HeadlessScriptSheet.swift,312,ui,ui,low,high,Rebuild in Svelte; no engine port.
+HealthCardModels.swift,66,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+HealthCardsGridView.swift,692,ui,ui,low,high,Rebuild in Svelte; no engine port.
+HealthCardsStripView.swift,359,ui,ui,low,high,Rebuild in Svelte; no engine port.
+JavaHiddenProfiles.swift,44,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+JavaInstaller.swift,372,mixed,ui,medium,high,Extract provider selection + extraction + verification; UI becomes operation view.
+JavaProcessScanner.swift,77,platform,platform,medium,high,Per-OS process enumeration and ownership checks.
+JavaRuntimeManager.swift,289,mixed,io_orchestration,medium,high,Split pure Java version policy from per-OS runtime discovery.
+JavaServerBackend.swift,107,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+JavaServerFlavor.swift,247,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+JavaServerLaunchHelper.swift,87,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+JoinCardView.swift,587,ui,ui,low,high,Rebuild in Svelte; no engine port.
+KeychainManager.swift,233,platform,platform,medium,high,Implement SecretStore trait: Keychain / DPAPI / Linux protected store.
+MSCSettingsSections.swift,1414,ui,ui,low,high,Rebuild in Svelte; no engine port.
+MSCSettingsView.swift,1036,mixed,ui,medium,medium,Symbol-level review: extract embedded parsing/validation/IO before deleting the view.
+MSCStyles.swift,722,ui,ui,low,high,Rebuild in Svelte; no engine port.
+MSCTabBar.swift,180,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ManageServersView.swift,403,ui,ui,low,high,Rebuild in Svelte; no engine port.
+MessagePlayerSheetView.swift,43,ui,ui,low,high,Rebuild in Svelte; no engine port.
+MinecraftCommandRegistry.swift,543,mixed,ui,low,high,Extract command catalog to JSON/Rust; SwiftUI category colors stay in frontend.
+MinecraftServerControllerApp.swift,272,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ModJarMetadataParser.swift,197,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+ModpackClientOnlyClassifier.swift,148,mixed,io_orchestration,medium,high,Pure classification policy + separate file adapter; preserve evidence precedence.
+ModrinthAPI.swift,442,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+ModrinthBrowserView.swift,848,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ModrinthSlugNormalizer.swift,77,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+NeoForgeInstaller.swift,541,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+NotesAutoSaveProxy.swift,19,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+OnboardingAnchorKey.swift,58,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OnboardingManager.swift,424,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OnboardingOverlayView.swift,511,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewActiveWorldCardView.swift,350,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewAlertBannersView.swift,92,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewChatCardView.swift,244,mixed,ui,medium,high,EXTRACT ChatFeedParser (chat/advancement/join/leave) before deleting the card.
+OverviewConnectionCardView.swift,605,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewConnectionHelpers.swift,55,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewDuckDNSSectionView.swift,52,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewHealthCardView.swift,172,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewHealthHelpers.swift,34,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+OverviewPlayerRowHelpers.swift,161,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewPlayersCardView.swift,194,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewPlayersStripView.swift,676,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewQuickActionsCardView.swift,105,ui,ui,low,high,Rebuild in Svelte; no engine port.
+OverviewServerStatusBarView.swift,96,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PaperDownloader.swift,320,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+PaperVersionSidecar.swift,52,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+PerformanceHelpSheetView.swift,252,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PlayerAvatarView.swift,477,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PlayerDataManager.swift,165,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+PlayerInventoryView.swift,198,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PlayerNBTReader.swift,379,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+PlayerProfile.swift,177,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+PlayerProfileCardView.swift,285,mixed,ui,medium,medium,Symbol-level review: extract embedded parsing/validation/IO before deleting the view.
+PlayerProfileDetailSheet.swift,1042,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PlayerProfilesCard.swift,224,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PlayerSessionTimelineView.swift,232,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PlayerSkinRenderer.swift,143,platform,platform,low,high,Move rendering to frontend or portable image library.
+PlayerSkinStore.swift,117,platform,platform,low,high,Separate image bytes/metadata from NSImage.
+PlayitAgentManager.swift,114,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+PlayitBinaryManager.swift,163,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+PlayitSetupGuideSheet.swift,357,ui,ui,low,high,Rebuild in Svelte; no engine port.
+PluginDownloader.swift,135,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+PluginNameParser.swift,61,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+PluginSourceDetector.swift,88,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+PrerequisitesView.swift,587,mixed,ui,medium,high,Extract Java/VM/process/filesystem probes into agent capability checks.
+PurpurConfigManager.swift,154,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+QuickCommandsView.swift,328,ui,ui,low,high,Rebuild in Svelte; no engine port.
+QuickStartView.swift,574,ui,ui,low,high,Rebuild in Svelte; no engine port.
+QuickStartWindowController.swift,59,ui,ui,low,high,Rebuild as Tauri window behavior; no engine port.
+RemoteAPIServer+ComponentRoutes.swift,1162,api_contract,pure_domain,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RemoteAPIServer+HTTP.swift,1321,api_contract,pure_domain,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RemoteAPIServer+Settings.swift,355,api_contract,pure_domain,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RemoteAPIServer+UserRoutes.swift,85,api_contract,pure_domain,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RemoteAPIServer+WebSocket.swift,183,api_contract,pure_domain,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RemoteAPIServer.swift,902,api_contract,platform,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RemoteAPIServerDTOs.swift,1504,api_contract,pure_domain,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RemoteAPIServerSupport.swift,148,api_contract,pure_domain,medium,high,"Becomes OpenAPI + WS schema; observable behavior normative, implementation replaced."
+RenameWorldView.swift,196,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ReplaceWorldView.swift,318,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ResourcePackHostServer.swift,141,platform,platform,low,high,Reimplement on the Rust HTTP stack; drop Network.framework.
+ResourcePackManager.swift,627,mixed,io_orchestration,medium,medium,"Split pack domain (Java+Bedrock formats, UUIDs) from archive/hash services."
+ResourcePacksView.swift,428,ui,ui,low,high,Rebuild in Svelte; no engine port.
+RouterPortForwardFallbackDecisionTree.swift,611,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RouterPortForwardGuideCatalogLoader.swift,138,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RouterPortForwardGuideComposer.swift,307,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RouterPortForwardGuideMaintenance.swift,551,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RouterPortForwardGuideMatcher.swift,321,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RouterPortForwardGuidePicker.swift,563,ui,ui,low,high,Rebuild in Svelte; no engine port.
+RouterPortForwardGuideReader.swift,868,mixed,ui,medium,medium,Extract runtime resolution; reader UI becomes Svelte.
+RouterPortForwardGuideRepository.swift,93,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RouterPortForwardGuideRuntimeResolver.swift,292,io_orchestration,vm_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+RouterPortForwardGuideSheet.swift,94,ui,ui,low,high,Rebuild in Svelte.
+RouterPortForwardGuideSheetViewModel.swift,213,ui,ui,low,high,Rebuild in Svelte; no engine port.
+RouterPortForwardGuideTroubleshootingScreen.swift,450,ui,ui,low,high,Rebuild in Svelte; no engine port.
+RouterPortForwardGuidesFoundation.swift,1434,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RouterPortForwardTroubleshootingEngine.swift,551,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+RunnerScene.swift,687,ui,ui,low,high,Rebuild in Svelte; no engine port.
+Server.swift,11,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+ServerBackend.swift,70,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+ServerEditorBackupsTab.swift,141,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerEditorBroadcastTab.swift,306,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerEditorDockerTab.swift,48,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerEditorGeneralTab.swift,219,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerEditorJarsTab.swift,380,mixed,ui,medium,medium,Extract JAR inspection/validation before rebuilding tab.
+ServerEditorModels.swift,98,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+ServerEditorSettingsTab.swift,69,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerEditorSidebar.swift,250,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerEditorSupportViews.swift,279,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerEditorView.swift,1279,mixed,ui,medium,medium,Symbol-level review: extract embedded parsing/validation/IO before deleting the view.
+ServerEditorWorldTab.swift,786,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerFilesTabView.swift,707,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerHandbookComponents.swift,335,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerHandbookTopics.swift,1831,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerHandbookView.swift,580,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerJarProviders.swift,585,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+ServerLifecycleManager.swift,120,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+ServerNotesSectionView.swift,98,ui,ui,low,high,Rebuild in Svelte; no engine port.
+ServerProcessManager.swift,415,mixed,io_orchestration,high,high,Per-OS process supervisor behind a common trait; preserve framing + stop semantics.
+ServerPropertiesManager.swift,48,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+ServerSettingsView.swift,789,mixed,ui,medium,high,Extract draft models + Java/Bedrock validation into shared settings schema.
+ServerTransferView.swift,388,ui,ui,low,high,Rebuild in Svelte; no engine port.
+SessionLogManager.swift,101,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+SetupWizardView.swift,1461,mixed,ui,medium,medium,Extract prerequisite/environment probes; wizard becomes frontend over capability API.
+SidebarView.swift,834,ui,ui,low,high,Rebuild in Svelte; no engine port.
+SplashGateView.swift,222,ui,ui,low,high,Rebuild in Svelte; no engine port.
+StartupCrashAnalyzer.swift,588,pure_domain,io_orchestration,low,high,Translate against existing fixtures; highest-value domain knowledge.
+StartupProblemsSheet.swift,311,ui,ui,low,high,Rebuild in Svelte; no engine port.
+TemplateItemDisplay.swift,85,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+TemplateView.swift,562,ui,ui,low,high,Rebuild in Svelte; no engine port.
+TpsLineParser.swift,152,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.
+UDPRelay.swift,64,platform,platform,medium,medium,"Rust UDP relay, or retain in Bedrock sidecar if VM addressing requires it."
+VMBedrockServerBackend.swift,451,platform,platform,high,high,Retain as macOS Swift sidecar behind BedrockRuntime protocol; do not rewrite in Rust.
+WatchdogRunner.swift,160,platform,io_orchestration,medium,high,Replace with launchd / Windows Service recovery / systemd policies.
+WorldConversionWizardView.swift,996,ui,ui,low,high,Rebuild in Svelte; no engine port.
+WorldRepairView.swift,255,ui,ui,low,high,Rebuild in Svelte; no engine port.
+WorldSlotManager.swift,1495,mixed,platform,high,high,Port slot/activation/import/export logic; split NSImage thumbnail + NSSavePanel out.
+WorldSlotsView.swift,489,ui,ui,low,high,Rebuild in Svelte; no engine port.
+XboxBroadcastDownloader.swift,101,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+XboxBroadcastProcessManager.swift,278,io_orchestration,io_orchestration,medium,medium,"Reimplement idiomatically in Rust; preserve ordering, validation, rollback, failure semantics."
+YAMLHelper.swift,55,pure_domain,pure_domain,low,high,Translate to Rust against language-neutral fixtures.

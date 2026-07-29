@@ -1,0 +1,34 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / frontend
+node_modules/
+dist/
+.svelte-kit/
+.vite/
+
+# Tauri
+src-tauri/target/
+
+# macOS
+.DS_Store
+*.xcuserstate
+xcuserdata/
+
+# Editors
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# Environment / secrets — never commit these
+.env
+.env.*
+*.pem
+*.p12
+*.key
+
+# Local scratch
+/scratch/
+*.local.md

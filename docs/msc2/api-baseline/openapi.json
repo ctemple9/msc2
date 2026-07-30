@@ -2178,6 +2178,23 @@
           }
         }
       }
+    },
+    "/stop": {
+      "post": {
+        "summary": "Stop the active server",
+        "responses": {
+          "200": {
+            "description": "result: stop_requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResult"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

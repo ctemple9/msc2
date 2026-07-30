@@ -1,6 +1,6 @@
 # MSC 2 — What It Is
 
-**Revision:** 1.3 · **Date:** 2026-07-29 · **Owner:** Cameron Temple
+**Revision:** 1.4 · **Date:** 2026-07-30 · **Owner:** Cameron Temple
 
 This document describes MSC 2 in plain language: what it does, who it's for, and what using it feels like. No code, no architecture.
 
@@ -211,7 +211,9 @@ A file browser scoped to your server. View and edit config files, upload and dow
 
 ### Help
 
-The Server Handbook is available inside every interface. Help is contextual — clicking a warning, a setting, or a performance number opens the explanation for that specific thing.
+The Server Handbook is available inside every interface — desktop, web, phone, and even the terminal (`msc explain port-forwarding`). It's written once and served by the same engine that runs your servers, so every interface shows the same thing and none of them can fall behind.
+
+Help is contextual. Clicking a warning, a setting, or a performance number opens the explanation for that specific thing — because each of those carries a pointer to its own explanation rather than relying on someone having wired help into that particular screen.
 
 You should never need to leave MSC and search for terminology.
 

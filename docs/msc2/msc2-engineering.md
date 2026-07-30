@@ -1,6 +1,6 @@
 # MSC 2 — Engineering Specification
 
-**Revision:** 1.3 · **Date:** 2026-07-29 · **Owner:** Cameron Temple
+**Revision:** 1.4 · **Date:** 2026-07-30 · **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3`
 
 **Companion documents:**
@@ -587,7 +587,61 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 
 ---
 
-## 18. Open engineering questions
+## 18. Educational content (D-026)
+
+MSC 1's teaching material is among its largest assets: a 31-topic Server Handbook across 6 categories, a concept guide, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help throughout. It is also the clearest example of the duplication MSC 2 removes — all of it is Swift compiled into the macOS app, so iOS required a second, separately-written educational surface (`QuickGuideView`, 706 lines).
+
+**Content is data the agent serves. Clients render it; they never author it.**
+
+### The model
+
+| Content | Form | Owner |
+|---|---|---|
+| Handbook topics, concept explanations | Structured content files, served over the API | Agent |
+| Router guide catalog, router records, step text | Data (JSON) | Agent |
+| Router matcher, fallback resolver, composer, troubleshooting tree | **Executable behavior** — translated to Rust | Agent |
+| Onboarding step content and ordering | Data | Agent |
+| Onboarding *anchoring* to UI elements | Per-client | Client |
+| Rendering, typography, layout | Per-client | Client |
+
+### `helpId` — help follows the data, not the screen
+
+Every explainable thing carries a pointer to its explanation: settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings.
+
+This extends a pattern that already works. MSC 1's schema-driven settings contract has the agent describe fields and clients render them generically — which is why Bedrock settings reached iOS with **zero iOS changes**. Adding `helpId` to that description means a new setting arrives with its explanation already attached, on every client, without client work.
+
+```
+SettingFieldDTO {
+    key, label, type, value, constraints,
+    helpId: "settings.difficulty"      // resolved via the API
+}
+```
+
+**This must be in the contract before Phase 2 freezes it.** Retrofitting a help pointer onto every DTO afterwards is materially more expensive than including it from the start.
+
+### The CLI teaches too
+
+```
+msc explain port-forwarding
+msc explain settings.view-distance
+```
+
+Same content, same source. Any surface that can render text can teach — which is the whole point of taking it out of the clients.
+
+### Consequences
+
+- Content is reviewable and diffable in git rather than buried in view code
+- Content updates ship with the agent, not with four separate client releases
+- Localization — currently a declined non-goal — becomes tractable later without touching any client
+- Content must be versioned against the API: a topic may describe a capability an older client does not have
+
+### Open questions
+
+Content format (Markdown with front-matter is the obvious candidate) · embedded in the agent binary vs read from disk (on-disk allows updates without a release; embedded guarantees presence) · whether concept-guide diagrams are assets or generated · how a topic degrades when it describes a feature the connected client lacks.
+
+---
+
+## 19. Open engineering questions
 
 | Question | Blocks | Note |
 |---|---|---|
@@ -596,6 +650,7 @@ Every megabyte the agent holds on an 8 GB host is a megabyte Java cannot have. T
 | Is the D-019 permission-category vocabulary correct across all 87 routes? | Contract freeze | Validate against the full route inventory. |
 | The six unspecified authentication areas (§10) | Contract freeze | Remote desktop pairing is the largest gap. |
 | Idle-agent memory targets (§17) | Release gating | Must be measured, not estimated. |
+| Educational content format; embedded vs on-disk (§18) | Phase 2 contract freeze | `helpId` must exist before DTOs are frozen. |
 | Is `UDPRelay` a general Bedrock need or VM-specific? | Phase 10 | Determine during Linux Bedrock work. |
 | Self-update mechanics for app + agent + sidecar as a set | Phase 11 | macOS/Windows only; Linux defers to the package manager. |
 | Console history bound — lines, bytes, or time? | Phase 4 | Affects reconnect behavior and agent memory. |

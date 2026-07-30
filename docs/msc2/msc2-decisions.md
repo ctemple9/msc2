@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.3 · **Date:** 2026-07-29
+**Revision:** 1.4 · **Date:** 2026-07-30
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -54,6 +54,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-023 | Full client capability, tracked by an explicit matrix | **Approved** (requirement) / Proposed (mechanism) | 2026-07-29 |
 | D-024 | Power management has two policies, by host role | Proposed | — |
 | D-025 | Service identity and privilege boundaries | Open | — |
+| D-026 | Educational content is served data, not client code | **Approved** (requirement) / Proposed (mechanism) | 2026-07-30 |
 
 ---
 
@@ -500,6 +501,37 @@ This is unresolved design work with wide blast radius, recorded as Open rather t
 
 ---
 
+## D-026 — Educational content is served data, not client code
+
+**Status:** **Approved** (that MSC 2 teaches, everywhere) · **Proposed** (serving it as data)
+**Origin:** Owner — `msc2.md`: *"The Server Handbook remains available inside every interface. Help is contextual… The application teaches without forcing the user to leave the interface and search for terminology."* Mechanism raised by the owner 2026-07-30. · **Approved by:** Cameron Temple · **Date:** 2026-07-30
+
+**Context.** MSC 1's teaching material is one of its largest and most distinctive assets — a 31-topic Server Handbook across 6 categories (each with a "think of it like this" analogy), a concept guide with diagrams, an onboarding tour over the live UI, ~18 files of router port-forwarding guides with brand matching and a troubleshooting decision tree, and contextual help sheets throughout. An external review named it *"the product's personality… rare for a hobby-scale project."*
+
+**The problem it currently has.** All of it is Swift compiled into the macOS app. iOS could not use any of it, so a second educational surface was written — `QuickGuideView`, 706 lines — with its own separate content. That is precisely the duplication MSC 2 exists to remove, applied to prose instead of logic. It also means correcting a typo in a handbook topic requires an App Store release.
+
+**Decision.** Educational content is **structured data owned by the agent and served over the API**, not code compiled into any client.
+
+1. **Handbook topics, concept explanations, and guide content** live as structured content files in the repo, served by the agent. Clients render; they do not author.
+2. **Every explainable thing carries a `helpId`.** Settings fields, health cards, diagnostics, performance metrics, and connection methods each reference their explanation. Clients resolve the ID through the API rather than wiring help to a screen.
+3. **Router guides keep their rule engine.** The catalog, router records, and step content are data; the matcher, fallback resolver, composer, and troubleshooting decision tree are executable behavior and are translated to Rust (see the port plan).
+4. **The onboarding tour splits.** Step content and ordering are data; only the *anchoring* to specific UI elements is client-side, because it is inherently per-client.
+5. **The CLI is a first-class consumer.** `msc explain <topic>` renders the same content as the handbook. Any surface that can display text can teach.
+
+**Rationale.** Write a topic once, and it appears on desktop, web, phone, and terminal. Content updates ship with the agent rather than with four separate clients. And a new setting arrives with its explanation already attached on every surface — which is the same leverage the schema-driven settings contract already demonstrated when Bedrock settings reached iOS with zero iOS changes.
+
+**Consequences.**
+- The content model and `helpId` must be in the API contract **before Phase 2 freezes it.** Retrofitting a help pointer onto every DTO afterwards is far more expensive than including it now.
+- Content becomes reviewable and diffable in git rather than buried in view code.
+- Localization, currently a declined non-goal, becomes tractable later without touching any client.
+- Someone must decide the content format (Markdown with front-matter is the obvious candidate) and whether content is embedded in the agent binary or read from disk — the latter permits updates without a release, the former guarantees it is always present.
+
+**Open.** Content format · embedded vs on-disk · whether the concept-guide diagrams are assets or generated · how content is versioned against API versions when a topic describes a feature an older client lacks.
+
+**Revisit if:** the content model proves too rigid for the router guides, which are the most structurally complex educational surface and the natural stress test.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -527,6 +559,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 | Rev | Date | Change |
 |---|---|---|
 | 1.0 | 2026-07-29 | Initial register, 20 entries. |
+| 1.4 | 2026-07-30 | Added D-026 (educational content is served data, not client code) after the owner identified that MSC 1's teaching material — its largest distinctive asset — had no home in the MSC 2 architecture. |
 | 1.3 | 2026-07-29 | Third Codex review: symbol-ledger contradiction removed everywhere; Phase 0 scoped to what MSC 1 can demonstrate and split from per-domain characterization; product permissions description corrected to name scoped tokens; D-024 (power management, two policies) and D-025 (service identity and privilege boundaries, Open) added; unmeasured memory figure and the "can never drift" claim softened. |
 | 1.2 | 2026-07-29 | Second Codex review: D-011/D-021/D-023 promoted to Approved with `msc2.md` as origin; D-006 restated as baseline + extension + correction; symbol-ledger overclaim corrected; LaunchDaemon and headless sidecar specified; capability-exception path tightened. |
 | 1.1 | 2026-07-29 | Codex review incorporated. Added Origin / Approved by / Approval date to all entries and split *Approved* from *Proposed*. Corrected D-019 (MSC 1's permission model is richer than stated). Expanded D-011 to tri-platform headless. Expanded D-012 with the six unspecified auth areas. Corrected the "no cloud" principle in D-015. Removed sequencing from D-016 to `msc2-port-plan.md` and relaxed the extraction rule. Added D-021 (resource efficiency), D-022 (separate compatibility matrices), D-023 (capability matrix). |

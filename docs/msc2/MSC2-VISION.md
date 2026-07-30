@@ -1,6 +1,6 @@
 # MSC 2 — Vision Set
 
-**Set revision:** 1.3 · **Date:** 2026-07-29
+**Set revision:** 1.4 · **Date:** 2026-07-30
 **Owner:** Cameron Temple
 **Baseline:** MSC 1 at commit `fccd61f0ed743086f1f5db6bef58e228a36010f3` (246 production Swift files, 97,357 lines)
 
@@ -12,10 +12,10 @@ This is the entry point. The five documents below are **one controlled set** and
 
 | Document | Revision | Contains | Changes |
 |---|---|---|---|
-| **`MSC2-VISION.md`** (this file) | 1.3 | Index, revision state, owner-confirmed requirements, precedence rules | Rarely |
-| **`msc2-product.md`** | 1.3 | What MSC 2 is in plain language: purpose, audience, experience, guarantees, non-goals | Rarely |
-| **`msc2-engineering.md`** | 1.3 | Architecture, API contract, module boundaries, platform matrices, security, verification guarantees, resource requirements | Occasionally |
-| **`msc2-decisions.md`** | 1.3 | Numbered decision register with origin, approval, rationale, rejected alternatives | Append-only |
+| **`MSC2-VISION.md`** (this file) | 1.4 | Index, revision state, owner-confirmed requirements, precedence rules | Rarely |
+| **`msc2-product.md`** | 1.4 | What MSC 2 is in plain language: purpose, audience, experience, guarantees, non-goals | Rarely |
+| **`msc2-engineering.md`** | 1.4 | Architecture, API contract, module boundaries, platform matrices, security, verification guarantees, resource requirements | Occasionally |
+| **`msc2-decisions.md`** | 1.4 | Numbered decision register with origin, approval, rationale, rejected alternatives | Append-only |
 | **`msc2-port-plan.md`** | 1.2 | Execution sequencing and the fixture inventory | **Often — deliberately separated** |
 
 **Why the port plan is separate.** The vision defines the destination and its guarantees; the port plan defines a route. Routes change. Keeping them apart means a rescheduled phase never forces an edit to the vision.
@@ -64,6 +64,7 @@ Everything below was decided by the owner directly, not inferred.
 | 11 | **Complete headless mode on every platform** — macOS, Windows, and Linux — with the GUI optional everywhere. *(From `msc2.md`.)* | D-011 |
 | 12 | **Resource efficiency is a requirement**, not an aspiration. *(Founding motivation, from `msc2.md`. Specific benchmark values remain proposed.)* | D-021 |
 | 13 | **Full mobile capability** — the phone is not a status-only remote. *(From `msc2.md`. The matrix as tracking mechanism remains proposed.)* | D-023 |
+| 14 | **MSC 2 teaches, in every interface.** The Server Handbook and contextual help reach desktop, web, phone, and CLI. *(From `msc2.md`. Serving it as data rather than client code is the proposed mechanism.)* | D-026 |
 
 ### Awaiting approval
 
@@ -84,6 +85,7 @@ These are load-bearing but not yet owner-confirmed. Review them before they cons
 | D-024 | Power management: two policies by host role | Remote-starting a stopped server needs the host awake |
 | D-020 | Repository name and location | **Open, blocks everything** |
 | D-025 | **Service identity and privilege boundaries** | **Open.** Blocks the substrate and the D-012 local-auth design |
+| D-026 | Educational content as served data; `helpId` on every explainable thing | **Must land before Phase 2 freezes the contract** |
 
 ---
 
@@ -135,6 +137,7 @@ The two CSVs join on `file`. They are **file-level inputs to the future symbol l
 | Rev | Date | Change |
 |---|---|---|
 | 1.0 | 2026-07-29 | Initial three-document set. |
+| 1.4 | 2026-07-30 | Added D-026 and `msc2-engineering.md` §18: MSC 1's teaching material — 31 handbook topics, the concept guide, ~18 router-guide files, contextual help — had no home in MSC 2's architecture. Content becomes agent-served data with a `helpId` on every explainable thing, reaching all four interfaces including the CLI. Must land before the Phase 2 contract freeze. |
 | 1.3 | 2026-07-29 | Third Codex review: symbol-ledger contradiction removed set-wide; Phase 0 reduced to baseline + harness + ledger with per-domain characterization moved next to each translation; cross-platform tests moved out of MSC 1 characterization; product permissions corrected to name scoped tokens; D-024 (power management) and D-025 (service identity, Open) added; wording polished — graphical desktop environment, unmeasured memory figure removed, drift claim softened. |
 | 1.2 | 2026-07-29 | Second Codex review: owner-origin requirements promoted to Approved (headless everywhere, resource efficiency, full mobile capability); N-3 and mechanical-gate contradictions removed; API restated as baseline + extension + correction; symbol-ledger overclaim corrected; LaunchDaemon and headless sidecar specified; Linux secret storage opened as a named gap; macOS desktop example corrected; Phase 0 split from cross-platform acceptance tests; Windows added to the Phase 4 exit criteria; precedence now ranks approval status above document. |
 | 1.1 | 2026-07-29 | Codex review incorporated: approval state separated from analysis; tri-platform headless; auth gaps named; MSC 1 permission model corrected; "no cloud" principle restated; execution split into `msc2-port-plan.md`; extraction rule relaxed; resource efficiency, support matrices, and capability matrix added; this index created. |

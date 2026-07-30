@@ -1,0 +1,28 @@
+{
+  "domain": "modpack-pinning",
+  "case": "version-entry-fabric-loader-is-honored",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testVersionEntryFabricLoaderIsHonored",
+    "line": 136
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Test Pack",
+      "dependencies": {
+        "fabric-loader": "0.16.9",
+        "minecraft": "1.21.1"
+      },
+      "files": []
+    }
+  },
+  "expected": {
+    "loaderVersion": "0.16.9",
+    "buildLabel": "Fabric 0.16.9"
+  },
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper. The pinned fabric-loader version must survive into .versionEntry so the download path can use it, not just MrpackMetadata itself."
+}

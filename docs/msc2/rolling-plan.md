@@ -242,18 +242,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.16: extract CurseForge modpack fixtures`
 
 ### P0.17 — Extract modpack client-only classification fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/modpack-client-only/`
 **What:** Pull the 18 test cases out of `ModpackClientOnlyTests.swift` (manifest-env and Modrinth-side/CurseForge-side client-only detection).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-client-only --expect 18` → `ok 18`
 **Commit:** `P0.17: extract modpack client-only classification fixtures`
 
 ### P0.18 — Extract modpack pinning fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/modpack-pinning/`
 **What:** Pull the 13 test cases out of `ModpackPinningTests.swift` (Forge Maven version listing, dedup, sort).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-pinning --expect 13` → `ok 13`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.18: extract modpack pinning fixtures`
 
 ### P0.19 — Extract `.mrpack` extraction fixtures
 **Status:** not started

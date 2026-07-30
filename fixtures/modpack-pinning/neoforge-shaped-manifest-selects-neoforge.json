@@ -1,0 +1,28 @@
+{
+  "domain": "modpack-pinning",
+  "case": "neoforge-shaped-manifest-selects-neoforge",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testNeoForgeShapedManifestSelectsNeoForge",
+    "line": 108
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Test Pack",
+      "dependencies": {
+        "neoforge": "21.1.90",
+        "minecraft": "1.21.1"
+      },
+      "files": []
+    }
+  },
+  "expected": {
+    "loaderFlavor": "neoforge",
+    "loaderVersion": "21.1.90"
+  },
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper."
+}

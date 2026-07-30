@@ -1,0 +1,28 @@
+{
+  "domain": "modpack-pinning",
+  "case": "manifest-with-no-loader-has-nil-flavor",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testManifestWithNoLoaderHasNilFlavor",
+    "line": 115
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Test Pack",
+      "dependencies": {
+        "minecraft": "1.20.1"
+      },
+      "files": []
+    }
+  },
+  "expected": {
+    "minecraftVersion": "1.20.1",
+    "loaderFlavor": null,
+    "loaderVersion": null
+  },
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper. A dependencies block with only 'minecraft' and no loader key at all."
+}

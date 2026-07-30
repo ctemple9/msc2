@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-pinning",
+  "case": "forge-maven-empty-xml-yields-no-entries",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testForgeMavenEmptyXMLYieldsNoEntries",
+    "line": 76
+  },
+  "input": {
+    "function": "ForgeInstaller.parseMavenMetadata",
+    "xml": "<metadata></metadata>"
+  },
+  "expected": {
+    "entriesEmpty": true
+  }
+}

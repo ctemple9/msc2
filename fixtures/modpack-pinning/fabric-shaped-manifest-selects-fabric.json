@@ -1,0 +1,29 @@
+{
+  "domain": "modpack-pinning",
+  "case": "fabric-shaped-manifest-selects-fabric",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testFabricShapedManifestSelectsFabric",
+    "line": 100
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Test Pack",
+      "dependencies": {
+        "fabric-loader": "0.16.9",
+        "minecraft": "1.21.1"
+      },
+      "files": []
+    }
+  },
+  "expected": {
+    "minecraftVersion": "1.21.1",
+    "loaderFlavor": "fabric",
+    "loaderVersion": "0.16.9"
+  },
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper."
+}

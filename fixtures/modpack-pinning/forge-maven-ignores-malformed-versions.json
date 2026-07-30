@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-pinning",
+  "case": "forge-maven-ignores-malformed-versions",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testForgeMavenIgnoresMalformedVersions",
+    "line": 57
+  },
+  "input": {
+    "function": "ForgeInstaller.parseMavenMetadata",
+    "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<metadata>\n  <groupId>net.minecraftforge</groupId>\n  <artifactId>forge</artifactId>\n  <versioning>\n    <versions>\n      <version>1.19.2-43.2.0</version>\n      <version>1.20.1-47.4.1</version>\n      <version>1.20.1-47.4.10</version>\n      <version>1.20.1-47.4.21</version>\n      <version>garbage-entry</version>\n      <version>1.20.1-47.4.1</version>\n    </versions>\n  </versioning>\n</metadata>"
+  },
+  "expected": {
+    "noEntryWithMcVersionGarbage": true,
+    "noEntryWithIdContainingGarbage": true
+  },
+  "notes": "The XML's 'garbage-entry' line (no MC-version-dash-loader-version shape) must produce no entry at all, not a malformed one."
+}

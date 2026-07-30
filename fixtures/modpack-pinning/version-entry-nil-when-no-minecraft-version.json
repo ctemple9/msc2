@@ -1,0 +1,24 @@
+{
+  "domain": "modpack-pinning",
+  "case": "version-entry-nil-when-no-minecraft-version",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testVersionEntryNilWhenNoMinecraftVersion",
+    "line": 144
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Test Pack",
+      "dependencies": {
+        "forge": "47.4.1"
+      },
+      "files": []
+    }
+  },
+  "expected": null,
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper. A dependencies block with a loader but NO 'minecraft' key at all — .versionEntry must be nil (there's no MC version to pin a picker entry to), even though the loader flavor/version themselves would still resolve."
+}

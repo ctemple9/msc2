@@ -1,0 +1,22 @@
+{
+  "domain": "modpack-pinning",
+  "case": "forge-maven-lists-non-promoted-build",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testForgeMavenListsNonPromotedBuild",
+    "line": 42
+  },
+  "input": {
+    "function": "ForgeInstaller.parseMavenMetadata",
+    "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<metadata>\n  <groupId>net.minecraftforge</groupId>\n  <artifactId>forge</artifactId>\n  <versioning>\n    <versions>\n      <version>1.19.2-43.2.0</version>\n      <version>1.20.1-47.4.1</version>\n      <version>1.20.1-47.4.10</version>\n      <version>1.20.1-47.4.21</version>\n      <version>garbage-entry</version>\n      <version>1.20.1-47.4.1</version>\n    </versions>\n  </versioning>\n</metadata>"
+  },
+  "expected": {
+    "entryWithMcAndLoader": {
+      "mcVersion": "1.20.1",
+      "loaderVersion": "47.4.1"
+    },
+    "buildLabel": "Forge 47.4.1",
+    "id": "1.20.1—47.4.1"
+  },
+  "notes": "BMC4's exact (non-promoted) build 47.4.1 must be selectable — this is the whole point of the change this test pins. id uses an em dash (—, U+2014), copied exactly from the source assertion, same as P0.16's forge-manifest-metadata-pins-loader fixture."
+}

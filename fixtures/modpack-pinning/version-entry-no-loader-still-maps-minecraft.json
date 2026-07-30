@@ -1,0 +1,28 @@
+{
+  "domain": "modpack-pinning",
+  "case": "version-entry-no-loader-still-maps-minecraft",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testVersionEntryNoLoaderStillMapsMinecraft",
+    "line": 149
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Test Pack",
+      "dependencies": {
+        "minecraft": "1.20.1"
+      },
+      "files": []
+    }
+  },
+  "expected": {
+    "mcVersion": "1.20.1",
+    "loaderVersion": null,
+    "buildLabel": null
+  },
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper."
+}

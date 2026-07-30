@@ -1,0 +1,23 @@
+{
+  "domain": "modpack-pinning",
+  "case": "forge-maven-sorts-newest-mc-then-newest-build",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testForgeMavenSortsNewestMCThenNewestBuild",
+    "line": 62
+  },
+  "input": {
+    "function": "ForgeInstaller.parseMavenMetadata",
+    "xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<metadata>\n  <groupId>net.minecraftforge</groupId>\n  <artifactId>forge</artifactId>\n  <versioning>\n    <versions>\n      <version>1.19.2-43.2.0</version>\n      <version>1.20.1-47.4.1</version>\n      <version>1.20.1-47.4.10</version>\n      <version>1.20.1-47.4.21</version>\n      <version>garbage-entry</version>\n      <version>1.20.1-47.4.1</version>\n    </versions>\n  </versioning>\n</metadata>"
+  },
+  "expected": {
+    "newerMcVersionSortsFirst": true,
+    "mcVersion": "1.20.1",
+    "loaderVersionsInOrder": [
+      "47.4.21",
+      "47.4.10",
+      "47.4.1"
+    ]
+  },
+  "notes": "Two-level sort: newest Minecraft version's entries come first as a group, and within a single MC version, newest loader build comes first."
+}

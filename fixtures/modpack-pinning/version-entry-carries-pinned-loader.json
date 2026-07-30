@@ -1,0 +1,32 @@
+{
+  "domain": "modpack-pinning",
+  "case": "version-entry-carries-pinned-loader",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testVersionEntryCarriesPinnedLoader",
+    "line": 125
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Test Pack",
+      "dependencies": {
+        "forge": "47.4.1",
+        "minecraft": "1.20.1"
+      },
+      "files": []
+    }
+  },
+  "expected": {
+    "notNil": true,
+    "mcVersion": "1.20.1",
+    "loaderVersion": "47.4.1",
+    "buildLabel": "Forge 47.4.1",
+    "displayLabel": "1.20.1",
+    "id": "1.20.1—47.4.1"
+  },
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper. Tests the .versionEntry computed property on the MrpackMetadata produced by the same manifest as bmc4-shaped-manifest-selects-forge above."
+}

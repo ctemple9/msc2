@@ -1,0 +1,29 @@
+{
+  "domain": "modpack-pinning",
+  "case": "bmc4-shaped-manifest-selects-forge",
+  "source": {
+    "file": "ModpackPinningTests.swift",
+    "test": "testBMC4ShapedManifestSelectsForge",
+    "line": 92
+  },
+  "input": {
+    "function": "MrpackMetadata.from",
+    "manifest": {
+      "formatVersion": 1,
+      "game": "minecraft",
+      "versionId": "43",
+      "name": "Better MC BMC4",
+      "dependencies": {
+        "forge": "47.4.1",
+        "minecraft": "1.20.1"
+      },
+      "files": []
+    }
+  },
+  "expected": {
+    "minecraftVersion": "1.20.1",
+    "loaderFlavor": "forge",
+    "loaderVersion": "47.4.1"
+  },
+  "notes": "The source test builds MrpackManifest JSON via a shared 'manifest(dependencies:name:)' helper: {formatVersion:1, game:\"minecraft\", versionId:\"43\", name, dependencies, files:[]} — 'manifest' here is that fully-assembled shape, not just the varied dependencies/name the test passes to the helper."
+}

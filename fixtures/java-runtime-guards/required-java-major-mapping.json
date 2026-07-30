@@ -1,0 +1,29 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "required-java-major-mapping",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testRequiredJavaMajorMapping",
+    "line": 129
+  },
+  "input": {
+    "function": "JavaRuntimeManager.requiredJavaMajor",
+    "minecraftVersions": [
+      "1.16.5",
+      "1.17",
+      "1.20.1",
+      "1.21",
+      "1.21.1"
+    ]
+  },
+  "expected": {
+    "results": [
+      8,
+      17,
+      17,
+      21,
+      21
+    ]
+  },
+  "notes": "The MC-to-required-Java-major mapping used by both the too-old and too-new guards."
+}

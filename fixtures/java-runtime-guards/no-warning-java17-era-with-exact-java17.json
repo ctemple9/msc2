@@ -1,0 +1,19 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "no-warning-java17-era-with-exact-java17",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testNoWarningJava17EraWithExactJava17",
+    "line": 158
+  },
+  "input": {
+    "function": "JavaRuntimeManager.compatibilityWarningText",
+    "minecraftVersion": "1.20.1",
+    "required": 17,
+    "detected": 17
+  },
+  "expected": {
+    "isNil": true
+  },
+  "notes": "Exact match between required and detected major -> no warning."
+}

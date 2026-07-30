@@ -1,0 +1,31 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "detect-installed-java-runtimes-finds-macos-jdk-bundle",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testDetectInstalledJavaRuntimesFindsMacOSJDKBundle",
+    "line": 76
+  },
+  "input": {
+    "function": "JavaRuntimeManager.detectInstalledJavaRuntimes",
+    "fsTree": {
+      "<TMP>/temurin-21.jdk/Contents/Home/bin/java": {
+        "type": "file",
+        "executable": true
+      }
+    },
+    "searchRoots": [
+      "<TMP>"
+    ]
+  },
+  "expected": {
+    "runtimes": [
+      {
+        "executablePath": "<TMP>/temurin-21.jdk/Contents/Home/bin/java",
+        "majorVersion": 21,
+        "name": "temurin-21"
+      }
+    ]
+  },
+  "notes": "The fake java executable is just a '#!/bin/sh' stub, not a real JVM, so majorVersion and name must come from parsing the macOS JDK bundle directory-naming convention ('temurin-21.jdk/Contents/Home'), never from executing the binary."
+}

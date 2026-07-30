@@ -1,0 +1,18 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "normalization-bare-command-passes-through",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testNormalizationBareCommandPassesThrough",
+    "line": 17
+  },
+  "input": {
+    "function": "JavaRuntimeManager.normalizedJavaExecutablePath",
+    "path": "java"
+  },
+  "expected": {
+    "path": "java",
+    "err": null
+  },
+  "notes": "'java' has no '/' so filesystem checks are skipped entirely — PATH resolves it at launch, not this function. No fsTree needed since nothing is touched on disk."
+}

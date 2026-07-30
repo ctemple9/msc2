@@ -1,0 +1,19 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "no-warning-java21-era-with-java25",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testNoWarningJava21EraWithJava25",
+    "line": 172
+  },
+  "input": {
+    "function": "JavaRuntimeManager.compatibilityWarningText",
+    "minecraftVersion": "1.21",
+    "required": 21,
+    "detected": 25
+  },
+  "expected": {
+    "isNil": true
+  },
+  "notes": "required=21 is already > 17, so the too-new guard does not fire here at all — Java 21-era Minecraft is generally forward-compatible with newer LTS Java versions."
+}

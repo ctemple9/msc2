@@ -1,0 +1,23 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "too-new-warning-java17-era-with-java25",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testTooNewWarningJava17EraWithJava25",
+    "line": 149
+  },
+  "input": {
+    "function": "JavaRuntimeManager.compatibilityWarningText",
+    "minecraftVersion": "1.20.1",
+    "required": 17,
+    "detected": 25
+  },
+  "expected": {
+    "isNil": false,
+    "contains": [
+      "Java 17",
+      "version 25",
+      "modpacks are usually"
+    ]
+  }
+}

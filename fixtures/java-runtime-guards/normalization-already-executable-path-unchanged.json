@@ -1,0 +1,23 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "normalization-already-executable-path-unchanged",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testNormalizationAlreadyExecutablePathUnchanged",
+    "line": 24
+  },
+  "input": {
+    "function": "JavaRuntimeManager.normalizedJavaExecutablePath",
+    "fsTree": {
+      "<TMP>/java": {
+        "type": "file",
+        "executable": true
+      }
+    },
+    "path": "<TMP>/java"
+  },
+  "expected": {
+    "path": "<TMP>/java",
+    "err": null
+  }
+}

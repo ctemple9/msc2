@@ -1,0 +1,24 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "too-new-warning-java17-era-with-java21",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testTooNewWarningJava17EraWithJava21",
+    "line": 138
+  },
+  "input": {
+    "function": "JavaRuntimeManager.compatibilityWarningText",
+    "minecraftVersion": "1.20.1",
+    "required": 17,
+    "detected": 21
+  },
+  "expected": {
+    "isNil": false,
+    "contains": [
+      "Java 17",
+      "version 21",
+      "modpacks are usually"
+    ]
+  },
+  "notes": "1.20.1 targets Java 17; detected Java 21 should warn (not block) — the too-new phrasing, distinguished from too-old by the 'modpacks are usually' substring. Source test checks substrings via .contains(), not exact text, so expected mirrors that."
+}

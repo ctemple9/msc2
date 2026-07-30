@@ -147,18 +147,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.3: extract TPS parser fixtures`
 
 ### P0.4 — Extract version-comparison fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/component-version/`
 **What:** Pull the 21 test cases out of `ComponentVersionParsingTests.swift` (component/version-string parsing and comparison).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/component-version --expect 21` → `ok 21`
 **Commit:** `P0.4: extract version-comparison fixtures`
 
 ### P0.5 — Extract Java runtime policy fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/java-runtime-guards/`
 **What:** Pull the 15 test cases out of `JavaRuntimeGuardsTests.swift` (Java version/runtime selection guards).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-runtime-guards --expect 15` → `ok 15`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.5: extract Java runtime policy fixtures`
 
 ### P0.6 — Extract server-properties model fixtures
 **Status:** not started

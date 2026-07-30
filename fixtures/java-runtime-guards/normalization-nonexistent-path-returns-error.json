@@ -1,0 +1,18 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "normalization-nonexistent-path-returns-error",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testNormalizationNonexistentPathReturnsError",
+    "line": 55
+  },
+  "input": {
+    "function": "JavaRuntimeManager.normalizedJavaExecutablePath",
+    "path": "/nonexistent/fake/path/java"
+  },
+  "expected": {
+    "path": null,
+    "errContains": "does not exist"
+  },
+  "notes": "Source test checks the error message with .contains(), not exact equality — expected here is a substring, not the full string."
+}

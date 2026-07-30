@@ -1,0 +1,24 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "normalization-home-dir-to-bin-java",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testNormalizationHomeDirToBinJava",
+    "line": 38
+  },
+  "input": {
+    "function": "JavaRuntimeManager.normalizedJavaExecutablePath",
+    "fsTree": {
+      "<TMP>/bin/java": {
+        "type": "file",
+        "executable": true
+      }
+    },
+    "path": "<TMP>"
+  },
+  "expected": {
+    "path": "<TMP>/bin/java",
+    "err": null
+  },
+  "notes": "Reproduces the user mistake of pasting a JAVA_HOME directory into Preferences instead of the java binary itself; the function must expand a directory path to its bin/java rather than trying (and failing) to execute the directory."
+}

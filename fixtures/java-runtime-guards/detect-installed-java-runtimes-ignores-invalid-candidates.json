@@ -1,0 +1,25 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "detect-installed-java-runtimes-ignores-invalid-candidates",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testDetectInstalledJavaRuntimesIgnoresInvalidCandidates",
+    "line": 108
+  },
+  "input": {
+    "function": "JavaRuntimeManager.detectInstalledJavaRuntimes",
+    "fsTree": {
+      "<TMP>/broken-21.jdk/Contents/Home/bin/java": {
+        "type": "file",
+        "executable": false
+      }
+    },
+    "searchRoots": [
+      "<TMP>"
+    ]
+  },
+  "expected": {
+    "runtimes": []
+  },
+  "notes": "The java file exists but was created without the executable bit set. Non-executable java files must not be offered as candidates in Settings."
+}

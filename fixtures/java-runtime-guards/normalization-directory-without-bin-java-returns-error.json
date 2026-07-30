@@ -1,0 +1,19 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "normalization-directory-without-bin-java-returns-error",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testNormalizationDirectoryWithoutBinJavaReturnsError",
+    "line": 62
+  },
+  "input": {
+    "function": "JavaRuntimeManager.normalizedJavaExecutablePath",
+    "fsTree": {},
+    "path": "<TMP>"
+  },
+  "expected": {
+    "path": null,
+    "errContains": "bin/java"
+  },
+  "notes": "<TMP> exists (created fresh) but is empty — no bin/java inside. Source test checks the error message with .contains(), not exact equality."
+}

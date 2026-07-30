@@ -1,0 +1,33 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "detect-installed-java-runtimes-finds-plain-java-home",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testDetectInstalledJavaRuntimesFindsPlainJavaHome",
+    "line": 91
+  },
+  "input": {
+    "function": "JavaRuntimeManager.detectInstalledJavaRuntimes",
+    "fsTree": {
+      "<TMP>/8.0.402-tem/bin/java": {
+        "type": "file",
+        "executable": true
+      },
+      "<TMP>/17.0.11-tem/bin/java": {
+        "type": "file",
+        "executable": true
+      }
+    },
+    "searchRoots": [
+      "<TMP>"
+    ]
+  },
+  "expected": {
+    "executablePathsSet": [
+      "<TMP>/17.0.11-tem/bin/java",
+      "<TMP>/8.0.402-tem/bin/java"
+    ],
+    "firstMajorVersion": 17
+  },
+  "notes": "Source test only asserts the unordered *set* of executablePaths (via Set() in Swift) plus that the first result's majorVersion is 17 ('newest detected major should sort first') — it does not pin full per-entry field values or exact ordering beyond that, so expected mirrors exactly that, not more."
+}

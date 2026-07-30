@@ -1,0 +1,26 @@
+{
+  "domain": "java-runtime-guards",
+  "case": "too-old-warning-still-fires",
+  "source": {
+    "file": "JavaRuntimeGuardsTests.swift",
+    "test": "testTooOldWarningStillFires",
+    "line": 180
+  },
+  "input": {
+    "function": "JavaRuntimeManager.compatibilityWarningText",
+    "minecraftVersion": "1.20.1",
+    "required": 17,
+    "detected": 8
+  },
+  "expected": {
+    "isNil": false,
+    "contains": [
+      "needs Java 17",
+      "version 8"
+    ],
+    "notContains": [
+      "modpacks are usually"
+    ]
+  },
+  "notes": "Regression guard: the too-old path (detected < required) must still fire, with distinct phrasing from too-new — explicitly does NOT contain 'modpacks are usually'."
+}

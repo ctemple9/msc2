@@ -1,0 +1,29 @@
+{
+  "domain": "component-version",
+  "case": "latest-target-skips-check",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testLatestTargetSkipsCheck",
+    "line": 118
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "cases": [
+      {
+        "from": "1.21.4",
+        "to": "LATEST"
+      },
+      {
+        "from": "1.21.4",
+        "to": "latest"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false
+    ]
+  },
+  "notes": "A target of 'LATEST' (any case) means 'use whatever the newest available build is' — never treated as a downgrade."
+}

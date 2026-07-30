@@ -1,0 +1,23 @@
+{
+  "domain": "component-version",
+  "case": "trailing-build-number-no-separator-uses-whole-stem",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testTrailingBuildNumberNoSeparatorUsesWholeStem",
+    "line": 63
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parseTrailingBuildNumber",
+    "filenames": [
+      "plugin.jar",
+      "42.jar"
+    ]
+  },
+  "expected": {
+    "results": [
+      null,
+      42
+    ]
+  },
+  "notes": "No '-' separator means the whole filename stem is treated as the 'last' token: 'plugin' isn't an Int so nil, but a pure-number stem ('42') parses."
+}

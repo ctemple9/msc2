@@ -1,0 +1,14 @@
+{
+  "domain": "component-version",
+  "case": "paper-missing-build-rejected",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testPaperMissingBuildRejected",
+    "line": 38
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parsePaperJarFilename",
+    "filename": "paper-1.21.jar"
+  },
+  "expected": null
+}

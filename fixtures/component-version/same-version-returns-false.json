@@ -1,0 +1,15 @@
+{
+  "domain": "component-version",
+  "case": "same-version-returns-false",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testSameVersionReturnsFalse",
+    "line": 94
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "from": "1.21.4",
+    "to": "1.21.4"
+  },
+  "expected": false
+}

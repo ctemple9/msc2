@@ -1,0 +1,19 @@
+{
+  "domain": "component-version",
+  "case": "paper-build-keyword-form",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testPaperBuildKeywordForm",
+    "line": 16
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parsePaperJarFilename",
+    "filename": "paper-1.21.1-build130.jar"
+  },
+  "expected": {
+    "mcVersion": "1.21.1",
+    "build": 130,
+    "displayString": "1.21.1 (build 130)",
+    "compactString": "1.21.1-130"
+  }
+}

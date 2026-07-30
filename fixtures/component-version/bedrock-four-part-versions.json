@@ -1,0 +1,34 @@
+{
+  "domain": "component-version",
+  "case": "bedrock-four-part-versions",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testBedrockFourPartVersions",
+    "line": 104
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "cases": [
+      {
+        "from": "1.21.30.03",
+        "to": "1.21.10.01"
+      },
+      {
+        "from": "1.21.10.01",
+        "to": "1.21.30.03"
+      },
+      {
+        "from": "1.21.30.03",
+        "to": "1.21.30.03"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      false,
+      false
+    ]
+  },
+  "notes": "Bedrock versions carry a fourth component; the comparator handles it the same way as the three-part Java form."
+}

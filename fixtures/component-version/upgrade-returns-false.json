@@ -1,0 +1,33 @@
+{
+  "domain": "component-version",
+  "case": "upgrade-returns-false",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testUpgradeReturnsFalse",
+    "line": 82
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "cases": [
+      {
+        "from": "1.20.4",
+        "to": "1.21.0"
+      },
+      {
+        "from": "1.20",
+        "to": "1.21"
+      },
+      {
+        "from": "1.21.3",
+        "to": "1.21.4"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false,
+      false
+    ]
+  }
+}

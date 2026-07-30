@@ -1,0 +1,15 @@
+{
+  "domain": "component-version",
+  "case": "empty-current-skips-check",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testEmptyCurrentSkipsCheck",
+    "line": 114
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "from": "",
+    "to": "1.20.0"
+  },
+  "expected": false
+}

@@ -1,0 +1,29 @@
+{
+  "domain": "component-version",
+  "case": "padded-components",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testPaddedComponents",
+    "line": 98
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "cases": [
+      {
+        "from": "1.21",
+        "to": "1.21.0"
+      },
+      {
+        "from": "1.21.0",
+        "to": "1.21"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false
+    ]
+  },
+  "notes": "'1.21' and '1.21.0' are the same version once trailing zero components are padded, in either direction."
+}

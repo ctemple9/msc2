@@ -1,0 +1,14 @@
+{
+  "domain": "component-version",
+  "case": "non-paper-prefix-rejected",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testNonPaperPrefixRejected",
+    "line": 34
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parsePaperJarFilename",
+    "filename": "purpur-1.21-2000.jar"
+  },
+  "expected": null
+}

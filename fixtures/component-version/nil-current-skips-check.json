@@ -1,0 +1,16 @@
+{
+  "domain": "component-version",
+  "case": "nil-current-skips-check",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testNilCurrentSkipsCheck",
+    "line": 110
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "from": null,
+    "to": "1.20.0"
+  },
+  "expected": false,
+  "notes": "No known current version means there's nothing to compare against, so it's treated as 'not a downgrade' rather than an error."
+}

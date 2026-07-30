@@ -1,0 +1,22 @@
+{
+  "domain": "component-version",
+  "case": "build-display-string",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testBuildDisplayString",
+    "line": 72
+  },
+  "input": {
+    "function": "ComponentVersionParsing.buildDisplayString",
+    "builds": [
+      77,
+      null
+    ]
+  },
+  "expected": {
+    "results": [
+      "build 77",
+      null
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "domain": "component-version",
+  "case": "trailing-build-number-non-numeric-tail-is-nil",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testTrailingBuildNumberNonNumericTailIsNil",
+    "line": 58
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parseTrailingBuildNumber",
+    "filename": "Geyser-spigot-snapshot.jar"
+  },
+  "expected": null
+}

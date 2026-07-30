@@ -140,18 +140,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Domain / pure-logic tests**
 
 ### P0.3 — Extract TPS parser fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/tps/`
 **What:** Pull the 27 TPS test cases out of MSC 1's `TpsMonitoringTests.swift` into input/expected JSON pairs.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/tps --expect 27` → `ok 27`
 **Commit:** `P0.3: extract TPS parser fixtures`
 
 ### P0.4 — Extract version-comparison fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/component-version/`
 **What:** Pull the 21 test cases out of `ComponentVersionParsingTests.swift` (component/version-string parsing and comparison).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/component-version --expect 21` → `ok 21`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.4: extract version-comparison fixtures`
 
 ### P0.5 — Extract Java runtime policy fixtures
 **Status:** not started

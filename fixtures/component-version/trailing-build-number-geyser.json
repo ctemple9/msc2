@@ -1,0 +1,14 @@
+{
+  "domain": "component-version",
+  "case": "trailing-build-number-geyser",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testTrailingBuildNumberGeyser",
+    "line": 48
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parseTrailingBuildNumber",
+    "filename": "Geyser-spigot-1004.jar"
+  },
+  "expected": 1004
+}

@@ -1,0 +1,14 @@
+{
+  "domain": "component-version",
+  "case": "trailing-build-number-floodgate",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testTrailingBuildNumberFloodgate",
+    "line": 53
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parseTrailingBuildNumber",
+    "filename": "floodgate-spigot-121.jar"
+  },
+  "expected": 121
+}

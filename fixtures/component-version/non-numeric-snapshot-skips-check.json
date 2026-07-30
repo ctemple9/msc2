@@ -1,0 +1,29 @@
+{
+  "domain": "component-version",
+  "case": "non-numeric-snapshot-skips-check",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testNonNumericSnapshotSkipsCheck",
+    "line": 127
+  },
+  "input": {
+    "function": "MCVersionComparator.isDowngrade",
+    "cases": [
+      {
+        "from": "24w14a",
+        "to": "1.20.4"
+      },
+      {
+        "from": "1.21.4",
+        "to": "24w14a"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false
+    ]
+  },
+  "notes": "Snapshot-style versions (a letter suffix, e.g. '24w14a') aren't safely numerically ordered against release versions, so the comparator skips the check on either side rather than guessing."
+}

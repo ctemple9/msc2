@@ -1,0 +1,18 @@
+{
+  "domain": "component-version",
+  "case": "paper-case-insensitive-prefix",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testPaperCaseInsensitivePrefix",
+    "line": 28
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parsePaperJarFilename",
+    "filename": "Paper-1.21-100.jar"
+  },
+  "expected": {
+    "mcVersion": "1.21",
+    "build": 100
+  },
+  "notes": "Prefix match is case-insensitive: 'Paper-' parses the same as 'paper-'."
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "component-version",
+  "case": "paper-bare-build-number-form",
+  "source": {
+    "file": "ComponentVersionParsingTests.swift",
+    "test": "testPaperBareBuildNumberForm",
+    "line": 23
+  },
+  "input": {
+    "function": "ComponentVersionParsing.parsePaperJarFilename",
+    "filename": "paper-1.20.4-435.jar"
+  },
+  "expected": {
+    "mcVersion": "1.20.4",
+    "build": 435
+  },
+  "notes": "Source test only asserts equality against PaperJarVersion(mcVersion:build:); displayString/compactString aren't checked here."
+}

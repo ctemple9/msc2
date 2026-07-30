@@ -2050,6 +2050,80 @@
           }
         }
       }
+    },
+    "/watchdog/status": {
+      "get": {
+        "summary": "Get watchdog enabled status",
+        "x-notes": "MSC 1 sends these as raw jsonObject: [String: String] \u2014 even the boolean 'enabled'/'success' fields are the literal strings \"true\"/\"false\", not JSON booleans, and there's no Codable DTO backing any of the three routes at all.",
+        "responses": {
+          "200": {
+            "description": "enabled: \"true\"|\"false\"",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchdogStatusResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/watchdog/enable": {
+      "post": {
+        "summary": "Enable the watchdog",
+        "x-notes": "MSC 1 sends these as raw jsonObject: [String: String] \u2014 even the boolean 'enabled'/'success' fields are the literal strings \"true\"/\"false\", not JSON booleans, and there's no Codable DTO backing any of the three routes at all.",
+        "responses": {
+          "200": {
+            "description": "success: \"true\"",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchdogActionResultDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "success: \"false\", error: <message>",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchdogActionErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/watchdog/disable": {
+      "post": {
+        "summary": "Disable the watchdog",
+        "x-notes": "MSC 1 sends these as raw jsonObject: [String: String] \u2014 even the boolean 'enabled'/'success' fields are the literal strings \"true\"/\"false\", not JSON booleans, and there's no Codable DTO backing any of the three routes at all.",
+        "responses": {
+          "200": {
+            "description": "success: \"true\"",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchdogActionResultDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "success: \"false\", error: <message>",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WatchdogActionErrorDTO"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3588,6 +3662,43 @@
         "required": [
           "packId",
           "packKind"
+        ]
+      },
+      "WatchdogStatusResponseDTO": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "WatchdogActionResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "WatchdogActionErrorDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "error"
         ]
       }
     }

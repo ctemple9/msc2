@@ -1,0 +1,28 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "addons-response-pack-managed-round-trip",
+  "source": {
+    "file": "PackManagedGuardTests.swift",
+    "test": "testAddonsResponsePackManagedRoundTrip",
+    "line": 89
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.AddonsResponseDTO",
+    "targetType": "iOSModels.AddonsResponseDTO",
+    "value": {
+      "addons": [],
+      "isResolving": false,
+      "serverSupportsAddons": true,
+      "packManaged": true,
+      "packName": "Better MC [FORGE] BMC4"
+    }
+  },
+  "expected": {
+    "packManaged": true,
+    "packName": "Better MC [FORGE] BMC4",
+    "serverSupportsAddons": true
+  },
+  "notes": "Same DTOContract.roundTrip convention as P0.11/P0.15 — this file extends AddonsResponseDTO (already covered structurally in P0.11) with the two new pack provenance fields."
+}

@@ -1,0 +1,26 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-managed-defaults-false",
+  "source": {
+    "file": "PackManagedGuardTests.swift",
+    "test": "testPackManagedDefaultsFalse",
+    "line": 24
+  },
+  "input": {
+    "function": "ConfigServer.init",
+    "minimalServer": {
+      "id": "test-id",
+      "displayName": "Test",
+      "serverDir": "/tmp/test",
+      "paperJarPath": "server.jar",
+      "minRamGB": 2,
+      "maxRamGB": 4
+    }
+  },
+  "expected": {
+    "packManaged": false,
+    "packName": null,
+    "packVersion": null
+  },
+  "notes": "A freshly constructed ConfigServer (no pack fields set) must default packManaged to false and both name fields to nil."
+}

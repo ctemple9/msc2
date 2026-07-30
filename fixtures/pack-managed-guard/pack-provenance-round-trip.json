@@ -1,0 +1,31 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-provenance-round-trip",
+  "source": {
+    "file": "PackManagedGuardTests.swift",
+    "test": "testPackProvenanceRoundTrip",
+    "line": 32
+  },
+  "input": {
+    "function": "ConfigServer.roundTrip",
+    "minimalServer": {
+      "id": "test-id",
+      "displayName": "Test",
+      "serverDir": "/tmp/test",
+      "paperJarPath": "server.jar",
+      "minRamGB": 2,
+      "maxRamGB": 4
+    },
+    "mutations": {
+      "packManaged": true,
+      "packName": "Better MC [FORGE] BMC4",
+      "packVersion": "v43"
+    }
+  },
+  "expected": {
+    "packManaged": true,
+    "packName": "Better MC [FORGE] BMC4",
+    "packVersion": "v43"
+  },
+  "notes": "Encode a pack-managed server and decode it back — all three provenance fields must survive."
+}

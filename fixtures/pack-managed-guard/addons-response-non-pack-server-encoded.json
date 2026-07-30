@@ -1,0 +1,27 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "addons-response-non-pack-server-encoded",
+  "source": {
+    "file": "PackManagedGuardTests.swift",
+    "test": "testAddonsResponseNonPackServerEncoded",
+    "line": 124
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.AddonsResponseDTO",
+    "targetType": "iOSModels.AddonsResponseDTO",
+    "value": {
+      "addons": [],
+      "isResolving": false,
+      "serverSupportsAddons": true,
+      "packManaged": false,
+      "packName": null
+    }
+  },
+  "expected": {
+    "packManaged": false,
+    "packName": null
+  },
+  "notes": "Distinguishes 'false' from 'absent': a non-pack server explicitly encodes packManaged=false (present in JSON, decodes to false), unlike the old-JSON fixture above where the key is missing entirely and decodes to nil instead."
+}

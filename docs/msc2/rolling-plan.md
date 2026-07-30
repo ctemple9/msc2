@@ -256,18 +256,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.18: extract modpack pinning fixtures`
 
 ### P0.19 — Extract `.mrpack` extraction fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/mrpack-extraction/`
 **What:** Pull the 3 test cases out of `MrpackExtractionTests.swift` (archive permission-mode handling, missing/malformed manifest).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/mrpack-extraction --expect 3` → `ok 3`
 **Commit:** `P0.19: extract .mrpack extraction fixtures`
 
 ### P0.20 — Extract pack-managed guard fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/pack-managed-guard/`
 **What:** Pull the 7 test cases out of `PackManagedGuardTests.swift` (pack-managed provenance round trip, old-JSON compatibility).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/pack-managed-guard --expect 7` → `ok 7`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.20: extract pack-managed guard fixtures`
 
 **Provisioning tests**
 

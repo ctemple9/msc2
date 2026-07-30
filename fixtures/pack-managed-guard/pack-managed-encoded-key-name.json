@@ -1,0 +1,33 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-managed-encoded-key-name",
+  "source": {
+    "file": "PackManagedGuardTests.swift",
+    "test": "testPackManagedEncodedKeyName",
+    "line": 69
+  },
+  "input": {
+    "function": "ConfigServer.encode",
+    "minimalServer": {
+      "id": "test-id",
+      "displayName": "Test",
+      "serverDir": "/tmp/test",
+      "paperJarPath": "server.jar",
+      "minRamGB": 2,
+      "maxRamGB": 4
+    },
+    "mutations": {
+      "packManaged": true,
+      "packName": "FooBar",
+      "packVersion": "v1"
+    }
+  },
+  "expected": {
+    "jsonContains": [
+      "\"pack_managed\" : true",
+      "\"pack_name\" : \"FooBar\"",
+      "\"pack_version\" : \"v1\""
+    ]
+  },
+  "notes": "Verifies the on-disk JSON key names are snake_case ('pack_managed' etc.) per the MSC config contract, same custom-CodingKeys convention as P0.15. The exact substrings (including the space before ':') reflect Swift JSONEncoder's .prettyPrinted output formatting specifically — what must be preserved in the Rust port is the snake_case KEY NAMES themselves, not this exact whitespace, which is an artifact of Swift's pretty-printer rather than part of the wire contract."
+}

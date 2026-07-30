@@ -1,0 +1,25 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "addons-response-old-json-no-pack-fields",
+  "source": {
+    "file": "PackManagedGuardTests.swift",
+    "test": "testAddonsResponseOldJsonNoPackFields",
+    "line": 106
+  },
+  "input": {
+    "function": "DTOContract.decode",
+    "direction": "raw-json-to-ios",
+    "targetType": "iOSModels.AddonsResponseDTO",
+    "json": {
+      "addons": [],
+      "isResolving": false,
+      "serverSupportsAddons": true
+    }
+  },
+  "expected": {
+    "packManaged": null,
+    "packName": null,
+    "serverSupportsAddons": true
+  },
+  "notes": "Simulates a response from a pre-P7.8 server: packManaged/packName keys are absent from the JSON entirely (not sent as null). iOS decode must not crash and both fields must resolve to nil — contrast with addons-response-non-pack-server-encoded below, where packManaged IS sent, as a literal false, not omitted."
+}

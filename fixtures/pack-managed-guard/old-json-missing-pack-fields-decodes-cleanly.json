@@ -1,0 +1,27 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "old-json-missing-pack-fields-decodes-cleanly",
+  "source": {
+    "file": "PackManagedGuardTests.swift",
+    "test": "testOldJsonMissingPackFieldsDecodesCleanly",
+    "line": 47
+  },
+  "input": {
+    "function": "ConfigServer.decode",
+    "json": {
+      "id": "old-server-id",
+      "display_name": "My Old Server",
+      "server_dir": "/tmp/old",
+      "paper_jar_path": "server.jar",
+      "min_ram_gb": 2,
+      "max_ram_gb": 4
+    }
+  },
+  "expected": {
+    "packManaged": false,
+    "packName": null,
+    "packVersion": null,
+    "id": "old-server-id"
+  },
+  "notes": "Simulates reading a config file written by a pre-P7.8 version of MSC: the three pack keys are entirely absent from the JSON, not just null. Decoding must succeed with safe defaults rather than throwing."
+}

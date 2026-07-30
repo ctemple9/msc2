@@ -1,0 +1,26 @@
+{
+  "domain": "mrpack-extraction",
+  "case": "absent-manifest-throws-manifest-absent",
+  "source": {
+    "file": "MrpackExtractionTests.swift",
+    "test": "testAbsentManifestThrowsManifestAbsent",
+    "line": 81
+  },
+  "input": {
+    "function": "AppViewModel.readMrpackManifest",
+    "archive": {
+      "entries": [
+        {
+          "name": "other_file.txt",
+          "content": "placeholder",
+          "unixMode": "644"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "throws": "MrpackReadError.manifestAbsent",
+    "errorDescriptionContains": "no modrinth.index.json"
+  },
+  "notes": "The source test builds a real .mrpack (ZIP) file via a Python3 subprocess so it can control the stored Unix permission bits precisely (zipfile.ZipInfo.external_attr). 'archive.entries[].unixMode' is that stored POSIX mode string, distinct from whatever mode the file ends up with after extraction to disk. No modrinth.index.json entry anywhere in the archive. The source test also pins the user-facing error message (what importModpack logs), not just the error case."
+}

@@ -1,0 +1,25 @@
+{
+  "domain": "mrpack-extraction",
+  "case": "malformed-manifest-throws-manifest-malformed",
+  "source": {
+    "file": "MrpackExtractionTests.swift",
+    "test": "testMalformedManifestThrowsManifestMalformed",
+    "line": 96
+  },
+  "input": {
+    "function": "AppViewModel.readMrpackManifest",
+    "archive": {
+      "entries": [
+        {
+          "name": "modrinth.index.json",
+          "content": "{not valid json}",
+          "unixMode": "644"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "throws": "MrpackReadError.manifestMalformed"
+  },
+  "notes": "The source test builds a real .mrpack (ZIP) file via a Python3 subprocess so it can control the stored Unix permission bits precisely (zipfile.ZipInfo.external_attr). 'archive.entries[].unixMode' is that stored POSIX mode string, distinct from whatever mode the file ends up with after extraction to disk. The manifest entry exists and is readable (mode 644) but its content isn't valid JSON — a distinct error case from 'absent' above."
+}

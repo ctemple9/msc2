@@ -249,18 +249,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.17: extract modpack client-only classification fixtures`
 
 ### P0.18 — Extract modpack pinning fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/modpack-pinning/`
 **What:** Pull the 13 test cases out of `ModpackPinningTests.swift` (Forge Maven version listing, dedup, sort).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-pinning --expect 13` → `ok 13`
 **Commit:** `P0.18: extract modpack pinning fixtures`
 
 ### P0.19 — Extract `.mrpack` extraction fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/mrpack-extraction/`
 **What:** Pull the 3 test cases out of `MrpackExtractionTests.swift` (archive permission-mode handling, missing/malformed manifest).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/mrpack-extraction --expect 3` → `ok 3`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.19: extract .mrpack extraction fixtures`
 
 ### P0.20 — Extract pack-managed guard fixtures
 **Status:** not started

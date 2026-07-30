@@ -1,0 +1,30 @@
+{
+  "domain": "mrpack-extraction",
+  "case": "mode-000-entry-becomes-readable-via-ditto",
+  "source": {
+    "file": "MrpackExtractionTests.swift",
+    "test": "testMode000EntryBecomesReadableViaDitto",
+    "line": 67
+  },
+  "input": {
+    "function": "AppViewModel.readMrpackManifest",
+    "archive": {
+      "entries": [
+        {
+          "name": "modrinth.index.json",
+          "content": "{\"formatVersion\":1,\"game\":\"minecraft\",\"versionId\":\"1.0\",\"name\":\"Test Pack\",\"dependencies\":{},\"files\":[]}",
+          "unixMode": "000"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "manifest": {
+      "name": "Test Pack",
+      "versionId": "1.0",
+      "game": "minecraft",
+      "filesEmpty": true
+    }
+  },
+  "notes": "The source test builds a real .mrpack (ZIP) file via a Python3 subprocess so it can control the stored Unix permission bits precisely (zipfile.ZipInfo.external_attr). 'archive.entries[].unixMode' is that stored POSIX mode string, distinct from whatever mode the file ends up with after extraction to disk. The manifest entry is stored with Unix mode 000 (unreadable by anyone). /usr/bin/unzip would extract this verbatim as an unreadable file on disk (mode 000 preserved) and MSC 1 would then fail to read it; MSC 1 instead extracts via macOS's `ditto` utility, which yields a readable file regardless — this was the root fix for a real-world BMC4 modpack import failure. IMPORTANT for the Rust port: `ditto` is a macOS-only tool. Whatever extraction approach Rust uses (a zip crate, or shelling out) needs to independently guarantee readability regardless of a stored-entry's permission bits — this fixture's behavior, not `ditto` itself, is what must be preserved."
+}

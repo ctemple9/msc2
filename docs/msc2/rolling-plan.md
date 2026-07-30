@@ -426,11 +426,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23q: add players API baseline routes`
 
 ### P0.23r — API baseline: `duckdns` route
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `duckdns` route.
 **Verify:** `python3 tools/api-baseline-check.py duckdns` → `ok 1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23r: add duckdns API baseline route`
 
 ### P0.23s — API baseline: `templates` route
 **Status:** not started

@@ -2435,6 +2435,68 @@
           }
         }
       }
+    },
+    "/duckdns": {
+      "get": {
+        "summary": "Get the configured DuckDNS hostname",
+        "responses": {
+          "200": {
+            "description": "Current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuckDNSStatusResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update the DuckDNS hostname",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuckDNSUpdateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hostname updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuckDNSUpdateResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "success: false",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuckDNSUpdateResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4418,6 +4480,46 @@
         "required": [
           "profiles",
           "isLoadingStats"
+        ]
+      },
+      "DuckDNSStatusResponseDTO": {
+        "type": "object",
+        "properties": {
+          "hostname": {
+            "type": "string"
+          },
+          "isConfigured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "isConfigured"
+        ]
+      },
+      "DuckDNSUpdateRequestDTO": {
+        "type": "object",
+        "properties": {
+          "hostname": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "DuckDNSUpdateResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success"
         ]
       }
     }

@@ -219,18 +219,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.13: extract Remote API integration fixtures`
 
 ### P0.14 — Extract network-safety fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/network-safety/`
 **What:** Pull the 13 test cases out of `NetworkSafetyTests.swift` (loopback/mDNS/private-range classification).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/network-safety --expect 13` → `ok 13`
 **Commit:** `P0.14: extract network-safety fixtures`
 
 ### P0.15 — Extract config round-trip fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/config-roundtrip/`
 **What:** Pull the 7 test cases out of `AppConfigRoundTripTests.swift` (`AppConfig`/`ConfigServer` encode-decode round trips, including missing-optional-field defaulting).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/config-roundtrip --expect 7` → `ok 7`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.15: extract config round-trip fixtures`
 
 **Mods, plugins, modpacks tests**
 

@@ -1,0 +1,15 @@
+{
+  "domain": "config-roundtrip",
+  "case": "config-manager-corrupt-config-copy-path-is-nil-on-normal-load",
+  "source": {
+    "file": "AppConfigRoundTripTests.swift",
+    "test": "testConfigManagerCorruptConfigCopyPathIsNilOnNormalLoad",
+    "line": 384
+  },
+  "input": {
+    "function": "ConfigManager.shared.corruptConfigCopyPath",
+    "environment": "real, uncontrolled — queries the actual ConfigManager.shared singleton wired to the real Application Support config file on whatever machine runs the test"
+  },
+  "expected": null,
+  "notes": "Unlike every other fixture in this repo, this is NOT a reproducible unit-test scenario: it's a live sanity check that whatever real config file happens to exist on the test-running machine isn't currently corrupt. It doesn't exercise ConfigManager's corrupt-file logic in isolation (r3-corrupt-file-algorithm above does that, deterministically); it just asserts the ambient test environment is healthy. Not meaningfully portable to a Rust fixture in the usual input/expected sense — recorded here for coverage completeness (still one of the file's 7 func test declarations) but flagged for review rather than treated as equivalent to the other six."
+}

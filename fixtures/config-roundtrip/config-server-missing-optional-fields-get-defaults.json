@@ -1,0 +1,29 @@
+{
+  "domain": "config-roundtrip",
+  "case": "config-server-missing-optional-fields-get-defaults",
+  "source": {
+    "file": "AppConfigRoundTripTests.swift",
+    "test": "testConfigServerMissingOptionalFieldsGetDefaults",
+    "line": 268
+  },
+  "input": {
+    "function": "ConfigServer.decode",
+    "json": {
+      "id": "bare",
+      "display_name": "Bare",
+      "server_dir": "/tmp/bare",
+      "paper_jar_path": "/tmp/bare/paper.jar",
+      "min_ram_gb": 1,
+      "max_ram_gb": 2
+    }
+  },
+  "expected": {
+    "id": "bare",
+    "serverType": "java",
+    "javaFlavor": "paper",
+    "autoBackupEnabled": false,
+    "addonLinks": null,
+    "pluginSources": null
+  },
+  "notes": "A bare ConfigServer with only the originally-required keys must decode without error."
+}

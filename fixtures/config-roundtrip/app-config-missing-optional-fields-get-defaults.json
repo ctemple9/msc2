@@ -1,0 +1,56 @@
+{
+  "domain": "config-roundtrip",
+  "case": "app-config-missing-optional-fields-get-defaults",
+  "source": {
+    "file": "AppConfigRoundTripTests.swift",
+    "test": "testAppConfigMissingOptionalFieldsGetDefaults",
+    "line": 212
+  },
+  "input": {
+    "function": "AppConfig.decode",
+    "json": {
+      "config_version": 1,
+      "java_path": "java",
+      "extra_flags": "",
+      "servers_root": "/tmp/MinecraftServers",
+      "servers": [
+        {
+          "id": "old-server",
+          "display_name": "Old Server",
+          "server_dir": "/tmp/servers/old",
+          "paper_jar_path": "/tmp/servers/old/paper.jar",
+          "min_ram_gb": 2,
+          "max_ram_gb": 4
+        }
+      ],
+      "initial_setup_done": true,
+      "remote_api_port": 48400
+    }
+  },
+  "expected": {
+    "servers": [
+      {
+        "id": "old-server",
+        "displayName": "Old Server",
+        "serverType": "java",
+        "bedrockEnabled": false,
+        "autoBackupEnabled": false,
+        "autoBackupIntervalMinutes": 30,
+        "autoBackupMaxCount": 12,
+        "xboxBroadcastEnabled": false,
+        "playitEnabled": false,
+        "javaFlavor": "paper",
+        "minecraftVersion": null,
+        "loaderVersion": null,
+        "resourcePackHostPort": 8123
+      }
+    ],
+    "remoteAPIExposeOnLAN": false,
+    "duckdnsHostname": null,
+    "playitJavaAddress": null,
+    "hasShownHandbook": false,
+    "xboxBroadcastAutoStartEnabled": true,
+    "saveDownloadedJars": true
+  },
+  "notes": "This JSON represents a minimal old config file: only the fields present in MSC's *original* schema, before every optional field added later. The critical backwards-compat property is that decoding succeeds at all and the servers array survives (isn't wiped) — every field absent from this JSON must get a safe default, not throw."
+}

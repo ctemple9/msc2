@@ -1,0 +1,27 @@
+{
+  "domain": "config-roundtrip",
+  "case": "r3-corrupt-file-algorithm",
+  "source": {
+    "file": "AppConfigRoundTripTests.swift",
+    "test": "testR3CorruptFileAlgorithm",
+    "line": 304
+  },
+  "input": {
+    "function": "ConfigManager.r3CorruptFileAlgorithm",
+    "fsTree": {
+      "<TMP>/server_config_swift.json": {
+        "type": "file",
+        "content": "this is not json {{{ :::"
+      }
+    },
+    "configPath": "<TMP>/server_config_swift.json"
+  },
+  "expected": {
+    "decodeThrows": true,
+    "usedDefaults": true,
+    "corruptCopyCreated": true,
+    "corruptCopyNamePattern": "server_config_swift.json.corrupt-<yyyyMMdd-HHmmss>",
+    "corruptCopyContentEqualsOriginal": true
+  },
+  "notes": "ConfigManager itself has a private init() and is a singleton already wired to the real Application Support directory, so it can't be driven directly in a test. Per the source file's header, this replicates the ALGORITHM from ConfigManager's init() catch block (R3) at the level of AppConfig/FileManager instead: on decode failure, copy the unreadable file to a '<original-filename>.corrupt-<yyyyMMdd-HHmmss>' sibling in the same directory (preserving the original garbage bytes), then fall back to defaults. If ConfigManager.swift's real catch block changes, this fixture must be updated to match."
+}

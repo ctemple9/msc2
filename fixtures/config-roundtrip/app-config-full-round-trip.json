@@ -1,0 +1,98 @@
+{
+  "domain": "config-roundtrip",
+  "case": "app-config-full-round-trip",
+  "source": {
+    "file": "AppConfigRoundTripTests.swift",
+    "test": "testAppConfigFullRoundTrip",
+    "line": 36
+  },
+  "input": {
+    "function": "AppConfig.roundTrip",
+    "baseline": "AppConfig.defaultConfig()",
+    "overrides": {
+      "javaPath": "/usr/local/bin/java",
+      "extraFlags": "-XX:+UseG1GC",
+      "serversRoot": "/tmp/test-servers",
+      "pluginTemplateDir": "/tmp/test-servers/_plugins",
+      "paperTemplateDir": "/tmp/test-servers/_paper",
+      "activeServerId": "test-server-id",
+      "initialSetupDone": true,
+      "remoteAPIPort": 12345,
+      "remoteAPIToken": "should-not-appear-in-json",
+      "remoteAPIExposeOnLAN": true,
+      "remoteAPIPreferredPairingHost": "my-mac.ts.net",
+      "duckdnsHostname": "my-mac.duckdns.org",
+      "playitJavaAddress": "abc.joinmc.link",
+      "playitBedrockAddress": "udp.joinmc.link:19132",
+      "playitVoiceAddress": "147.185.1.2:24454",
+      "playitAgentId": "agent-uuid-123",
+      "hasShownHandbook": true,
+      "hasShownConceptGuide": true,
+      "xboxBroadcastJarPath": "/tmp/MCXboxBroadcast.jar",
+      "xboxBroadcastAutoStartEnabled": false,
+      "minecraftUsername": "TestPlayer",
+      "minecraftBedrockGamertag": "TestPlayer_BE",
+      "minecraftAvatarEditionRawValue": "java",
+      "defaultBannerColorHex": "#336633",
+      "errorPopupsEnabled": true,
+      "saveDownloadedJars": false,
+      "useVMBedrockBackend": true,
+      "remoteAPISharedAccess": [
+        {
+          "id": "entry-1",
+          "label": "Test Device",
+          "token": "shared-token-abc",
+          "role": "named",
+          "createdAtISO8601": "2026-01-01T00:00:00Z",
+          "permissions": [
+            "serverControl",
+            "players"
+          ],
+          "expiresAtISO8601": null
+        }
+      ]
+    }
+  },
+  "expected": {
+    "javaPath": "/usr/local/bin/java",
+    "extraFlags": "-XX:+UseG1GC",
+    "serversRoot": "/tmp/test-servers",
+    "pluginTemplateDir": "/tmp/test-servers/_plugins",
+    "paperTemplateDir": "/tmp/test-servers/_paper",
+    "activeServerId": "test-server-id",
+    "initialSetupDone": true,
+    "remoteAPIPort": 12345,
+    "remoteAPIToken": "",
+    "remoteAPIExposeOnLAN": true,
+    "remoteAPIPreferredPairingHost": "my-mac.ts.net",
+    "duckdnsHostname": "my-mac.duckdns.org",
+    "playitJavaAddress": "abc.joinmc.link",
+    "playitBedrockAddress": "udp.joinmc.link:19132",
+    "playitVoiceAddress": "147.185.1.2:24454",
+    "playitAgentId": "agent-uuid-123",
+    "hasShownHandbook": true,
+    "hasShownConceptGuide": true,
+    "xboxBroadcastJarPath": "/tmp/MCXboxBroadcast.jar",
+    "xboxBroadcastAutoStartEnabled": false,
+    "minecraftUsername": "TestPlayer",
+    "minecraftBedrockGamertag": "TestPlayer_BE",
+    "minecraftAvatarEditionRawValue": "java",
+    "defaultBannerColorHex": "#336633",
+    "errorPopupsEnabled": true,
+    "saveDownloadedJars": false,
+    "useVMBedrockBackend": true,
+    "remoteAPISharedAccess": [
+      {
+        "id": "entry-1",
+        "label": "Test Device",
+        "token": "shared-token-abc",
+        "role": "named",
+        "permissions": [
+          "serverControl",
+          "players"
+        ]
+      }
+    ]
+  },
+  "notes": "'baseline' is AppConfig.defaultConfig() (unknown defaults not reproduced here — the source test only asserts the fields it explicitly overrode). remoteAPIToken is intentionally excluded from JSON encoding, so it always decodes back to \"\" regardless of what it was set to before encoding — this is the one override whose expected value differs from its input value. remoteAPISharedAccess entries DO include their token in JSON (unlike remoteAPIToken itself) since shared-access tokens aren't Keychain-backed; createdAtISO8601/expiresAtISO8601 aren't asserted on the decoded entry so they're dropped from expected."
+}

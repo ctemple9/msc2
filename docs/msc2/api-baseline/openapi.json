@@ -2267,6 +2267,174 @@
           }
         }
       }
+    },
+    "/players": {
+      "get": {
+        "summary": "List currently-online players",
+        "responses": {
+          "200": {
+            "description": "Online players",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayersResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/players/skin-override": {
+      "post": {
+        "summary": "Set or clear a manual skin lookup override for a player",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerSkinOverrideRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Override set/cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerSkinOverrideResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_profile_id / invalid_profile_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "profile_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_active_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/players/hidden": {
+      "post": {
+        "summary": "Hide or unhide a player profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HiddenProfileMutationRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Visibility updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HiddenProfileMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_profile_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "profile_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_active_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/players/profiles": {
+      "get": {
+        "summary": "List all-time player profiles with stats",
+        "responses": {
+          "200": {
+            "description": "Player profiles",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerProfilesResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3962,6 +4130,294 @@
           "message",
           "serverType",
           "entries"
+        ]
+      },
+      "PlayerDTO": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "uuid": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "PlayersResponseDTO": {
+        "type": "object",
+        "properties": {
+          "players": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerDTO"
+            }
+          },
+          "count": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "players",
+          "count"
+        ]
+      },
+      "PlayerSkinOverrideRequestDTO": {
+        "type": "object",
+        "properties": {
+          "profileId": {
+            "type": "string"
+          },
+          "lookupIdentifier": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "profileId"
+        ]
+      },
+      "PlayerSkinOverrideResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "lookupIdentifier": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "HiddenProfileMutationRequestDTO": {
+        "type": "object",
+        "properties": {
+          "profileId": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profileId",
+          "hidden"
+        ]
+      },
+      "HiddenProfileMutationResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "isHidden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ItemEnchantmentDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "level": {
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "level",
+          "displayName"
+        ]
+      },
+      "InventoryItemDTO": {
+        "type": "object",
+        "properties": {
+          "slot": {
+            "type": "integer"
+          },
+          "itemID": {
+            "type": "string"
+          },
+          "iconName": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "enchantments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ItemEnchantmentDTO"
+            }
+          },
+          "damage": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "slot",
+          "itemID",
+          "iconName",
+          "count",
+          "displayName",
+          "enchantments",
+          "damage"
+        ]
+      },
+      "PlayerStatsDTO": {
+        "type": "object",
+        "properties": {
+          "health": {
+            "type": "number"
+          },
+          "maxHealth": {
+            "type": "number"
+          },
+          "foodLevel": {
+            "type": "integer"
+          },
+          "xpLevel": {
+            "type": "integer"
+          },
+          "xpTotal": {
+            "type": "integer"
+          },
+          "gameMode": {
+            "type": "integer"
+          },
+          "gameModeDisplay": {
+            "type": "string"
+          },
+          "posX": {
+            "type": "number"
+          },
+          "posY": {
+            "type": "number"
+          },
+          "posZ": {
+            "type": "number"
+          },
+          "dimensionDisplay": {
+            "type": "string"
+          },
+          "score": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "health",
+          "maxHealth",
+          "foodLevel",
+          "xpLevel",
+          "xpTotal",
+          "gameMode",
+          "gameModeDisplay",
+          "posX",
+          "posY",
+          "posZ",
+          "dimensionDisplay",
+          "score"
+        ]
+      },
+      "PlayerProfileDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "imageIdentifier": {
+            "type": "string"
+          },
+          "isOnline": {
+            "type": "boolean"
+          },
+          "isOp": {
+            "type": "boolean"
+          },
+          "lastSeen": {
+            "type": "string"
+          },
+          "isBedrockPlayer": {
+            "type": "boolean"
+          },
+          "isHidden": {
+            "type": "boolean"
+          },
+          "skinOverrideIdentifier": {
+            "type": "string"
+          },
+          "hasSkinFileOverride": {
+            "type": "boolean"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/PlayerStatsDTO"
+          },
+          "inventory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InventoryItemDTO"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "imageIdentifier",
+          "isOnline",
+          "isOp",
+          "isBedrockPlayer",
+          "inventory"
+        ]
+      },
+      "PlayerProfilesResponseDTO": {
+        "type": "object",
+        "properties": {
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlayerProfileDTO"
+            }
+          },
+          "isLoadingStats": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "profiles",
+          "isLoadingStats"
         ]
       }
     }

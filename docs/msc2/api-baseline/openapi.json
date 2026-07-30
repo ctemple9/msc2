@@ -1423,6 +1423,73 @@
           }
         }
       }
+    },
+    "/health/repair": {
+      "post": {
+        "summary": "Trigger a repair action for a diagnosed startup problem",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HealthRepairRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Repair attempted, echoes fresh problem list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthRepairResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_problem_id / invalid_action / action_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "problem_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "server_running / no_active_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2505,6 +2572,125 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserSummaryDTO"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "StartupProblemDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "kindTitle": {
+            "type": "string"
+          },
+          "iconSystemName": {
+            "type": "string"
+          },
+          "offenderName": {
+            "type": "string"
+          },
+          "requirement": {
+            "type": "string"
+          },
+          "installedFile": {
+            "type": "string"
+          },
+          "installedJarStem": {
+            "type": "string"
+          },
+          "missingDependency": {
+            "type": "string"
+          },
+          "rawExcerpt": {
+            "type": "string"
+          },
+          "isRepairing": {
+            "type": "boolean"
+          },
+          "availableActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "modrinthURL": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "kindTitle",
+          "iconSystemName",
+          "offenderName",
+          "rawExcerpt",
+          "isRepairing",
+          "availableActions"
+        ]
+      },
+      "HealthProblemsResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverType": {
+            "type": "string"
+          },
+          "serverRunning": {
+            "type": "boolean"
+          },
+          "isSoftFail": {
+            "type": "boolean"
+          },
+          "problems": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StartupProblemDTO"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverType",
+          "serverRunning",
+          "isSoftFail",
+          "problems"
+        ]
+      },
+      "HealthRepairRequestDTO": {
+        "type": "object",
+        "properties": {
+          "problemId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "problemId",
+          "action"
+        ]
+      },
+      "HealthRepairResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "updated": {
+            "$ref": "#/components/schemas/HealthProblemsResponseDTO"
           }
         },
         "required": [

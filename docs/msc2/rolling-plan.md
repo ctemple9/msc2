@@ -356,11 +356,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23g: add users API baseline routes`
 
 ### P0.23h — API baseline: `health/repair` route
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `health/repair` route.
 **Verify:** `python3 tools/api-baseline-check.py health` → `ok 1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23h: add health/repair API baseline route`
 
 ### P0.23i — API baseline: `playit` routes
 **Status:** not started

@@ -1,0 +1,700 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MSC 1 Remote API (compatibility baseline)",
+    "version": "baseline",
+    "description": "Captured from MSC 1's actual RemoteAPIServer*.swift source per msc2-decisions.md #145: behavior as MSC 1 has it, not aspirational. Built incrementally, one route family per P0.23a-P0.23s step (docs/msc2/rolling-plan.md)."
+  },
+  "paths": {
+    "/servers/create": {
+      "post": {
+        "summary": "Create a new server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerCreateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerCreateResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / name_required / invalid_server_type / invalid_java_flavor / unsupported_server_type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "create_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "Read from RemoteAPIServer+ComponentRoutes.swift handleCreateServer and RemoteAPIServer+HTTP.swift's serverMutationStatus. success/message/serverId/serverName/warnings come back on 200 even though the handler ultimately runs async via createServerProvider."
+      }
+    },
+    "/servers/import": {
+      "post": {
+        "summary": "Scan or import an existing server directory/zip/transfer",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerImportRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "action=scan returns ServerImportScanResponseDTO; any other action (importExisting/importTransfer) returns ServerImportResultDTO \u2014 same status code, different body shape, dispatched on the request's own 'action' field.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ServerImportScanResponseDTO"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerImportResultDTO"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / invalid_action / missing_source_path / invalid_path / display_name_required / backup_path_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "source_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "server_running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "Read from RemoteAPIServer+ComponentRoutes.swift handleImportServer and importStatus. req.action == \"scan\" routes to serverImportScanProvider; anything else routes to serverImportProvider."
+      }
+    },
+    "/servers/delete": {
+      "post": {
+        "summary": "Delete a server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerDeleteRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDeleteResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_server_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "server_running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "delete_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/servers/rename": {
+      "post": {
+        "summary": "Rename a server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerRenameRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server renamed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerRenameResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_server_id / name_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "server_running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/servers/eula": {
+      "post": {
+        "summary": "Accept the Minecraft EULA for a server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerEULARequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "EULA accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerEULAResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_server_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "eula_write_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "ServerEULARequestDTO.serverId is itself Optional in the Swift DTO, but handleAcceptServerEULA treats an absent/empty serverId as missing_server_id (400) \u2014 so it's required in practice even though the type allows nil."
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "ServerCreateRequestDTO": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "serverType": {
+            "type": "string"
+          },
+          "javaFlavor": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "maxPlayers": {
+            "type": "integer"
+          },
+          "enableCrossPlay": {
+            "type": "boolean"
+          },
+          "crossPlayBedrockPort": {
+            "type": "integer"
+          },
+          "enablePlayit": {
+            "type": "boolean"
+          },
+          "enableXboxBroadcast": {
+            "type": "boolean"
+          },
+          "difficulty": {
+            "type": "string"
+          },
+          "gamemode": {
+            "type": "string"
+          },
+          "worldName": {
+            "type": "string"
+          },
+          "worldSeed": {
+            "type": "string"
+          },
+          "versionId": {
+            "type": "string"
+          },
+          "minecraftVersion": {
+            "type": "string"
+          },
+          "loaderVersion": {
+            "type": "string"
+          },
+          "acceptEula": {
+            "type": "boolean"
+          },
+          "bedrockVersion": {
+            "type": "string"
+          },
+          "dockerImage": {
+            "type": "string"
+          },
+          "javaPath": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ServerCreateResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ServerImportRequestDTO": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "sourcePath": {
+            "type": "string"
+          },
+          "importKind": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "serverType": {
+            "type": "string"
+          },
+          "activeWorldName": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "maxPlayers": {
+            "type": "integer"
+          },
+          "acceptEula": {
+            "type": "boolean"
+          },
+          "enablePlayit": {
+            "type": "boolean"
+          },
+          "transferMode": {
+            "type": "string"
+          },
+          "backupPath": {
+            "type": "string"
+          },
+          "javaPortOverrides": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "bedrockPortOverrides": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          }
+        },
+        "required": [
+          "action",
+          "sourcePath"
+        ]
+      },
+      "ServerImportWorldDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "dimensionsLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sizeBytes",
+          "dimensionsLabel"
+        ]
+      },
+      "ServerImportScanResponseDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "sourcePath": {
+            "type": "string"
+          },
+          "isZip": {
+            "type": "boolean"
+          },
+          "serverType": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "maxPlayers": {
+            "type": "integer"
+          },
+          "eulaAccepted": {
+            "type": "boolean"
+          },
+          "worlds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServerImportWorldDTO"
+            }
+          },
+          "defaultWorldName": {
+            "type": "string"
+          },
+          "javaFlavor": {
+            "type": "string"
+          },
+          "detectedMCVersion": {
+            "type": "string"
+          },
+          "detectedLoaderVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ServerImportResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "serverName": {
+            "type": "string"
+          },
+          "imported": {
+            "type": "integer"
+          },
+          "skipped": {
+            "type": "integer"
+          },
+          "replaced": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ServerDeleteRequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId"
+        ]
+      },
+      "ServerDeleteResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ServerRenameRequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "name"
+        ]
+      },
+      "ServerRenameResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ServerEULARequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          }
+        }
+      },
+      "ServerEULAResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "accepted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      }
+    }
+  }
+}

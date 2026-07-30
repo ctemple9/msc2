@@ -1,0 +1,34 @@
+{
+  "domain": "dto-contract",
+  "case": "playit-status-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testPlayitStatusResponseRoundTrip",
+    "line": 577
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.PlayitStatusResponseDTO",
+    "targetType": "iOSModels.PlayitStatusResponseDTO",
+    "value": {
+      "serverName": "My Server",
+      "serverType": "java",
+      "playitEnabled": true,
+      "isRunning": true,
+      "hasSecretKey": true,
+      "javaAddress": "abc.joinmc.link",
+      "bedrockAddress": null,
+      "voiceAddress": null,
+      "voiceChatEnabled": false,
+      "note": null
+    }
+  },
+  "expected": {
+    "playitEnabled": true,
+    "isRunning": true,
+    "javaAddress": "abc.joinmc.link",
+    "bedrockAddress": null
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps."
+}

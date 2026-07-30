@@ -1,0 +1,25 @@
+{
+  "domain": "dto-contract",
+  "case": "broadcast-auth-prompt-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testBroadcastAuthPromptRoundTrip",
+    "line": 343
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.BroadcastAuthPromptDTO",
+    "targetType": "iOSModels.BroadcastAuthPromptDTO",
+    "value": {
+      "isPresent": true,
+      "code": "ABCD-1234",
+      "linkURL": "https://microsoft.com/devicelogin"
+    }
+  },
+  "expected": {
+    "isPresent": true,
+    "code": "ABCD-1234",
+    "linkURL": "https://microsoft.com/devicelogin"
+  }
+}

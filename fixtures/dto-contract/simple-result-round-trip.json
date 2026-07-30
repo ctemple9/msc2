@@ -1,0 +1,23 @@
+{
+  "domain": "dto-contract",
+  "case": "simple-result-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testSimpleResultRoundTrip",
+    "line": 364
+  },
+  "input": {
+    "function": "DTOContract.decode",
+    "direction": "raw-json-to-ios",
+    "targetType": "iOSModels.SimpleResult",
+    "json": {
+      "result": "start_requested",
+      "activeServerId": "srv-1"
+    }
+  },
+  "expected": {
+    "result": "start_requested",
+    "activeServerId": "srv-1"
+  },
+  "notes": "macOS defines this as a private LOCAL struct inside respond(to:) in RemoteAPIServer+HTTP.swift, so it can't be @testable-imported — the source test hand-writes the exact JSON macOS would send and decodes it directly as the iOS mirror type, rather than round-tripping through a mac-side Encodable value."
+}

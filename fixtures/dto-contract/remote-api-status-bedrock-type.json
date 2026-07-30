@@ -1,0 +1,28 @@
+{
+  "domain": "dto-contract",
+  "case": "remote-api-status-bedrock-type",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testRemoteAPIStatusBedrockType",
+    "line": 65
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIStatus",
+    "targetType": "iOSModels.RemoteAPIStatus",
+    "value": {
+      "running": true,
+      "activeServerId": null,
+      "pid": null,
+      "serverType": "bedrock",
+      "dockerContainerRunning": true,
+      "dockerContainerStatus": "running"
+    }
+  },
+  "expected": {
+    "serverType": "bedrock",
+    "dockerContainerRunning": true
+  },
+  "notes": "Here the source test compares the decoded enum case directly (ios.serverType == .bedrock), not .rawValue — 'serverType' names the enum case, distinct from the 'serverTypeRawValue' string comparison in the fixture above."
+}

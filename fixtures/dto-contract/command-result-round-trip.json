@@ -1,0 +1,25 @@
+{
+  "domain": "dto-contract",
+  "case": "command-result-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testCommandResultRoundTrip",
+    "line": 380
+  },
+  "input": {
+    "function": "DTOContract.decode",
+    "direction": "raw-json-to-ios",
+    "targetType": "iOSModels.CommandResult",
+    "json": {
+      "result": "command_sent",
+      "activeServerId": "srv-1",
+      "command": "say Hello"
+    }
+  },
+  "expected": {
+    "result": "command_sent",
+    "activeServerId": "srv-1",
+    "command": "say Hello"
+  },
+  "notes": "Same private-local-struct situation as SimpleResult above."
+}

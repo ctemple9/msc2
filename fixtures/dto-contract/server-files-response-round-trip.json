@@ -1,0 +1,42 @@
+{
+  "domain": "dto-contract",
+  "case": "server-files-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testServerFilesResponseRoundTrip",
+    "line": 529
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.ServerFilesResponseDTO",
+    "targetType": "iOSModels.ServerFilesResponseDTO",
+    "value": {
+      "serverName": "My Server",
+      "path": "",
+      "parentPath": null,
+      "items": [
+        {
+          "id": "server.properties",
+          "name": "server.properties",
+          "path": "server.properties",
+          "isDirectory": false,
+          "sizeBytes": 2048,
+          "modifiedAt": "2026-07-01T00:00:00Z",
+          "fileExtension": "properties",
+          "isPreviewable": true
+        }
+      ],
+      "note": null
+    }
+  },
+  "expected": {
+    "serverName": "My Server",
+    "items": [
+      {
+        "isPreviewable": true
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps."
+}

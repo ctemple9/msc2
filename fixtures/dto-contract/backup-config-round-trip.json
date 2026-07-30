@@ -1,0 +1,46 @@
+{
+  "domain": "dto-contract",
+  "case": "backup-config-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testBackupConfigRoundTrip",
+    "line": 269
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.BackupConfigResponseDTO",
+    "targetType": "iOSModels.BackupConfigResponseDTO",
+    "value": {
+      "serverName": "My Server",
+      "autoBackupEnabled": true,
+      "autoBackupIntervalMinutes": 60,
+      "autoBackupMaxCount": 12,
+      "intervalOptions": [
+        15,
+        30,
+        45,
+        60,
+        120,
+        240,
+        360
+      ],
+      "note": null
+    }
+  },
+  "expected": {
+    "autoBackupEnabled": true,
+    "autoBackupIntervalMinutes": 60,
+    "autoBackupMaxCount": 12,
+    "intervalOptions": [
+      15,
+      30,
+      45,
+      60,
+      120,
+      240,
+      360
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. serverName/note aren't asserted."
+}

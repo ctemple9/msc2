@@ -1,0 +1,30 @@
+{
+  "domain": "dto-contract",
+  "case": "geyser-config-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testGeyserConfigRoundTrip",
+    "line": 687
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.GeyserConfigResponseDTO",
+    "targetType": "iOSModels.GeyserConfigResponseDTO",
+    "value": {
+      "serverName": "My Server",
+      "serverType": "java",
+      "isGeyserInstalled": true,
+      "address": "0.0.0.0",
+      "port": 19132,
+      "configFileExists": true,
+      "note": null
+    }
+  },
+  "expected": {
+    "isGeyserInstalled": true,
+    "port": 19132,
+    "configFileExists": true
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps."
+}

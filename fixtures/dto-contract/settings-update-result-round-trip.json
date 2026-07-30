@@ -1,0 +1,44 @@
+{
+  "domain": "dto-contract",
+  "case": "settings-update-result-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testSettingsUpdateResultRoundTrip",
+    "line": 152
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.SettingsUpdateResultDTO",
+    "targetType": "iOSModels.SettingsUpdateResultDTO",
+    "value": {
+      "success": false,
+      "message": "partial",
+      "restartRequired": true,
+      "appliedKeys": [
+        "max-players"
+      ],
+      "rejected": [
+        {
+          "key": "bad-key",
+          "reason": "unknown_key"
+        }
+      ],
+      "sections": null
+    }
+  },
+  "expected": {
+    "success": false,
+    "message": "partial",
+    "restartRequired": true,
+    "appliedKeys": [
+      "max-players"
+    ],
+    "rejected": [
+      {
+        "key": "bad-key",
+        "reason": "unknown_key"
+      }
+    ]
+  }
+}

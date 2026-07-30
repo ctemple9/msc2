@@ -1,0 +1,34 @@
+{
+  "domain": "dto-contract",
+  "case": "me-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testMeResponseRoundTrip",
+    "line": 289
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.MeResponseDTO",
+    "targetType": "iOSModels.MeResponseDTO",
+    "value": {
+      "role": "named",
+      "name": "alice",
+      "permissions": [
+        "players",
+        "worlds"
+      ],
+      "isNamedToken": true
+    }
+  },
+  "expected": {
+    "role": "named",
+    "name": "alice",
+    "permissions": [
+      "players",
+      "worlds"
+    ],
+    "isNamedToken": true
+  },
+  "notes": "Key check per the source comment: macOS sends isNamedToken as a non-optional Bool; iOS decodes it as Bool? — this proves the decode yields true, not nil."
+}

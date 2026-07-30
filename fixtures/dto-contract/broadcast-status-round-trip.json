@@ -1,0 +1,23 @@
+{
+  "domain": "dto-contract",
+  "case": "broadcast-status-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testBroadcastStatusRoundTrip",
+    "line": 331
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.BroadcastStatusDTO",
+    "targetType": "iOSModels.BroadcastStatusDTO",
+    "value": {
+      "xboxBroadcastRunning": true,
+      "bedrockBroadcastRunning": false
+    }
+  },
+  "expected": {
+    "xboxBroadcastRunning": true,
+    "bedrockBroadcastRunning": false
+  }
+}

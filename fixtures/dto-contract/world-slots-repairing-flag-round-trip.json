@@ -1,0 +1,25 @@
+{
+  "domain": "dto-contract",
+  "case": "world-slots-repairing-flag-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testWorldSlotsRepairingFlagRoundTrip",
+    "line": 228
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.WorldSlotsResponseDTO",
+    "targetType": "iOSModels.WorldSlotsResponseDTO",
+    "value": {
+      "slots": [],
+      "activeSlotId": null,
+      "serverRunning": true,
+      "isRepairing": true
+    }
+  },
+  "expected": {
+    "isRepairing": true
+  },
+  "notes": "isRepairing is an additive optional field (older macOS builds omit it); this test only checks that when present, it round-trips as true — nothing else asserted."
+}

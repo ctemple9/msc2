@@ -1,0 +1,32 @@
+{
+  "domain": "dto-contract",
+  "case": "remote-api-status-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testRemoteAPIStatusRoundTrip",
+    "line": 45
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIStatus",
+    "targetType": "iOSModels.RemoteAPIStatus",
+    "value": {
+      "running": true,
+      "activeServerId": "srv-1",
+      "pid": 12345,
+      "serverType": "java",
+      "dockerContainerRunning": false,
+      "dockerContainerStatus": "stopped"
+    }
+  },
+  "expected": {
+    "running": true,
+    "activeServerId": "srv-1",
+    "pid": 12345,
+    "serverTypeRawValue": "java",
+    "dockerContainerRunning": false,
+    "dockerContainerStatus": "stopped"
+  },
+  "notes": "iOS decodes serverType as an enum; the source test compares ios.serverType?.rawValue to the mac string field, hence the 'serverTypeRawValue' key here (not 'serverType')."
+}

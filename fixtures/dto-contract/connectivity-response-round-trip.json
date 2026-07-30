@@ -1,0 +1,57 @@
+{
+  "domain": "dto-contract",
+  "case": "connectivity-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testConnectivityResponseRoundTrip",
+    "line": 390
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.ConnectivityResponseDTO",
+    "targetType": "iOSModels.ConnectivityResponseDTO",
+    "value": {
+      "serverType": "java",
+      "serverName": "My Server",
+      "serverRunning": true,
+      "status": "reachable",
+      "severity": "green",
+      "headline": "Players can join",
+      "detail": null,
+      "joinAddress": "abc.joinmc.link:25565",
+      "method": "playit",
+      "localListening": true,
+      "externallyReachable": true,
+      "playersOnline": 3,
+      "playersMax": 20,
+      "motd": "Welcome!",
+      "playit": {
+        "enabled": true,
+        "running": true,
+        "address": "abc.joinmc.link"
+      },
+      "broadcast": {
+        "xboxRunning": true,
+        "bedrockRunning": false
+      },
+      "note": null
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "status": "reachable",
+    "severity": "green",
+    "joinAddress": "abc.joinmc.link:25565",
+    "method": "playit",
+    "playersOnline": 3,
+    "motd": "Welcome!",
+    "playit": {
+      "address": "abc.joinmc.link"
+    },
+    "broadcast": {
+      "xboxRunning": true
+    }
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. serverName/serverRunning/headline/detail/localListening/externallyReachable/playersMax/note/playit.enabled/playit.running/broadcast.bedrockRunning are all present in the input value but not asserted."
+}

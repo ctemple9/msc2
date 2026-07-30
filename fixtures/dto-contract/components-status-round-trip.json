@@ -1,0 +1,40 @@
+{
+  "domain": "dto-contract",
+  "case": "components-status-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testComponentsStatusRoundTrip",
+    "line": 175
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.ComponentsStatusDTO",
+    "targetType": "iOSModels.ComponentsStatusDTO",
+    "value": {
+      "components": [
+        {
+          "name": "paper",
+          "installedBuild": 42,
+          "latestBuild": 50,
+          "installedVersion": "1.21.4",
+          "latestVersion": "1.21.4",
+          "isUpToDate": false
+        }
+      ],
+      "restartRequiredToApply": true
+    }
+  },
+  "expected": {
+    "restartRequiredToApply": true,
+    "components": [
+      {
+        "name": "paper",
+        "installedBuild": 42,
+        "latestBuild": 50,
+        "isUpToDate": false
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. installedVersion/latestVersion aren't asserted."
+}

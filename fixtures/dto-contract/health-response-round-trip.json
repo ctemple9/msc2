@@ -1,0 +1,45 @@
+{
+  "domain": "dto-contract",
+  "case": "health-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testHealthResponseRoundTrip",
+    "line": 432
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.HealthResponseDTO",
+    "targetType": "iOSModels.HealthResponseDTO",
+    "value": {
+      "serverType": "java",
+      "serverName": "My Server",
+      "serverRunning": false,
+      "overallSeverity": "green",
+      "cards": [
+        {
+          "id": "java",
+          "title": "Java Runtime",
+          "shortLabel": "Java",
+          "severity": "green",
+          "detail": "Java 21",
+          "iconSystemName": "cup.and.saucer.fill",
+          "actionLabel": null,
+          "actionCode": null
+        }
+      ],
+      "note": null
+    }
+  },
+  "expected": {
+    "overallSeverity": "green",
+    "cards": [
+      {
+        "id": "java",
+        "severity": "green",
+        "detail": "Java 21"
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. serverType/serverName/serverRunning/note and most card fields aren't asserted."
+}

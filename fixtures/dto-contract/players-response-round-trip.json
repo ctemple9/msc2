@@ -1,0 +1,43 @@
+{
+  "domain": "dto-contract",
+  "case": "players-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testPlayersResponseRoundTrip",
+    "line": 83
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.PlayersResponseDTO",
+    "targetType": "iOSModels.PlayersResponse",
+    "value": {
+      "players": [
+        {
+          "name": "Steve",
+          "uuid": "abc-uuid"
+        },
+        {
+          "name": "Alex",
+          "uuid": null
+        }
+      ],
+      "count": 2,
+      "note": "Bedrock player list"
+    }
+  },
+  "expected": {
+    "count": 2,
+    "note": "Bedrock player list",
+    "players": [
+      {
+        "name": "Steve",
+        "uuid": "abc-uuid"
+      },
+      {
+        "uuid": null
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. Mac-side type name (RemoteAPIServer.PlayersResponseDTO) and iOS-side (iOSModels.PlayersResponse) differ, but the wire keys are identical — that's the point."
+}

@@ -1,0 +1,43 @@
+{
+  "domain": "dto-contract",
+  "case": "world-slots-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testWorldSlotsResponseRoundTrip",
+    "line": 201
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.WorldSlotsResponseDTO",
+    "targetType": "iOSModels.WorldSlotsResponseDTO",
+    "value": {
+      "slots": [
+        {
+          "id": "slot-1",
+          "name": "World1",
+          "isActive": true,
+          "createdAt": "2026-01-01T00:00:00Z",
+          "zipSizeBytes": 1048576,
+          "worldSeed": "12345"
+        }
+      ],
+      "activeSlotId": "slot-1",
+      "serverRunning": false,
+      "isRepairing": null
+    }
+  },
+  "expected": {
+    "activeSlotId": "slot-1",
+    "serverRunning": false,
+    "isRepairing": null,
+    "slots": [
+      {
+        "id": "slot-1",
+        "worldSeed": "12345",
+        "zipSizeBytes": 1048576
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. name/isActive/createdAt on the slot aren't asserted."
+}

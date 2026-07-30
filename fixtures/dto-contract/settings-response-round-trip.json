@@ -1,0 +1,71 @@
+{
+  "domain": "dto-contract",
+  "case": "settings-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testSettingsResponseRoundTrip",
+    "line": 108
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.SettingsResponseDTO",
+    "targetType": "iOSModels.SettingsResponseDTO",
+    "value": {
+      "serverType": "java",
+      "serverName": "My Server",
+      "serverRunning": false,
+      "editable": true,
+      "note": null,
+      "sections": [
+        {
+          "id": "gameplay",
+          "title": "Gameplay",
+          "icon": "gamecontroller",
+          "fields": [
+            {
+              "key": "difficulty",
+              "label": "Difficulty",
+              "help": "Game difficulty",
+              "type": "enum",
+              "value": "hard",
+              "options": [
+                {
+                  "value": "hard",
+                  "label": "Hard"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "serverName": "My Server",
+    "serverRunning": false,
+    "editable": true,
+    "note": null,
+    "sections": [
+      {
+        "id": "gameplay",
+        "icon": "gamecontroller",
+        "fields": [
+          {
+            "key": "difficulty",
+            "type": "enum",
+            "value": "hard",
+            "options": [
+              {
+                "value": "hard",
+                "label": "Hard"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. Section 'title' and field 'label'/'help' are in the input value but not asserted by the source test, so they're absent from expected."
+}

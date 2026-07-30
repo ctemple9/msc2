@@ -1,0 +1,43 @@
+{
+  "domain": "dto-contract",
+  "case": "user-list-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testUserListResponseRoundTrip",
+    "line": 307
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.UserListResponseDTO",
+    "targetType": "iOSModels.UserListResponseDTO",
+    "value": {
+      "users": [
+        {
+          "id": "u-1",
+          "label": "Bob's Phone",
+          "role": "named",
+          "permissions": [
+            "serverControl"
+          ],
+          "createdAtISO8601": "2026-01-01T00:00:00Z",
+          "expiresAtISO8601": null,
+          "isExpired": false
+        }
+      ]
+    }
+  },
+  "expected": {
+    "users": [
+      {
+        "id": "u-1",
+        "label": "Bob's Phone",
+        "permissions": [
+          "serverControl"
+        ],
+        "isExpired": false
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. role/createdAtISO8601/expiresAtISO8601 aren't asserted."
+}

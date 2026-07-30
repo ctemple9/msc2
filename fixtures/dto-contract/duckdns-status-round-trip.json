@@ -1,0 +1,23 @@
+{
+  "domain": "dto-contract",
+  "case": "duckdns-status-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testDuckDNSStatusRoundTrip",
+    "line": 679
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.DuckDNSStatusResponseDTO",
+    "targetType": "iOSModels.DuckDNSStatusResponseDTO",
+    "value": {
+      "hostname": "my-mac.duckdns.org"
+    }
+  },
+  "expected": {
+    "hostname": "my-mac.duckdns.org",
+    "isConfiguredComputed": true
+  },
+  "notes": "isConfigured isn't a wire field — the mac DTO's init only takes hostname. It's a computed property on the iOS mirror (presumably `hostname != nil`), asserted true here since a non-nil hostname was decoded; named 'isConfiguredComputed' to mark it as derived rather than decoded."
+}

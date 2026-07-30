@@ -1,0 +1,42 @@
+{
+  "domain": "dto-contract",
+  "case": "backups-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testBackupsResponseRoundTrip",
+    "line": 244
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.BackupsResponseDTO",
+    "targetType": "iOSModels.BackupsResponseDTO",
+    "value": {
+      "backups": [
+        {
+          "id": "backup-file.zip",
+          "displayName": "World1 Backup",
+          "fileSize": 2000000,
+          "modificationDate": "2026-07-01T12:00:00Z",
+          "isAutomatic": true,
+          "slotId": "slot-1",
+          "slotName": "World1",
+          "triggerReason": "auto"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "backups": [
+      {
+        "id": "backup-file.zip",
+        "displayName": "World1 Backup",
+        "fileSize": 2000000,
+        "isAutomatic": true,
+        "slotId": "slot-1",
+        "triggerReason": "auto"
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. slotName/modificationDate aren't asserted."
+}

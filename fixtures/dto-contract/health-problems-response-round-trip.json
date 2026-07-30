@@ -1,0 +1,55 @@
+{
+  "domain": "dto-contract",
+  "case": "health-problems-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testHealthProblemsResponseRoundTrip",
+    "line": 461
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.HealthProblemsResponseDTO",
+    "targetType": "iOSModels.HealthProblemsResponseDTO",
+    "value": {
+      "serverType": "java",
+      "serverRunning": false,
+      "isSoftFail": false,
+      "problems": [
+        {
+          "id": "prob-1",
+          "kind": "missingDependency",
+          "kindTitle": "Missing Dependency",
+          "iconSystemName": "exclamationmark.triangle.fill",
+          "offenderName": "Lithium",
+          "requirement": "Sodium",
+          "installedFile": "lithium-0.11.jar",
+          "installedJarStem": "lithium-0.11",
+          "missingDependency": "Sodium",
+          "rawExcerpt": "[FATAL] Missing mod: sodium",
+          "isRepairing": false,
+          "availableActions": [
+            "install",
+            "delete"
+          ],
+          "modrinthURL": "https://modrinth.com/mod/sodium"
+        }
+      ],
+      "note": null
+    }
+  },
+  "expected": {
+    "problems": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "Lithium",
+        "availableActions": [
+          "install",
+          "delete"
+        ],
+        "modrinthURL": "https://modrinth.com/mod/sodium"
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps."
+}

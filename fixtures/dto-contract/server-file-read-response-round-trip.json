@@ -1,0 +1,32 @@
+{
+  "domain": "dto-contract",
+  "case": "server-file-read-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testServerFileReadResponseRoundTrip",
+    "line": 555
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.ServerFileReadResponseDTO",
+    "targetType": "iOSModels.ServerFileReadResponseDTO",
+    "value": {
+      "success": true,
+      "message": "ok",
+      "path": "server.properties",
+      "name": "server.properties",
+      "sizeBytes": 1024,
+      "content": "max-players=20\n",
+      "encoding": "utf-8",
+      "truncated": false
+    }
+  },
+  "expected": {
+    "success": true,
+    "content": "max-players=20\n",
+    "encoding": "utf-8",
+    "truncated": false
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps. message/path/name/sizeBytes aren't asserted."
+}

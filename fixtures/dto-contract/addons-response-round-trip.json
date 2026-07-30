@@ -1,0 +1,46 @@
+{
+  "domain": "dto-contract",
+  "case": "addons-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testAddonsResponseRoundTrip",
+    "line": 647
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.AddonsResponseDTO",
+    "targetType": "iOSModels.AddonsResponseDTO",
+    "value": {
+      "addons": [
+        {
+          "jarStem": "sodium-0.6",
+          "displayName": "Sodium",
+          "isEnabled": true,
+          "projectId": "AANobbMI",
+          "currentVersion": "0.6.0",
+          "availableVersion": "0.6.1",
+          "bucket": "updateAvailable",
+          "iconURL": "https://cdn.modrinth.com/data/AANobbMI/icon.png"
+        }
+      ],
+      "isResolving": false,
+      "serverSupportsAddons": true,
+      "packManaged": true,
+      "packName": "Better MC [FORGE] BMC4"
+    }
+  },
+  "expected": {
+    "addons": [
+      {
+        "bucket": "updateAvailable",
+        "availableVersion": "0.6.1"
+      }
+    ],
+    "isResolving": false,
+    "serverSupportsAddons": true,
+    "packManaged": true,
+    "packName": "Better MC [FORGE] BMC4"
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps."
+}

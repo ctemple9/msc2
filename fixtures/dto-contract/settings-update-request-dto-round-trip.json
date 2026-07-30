@@ -1,0 +1,28 @@
+{
+  "domain": "dto-contract",
+  "case": "settings-update-request-dto-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testSettingsUpdateRequestDTORoundTrip",
+    "line": 601
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "ios-to-mac",
+    "sourceType": "iOSModels.SettingsUpdateRequestDTO",
+    "targetType": "RemoteAPIServer.SettingsUpdateRequestDTO",
+    "value": {
+      "changes": {
+        "max-players": "20",
+        "difficulty": "hard"
+      }
+    }
+  },
+  "expected": {
+    "changes": {
+      "max-players": "20",
+      "difficulty": "hard"
+    }
+  },
+  "notes": "Reverse direction: iOS encodes the request, macOS decodes it."
+}

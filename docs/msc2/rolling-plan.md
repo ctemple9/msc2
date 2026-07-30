@@ -189,7 +189,7 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.9: extract startup crash-analyzer fixtures`
 
 ### P0.10 — Extract args-file resolution fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/args-file-resolution/`
 **What:** Pull the 12 test cases out of `ArgsFileResolutionTests.swift` (NeoForge `@args`-file version resolution and fallback).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/args-file-resolution --expect 12` → `ok 12`
@@ -198,11 +198,11 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **API / wire-contract tests**
 
 ### P0.11 — Extract DTO contract fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/dto-contract/`
 **What:** Pull the 30 test cases out of `DTOContractTests.swift` — the wire-format shape MSC 2's OpenAPI baseline (P0.23) must match.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/dto-contract --expect 30` → `ok 30`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.11: extract DTO contract fixtures`
 
 ### P0.12 — Extract HTTP request-parsing fixtures
 **Status:** not started

@@ -1,0 +1,26 @@
+{
+  "domain": "dto-contract",
+  "case": "catalog-install-request-dto-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testCatalogInstallRequestDTORoundTrip",
+    "line": 614
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "ios-to-mac",
+    "sourceType": "iOSModels.CatalogInstallRequestDTO",
+    "targetType": "RemoteAPIServer.CatalogInstallRequestDTO",
+    "value": {
+      "projectId": "AANobbMI",
+      "slug": "sodium",
+      "title": "Sodium"
+    }
+  },
+  "expected": {
+    "projectId": "AANobbMI",
+    "slug": "sodium",
+    "title": "Sodium"
+  },
+  "notes": "Reverse direction: iOS encodes the request, macOS decodes it."
+}

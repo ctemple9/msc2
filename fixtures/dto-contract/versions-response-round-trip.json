@@ -1,0 +1,46 @@
+{
+  "domain": "dto-contract",
+  "case": "versions-response-round-trip",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testVersionsResponseRoundTrip",
+    "line": 497
+  },
+  "input": {
+    "function": "DTOContract.roundTrip",
+    "direction": "mac-to-ios",
+    "sourceType": "RemoteAPIServer.VersionsResponseDTO",
+    "targetType": "iOSModels.VersionsResponseDTO",
+    "value": {
+      "supportsVersions": true,
+      "flavorName": "Paper",
+      "currentVersion": "1.21.4",
+      "isBedrock": false,
+      "versions": [
+        {
+          "id": "1.21.4-42",
+          "displayLabel": "1.21.4 (Build 42)",
+          "mcVersion": "1.21.4",
+          "loaderVersion": null,
+          "buildLabel": "42",
+          "isStable": true,
+          "isLatest": true
+        }
+      ],
+      "note": null
+    }
+  },
+  "expected": {
+    "supportsVersions": true,
+    "flavorName": "Paper",
+    "currentVersion": "1.21.4",
+    "isBedrock": false,
+    "versions": [
+      {
+        "mcVersion": "1.21.4",
+        "isLatest": true
+      }
+    ]
+  },
+  "notes": "DTO round-trip tests assert only a subset of fields per MSC 1's own test (the ones it actually checks with XCTAssertEqual) — expected mirrors that subset, not the full DTO, per the same convention as prior extraction steps."
+}

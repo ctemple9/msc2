@@ -1,0 +1,23 @@
+{
+  "domain": "dto-contract",
+  "case": "simple-result-nil-server-id",
+  "source": {
+    "file": "DTOContractTests.swift",
+    "test": "testSimpleResultNilServerId",
+    "line": 372
+  },
+  "input": {
+    "function": "DTOContract.decode",
+    "direction": "raw-json-to-ios",
+    "targetType": "iOSModels.SimpleResult",
+    "json": {
+      "result": "stop_requested",
+      "activeServerId": null
+    }
+  },
+  "expected": {
+    "result": "stop_requested",
+    "activeServerId": null
+  },
+  "notes": "activeServerId may be nil when no server is active."
+}

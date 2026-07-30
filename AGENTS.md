@@ -53,7 +53,7 @@ Two agents work on this repo: **Claude Code** and **Codex**. Whoever implements 
 - Rust: `cargo fmt` and `cargo clippy` clean before any commit
 - Tests run with `cargo nextest run`
 - Commit messages: `P<phase>.<step>: <what changed>` — imperative, lowercase
-- No `Co-Authored-By` trailers on commits
+- No `Co-Authored-By` or other AI attribution trailers. Enforced by `.githooks/commit-msg` and by CI, not by memory. Enable the hook once per clone: `git config core.hooksPath .githooks`
 - Comments explain **why**, not what
 
 ## Current state

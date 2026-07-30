@@ -85,6 +85,13 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Verify:** open `~/msc2` in VS Code, reload the window — no rust-analyzer error in the notifications
 **Commit:** `S.4` (two commits)
 
+### S.5 — Block AI attribution trailers
+**Status:** awaiting verification
+**Files:** `.githooks/commit-msg`, `.github/workflows/ci.yml`
+**What:** Three layers. Claude Code's `attribution` setting suppresses them at the source (owner's global config, already in place). `.githooks/commit-msg` rejects them locally for any agent or human. CI scans the full history so a clone without hooks installed still can't land one on `main`.
+**Verify:** `cd ~/msc2 && printf 'test\n\nCo-Authored-By: X <x@y.z>\n' > /tmp/m && .githooks/commit-msg /tmp/m; echo "exit $?"` → prints a rejection and `exit 1`
+**Commit:** `S.5`
+
 ---
 
 ## Phase 0 — Freeze the baseline and build the harness

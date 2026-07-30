@@ -1,8 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 0 — not yet planned
+> ## STATUS: Setup complete (awaiting verification) — Phase 0 not yet planned
 > **Next move:** PLAN (Phase 0)
-> **Last updated:** 2026-07-29
+> **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
+> **Last updated:** 2026-07-30
 
 ---
 
@@ -38,7 +39,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 | Phase | Name | State |
 |---|---|---|
-| **Setup** | Repo, docs, agent instructions, CI skeleton | in progress |
+| **Setup** | Repo, docs, agent instructions, CI skeleton | awaiting verification |
 | **0** | Freeze the baseline and build the harness | **next** |
 | 1 | Domain types and pure rules | not started |
 | 2 | API contract and operation model | not started |
@@ -61,20 +62,20 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Status:** awaiting verification
 **Files:** everything
 **What:** `git init`, vision docs into `docs/msc2/`, audit artifacts into `docs/msc2/audit/`, `CLAUDE.md` + `AGENTS.md`, this file, README, `.gitignore`.
-**Verify:** `cd ~/msc2 && ls docs/msc2/ && git log --oneline` → five vision docs present, one commit exists
-**Commit:** _(pending)_
+**Verify:** `cd ~/msc2 && ls docs/msc2/ && git log --oneline` → five vision docs + rolling-plan present, commits exist
+**Commit:** `e0771ed`
 
 ### S.2 — Publish to GitHub
-**Status:** not started
-**What:** Create the public `msc2` repository and push `main`.
-**Verify:** the repo loads in a browser and shows the README
+**Status:** awaiting verification
+**What:** Created the public `msc2` repository and pushed `main`.
+**Verify:** open https://github.com/ctemple9/msc2 — README renders, 19 files, docs/msc2/ browsable
 **Commit:** _(n/a — push only)_
 
 ### S.3 — CI skeleton
-**Status:** not started
-**What:** A GitHub Actions workflow that runs on macOS, Linux, and Windows. It has nothing to build yet — it exists so the three-platform matrix is proven before there's code depending on it.
-**Verify:** green check on the commit in GitHub's Actions tab, all three platforms
-**Commit:** _(pending)_
+**Status:** awaiting verification
+**What:** `.github/workflows/ci.yml`. Two jobs — `repo-invariants` (CLAUDE.md/AGENTS.md must not drift; all six controlled documents must exist) and `toolchain` (macOS + Linux + Windows, installs Rust, builds once `Cargo.toml` appears).
+**Verify:** `cd ~/msc2 && gh run list --limit 1` → shows `success`. Or the green check at https://github.com/ctemple9/msc2/actions
+**Commit:** `S.3` — all four jobs passed on first run
 
 ---
 

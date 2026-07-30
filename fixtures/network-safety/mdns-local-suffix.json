@@ -1,0 +1,14 @@
+{
+  "domain": "network-safety",
+  "case": "mdns-local-suffix",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testMDNSLocalSuffix",
+    "line": 57
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "host": "my-mac.local"
+  },
+  "expected": true
+}

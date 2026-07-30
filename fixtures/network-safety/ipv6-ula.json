@@ -1,0 +1,23 @@
+{
+  "domain": "network-safety",
+  "case": "ipv6-ula",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testIPv6ULA",
+    "line": 104
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "fd00::1",
+      "fd12:3456:789a::1"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      true
+    ]
+  },
+  "notes": "fd00::/8 (RFC 4193 Unique Local Address range), matched via an 'fd' prefix check — verbatim-ported as-is, even though a bare 'fd' prefix is technically broader than the strict fd00::/8 CIDR block."
+}

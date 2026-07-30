@@ -1,0 +1,27 @@
+{
+  "domain": "network-safety",
+  "case": "172-private-range-boundaries",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "test172PrivateRangeBoundaries",
+    "line": 69
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "172.16.0.1",
+      "172.31.255.1",
+      "172.15.0.1",
+      "172.32.0.1"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "notes": "172.16.0.0/12: only the second octet in 16...31 (inclusive) qualifies — 15 and 32 are one step outside either boundary."
+}

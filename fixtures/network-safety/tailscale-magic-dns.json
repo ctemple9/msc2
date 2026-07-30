@@ -1,0 +1,23 @@
+{
+  "domain": "network-safety",
+  "case": "tailscale-magic-dns",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testTailscaleMagicDNS",
+    "line": 114
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "my-mac.ts.net",
+      "example.ts.net.evil.com"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      false
+    ]
+  },
+  "notes": "'.ts.net' is matched as a *suffix*, not a substring: 'example.ts.net.evil.com' contains '.ts.net' partway through but doesn't end with it — a spoofing attempt appending a real-looking domain after it — and must be rejected."
+}

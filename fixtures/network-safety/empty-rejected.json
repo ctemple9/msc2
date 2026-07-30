@@ -1,0 +1,23 @@
+{
+  "domain": "network-safety",
+  "case": "empty-rejected",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testEmptyRejected",
+    "line": 88
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "",
+      "   "
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false
+    ]
+  },
+  "notes": "An empty or whitespace-only host is rejected outright, before any prefix/suffix check."
+}

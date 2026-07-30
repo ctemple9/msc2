@@ -1,0 +1,25 @@
+{
+  "domain": "network-safety",
+  "case": "loopback-and-localhost",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testLoopbackAndLocalhost",
+    "line": 51
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "127.0.0.1",
+      "localhost",
+      "  LOCALHOST  "
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      true,
+      true
+    ]
+  },
+  "notes": "isLocalOrPrivateHost is defined as a private free function inside this test file itself, not the main app: the audit's NetworkSafety type is iOS-only, and its macOS twin (MSCSettingsView.isLocalOrPrivateHost) is a private method on a SwiftUI View, unreachable even via @testable import. Per the source file's header comment, this suite pins a verbatim port of the iOS NetworkSafety rule set (including the IPv6 additions from S5) as the oracle instead. Input is trimmed of whitespace and lowercased before comparison."
+}

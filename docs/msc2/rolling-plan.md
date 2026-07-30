@@ -212,18 +212,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.12: extract HTTP request-parsing fixtures`
 
 ### P0.13 — Extract Remote API integration fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/remote-api-integration/`
 **What:** Pull the 12 test cases out of `RemoteAPIIntegrationTests.swift`.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/remote-api-integration --expect 12` → `ok 12`
 **Commit:** `P0.13: extract Remote API integration fixtures`
 
 ### P0.14 — Extract network-safety fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/network-safety/`
 **What:** Pull the 13 test cases out of `NetworkSafetyTests.swift` (loopback/mDNS/private-range classification).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/network-safety --expect 13` → `ok 13`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.14: extract network-safety fixtures`
 
 ### P0.15 — Extract config round-trip fixtures
 **Status:** not started

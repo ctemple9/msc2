@@ -1,0 +1,14 @@
+{
+  "domain": "network-safety",
+  "case": "private-class-c-192-168",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testPrivateClassC192_168",
+    "line": 65
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "host": "192.168.1.42"
+  },
+  "expected": true
+}

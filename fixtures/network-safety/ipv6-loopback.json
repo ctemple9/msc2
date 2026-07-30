@@ -1,0 +1,15 @@
+{
+  "domain": "network-safety",
+  "case": "ipv6-loopback",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testIPv6Loopback",
+    "line": 95
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "host": "::1"
+  },
+  "expected": true,
+  "notes": "isLocalOrPrivateHost is defined as a private free function inside this test file itself, not the main app: the audit's NetworkSafety type is iOS-only, and its macOS twin (MSCSettingsView.isLocalOrPrivateHost) is a private method on a SwiftUI View, unreachable even via @testable import. Per the source file's header comment, this suite pins a verbatim port of the iOS NetworkSafety rule set (including the IPv6 additions from S5) as the oracle instead. IPv6 handling (S5 addition): URL.host always strips brackets, so these fixtures use bare (unbracketed) IPv6 forms throughout."
+}

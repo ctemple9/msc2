@@ -1,0 +1,25 @@
+{
+  "domain": "network-safety",
+  "case": "public-addresses-rejected",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testPublicAddressesRejected",
+    "line": 80
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "8.8.8.8",
+      "1.2.3.4",
+      "100.64.0.1"
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false,
+      false
+    ]
+  },
+  "notes": "Tailscale's CGNAT range (100.64.0.0/10) is intentionally NOT matched by this helper — a separate function, preferredPairingHost, handles 100.* as a first-choice pairing host instead of folding it into the generic private-host check."
+}

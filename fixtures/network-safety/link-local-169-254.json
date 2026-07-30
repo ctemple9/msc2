@@ -1,0 +1,14 @@
+{
+  "domain": "network-safety",
+  "case": "link-local-169-254",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testLinkLocal169_254",
+    "line": 76
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "host": "169.254.1.1"
+  },
+  "expected": true
+}

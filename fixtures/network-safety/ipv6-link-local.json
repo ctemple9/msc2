@@ -1,0 +1,23 @@
+{
+  "domain": "network-safety",
+  "case": "ipv6-link-local",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testIPv6LinkLocal",
+    "line": 99
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "fe80::1",
+      "fe80::aabb:ccdd:eeff"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      true
+    ]
+  },
+  "notes": "fe80::/10 link-local range, matched via a 'fe80:' prefix check."
+}

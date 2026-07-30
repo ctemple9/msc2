@@ -1,0 +1,23 @@
+{
+  "domain": "network-safety",
+  "case": "ipv6-public-rejected",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testIPv6PublicRejected",
+    "line": 109
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "hosts": [
+      "2001:db8::1",
+      "2606:4700::1"
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false
+    ]
+  },
+  "notes": "2001:db8::/32 is the reserved documentation range; 2606:4700:: is a real public Cloudflare address — neither is local/private."
+}

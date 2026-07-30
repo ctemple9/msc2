@@ -1,0 +1,14 @@
+{
+  "domain": "network-safety",
+  "case": "private-class-a-10",
+  "source": {
+    "file": "NetworkSafetyTests.swift",
+    "test": "testPrivateClassA10",
+    "line": 61
+  },
+  "input": {
+    "function": "NetworkSafety.isLocalOrPrivateHost",
+    "host": "10.0.0.5"
+  },
+  "expected": true
+}

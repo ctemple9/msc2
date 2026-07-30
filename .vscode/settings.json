@@ -18,6 +18,17 @@
   },
   "rust-analyzer.check.command": "clippy",
 
+  // Use the rust-analyzer that rustup installs, not the one the extension
+  // tries to download. The extension ships no prebuilt server for some
+  // platforms (x86_64 macOS among them) and fails with "we don't ship
+  // binaries for your platform yet".
+  //
+  // Requires: rustup component add rust-analyzer
+  //
+  // Deliberately not an absolute path — this resolves through the rustup
+  // shim on PATH, so it works on any machine and any architecture.
+  "rust-analyzer.server.path": "rust-analyzer",
+
   // Don't index build output.
   "search.exclude": {
     "**/target": true,

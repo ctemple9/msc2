@@ -2161,6 +2161,23 @@
           }
         }
       }
+    },
+    "/start": {
+      "post": {
+        "summary": "Start the active server",
+        "responses": {
+          "200": {
+            "description": "result: start_requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimpleResult"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3765,6 +3782,20 @@
         "required": [
           "result",
           "command"
+        ]
+      },
+      "SimpleResult": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "activeServerId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
         ]
       }
     }

@@ -1,0 +1,23 @@
+{
+  "domain": "http-parse-request",
+  "case": "query-key-without-value-decodes-to-empty-string",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testQueryKeyWithoutValueDecodesToEmptyString",
+    "line": 165
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "request": {
+      "method": "GET",
+      "target": "/x?flag&other=1"
+    }
+  },
+  "expected": {
+    "query": {
+      "flag": "",
+      "other": "1"
+    }
+  },
+  "notes": "'request' describes the raw HTTP bytes via RemoteAPITestSupport.rawRequest's own algorithm (RemoteAPITestSupport.swift): '<method> <target> HTTP/1.1\\r\\n' + each header as '<Key>: <Value>\\r\\n' (order doesn't affect parsing — Swift dictionary iteration is unordered and the parser doesn't care) + a blank '\\r\\n' line + the body bytes appended verbatim."
+}

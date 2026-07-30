@@ -1,0 +1,14 @@
+{
+  "domain": "http-parse-request",
+  "case": "request-line-without-target-returns-nil",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testRequestLineWithoutTargetReturnsNil",
+    "line": 80
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "raw": "GET\r\n\r\n"
+  },
+  "expected": null
+}

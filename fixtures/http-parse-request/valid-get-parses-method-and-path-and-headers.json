@@ -1,0 +1,32 @@
+{
+  "domain": "http-parse-request",
+  "case": "valid-get-parses-method-and-path-and-headers",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testValidGETParsesMethodAndPathAndHeaders",
+    "line": 28
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "request": {
+      "method": "GET",
+      "target": "/status",
+      "headers": {
+        "Authorization": "Bearer abc",
+        "Host": "localhost"
+      }
+    }
+  },
+  "expected": {
+    "notNil": true,
+    "method": "GET",
+    "path": "/status",
+    "headers": {
+      "authorization": "Bearer abc",
+      "host": "localhost"
+    },
+    "bodyEmpty": true,
+    "queryEmpty": true
+  },
+  "notes": "'request' describes the raw HTTP bytes via RemoteAPITestSupport.rawRequest's own algorithm (RemoteAPITestSupport.swift): '<method> <target> HTTP/1.1\\r\\n' + each header as '<Key>: <Value>\\r\\n' (order doesn't affect parsing — Swift dictionary iteration is unordered and the parser doesn't care) + a blank '\\r\\n' line + the body bytes appended verbatim. Header names are lowercased by the parser (asserted via the lowercase 'authorization'/'host' keys here, vs. 'Authorization'/'Host' sent in)."
+}

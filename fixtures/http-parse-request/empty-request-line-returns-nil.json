@@ -1,0 +1,14 @@
+{
+  "domain": "http-parse-request",
+  "case": "empty-request-line-returns-nil",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testEmptyRequestLineReturnsNil",
+    "line": 75
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "raw": "\r\n\r\n"
+  },
+  "expected": null
+}

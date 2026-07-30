@@ -1,0 +1,24 @@
+{
+  "domain": "http-parse-request",
+  "case": "query-decoding-parses-pairs",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testQueryDecodingParsesPairs",
+    "line": 149
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "request": {
+      "method": "GET",
+      "target": "/files?path=/a&limit=5"
+    }
+  },
+  "expected": {
+    "path": "/files",
+    "query": {
+      "path": "/a",
+      "limit": "5"
+    }
+  },
+  "notes": "'request' describes the raw HTTP bytes via RemoteAPITestSupport.rawRequest's own algorithm (RemoteAPITestSupport.swift): '<method> <target> HTTP/1.1\\r\\n' + each header as '<Key>: <Value>\\r\\n' (order doesn't affect parsing — Swift dictionary iteration is unordered and the parser doesn't care) + a blank '\\r\\n' line + the body bytes appended verbatim."
+}

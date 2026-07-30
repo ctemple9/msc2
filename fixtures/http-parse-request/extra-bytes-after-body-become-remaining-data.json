@@ -1,0 +1,26 @@
+{
+  "domain": "http-parse-request",
+  "case": "extra-bytes-after-body-become-remaining-data",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testExtraBytesAfterBodyBecomeRemainingData",
+    "line": 54
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "request": {
+      "method": "POST",
+      "target": "/x",
+      "headers": {
+        "Content-Length": "2"
+      },
+      "body": "xy"
+    },
+    "trailingBytes": "GET /next"
+  },
+  "expected": {
+    "body": "xy",
+    "remainingData": "GET /next"
+  },
+  "notes": "'request' describes the raw HTTP bytes via RemoteAPITestSupport.rawRequest's own algorithm (RemoteAPITestSupport.swift): '<method> <target> HTTP/1.1\\r\\n' + each header as '<Key>: <Value>\\r\\n' (order doesn't affect parsing — Swift dictionary iteration is unordered and the parser doesn't care) + a blank '\\r\\n' line + the body bytes appended verbatim. 'trailingBytes' is appended raw after the fully-built request (headers+body), simulating a pipelined second request whose bytes haven't been consumed yet — they must surface as remainingData, not be silently dropped."
+}

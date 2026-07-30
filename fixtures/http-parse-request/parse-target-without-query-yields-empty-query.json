@@ -1,0 +1,18 @@
+{
+  "domain": "http-parse-request",
+  "case": "parse-target-without-query-yields-empty-query",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testParseTargetWithoutQueryYieldsEmptyQuery",
+    "line": 172
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseTarget",
+    "target": "/plain/path"
+  },
+  "expected": {
+    "path": "/plain/path",
+    "queryEmpty": true
+  },
+  "notes": "Tests parseTarget directly (not the full parseRequest pipeline) — a target with no '?' yields the whole string as path and an empty query dict."
+}

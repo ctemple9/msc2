@@ -198,18 +198,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **API / wire-contract tests**
 
 ### P0.11 — Extract DTO contract fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/dto-contract/`
 **What:** Pull the 30 test cases out of `DTOContractTests.swift` — the wire-format shape MSC 2's OpenAPI baseline (P0.23) must match.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/dto-contract --expect 30` → `ok 30`
 **Commit:** `P0.11: extract DTO contract fixtures`
 
 ### P0.12 — Extract HTTP request-parsing fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/http-parse-request/`
 **What:** Pull the 16 test cases out of `HTTPParseRequestTests.swift`.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/http-parse-request --expect 16` → `ok 16`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.12: extract HTTP request-parsing fixtures`
 
 ### P0.13 — Extract Remote API integration fixtures
 **Status:** not started

@@ -1,0 +1,15 @@
+{
+  "domain": "http-parse-request",
+  "case": "missing-header-terminator-returns-nil",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testMissingHeaderTerminatorReturnsNil",
+    "line": 69
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "raw": "GET /status HTTP/1.1\r\nHost: x\r\n"
+  },
+  "expected": null,
+  "notes": "Raw bytes given literally (not via the request builder) since this test deliberately withholds the blank-line header terminator — the parser must wait (return nil) rather than misparse an incomplete buffer."
+}

@@ -1,0 +1,24 @@
+{
+  "domain": "http-parse-request",
+  "case": "content-length-exactly-at-cap-is-not-rejected-by-cap",
+  "source": {
+    "file": "HTTPParseRequestTests.swift",
+    "test": "testContentLengthExactlyAtCapIsNotRejectedByCap",
+    "line": 105
+  },
+  "input": {
+    "function": "RemoteAPIServer.parseRequest",
+    "request": {
+      "method": "POST",
+      "target": "/x",
+      "headers": {
+        "Content-Length": "1024"
+      },
+      "body": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "expected": {
+    "bodyLength": 1024
+  },
+  "notes": "'request' describes the raw HTTP bytes via RemoteAPITestSupport.rawRequest's own algorithm (RemoteAPITestSupport.swift): '<method> <target> HTTP/1.1\\r\\n' + each header as '<Key>: <Value>\\r\\n' (order doesn't affect parsing — Swift dictionary iteration is unordered and the parser doesn't care) + a blank '\\r\\n' line + the body bytes appended verbatim. Despite this test's name and its own comment ('prove the cap boundary ... one under cap'), the actual n in the source is 1024, nowhere near maxRequestBodyBytes (65536) — extracted as MSC 1 actually wrote it, not as its name implies; flagging the discrepancy rather than silently 'fixing' the fixture to match the name."
+}

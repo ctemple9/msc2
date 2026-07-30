@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-client-only",
+  "case": "modrinth-optional-keeps-enabled",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testModrinthOptionalKeepsEnabled",
+    "line": 46
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.clientOnlyReason",
+    "modrinthServerSide": "optional",
+    "modrinthProjectTitle": "Some Mod",
+    "jarEnvironment": null
+  },
+  "expected": {
+    "isNil": true
+  }
+}

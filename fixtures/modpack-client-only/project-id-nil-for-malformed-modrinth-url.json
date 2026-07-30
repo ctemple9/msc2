@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-client-only",
+  "case": "project-id-nil-for-malformed-modrinth-url",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testProjectIdNilForMalformedModrinthURL",
+    "line": 99
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.modrinthProjectId",
+    "downloadURLs": [
+      "https://cdn.modrinth.com/versions/1/foo.jar"
+    ]
+  },
+  "expected": null,
+  "notes": "A real cdn.modrinth.com host but missing the 'data' path segment the extractor keys off of."
+}

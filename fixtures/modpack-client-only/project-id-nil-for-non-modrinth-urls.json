@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "project-id-nil-for-non-modrinth-urls",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testProjectIdNilForNonModrinthURLs",
+    "line": 94
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.modrinthProjectId",
+    "downloadURLs": [
+      "https://example.com/data/whatever/versions/1/foo.jar"
+    ]
+  },
+  "expected": null
+}

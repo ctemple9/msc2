@@ -1,0 +1,36 @@
+{
+  "domain": "modpack-client-only",
+  "case": "manifest-env-server-supported-is-not-client-only",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testManifestEnvServerSupportedIsNotClientOnly",
+    "line": 22
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.isManifestServerUnsupported",
+    "envs": [
+      {
+        "client": "required",
+        "server": "required"
+      },
+      {
+        "client": "optional",
+        "server": "optional"
+      },
+      null,
+      {
+        "client": null,
+        "server": null
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "notes": "Includes a nil MrpackEnv entirely (no manifest env block at all), not just an env with nil fields."
+}

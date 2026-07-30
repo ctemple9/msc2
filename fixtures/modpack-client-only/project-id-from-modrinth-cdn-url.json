@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "project-id-from-modrinth-cdn-url",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testProjectIdFromModrinthCDNURL",
+    "line": 81
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.modrinthProjectId",
+    "downloadURLs": [
+      "https://cdn.modrinth.com/data/1IjD5062/versions/abcd1234/continuity-3.0.0.jar"
+    ]
+  },
+  "expected": "1IjD5062"
+}

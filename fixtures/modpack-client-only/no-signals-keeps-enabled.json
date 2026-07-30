@@ -1,0 +1,35 @@
+{
+  "domain": "modpack-client-only",
+  "case": "no-signals-keeps-enabled",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testNoSignalsKeepsEnabled",
+    "line": 71
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.clientOnlyReason",
+    "cases": [
+      {
+        "modrinthServerSide": null,
+        "modrinthProjectTitle": null,
+        "jarEnvironment": null
+      },
+      {
+        "modrinthServerSide": "",
+        "modrinthProjectTitle": null,
+        "jarEnvironment": "client"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "isNil": true
+      },
+      {
+        "isNil": false
+      }
+    ]
+  },
+  "notes": "The second case is the subtle one: an empty-string Modrinth server-side value is treated as 'no signal', NOT as a keep-enabled verdict — so the jar-side 'client' fallback signal still applies and the mod is disabled, unlike a real modrinthServerSide=\"required\"/\"optional\" value which would have kept it enabled."
+}

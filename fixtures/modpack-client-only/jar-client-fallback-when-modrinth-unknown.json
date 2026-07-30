@@ -1,0 +1,22 @@
+{
+  "domain": "modpack-client-only",
+  "case": "jar-client-fallback-when-modrinth-unknown",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testJarClientFallbackWhenModrinthUnknown",
+    "line": 59
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.clientOnlyReason",
+    "modrinthServerSide": null,
+    "modrinthProjectTitle": null,
+    "jarEnvironment": "client"
+  },
+  "expected": {
+    "isNil": false,
+    "contains": [
+      "fabric.mod.json"
+    ]
+  },
+  "notes": "No Modrinth signal at all (both fields nil) — falls back to the jar's own fabric.mod.json environment declaration."
+}

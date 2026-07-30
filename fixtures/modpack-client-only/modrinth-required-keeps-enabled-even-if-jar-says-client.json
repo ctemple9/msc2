@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-client-only",
+  "case": "modrinth-required-keeps-enabled-even-if-jar-says-client",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testModrinthRequiredKeepsEnabledEvenIfJarSaysClient",
+    "line": 39
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.clientOnlyReason",
+    "modrinthServerSide": "required",
+    "modrinthProjectTitle": "Sinytra Connector",
+    "jarEnvironment": "client"
+  },
+  "expected": {
+    "isNil": true
+  },
+  "notes": "Conflict: Modrinth says server-usable ('required'), but the jar's own embedded fabric.mod.json claims environment=client. Modrinth's signal wins."
+}

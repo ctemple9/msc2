@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-client-only",
+  "case": "jar-server-fallback-keeps-enabled",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testJarServerFallbackKeepsEnabled",
+    "line": 66
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.clientOnlyReason",
+    "modrinthServerSide": null,
+    "modrinthProjectTitle": null,
+    "jarEnvironment": "server"
+  },
+  "expected": {
+    "isNil": true
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-client-only",
+  "case": "modrinth-unsupported-wins-over-jar-server",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testModrinthUnsupportedWinsOverJarServer",
+    "line": 52
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.clientOnlyReason",
+    "modrinthServerSide": "unsupported",
+    "modrinthProjectTitle": "BadOptimizations",
+    "jarEnvironment": "server"
+  },
+  "expected": {
+    "isNil": false
+  },
+  "notes": "Conflict the other way: Modrinth says unsupported even though the jar itself claims environment=server — still disabled. Modrinth's signal wins in both directions (see the fixture above for the reverse conflict)."
+}

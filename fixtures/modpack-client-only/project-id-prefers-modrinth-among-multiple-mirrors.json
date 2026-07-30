@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-client-only",
+  "case": "project-id-prefers-modrinth-among-multiple-mirrors",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testProjectIdPrefersModrinthAmongMultipleMirrors",
+    "line": 86
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.modrinthProjectId",
+    "downloadURLs": [
+      "https://example.com/mirror/continuity.jar",
+      "https://cdn.modrinth.com/data/AaBbCcDd/versions/xyz/continuity.jar"
+    ]
+  },
+  "expected": "AaBbCcDd",
+  "notes": "Multiple mirror URLs given; the non-Modrinth one is skipped in favor of the cdn.modrinth.com one, regardless of list order."
+}

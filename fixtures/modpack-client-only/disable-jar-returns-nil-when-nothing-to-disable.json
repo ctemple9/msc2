@@ -1,0 +1,15 @@
+{
+  "domain": "modpack-client-only",
+  "case": "disable-jar-returns-nil-when-nothing-to-disable",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testDisableJarReturnsNilWhenNothingToDisable",
+    "line": 158
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.disableJar",
+    "fsTree": {},
+    "path": "<TMP>/missing.jar"
+  },
+  "expected": null
+}

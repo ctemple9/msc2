@@ -1,0 +1,29 @@
+{
+  "domain": "modpack-client-only",
+  "case": "disable-jar-never-clobbers-existing-disabled",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testDisableJarNeverClobbersExistingDisabled",
+    "line": 144
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.disableJar",
+    "fsTree": {
+      "<TMP>/foo.jar": {
+        "type": "file",
+        "content": "fresh"
+      },
+      "<TMP>/foo.jar.disabled": {
+        "type": "file",
+        "content": "original-disabled"
+      }
+    },
+    "path": "<TMP>/foo.jar"
+  },
+  "expected": {
+    "returned": "foo.jar.disabled",
+    "originalExists": false,
+    "disabledContent": "original-disabled"
+  },
+  "notes": "The never-clobber rule: a .disabled file already exists with different content. The fresh active jar is dropped (deleted), NOT written over the existing .disabled — disabledContent stays 'original-disabled', not 'fresh'."
+}

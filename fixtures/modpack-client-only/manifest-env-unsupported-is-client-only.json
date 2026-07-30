@@ -1,0 +1,29 @@
+{
+  "domain": "modpack-client-only",
+  "case": "manifest-env-unsupported-is-client-only",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testManifestEnvUnsupportedIsClientOnly",
+    "line": 17
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.isManifestServerUnsupported",
+    "envs": [
+      {
+        "client": "required",
+        "server": "unsupported"
+      },
+      {
+        "client": null,
+        "server": "Unsupported"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      true
+    ]
+  },
+  "notes": "Case-insensitive match on the manifest's 'server' value — 'Unsupported' (capitalized) counts the same as 'unsupported'."
+}

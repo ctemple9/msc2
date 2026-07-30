@@ -1,0 +1,29 @@
+{
+  "domain": "modpack-client-only",
+  "case": "is-mods-jar",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testIsModsJar",
+    "line": 111
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.isModsJar",
+    "paths": [
+      "mods/continuity-3.0.0.jar",
+      "MODS/Foo.JAR",
+      "config/foo.json",
+      "mods/readme.txt",
+      "resourcepacks/foo.jar"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      true,
+      false,
+      false,
+      false
+    ]
+  },
+  "notes": "Case-insensitive on both the 'mods/' directory prefix and the '.jar' extension — 'MODS/Foo.JAR' still counts. A non-.jar file inside mods/, and a .jar outside mods/, both don't."
+}

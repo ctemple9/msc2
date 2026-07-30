@@ -1,0 +1,14 @@
+{
+  "domain": "modpack-client-only",
+  "case": "project-id-nil-for-empty-downloads",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testProjectIdNilForEmptyDownloads",
+    "line": 105
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.modrinthProjectId",
+    "downloadURLs": []
+  },
+  "expected": null
+}

@@ -1,0 +1,24 @@
+{
+  "domain": "modpack-client-only",
+  "case": "disable-jar-renames-to-disabled",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testDisableJarRenamesToDisabled",
+    "line": 133
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.disableJar",
+    "fsTree": {
+      "<TMP>/foo.jar": {
+        "type": "file",
+        "content": "active"
+      }
+    },
+    "path": "<TMP>/foo.jar"
+  },
+  "expected": {
+    "returned": "foo.jar.disabled",
+    "originalExists": false,
+    "disabledExists": true
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "domain": "modpack-client-only",
+  "case": "modrinth-unsupported-disables",
+  "source": {
+    "file": "ModpackClientOnlyTests.swift",
+    "test": "testModrinthUnsupportedDisables",
+    "line": 31
+  },
+  "input": {
+    "function": "ModpackClientOnlyClassifier.clientOnlyReason",
+    "modrinthServerSide": "unsupported",
+    "modrinthProjectTitle": "Continuity",
+    "jarEnvironment": null
+  },
+  "expected": {
+    "isNil": false,
+    "contains": [
+      "Continuity",
+      "Modrinth"
+    ]
+  }
+}

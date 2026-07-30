@@ -1,0 +1,12 @@
+{
+  "domain": "_selftest",
+  "case": "fail",
+  "source": {
+    "file": "N/A - synthetic fixture, not extracted from MSC 1",
+    "test": "selftest-fail",
+    "line": 0
+  },
+  "input": { "value": 42 },
+  "expected": { "value": 43 },
+  "notes": "Proves the runner's full-compare path exits non-zero on a mismatch. The _selftest domain is computed as the identity function (actual = input), so input and expected are set unequal on purpose."
+}

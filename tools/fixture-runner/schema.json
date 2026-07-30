@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MSC 2 fixture",
+  "description": "Shape defined in docs/msc2/fixture-format.md. run.py reads this file to drive its own validation rather than duplicating the field list in Python.",
+  "type": "object",
+  "required": ["domain", "case", "source", "input", "expected"],
+  "properties": {
+    "domain": {
+      "type": "string",
+      "description": "Matches the fixture's parent directory name."
+    },
+    "case": {
+      "type": "string",
+      "description": "Matches the fixture's filename, without the .json extension."
+    },
+    "source": {
+      "type": "object",
+      "required": ["file", "test", "line"],
+      "properties": {
+        "file": { "type": "string" },
+        "test": { "type": "string" },
+        "line": { "type": "integer" }
+      }
+    },
+    "input": {},
+    "expected": {},
+    "notes": { "type": "string" }
+  }
+}

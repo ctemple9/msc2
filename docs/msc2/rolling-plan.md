@@ -26,7 +26,7 @@ Every step looks like this:
 **What:** Pull the 27 TPS test cases out of MSC 1's TpsMonitoringTests.swift
          into input/expected JSON pairs.
 **Verify:** `ls fixtures/tps/*.json | wc -l` → 27
-**Commit:** (filled in by the executing agent)
+**Commit:** P0.3: extract TPS parser fixtures        <- the message, not a hash
 ```
 
 **Status is only moved to DONE by Cameron**, after he runs the Verify command himself. An agent may set it to *awaiting verification* and stop.

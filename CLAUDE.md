@@ -53,6 +53,7 @@ Two agents work on this repo: **Claude Code** and **Codex**. Whoever implements 
 - Rust: `cargo fmt` and `cargo clippy` clean before any commit
 - Tests run with `cargo nextest run`
 - Commit messages: `P<phase>.<step>: <what changed>` — imperative, lowercase
+- **One commit per step. Never two.** That single commit contains the work *and* the `rolling-plan.md` status update. Do not add a follow-up commit to record the hash — you cannot know a hash before committing, and the step number in the message is already the link (`git log --grep="P0.1"`). Leave the `Commit:` field as the message subject, not a hash.
 - No `Co-Authored-By` or other AI attribution trailers. Enforced by `.githooks/commit-msg` and by CI, not by memory. Enable the hook once per clone: `git config core.hooksPath .githooks`
 - Comments explain **why**, not what
 

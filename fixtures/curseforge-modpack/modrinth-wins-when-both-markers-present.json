@@ -1,0 +1,25 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "modrinth-wins-when-both-markers-present",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testModrinthWinsWhenBothMarkersPresent",
+    "line": 176
+  },
+  "input": {
+    "function": "CurseForgeModpack.detectKind",
+    "fsTree": {
+      "<TMP>/modrinth.index.json": {
+        "type": "file",
+        "content": "{}"
+      },
+      "<TMP>/manifest.json": {
+        "type": "file",
+        "content": "{\"minecraft\": {\"version\": \"1.20.1\", \"modLoaders\": [{\"id\": \"forge-47.4.1\", \"primary\": true}]}, \"manifestType\": \"minecraftModpack\", \"manifestVersion\": 1, \"name\": \"Better MC [FORGE] BMC4\", \"version\": \"43\", \"author\": \"Luna Pixel Studios\", \"files\": [{\"projectID\": 306612, \"fileID\": 5000001, \"required\": true}, {\"projectID\": 238222, \"fileID\": 5000002, \"required\": true}], \"overrides\": \"overrides\"}"
+      }
+    },
+    "root": "<TMP>"
+  },
+  "expected": "modrinth",
+  "notes": "When both markers are present in the same extracted root, Modrinth detection takes priority over CurseForge."
+}

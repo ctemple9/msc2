@@ -1,0 +1,17 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "parse-loader-id-unknown-throws",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testParseLoaderIdUnknownThrows",
+    "line": 130
+  },
+  "input": {
+    "function": "CurseForgeModpack.parseLoaderId",
+    "loaderId": "liteloader-1.0"
+  },
+  "expected": {
+    "throws": "CurseForgeManifestError.unknownLoader",
+    "unknownLoaderName": "liteloader"
+  }
+}

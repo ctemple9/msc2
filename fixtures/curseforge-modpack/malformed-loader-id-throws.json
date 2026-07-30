@@ -1,0 +1,32 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "malformed-loader-id-throws",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testMalformedLoaderIdThrows",
+    "line": 98
+  },
+  "input": {
+    "function": "CurseForgeMetadata.from",
+    "manifest": {
+      "minecraft": {
+        "version": "1.20.1",
+        "modLoaders": [
+          {
+            "id": "totallybogus-1.2.3",
+            "primary": true
+          }
+        ]
+      },
+      "manifestType": "minecraftModpack",
+      "name": "Bad Pack",
+      "version": "1",
+      "files": [],
+      "overrides": "overrides"
+    }
+  },
+  "expected": {
+    "throws": "CurseForgeManifestError.unknownLoader"
+  },
+  "notes": "A manifest whose loader id is unrecognized must throw, not pin a guessed flavor."
+}

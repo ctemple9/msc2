@@ -1,0 +1,24 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "is-curse-forge-modpack-manifest",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testIsCurseForgeModpackManifest",
+    "line": 183
+  },
+  "input": {
+    "function": "CurseForgeModpack.isCurseForgeModpackManifest",
+    "payloads": [
+      "{\"minecraft\": {\"version\": \"1.20.1\", \"modLoaders\": [{\"id\": \"forge-47.4.1\", \"primary\": true}]}, \"manifestType\": \"minecraftModpack\", \"manifestVersion\": 1, \"name\": \"Better MC [FORGE] BMC4\", \"version\": \"43\", \"author\": \"Luna Pixel Studios\", \"files\": [{\"projectID\": 306612, \"fileID\": 5000001, \"required\": true}, {\"projectID\": 238222, \"fileID\": 5000002, \"required\": true}], \"overrides\": \"overrides\"}",
+      "{}",
+      "not json"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      false,
+      false
+    ]
+  }
+}

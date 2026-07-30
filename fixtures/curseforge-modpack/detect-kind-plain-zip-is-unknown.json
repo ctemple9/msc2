@@ -1,0 +1,21 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "detect-kind-plain-zip-is-unknown",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testDetectKindPlainZipIsUnknown",
+    "line": 161
+  },
+  "input": {
+    "function": "CurseForgeModpack.detectKind",
+    "fsTree": {
+      "<TMP>/SomeMod.jar": {
+        "type": "file",
+        "content": "jar"
+      }
+    },
+    "root": "<TMP>"
+  },
+  "expected": "unknown",
+  "notes": "A plain jars zip: some .jar files present, no modpack manifest of any kind."
+}

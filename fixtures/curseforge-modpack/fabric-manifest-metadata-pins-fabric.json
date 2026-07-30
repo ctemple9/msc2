@@ -1,0 +1,33 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "fabric-manifest-metadata-pins-fabric",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testFabricManifestMetadataPinsFabric",
+    "line": 68
+  },
+  "input": {
+    "function": "CurseForgeMetadata.from",
+    "manifest": {
+      "minecraft": {
+        "version": "1.21.1",
+        "modLoaders": [
+          {
+            "id": "fabric-0.16.9",
+            "primary": true
+          }
+        ]
+      },
+      "manifestType": "minecraftModpack",
+      "name": "Fabric Pack",
+      "version": "1.0",
+      "files": [],
+      "overrides": "overrides"
+    }
+  },
+  "expected": {
+    "loaderFlavor": "fabric",
+    "loaderVersion": "0.16.9",
+    "versionEntryBuildLabel": "Fabric 0.16.9"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "parse-loader-id-empty-throws",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testParseLoaderIdEmptyThrows",
+    "line": 139
+  },
+  "input": {
+    "function": "CurseForgeModpack.parseLoaderId",
+    "loaderId": "   "
+  },
+  "expected": {
+    "throws": "CurseForgeManifestError.malformedLoaderId"
+  }
+}

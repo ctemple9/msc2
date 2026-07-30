@@ -1,0 +1,51 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "manual-downloads-assembly",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testManualDownloadsAssembly",
+    "line": 191
+  },
+  "input": {
+    "function": "CurseForgeModpack.manualDownloads",
+    "blockedFiles": [
+      {
+        "id": 1,
+        "modId": 100,
+        "displayName": "SomeMod-1.0.jar",
+        "fileName": "SomeMod-1.0.jar",
+        "downloadUrl": null
+      },
+      {
+        "id": 2,
+        "modId": 200,
+        "displayName": "OtherMod-2.0.jar",
+        "fileName": "OtherMod-2.0.jar",
+        "downloadUrl": null
+      }
+    ],
+    "projectsById": {
+      "100": {
+        "id": 100,
+        "name": "Some Mod",
+        "slug": "some-mod",
+        "links": {
+          "websiteUrl": "https://www.curseforge.com/minecraft/mc-mods/some-mod"
+        }
+      }
+    }
+  },
+  "expected": {
+    "count": 2,
+    "first": {
+      "modName": "Some Mod",
+      "fileName": "SomeMod-1.0.jar",
+      "projectPageURL": "https://www.curseforge.com/minecraft/mc-mods/some-mod"
+    },
+    "second": {
+      "modName": "OtherMod-2.0.jar",
+      "projectPageURLContains": "curseforge.com"
+    }
+  },
+  "notes": "Two blocked (distribution-disallowed, downloadUrl=nil) files: one has a matching CF project record (100) and gets its real name + project page; the other's modId (200) has no record, so it falls back to the file's display name and a generated search link — the source test only asserts that link *contains* 'curseforge.com', not an exact URL, so expected mirrors that inexact check."
+}

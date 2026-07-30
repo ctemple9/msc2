@@ -1,0 +1,55 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "forge-manifest-metadata-pins-loader",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testForgeManifestMetadataPinsLoader",
+    "line": 52
+  },
+  "input": {
+    "function": "CurseForgeMetadata.from",
+    "manifest": {
+      "minecraft": {
+        "version": "1.20.1",
+        "modLoaders": [
+          {
+            "id": "forge-47.4.1",
+            "primary": true
+          }
+        ]
+      },
+      "manifestType": "minecraftModpack",
+      "manifestVersion": 1,
+      "name": "Better MC [FORGE] BMC4",
+      "version": "43",
+      "author": "Luna Pixel Studios",
+      "files": [
+        {
+          "projectID": 306612,
+          "fileID": 5000001,
+          "required": true
+        },
+        {
+          "projectID": 238222,
+          "fileID": 5000002,
+          "required": true
+        }
+      ],
+      "overrides": "overrides"
+    }
+  },
+  "expected": {
+    "name": "Better MC [FORGE] BMC4",
+    "versionId": "43",
+    "minecraftVersion": "1.20.1",
+    "loaderFlavor": "forge",
+    "loaderVersion": "47.4.1",
+    "versionEntry": {
+      "mcVersion": "1.20.1",
+      "loaderVersion": "47.4.1",
+      "buildLabel": "Forge 47.4.1",
+      "id": "1.20.1—47.4.1"
+    }
+  },
+  "notes": "versionEntry.id uses an em dash (—, U+2014) between the MC version and loader version, not a hyphen — copied exactly from the source assertion."
+}

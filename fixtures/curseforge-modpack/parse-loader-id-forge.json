@@ -1,0 +1,17 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "parse-loader-id-forge",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testParseLoaderIdForge",
+    "line": 116
+  },
+  "input": {
+    "function": "CurseForgeModpack.parseLoaderId",
+    "loaderId": "forge-47.4.1"
+  },
+  "expected": {
+    "flavor": "forge",
+    "loaderVersion": "47.4.1"
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "detect-kind-modrinth",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testDetectKindModrinth",
+    "line": 149
+  },
+  "input": {
+    "function": "CurseForgeModpack.detectKind",
+    "fsTree": {
+      "<TMP>/modrinth.index.json": {
+        "type": "file",
+        "content": "{}"
+      }
+    },
+    "root": "<TMP>"
+  },
+  "expected": "modrinth"
+}

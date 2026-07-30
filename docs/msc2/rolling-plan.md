@@ -226,7 +226,7 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.14: extract network-safety fixtures`
 
 ### P0.15 — Extract config round-trip fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/config-roundtrip/`
 **What:** Pull the 7 test cases out of `AppConfigRoundTripTests.swift` (`AppConfig`/`ConfigServer` encode-decode round trips, including missing-optional-field defaulting).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/config-roundtrip --expect 7` → `ok 7`
@@ -235,11 +235,11 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Mods, plugins, modpacks tests**
 
 ### P0.16 — Extract CurseForge modpack fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/curseforge-modpack/`
 **What:** Pull the 16 test cases out of `CurseForgeModpackTests.swift`.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/curseforge-modpack --expect 16` → `ok 16`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.16: extract CurseForge modpack fixtures`
 
 ### P0.17 — Extract modpack client-only classification fixtures
 **Status:** not started

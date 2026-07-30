@@ -1,0 +1,21 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "detect-kind-non-modpack-manifest-is-unknown",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testDetectKindNonModpackManifestIsUnknown",
+    "line": 168
+  },
+  "input": {
+    "function": "CurseForgeModpack.detectKind",
+    "fsTree": {
+      "<TMP>/manifest.json": {
+        "type": "file",
+        "content": "{ \"manifestType\": \"something-else\", \"minecraft\": { \"version\": \"1.20.1\", \"modLoaders\": [] }, \"files\": [] }"
+      }
+    },
+    "root": "<TMP>"
+  },
+  "expected": "unknown",
+  "notes": "A manifest.json that exists but whose manifestType is NOT 'minecraftModpack' must not be treated as a CurseForge pack."
+}

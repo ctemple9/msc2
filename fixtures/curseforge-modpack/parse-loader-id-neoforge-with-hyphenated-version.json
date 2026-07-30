@@ -1,0 +1,18 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "parse-loader-id-neoforge-with-hyphenated-version",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testParseLoaderIdNeoForgeWithHyphenatedVersion",
+    "line": 122
+  },
+  "input": {
+    "function": "CurseForgeModpack.parseLoaderId",
+    "loaderId": "fabric-0.16.9-beta.1"
+  },
+  "expected": {
+    "flavor": "fabric",
+    "loaderVersion": "0.16.9-beta.1"
+  },
+  "notes": "Despite this test's name ('NeoForgeWithHyphenatedVersion'), the loader id it actually parses is a Fabric id, not a NeoForge one — the source comment explains the intent ('NeoForge versions themselves never contain hyphens, but guard the split-on-first behavior') even though the concrete example used is Fabric's. Extracted as MSC 1 actually wrote it, not renamed to match the test name, per the same principle as the P0.12 cap-boundary mismatch."
+}

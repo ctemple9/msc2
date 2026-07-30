@@ -1,0 +1,32 @@
+{
+  "domain": "curseforge-modpack",
+  "case": "neoforge-manifest-metadata-pins-neoforge",
+  "source": {
+    "file": "CurseForgeModpackTests.swift",
+    "test": "testNeoForgeManifestMetadataPinsNeoForge",
+    "line": 83
+  },
+  "input": {
+    "function": "CurseForgeMetadata.from",
+    "manifest": {
+      "minecraft": {
+        "version": "1.21.1",
+        "modLoaders": [
+          {
+            "id": "neoforge-21.1.72",
+            "primary": true
+          }
+        ]
+      },
+      "manifestType": "minecraftModpack",
+      "name": "Neo Pack",
+      "version": "2",
+      "files": [],
+      "overrides": "overrides"
+    }
+  },
+  "expected": {
+    "loaderFlavor": "neoforge",
+    "loaderVersion": "21.1.72"
+  }
+}

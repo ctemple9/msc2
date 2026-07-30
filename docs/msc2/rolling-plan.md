@@ -391,11 +391,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23l: add watchdog API baseline routes`
 
 ### P0.23m — API baseline: `command` route
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `command` route.
 **Verify:** `python3 tools/api-baseline-check.py command` → `ok 1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23m: add command API baseline route`
 
 ### P0.23n — API baseline: `start` route
 **Status:** not started

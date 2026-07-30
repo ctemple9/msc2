@@ -2124,6 +2124,43 @@
           }
         }
       }
+    },
+    "/command": {
+      "post": {
+        "summary": "Send a console command to the active server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Command sent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommandResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / missing_command / invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3699,6 +3736,35 @@
         "required": [
           "success",
           "error"
+        ]
+      },
+      "CommandRequest": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "command"
+        ]
+      },
+      "CommandResult": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "activeServerId": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result",
+          "command"
         ]
       }
     }

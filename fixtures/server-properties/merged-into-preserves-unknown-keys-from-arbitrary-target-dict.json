@@ -1,0 +1,25 @@
+{
+  "domain": "server-properties",
+  "case": "merged-into-preserves-unknown-keys-from-arbitrary-target-dict",
+  "source": {
+    "file": "ServerPropertiesModelTests.swift",
+    "test": "testMergedIntoPreservesUnknownKeysFromArbitraryTargetDict",
+    "line": 62
+  },
+  "input": {
+    "function": "ServerPropertiesModel.mergedInto",
+    "from": {
+      "max-players": "10"
+    },
+    "mutations": {},
+    "target": {
+      "untouched-key": "keep-me",
+      "motd": "will-be-overwritten"
+    }
+  },
+  "expected": {
+    "untouched-key": "keep-me",
+    "motd": "A Minecraft Server"
+  },
+  "notes": "mergedInto overlays onto whatever dict is passed in, not just rawProperties — here the target is a wholly separate dict. 'untouched-key' isn't one of the model's 21 known keys, so it survives; 'motd' gets overlaid with the model's own value, which defaults to 'A Minecraft Server' since `from` has no motd key (per ServerPropertiesModel.init(from:) in AppViewModelModels.swift)."
+}

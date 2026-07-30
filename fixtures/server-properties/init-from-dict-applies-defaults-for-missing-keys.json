@@ -1,0 +1,22 @@
+{
+  "domain": "server-properties",
+  "case": "init-from-dict-applies-defaults-for-missing-keys",
+  "source": {
+    "file": "ServerPropertiesModelTests.swift",
+    "test": "testInitFromDictAppliesDefaultsForMissingKeys",
+    "line": 72
+  },
+  "input": {
+    "function": "ServerPropertiesModel.init",
+    "from": {}
+  },
+  "expected": {
+    "maxPlayers": 20,
+    "serverPort": 25565,
+    "onlineMode": true,
+    "difficulty": "normal",
+    "gamemode": "survival",
+    "opPermissionLevel": 4
+  },
+  "notes": "Only the fields this test actually asserts. init(from:) defaults many more fields not checked here (hardcore, pvp, allowNether, allowFlight, ... — see the full default table in AppViewModelModels.swift) — not fabricated here since this test doesn't pin them."
+}

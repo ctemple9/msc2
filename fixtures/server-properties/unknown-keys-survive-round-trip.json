@@ -1,0 +1,31 @@
+{
+  "domain": "server-properties",
+  "case": "unknown-keys-survive-round-trip",
+  "source": {
+    "file": "ServerPropertiesModelTests.swift",
+    "test": "testUnknownKeysSurviveRoundTrip",
+    "line": 14
+  },
+  "input": {
+    "function": "ServerPropertiesModel.mergedInto",
+    "from": {
+      "motd": "Hello",
+      "max-players": "20",
+      "enable-rcon": "true",
+      "rcon.password": "s3cret",
+      "rcon.port": "25575",
+      "generator-settings": "{}",
+      "some.plugin.custom-key": "value-42"
+    },
+    "mutations": {},
+    "targetIsRawProperties": true
+  },
+  "expected": {
+    "enable-rcon": "true",
+    "rcon.password": "s3cret",
+    "rcon.port": "25575",
+    "generator-settings": "{}",
+    "some.plugin.custom-key": "value-42"
+  },
+  "notes": "mergedInto also overlays all 21 typed fields onto the result (motd, max-players, difficulty, hardcore, ...) with their model-derived values; expected here is a partial dict covering only the unmodeled/unknown keys MSC 1's own test asserts survive verbatim — that's the point of this test. targetIsRawProperties means the target dict passed to mergedInto is the model's own rawProperties, which for a freshly-constructed model equals `from` unchanged."
+}

@@ -1,0 +1,43 @@
+{
+  "domain": "server-properties",
+  "case": "level-type-legacy-all-caps-parsing",
+  "source": {
+    "file": "ServerPropertiesModelTests.swift",
+    "test": "testLevelTypeLegacyAllCapsParsing",
+    "line": 82
+  },
+  "input": {
+    "function": "ServerPropertiesModel.init",
+    "cases": [
+      {
+        "from": {
+          "level-type": "LARGEBIOMES"
+        }
+      },
+      {
+        "from": {
+          "level-type": "flat"
+        }
+      },
+      {
+        "from": {
+          "level-type": "gobbledygook"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "levelType": "largeBiomes"
+      },
+      {
+        "levelType": "flat"
+      },
+      {
+        "levelType": "normal"
+      }
+    ]
+  },
+  "notes": "LevelType.from handles both namespaced and legacy all-caps forms; an unrecognized value falls back to the safe default .normal rather than erroring."
+}

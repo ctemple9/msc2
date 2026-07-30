@@ -1,0 +1,26 @@
+{
+  "domain": "server-properties",
+  "case": "known-keys-are-overlaid-from-model",
+  "source": {
+    "file": "ServerPropertiesModelTests.swift",
+    "test": "testKnownKeysAreOverlaidFromModel",
+    "line": 36
+  },
+  "input": {
+    "function": "ServerPropertiesModel.mergedInto",
+    "from": {
+      "motd": "Old",
+      "max-players": "20"
+    },
+    "mutations": {
+      "motd": "New",
+      "maxPlayers": 42
+    },
+    "targetIsRawProperties": true
+  },
+  "expected": {
+    "motd": "New",
+    "max-players": "42"
+  },
+  "notes": "'mutations' are typed-property assignments made on the model after construction, before mergedInto is called — they overlay the raw disk value on merge."
+}

@@ -1,0 +1,23 @@
+{
+  "domain": "server-properties",
+  "case": "merged-into-writes-canonical-bool-strings",
+  "source": {
+    "file": "ServerPropertiesModelTests.swift",
+    "test": "testMergedIntoWritesCanonicalBoolStrings",
+    "line": 45
+  },
+  "input": {
+    "function": "ServerPropertiesModel.mergedInto",
+    "from": {},
+    "mutations": {
+      "pvp": false,
+      "onlineMode": true
+    },
+    "targetIsRawProperties": true
+  },
+  "expected": {
+    "pvp": "false",
+    "online-mode": "true"
+  },
+  "notes": "Bool fields serialize as the literal strings 'true'/'false', not e.g. '1'/'0'."
+}

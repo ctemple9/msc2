@@ -154,18 +154,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.4: extract version-comparison fixtures`
 
 ### P0.5 — Extract Java runtime policy fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/java-runtime-guards/`
 **What:** Pull the 15 test cases out of `JavaRuntimeGuardsTests.swift` (Java version/runtime selection guards).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-runtime-guards --expect 15` → `ok 15`
 **Commit:** `P0.5: extract Java runtime policy fixtures`
 
 ### P0.6 — Extract server-properties model fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/server-properties/`
 **What:** Pull the 7 test cases out of `ServerPropertiesModelTests.swift`.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/server-properties --expect 7` → `ok 7`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.6: extract server-properties model fixtures`
 
 ### P0.7 — Extract settings-schema fixtures
 **Status:** not started

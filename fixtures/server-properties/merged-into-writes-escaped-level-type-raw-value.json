@@ -1,0 +1,21 @@
+{
+  "domain": "server-properties",
+  "case": "merged-into-writes-escaped-level-type-raw-value",
+  "source": {
+    "file": "ServerPropertiesModelTests.swift",
+    "test": "testMergedIntoWritesEscapedLevelTypeRawValue",
+    "line": 54
+  },
+  "input": {
+    "function": "ServerPropertiesModel.mergedInto",
+    "from": {},
+    "mutations": {
+      "levelType": "largeBiomes"
+    },
+    "targetIsRawProperties": true
+  },
+  "expected": {
+    "level-type": "minecraft\\:large_biomes"
+  },
+  "notes": "The on-disk form is the escaped namespaced rawValue: a literal backslash before the colon, matching how Minecraft itself escapes namespaced ids in server.properties."
+}

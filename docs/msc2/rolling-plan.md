@@ -122,7 +122,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Files:** `docs/msc2/fixture-format.md`
 **What:** Define the JSON shape every fixture file must have: `domain`, `case`, `source` (`file`, `test`, `line` — pointer back into MSC 1), `input`, `expected`, optional `notes`. Define the directory convention (`fixtures/<domain>/<case>.json`) that every later extraction step follows.
 **Verify:** `grep -oE '"(domain|case|source|input|expected)"' docs/msc2/fixture-format.md | sort -u | wc -l` → `5`
-**Commit:** `P0.1: define fixture format spec`
+**Commit:** `17bfc83`
 
 ### P0.2 — Fixture runner and comparison tool
 **Status:** not started

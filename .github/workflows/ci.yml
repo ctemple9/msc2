@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel an in-flight run if the branch is pushed again
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Enforces invariants that are currently only stated in prose.
+  # Cheap, and it runs from the very first commit.
+  repo-invariants:
+    name: Repo invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: CLAUDE.md and AGENTS.md must stay identical
+        run: |
+          # They differ only in line 3, which names the other file.
+          if ! diff <(tail -n +4 CLAUDE.md) <(tail -n +4 AGENTS.md); then
+            echo "::error::CLAUDE.md and AGENTS.md have drifted. Both agents must read the same rules."
+            exit 1
+          fi
+          echo "OK — agent instructions are in sync"
+
+      - name: Controlled document set must be present
+        run: |
+          missing=0
+          for f in MSC2-VISION.md msc2-product.md msc2-engineering.md \
+                   msc2-decisions.md msc2-port-plan.md rolling-plan.md; do
+            if [ ! -f "docs/msc2/$f" ]; then
+              echo "::error::missing docs/msc2/$f"
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] && echo "OK — all six documents present"
+          exit $missing
+
+  # Proves the three-platform matrix works before any code depends on it.
+  # D-017: Windows validation starts with the substrate, not with the GUI.
+  toolchain:
+    name: Toolchain (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Report toolchain
+        run: |
+          rustc --version
+          cargo --version
+
+      # Once crates/ exists these become real. Until then the matrix
+      # itself is the thing being proven.
+      - name: Build
+        run: |
+          if [ -f Cargo.toml ]; then
+            cargo fmt --all -- --check
+            cargo clippy --all-targets -- -D warnings
+            cargo test --all
+          else
+            echo "No Cargo.toml yet — matrix verified, nothing to build."
+          fi
+        shell: bash

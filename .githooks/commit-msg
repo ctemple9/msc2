@@ -1,0 +1,28 @@
+#!/bin/sh
+# Reject commit messages carrying AI attribution trailers.
+#
+# The repo owner does not want these. A rule in CLAUDE.md is a promise;
+# this is enforcement. It runs locally at commit time so the bad commit
+# is never created, rather than being discovered later in review.
+#
+# Enable once per clone:
+#     git config core.hooksPath .githooks
+#
+# CI enforces the same rule, so a clone without hooks installed still
+# cannot land one on main.
+
+msg_file="$1"
+
+if grep -qiE '^[[:space:]]*(co-authored-by|generated with|🤖)' "$msg_file"; then
+    echo ""
+    echo "  ✗ commit rejected — attribution trailer found"
+    echo ""
+    grep -inE '^[[:space:]]*(co-authored-by|generated with|🤖)' "$msg_file" | sed 's/^/      /'
+    echo ""
+    echo "  This repo does not use AI attribution trailers."
+    echo "  Remove the line and commit again."
+    echo ""
+    exit 1
+fi
+
+exit 0

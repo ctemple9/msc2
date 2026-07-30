@@ -19,6 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history — the trailer check scans every commit
 
       - name: CLAUDE.md and AGENTS.md must stay identical
         run: |
@@ -41,6 +43,17 @@ jobs:
           done
           [ "$missing" -eq 0 ] && echo "OK — all six documents present"
           exit $missing
+
+      - name: No AI attribution trailers in commit messages
+        run: |
+          # The local hook (.githooks/commit-msg) catches these at commit
+          # time, but hooks are per-clone and can be missing. This is the
+          # guarantee: such a commit cannot land on main.
+          if git log --format='%B' | grep -inE '^[[:space:]]*(co-authored-by|generated with|🤖)'; then
+            echo "::error::Commit message contains an AI attribution trailer. See .githooks/commit-msg"
+            exit 1
+          fi
+          echo "OK — no attribution trailers in $(git rev-list --count HEAD) commits"
 
   # Proves the three-platform matrix works before any code depends on it.
   # D-017: Windows validation starts with the substrate, not with the GUI.

@@ -1,0 +1,28 @@
+{
+  "domain": "settings-schema",
+  "case": "motd-truncated-to-200-chars",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testMOTDTruncatedTo200Chars",
+    "line": 111
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "motd": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
+    }
+  },
+  "expected": {
+    "model": {
+      "motdLength": 200
+    },
+    "applied": [
+      "motd"
+    ]
+  },
+  "notes": "Source test only asserts m.motd.count == 200, not the exact truncated string — expected mirrors that (length only), not more."
+}

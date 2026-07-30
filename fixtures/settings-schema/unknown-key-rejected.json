@@ -1,0 +1,28 @@
+{
+  "domain": "settings-schema",
+  "case": "unknown-key-rejected",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testUnknownKeyRejected",
+    "line": 101
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "totally-made-up": "x"
+    }
+  },
+  "expected": {
+    "applied": [],
+    "rejected": [
+      {
+        "key": "totally-made-up",
+        "reason": "unknown_key"
+      }
+    ]
+  }
+}

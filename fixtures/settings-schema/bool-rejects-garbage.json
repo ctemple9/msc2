@@ -1,0 +1,28 @@
+{
+  "domain": "settings-schema",
+  "case": "bool-rejects-garbage",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testBoolRejectsGarbage",
+    "line": 65
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "hardcore": "maybe"
+    }
+  },
+  "expected": {
+    "applied": [],
+    "rejected": [
+      {
+        "reason": "not_a_boolean"
+      }
+    ]
+  },
+  "notes": "Source test only asserts rejected.first?.reason and that applied is empty — the rejected entry's `key` isn't checked here, so it's omitted rather than assumed."
+}

@@ -1,0 +1,27 @@
+{
+  "domain": "settings-schema",
+  "case": "level-from-token-round-trips",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testLevelFromTokenRoundTrips",
+    "line": 129
+  },
+  "input": {
+    "function": "ServerSettingsSchema.levelTokenRoundTrip",
+    "levelTypes": [
+      "normal",
+      "flat",
+      "largeBiomes",
+      "amplified"
+    ]
+  },
+  "expected": {
+    "results": [
+      "normal",
+      "flat",
+      "largeBiomes",
+      "amplified"
+    ]
+  },
+  "notes": "For every LevelType.allCases value t (declared order: normal, flat, largeBiomes, amplified — confirmed in AppViewModelModels.swift), levelFromToken(levelToken(t)) must equal t. Composite round-trip of the two functions the two fixtures above and below test individually."
+}

@@ -1,0 +1,27 @@
+{
+  "domain": "settings-schema",
+  "case": "invalid-enum-rejected",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testInvalidEnumRejected",
+    "line": 81
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "gamemode": "sleeping"
+    }
+  },
+  "expected": {
+    "applied": [],
+    "rejected": [
+      {
+        "reason": "invalid_value"
+      }
+    ]
+  }
+}

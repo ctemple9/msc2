@@ -1,0 +1,34 @@
+{
+  "domain": "settings-schema",
+  "case": "mixed-batch-partitions-applied-and-rejected",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testMixedBatchPartitionsAppliedAndRejected",
+    "line": 151
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "pvp": "false",
+      "max-players": "NaN",
+      "unknown": "1"
+    }
+  },
+  "expected": {
+    "appliedContains": [
+      "pvp"
+    ],
+    "model": {
+      "pvp": false
+    },
+    "rejectedReasons": {
+      "max-players": "not_an_integer",
+      "unknown": "unknown_key"
+    }
+  },
+  "notes": "One batch mixing a valid change, an invalid-integer change, and an unknown key must partition correctly rather than all-or-nothing rejecting. Source test only asserts applied.contains('pvp'), m.pvp, and the two rejected reasons by key — not full applied/rejected array contents or ordering."
+}

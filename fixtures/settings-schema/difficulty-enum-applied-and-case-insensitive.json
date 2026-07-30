@@ -1,0 +1,28 @@
+{
+  "domain": "settings-schema",
+  "case": "difficulty-enum-applied-and-case-insensitive",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testDifficultyEnumAppliedAndCaseInsensitive",
+    "line": 74
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "difficulty": "HARD"
+    }
+  },
+  "expected": {
+    "model": {
+      "difficulty": "hard"
+    },
+    "applied": [
+      "difficulty"
+    ]
+  },
+  "notes": "All-caps wire value 'HARD' still matches the .hard case — enum matching is case-insensitive."
+}

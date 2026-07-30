@@ -1,0 +1,14 @@
+{
+  "domain": "settings-schema",
+  "case": "level-from-token-rejects-unknown",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testLevelFromTokenRejectsUnknown",
+    "line": 136
+  },
+  "input": {
+    "function": "ServerSettingsSchema.levelFromToken",
+    "token": "void"
+  },
+  "expected": null
+}

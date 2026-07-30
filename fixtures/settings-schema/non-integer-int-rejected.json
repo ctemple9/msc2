@@ -1,0 +1,32 @@
+{
+  "domain": "settings-schema",
+  "case": "non-integer-int-rejected",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testNonIntegerIntRejected",
+    "line": 43
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "max-players": "lots"
+    }
+  },
+  "expected": {
+    "model": {
+      "maxPlayers": 20
+    },
+    "applied": [],
+    "rejected": [
+      {
+        "key": "max-players",
+        "reason": "not_an_integer"
+      }
+    ]
+  },
+  "notes": "maxPlayers stays at the baseline default (20, confirmed in P0.6's init-from-dict-applies-defaults-for-missing-keys fixture) since the change is rejected before it's applied."
+}

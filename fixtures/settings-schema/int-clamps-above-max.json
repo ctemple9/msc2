@@ -1,0 +1,29 @@
+{
+  "domain": "settings-schema",
+  "case": "int-clamps-above-max",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testIntClampsAboveMax",
+    "line": 21
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "max-players": "5000"
+    }
+  },
+  "expected": {
+    "model": {
+      "maxPlayers": 1000
+    },
+    "applied": [
+      "max-players"
+    ],
+    "rejected": []
+  },
+  "notes": "5000 clamps down to the schema's configured max of 1000."
+}

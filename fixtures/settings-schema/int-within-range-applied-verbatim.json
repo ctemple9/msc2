@@ -1,0 +1,27 @@
+{
+  "domain": "settings-schema",
+  "case": "int-within-range-applied-verbatim",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testIntWithinRangeAppliedVerbatim",
+    "line": 36
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "server-port": "25570"
+    }
+  },
+  "expected": {
+    "model": {
+      "serverPort": 25570
+    },
+    "applied": [
+      "server-port"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "domain": "settings-schema",
+  "case": "level-token-maps-large-biomes-to-underscore-form",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testLevelTokenMapsLargeBiomesToUnderscoreForm",
+    "line": 121
+  },
+  "input": {
+    "function": "ServerSettingsSchema.levelToken",
+    "levelTypes": [
+      "largeBiomes",
+      "normal",
+      "flat",
+      "amplified"
+    ]
+  },
+  "expected": {
+    "results": [
+      "large_biomes",
+      "normal",
+      "flat",
+      "amplified"
+    ]
+  },
+  "notes": "The wire token is the clean underscore form, distinct from LevelType's own escaped rawValue (e.g. 'minecraft\\:large_biomes')."
+}

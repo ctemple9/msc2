@@ -1,0 +1,28 @@
+{
+  "domain": "settings-schema",
+  "case": "int-clamps-below-min",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testIntClampsBelowMin",
+    "line": 29
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "view-distance": "1"
+    }
+  },
+  "expected": {
+    "model": {
+      "viewDistance": 3
+    },
+    "applied": [
+      "view-distance"
+    ]
+  },
+  "notes": "1 clamps up to the schema's configured min of 3. Source test doesn't assert `rejected`, so it's omitted here rather than assumed."
+}

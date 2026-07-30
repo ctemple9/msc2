@@ -1,0 +1,29 @@
+{
+  "domain": "settings-schema",
+  "case": "apply-level-type-uses-wire-token-and-sets-escaped-raw-value",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testApplyLevelTypeUsesWireTokenAndSetsEscapedRawValue",
+    "line": 140
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "changes": {
+      "level-type": "large_biomes"
+    }
+  },
+  "expected": {
+    "applied": [
+      "level-type"
+    ],
+    "model": {
+      "levelType": "largeBiomes",
+      "levelTypeRawValue": "minecraft\\:large_biomes"
+    }
+  },
+  "notes": "The wire token 'large_biomes' (clean form) maps via levelFromToken to .largeBiomes, whose *stored* rawValue is the escaped/namespaced on-disk form."
+}

@@ -1,0 +1,101 @@
+{
+  "domain": "settings-schema",
+  "case": "bool-accepts-synonyms",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testBoolAcceptsSynonyms",
+    "line": 55
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "cases": [
+      {
+        "changes": {
+          "pvp": "on"
+        }
+      },
+      {
+        "changes": {
+          "pvp": "yes"
+        }
+      },
+      {
+        "changes": {
+          "pvp": "1"
+        }
+      },
+      {
+        "changes": {
+          "pvp": "off"
+        }
+      },
+      {
+        "changes": {
+          "pvp": "no"
+        }
+      },
+      {
+        "changes": {
+          "pvp": "0"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "model": {
+          "pvp": true
+        },
+        "applied": [
+          "pvp"
+        ]
+      },
+      {
+        "model": {
+          "pvp": true
+        },
+        "applied": [
+          "pvp"
+        ]
+      },
+      {
+        "model": {
+          "pvp": true
+        },
+        "applied": [
+          "pvp"
+        ]
+      },
+      {
+        "model": {
+          "pvp": false
+        },
+        "applied": [
+          "pvp"
+        ]
+      },
+      {
+        "model": {
+          "pvp": false
+        },
+        "applied": [
+          "pvp"
+        ]
+      },
+      {
+        "model": {
+          "pvp": false
+        },
+        "applied": [
+          "pvp"
+        ]
+      }
+    ]
+  },
+  "notes": "Each sub-case starts from a fresh baseline model, matching the source test's loop (`var m = baselineModel()` inside the for-loop body)."
+}

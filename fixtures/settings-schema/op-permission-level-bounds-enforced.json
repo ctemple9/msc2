@@ -1,0 +1,48 @@
+{
+  "domain": "settings-schema",
+  "case": "op-permission-level-bounds-enforced",
+  "source": {
+    "file": "ServerSettingsSchemaTests.swift",
+    "test": "testOpPermissionLevelBoundsEnforced",
+    "line": 88
+  },
+  "input": {
+    "function": "ServerSettingsSchema.applyJava",
+    "baseline": {
+      "from": {},
+      "fallbackMotd": "Base"
+    },
+    "cases": [
+      {
+        "changes": {
+          "op-permission-level": "3"
+        }
+      },
+      {
+        "changes": {
+          "op-permission-level": "9"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "model": {
+          "opPermissionLevel": 3
+        },
+        "applied": [
+          "op-permission-level"
+        ]
+      },
+      {
+        "rejected": [
+          {
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Valid range is presumably 0-4 (matches the default of 4 seen in P0.6); 9 is out of range and rejected. Each case uses its own fresh baseline model."
+}

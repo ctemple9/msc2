@@ -483,11 +483,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ### Sidecar IPC contract
 
 ### P0.28 — macOS Bedrock sidecar IPC contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/sidecar-ipc-contract.md`
-**What:** Read `VMBedrockServerBackend.swift` (451 lines) and write the process protocol the Rust agent will use to drive the macOS Bedrock sidecar — transport (JSON lines over stdio, or a unix socket — pick one and record why) plus one section per message type: provision, start, readiness signal, stop, force-stop, crash notification, console stream, command input, shared-directory mapping, host-directory persistence across VM replacement (`msc2-engineering.md` §9). A contract informed by what MSC 1's sidecar actually does today, not a fresh design.
+**What:** Read `VMBedrockServerBackend.swift` (451 lines) and write the process protocol the Rust agent will use to drive the macOS Bedrock sidecar — transport (JSON lines over stdio, or a unix socket — pick one and record why) plus one section per message type: provision, start, readiness signal, stop, force-stop, crash notification, console stream, command input, shared-directory mapping, host-directory persistence across VM replacement (`msc2-engineering.md` §9). A contract informed by what MSC 1's sidecar actually does today, not a fresh design. Chose JSON lines over stdio (1:1 parent-supervises-child relationship, no socket-file lifecycle to manage, EOF doubles as the crash signal). Notes one open question: whether `BedrockProvisioner.ensureInstalled`'s BDS-binary download belongs in this sidecar protocol at all, since it has no VM dependency.
 **Verify:** `grep -c '^### ' docs/msc2/sidecar-ipc-contract.md` → `10`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.28: write the macOS Bedrock sidecar IPC contract`
 
 ---
 

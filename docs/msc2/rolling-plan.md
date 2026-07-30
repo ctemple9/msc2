@@ -377,11 +377,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23j: add broadcast API baseline routes`
 
 ### P0.23k — API baseline: `resourcepacks` routes
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `resourcepacks/*` routes. Sub-route count not stated in the docs — read it from the source.
-**Verify:** `python3 tools/api-baseline-check.py resourcepacks` → `ok <n>` — record whatever count the source actually yields
-**Commit:** (filled in by the executing agent)
+**Verify:** `python3 tools/api-baseline-check.py resourcepacks` → `ok 5` (recorded from the live source, not an assumed number)
+**Commit:** `P0.23k: add resourcepacks API baseline routes`
 
 ### P0.23l — API baseline: `watchdog` routes
 **Status:** not started

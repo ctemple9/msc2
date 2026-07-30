@@ -1805,6 +1805,251 @@
           }
         }
       }
+    },
+    "/resourcepacks": {
+      "get": {
+        "summary": "List resource packs",
+        "responses": {
+          "200": {
+            "description": "Current packs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcePacksResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/resourcepacks/activate": {
+      "post": {
+        "summary": "Activate (or clear) the local Java resource pack",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourcePackActivateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pack activated/cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_active_server / java_only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/resourcepacks/seturl": {
+      "post": {
+        "summary": "Set a custom resource-pack URL directly in server.properties",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourcePackSetURLRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "URL set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / url_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_active_server / java_only",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/resourcepacks/toggle": {
+      "post": {
+        "summary": "Enable/disable a Geyser resource pack",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourcePackToggleRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pack toggled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "pack_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/resourcepacks/remove": {
+      "post": {
+        "summary": "Remove a resource pack from disk",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourcePackRemoveRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pack removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "pack_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3188,6 +3433,161 @@
         },
         "required": [
           "result"
+        ]
+      },
+      "ResourcePackItemDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "fileSizeDisplay": {
+            "type": "string"
+          },
+          "packKind": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "typeLabel": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "fileName",
+          "fileSizeDisplay",
+          "packKind",
+          "isActive",
+          "typeLabel"
+        ]
+      },
+      "ResourcePacksResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverType": {
+            "type": "string"
+          },
+          "isJava": {
+            "type": "boolean"
+          },
+          "packs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourcePackItemDTO"
+            }
+          },
+          "geyserPacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResourcePackItemDTO"
+            }
+          },
+          "isGeyserAvailable": {
+            "type": "boolean"
+          },
+          "activePackUrl": {
+            "type": "string"
+          },
+          "requirePack": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverType",
+          "isJava",
+          "packs",
+          "geyserPacks",
+          "isGeyserAvailable",
+          "requirePack"
+        ]
+      },
+      "ResourcePackMutationResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "updated": {
+            "$ref": "#/components/schemas/ResourcePacksResponseDTO"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ResourcePackActivateRequestDTO": {
+        "type": "object",
+        "properties": {
+          "packId": {
+            "type": "string"
+          },
+          "require": {
+            "type": "boolean"
+          }
+        },
+        "required": []
+      },
+      "ResourcePackSetURLRequestDTO": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "sha1": {
+            "type": "string"
+          },
+          "require": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "ResourcePackToggleRequestDTO": {
+        "type": "object",
+        "properties": {
+          "packId": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "packId",
+          "enabled"
+        ]
+      },
+      "ResourcePackRemoveRequestDTO": {
+        "type": "object",
+        "properties": {
+          "packId": {
+            "type": "string"
+          },
+          "packKind": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "packId",
+          "packKind"
         ]
       }
     }

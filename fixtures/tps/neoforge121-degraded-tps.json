@@ -1,0 +1,18 @@
+{
+  "domain": "tps",
+  "case": "neoforge121-degraded-tps",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testNeoForge121DegradedTps",
+    "line": 74
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "Overall: 8.87 TPS (112.700 ms/tick)"
+  },
+  "expected": {
+    "t1": 8.87,
+    "t5": null
+  },
+  "notes": "Source test only asserts t1 and t5; t15 intentionally omitted rather than assumed."
+}

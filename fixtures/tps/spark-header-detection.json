@@ -1,0 +1,23 @@
+{
+  "domain": "tps",
+  "case": "spark-header-detection",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testSparkHeaderDetection",
+    "line": 121
+  },
+  "input": {
+    "function": "TpsLineParser.isSparkTpsHeader",
+    "lines": [
+      "[11:48:55] [Server thread/INFO]: TPS from last 5s, 10s, 1m, 5m, 15m:",
+      "TPS from last 1m, 5m, 15m: 20.0, 20.0, 20.0"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      false
+    ]
+  },
+  "notes": "Paper's 3-window header must NOT be mistaken for spark's 5-window one."
+}

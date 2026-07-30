@@ -1,0 +1,17 @@
+{
+  "domain": "tps",
+  "case": "vanilla-tick-at-budget-is-twenty",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testVanillaTickAtBudgetIsTwenty",
+    "line": 96
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "Average time per tick: 50.0ms (Target: 50.0ms)"
+  },
+  "expected": {
+    "t1": 20.0
+  },
+  "notes": "Source test only asserts t1."
+}

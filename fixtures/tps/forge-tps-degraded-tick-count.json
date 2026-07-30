@@ -1,0 +1,18 @@
+{
+  "domain": "tps",
+  "case": "forge-tps-degraded-tick-count",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testForgeTpsDegradedTickCount",
+    "line": 50
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "Overall: Mean tick time: 112.7 ms. Mean TPS: 8.87"
+  },
+  "expected": {
+    "t1": 8.87,
+    "t5": null,
+    "t15": null
+  }
+}

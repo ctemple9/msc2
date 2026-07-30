@@ -1,0 +1,18 @@
+{
+  "domain": "tps",
+  "case": "vanilla-tick-overloaded-derives-reduced-tps",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testVanillaTickOverloadedDerivesReducedTps",
+    "line": 101
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "Average time per tick: 100.0ms (Target: 50.0ms)"
+  },
+  "expected": {
+    "t1": 10.0,
+    "t5": null
+  },
+  "notes": "100ms/tick -> 1000/100 = 10 TPS. Source test only asserts t1 and t5."
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "tps",
+  "case": "vanilla-tick-with-server-prefix",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testVanillaTickWithServerPrefix",
+    "line": 108
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "[11:22:33] [Server thread/INFO]: Average time per tick: 62.5ms (Target: 50.0ms)"
+  },
+  "expected": {
+    "t1": 16.0
+  },
+  "notes": "1000/62.5 = 16.0. Confirms the log-line timestamp/level prefix doesn't block the match. Source test only asserts t1."
+}

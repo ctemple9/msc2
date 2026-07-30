@@ -1,0 +1,19 @@
+{
+  "domain": "tps",
+  "case": "spark-values-map-windows-to-1m-5m-15m",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testSparkValuesMapWindowsTo1m5m15m",
+    "line": 127
+  },
+  "input": {
+    "function": "TpsLineParser.parseSparkValues",
+    "line": "[11:48:55] [Server thread/INFO]: 20.0, 19.9, 19.8, 19.5, 18.0"
+  },
+  "expected": {
+    "t1": 19.8,
+    "t5": 19.5,
+    "t15": 18.0
+  },
+  "notes": "spark order is 5s, 10s, 1m, 5m, 15m -> t1/t5/t15 take the 1m/5m/15m positions (indices 2,3,4)."
+}

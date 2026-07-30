@@ -1,0 +1,18 @@
+{
+  "domain": "tps",
+  "case": "paper-tps-three-values",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testPaperTpsThreeValues",
+    "line": 18
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "TPS from last 1m, 5m, 15m: 19.98, 20.0, 20.0"
+  },
+  "expected": {
+    "t1": 19.98,
+    "t5": 20.0,
+    "t15": 20.0
+  }
+}

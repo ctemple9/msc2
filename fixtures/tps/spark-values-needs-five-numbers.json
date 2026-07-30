@@ -1,0 +1,23 @@
+{
+  "domain": "tps",
+  "case": "spark-values-needs-five-numbers",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testSparkValuesNeedsFiveNumbers",
+    "line": 142
+  },
+  "input": {
+    "function": "TpsLineParser.parseSparkValues",
+    "lines": [
+      "20.0, 20.0, 20.0, 20.0",
+      "[11:48:55] [Server thread/INFO]: done"
+    ]
+  },
+  "expected": {
+    "results": [
+      null,
+      null
+    ]
+  },
+  "notes": "First case has only 4 of the 5 required numbers. Second case (a bare timestamp with no decimals) can't be misread as values either."
+}

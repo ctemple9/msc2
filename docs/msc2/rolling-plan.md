@@ -125,7 +125,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `17bfc83`
 
 ### P0.2 — Fixture runner and comparison tool
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/fixture-runner/run.py`, `tools/fixture-runner/schema.json`, `fixtures/_selftest/pass.json`, `fixtures/_selftest/fail.json`
 **What:** A dependency-free Python script that validates a fixture against the P0.1 schema and compares `input`→`expected` against an `actual` value, exiting 0 on match and non-zero on mismatch. Two self-test fixtures prove the pipeline end-to-end before any real domain logic exists: one built to pass, one built to fail. This is what makes the Phase 0 gate ("a fixture can be written, run, and compared") checkable today, without Rust. Three CLI modes: plain `run.py <file>` (full compare, used from Phase 1 on); `--schema-only <file>` (shape check against the P0.1 schema, no `actual` required — what P0.3–P0.21 use per-file, since no Rust exists yet); `--validate-dir <dir> --expect <n>` (schema-only over every fixture in a directory, plus a count assertion, printing `ok <n>` — what P0.3–P0.21 use as their Verify line); and `--selftest` (runs both self-test fixtures above and reports each exit code — this step's own Verify).
 **Verify:** `python3 tools/fixture-runner/run.py --selftest` → `pass=0` then `fail=1`
@@ -140,11 +140,11 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Domain / pure-logic tests**
 
 ### P0.3 — Extract TPS parser fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/tps/`
 **What:** Pull the 27 TPS test cases out of MSC 1's `TpsMonitoringTests.swift` into input/expected JSON pairs.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/tps --expect 27` → `ok 27`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.3: extract TPS parser fixtures`
 
 ### P0.4 — Extract version-comparison fixtures
 **Status:** not started

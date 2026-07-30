@@ -1,0 +1,23 @@
+{
+  "domain": "tps",
+  "case": "paper-tps-malformed-trio-returns-nil",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testPaperTpsMalformedTrioReturnsNil",
+    "line": 34
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "lines": [
+      "TPS from last 1m, 5m, 15m: 20.0, twenty, 20.0",
+      "TPS from last 1m, 5m, 15m: 20.0"
+    ]
+  },
+  "expected": {
+    "results": [
+      null,
+      null
+    ]
+  },
+  "notes": "Two sub-cases from one Swift test: a non-numeric value in the trio, and a missing trio entirely. Both must fail to parse rather than partially parsing."
+}

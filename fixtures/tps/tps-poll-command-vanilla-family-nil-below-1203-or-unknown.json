@@ -1,0 +1,79 @@
+{
+  "domain": "tps",
+  "case": "tps-poll-command-vanilla-family-nil-below-1203-or-unknown",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testTpsPollCommandVanillaFamilyNilBelow1203OrUnknown",
+    "line": 213
+  },
+  "input": {
+    "function": "JavaServerFlavor.tpsPollCommand",
+    "cases": [
+      {
+        "flavor": "vanilla",
+        "minecraftVersion": "1.20.2"
+      },
+      {
+        "flavor": "vanilla",
+        "minecraftVersion": "1.19.4"
+      },
+      {
+        "flavor": "vanilla",
+        "minecraftVersion": null
+      },
+      {
+        "flavor": "vanilla",
+        "minecraftVersion": ""
+      },
+      {
+        "flavor": "fabric",
+        "minecraftVersion": "1.20.2"
+      },
+      {
+        "flavor": "fabric",
+        "minecraftVersion": "1.19.4"
+      },
+      {
+        "flavor": "fabric",
+        "minecraftVersion": null
+      },
+      {
+        "flavor": "fabric",
+        "minecraftVersion": ""
+      },
+      {
+        "flavor": "quilt",
+        "minecraftVersion": "1.20.2"
+      },
+      {
+        "flavor": "quilt",
+        "minecraftVersion": "1.19.4"
+      },
+      {
+        "flavor": "quilt",
+        "minecraftVersion": null
+      },
+      {
+        "flavor": "quilt",
+        "minecraftVersion": ""
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "notes": "Full cross-product of the vanilla-family flavors against two <1.20.3 versions plus unknown (nil) and empty-string version; every combination yields nil rather than a guessed command."
+}

@@ -1,0 +1,26 @@
+{
+  "domain": "tps",
+  "case": "auto-tps-command-paper-family",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testAutoTpsCommandPaperFamily",
+    "line": 160
+  },
+  "input": {
+    "function": "JavaServerFlavor.autoTpsCommand",
+    "flavors": [
+      "paper",
+      "purpur",
+      "pufferfish",
+      "spigot"
+    ]
+  },
+  "expected": {
+    "results": [
+      "tps",
+      "tps",
+      "tps",
+      "tps"
+    ]
+  }
+}

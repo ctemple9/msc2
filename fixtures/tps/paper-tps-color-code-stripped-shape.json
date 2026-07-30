@@ -1,0 +1,19 @@
+{
+  "domain": "tps",
+  "case": "paper-tps-color-code-stripped-shape",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testPaperTpsWithColorCodeStrippedShape",
+    "line": 25
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "TPS from last 1m, 5m, 15m: 5.12, 12.34, 18.90"
+  },
+  "expected": {
+    "t1": 5.12,
+    "t5": 12.34,
+    "t15": 18.9
+  },
+  "notes": "After AppUtilities.sanitized() strips section-sign color codes the line is plain text; the parser sees it post-strip, so this fixture's input is already-sanitized text."
+}

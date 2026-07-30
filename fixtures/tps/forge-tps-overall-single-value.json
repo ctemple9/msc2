@@ -1,0 +1,19 @@
+{
+  "domain": "tps",
+  "case": "forge-tps-overall-single-value",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testForgeTpsOverallSingleValue",
+    "line": 41
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "Overall: Mean tick time: 3.456 ms. Mean TPS: 20.000"
+  },
+  "expected": {
+    "t1": 20.0,
+    "t5": null,
+    "t15": null
+  },
+  "notes": "Forge has no 1m/5m/15m breakdown; t5/t15 must be cleared so the Performance tab renders a single value instead of stale Paper numbers."
+}

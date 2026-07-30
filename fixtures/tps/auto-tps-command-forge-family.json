@@ -1,0 +1,22 @@
+{
+  "domain": "tps",
+  "case": "auto-tps-command-forge-family",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testAutoTpsCommandForgeFamily",
+    "line": 167
+  },
+  "input": {
+    "function": "JavaServerFlavor.autoTpsCommand",
+    "flavors": [
+      "forge",
+      "neoforge"
+    ]
+  },
+  "expected": {
+    "results": [
+      "forge tps",
+      "neoforge tps"
+    ]
+  }
+}

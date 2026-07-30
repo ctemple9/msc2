@@ -1,0 +1,37 @@
+{
+  "domain": "tps",
+  "case": "every-flavor-auto-tps-command-is-exhaustive",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testEveryFlavorAutoTpsCommandIsExhaustive",
+    "line": 180
+  },
+  "input": {
+    "function": "JavaServerFlavor.autoTpsCommand",
+    "flavors": [
+      "paper",
+      "purpur",
+      "pufferfish",
+      "spigot",
+      "forge",
+      "neoforge",
+      "vanilla",
+      "fabric",
+      "quilt"
+    ]
+  },
+  "expected": {
+    "results": [
+      "tps",
+      "tps",
+      "tps",
+      "tps",
+      "forge tps",
+      "neoforge tps",
+      null,
+      null,
+      null
+    ]
+  },
+  "notes": "Same property as the two tests above, but over JavaServerFlavor.allCases exhaustively — guards against a new flavor being added without a TPS decision. This fixture's flavor list is MSC 1's current allCases order; a new case added later must extend it, not silently pass by omission."
+}

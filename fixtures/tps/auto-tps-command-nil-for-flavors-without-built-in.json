@@ -1,0 +1,25 @@
+{
+  "domain": "tps",
+  "case": "auto-tps-command-nil-for-flavors-without-built-in",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testAutoTpsCommandNilForFlavorsWithoutBuiltIn",
+    "line": 172
+  },
+  "input": {
+    "function": "JavaServerFlavor.autoTpsCommand",
+    "flavors": [
+      "vanilla",
+      "fabric",
+      "quilt"
+    ]
+  },
+  "expected": {
+    "results": [
+      null,
+      null,
+      null
+    ]
+  },
+  "notes": "Vanilla/Fabric/Quilt have no stable built-in TPS command, so MSC skips the poll rather than spamming 'Unknown or incomplete command'."
+}

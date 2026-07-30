@@ -1,0 +1,23 @@
+{
+  "domain": "tps",
+  "case": "vanilla-tick-sibling-lines-ignored",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testVanillaTickSiblingLinesIgnored",
+    "line": 113
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "lines": [
+      "Target tick rate: 20.0 per second.",
+      "Percentiles: P50: 0.6ms P95: 1.2ms P99: 2.8ms, sample: 100"
+    ]
+  },
+  "expected": {
+    "results": [
+      null,
+      null
+    ]
+  },
+  "notes": "The other two lines of the vanilla /tick query reply must not parse as TPS."
+}

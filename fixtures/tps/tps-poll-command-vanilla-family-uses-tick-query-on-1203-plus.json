@@ -1,0 +1,64 @@
+{
+  "domain": "tps",
+  "case": "tps-poll-command-vanilla-family-uses-tick-query-on-1203-plus",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testTpsPollCommandVanillaFamilyUsesTickQueryOn1203Plus",
+    "line": 205
+  },
+  "input": {
+    "function": "JavaServerFlavor.tpsPollCommand",
+    "cases": [
+      {
+        "flavor": "vanilla",
+        "minecraftVersion": "1.20.3"
+      },
+      {
+        "flavor": "vanilla",
+        "minecraftVersion": "1.21"
+      },
+      {
+        "flavor": "vanilla",
+        "minecraftVersion": "1.21.4"
+      },
+      {
+        "flavor": "fabric",
+        "minecraftVersion": "1.20.3"
+      },
+      {
+        "flavor": "fabric",
+        "minecraftVersion": "1.21"
+      },
+      {
+        "flavor": "fabric",
+        "minecraftVersion": "1.21.4"
+      },
+      {
+        "flavor": "quilt",
+        "minecraftVersion": "1.20.3"
+      },
+      {
+        "flavor": "quilt",
+        "minecraftVersion": "1.21"
+      },
+      {
+        "flavor": "quilt",
+        "minecraftVersion": "1.21.4"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      "tick query",
+      "tick query",
+      "tick query",
+      "tick query",
+      "tick query",
+      "tick query",
+      "tick query",
+      "tick query",
+      "tick query"
+    ]
+  },
+  "notes": "Full cross-product of the vanilla-family flavors against three >=1.20.3 versions; every combination resolves to the vanilla /tick query."
+}

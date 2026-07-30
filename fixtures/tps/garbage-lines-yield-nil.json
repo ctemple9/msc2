@@ -1,0 +1,28 @@
+{
+  "domain": "tps",
+  "case": "garbage-lines-yield-nil",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testGarbageLinesYieldNil",
+    "line": 150
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "lines": [
+      "hello world",
+      "[12:00:00] [Server thread/INFO]: Done (5.2s)!",
+      "Unknown or incomplete command, see below for error",
+      "Mean tick time is not a real line without Mean TPS",
+      ""
+    ]
+  },
+  "expected": {
+    "results": [
+      null,
+      null,
+      null,
+      null,
+      null
+    ]
+  }
+}

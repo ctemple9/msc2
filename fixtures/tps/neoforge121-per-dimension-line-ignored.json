@@ -1,0 +1,15 @@
+{
+  "domain": "tps",
+  "case": "neoforge121-per-dimension-line-ignored",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testNeoForge121PerDimensionLineIsIgnored",
+    "line": 80
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "minecraft:overworld: 20.000 TPS (0.05 ms/tick)"
+  },
+  "expected": null,
+  "notes": "Only the 'Overall:' summary should feed the live stat; per-dimension lines must not match."
+}

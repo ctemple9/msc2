@@ -1,0 +1,18 @@
+{
+  "domain": "tps",
+  "case": "forge-tps-case-and-spacing-tolerant",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testForgeTpsCaseAndSpacingTolerant",
+    "line": 57
+  },
+  "input": {
+    "function": "TpsLineParser.parse",
+    "line": "overall: mean tick time: 4.0 ms  mean tps: 19.5"
+  },
+  "expected": {
+    "t1": 19.5,
+    "t5": null
+  },
+  "notes": "Real Forge builds vary punctuation/casing slightly; the regex is case-insensitive and tolerant of the 'ms.' period being present or not. The source test only asserts t1 and t5 — t15 is intentionally omitted here rather than assumed."
+}

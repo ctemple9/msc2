@@ -1,0 +1,27 @@
+{
+  "domain": "tps",
+  "case": "supports-vanilla-tick-query-numeric-boundary",
+  "source": {
+    "file": "TpsMonitoringTests.swift",
+    "test": "testSupportsVanillaTickQueryNumericBoundary",
+    "line": 222
+  },
+  "input": {
+    "function": "JavaServerFlavor.supportsVanillaTickQuery",
+    "versions": [
+      "1.20.10",
+      "1.20.3",
+      "1.20.2",
+      "1.9.4"
+    ]
+  },
+  "expected": {
+    "results": [
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "notes": "Numeric (not lexical) comparison, so multi-digit components order correctly: 1.20.10 must count as >= 1.20.3 despite '10' < '3' lexically."
+}

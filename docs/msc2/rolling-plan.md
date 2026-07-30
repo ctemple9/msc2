@@ -465,11 +465,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.26: populate the symbol ledger for mixed-bucket files`
 
 ### P0.26a — Symbol ledger bucket-count checker script
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/symbol-ledger-check.py`
 **What:** A dependency-free Python script, `tools/symbol-ledger-check.py <bucket> --scan-source <path>`, used as P0.27's Verify command. It counts unique `file` values in `docs/msc2/audit/msc2-symbol-ledger.csv` for the given `bucket`, re-runs P0.25's scanner (`tools/symbol-scan/scan.py --bucket ui --min-hits 3`) against `--scan-source`, asserts the two counts match exactly, and prints `ok <n>` — so the check stays live against whatever the scanner currently finds, never a number frozen in the plan. Ships with a `--selftest` mode against two bundled temp CSVs (one matching, one deliberately short a row) so it's checkable before the real ledger or a scan source exists.
 **Verify:** `python3 tools/symbol-ledger-check.py --selftest` → `pass=0` then `fail=1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.26a: build symbol ledger bucket-count checker script`
 
 ### P0.27 — Populate the ledger: flagged UI files
 **Status:** not started

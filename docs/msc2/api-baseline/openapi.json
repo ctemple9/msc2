@@ -1551,6 +1551,260 @@
           }
         }
       }
+    },
+    "/broadcast/autostart": {
+      "get": {
+        "summary": "Get Xbox broadcast auto-start setting",
+        "responses": {
+          "200": {
+            "description": "Current setting",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastAutoStartDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Set Xbox broadcast auto-start",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BroadcastAutoStartSetRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Setting updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastAutoStartDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/auth-prompt": {
+      "get": {
+        "summary": "Get pending MCXboxBroadcast auth prompt",
+        "responses": {
+          "200": {
+            "description": "Current prompt state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastAuthPromptDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/auth-prompt/dismiss": {
+      "post": {
+        "summary": "Dismiss the pending auth prompt",
+        "responses": {
+          "200": {
+            "description": "result: dismissed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastSimpleResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/status": {
+      "get": {
+        "summary": "Get Xbox/Bedrock broadcast running status",
+        "responses": {
+          "200": {
+            "description": "Current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastStatusDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/start": {
+      "post": {
+        "summary": "Start Xbox broadcast",
+        "responses": {
+          "200": {
+            "description": "result: broadcast_start_requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastSimpleResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/stop": {
+      "post": {
+        "summary": "Stop Xbox broadcast",
+        "responses": {
+          "200": {
+            "description": "result: broadcast_stop_requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastSimpleResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/restart": {
+      "post": {
+        "summary": "Restart Xbox broadcast",
+        "responses": {
+          "200": {
+            "description": "result: broadcast_restart_requested",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastSimpleResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/credentials": {
+      "post": {
+        "summary": "Update MCXboxBroadcast Microsoft account credentials",
+        "x-notes": "Travels as plaintext JSON over LAN HTTP by design \u2014 see the wire-format notes at the top of RemoteAPIServerDTOs.swift for the threat-model reasoning (S4).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BroadcastCredentialsDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "result: credentials_updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "result"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "update_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/jar-status": {
+      "get": {
+        "summary": "Get MCXboxBroadcast JAR install status",
+        "responses": {
+          "200": {
+            "description": "Current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastJarStatusDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/broadcast/download-jar": {
+      "post": {
+        "summary": "Download the MCXboxBroadcast JAR",
+        "responses": {
+          "200": {
+            "description": "Download started/finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastJarDownloadResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastJarDownloadResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2809,6 +3063,126 @@
             "type": "string"
           },
           "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "BroadcastStatusDTO": {
+        "type": "object",
+        "properties": {
+          "xboxBroadcastRunning": {
+            "type": "boolean"
+          },
+          "bedrockBroadcastRunning": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "xboxBroadcastRunning",
+          "bedrockBroadcastRunning"
+        ]
+      },
+      "BroadcastAutoStartDTO": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "BroadcastAutoStartSetRequestDTO": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "BroadcastAuthPromptDTO": {
+        "type": "object",
+        "properties": {
+          "isPresent": {
+            "type": "boolean"
+          },
+          "code": {
+            "type": "string"
+          },
+          "linkURL": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "isPresent"
+        ]
+      },
+      "BroadcastCredentialsDTO": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          },
+          "gamertag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "password",
+          "gamertag"
+        ]
+      },
+      "BroadcastJarStatusDTO": {
+        "type": "object",
+        "properties": {
+          "installed": {
+            "type": "boolean"
+          },
+          "downloading": {
+            "type": "boolean"
+          },
+          "filename": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "installed",
+          "downloading"
+        ]
+      },
+      "BroadcastJarDownloadResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "BroadcastSimpleResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
             "type": "string"
           }
         },

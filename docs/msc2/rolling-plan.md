@@ -321,11 +321,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** (filled in by the executing agent)
 
 ### P0.23c — API baseline: `worlds` routes
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `worlds/{create,rename,replace,repair,activate}` routes.
 **Verify:** `python3 tools/api-baseline-check.py worlds` → `ok 5`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23c: add worlds API baseline routes`
 
 ### P0.23d — API baseline: `components` routes
 **Status:** not started

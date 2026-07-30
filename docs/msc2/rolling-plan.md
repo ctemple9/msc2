@@ -283,7 +283,7 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 ### Reference corpus
 
 ### P0.22 — Reference corpus scaffold
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `corpus/README.md`, `corpus/{logs,configs,packs,server-dirs,dto-examples}/`
 **What:** Create the five category directories the port plan calls for (§1, "Reference corpus"). Seed `dto-examples/` with real wire-format JSON already embedded in `DTOContractTests.swift` and `RemoteAPIIntegrationTests.swift` — genuine evidence, not fabricated. `corpus/README.md` states plainly, per category, what still has to come from Cameron's own MSC 1 usage (real server directories, historical `server_config_swift.json` versions, real crash logs) rather than inventing sample data — MSC 1's own repository ships none.
 **Verify:** `find corpus -mindepth 1 -maxdepth 1 -type d | sort` → `corpus/configs`, `corpus/dto-examples`, `corpus/logs`, `corpus/packs`, `corpus/server-dirs`
@@ -300,11 +300,11 @@ Each family step's Verify checks two things a flat path count can't: it looks on
 For the fourteen families MSC 1's own route list gives an exact sub-route count for (`servers`=5, `settings`=1, `worlds`=5, `components`=4, `backups`=3, `config`=3, `users`=3, `health`=1, `command`=1, `start`=1, `stop`=1, `allowlist`=1, `duckdns`=1, `templates`=1), that count is asserted. For the five `*`-wildcard families (`playit`, `broadcast`, `resourcepacks`, `watchdog`, `players`), MSC 1's own docs don't state a sub-route count, so none is asserted — the script only checks count > 0 and prints whatever it finds, same principle as P0.25/P0.27 below.
 
 ### P0.23 — API baseline schema-depth checker script
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/api-baseline-check.py`
 **What:** A dependency-free Python script, `tools/api-baseline-check.py <family>`, used as the Verify command by every P0.23a–P0.23s step below. It loads `docs/msc2/api-baseline/openapi.json`, filters to the paths under `/<family>`, asserts the count against the known table above (or just `> 0` for the five wildcard families), asserts every matched operation's `responses` nests down to a real `content` → `application/json` → `schema` rather than a stub, and prints `ok <n>` on success — exiting non-zero with a one-line reason otherwise. Ships with a `--selftest` mode against two bundled fixtures (one deep, one stub) so it's checkable before `openapi.json` exists, and a `--total` mode that sums every path in the file (the P0.23s final sanity check against 87).
 **Verify:** `python3 tools/api-baseline-check.py --selftest` → `pass=0` then `fail=1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23: build API baseline schema-depth checker script`
 
 ### P0.23a — API baseline: `servers` routes
 **Status:** not started

@@ -1,0 +1,29 @@
+{
+  // Keeps diffs clean — stray whitespace and missing final newlines
+  // otherwise show up as noise in every review.
+  "files.trimTrailingWhitespace": true,
+  "files.insertFinalNewline": true,
+
+  // The docs are long prose. Wrap them.
+  "[markdown]": {
+    "editor.wordWrap": "on",
+    "files.trimTrailingWhitespace": false
+  },
+
+  // Rust: format on save so `cargo fmt --check` in CI never fails
+  // for a reason you had to think about.
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+  },
+  "rust-analyzer.check.command": "clippy",
+
+  // Don't index build output.
+  "search.exclude": {
+    "**/target": true,
+    "**/node_modules": true
+  },
+  "files.watcherExclude": {
+    "**/target/**": true
+  }
+}

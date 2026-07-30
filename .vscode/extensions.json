@@ -1,0 +1,9 @@
+{
+  // VS Code prompts to install these when the folder is opened.
+  // Keeping them in the repo means any machine — or any future
+  // contributor — gets the same setup without being told.
+  "recommendations": [
+    "rust-lang.rust-analyzer",
+    "tamasfe.even-better-toml"
+  ]
+}

@@ -1029,6 +1029,213 @@
         },
         "x-notes": "At least one of autoBackupEnabled/autoBackupIntervalMinutes/autoBackupMaxCount must be present, or the server rejects with no_changes (400)."
       }
+    },
+    "/config/java-runtime": {
+      "get": {
+        "summary": "Get the global Java executable path override",
+        "responses": {
+          "200": {
+            "description": "Current path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JavaConfigResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Set the global Java executable path override",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JavaConfigSetRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Path updated, echoes fresh config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JavaConfigResponseDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "set_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/config/ram": {
+      "get": {
+        "summary": "Get the active server's RAM allocation",
+        "responses": {
+          "200": {
+            "description": "Current allocation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RAMConfigResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update the active server's RAM allocation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RAMConfigUpdateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Allocation updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RAMConfigUpdateResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json / no_changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_active_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "At least one of minRamGB/maxRamGB must be present, or 400 no_changes."
+      }
+    },
+    "/config/geyser": {
+      "get": {
+        "summary": "Get the active server's Geyser config",
+        "responses": {
+          "200": {
+            "description": "Current config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeyserConfigResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update the active server's Geyser config",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeyserConfigUpdateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Config updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeyserConfigUpdateResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_server / not_installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "write_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1794,6 +2001,164 @@
         },
         "required": [
           "result"
+        ]
+      },
+      "JavaConfigResponseDTO": {
+        "type": "object",
+        "properties": {
+          "executablePath": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "JavaConfigSetRequestDTO": {
+        "type": "object",
+        "properties": {
+          "executablePath": {
+            "type": "string"
+          }
+        },
+        "required": []
+      },
+      "RAMConfigResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "type": "string"
+          },
+          "serverType": {
+            "type": "string"
+          },
+          "minRamGB": {
+            "type": "number"
+          },
+          "maxRamGB": {
+            "type": "number"
+          },
+          "physicalRAMGB": {
+            "type": "integer"
+          },
+          "recommendedMaxGB": {
+            "type": "integer"
+          },
+          "serverRunning": {
+            "type": "boolean"
+          },
+          "hasActiveServer": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "serverName",
+          "serverType",
+          "minRamGB",
+          "maxRamGB",
+          "physicalRAMGB",
+          "recommendedMaxGB",
+          "serverRunning",
+          "hasActiveServer"
+        ]
+      },
+      "RAMConfigUpdateRequestDTO": {
+        "type": "object",
+        "properties": {
+          "minRamGB": {
+            "type": "number"
+          },
+          "maxRamGB": {
+            "type": "number"
+          }
+        },
+        "required": []
+      },
+      "RAMConfigUpdateResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "minRamGB": {
+            "type": "number"
+          },
+          "maxRamGB": {
+            "type": "number"
+          },
+          "restartRequired": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "restartRequired"
+        ]
+      },
+      "GeyserConfigResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "type": "string"
+          },
+          "serverType": {
+            "type": "string"
+          },
+          "isGeyserInstalled": {
+            "type": "boolean"
+          },
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "configFileExists": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverName",
+          "serverType",
+          "isGeyserInstalled",
+          "configFileExists"
+        ]
+      },
+      "GeyserConfigUpdateRequestDTO": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          }
+        },
+        "required": []
+      },
+      "GeyserConfigUpdateResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "success",
+          "message"
         ]
       }
     }

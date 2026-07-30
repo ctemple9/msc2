@@ -1,0 +1,25 @@
+{
+  "domain": "startup-crash-analyzer",
+  "case": "garbage-log-returns-nothing-for-parseable-flavor",
+  "source": {
+    "file": "StartupCrashAnalyzerTests.swift",
+    "test": "testGarbageLogReturnsNothingForParseableFlavor",
+    "line": 98
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "fabric",
+    "consoleExcerpt": [
+      "[12:00:00] [Server thread/INFO]: Starting minecraft server version 1.21",
+      "random noise line that mentions requires but not in the Mod '...' shape",
+      "======= a decorative banner =======",
+      "Done (5.231s)! For help, type \"help\""
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsEmpty": true
+  },
+  "notes": "A parseable flavor (fabric) with no lines matching the actual failure grammar must return nothing rather than guess, even though one line loosely mentions 'requires'."
+}

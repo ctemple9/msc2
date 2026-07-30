@@ -1,0 +1,19 @@
+{
+  "domain": "startup-crash-analyzer",
+  "case": "empty-excerpt-returns-empty",
+  "source": {
+    "file": "StartupCrashAnalyzerTests.swift",
+    "test": "testEmptyExcerptReturnsEmpty",
+    "line": 123
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "fabric",
+    "consoleExcerpt": [],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsEmpty": true
+  }
+}

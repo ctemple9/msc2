@@ -1,0 +1,27 @@
+{
+  "domain": "startup-crash-analyzer",
+  "case": "forge-wrong-dependency-version-attributes-to-dependency",
+  "source": {
+    "file": "StartupCrashAnalyzerTests.swift",
+    "test": "testForgeWrongDependencyVersionAttributesToDependency",
+    "line": 81
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "forge",
+    "consoleExcerpt": [
+      "Mod ID: 'jei', Requested by: 'somemod', Expected range: '[15.2,)', Actual version: '15.0.1'"
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "incompatibleVersion",
+      "offenderId": "jei",
+      "missingDependency": null
+    }
+  },
+  "notes": "A concrete (non-loader) dependency present at the wrong version flips attribution: the offender is the dependency itself ('jei'), not the requester — opposite of the missing-dependency case above."
+}

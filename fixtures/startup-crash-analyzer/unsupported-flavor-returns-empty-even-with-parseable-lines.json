@@ -1,0 +1,22 @@
+{
+  "domain": "startup-crash-analyzer",
+  "case": "unsupported-flavor-returns-empty-even-with-parseable-lines",
+  "source": {
+    "file": "StartupCrashAnalyzerTests.swift",
+    "test": "testUnsupportedFlavorReturnsEmptyEvenWithParseableLines",
+    "line": 113
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "paper",
+    "consoleExcerpt": [
+      "\t - Mod 'MyMod' (mymod) 1.0 requires any version of fabric api, which is missing!"
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsEmpty": true
+  },
+  "notes": "Paper isn't a loader this analyzer parses dependency logs for; the flavor gate short-circuits to empty even though the line would otherwise match Fabric's grammar exactly (same line as fabric-missing-dependency-parsed above)."
+}

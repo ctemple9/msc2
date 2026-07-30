@@ -1,0 +1,27 @@
+{
+  "domain": "startup-crash-analyzer",
+  "case": "forge-missing-dependency-parsed",
+  "source": {
+    "file": "StartupCrashAnalyzerTests.swift",
+    "test": "testForgeMissingDependencyParsed",
+    "line": 66
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "neoforge",
+    "consoleExcerpt": [
+      "Mod ID: 'jei', Requested by: 'somemod', Expected range: '[15.2,)', Actual version: '[MISSING]'"
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "missingDependency",
+      "offenderId": "somemod",
+      "missingDependency": "jei"
+    }
+  },
+  "notes": "The offender is the requester ('somemod', the mod we can actually act on), and the missing dependency is the target ('jei')."
+}

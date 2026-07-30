@@ -1,0 +1,39 @@
+{
+  "domain": "startup-crash-analyzer",
+  "case": "fabric-incompatible-version-attributed-to-installed-mod",
+  "source": {
+    "file": "StartupCrashAnalyzerTests.swift",
+    "test": "testFabricIncompatibleVersionAttributedToInstalledMod",
+    "line": 44
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "fabric",
+    "consoleExcerpt": [
+      "\t - Mod 'Sodium' (sodium) 0.4.0 requires version 1.21 of minecraft, but only 1.20.1 is present!"
+    ],
+    "installedMods": [
+      {
+        "filename": "sodium-fabric-0.4.0.jar",
+        "jarStem": "sodium-fabric-0.4.0",
+        "displayName": "Sodium",
+        "modId": "sodium",
+        "version": "0.4.0",
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "incompatibleVersion",
+      "offenderName": "Sodium",
+      "installedFile": "sodium-fabric-0.4.0.jar",
+      "installedJarStem": "sodium-fabric-0.4.0",
+      "missingDependency": null,
+      "requirementHasPrefix": "Requires version 1.21 of minecraft"
+    }
+  },
+  "notes": "Requiring 'minecraft' at a version isn't a missing-dependency line (missingDependency must be nil) — it's an incompatible-version line attributed to the installed mod that declared the requirement."
+}

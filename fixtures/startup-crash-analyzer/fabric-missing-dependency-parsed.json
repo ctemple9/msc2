@@ -1,0 +1,29 @@
+{
+  "domain": "startup-crash-analyzer",
+  "case": "fabric-missing-dependency-parsed",
+  "source": {
+    "file": "StartupCrashAnalyzerTests.swift",
+    "test": "testFabricMissingDependencyParsed",
+    "line": 26
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "fabric",
+    "consoleExcerpt": [
+      "A mod requires a dependency that is missing:",
+      "\t - Mod 'MyMod' (mymod) 1.0 requires any version of fabric api, which is missing!"
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "missingDependency",
+      "offenderName": "MyMod",
+      "offenderId": "mymod",
+      "missingDependency": "fabric api"
+    }
+  },
+  "notes": "'serverDir' points at a fresh, nonexistent temp path per real run (only consoleExcerpt feeds the parser) — the literal value is irrelevant, so `<nonexistent>` stands in for it, same convention as P0.8."
+}

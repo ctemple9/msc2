@@ -328,11 +328,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23c: add worlds API baseline routes`
 
 ### P0.23d — API baseline: `components` routes
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `components/{install,remove,update,version}` routes.
 **Verify:** `python3 tools/api-baseline-check.py components` → `ok 4`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23d: add components API baseline routes`
 
 ### P0.23e — API baseline: `backups` routes
 **Status:** not started

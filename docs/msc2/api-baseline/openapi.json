@@ -646,6 +646,262 @@
           }
         }
       }
+    },
+    "/components/update": {
+      "post": {
+        "summary": "Update a system component (paper/geyser/floodgate) or a Modrinth-tracked add-on",
+        "x-notes": "Three request shapes share one endpoint (RemoteAPIServer+ComponentRoutes.swift handleUpdateComponent): updateAll=true updates every add-on with an available update; jarStem updates one specific add-on; the legacy path (component=paper|geyser|floodgate) updates a system component. The two add-on paths return AddonUpdateResultDTO; the legacy path returns ComponentUpdateResultDTO.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentUpdateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "updateAll/jarStem paths return AddonUpdateResultDTO; the legacy component path returns ComponentUpdateResultDTO",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AddonUpdateResultDTO"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ComponentUpdateResultDTO"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_component_or_jar_stem / unknown_component",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found (jarStem path)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "not_supported (jarStem path)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/components/remove": {
+      "post": {
+        "summary": "Remove an installed Modrinth-tracked add-on",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddonRemoveRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Add-on removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonRemoveResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_jar_stem",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "not_supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/components/install": {
+      "post": {
+        "summary": "Install an add-on from the Modrinth catalog into the active server",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CatalogInstallRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Install attempted (including a 'no compatible version' outcome, which is 200 not an error)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogInstallResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "not_supported / no_active_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/components/version": {
+      "post": {
+        "summary": "Change the active server's JAR version/build",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionChangeRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Version change applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VersionChangeResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_version_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "server_running / no_active_server / not_supported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "download_in_progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1157,6 +1413,161 @@
         },
         "required": [
           "result"
+        ]
+      },
+      "ComponentUpdateRequestDTO": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": "string"
+          },
+          "jarStem": {
+            "type": "string"
+          },
+          "updateAll": {
+            "type": "boolean"
+          }
+        },
+        "required": []
+      },
+      "ComponentUpdateResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "newBuild": {
+            "type": "integer"
+          },
+          "newVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "AddonUpdateResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "jarStem": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "result",
+          "count"
+        ]
+      },
+      "AddonRemoveRequestDTO": {
+        "type": "object",
+        "properties": {
+          "jarStem": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "jarStem"
+        ]
+      },
+      "AddonRemoveResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "jarStem": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "jarStem"
+        ]
+      },
+      "CatalogInstallRequestDTO": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "projectId",
+          "slug",
+          "title"
+        ]
+      },
+      "CatalogInstallResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "projectId"
+        ]
+      },
+      "VersionChangeRequestDTO": {
+        "type": "object",
+        "properties": {
+          "versionId": {
+            "type": "string"
+          },
+          "loaderVersion": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "versionId"
+        ]
+      },
+      "VersionChangeResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requiresRestart": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "requiresRestart"
         ]
       }
     }

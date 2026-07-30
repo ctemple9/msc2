@@ -433,11 +433,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23r: add duckdns API baseline route`
 
 ### P0.23s — API baseline: `templates` route
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `templates` route. This is the last family step; once it lands, the full file should contain all 87 routes MSC 1 exposes today (49 POST + 38 GET, per `msc2-engineering.md` §5) — worth a final sanity check with `python3 tools/api-baseline-check.py --total` (a mode the P0.23 script also provides) alongside this step's own depth check, since no single family step asserts the grand total.
 **Verify:** `python3 tools/api-baseline-check.py templates` → `ok 1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23s: add templates API baseline route`
 
 ### P0.24 — Capture the WebSocket event schemas
 **Status:** not started

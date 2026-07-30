@@ -2497,6 +2497,88 @@
           }
         }
       }
+    },
+    "/templates": {
+      "get": {
+        "summary": "List available Paper/plugin templates",
+        "responses": {
+          "200": {
+            "description": "Current templates",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplatesResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Export the active server as a template, or create a server from one",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TemplateMutationRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mutation applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_action / name_required / template_required / missing_server_id / missing_source_path / invalid_path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "server_not_found / template_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "server_running / unsupported_template",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -4520,6 +4602,149 @@
         },
         "required": [
           "success"
+        ]
+      },
+      "TemplateItemDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "modifiedAt": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "build": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "filename",
+          "displayName"
+        ]
+      },
+      "TemplatesResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "type": "string"
+          },
+          "serverRunning": {
+            "type": "boolean"
+          },
+          "paperTemplates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateItemDTO"
+            }
+          },
+          "pluginTemplates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TemplateItemDTO"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverRunning",
+          "paperTemplates",
+          "pluginTemplates"
+        ]
+      },
+      "TemplateMutationRequestDTO": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "templateId": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "enableCrossPlay": {
+            "type": "boolean"
+          },
+          "crossPlayBedrockPort": {
+            "type": "integer"
+          },
+          "enablePlayit": {
+            "type": "boolean"
+          },
+          "difficulty": {
+            "type": "string"
+          },
+          "gamemode": {
+            "type": "string"
+          },
+          "worldName": {
+            "type": "string"
+          },
+          "worldSeed": {
+            "type": "string"
+          },
+          "acceptEula": {
+            "type": "boolean"
+          },
+          "includePlugins": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "TemplateMutationResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "createdServerId": {
+            "type": "string"
+          },
+          "createdServerName": {
+            "type": "string"
+          },
+          "exportedCount": {
+            "type": "integer"
+          },
+          "templates": {
+            "$ref": "#/components/schemas/TemplatesResponseDTO"
+          }
+        },
+        "required": [
+          "success",
+          "message"
         ]
       }
     }

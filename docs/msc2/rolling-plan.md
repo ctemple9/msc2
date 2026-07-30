@@ -272,7 +272,7 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Provisioning tests**
 
 ### P0.21 — Extract headless script generator fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/headless-script/`
 **What:** Pull the 19 test cases out of `HeadlessScriptGeneratorTests.swift` (Paper/Fabric/Forge launch-script and args-file generation).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/headless-script --expect 19` → `ok 19`
@@ -283,11 +283,11 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 ### Reference corpus
 
 ### P0.22 — Reference corpus scaffold
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `corpus/README.md`, `corpus/{logs,configs,packs,server-dirs,dto-examples}/`
 **What:** Create the five category directories the port plan calls for (§1, "Reference corpus"). Seed `dto-examples/` with real wire-format JSON already embedded in `DTOContractTests.swift` and `RemoteAPIIntegrationTests.swift` — genuine evidence, not fabricated. `corpus/README.md` states plainly, per category, what still has to come from Cameron's own MSC 1 usage (real server directories, historical `server_config_swift.json` versions, real crash logs) rather than inventing sample data — MSC 1's own repository ships none.
 **Verify:** `find corpus -mindepth 1 -maxdepth 1 -type d | sort` → `corpus/configs`, `corpus/dto-examples`, `corpus/logs`, `corpus/packs`, `corpus/server-dirs`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.22: scaffold reference corpus`
 
 ---
 

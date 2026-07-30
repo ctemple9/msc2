@@ -102,15 +102,15 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** `~/Documents/Swift Projects/minecraft-server-controller` — read-only throughout, per `CLAUDE.md` rule 8.
 
-46 steps, six groups:
+48 steps, six groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
 | Fixture harness | P0.1–P0.2 | format spec + runner tool |
 | Extract the 270 MSC 1 tests | P0.3–P0.21 | `fixtures/**/*.json`, one dir per source test file |
 | Reference corpus | P0.22 | `corpus/` scaffold |
-| API baseline | P0.23a–P0.23s, P0.24 | `docs/msc2/api-baseline/`, one step per route family |
-| Symbol ledger | P0.25–P0.27 | `docs/msc2/audit/msc2-symbol-ledger.csv` |
+| API baseline | P0.23, P0.23a–P0.23s, P0.24 | `docs/msc2/api-baseline/`, checker script + one step per route family |
+| Symbol ledger | P0.25, P0.26, P0.26a, P0.27 | `docs/msc2/audit/msc2-symbol-ledger.csv` |
 | Sidecar IPC contract | P0.28 | `docs/msc2/sidecar-ipc-contract.md` |
 
 ---
@@ -127,8 +127,8 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 ### P0.2 — Fixture runner and comparison tool
 **Status:** not started
 **Files:** `tools/fixture-runner/run.py`, `tools/fixture-runner/schema.json`, `fixtures/_selftest/pass.json`, `fixtures/_selftest/fail.json`
-**What:** A dependency-free Python script that validates a fixture against the P0.1 schema and compares `input`→`expected` against an `actual` value, exiting 0 on match and non-zero on mismatch. Two self-test fixtures prove the pipeline end-to-end before any real domain logic exists: one built to pass, one built to fail. This is what makes the Phase 0 gate ("a fixture can be written, run, and compared") checkable today, without Rust. Also supports a `--schema-only` mode that validates a fixture's shape against the P0.1 schema without requiring an `actual` value — this is what P0.3–P0.21 use, since no Rust exists yet to compute an `actual` to compare against.
-**Verify:** `python3 tools/fixture-runner/run.py fixtures/_selftest/pass.json; echo "pass=$?"; python3 tools/fixture-runner/run.py fixtures/_selftest/fail.json; echo "fail=$?"` → `pass=0` then `fail=1`
+**What:** A dependency-free Python script that validates a fixture against the P0.1 schema and compares `input`→`expected` against an `actual` value, exiting 0 on match and non-zero on mismatch. Two self-test fixtures prove the pipeline end-to-end before any real domain logic exists: one built to pass, one built to fail. This is what makes the Phase 0 gate ("a fixture can be written, run, and compared") checkable today, without Rust. Three CLI modes: plain `run.py <file>` (full compare, used from Phase 1 on); `--schema-only <file>` (shape check against the P0.1 schema, no `actual` required — what P0.3–P0.21 use per-file, since no Rust exists yet); `--validate-dir <dir> --expect <n>` (schema-only over every fixture in a directory, plus a count assertion, printing `ok <n>` — what P0.3–P0.21 use as their Verify line); and `--selftest` (runs both self-test fixtures above and reports each exit code — this step's own Verify).
+**Verify:** `python3 tools/fixture-runner/run.py --selftest` → `pass=0` then `fail=1`
 **Commit:** (filled in by the executing agent)
 
 ---
@@ -143,56 +143,56 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Status:** not started
 **Files:** `fixtures/tps/`
 **What:** Pull the 27 TPS test cases out of MSC 1's `TpsMonitoringTests.swift` into input/expected JSON pairs.
-**Verify:** `n=$(ls fixtures/tps/*.json | wc -l); echo "count=$n"; for f in fixtures/tps/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=27` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/tps --expect 27` → `ok 27`
 **Commit:** (filled in by the executing agent)
 
 ### P0.4 — Extract version-comparison fixtures
 **Status:** not started
 **Files:** `fixtures/component-version/`
 **What:** Pull the 21 test cases out of `ComponentVersionParsingTests.swift` (component/version-string parsing and comparison).
-**Verify:** `n=$(ls fixtures/component-version/*.json | wc -l); echo "count=$n"; for f in fixtures/component-version/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=21` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/component-version --expect 21` → `ok 21`
 **Commit:** (filled in by the executing agent)
 
 ### P0.5 — Extract Java runtime policy fixtures
 **Status:** not started
 **Files:** `fixtures/java-runtime-guards/`
 **What:** Pull the 15 test cases out of `JavaRuntimeGuardsTests.swift` (Java version/runtime selection guards).
-**Verify:** `n=$(ls fixtures/java-runtime-guards/*.json | wc -l); echo "count=$n"; for f in fixtures/java-runtime-guards/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=15` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-runtime-guards --expect 15` → `ok 15`
 **Commit:** (filled in by the executing agent)
 
 ### P0.6 — Extract server-properties model fixtures
 **Status:** not started
 **Files:** `fixtures/server-properties/`
 **What:** Pull the 7 test cases out of `ServerPropertiesModelTests.swift`.
-**Verify:** `n=$(ls fixtures/server-properties/*.json | wc -l); echo "count=$n"; for f in fixtures/server-properties/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=7` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/server-properties --expect 7` → `ok 7`
 **Commit:** (filled in by the executing agent)
 
 ### P0.7 — Extract settings-schema fixtures
 **Status:** not started
 **Files:** `fixtures/settings-schema/`
 **What:** Pull the 16 test cases out of `ServerSettingsSchemaTests.swift`.
-**Verify:** `n=$(ls fixtures/settings-schema/*.json | wc -l); echo "count=$n"; for f in fixtures/settings-schema/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=16` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/settings-schema --expect 16` → `ok 16`
 **Commit:** (filled in by the executing agent)
 
 ### P0.8 — Extract connector crash-analysis fixtures
 **Status:** not started
 **Files:** `fixtures/connector-crash-analysis/`
 **What:** Pull the 11 test cases out of `ConnectorCrashAnalysisTests.swift` (Forge dependency-block parsing, connector entrypoint failure attribution).
-**Verify:** `n=$(ls fixtures/connector-crash-analysis/*.json | wc -l); echo "count=$n"; for f in fixtures/connector-crash-analysis/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=11` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/connector-crash-analysis --expect 11` → `ok 11`
 **Commit:** (filled in by the executing agent)
 
 ### P0.9 — Extract startup crash-analyzer fixtures
 **Status:** not started
 **Files:** `fixtures/startup-crash-analyzer/`
 **What:** Pull the 7 test cases out of `StartupCrashAnalyzerTests.swift` (Fabric/Forge missing- and wrong-dependency-version attribution).
-**Verify:** `n=$(ls fixtures/startup-crash-analyzer/*.json | wc -l); echo "count=$n"; for f in fixtures/startup-crash-analyzer/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=7` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/startup-crash-analyzer --expect 7` → `ok 7`
 **Commit:** (filled in by the executing agent)
 
 ### P0.10 — Extract args-file resolution fixtures
 **Status:** not started
 **Files:** `fixtures/args-file-resolution/`
 **What:** Pull the 12 test cases out of `ArgsFileResolutionTests.swift` (NeoForge `@args`-file version resolution and fallback).
-**Verify:** `n=$(ls fixtures/args-file-resolution/*.json | wc -l); echo "count=$n"; for f in fixtures/args-file-resolution/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=12` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/args-file-resolution --expect 12` → `ok 12`
 **Commit:** (filled in by the executing agent)
 
 **API / wire-contract tests**
@@ -201,35 +201,35 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Status:** not started
 **Files:** `fixtures/dto-contract/`
 **What:** Pull the 30 test cases out of `DTOContractTests.swift` — the wire-format shape MSC 2's OpenAPI baseline (P0.23) must match.
-**Verify:** `n=$(ls fixtures/dto-contract/*.json | wc -l); echo "count=$n"; for f in fixtures/dto-contract/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=30` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/dto-contract --expect 30` → `ok 30`
 **Commit:** (filled in by the executing agent)
 
 ### P0.12 — Extract HTTP request-parsing fixtures
 **Status:** not started
 **Files:** `fixtures/http-parse-request/`
 **What:** Pull the 16 test cases out of `HTTPParseRequestTests.swift`.
-**Verify:** `n=$(ls fixtures/http-parse-request/*.json | wc -l); echo "count=$n"; for f in fixtures/http-parse-request/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=16` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/http-parse-request --expect 16` → `ok 16`
 **Commit:** (filled in by the executing agent)
 
 ### P0.13 — Extract Remote API integration fixtures
 **Status:** not started
 **Files:** `fixtures/remote-api-integration/`
 **What:** Pull the 12 test cases out of `RemoteAPIIntegrationTests.swift`.
-**Verify:** `n=$(ls fixtures/remote-api-integration/*.json | wc -l); echo "count=$n"; for f in fixtures/remote-api-integration/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=12` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/remote-api-integration --expect 12` → `ok 12`
 **Commit:** (filled in by the executing agent)
 
 ### P0.14 — Extract network-safety fixtures
 **Status:** not started
 **Files:** `fixtures/network-safety/`
 **What:** Pull the 13 test cases out of `NetworkSafetyTests.swift` (loopback/mDNS/private-range classification).
-**Verify:** `n=$(ls fixtures/network-safety/*.json | wc -l); echo "count=$n"; for f in fixtures/network-safety/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=13` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/network-safety --expect 13` → `ok 13`
 **Commit:** (filled in by the executing agent)
 
 ### P0.15 — Extract config round-trip fixtures
 **Status:** not started
 **Files:** `fixtures/config-roundtrip/`
 **What:** Pull the 7 test cases out of `AppConfigRoundTripTests.swift` (`AppConfig`/`ConfigServer` encode-decode round trips, including missing-optional-field defaulting).
-**Verify:** `n=$(ls fixtures/config-roundtrip/*.json | wc -l); echo "count=$n"; for f in fixtures/config-roundtrip/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=7` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/config-roundtrip --expect 7` → `ok 7`
 **Commit:** (filled in by the executing agent)
 
 **Mods, plugins, modpacks tests**
@@ -238,35 +238,35 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Status:** not started
 **Files:** `fixtures/curseforge-modpack/`
 **What:** Pull the 16 test cases out of `CurseForgeModpackTests.swift`.
-**Verify:** `n=$(ls fixtures/curseforge-modpack/*.json | wc -l); echo "count=$n"; for f in fixtures/curseforge-modpack/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=16` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/curseforge-modpack --expect 16` → `ok 16`
 **Commit:** (filled in by the executing agent)
 
 ### P0.17 — Extract modpack client-only classification fixtures
 **Status:** not started
 **Files:** `fixtures/modpack-client-only/`
 **What:** Pull the 18 test cases out of `ModpackClientOnlyTests.swift` (manifest-env and Modrinth-side/CurseForge-side client-only detection).
-**Verify:** `n=$(ls fixtures/modpack-client-only/*.json | wc -l); echo "count=$n"; for f in fixtures/modpack-client-only/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=18` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-client-only --expect 18` → `ok 18`
 **Commit:** (filled in by the executing agent)
 
 ### P0.18 — Extract modpack pinning fixtures
 **Status:** not started
 **Files:** `fixtures/modpack-pinning/`
 **What:** Pull the 13 test cases out of `ModpackPinningTests.swift` (Forge Maven version listing, dedup, sort).
-**Verify:** `n=$(ls fixtures/modpack-pinning/*.json | wc -l); echo "count=$n"; for f in fixtures/modpack-pinning/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=13` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-pinning --expect 13` → `ok 13`
 **Commit:** (filled in by the executing agent)
 
 ### P0.19 — Extract `.mrpack` extraction fixtures
 **Status:** not started
 **Files:** `fixtures/mrpack-extraction/`
 **What:** Pull the 3 test cases out of `MrpackExtractionTests.swift` (archive permission-mode handling, missing/malformed manifest).
-**Verify:** `n=$(ls fixtures/mrpack-extraction/*.json | wc -l); echo "count=$n"; for f in fixtures/mrpack-extraction/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=3` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/mrpack-extraction --expect 3` → `ok 3`
 **Commit:** (filled in by the executing agent)
 
 ### P0.20 — Extract pack-managed guard fixtures
 **Status:** not started
 **Files:** `fixtures/pack-managed-guard/`
 **What:** Pull the 7 test cases out of `PackManagedGuardTests.swift` (pack-managed provenance round trip, old-JSON compatibility).
-**Verify:** `n=$(ls fixtures/pack-managed-guard/*.json | wc -l); echo "count=$n"; for f in fixtures/pack-managed-guard/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=7` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/pack-managed-guard --expect 7` → `ok 7`
 **Commit:** (filled in by the executing agent)
 
 **Provisioning tests**
@@ -275,7 +275,7 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Status:** not started
 **Files:** `fixtures/headless-script/`
 **What:** Pull the 19 test cases out of `HeadlessScriptGeneratorTests.swift` (Paper/Fabric/Forge launch-script and args-file generation).
-**Verify:** `n=$(ls fixtures/headless-script/*.json | wc -l); echo "count=$n"; for f in fixtures/headless-script/*.json; do python3 tools/fixture-runner/run.py --schema-only "$f" || exit 1; done; echo "all schema-valid"` → `count=19` then `all schema-valid`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/headless-script --expect 19` → `ok 19`
 **Commit:** (filled in by the executing agent)
 
 ---
@@ -293,143 +293,150 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 
 ### API baseline
 
-Split by route family (per `msc2-engineering.md` §5: "Route families: `servers/{create,import,delete,rename,eula}` · `settings` · `worlds/{create,rename,replace,repair,activate}` · `components/{install,remove,update,version}` · `backups/{now,restore,config}` · `config/{ram,java-runtime,geyser}` · `users/{create,update,revoke}` · `health/repair` · `playit/*` · `broadcast/*` · `resourcepacks/*` · `watchdog/*` · `command` · `start` · `stop` · `allowlist` · `players/*` · `duckdns` · `templates`"), rather than one step authoring all 87 routes at once. All 19 steps build the same shared file, `docs/msc2/api-baseline/openapi.json`, incrementally.
+Split by route family (per `msc2-engineering.md` §5: "Route families: `servers/{create,import,delete,rename,eula}` · `settings` · `worlds/{create,rename,replace,repair,activate}` · `components/{install,remove,update,version}` · `backups/{now,restore,config}` · `config/{ram,java-runtime,geyser}` · `users/{create,update,revoke}` · `health/repair` · `playit/*` · `broadcast/*` · `resourcepacks/*` · `watchdog/*` · `command` · `start` · `stop` · `allowlist` · `players/*` · `duckdns` · `templates`"), rather than one step authoring all 87 routes at once. All 19 family steps build the same shared file, `docs/msc2/api-baseline/openapi.json`, incrementally, using the checker script P0.23 builds first.
 
-Each step's Verify does two things a flat path count can't: it checks only the paths that actually belong to that family (by prefix), and it checks **schema depth** — that every operation's `responses` actually nests down to a nested `content` → `application/json` → `schema`, not a stub `{}`. A family passing the old "87 paths exist" check could still have empty response bodies; this can't.
+Each family step's Verify checks two things a flat path count can't: it looks only at the paths that actually belong to that family, and it checks **schema depth** — that every operation's `responses` actually nests down to `content` → `application/json` → `schema`, not a stub `{}`. A family passing the old "87 paths exist" check could still have empty response bodies; this can't.
 
-For the eight families MSC 1's own bracket notation enumerates exactly (`servers`, `settings`, `worlds`, `components`, `backups`, `config`, `users`, `health`, plus the five bare single-route families `command`/`start`/`stop`/`allowlist`/`duckdns`/`templates`), the expected path count is asserted. For the five `*`-wildcard families (`playit`, `broadcast`, `resourcepacks`, `watchdog`, `players`), MSC 1's own docs don't state a sub-route count, so none is asserted — the step records whatever count the family's `RemoteAPIServer*.swift` source actually yields, same principle as P0.25/P0.27 below.
+For the fourteen families MSC 1's own route list gives an exact sub-route count for (`servers`=5, `settings`=1, `worlds`=5, `components`=4, `backups`=3, `config`=3, `users`=3, `health`=1, `command`=1, `start`=1, `stop`=1, `allowlist`=1, `duckdns`=1, `templates`=1), that count is asserted. For the five `*`-wildcard families (`playit`, `broadcast`, `resourcepacks`, `watchdog`, `players`), MSC 1's own docs don't state a sub-route count, so none is asserted — the script only checks count > 0 and prints whatever it finds, same principle as P0.25/P0.27 below.
+
+### P0.23 — API baseline schema-depth checker script
+**Status:** not started
+**Files:** `tools/api-baseline-check.py`
+**What:** A dependency-free Python script, `tools/api-baseline-check.py <family>`, used as the Verify command by every P0.23a–P0.23s step below. It loads `docs/msc2/api-baseline/openapi.json`, filters to the paths under `/<family>`, asserts the count against the known table above (or just `> 0` for the five wildcard families), asserts every matched operation's `responses` nests down to a real `content` → `application/json` → `schema` rather than a stub, and prints `ok <n>` on success — exiting non-zero with a one-line reason otherwise. Ships with a `--selftest` mode against two bundled fixtures (one deep, one stub) so it's checkable before `openapi.json` exists, and a `--total` mode that sums every path in the file (the P0.23s final sanity check against 87).
+**Verify:** `python3 tools/api-baseline-check.py --selftest` → `pass=0` then `fail=1`
+**Commit:** (filled in by the executing agent)
 
 ### P0.23a — API baseline: `servers` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `servers/{create,import,delete,rename,eula}` routes, read from the relevant `RemoteAPIServer*.swift` file(s) and `RemoteAPIServerDTOs.swift`. Behavior as MSC 1 has it, not aspirational.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/servers' or p.startswith('/servers/')}; assert len(paths)==5, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 5`
+**Verify:** `python3 tools/api-baseline-check.py servers` → `ok 5`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23b — API baseline: `settings` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `settings` route.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/settings' or p.startswith('/settings/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**Verify:** `python3 tools/api-baseline-check.py settings` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23c — API baseline: `worlds` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `worlds/{create,rename,replace,repair,activate}` routes.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/worlds' or p.startswith('/worlds/')}; assert len(paths)==5, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 5`
+**Verify:** `python3 tools/api-baseline-check.py worlds` → `ok 5`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23d — API baseline: `components` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `components/{install,remove,update,version}` routes.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/components' or p.startswith('/components/')}; assert len(paths)==4, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 4`
+**Verify:** `python3 tools/api-baseline-check.py components` → `ok 4`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23e — API baseline: `backups` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `backups/{now,restore,config}` routes.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/backups' or p.startswith('/backups/')}; assert len(paths)==3, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 3`
+**Verify:** `python3 tools/api-baseline-check.py backups` → `ok 3`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23f — API baseline: `config` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `config/{ram,java-runtime,geyser}` routes.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/config' or p.startswith('/config/')}; assert len(paths)==3, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 3`
+**Verify:** `python3 tools/api-baseline-check.py config` → `ok 3`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23g — API baseline: `users` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `users/{create,update,revoke}` routes.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/users' or p.startswith('/users/')}; assert len(paths)==3, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 3`
+**Verify:** `python3 tools/api-baseline-check.py users` → `ok 3`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23h — API baseline: `health/repair` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `health/repair` route.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/health' or p.startswith('/health/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**Verify:** `python3 tools/api-baseline-check.py health` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23i — API baseline: `playit` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `playit/*` routes. MSC 1's docs don't state an exact sub-route count for this family — read it straight from the source instead of assuming one.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/playit' or p.startswith('/playit/')}; assert len(paths) > 0, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok <n>` — record whatever count the source actually yields, not an assumed number
+**Verify:** `python3 tools/api-baseline-check.py playit` → `ok <n>` — record whatever count the source actually yields, not an assumed number
 **Commit:** (filled in by the executing agent)
 
 ### P0.23j — API baseline: `broadcast` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `broadcast/*` routes. Sub-route count not stated in the docs — read it from the source.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/broadcast' or p.startswith('/broadcast/')}; assert len(paths) > 0, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok <n>` — record whatever count the source actually yields
+**Verify:** `python3 tools/api-baseline-check.py broadcast` → `ok <n>` — record whatever count the source actually yields
 **Commit:** (filled in by the executing agent)
 
 ### P0.23k — API baseline: `resourcepacks` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `resourcepacks/*` routes. Sub-route count not stated in the docs — read it from the source.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/resourcepacks' or p.startswith('/resourcepacks/')}; assert len(paths) > 0, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok <n>` — record whatever count the source actually yields
+**Verify:** `python3 tools/api-baseline-check.py resourcepacks` → `ok <n>` — record whatever count the source actually yields
 **Commit:** (filled in by the executing agent)
 
 ### P0.23l — API baseline: `watchdog` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `watchdog/*` routes. Sub-route count not stated in the docs — read it from the source.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/watchdog' or p.startswith('/watchdog/')}; assert len(paths) > 0, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok <n>` — record whatever count the source actually yields
+**Verify:** `python3 tools/api-baseline-check.py watchdog` → `ok <n>` — record whatever count the source actually yields
 **Commit:** (filled in by the executing agent)
 
 ### P0.23m — API baseline: `command` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `command` route.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/command' or p.startswith('/command/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**Verify:** `python3 tools/api-baseline-check.py command` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23n — API baseline: `start` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `start` route.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/start' or p.startswith('/start/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**Verify:** `python3 tools/api-baseline-check.py start` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23o — API baseline: `stop` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `stop` route.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/stop' or p.startswith('/stop/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**Verify:** `python3 tools/api-baseline-check.py stop` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23p — API baseline: `allowlist` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `allowlist` route.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/allowlist' or p.startswith('/allowlist/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**Verify:** `python3 tools/api-baseline-check.py allowlist` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23q — API baseline: `players` routes
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `players/*` routes. Sub-route count not stated in the docs — read it from the source.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/players' or p.startswith('/players/')}; assert len(paths) > 0, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok <n>` — record whatever count the source actually yields
+**Verify:** `python3 tools/api-baseline-check.py players` → `ok <n>` — record whatever count the source actually yields
 **Commit:** (filled in by the executing agent)
 
 ### P0.23r — API baseline: `duckdns` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `duckdns` route.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/duckdns' or p.startswith('/duckdns/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**Verify:** `python3 tools/api-baseline-check.py duckdns` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.23s — API baseline: `templates` route
 **Status:** not started
 **Files:** `docs/msc2/api-baseline/openapi.json`
-**What:** Add the `templates` route. This is the last family step; once it lands, the full file should contain all 87 routes MSC 1 exposes today (49 POST + 38 GET, per `msc2-engineering.md` §5) — worth a final sanity check with the old flat count (`sum(len(v) for v in d['paths'].values())`) alongside this step's own depth check, since no single family step asserts the grand total.
-**Verify:** `python3 -c "import json; d=json.load(open('docs/msc2/api-baseline/openapi.json')); paths={p:m for p,m in d['paths'].items() if p=='/templates' or p.startswith('/templates/')}; assert len(paths)==1, len(paths); ok=all(any('content' in v and 'application/json' in v['content'] and 'schema' in v['content']['application/json'] for v in op['responses'].values()) for methods in paths.values() for op in methods.values()); assert ok; print('ok', len(paths))"` → `ok 1`
+**What:** Add the `templates` route. This is the last family step; once it lands, the full file should contain all 87 routes MSC 1 exposes today (49 POST + 38 GET, per `msc2-engineering.md` §5) — worth a final sanity check with `python3 tools/api-baseline-check.py --total` (a mode the P0.23 script also provides) alongside this step's own depth check, since no single family step asserts the grand total.
+**Verify:** `python3 tools/api-baseline-check.py templates` → `ok 1`
 **Commit:** (filled in by the executing agent)
 
 ### P0.24 — Capture the WebSocket event schemas
@@ -446,8 +453,8 @@ For the eight families MSC 1's own bracket notation enumerates exactly (`servers
 ### P0.25 — Symbol ledger schema and UI density scanner
 **Status:** not started
 **Files:** `docs/msc2/audit/symbol-ledger-format.md`, `tools/symbol-scan/scan.py`
-**What:** Define the ledger's columns (`file`, `bucket`, `symbol`, `kind` [parser/policy/workflow], `disposition` [agent/client], `target_domain`, `source_line`, `notes`) — one row per agent-owned symbol found inside a Mixed or UI file, per D-016. Build the density scanner the reconciliation audit already used (`msc2-audit-reconciliation.md`, "D1 — The Mixed bucket"): grep MSC 1's UI-bucket files (`msc2-codex-file-inventory.csv`, `bucket=ui`) for `FileManager`, `Process(`, `URLSession`, `func parse*/detect*/validate*/resolve*`, `JSONDecoder`, string-range extraction, and rank by hit count, output one file per line sorted by hit count descending.
-**Verify:** `python3 tools/symbol-scan/scan.py --bucket ui --min-hits 3 "$HOME/Documents/Swift Projects/minecraft-server-controller"` → prints a non-empty list of files, one per line, ranked by hit count (highest first); confirm it's actually sorted, then note the count Cameron sees — this is a live scan, not a check against the reconciliation doc's earlier count, so whatever number comes out is the number, not `15`
+**What:** Define the ledger's columns (`file`, `bucket`, `symbol`, `kind` [parser/policy/workflow], `disposition` [agent/client], `target_domain`, `source_line`, `notes`) — one row per agent-owned symbol found inside a Mixed or UI file, per D-016. Build the density scanner the reconciliation audit already used (`msc2-audit-reconciliation.md`, "D1 — The Mixed bucket"): grep MSC 1's UI-bucket files (`msc2-codex-file-inventory.csv`, `bucket=ui`) for `FileManager`, `Process(`, `URLSession`, `func parse*/detect*/validate*/resolve*`, `JSONDecoder`, string-range extraction, and rank by hit count, output one file per line sorted by hit count descending. This is a live scan, not a check against the reconciliation doc's earlier count of 15 — that count may be stale, so whatever the scan finds is the number, and P0.27 records it rather than assuming 15.
+**Verify:** `python3 tools/symbol-scan/scan.py --bucket ui --min-hits 3 "$HOME/Documents/Swift Projects/minecraft-server-controller"` → a ranked, non-empty file list; note the count shown
 **Commit:** (filled in by the executing agent)
 
 ### P0.26 — Populate the ledger: Mixed-bucket files
@@ -457,11 +464,18 @@ For the eight families MSC 1's own bracket notation enumerates exactly (`servers
 **Verify:** `python3 -c "import csv;rows=list(csv.DictReader(open('docs/msc2/audit/msc2-symbol-ledger.csv')));print(len({r['file'] for r in rows if r['bucket']=='mixed'}))"` → `59`
 **Commit:** (filled in by the executing agent)
 
+### P0.26a — Symbol ledger bucket-count checker script
+**Status:** not started
+**Files:** `tools/symbol-ledger-check.py`
+**What:** A dependency-free Python script, `tools/symbol-ledger-check.py <bucket> --scan-source <path>`, used as P0.27's Verify command. It counts unique `file` values in `docs/msc2/audit/msc2-symbol-ledger.csv` for the given `bucket`, re-runs P0.25's scanner (`tools/symbol-scan/scan.py --bucket ui --min-hits 3`) against `--scan-source`, asserts the two counts match exactly, and prints `ok <n>` — so the check stays live against whatever the scanner currently finds, never a number frozen in the plan. Ships with a `--selftest` mode against two bundled temp CSVs (one matching, one deliberately short a row) so it's checkable before the real ledger or a scan source exists.
+**Verify:** `python3 tools/symbol-ledger-check.py --selftest` → `pass=0` then `fail=1`
+**Commit:** (filled in by the executing agent)
+
 ### P0.27 — Populate the ledger: flagged UI files
 **Status:** not started
 **Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`
 **What:** For every file P0.25's scanner actually flagged at ≥3 hits (includes the already-known `OverviewChatCardView.swift` console parser — but don't assume the reconciliation doc's earlier count of 15 still holds, since the source may have moved since that doc was written), open it and add ledger rows the same way. This is what turns "static scanning flags candidates" into an actual disposition record instead of a hunch.
-**Verify:** `python3 -c "import csv;rows=list(csv.DictReader(open('docs/msc2/audit/msc2-symbol-ledger.csv')));print(len({r['file'] for r in rows if r['bucket']=='ui-flagged'}))"` → prints a count; confirm it equals the count P0.25's scanner actually produced (the live scan from that step, not a number assumed in advance), and that every one of those files has at least one row
+**Verify:** `python3 tools/symbol-ledger-check.py ui-flagged --scan-source "$HOME/Documents/Swift Projects/minecraft-server-controller"` → `ok <n>` (live count, not fixed)
 **Commit:** (filled in by the executing agent)
 
 ---

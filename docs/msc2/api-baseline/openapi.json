@@ -902,6 +902,133 @@
           }
         }
       }
+    },
+    "/backups/now": {
+      "post": {
+        "summary": "Start an immediate backup",
+        "responses": {
+          "200": {
+            "description": "Backup started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupNowResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/backups/restore": {
+      "post": {
+        "summary": "Restore a backup by id (filename)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupRestoreRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Restore started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupRestoreResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_backup_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "backup_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/backups/config": {
+      "get": {
+        "summary": "Get auto-backup configuration",
+        "responses": {
+          "200": {
+            "description": "Current config",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupConfigResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Update auto-backup configuration",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BackupConfigUpdateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Config updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackupConfigUpdateResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / no_changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "update rejected",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "At least one of autoBackupEnabled/autoBackupIntervalMinutes/autoBackupMaxCount must be present, or the server rejects with no_changes (400)."
+      }
     }
   },
   "components": {
@@ -1568,6 +1695,105 @@
           "success",
           "message",
           "requiresRestart"
+        ]
+      },
+      "BackupConfigResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "type": "string"
+          },
+          "autoBackupEnabled": {
+            "type": "boolean"
+          },
+          "autoBackupIntervalMinutes": {
+            "type": "integer"
+          },
+          "autoBackupMaxCount": {
+            "type": "integer"
+          },
+          "intervalOptions": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverName",
+          "autoBackupEnabled",
+          "autoBackupIntervalMinutes",
+          "autoBackupMaxCount",
+          "intervalOptions"
+        ]
+      },
+      "BackupConfigUpdateRequestDTO": {
+        "type": "object",
+        "properties": {
+          "autoBackupEnabled": {
+            "type": "boolean"
+          },
+          "autoBackupIntervalMinutes": {
+            "type": "integer"
+          },
+          "autoBackupMaxCount": {
+            "type": "integer"
+          }
+        },
+        "required": []
+      },
+      "BackupConfigUpdateResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "config": {
+            "$ref": "#/components/schemas/BackupConfigResponseDTO"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "BackupNowResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "BackupRestoreRequestDTO": {
+        "type": "object",
+        "properties": {
+          "backupId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "backupId"
+        ]
+      },
+      "BackupRestoreResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
         ]
       }
     }

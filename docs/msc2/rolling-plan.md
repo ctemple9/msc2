@@ -1,6 +1,6 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Setup complete (awaiting verification) — Phase 0 not yet planned
+> ## STATUS: Setup complete (S.1–S.4 verified) — Phase 0 not yet planned
 > **Next move:** PLAN (Phase 0)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
@@ -39,7 +39,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 | Phase | Name | State |
 |---|---|---|
-| **Setup** | Repo, docs, agent instructions, CI skeleton | awaiting verification |
+| **Setup** | Repo, docs, agent instructions, CI, editor config | complete |
 | **0** | Freeze the baseline and build the harness | **next** |
 | 1 | Domain types and pure rules | not started |
 | 2 | API contract and operation model | not started |
@@ -76,6 +76,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **What:** `.github/workflows/ci.yml`. Two jobs — `repo-invariants` (CLAUDE.md/AGENTS.md must not drift; all six controlled documents must exist) and `toolchain` (macOS + Linux + Windows, installs Rust, builds once `Cargo.toml` appears).
 **Verify:** `cd ~/msc2 && gh run list --limit 1` → shows `success`. Or the green check at https://github.com/ctemple9/msc2/actions
 **Commit:** `S.3` — all four jobs passed on first run
+
+### S.4 — Shared VS Code configuration
+**Status:** awaiting verification
+**Files:** `.vscode/extensions.json`, `.vscode/settings.json`
+**What:** Extension recommendations (rust-analyzer, TOML) so the workspace configures itself on open. Whitespace/final-newline hygiene to keep diffs clean, markdown wrapping, Rust format-on-save so `cargo fmt --check` never fails in CI for an avoidable reason.
+**Note:** the rust-analyzer extension ships no prebuilt language server for x86_64 macOS. Resolved by `rustup component add rust-analyzer` plus `"rust-analyzer.server.path": "rust-analyzer"` — portable via the rustup PATH shim, not a hard-coded home directory.
+**Verify:** open `~/msc2` in VS Code, reload the window — no rust-analyzer error in the notifications
+**Commit:** `S.4` (two commits)
 
 ---
 

@@ -1,0 +1,26 @@
+{
+  "domain": "args-file-resolution",
+  "case": "neoforge-picks-configured-version-among-multiple",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testNeoForgePicksConfiguredVersionAmongMultiple",
+    "line": 42
+  },
+  "input": {
+    "function": "NeoForgeInstaller.findArgsFile",
+    "fsTree": {
+      "<TMP>/libraries/net/neoforged/neoforge/21.1.100/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      },
+      "<TMP>/libraries/net/neoforged/neoforge/21.1.234/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      }
+    },
+    "in": "<TMP>",
+    "specificVersion": "21.1.234"
+  },
+  "expected": "libraries/net/neoforged/neoforge/21.1.234/unix_args.txt",
+  "notes": "Two versions installed; the one matching specificVersion wins over the other."
+}

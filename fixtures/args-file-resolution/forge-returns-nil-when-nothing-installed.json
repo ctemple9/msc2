@@ -1,0 +1,17 @@
+{
+  "domain": "args-file-resolution",
+  "case": "forge-returns-nil-when-nothing-installed",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testForgeReturnsNilWhenNothingInstalled",
+    "line": 107
+  },
+  "input": {
+    "function": "ForgeInstaller.findArgsFile",
+    "fsTree": {},
+    "in": "<TMP>",
+    "mcVersion": "1.20.1",
+    "forgeVersion": "47.4.1"
+  },
+  "expected": null
+}

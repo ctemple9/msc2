@@ -182,18 +182,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.8: extract connector crash-analysis fixtures`
 
 ### P0.9 — Extract startup crash-analyzer fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/startup-crash-analyzer/`
 **What:** Pull the 7 test cases out of `StartupCrashAnalyzerTests.swift` (Fabric/Forge missing- and wrong-dependency-version attribution).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/startup-crash-analyzer --expect 7` → `ok 7`
 **Commit:** `P0.9: extract startup crash-analyzer fixtures`
 
 ### P0.10 — Extract args-file resolution fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/args-file-resolution/`
 **What:** Pull the 12 test cases out of `ArgsFileResolutionTests.swift` (NeoForge `@args`-file version resolution and fallback).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/args-file-resolution --expect 12` → `ok 12`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.10: extract args-file resolution fixtures`
 
 **API / wire-contract tests**
 

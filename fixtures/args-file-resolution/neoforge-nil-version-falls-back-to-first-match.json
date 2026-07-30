@@ -1,0 +1,21 @@
+{
+  "domain": "args-file-resolution",
+  "case": "neoforge-nil-version-falls-back-to-first-match",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testNeoForgeNilVersionFallsBackToFirstMatch",
+    "line": 57
+  },
+  "input": {
+    "function": "NeoForgeInstaller.findArgsFile",
+    "fsTree": {
+      "<TMP>/libraries/net/neoforged/neoforge/21.1.50/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      }
+    },
+    "in": "<TMP>",
+    "specificVersion": null
+  },
+  "expected": "libraries/net/neoforged/neoforge/21.1.50/unix_args.txt"
+}

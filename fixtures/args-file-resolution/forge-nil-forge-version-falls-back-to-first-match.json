@@ -1,0 +1,23 @@
+{
+  "domain": "args-file-resolution",
+  "case": "forge-nil-forge-version-falls-back-to-first-match",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testForgeNilForgeVersionFallsBackToFirstMatch",
+    "line": 101
+  },
+  "input": {
+    "function": "ForgeInstaller.findArgsFile",
+    "fsTree": {
+      "<TMP>/libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      }
+    },
+    "in": "<TMP>",
+    "mcVersion": "1.20.1",
+    "forgeVersion": null
+  },
+  "expected": "libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt",
+  "notes": "Either half of the (mcVersion, forgeVersion) pair can be nil independently and still fall back to the first match — this fixture and the one above cover each half."
+}

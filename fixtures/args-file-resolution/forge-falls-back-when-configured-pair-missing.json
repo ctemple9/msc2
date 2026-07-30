@@ -1,0 +1,23 @@
+{
+  "domain": "args-file-resolution",
+  "case": "forge-falls-back-when-configured-pair-missing",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testForgeFallsBackWhenConfiguredPairMissing",
+    "line": 88
+  },
+  "input": {
+    "function": "ForgeInstaller.findArgsFile",
+    "fsTree": {
+      "<TMP>/libraries/net/minecraftforge/forge/1.20.1-47.3.0/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      }
+    },
+    "in": "<TMP>",
+    "mcVersion": "1.20.1",
+    "forgeVersion": "47.4.1"
+  },
+  "expected": "libraries/net/minecraftforge/forge/1.20.1-47.3.0/unix_args.txt",
+  "notes": "Only 47.3.0 is on disk; configured is 47.4.1 — falls back to what exists."
+}

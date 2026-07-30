@@ -1,0 +1,22 @@
+{
+  "domain": "args-file-resolution",
+  "case": "neoforge-single-version-found",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testNeoForgeSingleVersionFound",
+    "line": 36
+  },
+  "input": {
+    "function": "NeoForgeInstaller.findArgsFile",
+    "fsTree": {
+      "<TMP>/libraries/net/neoforged/neoforge/21.1.234/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      }
+    },
+    "in": "<TMP>",
+    "specificVersion": "21.1.234"
+  },
+  "expected": "libraries/net/neoforged/neoforge/21.1.234/unix_args.txt",
+  "notes": "`in` is the search root; the result is a path relative to it. `<TMP>` is a fresh empty directory per case, matching MSC 1's own per-test tmpDir created in setUpWithError."
+}

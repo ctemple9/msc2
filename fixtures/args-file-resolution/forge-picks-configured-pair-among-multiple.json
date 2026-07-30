@@ -1,0 +1,26 @@
+{
+  "domain": "args-file-resolution",
+  "case": "forge-picks-configured-pair-among-multiple",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testForgePicksConfiguredPairAmongMultiple",
+    "line": 81
+  },
+  "input": {
+    "function": "ForgeInstaller.findArgsFile",
+    "fsTree": {
+      "<TMP>/libraries/net/minecraftforge/forge/1.20.1-47.3.0/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      },
+      "<TMP>/libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      }
+    },
+    "in": "<TMP>",
+    "mcVersion": "1.20.1",
+    "forgeVersion": "47.4.1"
+  },
+  "expected": "libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt"
+}

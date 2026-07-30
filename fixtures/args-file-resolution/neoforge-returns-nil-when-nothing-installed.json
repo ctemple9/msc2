@@ -1,0 +1,16 @@
+{
+  "domain": "args-file-resolution",
+  "case": "neoforge-returns-nil-when-nothing-installed",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testNeoForgeReturnsNilWhenNothingInstalled",
+    "line": 69
+  },
+  "input": {
+    "function": "NeoForgeInstaller.findArgsFile",
+    "fsTree": {},
+    "in": "<TMP>",
+    "specificVersion": "21.1.234"
+  },
+  "expected": null
+}

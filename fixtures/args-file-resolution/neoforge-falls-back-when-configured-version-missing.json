@@ -1,0 +1,22 @@
+{
+  "domain": "args-file-resolution",
+  "case": "neoforge-falls-back-when-configured-version-missing",
+  "source": {
+    "file": "ArgsFileResolutionTests.swift",
+    "test": "testNeoForgeFallsBackWhenConfiguredVersionMissing",
+    "line": 49
+  },
+  "input": {
+    "function": "NeoForgeInstaller.findArgsFile",
+    "fsTree": {
+      "<TMP>/libraries/net/neoforged/neoforge/21.1.100/unix_args.txt": {
+        "type": "file",
+        "content": "@args"
+      }
+    },
+    "in": "<TMP>",
+    "specificVersion": "21.1.234"
+  },
+  "expected": "libraries/net/neoforged/neoforge/21.1.100/unix_args.txt",
+  "notes": "Only 21.1.100 is on disk; the configured 21.1.234 isn't found, so the fallback finds whatever does exist rather than returning nil."
+}

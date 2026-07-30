@@ -1,0 +1,34 @@
+{
+  "domain": "headless-script",
+  "case": "extra-flags-are-included",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testExtraFlagsAreIncluded",
+    "line": 253
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": "-XX:+UseG1GC -XX:MaxGCPauseMillis=200"
+    },
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "jvmFlagsContains": [
+      "-XX:+UseG1GC",
+      "-XX:MaxGCPauseMillis=200"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. extraFlags is a single space-separated string that must split into individual jvmFlags entries."
+}

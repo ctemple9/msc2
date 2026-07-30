@@ -1,0 +1,33 @@
+{
+  "domain": "headless-script",
+  "case": "forge-script-emits-args-file-syntax",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testForgeScriptEmitsArgsFileSyntax",
+    "line": 124
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "forge",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": "1.20.1",
+      "loaderVersion": "47.4.1"
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "resolveMinRamGB": 2,
+    "resolveMaxRamGB": 8,
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": "libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt"
+  },
+  "expected": {
+    "neoForgeArgsFile": "libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt"
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. Despite the test name suggesting it checks generated script syntax, it asserts the exact same thing as forge-script-uses-args-file above (only neoForgeArgsFile), just via JavaServerLaunchHelper.resolve called with different explicit RAM params (2/8, here as resolveMinRamGB/resolveMaxRamGB) that aren't actually asserted — preserved faithfully as MSC 1 wrote it rather than deduplicated."
+}

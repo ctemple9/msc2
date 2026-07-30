@@ -1,0 +1,27 @@
+{
+  "domain": "headless-script",
+  "case": "java-home-directory-is-normalized",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testJavaHomeDirectoryIsNormalized",
+    "line": 188
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve (via JavaRuntimeManager.normalizedJavaExecutablePath)",
+    "javaHomePath": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "condition": "XCTSkip unless this exact path exists on the machine running the test"
+  },
+  "expected": {
+    "javaPath": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java"
+  },
+  "notes": "Not a deterministic, portable scenario like P0.5's normalization-home-dir-to-bin-java fixture (which uses a synthetic fsTree): this test only runs if a real Temurin 21 JDK happens to be installed at this exact hardcoded macOS path, and is skipped (XCTSkip) otherwise. Same category as P0.15's config-manager-corrupt-config-copy-path-is-nil-on-normal-load — recorded for coverage completeness, flagged as environment-dependent rather than a reliable Rust-port fixture."
+}

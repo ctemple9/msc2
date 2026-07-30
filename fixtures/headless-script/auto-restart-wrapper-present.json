@@ -1,0 +1,36 @@
+{
+  "domain": "headless-script",
+  "case": "auto-restart-wrapper-present",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testAutoRestartWrapperPresent",
+    "line": 298
+  },
+  "input": {
+    "function": "HeadlessScriptGenerator.javaScript",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "wrapMode": "autoRestart",
+    "includeXboxBroadcast": false
+  },
+  "expected": {
+    "scriptContains": [
+      "while true; do",
+      "sleep 5"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. wrapMode=.autoRestart (vs. .none used by every other script fixture here) wraps the launch in a restart loop with a 5-second sleep between crashes."
+}

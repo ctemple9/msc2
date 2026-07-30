@@ -1,0 +1,31 @@
+{
+  "domain": "headless-script",
+  "case": "absolute-java-path-passes-through",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testAbsoluteJavaPathPassesThrough",
+    "line": 208
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "/usr/bin/java",
+      "extraFlags": ""
+    },
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "javaPath": "/usr/bin/java"
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them."
+}

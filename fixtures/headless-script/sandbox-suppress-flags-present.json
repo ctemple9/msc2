@@ -1,0 +1,36 @@
+{
+  "domain": "headless-script",
+  "case": "sandbox-suppress-flags-present",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testSandboxSuppressFlagsPresent",
+    "line": 288
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "jvmFlagsContains": [
+      "-Djna.nosys=true",
+      "-Djna.nounpack=true",
+      "-Djline.terminal=dumb",
+      "-Dio.netty.noUnsafe=true"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. These flags suppress sandbox-incompatible JNA/JLine/Netty native-library behavior and are present unconditionally, regardless of flavor."
+}

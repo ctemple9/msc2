@@ -1,0 +1,36 @@
+{
+  "domain": "headless-script",
+  "case": "server-dir-with-space-is-quoted-in-cd",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testServerDirWithSpaceIsQuotedInCd",
+    "line": 239
+  },
+  "input": {
+    "function": "HeadlessScriptGenerator.javaScript",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "wrapMode": "none",
+    "includeXboxBroadcast": false
+  },
+  "expected": {
+    "scriptContainsEither": [
+      "cd /srv/mc",
+      "cd \"/srv/mc\""
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. /srv/mc has no space, so this test (despite its name) doesn't actually exercise quoting — it just verifies some form of the cd line is present, quoted or not. path-with-spaces-is-quoted above is the fixture that actually pins the quoting behavior."
+}

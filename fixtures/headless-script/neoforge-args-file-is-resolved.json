@@ -1,0 +1,31 @@
+{
+  "domain": "headless-script",
+  "case": "neoforge-args-file-is-resolved",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testNeoForgeArgsFileIsResolved",
+    "line": 141
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "neoforge",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": "1.21.1",
+      "loaderVersion": "21.1.234"
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "neoForgeArgsFile": "libraries/net/neoforged/neoforge/21.1.234/unix_args.txt",
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "neoForgeArgsFile": "libraries/net/neoforged/neoforge/21.1.234/unix_args.txt"
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them."
+}

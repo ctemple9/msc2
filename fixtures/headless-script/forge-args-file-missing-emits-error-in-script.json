@@ -1,0 +1,37 @@
+{
+  "domain": "headless-script",
+  "case": "forge-args-file-missing-emits-error-in-script",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testForgeArgsFileMissingEmitsErrorInScript",
+    "line": 159
+  },
+  "input": {
+    "function": "HeadlessScriptGenerator.javaScript",
+    "config": {
+      "flavor": "forge",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": "1.20.1",
+      "loaderVersion": "47.4.1"
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "minRamGB": 2,
+    "maxRamGB": 8,
+    "wrapMode": "none",
+    "includeXboxBroadcast": false,
+    "argsFileLookup": "real filesystem, not stubbed — /srv/mc does not exist on the test machine, so the real args-file finder naturally returns nil"
+  },
+  "expected": {
+    "scriptContains": [
+      "exit 1",
+      "Forge"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. Unlike the two fixtures above (which inject a stub finder returning a fixed path), this test exercises the REAL, non-injected args-file lookup against a directory that doesn't exist. When no args file can be found, the generated script must emit an early 'exit 1' AND name the flavor ('Forge') in the error text, rather than silently generating a broken launch command."
+}

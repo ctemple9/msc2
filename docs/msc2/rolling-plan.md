@@ -263,7 +263,7 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.19: extract .mrpack extraction fixtures`
 
 ### P0.20 — Extract pack-managed guard fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/pack-managed-guard/`
 **What:** Pull the 7 test cases out of `PackManagedGuardTests.swift` (pack-managed provenance round trip, old-JSON compatibility).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/pack-managed-guard --expect 7` → `ok 7`
@@ -272,11 +272,11 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Provisioning tests**
 
 ### P0.21 — Extract headless script generator fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/headless-script/`
 **What:** Pull the 19 test cases out of `HeadlessScriptGeneratorTests.swift` (Paper/Fabric/Forge launch-script and args-file generation).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/headless-script --expect 19` → `ok 19`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.21: extract headless script generator fixtures`
 
 ---
 

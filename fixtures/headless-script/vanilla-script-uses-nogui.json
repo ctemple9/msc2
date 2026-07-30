@@ -1,0 +1,35 @@
+{
+  "domain": "headless-script",
+  "case": "vanilla-script-uses-nogui",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testVanillaScriptUsesNogui",
+    "line": 174
+  },
+  "input": {
+    "function": "HeadlessScriptGenerator.javaScript",
+    "config": {
+      "flavor": "vanilla",
+      "paperJarPath": "/srv/mc/server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "wrapMode": "none",
+    "includeXboxBroadcast": false
+  },
+  "expected": {
+    "scriptContains": [
+      "-jar server.jar --nogui"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them."
+}

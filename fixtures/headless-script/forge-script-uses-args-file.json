@@ -1,0 +1,31 @@
+{
+  "domain": "headless-script",
+  "case": "forge-script-uses-args-file",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testForgeScriptUsesArgsFile",
+    "line": 108
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "forge",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": "1.20.1",
+      "loaderVersion": "47.4.1"
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": "libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt"
+  },
+  "expected": {
+    "neoForgeArgsFile": "libraries/net/minecraftforge/forge/1.20.1-47.4.1/unix_args.txt"
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. JavaServerLaunchConfig's result field is named 'neoForgeArgsFile' but is used generically for both Forge's and NeoForge's resolved args-file path — a naming artifact in MSC 1, not a Forge/NeoForge mismatch, and copied verbatim here since it's the actual field name."
+}

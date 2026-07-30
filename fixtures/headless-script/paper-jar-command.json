@@ -1,0 +1,37 @@
+{
+  "domain": "headless-script",
+  "case": "paper-jar-command",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testPaperJarCommand",
+    "line": 68
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "/srv/mc/paper-1.20.1-196.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "neoForgeArgsFile": null,
+    "jarName": "paper-1.20.1-196.jar",
+    "javaPath": "java",
+    "jvmFlagsContains": [
+      "-Xms1024M",
+      "-Xmx2048M"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them."
+}

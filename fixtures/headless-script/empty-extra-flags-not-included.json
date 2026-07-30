@@ -1,0 +1,31 @@
+{
+  "domain": "headless-script",
+  "case": "empty-extra-flags-not-included",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testEmptyExtraFlagsNotIncluded",
+    "line": 261
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": "   "
+    },
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "jvmFlagsHasNoEmptyString": true
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. A whitespace-only extraFlags string must not produce a stray empty-string entry when split into individual flags."
+}

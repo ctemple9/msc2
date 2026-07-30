@@ -1,0 +1,39 @@
+{
+  "domain": "headless-script",
+  "case": "ram-flags-match-sheet-values",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testRamFlagsMatchSheetValues",
+    "line": 270
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 4,
+      "maxRamGB": 16,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "resolveMinRamGB": 6,
+    "resolveMaxRamGB": 12,
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "jvmFlagsContains": [
+      "-Xms6144M",
+      "-Xmx12288M"
+    ],
+    "jvmFlagsNotContains": [
+      "-Xms4096M"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. The config's own minRamGB/maxRamGB (4/16 GB) are 'sheet-overridden' by explicit resolve params (6/12 GB, matching a UI RAM-slider value in MSC 1's terminology). The resolved jvmFlags must reflect ONLY the sheet values (6144M/12288M) — config RAM (which would produce -Xms4096M, from 4GB) must never leak through."
+}

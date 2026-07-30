@@ -1,0 +1,38 @@
+{
+  "domain": "headless-script",
+  "case": "fabric-script-uses-jar-with-nogui",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testFabricScriptUsesJarWithNogui",
+    "line": 93
+  },
+  "input": {
+    "function": "HeadlessScriptGenerator.javaScript",
+    "config": {
+      "flavor": "fabric",
+      "paperJarPath": "/srv/mc/fabric-server-launch.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "minRamGB": 1,
+    "maxRamGB": 4,
+    "wrapMode": "none",
+    "includeXboxBroadcast": false
+  },
+  "expected": {
+    "scriptContains": [
+      "-jar fabric-server-launch.jar --nogui"
+    ],
+    "scriptNotContains": [
+      "@"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. Note maxRamGB here (4) differs from config's own default maxRamGB (2) — javaScript()'s explicit minRamGB/maxRamGB params are what's actually used for flags, not config.minRamGB/maxRamGB (see ram-flags-match-sheet-values below, which tests this distinction directly). Fabric, like Paper, uses a plain jar launch (its 'paperJarPath' field holds fabric-server-launch.jar here — the field is reused across flavors, not Paper-specific despite the name)."
+}

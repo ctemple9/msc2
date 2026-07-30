@@ -1,0 +1,38 @@
+{
+  "domain": "headless-script",
+  "case": "paper-script-contains-jar-invocation",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testPaperScriptContainsJarInvocation",
+    "line": 78
+  },
+  "input": {
+    "function": "HeadlessScriptGenerator.javaScript",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "/srv/mc/paper.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "java",
+      "extraFlags": ""
+    },
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "wrapMode": "none",
+    "includeXboxBroadcast": false
+  },
+  "expected": {
+    "scriptContains": [
+      "-jar paper.jar --nogui"
+    ],
+    "scriptNotContains": [
+      "@"
+    ]
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. Paper's launch is a direct jar invocation — it must never use Forge/NeoForge's @args-file syntax."
+}

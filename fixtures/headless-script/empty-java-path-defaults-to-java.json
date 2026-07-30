@@ -1,0 +1,31 @@
+{
+  "domain": "headless-script",
+  "case": "empty-java-path-defaults-to-java",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testEmptyJavaPathDefaultsToJava",
+    "line": 311
+  },
+  "input": {
+    "function": "JavaServerLaunchHelper.resolve",
+    "config": {
+      "flavor": "paper",
+      "paperJarPath": "server.jar",
+      "minRamGB": 1,
+      "maxRamGB": 2,
+      "serverDir": "/srv/mc",
+      "minecraftVersion": null,
+      "loaderVersion": null
+    },
+    "appConfig": {
+      "javaPath": "",
+      "extraFlags": ""
+    },
+    "neoForgeArgsFile": null,
+    "forgeArgsFile": null
+  },
+  "expected": {
+    "javaPath": "java"
+  },
+  "notes": "'config'/'appConfig' mirror the source file's makeConfig()/makeAppConfig() test helpers and their defaults (paperJarPath \"server.jar\", minRamGB 1, maxRamGB 2, serverDir \"/srv/mc\"; javaPath \"java\", extraFlags \"\"), overridden per-fixture exactly as each Swift test overrides them. An empty string (distinct from a bare 'java' command or an absolute path) falls back to the bare 'java' command, presumably so the JVM is found via PATH rather than launching with an invalid empty executable path."
+}

@@ -458,11 +458,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.25: build symbol ledger schema and UI density scanner`
 
 ### P0.26 — Populate the ledger: Mixed-bucket files
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`
-**What:** For every file Codex's reconciled inventory marks `bucket=mixed` (59 files, `msc2-codex-file-inventory.csv`), open it in MSC 1 and add one ledger row per parser/policy/workflow symbol, using the deletion test in `msc2-port-plan.md` §1 to decide agent vs. client. A file with genuinely nothing to extract still gets one row saying so — coverage must be provable, not assumed.
+**What:** For every file Codex's reconciled inventory marks `bucket=mixed` (59 files, `msc2-codex-file-inventory.csv`), open it in MSC 1 and add one ledger row per parser/policy/workflow symbol, using the deletion test in `msc2-port-plan.md` §1 to decide agent vs. client. A file with genuinely nothing to extract still gets one row saying so — coverage must be provable, not assumed. 293 rows across all 59 files (one file, `AppViewModel+FinderTools.swift`, had nothing to extract and got the single `(none)` row the coverage rule requires).
 **Verify:** `python3 -c "import csv;rows=list(csv.DictReader(open('docs/msc2/audit/msc2-symbol-ledger.csv')));print(len({r['file'] for r in rows if r['bucket']=='mixed'}))"` → `59`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.26: populate the symbol ledger for mixed-bucket files`
 
 ### P0.26a — Symbol ledger bucket-count checker script
 **Status:** not started

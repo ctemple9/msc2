@@ -1,0 +1,27 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "normalized-identifier-collapses-separators",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testNormalizedIdentifierCollapsesSeparators",
+    "line": 95
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.normalizedIdentifier",
+    "identifiers": [
+      "particle_effects",
+      "particle-effects",
+      "Particle Effects",
+      "  Particle   Effects!! "
+    ]
+  },
+  "expected": {
+    "results": [
+      "particle-effects",
+      "particle-effects",
+      "particle-effects",
+      "particle-effects"
+    ]
+  },
+  "notes": "Underscores, spaces (including repeated/trailing), and punctuation all collapse to the same hyphenated lowercase form."
+}

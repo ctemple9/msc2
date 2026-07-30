@@ -1,0 +1,26 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "connector-entrypoint-unmatched-keeps-raw-id-but-still-reports",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testConnectorEntrypointUnmatchedKeepsRawIdButStillReports",
+    "line": 77
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "forge",
+    "consoleExcerpt": [
+      "Could not execute entrypoint stage 'main' due to errors, provided by 'some_unknown_mod'"
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsCount": 1,
+    "firstProblem": {
+      "offenderName": "some_unknown_mod",
+      "kind": "loadError",
+      "installedFile": null
+    }
+  }
+}

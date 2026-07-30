@@ -168,18 +168,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.6: extract server-properties model fixtures`
 
 ### P0.7 — Extract settings-schema fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/settings-schema/`
 **What:** Pull the 16 test cases out of `ServerSettingsSchemaTests.swift`.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/settings-schema --expect 16` → `ok 16`
 **Commit:** `P0.7: extract settings-schema fixtures`
 
 ### P0.8 — Extract connector crash-analysis fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/connector-crash-analysis/`
 **What:** Pull the 11 test cases out of `ConnectorCrashAnalysisTests.swift` (Forge dependency-block parsing, connector entrypoint failure attribution).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/connector-crash-analysis --expect 11` → `ok 11`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.8: extract connector crash-analysis fixtures`
 
 ### P0.9 — Extract startup crash-analyzer fixtures
 **Status:** not started

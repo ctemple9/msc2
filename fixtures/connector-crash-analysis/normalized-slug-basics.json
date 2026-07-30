@@ -1,0 +1,22 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "normalized-slug-basics",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testNormalizedSlugBasics",
+    "line": 136
+  },
+  "input": {
+    "function": "ModrinthSlugNormalizer.normalizedSlug",
+    "strings": [
+      "Fabric API",
+      "  Kotlin__For  Forge "
+    ]
+  },
+  "expected": {
+    "results": [
+      "fabric-api",
+      "kotlin-for-forge"
+    ]
+  }
+}

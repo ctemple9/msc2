@@ -1,0 +1,49 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "forge-dependency-block-parses",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testForgeDependencyBlockParses",
+    "line": 28
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "forge",
+    "consoleExcerpt": [
+      "Mod ID: 'fabric_api', Requested by: 'continuity', Actual version: '0.92.6+1.11.14+1.20.1'",
+      "Mod ID: 'puzzlesapi', Requested by: 'netherchested', Actual version: '[MISSING]'",
+      "Mod ID: 'puzzlesaccessapi', Requested by: 'puzzleslib', Actual version: '[MISSING]'",
+      "Mod ID: 'diagonalblocks', Requested by: 'diagonalfences', Actual version: '[MISSING]'",
+      "Mod ID: 'connectormod', Requested by: 'continuity', Actual version: '1.0.0-beta.49+1.20.1'",
+      "Mod ID: 'kotlinforforge', Requested by: 'fzzy_config', Actual version: '[MISSING]'"
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsNotEmpty": true,
+    "assertions": [
+      {
+        "find": {
+          "missingDependency": "puzzlesapi"
+        },
+        "expectFields": {
+          "kind": "missingDependency",
+          "offenderId": "netherchested"
+        }
+      },
+      {
+        "exists": {
+          "missingDependency": "kotlinforforge"
+        }
+      },
+      {
+        "exists": {
+          "offenderId": "fabric_api",
+          "kind": "incompatibleVersion"
+        }
+      }
+    ]
+  },
+  "notes": "'serverDir' is a nonexistent path each real run (a fresh UUID suffix in the source test) so combinedLog falls back to consoleExcerpt only; the literal value doesn't matter, only that it doesn't resolve to a real directory, so `<nonexistent>` stands in for it. Source test doesn't pin the full problems list or count (only 'not empty' plus three predicate-based checks), so expected mirrors that rather than fabricating a complete list — a present-but-wrong dependency (fabric_api) becomes incompatibleVersion, not missingDependency, distinct from the three genuinely-missing ones."
+}

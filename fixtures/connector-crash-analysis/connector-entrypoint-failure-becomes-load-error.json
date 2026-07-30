@@ -1,0 +1,37 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "connector-entrypoint-failure-becomes-load-error",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testConnectorEntrypointFailureBecomesLoadError",
+    "line": 53
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "forge",
+    "consoleExcerpt": [
+      "net.minecraftforge.fml.loading.EarlyLoadingException: Could not execute entrypoint stage 'main' due to errors, provided by 'particle_effects'"
+    ],
+    "installedMods": [
+      {
+        "filename": "ParticleEffects-1.0.3+1.20.1.jar",
+        "jarStem": "ParticleEffects-1.0.3+1.20.1",
+        "displayName": "Particle Effects",
+        "modId": "particle_effects",
+        "version": null,
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "loadError",
+      "offenderName": "Particle Effects",
+      "installedFile": "ParticleEffects-1.0.3+1.20.1.jar",
+      "installedJarStem": "ParticleEffects-1.0.3+1.20.1",
+      "requirementContains": "Connector/Fabric entrypoint"
+    }
+  }
+}

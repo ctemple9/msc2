@@ -1,0 +1,34 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "connector-entrypoint-matches-by-display-name-when-mod-id-missing",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testConnectorEntrypointMatchesByDisplayNameWhenModIdMissing",
+    "line": 67
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "forge",
+    "consoleExcerpt": [
+      "Could not execute entrypoint stage 'main' due to errors, provided by 'particle_effects'"
+    ],
+    "installedMods": [
+      {
+        "filename": "particleeffects.jar",
+        "jarStem": "particleeffects",
+        "displayName": "Particle Effects",
+        "modId": null,
+        "version": null,
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "firstProblem": {
+      "offenderName": "Particle Effects",
+      "installedFile": "particleeffects.jar"
+    }
+  },
+  "notes": "The log names the fabric id with an underscore ('particle_effects'); the installed jar only exposes a human display name and no modId — identifier normalization must still bridge them."
+}

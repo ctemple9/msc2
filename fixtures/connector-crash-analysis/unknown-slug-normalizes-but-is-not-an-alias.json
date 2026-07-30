@@ -1,0 +1,49 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "unknown-slug-normalizes-but-is-not-an-alias",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testUnknownSlugNormalizesButIsNotAnAlias",
+    "line": 128
+  },
+  "input": {
+    "function": "ModrinthSlugNormalizer",
+    "calls": [
+      {
+        "call": "canonicalSlug",
+        "slug": "Some Random Mod",
+        "forgeFamily": true
+      },
+      {
+        "call": "isKnownAlias",
+        "slug": "Some Random Mod",
+        "forgeFamily": true
+      },
+      {
+        "call": "isKnownAlias",
+        "slug": "connectormod",
+        "forgeFamily": false
+      },
+      {
+        "call": "isKnownAlias",
+        "slug": "fabric_api",
+        "forgeFamily": true
+      },
+      {
+        "call": "isKnownAlias",
+        "slug": "fabric_api",
+        "forgeFamily": false
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      "some-random-mod",
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "notes": "An unrecognized slug still normalizes (lowercase, hyphenated) via canonicalSlug's generic fallback, but isKnownAlias correctly reports it's not one of the curated aliases — the two functions answer different questions."
+}

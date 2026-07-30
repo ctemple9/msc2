@@ -1,0 +1,39 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "common-aliases-apply-regardless-of-loader",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testCommonAliasesApplyRegardlessOfLoader",
+    "line": 112
+  },
+  "input": {
+    "function": "ModrinthSlugNormalizer.canonicalSlug",
+    "cases": [
+      {
+        "slug": "connectormod",
+        "forgeFamily": true
+      },
+      {
+        "slug": "connectormod",
+        "forgeFamily": false
+      },
+      {
+        "slug": "kotlinforforge",
+        "forgeFamily": true
+      },
+      {
+        "slug": "kotlinforforge",
+        "forgeFamily": false
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      "connector",
+      "connector",
+      "kotlin-for-forge",
+      "kotlin-for-forge"
+    ]
+  },
+  "notes": "Both loader states (forgeFamily true/false) produce the same alias for these two common cross-loader slugs, unlike fabric_api below."
+}

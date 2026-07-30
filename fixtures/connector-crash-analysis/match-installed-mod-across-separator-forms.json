@@ -1,0 +1,65 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "match-installed-mod-across-separator-forms",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testMatchInstalledModAcrossSeparatorForms",
+    "line": 102
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.matchInstalledMod",
+    "cases": [
+      {
+        "identifier": "particle_effects",
+        "installedMods": [
+          {
+            "filename": "pe.jar",
+            "jarStem": "pe",
+            "displayName": "Particle Effects",
+            "modId": null,
+            "version": null,
+            "isEnabled": true
+          }
+        ]
+      },
+      {
+        "identifier": "particle-effects",
+        "installedMods": [
+          {
+            "filename": "pe.jar",
+            "jarStem": "pe",
+            "displayName": "PE",
+            "modId": "particle_effects",
+            "version": null,
+            "isEnabled": true
+          }
+        ]
+      },
+      {
+        "identifier": "totally-different",
+        "installedMods": [
+          {
+            "filename": "pe.jar",
+            "jarStem": "pe",
+            "displayName": "Particle Effects",
+            "modId": null,
+            "version": null,
+            "isEnabled": true
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "displayName": "Particle Effects"
+      },
+      {
+        "modId": "particle_effects"
+      },
+      null
+    ]
+  },
+  "notes": "Each result only includes the specific field the source test checked for that case (displayName, then modId), except the third which must be nil (no match) — not full ModEntry objects."
+}

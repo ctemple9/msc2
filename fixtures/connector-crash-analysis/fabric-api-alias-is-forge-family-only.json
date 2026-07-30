@@ -1,0 +1,39 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "fabric-api-alias-is-forge-family-only",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testFabricApiAliasIsForgeFamilyOnly",
+    "line": 119
+  },
+  "input": {
+    "function": "ModrinthSlugNormalizer.canonicalSlug",
+    "cases": [
+      {
+        "slug": "fabric_api",
+        "forgeFamily": true
+      },
+      {
+        "slug": "fabric-api",
+        "forgeFamily": true
+      },
+      {
+        "slug": "fabric_api",
+        "forgeFamily": false
+      },
+      {
+        "slug": "fabric-api",
+        "forgeFamily": false
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      "forgified-fabric-api",
+      "forgified-fabric-api",
+      "fabric-api",
+      "fabric-api"
+    ]
+  },
+  "notes": "On Forge/NeoForge the server-usable project is forgified-fabric-api; on a real Fabric server, fabric-api is already correct and must NOT be rewritten."
+}

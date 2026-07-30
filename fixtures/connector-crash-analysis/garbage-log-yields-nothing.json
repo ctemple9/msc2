@@ -1,0 +1,24 @@
+{
+  "domain": "connector-crash-analysis",
+  "case": "garbage-log-yields-nothing",
+  "source": {
+    "file": "ConnectorCrashAnalysisTests.swift",
+    "test": "testGarbageLogYieldsNothing",
+    "line": 88
+  },
+  "input": {
+    "function": "StartupCrashAnalyzer.analyze",
+    "serverDir": "<nonexistent>",
+    "flavor": "forge",
+    "consoleExcerpt": [
+      "hello world",
+      "[12:00:00] INFO: server starting",
+      "random noise ~~~",
+      "provided by nothing"
+    ],
+    "installedMods": []
+  },
+  "expected": {
+    "problemsEmpty": true
+  }
+}

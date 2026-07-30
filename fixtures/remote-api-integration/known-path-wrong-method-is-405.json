@@ -1,0 +1,51 @@
+{
+  "domain": "remote-api-integration",
+  "case": "known-path-wrong-method-is-405",
+  "source": {
+    "file": "RemoteAPIIntegrationTests.swift",
+    "test": "testKnownPathWrongMethodIs405",
+    "line": 269
+  },
+  "input": {
+    "function": "RemoteAPIServer (HTTP integration)",
+    "tokenMap": {
+      "adminToken": {
+        "value": "admin-token-AAA",
+        "role": "admin",
+        "label": "owner-admin"
+      },
+      "guestToken": {
+        "value": "guest-token-BBB",
+        "role": "guest",
+        "label": "shared"
+      },
+      "scToken": {
+        "value": "named-serverControl-CCC",
+        "role": "named",
+        "label": "sc",
+        "permissions": [
+          "serverControl"
+        ]
+      },
+      "emptyToken": {
+        "value": "named-empty-DDD",
+        "role": "named",
+        "label": "empty",
+        "permissions": []
+      }
+    },
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/status",
+        "token": "adminToken"
+      }
+    ]
+  },
+  "expected": {
+    "statusCodes": [
+      405
+    ]
+  },
+  "notes": "This is an in-process integration test: MSC 1 boots a real RemoteAPIServer on a real loopback TCP socket and drives it with actual HTTP requests, not a pure function call. 'tokenMap' is the fixed token/role/permission table every test in this source file shares (RemoteAPIIntegrationTestCase.tokenMap); 'token' fields in requests reference it by key, except literal invalid tokens used to test auth failure. /status exists but only for GET; POST to a known path with the wrong method is 405, distinct from 404 for a path that doesn't exist at all."
+}

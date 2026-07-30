@@ -1,0 +1,106 @@
+{
+  "domain": "remote-api-integration",
+  "case": "auth-failure-rate-limit-trips-after-ten-bad-tokens",
+  "source": {
+    "file": "RemoteAPIIntegrationTests.swift",
+    "test": "testAuthFailureRateLimitTripsAfterTenBadTokens",
+    "line": 315
+  },
+  "input": {
+    "function": "RemoteAPIServer (HTTP integration)",
+    "tokenMap": {
+      "adminToken": {
+        "value": "admin-token-AAA",
+        "role": "admin",
+        "label": "owner-admin"
+      },
+      "guestToken": {
+        "value": "guest-token-BBB",
+        "role": "guest",
+        "label": "shared"
+      },
+      "scToken": {
+        "value": "named-serverControl-CCC",
+        "role": "named",
+        "label": "sc",
+        "permissions": [
+          "serverControl"
+        ]
+      },
+      "emptyToken": {
+        "value": "named-empty-DDD",
+        "role": "named",
+        "label": "empty",
+        "permissions": []
+      }
+    },
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      },
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "bad-token-not-in-map"
+      }
+    ]
+  },
+  "expected": {
+    "beforeFirst429AllStatus401": true,
+    "beforeFirst429CountAtMost": 10,
+    "a429Occurs": true
+  },
+  "notes": "This is an in-process integration test: MSC 1 boots a real RemoteAPIServer on a real loopback TCP socket and drives it with actual HTTP requests, not a pure function call. 'tokenMap' is the fixed token/role/permission table every test in this source file shares (RemoteAPIIntegrationTestCase.tokenMap); 'token' fields in requests reference it by key, except literal invalid tokens used to test auth failure. After 10 total auth failures in 60s from one IP, the IP is locked out (429). setUp's own liveness poll (an unauthenticated GET /status) may already spend 1-2 failure credits before the test body runs, so the source test only asserts the count before the first 429 is *at most* 10, not exactly 10 — expected mirrors that."
+}

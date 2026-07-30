@@ -1,0 +1,53 @@
+{
+  "domain": "remote-api-integration",
+  "case": "audit-entry-written-for-post",
+  "source": {
+    "file": "RemoteAPIIntegrationTests.swift",
+    "test": "testAuditEntryWrittenForPost",
+    "line": 340
+  },
+  "input": {
+    "function": "RemoteAPIServer.auditLogger",
+    "tokenMap": {
+      "adminToken": {
+        "value": "admin-token-AAA",
+        "role": "admin",
+        "label": "owner-admin"
+      },
+      "guestToken": {
+        "value": "guest-token-BBB",
+        "role": "guest",
+        "label": "shared"
+      },
+      "scToken": {
+        "value": "named-serverControl-CCC",
+        "role": "named",
+        "label": "sc",
+        "permissions": [
+          "serverControl"
+        ]
+      },
+      "emptyToken": {
+        "value": "named-empty-DDD",
+        "role": "named",
+        "label": "empty",
+        "permissions": []
+      }
+    },
+    "request": {
+      "method": "POST",
+      "path": "/start",
+      "token": "adminToken"
+    }
+  },
+  "expected": {
+    "auditEntry": {
+      "method": "POST",
+      "path": "/start",
+      "tokenLabel": "owner-admin",
+      "statusCode": 200,
+      "clientIP": "127.0.0.1"
+    }
+  },
+  "notes": "Not a status-code scenario like the others — a side-effect scenario: a POST that passes auth must produce an audit-log entry carrying these fields."
+}

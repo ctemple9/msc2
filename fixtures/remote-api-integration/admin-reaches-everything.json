@@ -1,0 +1,105 @@
+{
+  "domain": "remote-api-integration",
+  "case": "admin-reaches-everything",
+  "source": {
+    "file": "RemoteAPIIntegrationTests.swift",
+    "test": "testAdminReachesEverything",
+    "line": 216
+  },
+  "input": {
+    "function": "RemoteAPIServer (HTTP integration)",
+    "tokenMap": {
+      "adminToken": {
+        "value": "admin-token-AAA",
+        "role": "admin",
+        "label": "owner-admin"
+      },
+      "guestToken": {
+        "value": "guest-token-BBB",
+        "role": "guest",
+        "label": "shared"
+      },
+      "scToken": {
+        "value": "named-serverControl-CCC",
+        "role": "named",
+        "label": "sc",
+        "permissions": [
+          "serverControl"
+        ]
+      },
+      "emptyToken": {
+        "value": "named-empty-DDD",
+        "role": "named",
+        "label": "empty",
+        "permissions": []
+      }
+    },
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/command",
+        "token": "adminToken",
+        "body": {
+          "command": "say hi"
+        }
+      },
+      {
+        "method": "GET",
+        "path": "/files",
+        "token": "adminToken"
+      },
+      {
+        "method": "GET",
+        "path": "/files/read",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/users",
+        "token": "adminToken",
+        "body": {
+          "label": "x",
+          "role": "guest"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "status": 200
+      },
+      {
+        "status": 200
+      },
+      {
+        "status": 200
+      },
+      {
+        "status": 200
+      },
+      {
+        "status": 400
+      },
+      {
+        "statusNotIn": [
+          401,
+          403
+        ]
+      }
+    ],
+    "commandProviderCallCount": 1,
+    "lastCommand": "say hi"
+  },
+  "notes": "This is an in-process integration test: MSC 1 boots a real RemoteAPIServer on a real loopback TCP socket and drives it with actual HTTP requests, not a pure function call. 'tokenMap' is the fixed token/role/permission table every test in this source file shares (RemoteAPIIntegrationTestCase.tokenMap); 'token' fields in requests reference it by key, except literal invalid tokens used to test auth failure. Admin spot-check across every route the other roles were gated on. getFileRead (no ?path query) returns 400 missing_path — proves the request was routed past the auth layer, not blocked by it, distinct from a 401/403. postUsers reaches the inert stub provider (which in practice yields 422 not_available), but MSC 1's own test only asserts it's neither 401 nor 403 — expected mirrors that inexact assertion rather than pinning a specific code MSC 1 itself didn't pin."
+}

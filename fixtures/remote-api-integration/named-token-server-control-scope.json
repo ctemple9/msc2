@@ -1,0 +1,67 @@
+{
+  "domain": "remote-api-integration",
+  "case": "named-token-server-control-scope",
+  "source": {
+    "file": "RemoteAPIIntegrationTests.swift",
+    "test": "testNamedTokenServerControlScope",
+    "line": 177
+  },
+  "input": {
+    "function": "RemoteAPIServer (HTTP integration)",
+    "tokenMap": {
+      "adminToken": {
+        "value": "admin-token-AAA",
+        "role": "admin",
+        "label": "owner-admin"
+      },
+      "guestToken": {
+        "value": "guest-token-BBB",
+        "role": "guest",
+        "label": "shared"
+      },
+      "scToken": {
+        "value": "named-serverControl-CCC",
+        "role": "named",
+        "label": "sc",
+        "permissions": [
+          "serverControl"
+        ]
+      },
+      "emptyToken": {
+        "value": "named-empty-DDD",
+        "role": "named",
+        "label": "empty",
+        "permissions": []
+      }
+    },
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "scToken"
+      },
+      {
+        "method": "POST",
+        "path": "/settings",
+        "token": "scToken"
+      },
+      {
+        "method": "POST",
+        "path": "/users",
+        "token": "scToken",
+        "body": {
+          "label": "x",
+          "role": "guest"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "statusCodes": [
+      200,
+      403,
+      403
+    ]
+  },
+  "notes": "This is an in-process integration test: MSC 1 boots a real RemoteAPIServer on a real loopback TCP socket and drives it with actual HTTP requests, not a pure function call. 'tokenMap' is the fixed token/role/permission table every test in this source file shares (RemoteAPIIntegrationTestCase.tokenMap); 'token' fields in requests reference it by key, except literal invalid tokens used to test auth failure. scToken holds only the 'serverControl' permission: it grants /start, but /settings is gated behind a different permission category the token lacks, and /users is admin-only with no permission category at all — named tokens can never reach it regardless of which permissions they hold."
+}

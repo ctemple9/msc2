@@ -205,18 +205,18 @@ Mechanical: pull each test file's inline Swift literals into `input`/`expected` 
 **Commit:** `P0.11: extract DTO contract fixtures`
 
 ### P0.12 — Extract HTTP request-parsing fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/http-parse-request/`
 **What:** Pull the 16 test cases out of `HTTPParseRequestTests.swift`.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/http-parse-request --expect 16` → `ok 16`
 **Commit:** `P0.12: extract HTTP request-parsing fixtures`
 
 ### P0.13 — Extract Remote API integration fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/remote-api-integration/`
 **What:** Pull the 12 test cases out of `RemoteAPIIntegrationTests.swift`.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/remote-api-integration --expect 12` → `ok 12`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.13: extract Remote API integration fixtures`
 
 ### P0.14 — Extract network-safety fixtures
 **Status:** not started

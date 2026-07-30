@@ -1,0 +1,100 @@
+{
+  "domain": "remote-api-integration",
+  "case": "rate-limiter-trips-after-ten-posts",
+  "source": {
+    "file": "RemoteAPIIntegrationTests.swift",
+    "test": "testRateLimiterTripsAfterTenPosts",
+    "line": 247
+  },
+  "input": {
+    "function": "RemoteAPIServer (HTTP integration)",
+    "tokenMap": {
+      "adminToken": {
+        "value": "admin-token-AAA",
+        "role": "admin",
+        "label": "owner-admin"
+      },
+      "guestToken": {
+        "value": "guest-token-BBB",
+        "role": "guest",
+        "label": "shared"
+      },
+      "scToken": {
+        "value": "named-serverControl-CCC",
+        "role": "named",
+        "label": "sc",
+        "permissions": [
+          "serverControl"
+        ]
+      },
+      "emptyToken": {
+        "value": "named-empty-DDD",
+        "role": "named",
+        "label": "empty",
+        "permissions": []
+      }
+    },
+    "requests": [
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "adminToken"
+      }
+    ]
+  },
+  "expected": {
+    "first10Status": 200,
+    "eleventhStatus": 429
+  },
+  "notes": "This is an in-process integration test: MSC 1 boots a real RemoteAPIServer on a real loopback TCP socket and drives it with actual HTTP requests, not a pure function call. 'tokenMap' is the fixed token/role/permission table every test in this source file shares (RemoteAPIIntegrationTestCase.tokenMap); 'token' fields in requests reference it by key, except literal invalid tokens used to test auth failure. /start is in rateLimitedPOSTPaths; the limiter allows 10 POSTs from one client within the 5s window, then rejects the 11th with 429."
+}

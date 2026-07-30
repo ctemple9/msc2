@@ -1,0 +1,64 @@
+{
+  "domain": "remote-api-integration",
+  "case": "guest-permissions",
+  "source": {
+    "file": "RemoteAPIIntegrationTests.swift",
+    "test": "testGuestPermissions",
+    "line": 165
+  },
+  "input": {
+    "function": "RemoteAPIServer (HTTP integration)",
+    "tokenMap": {
+      "adminToken": {
+        "value": "admin-token-AAA",
+        "role": "admin",
+        "label": "owner-admin"
+      },
+      "guestToken": {
+        "value": "guest-token-BBB",
+        "role": "guest",
+        "label": "shared"
+      },
+      "scToken": {
+        "value": "named-serverControl-CCC",
+        "role": "named",
+        "label": "sc",
+        "permissions": [
+          "serverControl"
+        ]
+      },
+      "emptyToken": {
+        "value": "named-empty-DDD",
+        "role": "named",
+        "label": "empty",
+        "permissions": []
+      }
+    },
+    "requests": [
+      {
+        "method": "GET",
+        "path": "/status",
+        "token": "guestToken"
+      },
+      {
+        "method": "POST",
+        "path": "/command",
+        "token": "guestToken"
+      },
+      {
+        "method": "POST",
+        "path": "/start",
+        "token": "guestToken"
+      }
+    ]
+  },
+  "expected": {
+    "statusCodes": [
+      200,
+      403,
+      200
+    ],
+    "startProviderCallCount": 1
+  },
+  "notes": "This is an in-process integration test: MSC 1 boots a real RemoteAPIServer on a real loopback TCP socket and drives it with actual HTTP requests, not a pure function call. 'tokenMap' is the fixed token/role/permission table every test in this source file shares (RemoteAPIIntegrationTestCase.tokenMap); 'token' fields in requests reference it by key, except literal invalid tokens used to test auth failure. Guest may read; /command is admin-only (403); /start is not admin-only so guest is allowed and the start provider is actually invoked once."
+}

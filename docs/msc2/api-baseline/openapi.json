@@ -1490,6 +1490,67 @@
           }
         }
       }
+    },
+    "/playit": {
+      "get": {
+        "summary": "Get Playit tunnel status",
+        "responses": {
+          "200": {
+            "description": "Current status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitStatusResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playit/start": {
+      "post": {
+        "summary": "Start the Playit tunnel",
+        "responses": {
+          "200": {
+            "description": "started / already_running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitActionResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "not_enabled / no_secret_key / no_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitActionResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/playit/stop": {
+      "post": {
+        "summary": "Stop the Playit tunnel",
+        "responses": {
+          "200": {
+            "description": "stopped / not_running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitActionResultDTO"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2696,6 +2757,63 @@
         "required": [
           "success",
           "message"
+        ]
+      },
+      "PlayitStatusResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverName": {
+            "type": "string"
+          },
+          "serverType": {
+            "type": "string"
+          },
+          "playitEnabled": {
+            "type": "boolean"
+          },
+          "isRunning": {
+            "type": "boolean"
+          },
+          "hasSecretKey": {
+            "type": "boolean"
+          },
+          "javaAddress": {
+            "type": "string"
+          },
+          "bedrockAddress": {
+            "type": "string"
+          },
+          "voiceAddress": {
+            "type": "string"
+          },
+          "voiceChatEnabled": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverName",
+          "serverType",
+          "playitEnabled",
+          "isRunning",
+          "hasSecretKey",
+          "voiceChatEnabled"
+        ]
+      },
+      "PlayitActionResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "result"
         ]
       }
     }

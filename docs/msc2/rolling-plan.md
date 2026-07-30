@@ -472,11 +472,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.26a: build symbol ledger bucket-count checker script`
 
 ### P0.27 — Populate the ledger: flagged UI files
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`
-**What:** For every file P0.25's scanner actually flagged at ≥3 hits (includes the already-known `OverviewChatCardView.swift` console parser — but don't assume the reconciliation doc's earlier count of 15 still holds, since the source may have moved since that doc was written), open it and add ledger rows the same way. This is what turns "static scanning flags candidates" into an actual disposition record instead of a hunch.
+**What:** For every file P0.25's scanner actually flagged at ≥3 hits (includes the already-known `OverviewChatCardView.swift` console parser — but don't assume the reconciliation doc's earlier count of 15 still holds, since the source may have moved since that doc was written), open it and add ledger rows the same way. This is what turns "static scanning flags candidates" into an actual disposition record instead of a hunch. The live scan found 4 files, not 15 — `OverviewChatCardView.swift` is no longer among them because Codex's reconciled inventory already reclassifies it as `bucket=mixed` (covered under P0.26 instead). The 4 actually flagged: `CurseForgeManualDownloadSheet.swift`, `DetailsComponentsTabView.swift`, `ServerEditorJarsTab.swift`, `RouterPortForwardGuideReader.swift`.
 **Verify:** `python3 tools/symbol-ledger-check.py ui-flagged --scan-source "$HOME/Documents/Swift Projects/minecraft-server-controller"` → `ok <n>` (live count, not fixed)
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.27: populate the symbol ledger for flagged UI files`
 
 ---
 

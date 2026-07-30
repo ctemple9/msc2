@@ -1,0 +1,62 @@
+{
+  "description": "MSC 1's actual WebSocket surface, per docs/msc2/rolling-plan.md P0.24 (amended). MSC 1 has exactly one real-time WebSocket channel, not the six msc2-engineering.md §5 describes for MSC 2's intended design (D-006) — see the Amendments log in rolling-plan.md.",
+  "channels": [
+    {
+      "name": "console",
+      "path": "/console/stream",
+      "sourceFiles": [
+        "RemoteAPIServer+WebSocket.swift",
+        "RemoteAPIServer+HTTP.swift (upgrade dispatch, respond(to:clientFD:))",
+        "RemoteAPIServer.swift (consoleBuffer, broadcast on new lines)"
+      ],
+      "direction": "server-to-client, one-way",
+      "handshake": {
+        "method": "GET",
+        "requiredHeaders": {
+          "Upgrade": "websocket",
+          "Connection": "must contain 'upgrade' (case-insensitive substring match, not exact)",
+          "Sec-WebSocket-Key": "client nonce, required and non-empty"
+        },
+        "acceptKeyAlgorithm": "base64(SHA1(trim(Sec-WebSocket-Key) + \"258EAFA5-E914-47DA-95CA-C5AB0DC85B11\"))",
+        "successResponse": "HTTP/1.1 101 Switching Protocols, with Upgrade: websocket, Connection: Upgrade, Sec-WebSocket-Accept: <computed>",
+        "failureResponse": "HTTP 400 {\"error\": \"websocket_upgrade_failed\"} if Sec-WebSocket-Key is missing or empty"
+      },
+      "auth": {
+        "mechanism": "Identical Bearer-token check applied to every HTTP route, evaluated before the WS-upgrade special case is reached",
+        "requiredRole": "any authenticated role (admin, guest, or named) may connect — GET requests carry no additional per-path permission gate",
+        "failureStatus": "401 Unauthorized for a missing/invalid token (or 429 Too Many Requests if the per-IP auth-failure rate limit has already tripped, per RemoteAPIAuthFailRateLimiterTests)"
+      },
+      "payload": {
+        "type": "ConsoleLineDTO",
+        "fields": {
+          "ts": "string",
+          "source": "string",
+          "level": "string, optional",
+          "text": "string"
+        },
+        "framing": "one JSON-encoded ConsoleLineDTO per WebSocket text frame (opcode 0x1, FIN bit set)"
+      },
+      "deliveryModel": {
+        "kind": "bounded-history-then-live",
+        "backfillCount": 200,
+        "backfillSource": "tailConsoleLines(n: 200), sent as 200 individual frames immediately on successful upgrade, before any live line",
+        "liveSource": "every new console line appended to consoleBuffer is broadcast to all currently-connected WS clients as it arrives",
+        "ringBufferLimit": 5000,
+        "ringBufferBehavior": "consoleBuffer (backing both this backfill and GET /console/tail) is capped at 5000 lines (consoleBufferLimit); oldest lines are trimmed via removeFirst(overflow) once the cap is exceeded"
+      },
+      "inboundHandling": {
+        "textFrames": "intentionally ignored — the server never executes WebSocket-received text as a command; POST /command is the only command-execution path (RemoteAPIWebSocketTests.testWebSocketUpgradeAndInboundTextIgnored pins this)",
+        "pingFrames": "opcode 0x9 -> server replies with a pong frame (opcode 0x8A) carrying the same payload",
+        "pongFrames": "opcode 0xA -> no-op",
+        "closeFrames": "opcode 0x8 -> server replies with a close frame (opcode 0x88, empty payload) and tears down the connection",
+        "fragmentation": "not supported — MSC 1 does not reassemble frames with FIN=0; source comment reads 'Ignoring fragmentation for now'",
+        "frameSizeCap": {
+          "maxInboundFrameBytes": 65536,
+          "constant": "RemoteAPIServer.maxWebSocketClientFrameBytes = 64 * 1024",
+          "onExceeded": "server sends a close frame and tears down the connection"
+        }
+      },
+      "notes": "status, operation-progress, players, notifications, and metrics are NOT WebSocket channels in MSC 1 — they're HTTP-polled (GET /status, GET /players, etc.), not pushed. There is no 'channel' concept anywhere in RemoteAPIServer+WebSocket.swift; every JSON-send call site sends a ConsoleLineDTO specifically. The 'six channels' language in msc2-engineering.md §5 describes MSC 2's intended design, not MSC 1's actual baseline — per D-006 this file captures MSC 1 as it is; those five would-be channels are Phase 2 design work, not something to invent here."
+    }
+  ]
+}

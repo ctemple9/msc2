@@ -439,12 +439,12 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Verify:** `python3 tools/api-baseline-check.py templates` → `ok 1`
 **Commit:** `P0.23s: add templates API baseline route`
 
-### P0.24 — Capture the WebSocket event schemas
-**Status:** not started
+### P0.24 — Capture the WebSocket event schema
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/websocket-events.json`
-**What:** Document the six WS channels (console, status, operation progress, players, notifications, metrics) from `RemoteAPIServer+WebSocket.swift`: event names, payload shapes, auth, and the bounded-history-then-live delivery model.
-**Verify:** `python3 -c "import json;d=json.load(open('docs/msc2/api-baseline/websocket-events.json'));print(len(d['channels']))"` → `6`
-**Commit:** (filled in by the executing agent)
+**What:** MSC 1 has exactly one real-time WebSocket channel, not six — read from `RemoteAPIServer+WebSocket.swift`, the upgrade dispatch in `RemoteAPIServer+HTTP.swift`, and `consoleBuffer`/broadcast in `RemoteAPIServer.swift`. Document `console` (`/console/stream`): the RFC 6455 upgrade handshake (Sec-WebSocket-Key → accept key); auth (the same Bearer-token check as every HTTP route — any authenticated role may connect, no extra permission gate on the GET); the `ConsoleLineDTO` payload (`ts`, `source`, `level?`, `text`), one per text frame; the bounded-history-then-live delivery model (200-line backfill via `tailConsoleLines(n: 200)` sent immediately on connect, then live lines as they arrive); the 5000-line ring buffer (`consoleBufferLimit`) console history is capped at; ping/pong/close frame handling; the 64 KB inbound frame cap (`maxWebSocketClientFrameBytes`); and why inbound text frames are intentionally ignored (one-way — the server never executes WS-received text as a command). `status`/`operation progress`/`players`/`notifications`/`metrics` are **not** WebSocket channels in MSC 1 — those are HTTP-polled (`GET /status`, `GET /players`, etc.). The "six channels" language in `msc2-engineering.md` §5 describes MSC 2's intended design, not MSC 1's baseline; per D-006 the api-baseline captures MSC 1 as it is, and extensions are designed in Phase 2, not invented here. See the Amendments log.
+**Verify:** `python3 -c "import json;d=json.load(open('docs/msc2/api-baseline/websocket-events.json'));print(len(d['channels']))"` → `1`
+**Commit:** `P0.24: capture the one real WebSocket channel, not six`
 
 ---
 
@@ -495,4 +495,6 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
 
-_(none yet)_
+### 2026-07-30 — P0.24 amended: one WebSocket channel, not six
+
+P0.24 originally asked to document "six WS channels (console, status, operation progress, players, notifications, metrics)." Reading `RemoteAPIServer+WebSocket.swift` and every call site of its JSON-send function (`RemoteAPIServer.swift`, `RemoteAPIServer+HTTP.swift`) shows MSC 1 implements exactly one: console-line streaming over `/console/stream`. There is no "channel" concept anywhere in the source (zero matches for `channel`/`Channel`); status, players, notifications, and metrics are all HTTP-polled, never pushed. The "six channels" language traces to `msc2-engineering.md` §5's description of MSC 2's *intended* design, not MSC 1's actual baseline. Per D-006 — the api-baseline captures MSC 1 as it is; extensions are designed in Phase 2, not invented here — the step is amended to document the one real channel. `Verify` changed from expecting `6` channels to `1`.

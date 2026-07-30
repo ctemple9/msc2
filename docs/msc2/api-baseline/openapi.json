@@ -2195,6 +2195,78 @@
           }
         }
       }
+    },
+    "/allowlist": {
+      "get": {
+        "summary": "Get the Bedrock allowlist",
+        "responses": {
+          "200": {
+            "description": "Current allowlist",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllowlistResponseDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add or remove a Bedrock allowlist entry",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AllowlistMutationRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Entry added/removed, echoes fresh list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AllowlistMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / invalid_action / missing_name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "not_bedrock",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3813,6 +3885,83 @@
         },
         "required": [
           "result"
+        ]
+      },
+      "AllowlistEntryDTO": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "xuid": {
+            "type": "string"
+          },
+          "ignoresPlayerLimit": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "ignoresPlayerLimit"
+        ]
+      },
+      "AllowlistResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverType": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllowlistEntryDTO"
+            }
+          }
+        },
+        "required": [
+          "serverType",
+          "entries"
+        ]
+      },
+      "AllowlistMutationRequestDTO": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "name"
+        ]
+      },
+      "AllowlistMutationResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverType": {
+            "type": "string"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AllowlistEntryDTO"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "serverType",
+          "entries"
         ]
       }
     }

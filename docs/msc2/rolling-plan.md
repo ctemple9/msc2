@@ -412,11 +412,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23o: add stop API baseline route`
 
 ### P0.23p — API baseline: `allowlist` route
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `allowlist` route.
 **Verify:** `python3 tools/api-baseline-check.py allowlist` → `ok 1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.23p: add allowlist API baseline route`
 
 ### P0.23q — API baseline: `players` routes
 **Status:** not started

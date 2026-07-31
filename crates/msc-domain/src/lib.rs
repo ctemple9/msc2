@@ -1,4 +1,6 @@
 pub mod java_runtime;
+pub mod properties;
+pub mod settings_schema;
 pub mod tps;
 pub mod version;
 

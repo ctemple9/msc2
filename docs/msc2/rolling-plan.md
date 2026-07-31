@@ -611,7 +611,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** stop-after
 
 ### P1.6 — Port property models
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/properties.rs`, `crates/msc-domain/src/settings_schema.rs`, `crates/msc-domain/tests/server_properties.rs`, `crates/msc-domain/tests/settings_schema.rs`
 **What:** Port `ServerPropertiesModel` (`ServerPropertiesModelTests.swift` origin, `fixtures/server-properties/` — the unknown-key-preserving round trip `msc2-engineering.md` §7 names directly: "silently rewriting `server.properties` with only the recognized keys is destructive") and the settings schema (`ServerSettingsSchemaTests.swift` origin, `fixtures/settings-schema/` — type coercion, range clamping, the level-type wire-token mapping, case-insensitive enums). Two modules, each wired to its own fixture directory.
 **Verify:** `cargo nextest run -p msc-domain server_properties` → `7 tests run: 7 passed`; then `cargo nextest run -p msc-domain settings_schema` → `16 tests run: 16 passed`

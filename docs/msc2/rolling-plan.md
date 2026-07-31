@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.2 done, awaiting verification
-> **Next move:** VERIFY (Cameron runs P1.2's Verify command, then EXECUTE continues with P1.3)
+> ## STATUS: Phase 1 in progress — P1.2 DONE, P1.3 next
+> **Next move:** EXECUTE P1.3 (port version comparison)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -575,7 +575,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** stop-after
 
 ### P1.2 — Native fixture-loading test harness
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/tests/fixture_harness.rs` (or equivalent test-support module)
 **What:** A Rust counterpart to P0.2's Python runner: deserializes a fixture file into the P0.1 shape (`domain`, `case`, `source`, `input`, `expected`, `notes`) and turns every file under `fixtures/<domain>/` into its own test — e.g. via `datatest-stable` or an equivalent build-script-generated-test approach — so a failing case names itself in `cargo nextest run` output the same way a failing Python fixture names itself today. Prove it against P0.2's own two self-test fixtures (`fixtures/_selftest/pass.json`, `fail.json`) before wiring any real domain: one meta-test asserts the harness's comparison function reports a match for `pass.json` and correctly reports a mismatch for `fail.json` — mirroring the Python runner's `--selftest` mode, which reports each fixture's outcome rather than letting the deliberately-broken one fail the build.
 **Verify:** `cargo nextest run -p msc-domain fixture_harness_selftest` → `1 test run: 1 passed`

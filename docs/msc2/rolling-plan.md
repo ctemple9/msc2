@@ -325,11 +325,11 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23a: add servers API baseline routes`
 
 ### P0.23b — API baseline: `settings` route
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
-**What:** Add the `settings` route.
+**What:** Add the `settings` route. Never executed at the time — this route was still missing when P0.30 audited the full route table for coverage gaps, so P0.30 added it (`GET /settings` + `POST /settings`) alongside the other 23 it found. No separate work happened for this step; its status is corrected here rather than left at `not started` next to a route that now exists.
 **Verify:** `python3 tools/api-baseline-check.py settings` → `ok 1`
-**Commit:** (filled in by the executing agent)
+**Commit:** `P0.30: add the 24 API baseline routes missed by the route-family steps`
 
 ### P0.23c — API baseline: `worlds` routes
 **Status:** awaiting verification
@@ -433,7 +433,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Status:** awaiting verification
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `players/*` routes. Sub-route count not stated in the docs — read it from the source.
-**Verify:** `python3 tools/api-baseline-check.py players` → `ok 4` (recorded from the live source, not an assumed number)
+**Verify:** `python3 tools/api-baseline-check.py players` → `ok 4` at the time (recorded from the live source, not an assumed number). Now `ok 5` — P0.30 added the fifth, `GET /players/{profileId}/skin`, which this wildcard family's own `players/` prefix also matches. Non-breaking (wildcard families only assert count > 0), noted for anyone re-running this line and expecting the original 4.
 **Commit:** `P0.23q: add players API baseline routes`
 
 ### P0.23r — API baseline: `duckdns` route
@@ -510,9 +510,39 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 
 ---
 
+### API baseline correction
+
+### P0.30 — API baseline: routes covered by no route-family step
+**Status:** awaiting verification
+**Files:** `docs/msc2/api-baseline/openapi.json`, `tools/api-baseline-check.py`
+**What:** The 19 P0.23a–s steps followed `msc2-engineering.md` §5's named route-family list, but that list itself omits several real routes MSC 1 exposes. Read the actual route table straight from source (`RemoteAPIServer+HTTP.swift`'s `switch (method, path)` at line 537, 87 cases, plus one dynamic route handled just above it via `path.hasPrefix`/`hasSuffix` at line 529 — `GET /players/{profileId}/skin`, which brings MSC 1's real total to 88, not the 87 `msc2-engineering.md` §5 states) and diff it against `openapi.json`'s current 64 (method, path) pairs. Exactly 24 are missing, zero are fabricated on either side: `GET /servers`, `GET /status`, `GET /performance`, `POST /active-server`, `GET /session-log`, `GET /console/tail`, `GET /components`, `GET /addons`, `GET /files`, `GET /files/read`, `GET /components/client-export`, `GET /catalog/search`, `GET /java-runtimes`, `GET /versions`, `GET /versions/create`, `GET /settings`, `POST /settings`, `GET /me`, `GET /worlds`, `GET /connectivity`, `GET /health`, `GET /health/problems`, `GET /backups`, `GET /players/{profileId}/skin`. Add all 24 at the same schema depth as the existing families — read each handler's response DTO from `RemoteAPIServerDTOs.swift` and either reuse an existing `components/schemas` entry where the type already exists (`WorldSlotsResponseDTO`/`WorldSlotDTO` for `GET /worlds`, `HealthProblemsResponseDTO`/`StartupProblemDTO` for `GET /health/problems`, `SimpleResult` for `POST /active-server`) or add a new one. `GET /settings` also finally satisfies P0.23b, which was never executed (still `not started`) — its status is corrected alongside this step rather than left stale now that the route exists.
+
+**Side effect on five already-passing family checks.** Four of the new routes are bare/GET siblings of families whose sub-route count `tools/api-baseline-check.py` already asserts a fixed number for, and a fifth (`/health`) gains two new siblings under its prefix — adding them changes what the existing per-family checker legitimately finds. `KNOWN_COUNTS` is updated to match reality, each with an inline comment: `servers` 5→6 (adds bare `GET /servers`), `worlds` 5→6 (adds bare `GET /worlds`), `backups` 3→4 (adds bare `GET /backups`), `components` 4→6 (adds `GET /components` and `GET /components/client-export`), `health` 1→3 (adds `GET /health` and `GET /health/problems` alongside the existing `POST /health/repair`). Recorded in the Amendments log below, same pattern as the P0.24 amendment — nothing here silently invalidates a step Cameron already verified.
+
+**New Verify tooling.** No single family prefix covers these 24 (they're scattered singleton routes), and re-running 5 separate already-passing family checks doesn't prove the new ones are real. Added a `--depth-all` mode to `tools/api-baseline-check.py`: walks every path/method in the whole file (not just one family) and asserts each has a real `content` → `application/json` → `schema`, printing `ok <n>` (total operations) or failing on the first stub found — a stronger, whole-document version of the same schema-depth check the family steps use, reusable for any future addition to this file.
+**Verify:** `python3 tools/api-baseline-check.py --depth-all` → `ok 88`
+**Commit:** `P0.30: add the 24 API baseline routes missed by the route-family steps`
+**Batch:** safe
+
+---
+
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-07-30 — P0.30 corrects five family route counts, and P0.23q's players count
+
+`tools/api-baseline-check.py`'s `KNOWN_COUNTS` asserted a fixed sub-route count per family, taken from `msc2-engineering.md` §5's route-family list at the time each P0.23 step ran. That list turned out to omit real MSC 1 routes (see P0.30 above). Adding them changes what several already-passing family checks legitimately find, because the new routes share a path prefix with an existing family:
+
+| Family | Was | Now | Why |
+|---|---:|---:|---|
+| `servers` | 5 | 6 | adds bare `GET /servers` |
+| `worlds` | 5 | 6 | adds bare `GET /worlds` |
+| `backups` | 3 | 4 | adds bare `GET /backups` |
+| `components` | 4 | 6 | adds `GET /components` and `GET /components/client-export` |
+| `health` | 1 | 3 | adds `GET /health` and `GET /health/problems` alongside the existing `POST /health/repair` |
+
+None of P0.23a/c/d/e/h's original verify runs were wrong when they ran — the routes that change their count didn't exist in `openapi.json` yet. Re-running any of those five family Verify lines today correctly shows the new count, not the one recorded at the time. `players` (P0.23q) also gains a sibling — `ok 4` → `ok 5` — but stays non-breaking since wildcard families only assert count > 0.
 
 ### 2026-07-30 — P0.24 amended: one WebSocket channel, not six
 

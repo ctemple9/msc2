@@ -7,10 +7,13 @@ docs/msc2/rolling-plan.md. Checks two things a flat path count can't:
   2. every matched operation's `responses` nests down to a real
      content -> application/json -> schema, not a stub {}
 
-Three modes:
+Four modes:
   api-baseline-check.py <family>   check one route family, print `ok <n>`
   api-baseline-check.py --total    sum every path in the file (P0.23s's
                                     final sanity check against 87)
+  api-baseline-check.py --depth-all check every operation in the whole file
+                                    for real schema depth, not just one
+                                    family (P0.30's Verify, against 88)
   api-baseline-check.py --selftest exercise the checker against two bundled
                                     fixtures (one deep, one stub) so it's
                                     checkable before openapi.json exists
@@ -32,14 +35,18 @@ OPENAPI_PATH = "docs/msc2/api-baseline/openapi.json"
 # don't state a sub-route count and asserting a guessed one would repeat
 # the exact problem P0.25/P0.27 were fixed to avoid.
 KNOWN_COUNTS = {
-    "servers": 5,
+    # servers/settings/worlds/components/backups/health bumped by P0.30, which
+    # added bare-resource GET routes (and, for health, GET /health itself and
+    # GET /health/problems) that share the same family prefix as routes these
+    # counts already covered. See the P0.30 Amendments log entry.
+    "servers": 6,
     "settings": 1,
-    "worlds": 5,
-    "components": 4,
-    "backups": 3,
+    "worlds": 6,
+    "components": 6,
+    "backups": 4,
     "config": 3,
     "users": 3,
-    "health": 1,
+    "health": 3,
     "command": 1,
     "start": 1,
     "stop": 1,
@@ -101,6 +108,22 @@ def total_count(doc):
     return sum(len(methods) for methods in doc.get("paths", {}).values())
 
 
+def check_all_depth(doc):
+    """P0.30: whole-document version of check_family's schema-depth assertion --
+    every operation in the file, not just one family, must have a real
+    content -> application/json -> schema. Returns (exit_code, message)."""
+    n = 0
+    for path, methods in doc.get("paths", {}).items():
+        for method, operation in methods.items():
+            n += 1
+            if not has_real_schema(operation):
+                return 1, (
+                    f"{method.upper()} {path} has no real "
+                    "content/application/json/schema (stub response?)"
+                )
+    return 0, f"ok {n}"
+
+
 def selftest():
     """Returns (exit_code, [line, line]) -- the exit code is the selftest's
     own verdict; the lines are what P0.23's Verify line expects to see."""
@@ -128,6 +151,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("family", nargs="?", help="route family to check, e.g. 'backups'")
     parser.add_argument("--total", action="store_true")
+    parser.add_argument("--depth-all", action="store_true")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
 
@@ -141,6 +165,15 @@ def main():
         doc = load_openapi()
         print(f"total {total_count(doc)}")
         sys.exit(0)
+
+    if args.depth_all:
+        doc = load_openapi()
+        code, message = check_all_depth(doc)
+        if code == 0:
+            print(message)
+        else:
+            print(message, file=sys.stderr)
+        sys.exit(code)
 
     if args.family:
         if args.family not in KNOWN_COUNTS and args.family not in WILDCARD_FAMILIES:

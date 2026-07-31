@@ -1,0 +1,205 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "bedrock-port-resolves-independent-of-bedrock-enabled-flag",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "resolve(_:context:)",
+    "line": 124
+  },
+  "input": {
+    "mode": "resolve",
+    "guideId": "generic-router",
+    "context": {
+      "selectedServerId": null,
+      "selectedServerName": null,
+      "detectedLocalIpAddress": "192.168.1.42",
+      "detectedGatewayIpAddress": null,
+      "javaPort": 25565,
+      "bedrockPort": 19132,
+      "recommendedProtocol": "Forward TCP for the Java server on port 25565.",
+      "bedrockEnabled": false
+    }
+  },
+  "expected": {
+    "id": "generic-router",
+    "sections": [
+      {
+        "id": "generic-router.intro",
+        "kind": "intro",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in your router's browser-based admin page for Generic Router."
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow"
+          }
+        ]
+      },
+      {
+        "id": "generic-router.prerequisites",
+        "kind": "prerequisites",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: 192.168.1.42.",
+              "Common admin addresses for this guide: 192.168.1.1, 192.168.0.1, 10.0.0.1."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-router.value-summary",
+        "kind": "valueSummary",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: 192.168.1.42",
+              "Java port: 25565 (usually TCP)",
+              "Recommended protocol guidance: Forward TCP for the Java server on port 25565.",
+              "Bedrock port: 19132 (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: No"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-router.menu-path",
+        "kind": "menuPath",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "Login",
+              "Advanced",
+              "Port Forwarding"
+            ],
+            "alternateMenuNames": [
+              "NAT Forwarding",
+              "Virtual Server",
+              "Applications & Gaming",
+              "Firewall Rules",
+              "Port Rules",
+              "Advanced NAT"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-router.steps",
+        "kind": "routerSpecificSteps",
+        "items": [
+          {
+            "type": "step",
+            "id": "generic-step-1",
+            "title": "Get the values you need first",
+            "body": "Before changing the router, note the host Mac's local IP, the Java port, and the Bedrock port if Bedrock is enabled."
+          },
+          {
+            "type": "step",
+            "id": "generic-step-2",
+            "title": "Log into the router",
+            "body": "Open the router admin page in a browser. Common addresses include 192.168.1.1, 192.168.0.1, and 10.0.0.1. Exact screens vary by firmware."
+          },
+          {
+            "type": "step",
+            "id": "generic-step-3",
+            "title": "Find the forwarding section",
+            "body": "Look for Port Forwarding, NAT Forwarding, Virtual Server, Applications & Gaming, Firewall Rules, or Advanced NAT."
+          },
+          {
+            "type": "step",
+            "id": "generic-step-4",
+            "title": "Create the rule",
+            "body": "Target the host Mac's local IP. For Java, forward TCP on the configured Java port. If Bedrock is enabled, also forward UDP on the configured Bedrock port."
+          },
+          {
+            "type": "step",
+            "id": "generic-step-5",
+            "title": "Save or apply the change",
+            "body": "Save the new rule, apply changes, and reboot the router only if the firmware asks for it."
+          },
+          {
+            "type": "step",
+            "id": "generic-step-6",
+            "title": "Test from outside your network",
+            "body": "After the rule is saved, test from a different network. If it still fails, continue into troubleshooting instead of guessing."
+          }
+        ]
+      },
+      {
+        "id": "generic-router.notes",
+        "kind": "notes",
+        "items": [
+          {
+            "type": "note",
+            "id": "generic-note-1",
+            "title": "Transparency",
+            "body": "Exact labels and screens vary by firmware version and router vendor."
+          },
+          {
+            "type": "note",
+            "id": "generic-note-2",
+            "title": "ISP vs router",
+            "body": "Your internet provider name is not always the device you configure. You may have ISP hardware plus your own router."
+          }
+        ]
+      },
+      {
+        "id": "generic-router.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing."
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "local_ip_changed"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "cgnat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_device"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "firewall_blocked"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "router_reboot_required"
+          }
+        ]
+      }
+    ],
+    "unresolvedTokens": []
+  },
+  "notes": "resolvedString(for: .bedrockPort) only checks whether bedrockPort is set, not bedrockEnabled -- with bedrockPort=19132 and bedrockEnabled=false, the bedrock_port placeholder still resolves to \"19132\" while bedrock_enabled resolves to \"No\". No unresolvedTokens."
+}

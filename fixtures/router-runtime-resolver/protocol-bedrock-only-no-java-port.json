@@ -1,0 +1,19 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "protocol-bedrock-only-no-java-port",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "makeRecommendedProtocol(javaPort:bedrockPort:bedrockEnabled:)",
+    "line": 59
+  },
+  "input": {
+    "mode": "make_recommended_protocol",
+    "javaPort": null,
+    "bedrockPort": 19132,
+    "bedrockEnabled": true
+  },
+  "expected": {
+    "result": "Forward UDP for Bedrock or Geyser on port 19132."
+  },
+  "notes": "Bedrock enabled with a port but no Java port known -- UDP-only guidance."
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "protocol-java-and-bedrock-enabled-with-geyser",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "makeRecommendedProtocol(javaPort:bedrockPort:bedrockEnabled:)",
+    "line": 59
+  },
+  "input": {
+    "mode": "make_recommended_protocol",
+    "javaPort": 25565,
+    "bedrockPort": 19132,
+    "bedrockEnabled": true
+  },
+  "expected": {
+    "result": "Forward TCP for the Java server on port 25565. Also forward UDP for Bedrock or Geyser on port 19132."
+  },
+  "notes": "Both ports known and Bedrock enabled -- combined TCP+UDP guidance."
+}

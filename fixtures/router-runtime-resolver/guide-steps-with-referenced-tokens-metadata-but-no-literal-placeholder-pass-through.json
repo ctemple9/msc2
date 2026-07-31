@@ -1,0 +1,210 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "guide-steps-with-referenced-tokens-metadata-but-no-literal-placeholder-pass-through",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "resolveText(_:context:sectionID:unresolved:)",
+    "line": 207
+  },
+  "input": {
+    "mode": "resolve",
+    "guideId": "xfinity-gateway",
+    "context": {
+      "selectedServerId": null,
+      "selectedServerName": null,
+      "detectedLocalIpAddress": null,
+      "detectedGatewayIpAddress": null,
+      "javaPort": null,
+      "bedrockPort": null,
+      "recommendedProtocol": null,
+      "bedrockEnabled": null
+    }
+  },
+  "expected": {
+    "id": "xfinity-gateway",
+    "sections": [
+      {
+        "id": "xfinity-gateway.intro",
+        "kind": "intro",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in either the router app or its browser-based admin page for Xfinity Gateway. Keep the provider name (Xfinity / Comcast) separate from the actual device where settings are changed."
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow"
+          }
+        ]
+      },
+      {
+        "id": "xfinity-gateway.prerequisites",
+        "kind": "prerequisites",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: Unavailable on this Mac right now.",
+              "Common admin addresses for this guide: 10.0.0.1, http://10.0.0.1.",
+              "Verify you are configuring the ISP gateway itself and not a separate downstream router or mesh system."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "xfinity-gateway.value-summary",
+        "kind": "valueSummary",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: Unavailable on this Mac right now",
+              "Java port: Unknown (usually TCP)",
+              "Recommended protocol guidance: Forward TCP for Java. Add UDP only when Bedrock or Geyser is enabled.",
+              "Bedrock port: Not enabled (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: Unknown"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "xfinity-gateway.menu-path",
+        "kind": "menuPath",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "xFi app or 10.0.0.1",
+              "Advanced",
+              "Port Forwarding"
+            ],
+            "alternateMenuNames": [
+              "xFi",
+              "Gateway",
+              "Advanced Security"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "xfinity-gateway.steps",
+        "kind": "routerSpecificSteps",
+        "items": [
+          {
+            "type": "step",
+            "id": "xfinity-step-1",
+            "title": "Confirm you are using the Xfinity gateway itself",
+            "body": "If you also have your own router or mesh system, the forwarding rule may belong there instead."
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-2",
+            "title": "Open xFi or log in to 10.0.0.1",
+            "body": "Use the Xfinity app first if that is how your gateway is managed. Otherwise try 10.0.0.1 in a browser."
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-3",
+            "title": "Go to the forwarding area",
+            "body": "Find the section for advanced network settings and port forwarding. Xfinity labels and availability can vary by gateway generation."
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-4",
+            "title": "Select the host Mac and enter the port values",
+            "body": "Choose the Mac running Minecraft Server Controller. Forward TCP for the Java port. If Bedrock is enabled, also forward UDP for the Bedrock port."
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-5",
+            "title": "Save and test externally",
+            "body": "Save the rule, then test from a different network. If you cannot find forwarding at all, you may be on a restricted or app-only gateway flow."
+          }
+        ]
+      },
+      {
+        "id": "xfinity-gateway.notes",
+        "kind": "notes",
+        "items": [
+          {
+            "type": "note",
+            "id": "xfinity-note-1",
+            "title": "Common flow",
+            "body": "Xfinity gateway menus vary across XB6, XB7, and XB8 hardware revisions."
+          },
+          {
+            "type": "note",
+            "id": "xfinity-note-2",
+            "title": "Restrictions",
+            "body": "If the app or gateway firmware hides forwarding, verify you are not in bridge mode and that another router is not actually doing routing."
+          }
+        ]
+      },
+      {
+        "id": "xfinity-gateway.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing."
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "cgnat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "no_admin_access"
+          }
+        ]
+      }
+    ],
+    "unresolvedTokens": [
+      {
+        "sectionId": "xfinity-gateway.prerequisites",
+        "token": "detected_local_ip_address"
+      },
+      {
+        "sectionId": "xfinity-gateway.value-summary",
+        "token": "bedrock_enabled"
+      },
+      {
+        "sectionId": "xfinity-gateway.value-summary",
+        "token": "bedrock_port"
+      },
+      {
+        "sectionId": "xfinity-gateway.value-summary",
+        "token": "detected_local_ip_address"
+      },
+      {
+        "sectionId": "xfinity-gateway.value-summary",
+        "token": "java_port"
+      },
+      {
+        "sectionId": "xfinity-gateway.value-summary",
+        "token": "recommended_protocol"
+      }
+    ]
+  },
+  "notes": "xfinity-step-4 declares referencedTokens [.javaPort, .bedrockPort, .bedrockEnabled] but its body text contains no {{...}} placeholder at all -- resolveText only substitutes a token whose literal placeholder is present in the text, so the referencedTokens metadata alone never triggers substitution or an unresolvedTokens entry. Only the shared prerequisites/value-summary sections (which do contain literal placeholders) appear in unresolvedTokens."
+}

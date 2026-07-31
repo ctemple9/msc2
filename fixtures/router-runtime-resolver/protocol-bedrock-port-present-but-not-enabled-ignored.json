@@ -1,0 +1,19 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "protocol-bedrock-port-present-but-not-enabled-ignored",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "makeRecommendedProtocol(javaPort:bedrockPort:bedrockEnabled:)",
+    "line": 59
+  },
+  "input": {
+    "mode": "make_recommended_protocol",
+    "javaPort": 25565,
+    "bedrockPort": 19132,
+    "bedrockEnabled": false
+  },
+  "expected": {
+    "result": "Forward TCP for the Java server on port 25565."
+  },
+  "notes": "A Bedrock port is known but bedrockEnabled=false -- the Bedrock branch is still skipped entirely (bedrockEnabled gates the branch, not just port presence), identical output to no Bedrock port at all."
+}

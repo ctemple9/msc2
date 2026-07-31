@@ -1,0 +1,195 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "menu-path-and-note-and-troubleshooting-topic-items-pass-through-unchanged",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "resolveItem(_:context:sectionID:unresolved:)",
+    "line": 169
+  },
+  "input": {
+    "mode": "resolve",
+    "guideId": "netgear-router",
+    "context": {
+      "selectedServerId": null,
+      "selectedServerName": null,
+      "detectedLocalIpAddress": "192.168.1.42",
+      "detectedGatewayIpAddress": null,
+      "javaPort": 25565,
+      "bedrockPort": null,
+      "recommendedProtocol": "Forward TCP for the Java server on port 25565.",
+      "bedrockEnabled": null
+    }
+  },
+  "expected": {
+    "id": "netgear-router",
+    "sections": [
+      {
+        "id": "netgear-router.intro",
+        "kind": "intro",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in either the router app or its browser-based admin page for NETGEAR / Nighthawk / Orbi."
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow"
+          }
+        ]
+      },
+      {
+        "id": "netgear-router.prerequisites",
+        "kind": "prerequisites",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: 192.168.1.42.",
+              "Common admin addresses for this guide: 192.168.1.1, 192.168.0.1, http://routerlogin.net, http://192.168.1.1, http://192.168.0.1."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "netgear-router.value-summary",
+        "kind": "valueSummary",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: 192.168.1.42",
+              "Java port: 25565 (usually TCP)",
+              "Recommended protocol guidance: Forward TCP for the Java server on port 25565.",
+              "Bedrock port: Not enabled (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: Unknown"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "netgear-router.menu-path",
+        "kind": "menuPath",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "Nighthawk / Orbi app or routerlogin.net",
+              "Advanced",
+              "Port Forwarding / Port Triggering"
+            ],
+            "alternateMenuNames": [
+              "Nighthawk app",
+              "Orbi app",
+              "Advanced Setup",
+              "Port Triggering",
+              "WAN Setup"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "netgear-router.steps",
+        "kind": "routerSpecificSteps",
+        "items": [
+          {
+            "type": "step",
+            "id": "netgear-step-1",
+            "title": "Confirm the NETGEAR device is the router doing routing",
+            "body": "If Orbi or another NETGEAR system is in access point mode, or if an ISP gateway is still routing above it, create the forward on the actual upstream router instead."
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-2",
+            "title": "Open the correct NETGEAR management surface",
+            "body": "Use the Nighthawk or Orbi app if you manage the network by app, or log in through routerlogin.net or the router's local IP in a browser."
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-3",
+            "title": "Go to the forwarding controls",
+            "body": "Look under Advanced or Advanced Setup for Port Forwarding / Port Triggering. Some models place related WAN options nearby, but you want the actual forwarding page."
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-4",
+            "title": "Create the Minecraft rule",
+            "body": "Point the rule to the Mac running Minecraft Server Controller. Forward TCP for the Java port. If Bedrock is enabled, add a separate UDP rule for the Bedrock port."
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-5",
+            "title": "Apply and test from outside your network",
+            "body": "Save or apply the new rule, then test from another network. If access still fails, verify that the NETGEAR device is not in access point mode and that no ISP gateway is still doing the real NAT."
+          }
+        ]
+      },
+      {
+        "id": "netgear-router.notes",
+        "kind": "notes",
+        "items": [
+          {
+            "type": "note",
+            "id": "netgear-note-1",
+            "title": "Family coverage",
+            "body": "This guide covers NETGEAR routers, Nighthawk models, and Orbi systems as a family guide rather than exact-model instructions."
+          },
+          {
+            "type": "note",
+            "id": "netgear-note-2",
+            "title": "App vs browser",
+            "body": "Nighthawk and Orbi can be app-managed, but many forwarding options are still easiest to confirm in the browser interface."
+          }
+        ]
+      },
+      {
+        "id": "netgear-router.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing."
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_device"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "firewall_blocked"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          }
+        ]
+      }
+    ],
+    "unresolvedTokens": [
+      {
+        "sectionId": "netgear-router.value-summary",
+        "token": "bedrock_enabled"
+      },
+      {
+        "sectionId": "netgear-router.value-summary",
+        "token": "bedrock_port"
+      }
+    ]
+  },
+  "notes": "resolveItem only calls resolveText for paragraph/bulletList/step bodies -- menuPath, note, and troubleshootingTopic items are passed through unchanged (no token scanning happens on their content at all), confirmed by netgear-router's menu-path/notes/troubleshooting sections carrying no unresolvedTokens entries despite bedrockPort/bedrockEnabled being unset."
+}

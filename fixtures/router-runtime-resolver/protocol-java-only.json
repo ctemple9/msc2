@@ -1,0 +1,19 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "protocol-java-only",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "makeRecommendedProtocol(javaPort:bedrockPort:bedrockEnabled:)",
+    "line": 59
+  },
+  "input": {
+    "mode": "make_recommended_protocol",
+    "javaPort": 25565,
+    "bedrockPort": null,
+    "bedrockEnabled": false
+  },
+  "expected": {
+    "result": "Forward TCP for the Java server on port 25565."
+  },
+  "notes": "No Bedrock port and Bedrock not enabled -- plain Java TCP guidance."
+}

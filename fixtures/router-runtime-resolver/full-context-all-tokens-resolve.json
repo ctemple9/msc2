@@ -1,0 +1,180 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "full-context-all-tokens-resolve",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "resolve(_:context:)",
+    "line": 124
+  },
+  "input": {
+    "mode": "resolve",
+    "guideId": "generic-mesh",
+    "context": {
+      "selectedServerId": "srv-1",
+      "selectedServerName": "Creative World",
+      "detectedLocalIpAddress": "192.168.1.42",
+      "detectedGatewayIpAddress": "192.168.1.1",
+      "javaPort": 25565,
+      "bedrockPort": 19132,
+      "recommendedProtocol": "Forward TCP for the Java server on port 25565. Also forward UDP for Bedrock or Geyser on port 19132.",
+      "bedrockEnabled": true
+    }
+  },
+  "expected": {
+    "id": "generic-mesh",
+    "sections": [
+      {
+        "id": "generic-mesh.intro",
+        "kind": "intro",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in either the router app or its browser-based admin page for Mesh Wi-Fi System."
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow"
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.prerequisites",
+        "kind": "prerequisites",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: 192.168.1.42.",
+              "Check whether management happens in the router app first; some mesh systems hide forwarding outside the app."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.value-summary",
+        "kind": "valueSummary",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: 192.168.1.42",
+              "Java port: 25565 (usually TCP)",
+              "Recommended protocol guidance: Forward TCP for the Java server on port 25565. Also forward UDP for Bedrock or Geyser on port 19132.",
+              "Bedrock port: 19132 (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: Yes"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.menu-path",
+        "kind": "menuPath",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "Router app or admin page",
+              "Advanced",
+              "Port Forwarding"
+            ],
+            "alternateMenuNames": [
+              "NAT Forwarding",
+              "Virtual Server",
+              "Reservations & Port Forwarding"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.steps",
+        "kind": "routerSpecificSteps",
+        "items": [
+          {
+            "type": "step",
+            "id": "generic-mesh-step-1",
+            "title": "Confirm the mesh system is doing routing",
+            "body": "If the mesh is in bridge mode, access point mode, or passthrough mode, the forwarding rule belongs on the upstream router instead."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-2",
+            "title": "Open the mesh app or admin page",
+            "body": "Most mesh products expose port forwarding in the mobile app first, though some also support a browser admin page."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-3",
+            "title": "Find the forwarding section",
+            "body": "Look for labels such as Port Forwarding, NAT Forwarding, Virtual Server, or Reservations & Port Forwarding."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-4",
+            "title": "Target the Mac running the server",
+            "body": "Choose the Mac running Creative World and point the rule at 192.168.1.42. Forward TCP for Java on 25565. If Bedrock is enabled, also add UDP for 19132."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-5",
+            "title": "Save and test from another network",
+            "body": "Apply the rule, then test from outside your home network. If it still fails, check for upstream ISP routing or double NAT."
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.notes",
+        "kind": "notes",
+        "items": [
+          {
+            "type": "note",
+            "id": "generic-mesh-note-1",
+            "title": "App-managed systems",
+            "body": "Mesh systems often hide advanced settings until you tap deeper into network or advanced menus."
+          },
+          {
+            "type": "note",
+            "id": "generic-mesh-note-2",
+            "title": null,
+            "body": "If your ISP device is still routing above the mesh, forwarding on the mesh alone will not expose the server."
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing."
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_device"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          }
+        ]
+      }
+    ],
+    "unresolvedTokens": []
+  },
+  "notes": "Every context field set; generic-mesh is the only sample guide whose own step text (not just shared boilerplate) references selected_server_name. No unresolvedTokens."
+}

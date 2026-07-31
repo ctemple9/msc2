@@ -1,0 +1,40 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "duplicate-placeholder-occurrences-in-one-string-both-replaced",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "resolveText(_:context:sectionID:unresolved:)",
+    "line": 207
+  },
+  "input": {
+    "mode": "resolve_synthetic_duplicate_placeholder",
+    "context": {
+      "selectedServerId": null,
+      "selectedServerName": null,
+      "detectedLocalIpAddress": "10.1.1.9",
+      "detectedGatewayIpAddress": null,
+      "javaPort": null,
+      "bedrockPort": null,
+      "recommendedProtocol": null,
+      "bedrockEnabled": null
+    }
+  },
+  "expected": {
+    "id": "generic-router",
+    "sections": [
+      {
+        "id": "synthetic.section",
+        "kind": "valueSummary",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "Local IP is 10.1.1.9. Confirm 10.1.1.9 matches your host Mac."
+          }
+        ]
+      }
+    ],
+    "unresolvedTokens": []
+  },
+  "notes": "Synthetic test-only ComposedSection (not literal MSC 1 content) with a paragraph body repeating {{detected_local_ip_address}} twice, exercising that resolveText replaces every occurrence of a placeholder, not just the first -- the same all-occurrences semantics as Swift's String.replacingOccurrences(of:with:)."
+}

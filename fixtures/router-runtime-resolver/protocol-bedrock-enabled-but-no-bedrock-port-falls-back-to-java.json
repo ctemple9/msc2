@@ -1,0 +1,19 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "protocol-bedrock-enabled-but-no-bedrock-port-falls-back-to-java",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "makeRecommendedProtocol(javaPort:bedrockPort:bedrockEnabled:)",
+    "line": 59
+  },
+  "input": {
+    "mode": "make_recommended_protocol",
+    "javaPort": 25565,
+    "bedrockPort": null,
+    "bedrockEnabled": true
+  },
+  "expected": {
+    "result": "Forward TCP for the Java server on port 25565."
+  },
+  "notes": "bedrockEnabled=true alone, without a bedrockPort, does not enter the Bedrock branch at all (Swift's `if bedrockEnabled, let bedrockPort` requires both) -- falls through to the Java-only branch, identical output to bedrockEnabled=false with the same ports."
+}

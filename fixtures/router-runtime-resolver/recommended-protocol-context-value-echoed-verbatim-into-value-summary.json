@@ -1,0 +1,188 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "recommended-protocol-context-value-echoed-verbatim-into-value-summary",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "resolve(_:context:)",
+    "line": 124
+  },
+  "input": {
+    "mode": "resolve",
+    "guideId": "eero-mesh",
+    "context": {
+      "selectedServerId": null,
+      "selectedServerName": null,
+      "detectedLocalIpAddress": null,
+      "detectedGatewayIpAddress": null,
+      "javaPort": 25565,
+      "bedrockPort": 19132,
+      "recommendedProtocol": "CUSTOM PROTOCOL STRING FOR THIS TEST",
+      "bedrockEnabled": true
+    }
+  },
+  "expected": {
+    "id": "eero-mesh",
+    "sections": [
+      {
+        "id": "eero-mesh.intro",
+        "kind": "intro",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in the router's mobile app for eero."
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow"
+          }
+        ]
+      },
+      {
+        "id": "eero-mesh.prerequisites",
+        "kind": "prerequisites",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: Unavailable on this Mac right now.",
+              "Check whether management happens in the router app first; some mesh systems hide forwarding outside the app."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "eero-mesh.value-summary",
+        "kind": "valueSummary",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: Unavailable on this Mac right now",
+              "Java port: 25565 (usually TCP)",
+              "Recommended protocol guidance: CUSTOM PROTOCOL STRING FOR THIS TEST",
+              "Bedrock port: 19132 (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: Yes"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "eero-mesh.menu-path",
+        "kind": "menuPath",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "eero app",
+              "Settings",
+              "Reservations & Port Forwarding"
+            ],
+            "alternateMenuNames": [
+              "Reservations & Port Forwarding",
+              "Network Settings"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "eero-mesh.steps",
+        "kind": "routerSpecificSteps",
+        "items": [
+          {
+            "type": "step",
+            "id": "eero-step-1",
+            "title": "Confirm eero is the router doing routing",
+            "body": "If eero is in bridge mode, the forwarding rule belongs on the upstream router instead."
+          },
+          {
+            "type": "step",
+            "id": "eero-step-2",
+            "title": "Open the eero app",
+            "body": "eero is app-managed first. Open the eero app and go to the network settings area."
+          },
+          {
+            "type": "step",
+            "id": "eero-step-3",
+            "title": "Find Reservations & Port Forwarding",
+            "body": "Open Settings, then Network Settings, then Reservations & Port Forwarding."
+          },
+          {
+            "type": "step",
+            "id": "eero-step-4",
+            "title": "Select the host Mac and enter the port",
+            "body": "Choose the Mac running Minecraft Server Controller. Add a TCP rule for the Java port and a UDP rule for the Bedrock port if Bedrock is enabled."
+          },
+          {
+            "type": "step",
+            "id": "eero-step-5",
+            "title": "Save and test",
+            "body": "Save the rule and test from a different network. If nothing works, check whether the ISP modem/router is still doing routing above eero."
+          }
+        ]
+      },
+      {
+        "id": "eero-mesh.notes",
+        "kind": "notes",
+        "items": [
+          {
+            "type": "note",
+            "id": "eero-note-1",
+            "title": "App-first flow",
+            "body": "eero users often think of the network by app name rather than router model. Matching should preserve that later."
+          },
+          {
+            "type": "note",
+            "id": "eero-note-2",
+            "title": null,
+            "body": "If eero is in bridge mode, port forwarding must be configured elsewhere."
+          }
+        ]
+      },
+      {
+        "id": "eero-mesh.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing."
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_device"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          }
+        ]
+      }
+    ],
+    "unresolvedTokens": [
+      {
+        "sectionId": "eero-mesh.prerequisites",
+        "token": "detected_local_ip_address"
+      },
+      {
+        "sectionId": "eero-mesh.value-summary",
+        "token": "detected_local_ip_address"
+      }
+    ]
+  },
+  "notes": "resolvedString(for: .recommendedProtocol) just echoes context.recommendedProtocol verbatim -- it does not call makeRecommendedProtocol internally. The two features are decoupled: a host is expected to call makeRecommendedProtocol itself and feed the result into the context."
+}

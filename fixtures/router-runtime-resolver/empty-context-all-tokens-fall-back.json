@@ -1,0 +1,221 @@
+{
+  "domain": "router-runtime-resolver",
+  "case": "empty-context-all-tokens-fall-back",
+  "source": {
+    "file": "RouterPortForwardGuideRuntimeResolver.swift",
+    "test": "resolve(_:context:)",
+    "line": 124
+  },
+  "input": {
+    "mode": "resolve",
+    "guideId": "generic-mesh",
+    "context": {
+      "selectedServerId": null,
+      "selectedServerName": null,
+      "detectedLocalIpAddress": null,
+      "detectedGatewayIpAddress": null,
+      "javaPort": null,
+      "bedrockPort": null,
+      "recommendedProtocol": null,
+      "bedrockEnabled": null
+    }
+  },
+  "expected": {
+    "id": "generic-mesh",
+    "sections": [
+      {
+        "id": "generic-mesh.intro",
+        "kind": "intro",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in either the router app or its browser-based admin page for Mesh Wi-Fi System."
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow"
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.prerequisites",
+        "kind": "prerequisites",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: Unavailable on this Mac right now.",
+              "Check whether management happens in the router app first; some mesh systems hide forwarding outside the app."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.value-summary",
+        "kind": "valueSummary",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: Unavailable on this Mac right now",
+              "Java port: Unknown (usually TCP)",
+              "Recommended protocol guidance: Forward TCP for Java. Add UDP only when Bedrock or Geyser is enabled.",
+              "Bedrock port: Not enabled (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: Unknown"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.menu-path",
+        "kind": "menuPath",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "Router app or admin page",
+              "Advanced",
+              "Port Forwarding"
+            ],
+            "alternateMenuNames": [
+              "NAT Forwarding",
+              "Virtual Server",
+              "Reservations & Port Forwarding"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.steps",
+        "kind": "routerSpecificSteps",
+        "items": [
+          {
+            "type": "step",
+            "id": "generic-mesh-step-1",
+            "title": "Confirm the mesh system is doing routing",
+            "body": "If the mesh is in bridge mode, access point mode, or passthrough mode, the forwarding rule belongs on the upstream router instead."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-2",
+            "title": "Open the mesh app or admin page",
+            "body": "Most mesh products expose port forwarding in the mobile app first, though some also support a browser admin page."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-3",
+            "title": "Find the forwarding section",
+            "body": "Look for labels such as Port Forwarding, NAT Forwarding, Virtual Server, or Reservations & Port Forwarding."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-4",
+            "title": "Target the Mac running the server",
+            "body": "Choose the Mac running Current Server and point the rule at Unavailable on this Mac right now. Forward TCP for Java on Unknown. If Bedrock is enabled, also add UDP for Not enabled."
+          },
+          {
+            "type": "step",
+            "id": "generic-mesh-step-5",
+            "title": "Save and test from another network",
+            "body": "Apply the rule, then test from outside your home network. If it still fails, check for upstream ISP routing or double NAT."
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.notes",
+        "kind": "notes",
+        "items": [
+          {
+            "type": "note",
+            "id": "generic-mesh-note-1",
+            "title": "App-managed systems",
+            "body": "Mesh systems often hide advanced settings until you tap deeper into network or advanced menus."
+          },
+          {
+            "type": "note",
+            "id": "generic-mesh-note-2",
+            "title": null,
+            "body": "If your ISP device is still routing above the mesh, forwarding on the mesh alone will not expose the server."
+          }
+        ]
+      },
+      {
+        "id": "generic-mesh.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing."
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_device"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          }
+        ]
+      }
+    ],
+    "unresolvedTokens": [
+      {
+        "sectionId": "generic-mesh.prerequisites",
+        "token": "detected_local_ip_address"
+      },
+      {
+        "sectionId": "generic-mesh.steps",
+        "token": "bedrock_port"
+      },
+      {
+        "sectionId": "generic-mesh.steps",
+        "token": "detected_local_ip_address"
+      },
+      {
+        "sectionId": "generic-mesh.steps",
+        "token": "java_port"
+      },
+      {
+        "sectionId": "generic-mesh.steps",
+        "token": "selected_server_name"
+      },
+      {
+        "sectionId": "generic-mesh.value-summary",
+        "token": "bedrock_enabled"
+      },
+      {
+        "sectionId": "generic-mesh.value-summary",
+        "token": "bedrock_port"
+      },
+      {
+        "sectionId": "generic-mesh.value-summary",
+        "token": "detected_local_ip_address"
+      },
+      {
+        "sectionId": "generic-mesh.value-summary",
+        "token": "java_port"
+      },
+      {
+        "sectionId": "generic-mesh.value-summary",
+        "token": "recommended_protocol"
+      }
+    ]
+  },
+  "notes": "Every context field unset (default RuntimeContext). Every placeholder in the guide's rendered text falls back, and every one is recorded in unresolvedTokens, sorted by (sectionId, token raw value)."
+}

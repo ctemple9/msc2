@@ -50,7 +50,11 @@ Every prompt names one of these. Do only the named mode.
 
 ## Asking Cameron a question
 
-Cameron is not a Rust or Swift developer. He owns the product and every decision; he cannot read code to adjudicate one. When you need his call, **never** hand him a bare list of symbol names.
+Cameron wrote MSC 1 — roughly 97,000 lines of Swift — so he reads Swift comfortably and works in Python. Rust is new to him, and he is learning it deliberately as this project is built.
+
+He owns the product and every decision. What he should not have to do is reconstruct your analysis to make a call. **Never hand him a bare list of symbol names and ask which bucket they belong in** — that is asking him to redo work you were assigned. Do the reasoning, state a recommendation, and ask the question that's actually left.
+
+**When code genuinely is the answer, show it and teach it.** A short explanation of what an unfamiliar Rust construct does, and why it's written that way, is wanted — not noise. Prefer a five-line excerpt with two sentences of explanation over a file path he has to go read. He is learning this language on purpose; treat every explanation as part of the deliverable.
 
 Each question gets this shape, in plain language:
 

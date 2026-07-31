@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.4 done, awaiting verification
-> **Next move:** VERIFY (Cameron runs P1.3/P1.4's Verify commands, then EXECUTE continues with P1.5)
+> ## STATUS: Phase 1 in progress — P1.5 done, awaiting verification (batch stop-after)
+> **Next move:** VERIFY (Cameron runs P1.3/P1.4/P1.5's Verify commands, then EXECUTE continues with P1.6)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -603,7 +603,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** safe
 
 ### P1.5 — Port Java runtime policy (pure subset)
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/java_runtime.rs`, `crates/msc-domain/tests/java_runtime_guards.rs`
 **What:** Port the pure guard/warning logic from `JavaRuntimeGuardsTests.swift` (`fixtures/java-runtime-guards/`): `requiredJavaMajor`'s Minecraft-version-to-Java-major mapping, and the too-old/too-new compatibility-warning classification. **Scope note, a deliberate call, not a silent skip:** 8 of the 15 fixtures in this domain touch the real filesystem — `detect-installed-java-runtimes-*` (×3) scans a directory tree, `normalization-*` (×5) stats candidate paths — and `msc-domain` carries no I/O per `msc2-engineering.md` §6. Those 8 stay unported here and move to `msc-infrastructure` once Phase 3 builds the filesystem substrate behind a trait. Only the 7 pure fixtures (`no-warning-*` ×3, `too-old-warning-still-fires`, `too-new-warning-*` ×2, `required-java-major-mapping`) are wired in this step. Flagged here for Cameron to overrule if he'd rather stub a filesystem trait early instead of waiting for Phase 3.
 **Verify:** `cargo nextest run -p msc-domain java_runtime_guards` → `7 tests run: 7 passed`

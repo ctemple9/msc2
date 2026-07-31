@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.5 DONE, P1.6 next
-> **Next move:** EXECUTE P1.6 (port property models)
+> ## STATUS: Phase 1 in progress — P1.7 done, awaiting verification (batch stop-after)
+> **Next move:** VERIFY (Cameron runs P1.6/P1.7's Verify commands, then EXECUTE continues with P1.8)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -619,7 +619,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** safe
 
 ### P1.7 — Port crash analysis and slug normalization
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/crash_analysis.rs`, `crates/msc-domain/src/slug.rs`, `crates/msc-domain/tests/connector_crash_analysis.rs`, `crates/msc-domain/tests/startup_crash_analyzer.rs`
 **What:** Port `StartupCrashAnalyzer` (`ConnectorCrashAnalysisTests.swift` + `StartupCrashAnalyzerTests.swift` origins — Forge dependency-block parsing, connector entrypoint failure attribution, Fabric/Forge missing- and wrong-dependency-version attribution) and `ModrinthSlugNormalizer` (`canonicalSlug` / `normalizedSlug` / `isKnownAlias`). MSC 1 has no separate test file for the normalizer — it doesn't need new characterization, because 4 of the 11 `connector-crash-analysis` fixtures already exercise it directly (MSC 1's own test file bundles the two together). `searchQuery`, the normalizer's one method with no fixture of its own, is a one-line wrapper (`canonical.isEmpty ? raw : canonical`) — port it as part of `slug.rs` but don't invent a fixture for a wrapper the existing 4 already cover the substance of.
 **Verify:** `cargo nextest run -p msc-domain connector_crash_analysis` → `11 tests run: 11 passed`; then `cargo nextest run -p msc-domain startup_crash_analyzer` → `7 tests run: 7 passed`

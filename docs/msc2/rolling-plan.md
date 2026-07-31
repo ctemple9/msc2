@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.5 done, awaiting verification (batch stop-after)
-> **Next move:** VERIFY (Cameron runs P1.3/P1.4/P1.5's Verify commands, then EXECUTE continues with P1.6)
+> ## STATUS: Phase 1 in progress — P1.5 DONE, P1.6 next
+> **Next move:** EXECUTE P1.6 (port property models)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -587,7 +587,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ### Existing-fixture domains
 
 ### P1.3 — Port version comparison
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/version.rs`, `crates/msc-domain/tests/version_comparison.rs`
 **What:** Port `ComponentVersion` parsing and comparison (`ComponentVersionParsingTests.swift` origin, `fixtures/component-version/`) — the primitive MSC 2 needs everywhere a Paper/Purpur build number, Minecraft version string, or loader version gets compared, including the ordering behavior the downgrade guards several agent workflows depend on (`MCVersionComparator.isDowngrade`, symbol ledger target_domain `java-runtime`/`components` — those call sites port later; Phase 1 only needs the comparison primitive). Wire all 21 fixtures through the P1.2 harness.
 **Verify:** `cargo nextest run -p msc-domain version_comparison` → `21 tests run: 21 passed`
@@ -595,7 +595,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** safe
 
 ### P1.4 — Port TPS parsing
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/tps.rs`, `crates/msc-domain/tests/tps.rs`
 **What:** Port the TPS-sample parser (`TpsMonitoringTests.swift` origin, `fixtures/tps/`) — console-reply-line to TPS-figure conversion (Paper trio, legacy Forge, modern NeoForge, vanilla `/tick query` derivation, spark). **Scope note, amended during P1.4's own execution, not a silent skip:** 8 of the 27 fixtures in this domain (`auto-tps-command-*` ×3, `tps-poll-command-*` ×3, `supports-vanilla-tick-query-numeric-boundary`, `every-flavor-auto-tps-command-is-exhaustive`) don't test the parser at all — they test `JavaServerFlavor.autoTpsCommand` / `.tpsPollCommand(minecraftVersion:)` / `.supportsVanillaTickQuery`, which is P1.8's type, not P1.4's. Building it early here would mean writing it twice: once as a stub now, once for real in P1.8, which is the only step that plans the line-by-line cross-check against `JavaServerFlavor.swift` needed to trust it. Those 8 stay unwired here and are P1.8's responsibility (its own step text already commits to `autoTpsCommand`, `tpsPollCommand`, and the 1.20.3 `supportsVanillaTickQuery` boundary). Only the 19 pure-parser fixtures are wired in this step.
 **Verify:** `cargo nextest run -p msc-domain tps` → `19 tests run: 19 passed`
@@ -603,7 +603,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** safe
 
 ### P1.5 — Port Java runtime policy (pure subset)
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/java_runtime.rs`, `crates/msc-domain/tests/java_runtime_guards.rs`
 **What:** Port the pure guard/warning logic from `JavaRuntimeGuardsTests.swift` (`fixtures/java-runtime-guards/`): `requiredJavaMajor`'s Minecraft-version-to-Java-major mapping, and the too-old/too-new compatibility-warning classification. **Scope note, a deliberate call, not a silent skip:** 8 of the 15 fixtures in this domain touch the real filesystem — `detect-installed-java-runtimes-*` (×3) scans a directory tree, `normalization-*` (×5) stats candidate paths — and `msc-domain` carries no I/O per `msc2-engineering.md` §6. Those 8 stay unported here and move to `msc-infrastructure` once Phase 3 builds the filesystem substrate behind a trait. Only the 7 pure fixtures (`no-warning-*` ×3, `too-old-warning-still-fires`, `too-new-warning-*` ×2, `required-java-major-mapping`) are wired in this step. Flagged here for Cameron to overrule if he'd rather stub a filesystem trait early instead of waiting for Phase 3.
 **Verify:** `cargo nextest run -p msc-domain java_runtime_guards` → `7 tests run: 7 passed`

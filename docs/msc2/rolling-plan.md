@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.2 DONE, P1.3 next
-> **Next move:** EXECUTE P1.3 (port version comparison)
+> ## STATUS: Phase 1 in progress — P1.3 done, awaiting verification
+> **Next move:** VERIFY (Cameron runs P1.3's Verify command, then EXECUTE continues with P1.4)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -587,7 +587,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ### Existing-fixture domains
 
 ### P1.3 — Port version comparison
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/version.rs`, `crates/msc-domain/tests/version_comparison.rs`
 **What:** Port `ComponentVersion` parsing and comparison (`ComponentVersionParsingTests.swift` origin, `fixtures/component-version/`) — the primitive MSC 2 needs everywhere a Paper/Purpur build number, Minecraft version string, or loader version gets compared, including the ordering behavior the downgrade guards several agent workflows depend on (`MCVersionComparator.isDowngrade`, symbol ledger target_domain `java-runtime`/`components` — those call sites port later; Phase 1 only needs the comparison primitive). Wire all 21 fixtures through the P1.2 harness.
 **Verify:** `cargo nextest run -p msc-domain version_comparison` → `21 tests run: 21 passed`

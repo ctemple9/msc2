@@ -53,6 +53,13 @@ pub fn load(path: impl AsRef<Path>) -> Fixture {
 /// `run.py`'s `ACTUAL_COMPUTERS` table. `_selftest` is computed as the
 /// identity function on purpose (see `fixtures/_selftest/*.json`), so
 /// `pass.json` matches and `fail.json` doesn't.
+///
+/// `support/mod.rs` is compiled once per integration-test binary (each
+/// `tests/*.rs` file that does `mod support;` gets its own copy), and only
+/// `fixture_harness.rs` calls this generic entry point — other test files
+/// use `support::load` directly and assert with domain-specific logic. Hence
+/// `#[allow(dead_code)]`: it's unused in those binaries, not unused overall.
+#[allow(dead_code)]
 fn compute_actual(fixture: &Fixture) -> Value {
     match fixture.domain.as_str() {
         "_selftest" => fixture.input.clone(),
@@ -63,6 +70,7 @@ fn compute_actual(fixture: &Fixture) -> Value {
 }
 
 /// Mirrors `run.py`'s `full_compare`: true on a match, false on a mismatch.
+#[allow(dead_code)]
 pub fn full_compare(fixture: &Fixture) -> bool {
     compute_actual(fixture) == fixture.expected
 }

@@ -541,6 +541,8 @@ This is unresolved design work with wide blast radius, recorded as Open rather t
 
 **Revisit if:** the content model proves too rigid for the router guides, which are the most structurally complex educational surface and the natural stress test.
 
+**Phase 2 addendum (P2.2, still Proposed pending Cameron's confirmation).** The two mechanism questions this entry left open — content format, and embedded vs on-disk — now have a recommendation, not a decision: Markdown with YAML front-matter, embedded in the `msc-agent` binary for v1 (on-disk override deferred, not foreclosed). Full reasoning, and the precise `helpId` shape (`<namespace>.<name>`, resolved via `GET /v1/help/{helpId}`) with every DTO field from §18's list mapped to a concrete MSC 1 field, is in `docs/msc2/api-contract/helpid-contract.md`. Diagram format and cross-version content degradation remain genuinely open — not addressed by this addendum.
+
 ---
 
 ## D-027 — The CurseForge manual-download workflow has no home once agent and client are different machines

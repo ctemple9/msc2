@@ -740,7 +740,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Contract-freeze prerequisites
 
 ### P2.1 — Validate the D-019 permission-category vocabulary against all 88 baseline routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/permission-vocabulary.csv`, `docs/msc2/msc2-decisions.md` (amend D-019)
 **What:** D-019 names four permission categories MSC 1 enforces (`players`, `settings`, `worlds`, `mods`) but notes "the current category vocabulary has not been validated against all 87 routes" (now 88 per P0.30). Read the actual enforcement in `RemoteAPIServer+HTTP.swift`'s dispatcher and record, per route, which category (or categories) it actually requires — not an assumption from the route's name. Several routes plainly need a fifth bucket the existing four don't cover (`/users*`, `/health/repair`, `/files*` — administrative/owner-only, not any of `players`/`settings`/`worlds`/`mods`); record that gap plainly rather than forcing a fit. Amend D-019 with the outcome — either "four categories confirmed sufficient" or a proposed fifth (`admin`) category — still **Proposed**, pending Cameron's confirmation, not silently promoted to Approved.
 **Verify:** `python3 -c "import csv;print(len(list(csv.DictReader(open('docs/msc2/api-contract/permission-vocabulary.csv')))))"` → `88`
@@ -748,7 +748,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.2 — Decide the educational content format and the `helpId` contract shape
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/helpid-contract.md`, `docs/msc2/msc2-decisions.md` (amend D-026)
 **What:** D-026 leaves open "content format" and "embedded vs on-disk," flagging both as real product-shape calls. Recommend Markdown with YAML front-matter (the doc's own "obvious candidate") and embedding content in the agent binary (via `rust-embed` or `include_str!`) for v1 — guarantees the handbook is always present, matching the product promise that help never requires a separate download; on-disk override can be added later if hot-editing content without a release turns out to matter. Record both as **Proposed**, explicitly flagged for Cameron to confirm or overrule during the Read move — this is exactly the kind of call CLAUDE.md says not to make silently. Define the `helpId` shape precisely: a dotted-namespace string (`settings.difficulty`, `health.tick-lag`, `diagnostics.crash.forge-dep`), resolved via a new `GET /v1/help/{helpId}` route. Enumerate every DTO field `msc2-engineering.md` §18 names as needing one (settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings) so P2.8 knows exactly where to attach it.
 **Verify:** `grep -c 'helpId' docs/msc2/api-contract/helpid-contract.md` → non-zero; `grep -c '^## D-026' docs/msc2/msc2-decisions.md` → `1` (confirms this amends the existing entry rather than duplicating it)

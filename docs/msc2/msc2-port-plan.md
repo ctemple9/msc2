@@ -85,7 +85,7 @@ Server identity, flavors, version comparison, Java policy, property models, comm
 
 Per-domain Swift extraction happens immediately ahead of each translation.
 
-**Exit criteria:** Rust passes the Phase 0 pure fixtures. No user files touched.
+**Exit criteria:** Rust passes the Phase 1-scoped Phase 0 pure fixtures, plus Phase 1 characterization fixtures. No user files touched.
 
 ### Phase 2 — API contract and operation model
 

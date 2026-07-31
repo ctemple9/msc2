@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.15 awaiting verification
-> **Next move:** VERIFY (Cameron runs P1.15's Verify commands, then REVIEW can begin — this is the phase's own gate check)
+> ## STATUS: Phase 1 complete — Phase 2 not yet planned
+> **Next move:** PLAN (an agent writes the Phase 2 step list into this file; no code)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-31
 
@@ -51,7 +51,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 |---|---|---|
 | **Setup** | Repo, docs, agent instructions, CI, editor config | complete |
 | **0** | Freeze the baseline and build the harness | complete |
-| 1 | Domain types and pure rules | **planned** |
+| 1 | Domain types and pure rules | complete |
 | 2 | API contract and operation model | not started |
 | 3 | Safety substrate | not started |
 | 4 | Java lifecycle vertical slice | not started |
@@ -699,7 +699,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Phase exit
 
 ### P1.15 — Phase 1 exit gate check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** none (verification only)
 **What:** Run every Phase 1 domain together and confirm the crate stays clean: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and the full `cargo nextest run -p msc-domain` suite (every domain from P1.3–P1.14 in one run). Confirm `msc-domain` still carries no I/O dependency, per its module-boundary rule — check its `Cargo.toml` pulls in no filesystem/network/process crates. This checks the port plan's own Phase 1 exit criteria verbatim: "Rust passes the Phase 0 pure fixtures. No user files touched."
 **Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run -p msc-domain` → all green; then `grep -E '^\s*(tokio|reqwest|std::fs|walkdir|notify)' crates/msc-domain/Cargo.toml` → no matches
@@ -711,6 +711,36 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-07-31 — Codex Phase 1 review: gate holds; tighten gate wording
+
+Codex reviewed Phase 1 as a gate check, not a step-compliance check, and did not
+implement this phase. The Phase 1 gate in `msc2-port-plan.md` is: "Rust passes
+the Phase 0 pure fixtures. No user files touched." The gate holds under the
+Phase 1-scoped interpretation already written in this plan: Phase 1 intentionally
+ports only domain types and pure rules, while API, network-safety, config,
+provisioning, and modpack fixtures remain assigned to later phases.
+
+Evidence checked: `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run -p msc-domain` passed, with `190 tests run: 190 passed`; all Phase 1 fixture directories validated with their expected counts; `msc-domain` has only `regex` as a runtime dependency; a source scan found no filesystem, process, or network APIs in `crates/msc-domain/src`; and the Phase 1 changed-file set is limited to repo code, fixtures, docs, and CI, not user/server data paths.
+
+No product or architecture drift from the vision was found. Phase 1 stayed aligned
+with the Rust domain boundary, the no-I/O rule, MSC 1-derived fixtures, and
+D-026's requirement that the router matcher, fallback resolver, composer,
+troubleshooting engine, and runtime resolver are executable behavior.
+
+No earlier phase needs amending. One wording amendment is recommended before the
+next review: change the port-plan Phase 1 exit criterion from "Rust passes the
+Phase 0 pure fixtures" to "Rust passes the Phase 1-scoped Phase 0 pure fixtures,
+plus Phase 1 characterization fixtures." This removes an ambiguity without
+changing the actual phase boundary.
+
+Later phases should audit the deferred fixture domains where the ledger and
+rolling plan already place them: Phase 2 API contract and `helpId`; Phase 3
+network-safety and Java runtime filesystem discovery/normalization; Phase 5/6
+worlds and backups rollback/verification; Phase 7 args-file and headless launch
+behavior; Phase 8 modpack, client-only, pinning, pack-managed, and D-027
+CurseForge manual-download behavior; and the full router guide/content migration
+against the Phase 1 engines.
 
 ### 2026-07-31 — P0.32 fixed the typed-failure schemas, with one known simplification
 

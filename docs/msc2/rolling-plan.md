@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.9 awaiting verification
-> **Next move:** VERIFY (Cameron runs P1.9's Verify commands, then EXECUTE continues with P1.10)
+> ## STATUS: Phase 1 in progress — P1.9 DONE, P1.10 next
+> **Next move:** EXECUTE P1.10 (characterize and port the router matcher)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-31
 
@@ -641,7 +641,7 @@ Both files below have **no MSC 1 test file** — nothing to extract. Per `fixtur
 **Batch:** solo
 
 ### P1.9 — Characterize and port the command catalog
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/command-catalog/`, `crates/msc-domain/src/commands.rs`, `crates/msc-domain/tests/command_catalog.rs`, `crates/msc-domain/src/lib.rs`
 **What:** `MinecraftCommandRegistry.swift` (542 lines, 42 command definitions). Two things characterized: (1) the static catalog's `commands(for:)` Java/Bedrock filter — 2 fixtures asserting the exact filtered name list per `ServerType` (41 of 42 for Java, excluding only `allowlist`; 29 of 42 for Bedrock), not a re-typed copy of all 42 definitions; (2) the autocomplete engine, `suggestions(for:serverType:onlinePlayers:)` — 16 fixtures covering command-name-prefix completion (plain, leading-`/`, case-insensitive, the 6-item cap, no-match, and gated by `commands(for:)`'s own server-type filter), the empty-input and unknown-command-name `[]` cases, player-name filtering against a fake online-player list (partial-prefix, case-insensitive, 6-item cap), keyword-option filtering, coordinates/integer/free-text slots never suggesting anything, and argument-slot detection including the "input ends with a space starts a new slot" behavior — which turned out to hide a genuine off-by-one in MSC 1's own source (`tokens.dropFirst()` still contains the trailing empty token a trailing-space split leaves behind, so `slotIndex` lands one slot later than a reader would expect right after typing `"cmd "`; three fixtures pin the three ways this plays out). Every expected value, including the off-by-one cases, was confirmed by running a standalone copy of the literal Swift source through `swift` (not hand-derived) before writing the fixture, since this particular quirk is easy to get wrong by inspection alone. `description`, `category` (`icon`/`color`), and each argument slot's `label` are client-rendering (port plan §1's deletion test) and are not ported; `CommandArgSlot`'s `.coordinates`/`.integer`/`.freeText` cases collapse into one `ArgSlotKind::Other` in Rust since `suggestions` treats all three identically. `commands_for`/`suggestions` reuse `identity::ServerType` rather than inventing a second one.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/command-catalog --expect 18` → `ok 18`; then `cargo nextest run -p msc-domain command_catalog` → `18 tests run: 18 passed`

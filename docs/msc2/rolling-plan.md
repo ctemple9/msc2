@@ -318,7 +318,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23: build API baseline schema-depth checker script`
 
 ### P0.23a — API baseline: `servers` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `servers/{create,import,delete,rename,eula}` routes, read from the relevant `RemoteAPIServer*.swift` file(s) and `RemoteAPIServerDTOs.swift`. Behavior as MSC 1 has it, not aspirational.
 **Verify:** `python3 tools/api-baseline-check.py servers` → `ok 5`
@@ -332,126 +332,126 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.30: add the 24 API baseline routes missed by the route-family steps`
 
 ### P0.23c — API baseline: `worlds` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `worlds/{create,rename,replace,repair,activate}` routes.
 **Verify:** `python3 tools/api-baseline-check.py worlds` → `ok 5`
 **Commit:** `P0.23c: add worlds API baseline routes`
 
 ### P0.23d — API baseline: `components` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `components/{install,remove,update,version}` routes.
 **Verify:** `python3 tools/api-baseline-check.py components` → `ok 4`
 **Commit:** `P0.23d: add components API baseline routes`
 
 ### P0.23e — API baseline: `backups` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `backups/{now,restore,config}` routes.
 **Verify:** `python3 tools/api-baseline-check.py backups` → `ok 3`
 **Commit:** `P0.23e: add backups API baseline routes`
 
 ### P0.23f — API baseline: `config` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `config/{ram,java-runtime,geyser}` routes.
 **Verify:** `python3 tools/api-baseline-check.py config` → `ok 3`
 **Commit:** `P0.23f: add config API baseline routes`
 
 ### P0.23g — API baseline: `users` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `users/{create,update,revoke}` routes.
 **Verify:** `python3 tools/api-baseline-check.py users` → `ok 3`
 **Commit:** `P0.23g: add users API baseline routes`
 
 ### P0.23h — API baseline: `health/repair` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `health/repair` route.
 **Verify:** `python3 tools/api-baseline-check.py health` → `ok 1`
 **Commit:** `P0.23h: add health/repair API baseline route`
 
 ### P0.23i — API baseline: `playit` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `playit/*` routes. MSC 1's docs don't state an exact sub-route count for this family — read it straight from the source instead of assuming one.
 **Verify:** `python3 tools/api-baseline-check.py playit` → `ok 3` (recorded from the live source: GET /playit, POST /playit/start, POST /playit/stop — not an assumed number)
 **Commit:** `P0.23i: add playit API baseline routes`
 
 ### P0.23j — API baseline: `broadcast` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `broadcast/*` routes. Sub-route count not stated in the docs — read it from the source.
 **Verify:** `python3 tools/api-baseline-check.py broadcast` → `ok 10` (recorded from the live source, not an assumed number)
 **Commit:** `P0.23j: add broadcast API baseline routes`
 
 ### P0.23k — API baseline: `resourcepacks` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `resourcepacks/*` routes. Sub-route count not stated in the docs — read it from the source.
 **Verify:** `python3 tools/api-baseline-check.py resourcepacks` → `ok 5` (recorded from the live source, not an assumed number)
 **Commit:** `P0.23k: add resourcepacks API baseline routes`
 
 ### P0.23l — API baseline: `watchdog` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `watchdog/*` routes. Sub-route count not stated in the docs — read it from the source.
 **Verify:** `python3 tools/api-baseline-check.py watchdog` → `ok 3` (recorded from the live source, not an assumed number)
 **Commit:** `P0.23l: add watchdog API baseline routes`
 
 ### P0.23m — API baseline: `command` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `command` route.
 **Verify:** `python3 tools/api-baseline-check.py command` → `ok 1`
 **Commit:** `P0.23m: add command API baseline route`
 
 ### P0.23n — API baseline: `start` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `start` route.
 **Verify:** `python3 tools/api-baseline-check.py start` → `ok 1`
 **Commit:** `P0.23n: add start API baseline route`
 
 ### P0.23o — API baseline: `stop` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `stop` route.
 **Verify:** `python3 tools/api-baseline-check.py stop` → `ok 1`
 **Commit:** `P0.23o: add stop API baseline route`
 
 ### P0.23p — API baseline: `allowlist` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `allowlist` route.
 **Verify:** `python3 tools/api-baseline-check.py allowlist` → `ok 1`
 **Commit:** `P0.23p: add allowlist API baseline route`
 
 ### P0.23q — API baseline: `players` routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `players/*` routes. Sub-route count not stated in the docs — read it from the source.
 **Verify:** `python3 tools/api-baseline-check.py players` → `ok 4` at the time (recorded from the live source, not an assumed number). Now `ok 5` — P0.30 added the fifth, `GET /players/{profileId}/skin`, which this wildcard family's own `players/` prefix also matches. Non-breaking (wildcard families only assert count > 0), noted for anyone re-running this line and expecting the original 4.
 **Commit:** `P0.23q: add players API baseline routes`
 
 ### P0.23r — API baseline: `duckdns` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `duckdns` route.
 **Verify:** `python3 tools/api-baseline-check.py duckdns` → `ok 1`
 **Commit:** `P0.23r: add duckdns API baseline route`
 
 ### P0.23s — API baseline: `templates` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `templates` route. This is the last family step; once it lands, the full file should contain all 87 routes MSC 1 exposes today (49 POST + 38 GET, per `msc2-engineering.md` §5) — worth a final sanity check with `python3 tools/api-baseline-check.py --total` (a mode the P0.23 script also provides) alongside this step's own depth check, since no single family step asserts the grand total.
 **Verify:** `python3 tools/api-baseline-check.py templates` → `ok 1`
 **Commit:** `P0.23s: add templates API baseline route`
 
 ### P0.24 — Capture the WebSocket event schema
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/websocket-events.json`
 **What:** MSC 1 has exactly one real-time WebSocket channel, not six — read from `RemoteAPIServer+WebSocket.swift`, the upgrade dispatch in `RemoteAPIServer+HTTP.swift`, and `consoleBuffer`/broadcast in `RemoteAPIServer.swift`. Document `console` (`/console/stream`): the RFC 6455 upgrade handshake (Sec-WebSocket-Key → accept key); auth (the same Bearer-token check as every HTTP route — any authenticated role may connect, no extra permission gate on the GET); the `ConsoleLineDTO` payload (`ts`, `source`, `level?`, `text`), one per text frame; the bounded-history-then-live delivery model (200-line backfill via `tailConsoleLines(n: 200)` sent immediately on connect, then live lines as they arrive); the 5000-line ring buffer (`consoleBufferLimit`) console history is capped at; ping/pong/close frame handling; the 64 KB inbound frame cap (`maxWebSocketClientFrameBytes`); and why inbound text frames are intentionally ignored (one-way — the server never executes WS-received text as a command). `status`/`operation progress`/`players`/`notifications`/`metrics` are **not** WebSocket channels in MSC 1 — those are HTTP-polled (`GET /status`, `GET /players`, etc.). The "six channels" language in `msc2-engineering.md` §5 describes MSC 2's intended design, not MSC 1's baseline; per D-006 the api-baseline captures MSC 1 as it is, and extensions are designed in Phase 2, not invented here. See the Amendments log.
 **Verify:** `python3 -c "import json;d=json.load(open('docs/msc2/api-baseline/websocket-events.json'));print(len(d['channels']))"` → `1`
@@ -462,28 +462,28 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ### Symbol ledger
 
 ### P0.25 — Symbol ledger schema and UI density scanner
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/audit/symbol-ledger-format.md`, `tools/symbol-scan/scan.py`
 **What:** Define the ledger's columns (`file`, `bucket`, `symbol`, `kind` [parser/policy/workflow], `disposition` [agent/client], `target_domain`, `source_line`, `notes`) — one row per agent-owned symbol found inside a Mixed or UI file, per D-016. Build the density scanner the reconciliation audit already used (`msc2-audit-reconciliation.md`, "D1 — The Mixed bucket"): grep MSC 1's UI-bucket files (`msc2-codex-file-inventory.csv`, `bucket=ui`) for `FileManager`, `Process(`, `URLSession`, `func parse*/detect*/validate*/resolve*`, `JSONDecoder`, string-range extraction, and rank by hit count, output one file per line sorted by hit count descending. This is a live scan, not a check against the reconciliation doc's earlier count of 15 — that count may be stale, so whatever the scan finds is the number, and P0.27 records it rather than assuming 15.
 **Verify:** `python3 tools/symbol-scan/scan.py --bucket ui --min-hits 3 "$HOME/Documents/Swift Projects/minecraft-server-controller"` → a ranked, non-empty file list; note the count shown
 **Commit:** `P0.25: build symbol ledger schema and UI density scanner`
 
 ### P0.26 — Populate the ledger: Mixed-bucket files
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`
 **What:** For every file Codex's reconciled inventory marks `bucket=mixed` (59 files, `msc2-codex-file-inventory.csv`), open it in MSC 1 and add one ledger row per parser/policy/workflow symbol, using the deletion test in `msc2-port-plan.md` §1 to decide agent vs. client. A file with genuinely nothing to extract still gets one row saying so — coverage must be provable, not assumed. 293 rows across all 59 files (one file, `AppViewModel+FinderTools.swift`, had nothing to extract and got the single `(none)` row the coverage rule requires).
 **Verify:** `python3 -c "import csv;rows=list(csv.DictReader(open('docs/msc2/audit/msc2-symbol-ledger.csv')));print(len({r['file'] for r in rows if r['bucket']=='mixed'}))"` → `59`
 **Commit:** `P0.26: populate the symbol ledger for mixed-bucket files`
 
 ### P0.26a — Symbol ledger bucket-count checker script
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/symbol-ledger-check.py`
 **What:** A dependency-free Python script, `tools/symbol-ledger-check.py <bucket> --scan-source <path>`, used as P0.27's Verify command. It counts unique `file` values in `docs/msc2/audit/msc2-symbol-ledger.csv` for the given `bucket`, re-runs P0.25's scanner (`tools/symbol-scan/scan.py --bucket ui --min-hits 3`) against `--scan-source`, asserts the two counts match exactly, and prints `ok <n>` — so the check stays live against whatever the scanner currently finds, never a number frozen in the plan. Ships with a `--selftest` mode against two bundled temp CSVs (one matching, one deliberately short a row) so it's checkable before the real ledger or a scan source exists.
 **Verify:** `python3 tools/symbol-ledger-check.py --selftest` → `pass=0` then `fail=1`
 **Commit:** `P0.26a: build symbol ledger bucket-count checker script`
 
 ### P0.27 — Populate the ledger: flagged UI files
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`
 **What:** For every file P0.25's scanner actually flagged at ≥3 hits (includes the already-known `OverviewChatCardView.swift` console parser — but don't assume the reconciliation doc's earlier count of 15 still holds, since the source may have moved since that doc was written), open it and add ledger rows the same way. This is what turns "static scanning flags candidates" into an actual disposition record instead of a hunch. The live scan found 4 files, not 15 — `OverviewChatCardView.swift` is no longer among them because Codex's reconciled inventory already reclassifies it as `bucket=mixed` (covered under P0.26 instead). The 4 actually flagged: `CurseForgeManualDownloadSheet.swift`, `DetailsComponentsTabView.swift`, `ServerEditorJarsTab.swift`, `RouterPortForwardGuideReader.swift`.
 **Verify:** `python3 tools/symbol-ledger-check.py ui-flagged --scan-source "$HOME/Documents/Swift Projects/minecraft-server-controller"` → `ok <n>` (live count, not fixed)

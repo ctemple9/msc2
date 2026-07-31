@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.7 DONE, P1.8 next
-> **Next move:** EXECUTE P1.8 (characterize and port server identity & flavors)
+> ## STATUS: Phase 1 in progress — P1.8 awaiting verification
+> **Next move:** VERIFY (Cameron runs P1.8's Verify commands, then EXECUTE continues with P1.9)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -633,10 +633,10 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 Both files below have **no MSC 1 test file** — nothing to extract. Per `fixture-format.md`, `expected` values still may not be invented; they come from reading the source's closed, deterministic logic directly (every case is enumerable by inspection) — the same evidentiary standard `fixture-format.md` calls "MSC 1 run by hand" for untested pure functions. `source.test` in each new fixture should name the property or method being characterized, not a fabricated Swift test name.
 
 ### P1.8 — Characterize and port server identity & flavors
-**Status:** not started
-**Files:** `fixtures/server-identity/`, `crates/msc-domain/src/identity.rs`, `crates/msc-domain/tests/server_identity.rs`
-**What:** `ServerType` (`java`/`bedrock`, `AppConfig.swift`) and `JavaServerFlavor` (`JavaServerFlavor.swift`, 246 lines, 9 cases: `paper, purpur, pufferfish, vanilla, fabric, neoforge, spigot, forge, quilt`). Write fixtures covering, per flavor: `category`, `isForgeFamily`, `addOnKind`, `provisioningKind`, `modrinthProjectType`, `modrinthLoaderFacets`, `autoTpsCommand`, `isRecommended`, `isAvailableInCreateFlow` — one case per flavor bundling all nine. Add boundary cases for `tpsPollCommand(minecraftVersion:)` / `supportsVanillaTickQuery` around the 1.20.3 threshold (below, exactly at, above, and nil/empty version), and one case per `JavaServerCategory` for `createFlowChoices`. `displayName`, `shortDescription`, and `iconName` are client-rendering per the port plan's deletion test (§1) and are not ported. This is judgment work with a new fixture domain — cross-check the finished fixture set against `JavaServerFlavor.swift` line by line before wiring the Rust port.
-**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/server-identity --expect <n>` → `ok <n>` (count fixed once the fixtures are written — roughly 9 property-bundle cases + ~5 TPS-threshold cases + 2 `createFlowChoices` cases); then `cargo nextest run -p msc-domain server_identity` → `<n> tests run: <n> passed`
+**Status:** awaiting verification
+**Files:** `fixtures/server-identity/`, `crates/msc-domain/src/identity.rs`, `crates/msc-domain/tests/server_identity.rs`, `crates/msc-domain/src/version.rs` (two helpers bumped to `pub(crate)` for reuse), `crates/msc-domain/src/lib.rs`
+**What:** `ServerType` (`java`/`bedrock`, `AppConfig.swift`) and `JavaServerFlavor` (`JavaServerFlavor.swift`, 246 lines, 9 cases: `paper, purpur, pufferfish, vanilla, fabric, neoforge, spigot, forge, quilt`). Wrote fixtures covering, per flavor: `category`, `isForgeFamily`, `addOnKind`, `provisioningKind`, `modrinthProjectType`, `modrinthLoaderFacets`, `autoTpsCommand`, `isRecommended`, `isAvailableInCreateFlow` — one case per flavor bundling all nine (9 fixtures). Boundary cases for `tpsPollCommand(minecraftVersion:)` / `supportsVanillaTickQuery` around the 1.20.3 threshold — below (1.20.2), exactly at (1.20.3), above (1.20.10, the doc comment's own example), nil, and empty string (5 fixtures). One case per `JavaServerCategory` for `createFlowChoices` (2 fixtures). 16 fixtures total. `displayName`, `shortDescription`, and `iconName` are client-rendering per the port plan's deletion test (§1) and are not ported; `ServerType` has no computed property beyond the excluded `displayName`, so it carries no fixture of its own. `ServerProvisioningKind` and `AddOnKind` aren't `: String` in Swift (no `rawValue`), so their Rust `raw_value()` wire tokens (`download_and_go`/`install_step`, `plugin`/`mod`) are invented for this port, not pulled from source. `supports_vanilla_tick_query`'s numeric compare reuses `version.rs`'s `parse_components`/`compare_components` (bumped from private to `pub(crate)`) rather than re-implementing dotted-integer comparison.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/server-identity --expect 16` → `ok 16`; then `cargo nextest run -p msc-domain server_identity` → `16 tests run: 16 passed`
 **Commit:** `P1.8: characterize and port server identity & flavors`
 **Batch:** solo
 

@@ -1,0 +1,27 @@
+{
+  "domain": "server-identity",
+  "case": "quilt-property-bundle",
+  "source": {
+    "file": "JavaServerFlavor.swift",
+    "test": "category/isForgeFamily/addOnKind/provisioningKind/modrinthProjectType/modrinthLoaderFacets/autoTpsCommand/isRecommended/isAvailableInCreateFlow",
+    "line": 75
+  },
+  "input": {
+    "flavor": "quilt"
+  },
+  "expected": {
+    "category": "modded",
+    "isForgeFamily": false,
+    "addOnKind": "mod",
+    "provisioningKind": "download_and_go",
+    "modrinthProjectType": "mod",
+    "modrinthLoaderFacets": [
+      "quilt",
+      "fabric"
+    ],
+    "autoTpsCommand": null,
+    "isRecommended": false,
+    "isAvailableInCreateFlow": false
+  },
+  "notes": "Bundles nine JavaServerFlavor computed properties for this one case, read directly from JavaServerFlavor.swift lines 118-238 (category:118, isForgeFamily:130, addOnKind:134, provisioningKind:143, modrinthProjectType:151, modrinthLoaderFacets:157, autoTpsCommand:188, isRecommended:230, isAvailableInCreateFlow:233). No MSC 1 test exists; each expected value is the enumerable, deterministic output of the corresponding switch, verified by hand against source."
+}

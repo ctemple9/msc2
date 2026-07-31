@@ -1,0 +1,24 @@
+{
+  "domain": "server-identity",
+  "case": "vanilla-property-bundle",
+  "source": {
+    "file": "JavaServerFlavor.swift",
+    "test": "category/isForgeFamily/addOnKind/provisioningKind/modrinthProjectType/modrinthLoaderFacets/autoTpsCommand/isRecommended/isAvailableInCreateFlow",
+    "line": 75
+  },
+  "input": {
+    "flavor": "vanilla"
+  },
+  "expected": {
+    "category": "standard",
+    "isForgeFamily": false,
+    "addOnKind": null,
+    "provisioningKind": "download_and_go",
+    "modrinthProjectType": "plugin",
+    "modrinthLoaderFacets": [],
+    "autoTpsCommand": null,
+    "isRecommended": false,
+    "isAvailableInCreateFlow": true
+  },
+  "notes": "Bundles nine JavaServerFlavor computed properties for this one case, read directly from JavaServerFlavor.swift lines 118-238 (category:118, isForgeFamily:130, addOnKind:134, provisioningKind:143, modrinthProjectType:151, modrinthLoaderFacets:157, autoTpsCommand:188, isRecommended:230, isAvailableInCreateFlow:233). No MSC 1 test exists; each expected value is the enumerable, deterministic output of the corresponding switch, verified by hand against source. Note the modrinthProjectType/addOnKind divergence preserved verbatim from source: modrinthProjectType derives from category alone (\"plugin\"), while addOnKind is nil \u2014 Vanilla has no add-on catalog despite category-derived modrinthProjectType saying \"plugin\"."
+}

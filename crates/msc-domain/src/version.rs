@@ -102,7 +102,10 @@ pub fn is_downgrade(current: Option<&str>, target: &str) -> bool {
     compare_components(&tv, &cv) == std::cmp::Ordering::Less
 }
 
-fn parse_components(s: &str) -> Option<Vec<i64>> {
+/// `pub(crate)`: reused by `identity.rs`'s `supports_vanilla_tick_query`,
+/// which needs the same dotted-integer numeric compare Swift's
+/// `.compare(_:options:.numeric)` performs.
+pub(crate) fn parse_components(s: &str) -> Option<Vec<i64>> {
     let parts = split_omitting_empty(s, '.');
     if parts.is_empty() {
         return None;
@@ -110,7 +113,7 @@ fn parse_components(s: &str) -> Option<Vec<i64>> {
     parts.iter().map(|p| p.parse::<i64>().ok()).collect()
 }
 
-fn compare_components(a: &[i64], b: &[i64]) -> std::cmp::Ordering {
+pub(crate) fn compare_components(a: &[i64], b: &[i64]) -> std::cmp::Ordering {
     let count = a.len().max(b.len());
     for i in 0..count {
         let av = a.get(i).copied().unwrap_or(0);

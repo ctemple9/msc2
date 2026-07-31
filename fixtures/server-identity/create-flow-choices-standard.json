@@ -1,0 +1,20 @@
+{
+  "domain": "server-identity",
+  "case": "create-flow-choices-standard",
+  "source": {
+    "file": "JavaServerFlavor.swift",
+    "test": "createFlowChoices(in:)",
+    "line": 241
+  },
+  "input": {
+    "category": "standard"
+  },
+  "expected": {
+    "choices": [
+      "paper",
+      "purpur",
+      "vanilla"
+    ]
+  },
+  "notes": "allCases order for standard is paper, purpur, pufferfish, vanilla, spigot; pufferfish and spigot are filtered out by isAvailableInCreateFlow. Stable sort keeps paper first (isRecommended), then purpur/vanilla in their original relative order."
+}

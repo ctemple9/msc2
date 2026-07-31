@@ -1,0 +1,27 @@
+{
+  "domain": "server-identity",
+  "case": "tps-poll-command-below-threshold",
+  "source": {
+    "file": "JavaServerFlavor.swift",
+    "test": "tpsPollCommand(minecraftVersion:)/supportsVanillaTickQuery",
+    "line": 209
+  },
+  "input": {
+    "minecraftVersion": "1.20.2"
+  },
+  "expected": {
+    "supportsVanillaTickQuery": false,
+    "tpsPollCommand": {
+      "paper": "tps",
+      "purpur": "tps",
+      "pufferfish": "tps",
+      "spigot": "tps",
+      "forge": "forge tps",
+      "neoforge": "neoforge tps",
+      "vanilla": null,
+      "fabric": null,
+      "quilt": null
+    }
+  },
+  "notes": "Characterizes tpsPollCommand(minecraftVersion:) (line 209) and supportsVanillaTickQuery (line 223) together: native-TPS flavors (paper/purpur/pufferfish/spigot/forge/neoforge) return their autoTpsCommand unconditionally, version-independent; vanilla/fabric/quilt depend on the 1.20.3 numeric-compare threshold. 1.20.2 is one patch below the threshold."
+}

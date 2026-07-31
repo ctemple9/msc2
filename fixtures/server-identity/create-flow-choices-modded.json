@@ -1,0 +1,20 @@
+{
+  "domain": "server-identity",
+  "case": "create-flow-choices-modded",
+  "source": {
+    "file": "JavaServerFlavor.swift",
+    "test": "createFlowChoices(in:)",
+    "line": 241
+  },
+  "input": {
+    "category": "modded"
+  },
+  "expected": {
+    "choices": [
+      "fabric",
+      "neoforge",
+      "forge"
+    ]
+  },
+  "notes": "allCases order for modded is fabric, neoforge, forge, quilt; quilt is filtered out by isAvailableInCreateFlow. Stable sort keeps fabric first (isRecommended), then neoforge/forge in their original relative order."
+}

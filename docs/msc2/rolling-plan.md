@@ -29,7 +29,17 @@ Every step looks like this:
 **Commit:** P0.3: extract TPS parser fixtures        <- the message, not a hash
 ```
 
+Every step also carries a **Batch:** field, telling an agent whether it may be run unattended:
+
+| Batch value | Meaning |
+|---|---|
+| `safe` | Mechanical, and its Verify is a script Cameron has already reviewed. Batch freely. |
+| `stop-after` | Runnable in a batch, but the batch **ends here** — the result needs looking at before continuing. |
+| `solo` | Judgment work or a new checker script. Run it alone. Its output needs a cross-check by the other agent before the phase closes. |
+
 **Status is only moved to DONE by Cameron**, after he runs the Verify command himself. An agent may set it to *awaiting verification* and stop.
+
+**A step whose Verify only counts things is `stop-after` at best.** Counting proves something exists, not that it is right.
 
 ---
 

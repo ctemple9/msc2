@@ -36,6 +36,39 @@ Work proceeds one phase at a time. Each phase runs through six moves, and **each
 
 Two agents work on this repo: **Claude Code** and **Codex**. Whoever implements a phase does not review it.
 
+## Modes
+
+Every prompt names one of these. Do only the named mode.
+
+| Mode | You do |
+|---|---|
+| **PLAN** | Write the step list into `rolling-plan.md`. No code. Stop. |
+| **EXECUTE** | One step. Work, verify, commit, stop. |
+| **BATCH EXECUTE** | A named range of steps. Same rules per step, run in order. **Run each step's own Verify yourself before moving on. If one fails, STOP** — do not work around it. Never batch past the range given. |
+| **REVIEW** | Check the phase gate. Report only, fix nothing. |
+| **CROSS-CHECK** | Audit another agent's work against MSC 1 source. Report only. |
+
+## Asking Cameron a question
+
+Cameron is not a Rust or Swift developer. He owns the product and every decision; he cannot read code to adjudicate one. When you need his call, **never** hand him a bare list of symbol names.
+
+Each question gets this shape, in plain language:
+
+```
+QUESTION n — <plain-English title>
+
+What it is:      what this code does, in Minecraft/product terms
+The choice:      option A vs option B, in one sentence each
+Why it matters:  what changes downstream depending on the answer
+If unsure:       your recommendation and why
+```
+
+Rules:
+- No jargon without a plain-English gloss on first use.
+- Never say "needs your call" without saying what the call changes.
+- If a question doesn't affect anything Cameron would notice, decide it yourself, record the reasoning, and list it under "decided for you" instead of asking.
+- Group related questions. Thirteen questions is usually three questions.
+
 ## Hard rules
 
 1. **Do only the move you were asked to do.** Planning means planning — no code. Reviewing means reporting — no fixes.

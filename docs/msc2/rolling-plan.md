@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.7 done, awaiting verification (batch stop-after)
-> **Next move:** VERIFY (Cameron runs P1.6/P1.7's Verify commands, then EXECUTE continues with P1.8)
+> ## STATUS: Phase 1 in progress — P1.7 DONE, P1.8 next
+> **Next move:** EXECUTE P1.8 (characterize and port server identity & flavors)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -611,7 +611,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** stop-after
 
 ### P1.6 — Port property models
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/properties.rs`, `crates/msc-domain/src/settings_schema.rs`, `crates/msc-domain/tests/server_properties.rs`, `crates/msc-domain/tests/settings_schema.rs`
 **What:** Port `ServerPropertiesModel` (`ServerPropertiesModelTests.swift` origin, `fixtures/server-properties/` — the unknown-key-preserving round trip `msc2-engineering.md` §7 names directly: "silently rewriting `server.properties` with only the recognized keys is destructive") and the settings schema (`ServerSettingsSchemaTests.swift` origin, `fixtures/settings-schema/` — type coercion, range clamping, the level-type wire-token mapping, case-insensitive enums). Two modules, each wired to its own fixture directory.
 **Verify:** `cargo nextest run -p msc-domain server_properties` → `7 tests run: 7 passed`; then `cargo nextest run -p msc-domain settings_schema` → `16 tests run: 16 passed`
@@ -619,7 +619,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** safe
 
 ### P1.7 — Port crash analysis and slug normalization
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/crash_analysis.rs`, `crates/msc-domain/src/slug.rs`, `crates/msc-domain/tests/connector_crash_analysis.rs`, `crates/msc-domain/tests/startup_crash_analyzer.rs`
 **What:** Port `StartupCrashAnalyzer` (`ConnectorCrashAnalysisTests.swift` + `StartupCrashAnalyzerTests.swift` origins — Forge dependency-block parsing, connector entrypoint failure attribution, Fabric/Forge missing- and wrong-dependency-version attribution) and `ModrinthSlugNormalizer` (`canonicalSlug` / `normalizedSlug` / `isKnownAlias`). MSC 1 has no separate test file for the normalizer — it doesn't need new characterization, because 4 of the 11 `connector-crash-analysis` fixtures already exercise it directly (MSC 1's own test file bundles the two together). `searchQuery`, the normalizer's one method with no fixture of its own, is a one-line wrapper (`canonical.isEmpty ? raw : canonical`) — port it as part of `slug.rs` but don't invent a fixture for a wrapper the existing 4 already cover the substance of.
 **Verify:** `cargo nextest run -p msc-domain connector_crash_analysis` → `11 tests run: 11 passed`; then `cargo nextest run -p msc-domain startup_crash_analyzer` → `7 tests run: 7 passed`

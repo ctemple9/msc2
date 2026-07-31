@@ -42,7 +42,7 @@ Every prompt names one of these. Do only the named mode.
 
 | Mode | You do |
 |---|---|
-| **PLAN** | Write the step list into `rolling-plan.md`. No code. Stop. |
+| **PLAN** | Write the step list into `rolling-plan.md`. No code. Stop. **Every step must carry all five fields: Status, Files, What, Verify, Batch.** A step without a `Batch:` value is incomplete — a later batch run has no way to know where to stop. |
 | **EXECUTE** | One step. Work, verify, commit, stop. |
 | **BATCH EXECUTE** | A named range of steps. Same rules per step, run in order. **Run each step's own Verify yourself before moving on. If one fails, STOP** — do not work around it. Never batch past the range given. |
 | **REVIEW** | Check the phase gate. Report only, fix nothing. |

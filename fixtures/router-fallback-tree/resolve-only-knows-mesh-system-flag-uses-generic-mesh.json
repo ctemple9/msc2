@@ -1,0 +1,38 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-only-knows-mesh-system-flag-uses-generic-mesh",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": true,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "genericMeshGuide",
+    "availability": "familyMatch",
+    "matchedGuideId": "generic-mesh",
+    "fallbackGuideId": null,
+    "desiredFamily": "generic_mesh",
+    "inferredFamilies": [
+      "generic_mesh"
+    ],
+    "explanationBullets": [
+      "A mesh-specific fallback guide is available for app-managed or mesh-first systems."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [],
+    "matchedQuery": null
+  },
+  "notes": "onlyKnowsMeshSystem reaches genericMeshResolution through a *second*, later check (after the networkType switch's notSure/nil fallthrough) \u2014 same outcome shape as the networkType == meshSystem case, reached via a different guard entirely, with networkType left nil here."
+}

@@ -1,0 +1,38 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-query-exact-keyword-returns-exact-guide",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "eero",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "exactGuide",
+    "availability": "exactMatch",
+    "matchedGuideId": "eero-mesh",
+    "fallbackGuideId": null,
+    "desiredFamily": "eero",
+    "inferredFamilies": [
+      "eero"
+    ],
+    "explanationBullets": [
+      "Matched this guide because: exact keyword, keyword prefix, keyword substring, token overlap, family alias, mesh intent."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [],
+    "matchedQuery": "eero"
+  },
+  "notes": "matchedDirectGuide true and topCandidate.reasons contains \"exact keyword\" \u2192 kind exactGuide / availability exactMatch. explanationBullets' first line is built from the matcher's own reasons list (P1.10); no unsureWhetherISPOrOwnRouter or provider/device-mismatch bullet since neither condition applies to eero-mesh (providerDisplayName is nil)."
+}

@@ -1,0 +1,39 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-query-family-alias-returns-family-guide",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "comcast xfinity internet",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "familyGuide",
+    "availability": "familyMatch",
+    "matchedGuideId": "xfinity-gateway",
+    "fallbackGuideId": null,
+    "desiredFamily": "xfinity_gateway",
+    "inferredFamilies": [
+      "xfinity_gateway"
+    ],
+    "explanationBullets": [
+      "Matched this guide because: token overlap, family alias.",
+      "Provider: Xfinity / Comcast. Device family: Xfinity Gateway. Do not treat those as interchangeable."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [],
+    "matchedQuery": "comcast xfinity internet"
+  },
+  "notes": "matchedDirectGuide true via family alias (not \"exact keyword\") \u2192 kind familyGuide / availability familyMatch, not exactGuide/exactMatch. The second explanation bullet fires because xfinity-gateway's providerDisplayName (\"Xfinity / Comcast\") and deviceDisplayName (\"Xfinity Gateway\") differ case-insensitively."
+}

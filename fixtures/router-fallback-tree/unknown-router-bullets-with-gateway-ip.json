@@ -1,0 +1,23 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "unknown-router-bullets-with-gateway-ip",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "unknownRouterBullets(detectedGatewayIPAddress:)",
+    "line": 195
+  },
+  "input": {
+    "detectedGatewayIpAddress": "10.0.0.5"
+  },
+  "expected": {
+    "bullets": [
+      "Look for the model name on the sticker on the router, gateway, or mesh node.",
+      "Check which router or mesh apps are already installed on your phone or Mac.",
+      "Identify whether the ISP device or your own router is actually doing routing.",
+      "Detected gateway IP from the app: 10.0.0.5",
+      "Common gateway addresses include 192.168.1.1, 192.168.0.1, and 10.0.0.1.",
+      "Port forwarding may also be labeled NAT Forwarding, Virtual Server, Applications & Gaming, Port Rules, Firewall Rules, or Advanced NAT."
+    ]
+  },
+  "notes": "A non-blank gateway IP is inserted as a 6th bullet at index 3 (between the 'actually doing routing' bullet and the 'common gateway addresses' bullet) \u2014 the one genuinely conditional behavior in the entire tree-construction function. This is the reason unknownRouterBullets is ported with full literal text rather than excluded as prose: the bullet's presence and position *is* the tested behavior, not decoration."
+}

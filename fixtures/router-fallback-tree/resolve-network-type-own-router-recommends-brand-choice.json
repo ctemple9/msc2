@@ -1,0 +1,44 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-network-type-own-router-recommends-brand-choice",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": "own_router",
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "needsMoreInfo",
+    "availability": "fallbackUsed",
+    "matchedGuideId": null,
+    "fallbackGuideId": null,
+    "desiredFamily": null,
+    "inferredFamilies": [],
+    "explanationBullets": [
+      "Search by router brand or product line next.",
+      "Common examples include ASUS, TP-Link, Netgear, Linksys, Nighthawk, and Archer."
+    ],
+    "recommendedNextNodeId": "ownRouterBrandChoice",
+    "suggestedSearchTerms": [
+      "ASUS",
+      "TP-Link",
+      "Netgear",
+      "Linksys",
+      "Nighthawk",
+      "Archer"
+    ],
+    "matchedQuery": null
+  },
+  "notes": "networkType ownRouter always recommends ownRouterBrandChoice \u2014 no unsureWhetherISPOrOwnRouter branching on this path (that flag only affects the ispGateway case and the final unknownRouterHelp fallback)."
+}

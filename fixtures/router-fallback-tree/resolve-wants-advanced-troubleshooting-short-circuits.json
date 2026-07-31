@@ -1,0 +1,44 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-wants-advanced-troubleshooting-short-circuits",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": "mesh_system",
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": true
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "troubleshootingGuide",
+    "availability": "familyMatch",
+    "matchedGuideId": "advanced-troubleshooting",
+    "fallbackGuideId": null,
+    "desiredFamily": "advanced_troubleshooting",
+    "inferredFamilies": [
+      "advanced_troubleshooting"
+    ],
+    "explanationBullets": [
+      "Advanced troubleshooting is the right path when forwarding still fails or when the network may be blocked by double NAT, CGNAT, or ISP restrictions.",
+      "Use the advanced troubleshooting path for double NAT, CGNAT, wrong-router configuration, firewall blocks, or ISP restrictions."
+    ],
+    "recommendedNextNodeId": "advancedTroubleshooting",
+    "suggestedSearchTerms": [
+      "double NAT",
+      "CGNAT",
+      "wrong router",
+      "firewall"
+    ],
+    "matchedQuery": null
+  },
+  "notes": "wantsAdvancedTroubleshooting short-circuits resolve() before the search query or networkType (deliberately set to mesh_system here) are ever consulted \u2014 the very first check in the function, unconditional."
+}

@@ -1,0 +1,47 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-empty-state-falls-back-to-unknown-router-help",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "unknownRouterHelp",
+    "availability": "fallbackUsed",
+    "matchedGuideId": null,
+    "fallbackGuideId": "generic-router",
+    "desiredFamily": "unknown_router",
+    "inferredFamilies": [],
+    "explanationBullets": [
+      "Check the sticker on the router, gateway, or mesh node for the brand and model.",
+      "Check your phone or Mac for router apps that may already identify the brand.",
+      "Separate the provider name from the device doing routing before you continue.",
+      "Common local gateway addresses are 192.168.1.1, 192.168.0.1, and 10.0.0.1.",
+      "Port forwarding may also be labeled NAT Forwarding, Virtual Server, Applications & Gaming, Port Rules, Firewall Rules, or Advanced NAT."
+    ],
+    "recommendedNextNodeId": "unknownRouterHelp",
+    "suggestedSearchTerms": [
+      "Xfinity",
+      "Spectrum",
+      "ASUS",
+      "eero",
+      "Deco",
+      "Nighthawk"
+    ],
+    "matchedQuery": null
+  },
+  "notes": "The default FallbackState() (nothing filled in yet, matching a user who's answered no funnel questions at all): networkType nil, every flag false, query empty. query.isEmpty alone is enough to satisfy the final OR-guard before genericRouterResolution, landing on the unknownRouterHelp fallback with recommendedNextNodeID unknownRouterHelp (not ispVsRouterClarifier, since unsureWhetherISPOrOwnRouter is false here)."
+}

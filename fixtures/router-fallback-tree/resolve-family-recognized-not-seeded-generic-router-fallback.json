@@ -1,0 +1,39 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-family-recognized-not-seeded-generic-router-fallback",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "asus",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "genericRouterGuide",
+    "availability": "desiredGuideNotSeededYet",
+    "matchedGuideId": null,
+    "fallbackGuideId": "generic-router",
+    "desiredFamily": "asus",
+    "inferredFamilies": [
+      "asus"
+    ],
+    "explanationBullets": [
+      "The matcher recognized the family asus, but that family guide is not seeded in the current project yet.",
+      "Use the fallback guide for the general flow, then continue to advanced troubleshooting if the router labels differ too much."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [],
+    "matchedQuery": "asus"
+  },
+  "notes": "\"asus\" matches the Asus family alias exactly, but no guide in the 6-guide sample catalog belongs to that family (topCandidate is nil \u2014 nothing scores >0 for a query no keyword/token relates to) \u2014 falls to recognizedFamilyFallbackResolution. Asus isn't a mesh family (isMeshFamily returns false), so the fallback guide is bestAvailableGenericRouterGuide(), not the mesh one."
+}

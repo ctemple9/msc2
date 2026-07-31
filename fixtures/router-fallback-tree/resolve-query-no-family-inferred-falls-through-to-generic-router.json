@@ -1,0 +1,37 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-query-no-family-inferred-falls-through-to-generic-router",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "net",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "genericRouterGuide",
+    "availability": "fallbackUsed",
+    "matchedGuideId": "generic-router",
+    "fallbackGuideId": null,
+    "desiredFamily": "generic_router",
+    "inferredFamilies": [],
+    "explanationBullets": [
+      "No exact family match was found, so the generic router guide is the safest fallback.",
+      "Use menu aliases such as NAT Forwarding, Virtual Server, Applications & Gaming, Port Rules, Firewall Rules, or Advanced NAT while you search the router interface."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [],
+    "matchedQuery": "net"
+  },
+  "notes": "\"net\" (from P1.10's already-verified matcher fixtures) gives netgear-router a topCandidate via plain keyword prefix/substring, but matchedDirectGuide is false (no family alias, no exact keyword) and inferredFamilies is empty \u2014 so *neither* the topCandidate branch nor the inferredFamilies branch returns, and control falls all the way past the `if !query.isEmpty` block to the networkType switch. With networkType nil and every flag false, query.isEmpty is the only thing that would route to unknownRouterHelp, and query (\"net\") isn't empty \u2014 so this lands on plain genericRouterResolution despite being a non-empty, non-trivial search."
+}

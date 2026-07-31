@@ -1,0 +1,39 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-family-recognized-not-seeded-generic-mesh-fallback",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "google nest",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "genericMeshGuide",
+    "availability": "desiredGuideNotSeededYet",
+    "matchedGuideId": null,
+    "fallbackGuideId": "generic-mesh",
+    "desiredFamily": "google_nest",
+    "inferredFamilies": [
+      "google_nest"
+    ],
+    "explanationBullets": [
+      "The matcher recognized the family google_nest, but that family guide is not seeded in the current project yet.",
+      "Use the fallback guide for the general flow, then continue to advanced troubleshooting if the router labels differ too much."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [],
+    "matchedQuery": "google nest"
+  },
+  "notes": "Same shape as the asus case, but googleNest *is* one of isMeshFamily's three mesh families (genericMesh/eero/googleNest), so the fallback guide comes from bestAvailableGenericMeshOrRouterGuide() \u2014 generic-mesh, since it's seeded \u2014 and kind is genericMeshGuide, not genericRouterGuide."
+}

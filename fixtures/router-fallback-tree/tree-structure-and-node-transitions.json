@@ -1,0 +1,93 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "tree-structure-and-node-transitions",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "makeTree(detectedGatewayIPAddress:)",
+    "line": 54
+  },
+  "input": {},
+  "expected": {
+    "nodes": [
+      {
+        "id": "start",
+        "kind": "singleChoice",
+        "choices": [
+          {
+            "id": "start-isp",
+            "nextNodeId": "ispProviderChoice",
+            "impliedNetworkType": "isp_gateway"
+          },
+          {
+            "id": "start-own",
+            "nextNodeId": "ownRouterBrandChoice",
+            "impliedNetworkType": "own_router"
+          },
+          {
+            "id": "start-mesh",
+            "nextNodeId": "meshBrandChoice",
+            "impliedNetworkType": "mesh_system"
+          },
+          {
+            "id": "start-unsure",
+            "nextNodeId": "unknownRouterHelp",
+            "impliedNetworkType": "not_sure"
+          }
+        ]
+      },
+      {
+        "id": "ispProviderChoice",
+        "kind": "freeTextSearch",
+        "choices": []
+      },
+      {
+        "id": "ownRouterBrandChoice",
+        "kind": "freeTextSearch",
+        "choices": []
+      },
+      {
+        "id": "meshBrandChoice",
+        "kind": "freeTextSearch",
+        "choices": []
+      },
+      {
+        "id": "ispVsRouterClarifier",
+        "kind": "info",
+        "choices": [
+          {
+            "id": "clarifier-search",
+            "nextNodeId": "optionalSearch",
+            "impliedNetworkType": null
+          }
+        ]
+      },
+      {
+        "id": "unknownRouterHelp",
+        "kind": "info",
+        "choices": [
+          {
+            "id": "unknown-search",
+            "nextNodeId": "optionalSearch",
+            "impliedNetworkType": null
+          },
+          {
+            "id": "unknown-advanced",
+            "nextNodeId": "advancedTroubleshooting",
+            "impliedNetworkType": null
+          }
+        ]
+      },
+      {
+        "id": "optionalSearch",
+        "kind": "freeTextSearch",
+        "choices": []
+      },
+      {
+        "id": "advancedTroubleshooting",
+        "kind": "info",
+        "choices": []
+      }
+    ]
+  },
+  "notes": "The full 8-node navigation graph makeTree() builds, minus title/body/bullets/suggestedSearchTerms prose (client-rendering per the port plan's deletion test \u2014 resolve() never calls makeTree() at all, so nothing here computes over that prose). NodeId's and NodeKind's raw values are Swift's *implicit* rawValue (the case name verbatim, camelCase) since the source declares no explicit `= \"...\"` for either enum \u2014 unlike NetworkType right below, which does have explicit snake_case raw values. Verified by running the literal Swift source, not hand-derived."
+}

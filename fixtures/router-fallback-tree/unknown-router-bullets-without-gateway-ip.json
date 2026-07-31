@@ -1,0 +1,22 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "unknown-router-bullets-without-gateway-ip",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "unknownRouterBullets(detectedGatewayIPAddress:)",
+    "line": 195
+  },
+  "input": {
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "bullets": [
+      "Look for the model name on the sticker on the router, gateway, or mesh node.",
+      "Check which router or mesh apps are already installed on your phone or Mac.",
+      "Identify whether the ISP device or your own router is actually doing routing.",
+      "Common gateway addresses include 192.168.1.1, 192.168.0.1, and 10.0.0.1.",
+      "Port forwarding may also be labeled NAT Forwarding, Virtual Server, Applications & Gaming, Port Rules, Firewall Rules, or Advanced NAT."
+    ]
+  },
+  "notes": "nil input: the base 5-bullet list, unmodified."
+}

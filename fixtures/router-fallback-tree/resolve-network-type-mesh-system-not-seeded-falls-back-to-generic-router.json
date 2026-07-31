@@ -1,0 +1,44 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-network-type-mesh-system-not-seeded-falls-back-to-generic-router",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": "mesh_system",
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "no-mesh",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "genericMeshGuide",
+    "availability": "desiredGuideNotSeededYet",
+    "matchedGuideId": null,
+    "fallbackGuideId": "generic-router",
+    "desiredFamily": "generic_mesh",
+    "inferredFamilies": [
+      "generic_mesh"
+    ],
+    "explanationBullets": [
+      "The current seed catalog does not include a dedicated generic mesh guide yet.",
+      "Use the generic router guide as the fallback, but expect more app-based wording and bridge-mode edge cases for mesh systems.",
+      "If the mesh is in bridge mode, forwarding may need to happen on another router."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [
+      "eero",
+      "Deco",
+      "Nest"
+    ],
+    "matchedQuery": null
+  },
+  "notes": "Uses a deliberately smaller in-test catalog (the standard sample catalog minus generic-mesh) to reach genericMeshResolution's *other* branch \u2014 unreachable against the standard 6-guide sample catalog, since it always has generic-mesh seeded. Not a second reusable catalog fixture file; built inline in the Rust test for this one case. No detected gateway IP, so the bridge-mode bullet uses the generic \"another router\" phrasing."
+}

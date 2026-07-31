@@ -1,0 +1,44 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-network-type-isp-gateway-unsure-recommends-clarifier",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": "isp_gateway",
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": true,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "needsMoreInfo",
+    "availability": "fallbackUsed",
+    "matchedGuideId": null,
+    "fallbackGuideId": null,
+    "desiredFamily": null,
+    "inferredFamilies": [],
+    "explanationBullets": [
+      "Choose the provider gateway family next, or search by gateway line such as XB7 or BGW320.",
+      "If your own router is behind the provider modem, use the router path instead."
+    ],
+    "recommendedNextNodeId": "ispVsRouterClarifier",
+    "suggestedSearchTerms": [
+      "Xfinity",
+      "Spectrum",
+      "AT&T",
+      "Fios",
+      "XB7",
+      "BGW320"
+    ],
+    "matchedQuery": null
+  },
+  "notes": "Identical resolution except recommendedNextNodeID: unsureWhetherISPOrOwnRouter true redirects to ispVsRouterClarifier instead of ispProviderChoice \u2014 the explanationBullets and suggestedSearchTerms are unaffected by this flag on this path (unlike the family-guide-match path, which appends its own unsureWhetherISPOrOwnRouter bullet)."
+}

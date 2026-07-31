@@ -1,0 +1,44 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-mesh-not-seeded-threads-detected-gateway-ip-into-bullet",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": "mesh_system",
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "no-mesh",
+    "detectedGatewayIpAddress": "10.0.0.5"
+  },
+  "expected": {
+    "kind": "genericMeshGuide",
+    "availability": "desiredGuideNotSeededYet",
+    "matchedGuideId": null,
+    "fallbackGuideId": "generic-router",
+    "desiredFamily": "generic_mesh",
+    "inferredFamilies": [
+      "generic_mesh"
+    ],
+    "explanationBullets": [
+      "The current seed catalog does not include a dedicated generic mesh guide yet.",
+      "Use the generic router guide as the fallback, but expect more app-based wording and bridge-mode edge cases for mesh systems.",
+      "If the mesh is in bridge mode, forwarding may need to happen on the gateway at 10.0.0.5."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [
+      "eero",
+      "Deco",
+      "Nest"
+    ],
+    "matchedQuery": null
+  },
+  "notes": "Same not-seeded-mesh scenario as the other no-mesh-catalog fixture, but with a detected gateway IP supplied: the third explanation bullet's wording changes to name the specific gateway address instead of the generic \"another router\" phrasing \u2014 this is the one place in resolve() (besides unknownRouterHelp's own bullets) where the runtime-detected gateway IP actually changes output text, not just tree-node prose."
+}

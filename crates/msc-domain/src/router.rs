@@ -4,4 +4,5 @@
 //! the fallback decision tree, guide composer, troubleshooting engine, and
 //! runtime resolver land in their own modules as their own steps port them.
 
+pub mod fallback_tree;
 pub mod matcher;

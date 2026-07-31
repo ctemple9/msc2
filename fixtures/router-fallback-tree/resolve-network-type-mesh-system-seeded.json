@@ -1,0 +1,38 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-network-type-mesh-system-seeded",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": "mesh_system",
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "genericMeshGuide",
+    "availability": "familyMatch",
+    "matchedGuideId": "generic-mesh",
+    "fallbackGuideId": null,
+    "desiredFamily": "generic_mesh",
+    "inferredFamilies": [
+      "generic_mesh"
+    ],
+    "explanationBullets": [
+      "A mesh-specific fallback guide is available for app-managed or mesh-first systems."
+    ],
+    "recommendedNextNodeId": null,
+    "suggestedSearchTerms": [],
+    "matchedQuery": null
+  },
+  "notes": "Empty query, networkType meshSystem: skips straight to genericMeshResolution. generic-mesh is seeded in the standard sample catalog, so this is the familyMatch branch, not the not-seeded fallback branch."
+}

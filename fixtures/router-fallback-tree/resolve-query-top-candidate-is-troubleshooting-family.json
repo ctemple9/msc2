@@ -1,0 +1,44 @@
+{
+  "domain": "router-fallback-tree",
+  "case": "resolve-query-top-candidate-is-troubleshooting-family",
+  "source": {
+    "file": "RouterPortForwardFallbackDecisionTree.swift",
+    "test": "resolve(state:runtimeContext:)",
+    "line": 287
+  },
+  "input": {
+    "state": {
+      "networkType": null,
+      "searchQuery": "wrong router",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "catalog": "full",
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "kind": "troubleshootingGuide",
+    "availability": "familyMatch",
+    "matchedGuideId": "advanced-troubleshooting",
+    "fallbackGuideId": null,
+    "desiredFamily": "advanced_troubleshooting",
+    "inferredFamilies": [
+      "advanced_troubleshooting"
+    ],
+    "explanationBullets": [
+      "Your search looks like a networking failure or restriction rather than a router identification request.",
+      "Use the advanced troubleshooting path for double NAT, CGNAT, wrong-router configuration, firewall blocks, or ISP restrictions."
+    ],
+    "recommendedNextNodeId": "advancedTroubleshooting",
+    "suggestedSearchTerms": [
+      "double NAT",
+      "CGNAT",
+      "wrong router",
+      "firewall"
+    ],
+    "matchedQuery": "wrong router"
+  },
+  "notes": "\"wrong router\" is an exact searchKeywords/alias hit for advanced-troubleshooting, so it's the matcher's topCandidate; resolve() checks topCandidate.guide.family == .advancedTroubleshooting *before* checking matchedDirectGuide, so this branch wins even though matchedDirectGuide would also have been true here."
+}

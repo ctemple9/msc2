@@ -45,7 +45,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerCreateResultDTO"
                 }
               }
             }
@@ -55,7 +55,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerCreateResultDTO"
                 }
               }
             }
@@ -96,41 +96,69 @@
             }
           },
           "400": {
-            "description": "missing_body / invalid_json / invalid_action / missing_source_path / invalid_path / display_name_required / backup_path_required",
+            "description": "missing_body / invalid_json / invalid_action / missing_source_path / invalid_path / display_name_required / backup_path_required (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ServerImportScanResponseDTO"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerImportResultDTO"
+                    }
+                  ]
                 }
               }
             }
           },
           "404": {
-            "description": "source_not_found",
+            "description": "source_not_found (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ServerImportScanResponseDTO"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerImportResultDTO"
+                    }
+                  ]
                 }
               }
             }
           },
           "409": {
-            "description": "server_running",
+            "description": "server_running (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ServerImportScanResponseDTO"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerImportResultDTO"
+                    }
+                  ]
                 }
               }
             }
           },
           "500": {
-            "description": "internal error",
+            "description": "internal error (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ServerImportScanResponseDTO"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ServerImportResultDTO"
+                    }
+                  ]
                 }
               }
             }
@@ -178,7 +206,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerDeleteResultDTO"
                 }
               }
             }
@@ -188,7 +216,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerDeleteResultDTO"
                 }
               }
             }
@@ -198,7 +226,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerDeleteResultDTO"
                 }
               }
             }
@@ -245,7 +273,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerRenameResultDTO"
                 }
               }
             }
@@ -255,7 +283,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerRenameResultDTO"
                 }
               }
             }
@@ -265,7 +293,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerRenameResultDTO"
                 }
               }
             }
@@ -312,7 +340,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerEULAResultDTO"
                 }
               }
             }
@@ -322,7 +350,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ServerEULAResultDTO"
                 }
               }
             }
@@ -370,7 +398,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -380,7 +408,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -390,7 +418,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -437,7 +465,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -447,7 +475,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -457,7 +485,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -504,7 +532,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -514,7 +542,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -524,7 +552,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -571,7 +599,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -581,7 +609,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -591,7 +619,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
                 }
               }
             }
@@ -694,7 +722,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/AddonUpdateResultDTO"
                 }
               }
             }
@@ -704,7 +732,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/AddonUpdateResultDTO"
                 }
               }
             }
@@ -714,7 +742,14 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/AddonUpdateResultDTO"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ComponentUpdateResultDTO"
+                    }
+                  ]
                 }
               }
             }
@@ -761,7 +796,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/AddonRemoveResultDTO"
                 }
               }
             }
@@ -771,7 +806,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/AddonRemoveResultDTO"
                 }
               }
             }
@@ -781,7 +816,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/AddonRemoveResultDTO"
                 }
               }
             }
@@ -828,7 +863,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/CatalogInstallResultDTO"
                 }
               }
             }
@@ -875,7 +910,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/VersionChangeResultDTO"
                 }
               }
             }
@@ -885,7 +920,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/VersionChangeResultDTO"
                 }
               }
             }
@@ -895,7 +930,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/VersionChangeResultDTO"
                 }
               }
             }
@@ -1146,7 +1181,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RAMConfigUpdateResultDTO"
                 }
               }
             }
@@ -1156,7 +1191,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/RAMConfigUpdateResultDTO"
                 }
               }
             }
@@ -1219,7 +1254,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/GeyserConfigUpdateResultDTO"
                 }
               }
             }
@@ -1229,7 +1264,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/GeyserConfigUpdateResultDTO"
                 }
               }
             }
@@ -1302,7 +1337,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UserCreateResultDTO"
                 }
               }
             }
@@ -1349,7 +1384,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UserRevokeResultDTO"
                 }
               }
             }
@@ -1359,7 +1394,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UserRevokeResultDTO"
                 }
               }
             }
@@ -1406,7 +1441,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UserUpdateResultDTO"
                 }
               }
             }
@@ -1416,7 +1451,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/UserUpdateResultDTO"
                 }
               }
             }
@@ -1463,7 +1498,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/HealthRepairResultDTO"
                 }
               }
             }
@@ -1473,7 +1508,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/HealthRepairResultDTO"
                 }
               }
             }
@@ -1483,7 +1518,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/HealthRepairResultDTO"
                 }
               }
             }
@@ -1862,7 +1897,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -1872,7 +1907,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -1919,7 +1954,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -1929,7 +1964,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -1976,7 +2011,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -1986,7 +2021,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -2033,7 +2068,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -2043,7 +2078,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/ResourcePackMutationResultDTO"
                 }
               }
             }
@@ -2250,7 +2285,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/AllowlistMutationResultDTO"
                 }
               }
             }
@@ -2260,7 +2295,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/AllowlistMutationResultDTO"
                 }
               }
             }
@@ -2324,7 +2359,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/PlayerSkinOverrideResultDTO"
                 }
               }
             }
@@ -2334,7 +2369,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/PlayerSkinOverrideResultDTO"
                 }
               }
             }
@@ -2344,7 +2379,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/PlayerSkinOverrideResultDTO"
                 }
               }
             }
@@ -2391,7 +2426,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/HiddenProfileMutationResultDTO"
                 }
               }
             }
@@ -2401,7 +2436,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/HiddenProfileMutationResultDTO"
                 }
               }
             }
@@ -2411,7 +2446,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/HiddenProfileMutationResultDTO"
                 }
               }
             }
@@ -2538,41 +2573,41 @@
             }
           },
           "400": {
-            "description": "invalid_action / name_required / template_required / missing_server_id / missing_source_path / invalid_path",
+            "description": "invalid_action / name_required / template_required / missing_server_id / missing_source_path / invalid_path (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/TemplateMutationResultDTO"
                 }
               }
             }
           },
           "404": {
-            "description": "server_not_found / template_not_found",
+            "description": "server_not_found / template_not_found (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/TemplateMutationResultDTO"
                 }
               }
             }
           },
           "409": {
-            "description": "server_running / unsupported_template",
+            "description": "server_running / unsupported_template (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/TemplateMutationResultDTO"
                 }
               }
             }
           },
           "500": {
-            "description": "internal error",
+            "description": "internal error (typed for every cause except missing_body/invalid_json (still Error))",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Error"
+                  "$ref": "#/components/schemas/TemplateMutationResultDTO"
                 }
               }
             }

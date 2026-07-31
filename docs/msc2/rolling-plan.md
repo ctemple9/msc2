@@ -112,7 +112,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** `~/Documents/Swift Projects/minecraft-server-controller` — read-only throughout, per `CLAUDE.md` rule 8.
 
-51 steps, seven groups:
+52 steps, seven groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -122,7 +122,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | API baseline | P0.23, P0.23a–P0.23s, P0.24, P0.30 | `docs/msc2/api-baseline/`, checker script + one step per route family + leftover routes |
 | Symbol ledger | P0.25, P0.26, P0.26a, P0.27, P0.29 | `docs/msc2/audit/msc2-symbol-ledger.csv` |
 | Sidecar IPC contract | P0.28 | `docs/msc2/sidecar-ipc-contract.md` |
-| Gate corrections | P0.29–P0.31 | closes gaps found verifying the gate itself: a ledger coverage miss, an API baseline coverage miss, and one open decision the audit surfaced but didn't resolve |
+| Gate corrections | P0.29–P0.32 | closes gaps found verifying the gate itself: a ledger coverage miss, an API baseline coverage miss, one open decision the audit surfaced but didn't resolve, and (from Codex's review) typed-failure response schemas |
 
 ---
 
@@ -532,11 +532,25 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.31: record the CurseForge manual-download problem as decision D-027`
 **Batch:** solo
 
+### P0.32 — API baseline: fix typed-failure response schemas
+**Status:** awaiting verification
+**Files:** `docs/msc2/api-baseline/openapi.json`, `tools/api-baseline-check.py`
+**What:** Codex's review (2026-07-31 amendment below) found that many mutation routes' non-2xx responses point at the generic `Error` schema when MSC 1 actually sends the route's own typed result DTO — `sendJSON(statusCode: ..., encodable: result, ...)` uses the same typed object win or lose; only the synchronous pre-provider guards (`missing_body`, `invalid_json`, and field-required checks that run *before* the `Task` block) genuinely return `{"error": ...}`. Read every handler in `RemoteAPIServer+ComponentRoutes.swift`, `+UserRoutes.swift`, and the `/allowlist` case in `+HTTP.swift` to separate pre-provider guards (stay `Error`) from post-provider results (must be the typed DTO) across 27 route+method pairs: `/servers/{rename,delete,create,eula,import}`, `/templates`, `/players/{skin-override,hidden}`, `/allowlist`, `/users`, `/users/revoke`, `/users/update`, `/worlds/{create,rename,replace,repair}`, `/components/{update,remove,install,version}`, `/config/{ram,geyser}`, `/health/repair`, `/resourcepacks/{activate,seturl,toggle,remove}`. For every route, every 404/409/422/429/500 is unambiguously post-provider (confirmed per-route, no exceptions found) and gets fixed to the correct existing schema. 400 is mixed on some routes — a few guards run pre-provider (Error) while other 400 causes come from the provider's own result (typed) — so 400 is left as `Error` everywhere *except* `/servers/import` and `/templates`, where reading the handlers shows literally every 400 cause besides `missing_body`/`invalid_json` is post-provider, so those two get the typed schema for 400 too, noted in each response's `description`. This is a conscious, documented simplification, not a full resolution — see the Amendments log entry this step adds. Also adds a `--typed-failures` mode to `tools/api-baseline-check.py`: a curated table of (path, method, status code) pairs that must NOT be the generic `Error` schema, verified against source in this step, asserted against the live file so a future accidental revert is caught.
+**Verify:** `python3 tools/api-baseline-check.py --typed-failures` → `ok 68` (the count of corrected status-code entries) — then `python3 tools/api-baseline-check.py --depth-all` → `ok 88` (unchanged path/method count, this step only touches response schemas)
+**Commit:** `P0.32: fix typed-failure response schemas Codex's review caught`
+**Batch:** solo
+
 ---
 
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-07-31 — P0.32 fixed the typed-failure schemas, with one known simplification
+
+P0.32 corrected 68 (path, method, status) entries across 27 mutation routes from the generic `Error` schema to the route's actual typed result DTO, verified per-route against source (see P0.32's own entry above). One simplification, made deliberately rather than discovered late: several routes' `400` response is genuinely *mixed* — some 400 causes are synchronous pre-provider guards (`missing_body`, a required-field check before the `Task` block) that really do send `{"error": ...}`, while other 400 causes on the *same route* come from the provider's result after the guard passes, and get the typed DTO instead. OpenAPI has no clean way to say "this status code is sometimes schema A, sometimes schema B" without `oneOf` on every affected status, which would blow up the file's readability for a distinction that mostly doesn't change what a client needs to do (parse "did this fail," which both shapes support).
+
+Given that, `400` was left as `Error` uniformly across all 27 routes as the documented default, *except* `/servers/import` and `/templates`, where reading the handlers found no pre-provider field guards at all beyond `missing_body`/`invalid_json` — every other 400 cause is post-provider, so those two routes' `400` got the typed DTO (with the exception noted in the response `description`). Every other route's `400` may still occasionally be a typed DTO in practice for specific failure messages (e.g. `/servers/create`'s `invalid_server_type` comes from the provider, not a pre-Task guard; `/users` and `/users/update`'s `label_empty` likewise) — recorded as a known, deliberate gap, not a new blind spot. The authoritative source for a future full pass is `RemoteAPIServer+ComponentRoutes.swift`'s `serverMutationStatus`/`templateMutationStatus`/`importStatus`/`playerMutationStatus`/`worldMutationStatus` helper functions (and `+UserRoutes.swift`'s inline switches) and their call sites — each one shows exactly which message strings are checked before the `Task` block (Error) versus inside it (typed).
 
 ### 2026-07-31 — P0 API baseline response schemas need a typed-failure pass
 

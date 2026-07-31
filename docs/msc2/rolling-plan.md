@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.1 done, awaiting verification
-> **Next move:** VERIFY (Cameron runs P1.1's Verify command, then EXECUTE continues with P1.2)
+> ## STATUS: Phase 1 in progress — P1.1 DONE, P1.2 next
+> **Next move:** EXECUTE P1.2 (native fixture-loading test harness)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -567,7 +567,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ### Rust workspace
 
 ### P1.1 — Cargo workspace and the `msc-domain` crate skeleton
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `Cargo.toml` (workspace root), `crates/msc-domain/Cargo.toml`, `crates/msc-domain/src/lib.rs`, `rust-toolchain.toml`, `.github/workflows/ci.yml`
 **What:** Create the Cargo workspace per `msc2-engineering.md` §6's module boundaries, starting with exactly one member crate: `msc-domain` (server models, flavors, versions, settings schema, parsers, diagnostics policy — **no I/O**, per that section's direction rule). An empty `lib.rs` with one placeholder test so `cargo build`/`cargo test` have something to run before P1.2 adds the real harness. Pin the toolchain via `rust-toolchain.toml` so `cargo fmt`/`cargo clippy` behave identically for Cameron and CI. `S.3`'s CI toolchain job was written to install Rust and "build once `Cargo.toml` appears" — it now has; wire it to actually run `cargo build --workspace`, `cargo fmt --check`, and `cargo clippy --workspace -- -D warnings` on all three OSes.
 **Verify:** `cd ~/msc2 && cargo build --workspace && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings` → all exit 0

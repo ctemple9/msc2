@@ -112,16 +112,17 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** `~/Documents/Swift Projects/minecraft-server-controller` — read-only throughout, per `CLAUDE.md` rule 8.
 
-48 steps, six groups:
+51 steps, seven groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
 | Fixture harness | P0.1–P0.2 | format spec + runner tool |
 | Extract the 270 MSC 1 tests | P0.3–P0.21 | `fixtures/**/*.json`, one dir per source test file |
 | Reference corpus | P0.22 | `corpus/` scaffold |
-| API baseline | P0.23, P0.23a–P0.23s, P0.24 | `docs/msc2/api-baseline/`, checker script + one step per route family |
-| Symbol ledger | P0.25, P0.26, P0.26a, P0.27 | `docs/msc2/audit/msc2-symbol-ledger.csv` |
+| API baseline | P0.23, P0.23a–P0.23s, P0.24, P0.30 | `docs/msc2/api-baseline/`, checker script + one step per route family + leftover routes |
+| Symbol ledger | P0.25, P0.26, P0.26a, P0.27, P0.29 | `docs/msc2/audit/msc2-symbol-ledger.csv` |
 | Sidecar IPC contract | P0.28 | `docs/msc2/sidecar-ipc-contract.md` |
+| Gate corrections | P0.29–P0.31 | closes gaps found verifying the gate itself: a ledger coverage miss, an API baseline coverage miss, and one open decision the audit surfaced but didn't resolve |
 
 ---
 
@@ -487,6 +488,14 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **What:** For every file P0.25's scanner actually flagged at ≥3 hits (includes the already-known `OverviewChatCardView.swift` console parser — but don't assume the reconciliation doc's earlier count of 15 still holds, since the source may have moved since that doc was written), open it and add ledger rows the same way. This is what turns "static scanning flags candidates" into an actual disposition record instead of a hunch. The live scan found 4 files, not 15 — `OverviewChatCardView.swift` is no longer among them because Codex's reconciled inventory already reclassifies it as `bucket=mixed` (covered under P0.26 instead). The 4 actually flagged: `CurseForgeManualDownloadSheet.swift`, `DetailsComponentsTabView.swift`, `ServerEditorJarsTab.swift`, `RouterPortForwardGuideReader.swift`.
 **Verify:** `python3 tools/symbol-ledger-check.py ui-flagged --scan-source "$HOME/Documents/Swift Projects/minecraft-server-controller"` → `ok <n>` (live count, not fixed)
 **Commit:** `P0.27: populate the symbol ledger for flagged UI files`
+
+### P0.29 — Ledger gap: files adjudicated Mixed but missing from the ledger
+**Status:** awaiting verification
+**Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`
+**What:** P0.26 selected its 59 files by filtering Codex's *raw* inventory (`msc2-codex-file-inventory.csv`) for `bucket=mixed`. That inventory was written before `docs/msc2/audit/msc2-audit-exact-diff.md` re-adjudicated 28 disputed files against Claude's independent audit. Files the diff moved *into* Mixed after the fact were never selected, so they never got ledger rows. Reconcile the whole 28-file adjudicated list (not just the two Cameron flagged) against the ledger's actual `file` column. Cross-checked programmatically: of the 28, exactly two — `MSCSettingsView.swift` and `ServerEditorView.swift` — are `Final: Mixed` with zero ledger rows. Every other Final-Mixed file in the diff already has rows, either because Codex's raw bucket already said `mixed` (picked up by P0.26) or because P0.25's density scanner already flagged it as a UI file (picked up by P0.27, under `bucket=ui-flagged` rather than `mixed` — a labeling difference, not a coverage gap, since P0.27 already extracted the agent-owned symbols). Add ledger rows for the two missing files using the deletion test, same as P0.26.
+**Verify:** `python3 -c "import csv;rows=list(csv.DictReader(open('docs/msc2/audit/msc2-symbol-ledger.csv')));print(len({r['file'] for r in rows if r['bucket']=='mixed'}))"` → `61`
+**Commit:** `P0.29: add MSCSettingsView.swift and ServerEditorView.swift to the symbol ledger`
+**Batch:** solo
 
 ---
 

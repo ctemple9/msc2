@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Setup complete (S.1–S.4 verified) — Phase 0 planned, awaiting Read
-> **Next move:** READ (Cameron reviews the Phase 0 step list below)
+> ## STATUS: Phase 0 complete (gate holds — fixture harness, API baseline, symbol ledger all verified; Codex review incorporated) — Phase 1 next
+> **Next move:** PLAN (write the Phase 1 step list — domain types and pure rules)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
-> **Last updated:** 2026-07-29
+> **Last updated:** 2026-07-31
 
 ---
 
@@ -50,8 +50,8 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | Phase | Name | State |
 |---|---|---|
 | **Setup** | Repo, docs, agent instructions, CI, editor config | complete |
-| **0** | Freeze the baseline and build the harness | **next** |
-| 1 | Domain types and pure rules | not started |
+| **0** | Freeze the baseline and build the harness | complete |
+| 1 | Domain types and pure rules | **next** |
 | 2 | API contract and operation model | not started |
 | 3 | Safety substrate | not started |
 | 4 | Java lifecycle vertical slice | not started |
@@ -129,7 +129,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 ### Fixture harness
 
 ### P0.1 — Fixture format spec
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/fixture-format.md`
 **What:** Define the JSON shape every fixture file must have: `domain`, `case`, `source` (`file`, `test`, `line` — pointer back into MSC 1), `input`, `expected`, optional `notes`. Define the directory convention (`fixtures/<domain>/<case>.json`) that every later extraction step follows.
 **Verify:** `grep -oE '"(domain|case|source|input|expected)"' docs/msc2/fixture-format.md | sort -u | wc -l` → `5`

@@ -502,7 +502,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ### Sidecar IPC contract
 
 ### P0.28 — macOS Bedrock sidecar IPC contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/sidecar-ipc-contract.md`
 **What:** Read `VMBedrockServerBackend.swift` (451 lines) and write the process protocol the Rust agent will use to drive the macOS Bedrock sidecar — transport (JSON lines over stdio, or a unix socket — pick one and record why) plus one section per message type: provision, start, readiness signal, stop, force-stop, crash notification, console stream, command input, shared-directory mapping, host-directory persistence across VM replacement (`msc2-engineering.md` §9). A contract informed by what MSC 1's sidecar actually does today, not a fresh design. Chose JSON lines over stdio (1:1 parent-supervises-child relationship, no socket-file lifecycle to manage, EOF doubles as the crash signal). Notes one open question: whether `BedrockProvisioner.ensureInstalled`'s BDS-binary download belongs in this sidecar protocol at all, since it has no VM dependency.
 **Verify:** `grep -c '^### ' docs/msc2/sidecar-ipc-contract.md` → `10`
@@ -537,6 +537,25 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-07-31 — P0 API baseline response schemas need a typed-failure pass
+
+A Phase 0 cross-check against MSC 1 found that the route inventory is complete, but some
+non-2xx response schemas are too generic. MSC 1 often uses HTTP status codes to indicate
+provider-level failure while still returning the route's typed result DTO (`success`,
+`message`, and route-specific payload fields), not the generic `{"error": ...}` shape.
+The OpenAPI baseline already captures this correctly for some routes (`/files/read`,
+`/files`, `/components/client-export`, `/playit/start`, `/broadcast/download-jar`,
+`/duckdns` 500), but other mutation families still list `Error` for typed failures.
+
+Affected families include server mutations, templates/import, world mutations,
+component/add-on/version mutations, players mutations, allowlist mutation, users,
+`/config/ram`, `/config/geyser`, `/health/repair`, and resource-pack mutations. The
+status codes themselves generally match MSC 1; the disagreement is the response body
+schema for provider-level non-2xx results. Later API-baseline work should distinguish
+input/parse validation errors (`{"error": ...}`) from provider result failures (the
+route's typed result DTO), using MSC 1's `sendJSON(..., encodable: result, ...)` call
+sites as the oracle.
 
 ### 2026-07-30 — P0.30 corrects five family route counts, and P0.23q's players count
 

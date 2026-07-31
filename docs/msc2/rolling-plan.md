@@ -524,6 +524,14 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.30: add the 24 API baseline routes missed by the route-family steps`
 **Batch:** safe
 
+### P0.31 — Record the CurseForge manual-download problem as a decision
+**Status:** awaiting verification
+**Files:** `docs/msc2/msc2-decisions.md`
+**What:** MSC 1's `CurseForgeManualDownloadSheet.swift` handles mods CurseForge won't let the app auto-download: it opens each mod's download page in the user's browser, then watches a local folder (default `~/Downloads`) and moves matching jars into the server's `mods/` directory as they appear. That entire mechanism assumes the app, the browser, and the server's files all sit on one machine — true for MSC 1, not guaranteed for MSC 2, where the agent may be a headless box the user's browser never touches. This surfaced as an UNSURE item in the P0.27 symbol-ledger report (`CurseForgeManualDownloadSheet.swift`'s watch-folder mechanism) and isn't resolved by the deletion test alone — it isn't a question of which side owns existing behavior, it's that the existing behavior doesn't have a home on either side once agent and client are different machines. Record it in `msc2-decisions.md` as a new **Open** entry: describe the problem and lay out the real options (e.g. browser-side extension/helper, client-side download-and-upload, agent-side fetch if a direct URL becomes available, keeping it degraded to same-machine-only). Do not choose one — that's a product call for Cameron, not something to decide while doing ledger bookkeeping.
+**Verify:** `grep -c '^## D-027' docs/msc2/msc2-decisions.md && grep -A2 '^## D-027' docs/msc2/msc2-decisions.md | grep -c 'Status:\*\* \*\*Open\*\*'` → `1` then `1`
+**Commit:** `P0.31: record the CurseForge manual-download problem as decision D-027`
+**Batch:** solo
+
 ---
 
 ## Amendments log

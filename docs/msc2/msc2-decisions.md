@@ -55,6 +55,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-024 | Power management has two policies, by host role | Proposed | — |
 | D-025 | Service identity and privilege boundaries | Open | — |
 | D-026 | Educational content is served data, not client code | **Approved** (requirement) / Proposed (mechanism) | 2026-07-30 |
+| D-027 | The CurseForge manual-download workflow has no home once agent and client are different machines | Open | — |
 
 ---
 
@@ -529,6 +530,27 @@ This is unresolved design work with wide blast radius, recorded as Open rather t
 **Open.** Content format · embedded vs on-disk · whether the concept-guide diagrams are assets or generated · how content is versioned against API versions when a topic describes a feature an older client lacks.
 
 **Revisit if:** the content model proves too rigid for the router guides, which are the most structurally complex educational surface and the natural stress test.
+
+---
+
+## D-027 — The CurseForge manual-download workflow has no home once agent and client are different machines
+
+**Status:** **Open** · **Origin:** Symbol-ledger audit (P0.27, flagged UNSURE; formalized in P0.31) · **Approved by:** —
+
+**Context.** Some CurseForge mods disable third-party API distribution, so MSC 1 can't download them itself. `CurseForgeManualDownloadSheet.swift` handles this by opening each mod's direct download page in the user's default browser (correct loader/version pre-selected), then watching a local folder — `~/Downloads` by default, user-changeable — for newly-appeared files. It matches new files against the pending list by exact filename, then by macOS's " (1)" duplicate-suffix pattern, then by a last-resort single-remaining-file/single-new-file fallback, and moves each match straight into the server's `mods/` directory.
+
+Every step of that sequence — the browser, the watched folder, and the server's `mods/` directory — is required to be the same machine MSC 1 is running on. That has always been true for MSC 1, a single-Mac GUI app. It is not guaranteed for MSC 2: D-011 makes headless independently installable on all three platforms, which means the agent can be a box with no browser and no relationship to whatever machine the user's browser runs on. The deletion test (`msc2-port-plan.md` §1) doesn't resolve this the way it resolves most Mixed-bucket behavior, because the question isn't which side — agent or client — already owns the behavior; it's that the behavior as written doesn't have a coherent home on either side once they can be different computers.
+
+**Open — options, not a decision:**
+
+1. **Client-side download, then explicit upload to the agent.** The client (not the agent) drives the browser and the folder watch, since it's the client's machine that has both — then pushes the finished file to the agent over the API (a new upload route; `POST /components/install` and friends install from something the agent can already reach, not from an arbitrary local file). Closest behavioral match to MSC 1, but only works when the client happens to be a desktop, and adds a file-upload code path that doesn't exist anywhere in the API baseline today.
+2. **Agent-side fetch, if CurseForge ever exposes a directly fetchable URL for the specific case that's blocked.** Would keep the workflow entirely server-side like every other component install, but depends on CurseForge's distribution restriction having a loophole — unconfirmed, and probably mod-author-specific rather than something MSC can rely on.
+3. **Degrade gracefully to same-machine-only.** Keep something like today's mechanism, but explicitly scoped to "works when your client and your agent are the same box" (e.g. a local desktop client managing a `localhost` agent), and tell the user plainly when it isn't available otherwise. Simplest to build; narrows a capability MSC 1 users have today.
+4. **Do nothing special — tell the user to place the file manually.** The agent exposes a "drop the file at this server-visible path" instruction (relevant given `GET /files` already exists as an admin-only server-side file browser, P0.30) and the user is responsible for getting it there by whatever means their setup allows (SFTP, a shared folder, physically local). Least engineering, worst experience, and pushes a solved-for-MSC-1 problem back onto the user.
+
+**Why this is Open, not Proposed.** It's a product-shape decision — how much of this convenience MSC 2 keeps, and for which client/agent topologies — not something that falls out of reading MSC 1's code or applying the deletion test. It surfaced while doing ledger bookkeeping (P0.27/P0.31), which is exactly the kind of call that work should record and hand up, not make quietly.
+
+**Revisit if:** Phase 8 (mods, plugins, modpacks) is reached and a CurseForge modpack import path is being designed — this blocks a real decision there, not just documentation.
 
 ---
 

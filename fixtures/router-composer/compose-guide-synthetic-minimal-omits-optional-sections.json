@@ -1,0 +1,120 @@
+{
+  "domain": "router-composer",
+  "case": "compose-guide-synthetic-minimal-omits-optional-sections",
+  "source": {
+    "file": "RouterPortForwardGuideComposer.swift",
+    "test": "composeGuide(_:)",
+    "line": 89
+  },
+  "input": {
+    "mode": "compose_guide",
+    "guideId": "test-minimal",
+    "catalog": "synthetic-minimal"
+  },
+  "expected": {
+    "id": "test-minimal",
+    "sections": [
+      {
+        "id": "test-minimal.intro",
+        "kind": "intro",
+        "title": "What you are doing",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in your router's browser-based admin page.",
+            "referencedTokens": []
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Community-based guidance",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "test-minimal.prerequisites",
+        "kind": "prerequisites",
+        "title": "Before you start",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: {{detected_local_ip_address}}."
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "test-minimal.value-summary",
+        "kind": "valueSummary",
+        "title": "Values you will enter",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: {{detected_local_ip_address}}",
+              "Java port: {{java_port}} (usually TCP)",
+              "Recommended protocol guidance: {{recommended_protocol}}"
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "recommended_protocol",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "recommended_protocol",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "test-minimal.steps",
+        "kind": "routerSpecificSteps",
+        "title": "Steps",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "step",
+            "id": "minimal-step-1",
+            "kind": "navigate",
+            "referencedTokens": [
+              "detected_local_ip_address"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address"
+        ]
+      }
+    ]
+  },
+  "notes": "A synthetic, ad-hoc guide built directly in the Rust test (not part of the shared sample catalog file, and not literal MSC 1 content) with providerDisplayName and deviceDisplayName both nil, empty adminAddresses, empty menuPath and alternateMenuNames, a retailRouter category (hits prerequisitesBullets' `default: break`, no extra bullet \u2014 same as netgear-router), empty notes, empty troubleshooting IDs, and one step whose only referenced token is detected_local_ip_address (no bedrock mention). Exercises every \"absent\" branch at once: introBody's third fallback (neither provider nor device set \u2014 unreachable with any of this port's 6 real sample guides, which all set at least deviceDisplayName), the value-summary section omitting both Bedrock bullets, and the menu-path/notes/troubleshooting-footer sections all being fully absent despite every relevant sharedSections flag being true \u2014 proving those guards check the guide's actual content, not just the flags. Also exercises a fourth RouterGuideConfidence value (.communityBased -> \"Community-based guidance\") none of the 6 real sample guides use (all six are .commonFlow). One more non-obvious detail this fixture pins: the value-summary section's referencedTokens is a *static* per-item annotation hardcoded in sharedValueSummarySection, not derived from which bullets actually ended up in the list \u2014 so even here, where the Bedrock bullets are entirely absent from the text, the section's referencedTokens is still the full 5-token list. An initial hand-derivation of this fixture wrongly assumed the token list would shrink along with the bullets; the Swift harness caught it. Verified by running the literal Swift source, not hand-derived."
+}

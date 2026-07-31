@@ -1,0 +1,258 @@
+{
+  "domain": "router-composer",
+  "case": "compose-guide-full-shared-sections-and-menu-path",
+  "source": {
+    "file": "RouterPortForwardGuideComposer.swift",
+    "test": "composeGuide(_:)",
+    "line": 89
+  },
+  "input": {
+    "mode": "compose_guide",
+    "guideId": "generic-router",
+    "catalog": "full"
+  },
+  "expected": {
+    "id": "generic-router",
+    "sections": [
+      {
+        "id": "generic-router.intro",
+        "kind": "intro",
+        "title": "What you are doing",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in your router's browser-based admin page for Generic Router.",
+            "referencedTokens": []
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "generic-router.prerequisites",
+        "kind": "prerequisites",
+        "title": "Before you start",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: {{detected_local_ip_address}}.",
+              "Common admin addresses for this guide: 192.168.1.1, 192.168.0.1, 10.0.0.1."
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "generic-router.value-summary",
+        "kind": "valueSummary",
+        "title": "Values you will enter",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: {{detected_local_ip_address}}",
+              "Java port: {{java_port}} (usually TCP)",
+              "Recommended protocol guidance: {{recommended_protocol}}",
+              "Bedrock port: {{bedrock_port}} (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: {{bedrock_enabled}}"
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "recommended_protocol",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "recommended_protocol",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "generic-router.menu-path",
+        "kind": "menuPath",
+        "title": "Where to look",
+        "origin": "mixed",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "Login",
+              "Advanced",
+              "Port Forwarding"
+            ],
+            "alternateMenuNames": [
+              "NAT Forwarding",
+              "Virtual Server",
+              "Applications & Gaming",
+              "Firewall Rules",
+              "Port Rules",
+              "Advanced NAT"
+            ]
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "generic-router.steps",
+        "kind": "routerSpecificSteps",
+        "title": "Steps",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "step",
+            "id": "generic-step-1",
+            "kind": "intro",
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "bedrock_enabled"
+            ]
+          },
+          {
+            "type": "step",
+            "id": "generic-step-2",
+            "kind": "navigate",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "generic-step-3",
+            "kind": "navigate",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "generic-step-4",
+            "kind": "input",
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "recommended_protocol",
+              "bedrock_enabled"
+            ]
+          },
+          {
+            "type": "step",
+            "id": "generic-step-5",
+            "kind": "save",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "generic-step-6",
+            "kind": "test",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "bedrock_enabled",
+          "recommended_protocol"
+        ]
+      },
+      {
+        "id": "generic-router.notes",
+        "kind": "notes",
+        "title": "Notes and quirks",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "note",
+            "id": "generic-note-1",
+            "title": "Transparency"
+          },
+          {
+            "type": "note",
+            "id": "generic-note-2",
+            "title": "ISP vs router"
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "generic-router.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "title": "Still not working?",
+        "origin": "mixed",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing.",
+            "referencedTokens": []
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "local_ip_changed"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "cgnat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_device"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "firewall_blocked"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "router_reboot_required"
+          }
+        ],
+        "referencedTokens": []
+      }
+    ]
+  },
+  "notes": "The reference case: every optional section present (all four sharedSections flags true, non-empty menuPath, non-empty notes, non-empty troubleshooting topics), exercising the full fixed section order. Two things worth noting precisely: (1) the routerSpecificSteps section's dedup'd referencedTokens list is in first-occurrence order across steps, not declaration order of the token enum \u2014 recommended_protocol appears only on generic-step-4, so it lands last despite being 5th of 7 in the RouterGuideToken enum's own declaration order; (2) the troubleshooting-footer's topics come out in the *catalog's* declared order (local_ip_changed, double_nat, cgnat, wrong_router, wrong_device, firewall_blocked, wrong_protocol, router_reboot_required), not generic-router's own `troubleshooting` array order (localIPChanged, wrongRouter, wrongDevice, wrongProtocol, doubleNAT, cgnat, firewallBlocked, routerRebootRequired) \u2014 RouterPortForwardGuideRepository.troubleshootingTopics(for:) filters the catalog list by membership, it doesn't map the guide's own list. Verified by running the literal Swift source, not hand-derived."
+}

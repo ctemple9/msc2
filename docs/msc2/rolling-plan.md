@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.11 DONE, P1.12 next
-> **Next move:** EXECUTE P1.12 (characterize and port the router guide composer)
+> ## STATUS: Phase 1 in progress — P1.12 awaiting verification
+> **Next move:** VERIFY (Cameron runs P1.12's Verify commands, then EXECUTE continues with P1.13)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-31
 
@@ -671,10 +671,10 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P1.12 — Characterize and port the router guide composer
-**Status:** not started
-**Files:** `fixtures/router-composer/`, `crates/msc-domain/src/router/composer.rs`, `crates/msc-domain/tests/router_composer.rs`
-**What:** `RouterPortForwardGuideComposer.swift` (306 lines) — "composes fully ordered logical guide structures from seed data, merging router-specific steps, prerequisites, value summaries, and notes into a renderable section list" (the file's own doc comment). Characterize section ordering, merge precedence when a router-specific step overrides a shared one, and prerequisite/value-summary/notes assembly. Reuses P1.10's sample catalog.
-**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/router-composer --expect <n>` → `ok <n>`; then `cargo nextest run -p msc-domain router_composer` → `<n> tests run: <n> passed`
+**Status:** awaiting verification
+**Files:** `fixtures/router-composer/`, `fixtures/router-sample-catalog.json`, `crates/msc-domain/src/router.rs`, `crates/msc-domain/src/router/composer.rs`, `crates/msc-domain/tests/router_composer.rs`
+**What:** `RouterPortForwardGuideComposer.swift` (306 lines) — "composes fully ordered logical guide structures from seed data, merging router-specific steps, prerequisites, value summaries, and notes into a renderable section list" (the file's own doc comment). Reading the actual source, that "merging" is plain conditional concatenation — `composeSections` appends up to seven sections in a fixed order, each included by a boolean flag or an emptiness guard; there is no mechanism anywhere in the file where a router-specific item overrides or takes precedence over a shared one, contrary to this step's own "merge precedence when a router-specific step overrides a shared one" description above — flagged as a plan/source mismatch, not silently reconciled. Characterized 7 fixtures against P1.10's sample catalog (extended with a `troubleshootingTopics` array — the catalog's other half, needed for the troubleshooting-footer section and reused as-is by P1.13): the full fixed section order with every optional section present; the two-vs-one-vs-neither introBody branches (provider+device both set and differing, device-only, and — via a synthetic ad-hoc guide built directly in the Rust test, since none of the 6 real sample guides omit deviceDisplayName — neither); the `.ispGateway`/`.meshSystem` category-specific prerequisite bullets vs. the `default` no-bullet case; the conditional Bedrock value-summary bullets (present when any step references a Bedrock token, absent — via the same synthetic guide — when none do); menuPathSection's "alternates alone, empty path list" case; the routerSpecificSteps section's referencedTokens dedup preserving first-occurrence order across steps, not token-enum declaration order; and troubleshootingFooterSection's topic ordering following the *catalog's* declared order, not the guide's own `troubleshooting` array order (confirmed directly in the harness's generic-router output, order differs from the guide's declared list). `Guide` here is the first router-engine type carrying full guide content (steps/notes/topics are the composer's actual output, not excludable client-rendering) — genuinely different fields from `matcher::Guide`, reusing only `GuideCategory`/`AdminSurface` from that module. `composeGuide(id:)` is ported (`compose_guide_by_id`); `composeBestMatch(for:matcher:)`, which just chains the already-tested matcher into `composeGuide`, is not. Every expected value verified by running a literal Swift copy of this file plus the full sample-catalog data through `swift`, not hand-derived — an initial draft of the harness trimmed each guide's step list down to only token-bearing steps for brevity, producing several wrong `items`-list fixtures until cross-checked against the authoritative catalog JSON and corrected.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/router-composer --expect 7` → `ok 7`; then `cargo nextest run -p msc-domain router_composer` → `7 tests run: 7 passed`
 **Commit:** `P1.12: characterize and port the router guide composer`
 **Batch:** solo
 

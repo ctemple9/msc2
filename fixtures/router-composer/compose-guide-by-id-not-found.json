@@ -1,0 +1,19 @@
+{
+  "domain": "router-composer",
+  "case": "compose-guide-by-id-not-found",
+  "source": {
+    "file": "RouterPortForwardGuideComposer.swift",
+    "test": "composeGuide(id:)",
+    "line": 84
+  },
+  "input": {
+    "mode": "compose_guide_by_id",
+    "guideId": "does-not-exist",
+    "catalog": "full"
+  },
+  "expected": {
+    "id": null,
+    "sections": null
+  },
+  "notes": "An id with no matching guide in the catalog returns nil, never an empty ComposedGuide."
+}

@@ -1,0 +1,232 @@
+{
+  "domain": "router-composer",
+  "case": "compose-guide-by-id-found",
+  "source": {
+    "file": "RouterPortForwardGuideComposer.swift",
+    "test": "composeGuide(id:)",
+    "line": 84
+  },
+  "input": {
+    "mode": "compose_guide_by_id",
+    "guideId": "netgear-router",
+    "catalog": "full"
+  },
+  "expected": {
+    "id": "netgear-router",
+    "sections": [
+      {
+        "id": "netgear-router.intro",
+        "kind": "intro",
+        "title": "What you are doing",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in either the router app or its browser-based admin page for NETGEAR / Nighthawk / Orbi.",
+            "referencedTokens": []
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "netgear-router.prerequisites",
+        "kind": "prerequisites",
+        "title": "Before you start",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: {{detected_local_ip_address}}.",
+              "Common admin addresses for this guide: 192.168.1.1, 192.168.0.1, http://routerlogin.net, http://192.168.1.1, http://192.168.0.1."
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "netgear-router.value-summary",
+        "kind": "valueSummary",
+        "title": "Values you will enter",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: {{detected_local_ip_address}}",
+              "Java port: {{java_port}} (usually TCP)",
+              "Recommended protocol guidance: {{recommended_protocol}}",
+              "Bedrock port: {{bedrock_port}} (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: {{bedrock_enabled}}"
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "recommended_protocol",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "recommended_protocol",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "netgear-router.menu-path",
+        "kind": "menuPath",
+        "title": "Where to look",
+        "origin": "mixed",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "Nighthawk / Orbi app or routerlogin.net",
+              "Advanced",
+              "Port Forwarding / Port Triggering"
+            ],
+            "alternateMenuNames": [
+              "Nighthawk app",
+              "Orbi app",
+              "Advanced Setup",
+              "Port Triggering",
+              "WAN Setup"
+            ]
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "netgear-router.steps",
+        "kind": "routerSpecificSteps",
+        "title": "Steps",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "step",
+            "id": "netgear-step-1",
+            "kind": "prerequisite",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-2",
+            "kind": "navigate",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-3",
+            "kind": "navigate",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-4",
+            "kind": "input",
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "bedrock_enabled"
+            ]
+          },
+          {
+            "type": "step",
+            "id": "netgear-step-5",
+            "kind": "test",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "netgear-router.notes",
+        "kind": "notes",
+        "title": "Notes and quirks",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "note",
+            "id": "netgear-note-1",
+            "title": "Family coverage"
+          },
+          {
+            "type": "note",
+            "id": "netgear-note-2",
+            "title": "App vs browser"
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "netgear-router.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "title": "Still not working?",
+        "origin": "mixed",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing.",
+            "referencedTokens": []
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_device"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "firewall_blocked"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          }
+        ],
+        "referencedTokens": []
+      }
+    ]
+  },
+  "notes": "composeGuide(id:) is a repository-lookup-then-delegate wrapper; a valid id produces exactly the same ComposedGuide compose_guide(&guide, ...) would for that guide directly. netgear-router's category is .retailRouter, which \u2014 like generic-router's .genericFallback \u2014 hits prerequisitesBullets' `default: break`, appending no extra category bullet (only the admin-addresses one)."
+}

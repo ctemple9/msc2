@@ -427,5 +427,97 @@
       "providerDisplayName": null,
       "deviceDisplayName": "Advanced Networking"
     }
+  ],
+  "troubleshootingTopics": [
+    {
+      "id": "local_ip_changed",
+      "title": "Your Mac's local IP changed",
+      "summary": "Your router may still be forwarding to an old device address.",
+      "suggestedNextActions": [
+        "Check the Mac's current local IP in the app.",
+        "Update the router rule so it points to the current local IP.",
+        "Reserve the Mac's IP in the router later so it stops changing."
+      ]
+    },
+    {
+      "id": "double_nat",
+      "title": "You may be behind two routers",
+      "summary": "Port forwarding on the wrong router will not expose the server to the internet.",
+      "suggestedNextActions": [
+        "Check whether your ISP device and your own router are both doing routing.",
+        "If possible, put one device into bridge / passthrough mode.",
+        "Otherwise forward on the upstream router as well."
+      ]
+    },
+    {
+      "id": "cgnat",
+      "title": "Your ISP may be using CGNAT",
+      "summary": "Some internet plans do not give you a public IPv4 address you can forward through.",
+      "suggestedNextActions": [
+        "Compare the router WAN IP with your public IP.",
+        "Ask the ISP whether they offer a public IP option.",
+        "Use an alternative remote-access method if needed."
+      ]
+    },
+    {
+      "id": "wrong_router",
+      "title": "You configured the wrong device",
+      "summary": "The provider name is not always the router actually doing the routing.",
+      "suggestedNextActions": [
+        "Find which device is acting as the main router.",
+        "If you use mesh, open the mesh app first.",
+        "If your own router is connected to ISP hardware, configure the router that owns the LAN."
+      ]
+    },
+    {
+      "id": "wrong_device",
+      "title": "The port forward may point to the wrong target device",
+      "summary": "The rule must target the Mac that is hosting Minecraft Server Controller.",
+      "suggestedNextActions": [
+        "Confirm the selected target device matches the host Mac.",
+        "Use the detected local IP from the app when possible.",
+        "Delete duplicate rules that point to old devices."
+      ]
+    },
+    {
+      "id": "firewall_blocked",
+      "title": "The Mac firewall or another filter may still be blocking traffic",
+      "summary": "A correct router rule is not enough if the host still rejects inbound traffic.",
+      "suggestedNextActions": [
+        "Verify the server is running and reachable on the local network first.",
+        "Review macOS firewall or security-tool rules.",
+        "Re-test from outside your network after confirming local connectivity."
+      ]
+    },
+    {
+      "id": "wrong_protocol",
+      "title": "The protocol may be wrong",
+      "summary": "Java usually needs TCP 25565. Bedrock usually needs UDP 19132.",
+      "suggestedNextActions": [
+        "Confirm which game mode you are exposing.",
+        "Use TCP for Java and UDP for Bedrock unless your specific setup says otherwise.",
+        "Check whether both Java and Bedrock need separate rules."
+      ]
+    },
+    {
+      "id": "router_reboot_required",
+      "title": "The router may need a save/apply cycle or reboot",
+      "summary": "Some firmware does not activate the new rule immediately.",
+      "suggestedNextActions": [
+        "Press Save / Apply in the forwarding page.",
+        "If the router asks to reboot, do it.",
+        "Re-test after the router is fully back online."
+      ]
+    },
+    {
+      "id": "no_admin_access",
+      "title": "You may not have permission to change router settings",
+      "summary": "Some ISP, dorm, apartment, or managed-network environments lock down forwarding.",
+      "suggestedNextActions": [
+        "Check whether you have the router admin login.",
+        "Ask the network owner or ISP whether forwarding is allowed.",
+        "Use a fallback remote-access solution if direct forwarding is blocked."
+      ]
+    }
   ]
 }

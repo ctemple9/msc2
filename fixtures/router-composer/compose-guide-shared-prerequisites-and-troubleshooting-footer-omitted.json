@@ -1,0 +1,157 @@
+{
+  "domain": "router-composer",
+  "case": "compose-guide-shared-prerequisites-and-troubleshooting-footer-omitted",
+  "source": {
+    "file": "RouterPortForwardGuideComposer.swift",
+    "test": "composeGuide(_:)",
+    "line": 89
+  },
+  "input": {
+    "mode": "compose_guide",
+    "guideId": "advanced-troubleshooting",
+    "catalog": "full"
+  },
+  "expected": {
+    "id": "advanced-troubleshooting",
+    "sections": [
+      {
+        "id": "advanced-troubleshooting.intro",
+        "kind": "intro",
+        "title": "What you are doing",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in either the router app or its browser-based admin page for Advanced Networking.",
+            "referencedTokens": []
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "advanced-troubleshooting.value-summary",
+        "kind": "valueSummary",
+        "title": "Values you will enter",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: {{detected_local_ip_address}}",
+              "Java port: {{java_port}} (usually TCP)",
+              "Recommended protocol guidance: {{recommended_protocol}}",
+              "Bedrock port: {{bedrock_port}} (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: {{bedrock_enabled}}"
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "recommended_protocol",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "recommended_protocol",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "advanced-troubleshooting.menu-path",
+        "kind": "menuPath",
+        "title": "Where to look",
+        "origin": "mixed",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [],
+            "alternateMenuNames": [
+              "NAT",
+              "Firewall",
+              "Bridge Mode",
+              "Passthrough"
+            ]
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "advanced-troubleshooting.steps",
+        "kind": "routerSpecificSteps",
+        "title": "Steps",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "step",
+            "id": "troubleshooting-step-1",
+            "kind": "warning",
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port"
+            ]
+          },
+          {
+            "type": "step",
+            "id": "troubleshooting-step-2",
+            "kind": "warning",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "troubleshooting-step-3",
+            "kind": "warning",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "troubleshooting-step-4",
+            "kind": "warning",
+            "referencedTokens": [
+              "recommended_protocol"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "recommended_protocol"
+        ]
+      },
+      {
+        "id": "advanced-troubleshooting.notes",
+        "kind": "notes",
+        "title": "Notes and quirks",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "note",
+            "id": "troubleshooting-note-1",
+            "title": "Limitations"
+          },
+          {
+            "type": "note",
+            "id": "troubleshooting-note-2",
+            "title": null
+          }
+        ],
+        "referencedTokens": []
+      }
+    ]
+  },
+  "notes": "advanced-troubleshooting's sharedSections has includeSharedPrerequisites=false and includeSharedTroubleshootingFooter=false (its real MSC 1 values) \u2014 both sections are absent from the output entirely, not just empty. The menu-path section is still present despite an empty menuPath array, because menuPathSection's guard is `hasMenuPath || hasAlternates`, and alternateMenuNames is non-empty \u2014 a section can appear from alternates alone with a genuinely empty `path` list inside it. A note's title being nil (troubleshooting-note-2) round-trips as JSON null."
+}

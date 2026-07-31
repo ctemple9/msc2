@@ -1,0 +1,229 @@
+{
+  "domain": "router-composer",
+  "case": "compose-guide-provider-and-device-differ",
+  "source": {
+    "file": "RouterPortForwardGuideComposer.swift",
+    "test": "composeGuide(_:)",
+    "line": 89
+  },
+  "input": {
+    "mode": "compose_guide",
+    "guideId": "xfinity-gateway",
+    "catalog": "full"
+  },
+  "expected": {
+    "id": "xfinity-gateway",
+    "sections": [
+      {
+        "id": "xfinity-gateway.intro",
+        "kind": "intro",
+        "title": "What you are doing",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "This guide helps you create a port-forward rule in either the router app or its browser-based admin page for Xfinity Gateway. Keep the provider name (Xfinity / Comcast) separate from the actual device where settings are changed.",
+            "referencedTokens": []
+          },
+          {
+            "type": "paragraph",
+            "title": "Confidence",
+            "body": "Common flow",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "xfinity-gateway.prerequisites",
+        "kind": "prerequisites",
+        "title": "Before you start",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Confirm the host Mac is the device that will receive the forward.",
+              "Keep the router login open so you can return to the forwarding page if the firmware hides advanced settings.",
+              "Have the host Mac's local IP ready: {{detected_local_ip_address}}.",
+              "Common admin addresses for this guide: 10.0.0.1, http://10.0.0.1.",
+              "Verify you are configuring the ISP gateway itself and not a separate downstream router or mesh system."
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "xfinity-gateway.value-summary",
+        "kind": "valueSummary",
+        "title": "Values you will enter",
+        "origin": "shared",
+        "items": [
+          {
+            "type": "bulletList",
+            "title": null,
+            "bullets": [
+              "Target device / internal IP: {{detected_local_ip_address}}",
+              "Java port: {{java_port}} (usually TCP)",
+              "Recommended protocol guidance: {{recommended_protocol}}",
+              "Bedrock port: {{bedrock_port}} (usually UDP, when Bedrock/Geyser is enabled)",
+              "Bedrock enabled: {{bedrock_enabled}}"
+            ],
+            "referencedTokens": [
+              "detected_local_ip_address",
+              "java_port",
+              "bedrock_port",
+              "recommended_protocol",
+              "bedrock_enabled"
+            ]
+          }
+        ],
+        "referencedTokens": [
+          "detected_local_ip_address",
+          "java_port",
+          "bedrock_port",
+          "recommended_protocol",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "xfinity-gateway.menu-path",
+        "kind": "menuPath",
+        "title": "Where to look",
+        "origin": "mixed",
+        "items": [
+          {
+            "type": "menuPath",
+            "title": null,
+            "path": [
+              "xFi app or 10.0.0.1",
+              "Advanced",
+              "Port Forwarding"
+            ],
+            "alternateMenuNames": [
+              "xFi",
+              "Gateway",
+              "Advanced Security"
+            ]
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "xfinity-gateway.steps",
+        "kind": "routerSpecificSteps",
+        "title": "Steps",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "step",
+            "id": "xfinity-step-1",
+            "kind": "prerequisite",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-2",
+            "kind": "navigate",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-3",
+            "kind": "navigate",
+            "referencedTokens": []
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-4",
+            "kind": "input",
+            "referencedTokens": [
+              "java_port",
+              "bedrock_port",
+              "bedrock_enabled"
+            ]
+          },
+          {
+            "type": "step",
+            "id": "xfinity-step-5",
+            "kind": "test",
+            "referencedTokens": []
+          }
+        ],
+        "referencedTokens": [
+          "java_port",
+          "bedrock_port",
+          "bedrock_enabled"
+        ]
+      },
+      {
+        "id": "xfinity-gateway.notes",
+        "kind": "notes",
+        "title": "Notes and quirks",
+        "origin": "guide_specific",
+        "items": [
+          {
+            "type": "note",
+            "id": "xfinity-note-1",
+            "title": "Common flow"
+          },
+          {
+            "type": "note",
+            "id": "xfinity-note-2",
+            "title": "Restrictions"
+          }
+        ],
+        "referencedTokens": []
+      },
+      {
+        "id": "xfinity-gateway.troubleshooting",
+        "kind": "troubleshootingFooter",
+        "title": "Still not working?",
+        "origin": "mixed",
+        "items": [
+          {
+            "type": "paragraph",
+            "title": null,
+            "body": "If the rule still does not work after you save and test from another network, continue with the matching troubleshooting topics below instead of guessing.",
+            "referencedTokens": []
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "double_nat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "cgnat"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_router"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "wrong_protocol"
+          },
+          {
+            "type": "troubleshootingTopic",
+            "id": "no_admin_access"
+          }
+        ],
+        "referencedTokens": []
+      }
+    ]
+  },
+  "notes": "introBody's \"provider and device both set, and differ case-insensitively\" branch \u2014 xfinity-gateway has both providerDisplayName (\"Xfinity / Comcast\") and deviceDisplayName (\"Xfinity Gateway\") set and distinct, producing the longer two-sentence intro paragraph with the explicit \"do not treat those as interchangeable\"-style caveat. category .ispGateway also appends its own prerequisite bullet, distinct from the mesh-category bullet exercised elsewhere."
+}

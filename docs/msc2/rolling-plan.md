@@ -325,7 +325,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.23a: add servers API baseline routes`
 
 ### P0.23b — API baseline: `settings` route
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`
 **What:** Add the `settings` route. Never executed at the time — this route was still missing when P0.30 audited the full route table for coverage gaps, so P0.30 added it (`GET /settings` + `POST /settings`) alongside the other 23 it found. No separate work happened for this step; its status is corrected here rather than left at `not started` next to a route that now exists.
 **Verify:** `python3 tools/api-baseline-check.py settings` → `ok 1`
@@ -490,7 +490,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Commit:** `P0.27: populate the symbol ledger for flagged UI files`
 
 ### P0.29 — Ledger gap: files adjudicated Mixed but missing from the ledger
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`
 **What:** P0.26 selected its 59 files by filtering Codex's *raw* inventory (`msc2-codex-file-inventory.csv`) for `bucket=mixed`. That inventory was written before `docs/msc2/audit/msc2-audit-exact-diff.md` re-adjudicated 28 disputed files against Claude's independent audit. Files the diff moved *into* Mixed after the fact were never selected, so they never got ledger rows. Reconcile the whole 28-file adjudicated list (not just the two Cameron flagged) against the ledger's actual `file` column. Cross-checked programmatically: of the 28, exactly two — `MSCSettingsView.swift` and `ServerEditorView.swift` — are `Final: Mixed` with zero ledger rows. Every other Final-Mixed file in the diff already has rows, either because Codex's raw bucket already said `mixed` (picked up by P0.26) or because P0.25's density scanner already flagged it as a UI file (picked up by P0.27, under `bucket=ui-flagged` rather than `mixed` — a labeling difference, not a coverage gap, since P0.27 already extracted the agent-owned symbols). Add ledger rows for the two missing files using the deletion test, same as P0.26.
 **Verify:** `python3 -c "import csv;rows=list(csv.DictReader(open('docs/msc2/audit/msc2-symbol-ledger.csv')));print(len({r['file'] for r in rows if r['bucket']=='mixed'}))"` → `61`
@@ -513,7 +513,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 ### API baseline correction
 
 ### P0.30 — API baseline: routes covered by no route-family step
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-baseline/openapi.json`, `tools/api-baseline-check.py`
 **What:** The 19 P0.23a–s steps followed `msc2-engineering.md` §5's named route-family list, but that list itself omits several real routes MSC 1 exposes. Read the actual route table straight from source (`RemoteAPIServer+HTTP.swift`'s `switch (method, path)` at line 537, 87 cases, plus one dynamic route handled just above it via `path.hasPrefix`/`hasSuffix` at line 529 — `GET /players/{profileId}/skin`, which brings MSC 1's real total to 88, not the 87 `msc2-engineering.md` §5 states) and diff it against `openapi.json`'s current 64 (method, path) pairs. Exactly 24 are missing, zero are fabricated on either side: `GET /servers`, `GET /status`, `GET /performance`, `POST /active-server`, `GET /session-log`, `GET /console/tail`, `GET /components`, `GET /addons`, `GET /files`, `GET /files/read`, `GET /components/client-export`, `GET /catalog/search`, `GET /java-runtimes`, `GET /versions`, `GET /versions/create`, `GET /settings`, `POST /settings`, `GET /me`, `GET /worlds`, `GET /connectivity`, `GET /health`, `GET /health/problems`, `GET /backups`, `GET /players/{profileId}/skin`. Add all 24 at the same schema depth as the existing families — read each handler's response DTO from `RemoteAPIServerDTOs.swift` and either reuse an existing `components/schemas` entry where the type already exists (`WorldSlotsResponseDTO`/`WorldSlotDTO` for `GET /worlds`, `HealthProblemsResponseDTO`/`StartupProblemDTO` for `GET /health/problems`, `SimpleResult` for `POST /active-server`) or add a new one. `GET /settings` also finally satisfies P0.23b, which was never executed (still `not started`) — its status is corrected alongside this step rather than left stale now that the route exists.
 
@@ -525,7 +525,7 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** safe
 
 ### P0.31 — Record the CurseForge manual-download problem as a decision
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/msc2-decisions.md`
 **What:** MSC 1's `CurseForgeManualDownloadSheet.swift` handles mods CurseForge won't let the app auto-download: it opens each mod's download page in the user's browser, then watches a local folder (default `~/Downloads`) and moves matching jars into the server's `mods/` directory as they appear. That entire mechanism assumes the app, the browser, and the server's files all sit on one machine — true for MSC 1, not guaranteed for MSC 2, where the agent may be a headless box the user's browser never touches. This surfaced as an UNSURE item in the P0.27 symbol-ledger report (`CurseForgeManualDownloadSheet.swift`'s watch-folder mechanism) and isn't resolved by the deletion test alone — it isn't a question of which side owns existing behavior, it's that the existing behavior doesn't have a home on either side once agent and client are different machines. Record it in `msc2-decisions.md` as a new **Open** entry: describe the problem and lay out the real options (e.g. browser-side extension/helper, client-side download-and-upload, agent-side fetch if a direct URL becomes available, keeping it degraded to same-machine-only). Do not choose one — that's a product call for Cameron, not something to decide while doing ledger bookkeeping.
 **Verify:** `grep -c '^## D-027' docs/msc2/msc2-decisions.md && grep -A2 '^## D-027' docs/msc2/msc2-decisions.md | grep -c 'Status:\*\* \*\*Open\*\*'` → `1` then `1`

@@ -1,3 +1,4 @@
+pub mod tps;
 pub mod version;
 
 // Placeholder until P1.2 wires the real fixture-driven tests. Its only job

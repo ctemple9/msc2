@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.3 done, awaiting verification
-> **Next move:** VERIFY (Cameron runs P1.3's Verify command, then EXECUTE continues with P1.4)
+> ## STATUS: Phase 1 in progress — P1.4 done, awaiting verification
+> **Next move:** VERIFY (Cameron runs P1.3/P1.4's Verify commands, then EXECUTE continues with P1.5)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-30
 
@@ -595,10 +595,10 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Batch:** safe
 
 ### P1.4 — Port TPS parsing
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/tps.rs`, `crates/msc-domain/tests/tps.rs`
-**What:** Port the TPS-sample parser (`TpsMonitoringTests.swift` origin, `fixtures/tps/`) — console-reply-line to TPS-figure conversion, including the negative-sample clamp-to-zero behavior `fixture-format.md`'s own worked example documents. Wire all 27 fixtures.
-**Verify:** `cargo nextest run -p msc-domain tps` → `27 tests run: 27 passed`
+**What:** Port the TPS-sample parser (`TpsMonitoringTests.swift` origin, `fixtures/tps/`) — console-reply-line to TPS-figure conversion (Paper trio, legacy Forge, modern NeoForge, vanilla `/tick query` derivation, spark). **Scope note, amended during P1.4's own execution, not a silent skip:** 8 of the 27 fixtures in this domain (`auto-tps-command-*` ×3, `tps-poll-command-*` ×3, `supports-vanilla-tick-query-numeric-boundary`, `every-flavor-auto-tps-command-is-exhaustive`) don't test the parser at all — they test `JavaServerFlavor.autoTpsCommand` / `.tpsPollCommand(minecraftVersion:)` / `.supportsVanillaTickQuery`, which is P1.8's type, not P1.4's. Building it early here would mean writing it twice: once as a stub now, once for real in P1.8, which is the only step that plans the line-by-line cross-check against `JavaServerFlavor.swift` needed to trust it. Those 8 stay unwired here and are P1.8's responsibility (its own step text already commits to `autoTpsCommand`, `tpsPollCommand`, and the 1.20.3 `supportsVanillaTickQuery` boundary). Only the 19 pure-parser fixtures are wired in this step.
+**Verify:** `cargo nextest run -p msc-domain tps` → `19 tests run: 19 passed`
 **Commit:** `P1.4: port TPS parsing`
 **Batch:** safe
 

@@ -10,9 +10,6 @@
     "function": "TpsLineParser.parse",
     "line": "overall: mean tick time: 4.0 ms  mean tps: 19.5"
   },
-  "expected": {
-    "t1": 19.5,
-    "t5": null
-  },
-  "notes": "Real Forge builds vary punctuation/casing slightly; the regex is case-insensitive and tolerant of the 'ms.' period being present or not. The source test only asserts t1 and t5 — t15 is intentionally omitted here rather than assumed."
+  "expected": null,
+  "notes": "Corrected during P1.4: MSC 1's testForgeTpsCaseAndSpacingTolerant asserts a?.t1 == 19.5, but running the actual TpsLineParser.parse against this exact input (verified directly against MSC 1's source, unmodified) returns nil, not a match. parseForge's pre-guard (`clean.contains(\"Mean tick time\")`, line 63) is plain Swift String.contains — case-SENSITIVE — even though the regex it gates is built with `.caseInsensitive` and the file's own doc comment calls the format 'case-insensitive'. Against this input (all-lowercase 'overall'/'mean'), the guard fails before the regex is ever tried, so parseForge (and, on the same case-sensitivity grounds, parseNeoForge and parseVanillaTick) all return nil. This is a genuine MSC 1 bug — the guard doesn't live up to what the regex and doc comment promise — but MSC 1 is the oracle for a behavior-preserving port, not its own test assertions; `expected` here now reflects MSC 1's actual runtime output rather than the (apparently never actually green) test's claim."
 }

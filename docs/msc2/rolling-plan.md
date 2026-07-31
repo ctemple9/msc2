@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 in progress — P1.14 DONE, P1.15 next
-> **Next move:** EXECUTE P1.15 (Phase 1 exit gate check)
+> ## STATUS: Phase 1 in progress — P1.15 awaiting verification
+> **Next move:** VERIFY (Cameron runs P1.15's Verify commands, then REVIEW can begin — this is the phase's own gate check)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-31
 
@@ -699,7 +699,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Phase exit
 
 ### P1.15 — Phase 1 exit gate check
-**Status:** not started
+**Status:** awaiting verification
 **Files:** none (verification only)
 **What:** Run every Phase 1 domain together and confirm the crate stays clean: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and the full `cargo nextest run -p msc-domain` suite (every domain from P1.3–P1.14 in one run). Confirm `msc-domain` still carries no I/O dependency, per its module-boundary rule — check its `Cargo.toml` pulls in no filesystem/network/process crates. This checks the port plan's own Phase 1 exit criteria verbatim: "Rust passes the Phase 0 pure fixtures. No user files touched."
 **Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run -p msc-domain` → all green; then `grep -E '^\s*(tokio|reqwest|std::fs|walkdir|notify)' crates/msc-domain/Cargo.toml` → no matches

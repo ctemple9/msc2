@@ -1,0 +1,39 @@
+{
+  "domain": "router-matcher",
+  "case": "exact-keyword-match-caps-score",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "eero"
+  },
+  "expected": {
+    "normalizedQuery": "eero",
+    "normalizedTokens": [
+      "eero"
+    ],
+    "inferredFamilies": [
+      "eero"
+    ],
+    "candidates": [
+      {
+        "guideId": "eero-mesh",
+        "score": 250,
+        "reasons": [
+          "exact keyword",
+          "keyword prefix",
+          "keyword substring",
+          "token overlap",
+          "family alias",
+          "mesh intent"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-mesh",
+    "isAmbiguous": false,
+    "matchedDirectGuide": true
+  },
+  "notes": "\"eero\" is a literal item in eero-mesh's searchKeywords, so exact/prefix/substring all fire at once (\"eero pro\"/\"eero mesh\" both start with and contain \"eero\"), plus token overlap, family-alias (the eero rule's own alias list contains \"eero\"), and mesh-intent (the token \"eero\" is itself one of the four literal mesh-intent triggers: mesh/deco/eero/nest). Raw total is 120+48+28+14+70+22=302, clamped to the 250 cap \u2014 the only fixture in this domain that exercises Swift's `score = min(score, 250)` line. Fallback excludes the top candidate's own family (its only guide is itself), skips the mesh-intent generic-mesh branch's first attempt (same guide again), and lands on generic-mesh via the `intent == .mesh` fallback branch. Verified by running the literal Swift source (matcher + a 6-guide sample catalog) through `swift`, not hand-derived."
+}

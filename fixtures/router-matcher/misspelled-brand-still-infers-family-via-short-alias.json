@@ -1,0 +1,34 @@
+{
+  "domain": "router-matcher",
+  "case": "misspelled-brand-still-infers-family-via-short-alias",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "xfinnity"
+  },
+  "expected": {
+    "normalizedQuery": "xfinnity",
+    "normalizedTokens": [
+      "xfinnity"
+    ],
+    "inferredFamilies": [
+      "xfinity_gateway"
+    ],
+    "candidates": [
+      {
+        "guideId": "xfinity-gateway",
+        "score": 70,
+        "reasons": [
+          "family alias"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-router",
+    "isAmbiguous": false,
+    "matchedDirectGuide": true
+  },
+  "notes": "MSC 1's family inference has no fuzzy/edit-distance matching at all \u2014 only exact-equals, substring-contains, and token-subset checks. \"xfinnity\" (misspelled, extra \"n\") does not equal, get contained by, or contain \"xfinity\" as a substring, so the brand's main keyword never matches. Family inference still fires here, but only by coincidence: the xfinityGateway alias rule also lists the short alias \"xfi\", and \"xfinnity\".contains(\"xfi\") is true (the misspelling still starts with those three letters). Change the typo so it no longer starts with \"xfi\" (e.g. \"finxity\") and no family would be inferred at all \u2014 this is not spell-correction, it is a 3-letter-alias coincidence. Scored 70 (family alias only; no exact/prefix/substring keyword bonus, no token overlap since \"xfinnity\" matches no guide token exactly). Verified by running the literal Swift source, not hand-derived \u2014 an initial hand-analysis wrongly predicted zero family inference here."
+}

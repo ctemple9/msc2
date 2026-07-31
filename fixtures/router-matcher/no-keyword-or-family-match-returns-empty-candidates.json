@@ -1,0 +1,24 @@
+{
+  "domain": "router-matcher",
+  "case": "no-keyword-or-family-match-returns-empty-candidates",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "zzzzz"
+  },
+  "expected": {
+    "normalizedQuery": "zzzzz",
+    "normalizedTokens": [
+      "zzzzz"
+    ],
+    "inferredFamilies": [],
+    "candidates": [],
+    "fallbackGuideId": "generic-router",
+    "isAmbiguous": false,
+    "matchedDirectGuide": false
+  },
+  "notes": "A token that shares no substring, prefix, or token with any catalog guide, and matches no family-alias rule, produces true zero-candidate output (every guide's score stays exactly 0 and is filtered by `.filter { $0.score > 0 }`) \u2014 unlike the empty-input case above, which incidentally picks up the unconditional +20 unknown-intent bonus. \"zzzzz\" resolves to `.guideLookup` intent (it isn't empty and doesn't literally equal \"router\"/\"generic router\"), so that bonus doesn't apply here. With no top candidate to exclude, fallback falls through every branch to the plain genericRouter lookup. Verified by running the literal Swift source, not hand-derived."
+}

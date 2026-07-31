@@ -3,6 +3,7 @@ pub mod crash_analysis;
 pub mod identity;
 pub mod java_runtime;
 pub mod properties;
+pub mod router;
 pub mod settings_schema;
 pub mod slug;
 pub mod tps;

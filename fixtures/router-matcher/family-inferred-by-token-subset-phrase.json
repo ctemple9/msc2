@@ -1,0 +1,37 @@
+{
+  "domain": "router-matcher",
+  "case": "family-inferred-by-token-subset-phrase",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "comcast xfinity internet"
+  },
+  "expected": {
+    "normalizedQuery": "comcast xfinity internet",
+    "normalizedTokens": [
+      "comcast",
+      "xfinity",
+      "internet"
+    ],
+    "inferredFamilies": [
+      "xfinity_gateway"
+    ],
+    "candidates": [
+      {
+        "guideId": "xfinity-gateway",
+        "score": 98,
+        "reasons": [
+          "token overlap",
+          "family alias"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-router",
+    "isAmbiguous": false,
+    "matchedDirectGuide": true
+  },
+  "notes": "A longer freeform phrase containing the brand name, not a single matching keyword: the whole 3-token query is longer than every one of xfinity-gateway's searchKeywords, so none of exact/prefix/substring can fire (all three compare the query against single keyword strings in a direction that requires the keyword to be the longer side). Family inference instead matches via the alias \"comcast xfinity\" being a token-subset of the query's token set. matchedDirectGuide is true here via the family-alias path, not the \"exact keyword\" reason string \u2014 a different route to true than the exact-match fixture above. Verified by running the literal Swift source, not hand-derived."
+}

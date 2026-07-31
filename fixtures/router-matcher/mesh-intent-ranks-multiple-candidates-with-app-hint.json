@@ -1,0 +1,60 @@
+{
+  "domain": "router-matcher",
+  "case": "mesh-intent-ranks-multiple-candidates-with-app-hint",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "mesh"
+  },
+  "expected": {
+    "normalizedQuery": "mesh",
+    "normalizedTokens": [
+      "mesh"
+    ],
+    "inferredFamilies": [
+      "generic_mesh"
+    ],
+    "candidates": [
+      {
+        "guideId": "generic-mesh",
+        "score": 250,
+        "reasons": [
+          "exact keyword",
+          "keyword prefix",
+          "keyword substring",
+          "token overlap",
+          "family alias",
+          "mesh intent",
+          "app-managed hint"
+        ]
+      },
+      {
+        "guideId": "eero-mesh",
+        "score": 122,
+        "reasons": [
+          "keyword prefix",
+          "keyword substring",
+          "token overlap",
+          "mesh intent",
+          "app-managed hint"
+        ]
+      },
+      {
+        "guideId": "netgear-router",
+        "score": 52,
+        "reasons": [
+          "keyword substring",
+          "token overlap",
+          "app-managed hint"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-router",
+    "isAmbiguous": false,
+    "matchedDirectGuide": true
+  },
+  "notes": "\"mesh\" ranks three unrelated guides by genuinely different score paths: generic-mesh hits nearly every bonus at once (exact/prefix/substring all fire off its own \"mesh\"/\"mesh wifi\"/\"mesh system\" keywords) and caps at 250; eero-mesh scores from its shared \"mesh wifi\" keyword (a literal MSC 1 keyword genuinely shared between the eero and generic-mesh guides) plus mesh-intent (its category is also meshSystem) and the app-managed hint (adminSurface mobileApp); netgear-router \u2014 a retail router, not a mesh product \u2014 still scores 52 purely because \"orbi mesh\" is one of its literal searchKeywords (substring +28, token overlap +14) plus the app-managed hint (+10, adminSurface either), even though it gets no mesh-intent bonus since its category isn't meshSystem. This third candidate's incidental score was missed in an initial hand-derivation and only surfaced by running the literal Swift source. Not ambiguous (250 vs 122 is a 128-point gap)."
+}

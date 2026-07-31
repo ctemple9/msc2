@@ -1,0 +1,33 @@
+{
+  "domain": "router-matcher",
+  "case": "keyword-prefix-and-substring-partial-match",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "net"
+  },
+  "expected": {
+    "normalizedQuery": "net",
+    "normalizedTokens": [
+      "net"
+    ],
+    "inferredFamilies": [],
+    "candidates": [
+      {
+        "guideId": "netgear-router",
+        "score": 76,
+        "reasons": [
+          "keyword prefix",
+          "keyword substring"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-router",
+    "isAmbiguous": false,
+    "matchedDirectGuide": false
+  },
+  "notes": "Partial-prefix match: \"netgear\".hasPrefix(\"net\") and \"netgear\".contains(\"net\") both hold, so keyword-prefix (+48) and keyword-substring (+28) fire together for the same keyword \u2014 they are independent checks in the source, not mutually exclusive, which is easy to miss by inspection (an earlier hand-derivation of this fixture wrongly assumed only one would fire, predicting 42 instead of the actual 76). \"net\" is too short to satisfy any family-alias rule (no alias equals, contains, or is a token-subset match for it), so inferredFamilies is empty and matchedDirectGuide is false despite netgear-router being the only candidate. Verified by running the literal Swift source, not hand-derived."
+}

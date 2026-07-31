@@ -1,0 +1,30 @@
+{
+  "domain": "router-matcher",
+  "case": "empty-input-gets-unconditional-unknown-intent-bonus",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": ""
+  },
+  "expected": {
+    "normalizedQuery": "",
+    "normalizedTokens": [],
+    "inferredFamilies": [],
+    "candidates": [
+      {
+        "guideId": "generic-router",
+        "score": 20,
+        "reasons": [
+          "unknown router fallback"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-mesh",
+    "isAmbiguous": false,
+    "matchedDirectGuide": false
+  },
+  "notes": "Non-obvious source behavior: an empty query still produces one candidate, not zero. `inferredIntent` returns `.unknown` for an empty normalizedQuery, and the `.unknown` case in `scoreCandidate`'s intent switch (`if guide.family == .genericRouter || .unknownRouter { score += 20 }`) has no `score > 0` guard \u2014 unlike the `.mesh` and hint branches, which all require some score already accumulated. So generic-router (family genericRouter) gets +20 from nothing, becomes the sole candidate, and is excluded from its own fallback slot, landing on generic-mesh (next catalog entry) the same way the tie-break fixture above does. matchedDirectGuide is false because the sole reason is \"unknown router fallback\", not \"exact keyword\", and inferredFamilies is empty. Verified by running the literal Swift source \u2014 an initial hand-analysis wrongly predicted zero candidates for empty input."
+}

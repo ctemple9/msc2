@@ -1,0 +1,67 @@
+{
+  "domain": "router-matcher",
+  "case": "low-score-tie-does-not-make-result-ambiguous",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "router"
+  },
+  "expected": {
+    "normalizedQuery": "router",
+    "normalizedTokens": [
+      "router"
+    ],
+    "inferredFamilies": [],
+    "candidates": [
+      {
+        "guideId": "generic-router",
+        "score": 182,
+        "reasons": [
+          "exact keyword",
+          "keyword substring",
+          "token overlap",
+          "unknown router fallback"
+        ]
+      },
+      {
+        "guideId": "advanced-troubleshooting",
+        "score": 42,
+        "reasons": [
+          "keyword substring",
+          "token overlap"
+        ]
+      },
+      {
+        "guideId": "eero-mesh",
+        "score": 42,
+        "reasons": [
+          "keyword substring",
+          "token overlap"
+        ]
+      },
+      {
+        "guideId": "generic-mesh",
+        "score": 42,
+        "reasons": [
+          "keyword substring",
+          "token overlap"
+        ]
+      },
+      {
+        "guideId": "netgear-router",
+        "score": 42,
+        "reasons": [
+          "keyword substring",
+          "token overlap"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-mesh",
+    "isAmbiguous": false,
+    "matchedDirectGuide": true
+  },
+  "notes": "The literal query \"router\" triggers inferredIntent's exact-match unknown-intent branch (`normalizedQuery == \"router\"`), giving generic-router an extra unconditional +20 (\"unknown router fallback\", no score>0 guard on this branch) on top of its exact-keyword/substring/token-overlap hits (162), for 182. Four other guides tie at 42 apiece purely by incidentally containing \"router\" inside a longer keyword (\"app managed router\", \"netgear router\", \"orbi router\", \"wrong router\") plus the matching token overlap \u2014 none of them get a family-alias bonus (genericRouter has no entry in familyAliasRules at all) or the unknown-intent bonus (their family isn't genericRouter/unknownRouter). isAmbiguous only compares the *top two* ranked scores (182 vs 42, a 140-point gap, well over the 12-point threshold) \u2014 it does not look at ties further down the ranking, so this 4-way tie among 2nd-5th place has zero effect on the ambiguous flag. Fallback excludes generic-router (the top candidate) from every branch, including the final unconditional \"first guide in the whole catalog\" fallback, landing on generic-mesh (the next entry in catalog order). Verified by running the literal Swift source, not hand-derived."
+}

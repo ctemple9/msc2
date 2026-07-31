@@ -1,0 +1,431 @@
+{
+  "_comment": "A representative subset of MSC 1's RouterPortForwardGuideSeedData.v1Guides (RouterPortForwardGuidesFoundation.swift), not the full 14-guide catalog. Built by P1.10 for the router matcher and reused as-is by P1.11-P1.13 (fallback tree, composer, troubleshooting engine). Field names mirror the Swift Codable struct verbatim (no CodingKeys in source, so JSON keys equal Swift property names). Covers two ISP/retail router brands (xfinity-gateway, netgear-router), two mesh-system brands (generic-mesh, eero-mesh), the generic-router fallback, and the advanced-troubleshooting family guide.",
+  "guides": [
+    {
+      "id": "generic-router",
+      "displayName": "Generic Router Guide",
+      "category": "generic_fallback",
+      "family": "generic_router",
+      "searchKeywords": ["generic router", "router", "port forwarding", "nat forwarding", "virtual server", "applications and gaming"],
+      "adminAddresses": ["192.168.1.1", "192.168.0.1", "10.0.0.1"],
+      "adminSurface": "web_browser",
+      "menuPath": ["Login", "Advanced", "Port Forwarding"],
+      "alternateMenuNames": ["NAT Forwarding", "Virtual Server", "Applications & Gaming", "Firewall Rules", "Port Rules", "Advanced NAT"],
+      "steps": [
+        {
+          "id": "generic-step-1",
+          "kind": "intro",
+          "title": "Get the values you need first",
+          "body": "Before changing the router, note the host Mac's local IP, the Java port, and the Bedrock port if Bedrock is enabled.",
+          "referencedTokens": ["detected_local_ip_address", "java_port", "bedrock_port", "bedrock_enabled"],
+          "alternateTerms": []
+        },
+        {
+          "id": "generic-step-2",
+          "kind": "navigate",
+          "title": "Log into the router",
+          "body": "Open the router admin page in a browser. Common addresses include 192.168.1.1, 192.168.0.1, and 10.0.0.1. Exact screens vary by firmware.",
+          "referencedTokens": [],
+          "alternateTerms": ["Gateway", "Admin", "Router Login"]
+        },
+        {
+          "id": "generic-step-3",
+          "kind": "navigate",
+          "title": "Find the forwarding section",
+          "body": "Look for Port Forwarding, NAT Forwarding, Virtual Server, Applications & Gaming, Firewall Rules, or Advanced NAT.",
+          "referencedTokens": [],
+          "alternateTerms": ["Port Forwarding", "NAT Forwarding", "Virtual Server", "Applications & Gaming"]
+        },
+        {
+          "id": "generic-step-4",
+          "kind": "input",
+          "title": "Create the rule",
+          "body": "Target the host Mac's local IP. For Java, forward TCP on the configured Java port. If Bedrock is enabled, also forward UDP on the configured Bedrock port.",
+          "referencedTokens": ["detected_local_ip_address", "java_port", "bedrock_port", "recommended_protocol", "bedrock_enabled"],
+          "alternateTerms": ["Internal IP", "Device", "LAN IP", "Server IP"]
+        },
+        {
+          "id": "generic-step-5",
+          "kind": "save",
+          "title": "Save or apply the change",
+          "body": "Save the new rule, apply changes, and reboot the router only if the firmware asks for it.",
+          "referencedTokens": [],
+          "alternateTerms": ["Apply", "Submit"]
+        },
+        {
+          "id": "generic-step-6",
+          "kind": "test",
+          "title": "Test from outside your network",
+          "body": "After the rule is saved, test from a different network. If it still fails, continue into troubleshooting instead of guessing.",
+          "referencedTokens": [],
+          "alternateTerms": []
+        }
+      ],
+      "notes": [
+        { "id": "generic-note-1", "title": "Transparency", "body": "Exact labels and screens vary by firmware version and router vendor." },
+        { "id": "generic-note-2", "title": "ISP vs router", "body": "Your internet provider name is not always the device you configure. You may have ISP hardware plus your own router." }
+      ],
+      "troubleshooting": ["local_ip_changed", "wrong_router", "wrong_device", "wrong_protocol", "double_nat", "cgnat", "firewall_blocked", "router_reboot_required"],
+      "sharedSections": {
+        "includeSharedIntro": true,
+        "includeSharedPrerequisites": true,
+        "includeSharedValueSummary": true,
+        "includeSharedTroubleshootingFooter": true
+      },
+      "review": {
+        "sourceConfidence": "common_flow",
+        "lastReviewed": "2026-03-17T00:00:00Z",
+        "reviewNotes": "Fallback family-level guidance. Labels vary widely by vendor."
+      },
+      "providerDisplayName": null,
+      "deviceDisplayName": "Generic Router"
+    },
+    {
+      "id": "generic-mesh",
+      "displayName": "Generic Mesh Wi-Fi System",
+      "category": "mesh_system",
+      "family": "generic_mesh",
+      "searchKeywords": ["generic mesh", "mesh", "mesh wifi", "whole home wifi", "app managed router", "mesh system"],
+      "adminAddresses": [],
+      "adminSurface": "either",
+      "menuPath": ["Router app or admin page", "Advanced", "Port Forwarding"],
+      "alternateMenuNames": ["NAT Forwarding", "Virtual Server", "Reservations & Port Forwarding"],
+      "steps": [
+        {
+          "id": "generic-mesh-step-1",
+          "kind": "prerequisite",
+          "title": "Confirm the mesh system is doing routing",
+          "body": "If the mesh is in bridge mode, access point mode, or passthrough mode, the forwarding rule belongs on the upstream router instead.",
+          "referencedTokens": [],
+          "alternateTerms": ["Bridge Mode", "Access Point Mode", "Passthrough"]
+        },
+        {
+          "id": "generic-mesh-step-2",
+          "kind": "navigate",
+          "title": "Open the mesh app or admin page",
+          "body": "Most mesh products expose port forwarding in the mobile app first, though some also support a browser admin page.",
+          "referencedTokens": [],
+          "alternateTerms": ["App", "Admin Page"]
+        },
+        {
+          "id": "generic-mesh-step-3",
+          "kind": "navigate",
+          "title": "Find the forwarding section",
+          "body": "Look for labels such as Port Forwarding, NAT Forwarding, Virtual Server, or Reservations & Port Forwarding.",
+          "referencedTokens": [],
+          "alternateTerms": ["Port Forwarding", "NAT Forwarding", "Virtual Server"]
+        },
+        {
+          "id": "generic-mesh-step-4",
+          "kind": "input",
+          "title": "Target the Mac running the server",
+          "body": "Choose the Mac running {{selected_server_name}} and point the rule at {{detected_local_ip_address}}. Forward TCP for Java on {{java_port}}. If Bedrock is enabled, also add UDP for {{bedrock_port}}.",
+          "referencedTokens": ["selected_server_name", "detected_local_ip_address", "java_port", "bedrock_port"],
+          "alternateTerms": ["Device", "Client", "Reservation"]
+        },
+        {
+          "id": "generic-mesh-step-5",
+          "kind": "test",
+          "title": "Save and test from another network",
+          "body": "Apply the rule, then test from outside your home network. If it still fails, check for upstream ISP routing or double NAT.",
+          "referencedTokens": [],
+          "alternateTerms": []
+        }
+      ],
+      "notes": [
+        { "id": "generic-mesh-note-1", "title": "App-managed systems", "body": "Mesh systems often hide advanced settings until you tap deeper into network or advanced menus." },
+        { "id": "generic-mesh-note-2", "title": null, "body": "If your ISP device is still routing above the mesh, forwarding on the mesh alone will not expose the server." }
+      ],
+      "troubleshooting": ["wrong_router", "double_nat", "wrong_device", "wrong_protocol"],
+      "sharedSections": {
+        "includeSharedIntro": true,
+        "includeSharedPrerequisites": true,
+        "includeSharedValueSummary": true,
+        "includeSharedTroubleshootingFooter": true
+      },
+      "review": {
+        "sourceConfidence": "common_flow",
+        "lastReviewed": "2026-03-17T00:00:00Z",
+        "reviewNotes": "Generic fallback for mesh systems where the exact product guide is unavailable."
+      },
+      "providerDisplayName": null,
+      "deviceDisplayName": "Mesh Wi-Fi System"
+    },
+    {
+      "id": "xfinity-gateway",
+      "displayName": "Xfinity Gateway",
+      "category": "isp_gateway",
+      "family": "xfinity_gateway",
+      "searchKeywords": ["xfinity", "comcast", "xfi", "xb6", "xb7", "xb8", "xfinity gateway"],
+      "adminAddresses": ["10.0.0.1", "http://10.0.0.1"],
+      "adminSurface": "either",
+      "menuPath": ["xFi app or 10.0.0.1", "Advanced", "Port Forwarding"],
+      "alternateMenuNames": ["xFi", "Gateway", "Advanced Security"],
+      "steps": [
+        {
+          "id": "xfinity-step-1",
+          "kind": "prerequisite",
+          "title": "Confirm you are using the Xfinity gateway itself",
+          "body": "If you also have your own router or mesh system, the forwarding rule may belong there instead.",
+          "referencedTokens": [],
+          "alternateTerms": []
+        },
+        {
+          "id": "xfinity-step-2",
+          "kind": "navigate",
+          "title": "Open xFi or log in to 10.0.0.1",
+          "body": "Use the Xfinity app first if that is how your gateway is managed. Otherwise try 10.0.0.1 in a browser.",
+          "referencedTokens": [],
+          "alternateTerms": ["xFi", "Gateway"]
+        },
+        {
+          "id": "xfinity-step-3",
+          "kind": "navigate",
+          "title": "Go to the forwarding area",
+          "body": "Find the section for advanced network settings and port forwarding. Xfinity labels and availability can vary by gateway generation.",
+          "referencedTokens": [],
+          "alternateTerms": ["Advanced", "Port Forwarding", "Gateway Settings"]
+        },
+        {
+          "id": "xfinity-step-4",
+          "kind": "input",
+          "title": "Select the host Mac and enter the port values",
+          "body": "Choose the Mac running Minecraft Server Controller. Forward TCP for the Java port. If Bedrock is enabled, also forward UDP for the Bedrock port.",
+          "referencedTokens": ["java_port", "bedrock_port", "bedrock_enabled"],
+          "alternateTerms": ["Device", "Connected Device"]
+        },
+        {
+          "id": "xfinity-step-5",
+          "kind": "test",
+          "title": "Save and test externally",
+          "body": "Save the rule, then test from a different network. If you cannot find forwarding at all, you may be on a restricted or app-only gateway flow.",
+          "referencedTokens": [],
+          "alternateTerms": []
+        }
+      ],
+      "notes": [
+        { "id": "xfinity-note-1", "title": "Common flow", "body": "Xfinity gateway menus vary across XB6, XB7, and XB8 hardware revisions." },
+        { "id": "xfinity-note-2", "title": "Restrictions", "body": "If the app or gateway firmware hides forwarding, verify you are not in bridge mode and that another router is not actually doing routing." }
+      ],
+      "troubleshooting": ["wrong_router", "double_nat", "cgnat", "wrong_protocol", "no_admin_access"],
+      "sharedSections": {
+        "includeSharedIntro": true,
+        "includeSharedPrerequisites": true,
+        "includeSharedValueSummary": true,
+        "includeSharedTroubleshootingFooter": true
+      },
+      "review": {
+        "sourceConfidence": "common_flow",
+        "lastReviewed": "2026-03-17T00:00:00Z",
+        "reviewNotes": "Provider gateway family guidance. Exact xFi flow may differ by region and hardware."
+      },
+      "providerDisplayName": "Xfinity / Comcast",
+      "deviceDisplayName": "Xfinity Gateway"
+    },
+    {
+      "id": "netgear-router",
+      "displayName": "NETGEAR / Nighthawk / Orbi",
+      "category": "retail_router",
+      "family": "netgear",
+      "searchKeywords": ["netgear", "netgear router", "nighthawk", "orbi", "night hawk", "orbi router", "orbi mesh"],
+      "adminAddresses": ["192.168.1.1", "192.168.0.1", "http://routerlogin.net", "http://192.168.1.1", "http://192.168.0.1"],
+      "adminSurface": "either",
+      "menuPath": ["Nighthawk / Orbi app or routerlogin.net", "Advanced", "Port Forwarding / Port Triggering"],
+      "alternateMenuNames": ["Nighthawk app", "Orbi app", "Advanced Setup", "Port Triggering", "WAN Setup"],
+      "steps": [
+        {
+          "id": "netgear-step-1",
+          "kind": "prerequisite",
+          "title": "Confirm the NETGEAR device is the router doing routing",
+          "body": "If Orbi or another NETGEAR system is in access point mode, or if an ISP gateway is still routing above it, create the forward on the actual upstream router instead.",
+          "referencedTokens": [],
+          "alternateTerms": ["Access Point Mode", "Bridge Mode"]
+        },
+        {
+          "id": "netgear-step-2",
+          "kind": "navigate",
+          "title": "Open the correct NETGEAR management surface",
+          "body": "Use the Nighthawk or Orbi app if you manage the network by app, or log in through routerlogin.net or the router's local IP in a browser.",
+          "referencedTokens": [],
+          "alternateTerms": ["Nighthawk", "Orbi", "routerlogin.net"]
+        },
+        {
+          "id": "netgear-step-3",
+          "kind": "navigate",
+          "title": "Go to the forwarding controls",
+          "body": "Look under Advanced or Advanced Setup for Port Forwarding / Port Triggering. Some models place related WAN options nearby, but you want the actual forwarding page.",
+          "referencedTokens": [],
+          "alternateTerms": ["Advanced", "Advanced Setup", "Port Forwarding / Port Triggering", "WAN Setup"]
+        },
+        {
+          "id": "netgear-step-4",
+          "kind": "input",
+          "title": "Create the Minecraft rule",
+          "body": "Point the rule to the Mac running Minecraft Server Controller. Forward TCP for the Java port. If Bedrock is enabled, add a separate UDP rule for the Bedrock port.",
+          "referencedTokens": ["detected_local_ip_address", "java_port", "bedrock_port", "bedrock_enabled"],
+          "alternateTerms": ["Service Name", "Server IP Address", "Internal IP"]
+        },
+        {
+          "id": "netgear-step-5",
+          "kind": "test",
+          "title": "Apply and test from outside your network",
+          "body": "Save or apply the new rule, then test from another network. If access still fails, verify that the NETGEAR device is not in access point mode and that no ISP gateway is still doing the real NAT.",
+          "referencedTokens": [],
+          "alternateTerms": ["Apply", "Save"]
+        }
+      ],
+      "notes": [
+        { "id": "netgear-note-1", "title": "Family coverage", "body": "This guide covers NETGEAR routers, Nighthawk models, and Orbi systems as a family guide rather than exact-model instructions." },
+        { "id": "netgear-note-2", "title": "App vs browser", "body": "Nighthawk and Orbi can be app-managed, but many forwarding options are still easiest to confirm in the browser interface." }
+      ],
+      "troubleshooting": ["wrong_router", "double_nat", "wrong_device", "wrong_protocol", "firewall_blocked"],
+      "sharedSections": {
+        "includeSharedIntro": true,
+        "includeSharedPrerequisites": true,
+        "includeSharedValueSummary": true,
+        "includeSharedTroubleshootingFooter": true
+      },
+      "review": {
+        "sourceConfidence": "common_flow",
+        "lastReviewed": "2026-03-18T00:00:00Z",
+        "reviewNotes": "Family-level NETGEAR guidance covering Nighthawk and Orbi forwarding paths."
+      },
+      "providerDisplayName": null,
+      "deviceDisplayName": "NETGEAR / Nighthawk / Orbi"
+    },
+    {
+      "id": "eero-mesh",
+      "displayName": "eero",
+      "category": "mesh_system",
+      "family": "eero",
+      "searchKeywords": ["eero", "eero pro", "eero mesh", "mesh wifi", "app managed router"],
+      "adminAddresses": [],
+      "adminSurface": "mobile_app",
+      "menuPath": ["eero app", "Settings", "Reservations & Port Forwarding"],
+      "alternateMenuNames": ["Reservations & Port Forwarding", "Network Settings"],
+      "steps": [
+        {
+          "id": "eero-step-1",
+          "kind": "prerequisite",
+          "title": "Confirm eero is the router doing routing",
+          "body": "If eero is in bridge mode, the forwarding rule belongs on the upstream router instead.",
+          "referencedTokens": [],
+          "alternateTerms": ["Bridge mode"]
+        },
+        {
+          "id": "eero-step-2",
+          "kind": "navigate",
+          "title": "Open the eero app",
+          "body": "eero is app-managed first. Open the eero app and go to the network settings area.",
+          "referencedTokens": [],
+          "alternateTerms": ["eero app"]
+        },
+        {
+          "id": "eero-step-3",
+          "kind": "navigate",
+          "title": "Find Reservations & Port Forwarding",
+          "body": "Open Settings, then Network Settings, then Reservations & Port Forwarding.",
+          "referencedTokens": [],
+          "alternateTerms": ["Network Settings", "Reservations & Port Forwarding"]
+        },
+        {
+          "id": "eero-step-4",
+          "kind": "input",
+          "title": "Select the host Mac and enter the port",
+          "body": "Choose the Mac running Minecraft Server Controller. Add a TCP rule for the Java port and a UDP rule for the Bedrock port if Bedrock is enabled.",
+          "referencedTokens": ["java_port", "bedrock_port", "bedrock_enabled"],
+          "alternateTerms": ["Reservation", "Device", "Forward"]
+        },
+        {
+          "id": "eero-step-5",
+          "kind": "test",
+          "title": "Save and test",
+          "body": "Save the rule and test from a different network. If nothing works, check whether the ISP modem/router is still doing routing above eero.",
+          "referencedTokens": [],
+          "alternateTerms": []
+        }
+      ],
+      "notes": [
+        { "id": "eero-note-1", "title": "App-first flow", "body": "eero users often think of the network by app name rather than router model. Matching should preserve that later." },
+        { "id": "eero-note-2", "title": null, "body": "If eero is in bridge mode, port forwarding must be configured elsewhere." }
+      ],
+      "troubleshooting": ["wrong_router", "double_nat", "wrong_device", "wrong_protocol"],
+      "sharedSections": {
+        "includeSharedIntro": true,
+        "includeSharedPrerequisites": true,
+        "includeSharedValueSummary": true,
+        "includeSharedTroubleshootingFooter": true
+      },
+      "review": {
+        "sourceConfidence": "common_flow",
+        "lastReviewed": "2026-03-17T00:00:00Z",
+        "reviewNotes": "App-first family guidance for eero mesh systems."
+      },
+      "providerDisplayName": null,
+      "deviceDisplayName": "eero"
+    },
+    {
+      "id": "advanced-troubleshooting",
+      "displayName": "Advanced Port Forwarding Troubleshooting",
+      "category": "advanced_networking",
+      "family": "advanced_troubleshooting",
+      "searchKeywords": ["double nat", "cgnat", "wrong router", "firewall", "port forwarding not working"],
+      "adminAddresses": ["192.168.1.1", "192.168.0.1", "10.0.0.1"],
+      "adminSurface": "either",
+      "menuPath": [],
+      "alternateMenuNames": ["NAT", "Firewall", "Bridge Mode", "Passthrough"],
+      "steps": [
+        {
+          "id": "troubleshooting-step-1",
+          "kind": "warning",
+          "title": "Verify the server works locally first",
+          "body": "Test from the same network before debugging the router. A router rule cannot fix a server that is not reachable on the LAN.",
+          "referencedTokens": ["detected_local_ip_address", "java_port", "bedrock_port"],
+          "alternateTerms": []
+        },
+        {
+          "id": "troubleshooting-step-2",
+          "kind": "warning",
+          "title": "Check whether you have two routers",
+          "body": "If you have ISP hardware plus your own router or mesh system, you may be forwarding on the wrong device.",
+          "referencedTokens": [],
+          "alternateTerms": ["Double NAT", "Bridge Mode"]
+        },
+        {
+          "id": "troubleshooting-step-3",
+          "kind": "warning",
+          "title": "Compare the router WAN IP to your public IP",
+          "body": "If they do not match, you may be behind CGNAT or another upstream NAT layer.",
+          "referencedTokens": [],
+          "alternateTerms": ["WAN IP", "Public IP"]
+        },
+        {
+          "id": "troubleshooting-step-4",
+          "kind": "warning",
+          "title": "Confirm target device and protocol",
+          "body": "Make sure the rule points to the host Mac and uses TCP for Java and UDP for Bedrock unless your setup says otherwise.",
+          "referencedTokens": ["recommended_protocol"],
+          "alternateTerms": []
+        }
+      ],
+      "notes": [
+        { "id": "troubleshooting-note-1", "title": "Limitations", "body": "Some dorm, apartment, cellular, or ISP-managed networks will not allow direct port forwarding at all." },
+        { "id": "troubleshooting-note-2", "title": null, "body": "This guide exists as a fallback path, not as proof that every network can be opened successfully." }
+      ],
+      "troubleshooting": ["local_ip_changed", "wrong_router", "wrong_device", "double_nat", "cgnat", "firewall_blocked", "wrong_protocol", "router_reboot_required", "no_admin_access"],
+      "sharedSections": {
+        "includeSharedIntro": true,
+        "includeSharedPrerequisites": false,
+        "includeSharedValueSummary": true,
+        "includeSharedTroubleshootingFooter": false
+      },
+      "review": {
+        "sourceConfidence": "common_flow",
+        "lastReviewed": "2026-03-17T00:00:00Z",
+        "reviewNotes": "Advanced fallback guide for unsupported or failing topologies."
+      },
+      "providerDisplayName": null,
+      "deviceDisplayName": "Advanced Networking"
+    }
+  ]
+}

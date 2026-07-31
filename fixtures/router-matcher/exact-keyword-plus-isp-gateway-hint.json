@@ -1,0 +1,38 @@
+{
+  "domain": "router-matcher",
+  "case": "exact-keyword-plus-isp-gateway-hint",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "xfinity gateway"
+  },
+  "expected": {
+    "normalizedQuery": "xfinity gateway",
+    "normalizedTokens": [
+      "xfinity",
+      "gateway"
+    ],
+    "inferredFamilies": [
+      "xfinity_gateway"
+    ],
+    "candidates": [
+      {
+        "guideId": "xfinity-gateway",
+        "score": 230,
+        "reasons": [
+          "exact keyword",
+          "token overlap",
+          "family alias",
+          "isp/gateway hint"
+        ]
+      }
+    ],
+    "fallbackGuideId": "generic-router",
+    "isAmbiguous": false,
+    "matchedDirectGuide": true
+  },
+  "notes": "\"xfinity gateway\" is itself a literal searchKeywords entry (exact match, +120) and a literal familyAliasRules alias (+70), plus 2-token overlap (+28) and the isp/gateway hint (query contains the substring \"gateway\", guide.category == .ispGateway, +12) \u2014 the only fixture in this domain that exercises the isp/gateway-hint branch. No other sample-catalog guide's keywords/tokens contain \"gateway\" at all, so it's the sole candidate. Verified by running the literal Swift source, not hand-derived."
+}

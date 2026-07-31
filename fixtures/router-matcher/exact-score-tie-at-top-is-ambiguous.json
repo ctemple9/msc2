@@ -1,0 +1,43 @@
+{
+  "domain": "router-matcher",
+  "case": "exact-score-tie-at-top-is-ambiguous",
+  "source": {
+    "file": "RouterPortForwardGuideMatcher.swift",
+    "test": "match(_:)",
+    "line": 41
+  },
+  "input": {
+    "query": "myeero mynetgear"
+  },
+  "expected": {
+    "normalizedQuery": "myeero mynetgear",
+    "normalizedTokens": [
+      "myeero",
+      "mynetgear"
+    ],
+    "inferredFamilies": [
+      "netgear",
+      "eero"
+    ],
+    "candidates": [
+      {
+        "guideId": "eero-mesh",
+        "score": 70,
+        "reasons": [
+          "family alias"
+        ]
+      },
+      {
+        "guideId": "netgear-router",
+        "score": 70,
+        "reasons": [
+          "family alias"
+        ]
+      }
+    ],
+    "fallbackGuideId": "netgear-router",
+    "isAmbiguous": true,
+    "matchedDirectGuide": true
+  },
+  "notes": "Glued prefixes (\"my\" + brand, no space) let family-alias inference fire via raw substring containment on the whole normalizedQuery string (`normalizedQuery.contains(\"eero\")`, `.contains(\"netgear\")`) while keeping every other scoring path at zero: the glued tokens (\"myeero\", \"mynetgear\") don't match any keyword text and don't overlap any guide's token set (which contains \"eero\"/\"netgear\" as separate, ungeglued tokens), and neither literal word \"eero\"/\"mesh\"/\"deco\"/\"nest\" appears as its own token, so mesh-intent never triggers either. Both guides land on exactly 70 (family alias only), a genuine tie for first place \u2014 `isAmbiguous = first > 0 && (first - second) <= 12` evaluates true at a 0-point gap, the domain's only fixture where the flag fires. Tie-break falls to `displayName.localizedCaseInsensitiveCompare`: \"eero\" sorts before \"NETGEAR / Nighthawk / Orbi\" (e < n), so eero-mesh wins the #1 slot despite being declared after netgear-router in familyAliasRules and after it alphabetically by id. Fallback excludes eero-mesh (the top candidate) and returns the first still-available inferred family in rule order, netgear (netgear-router) \u2014 the other half of the tie. Verified by running the literal Swift source, not hand-derived."
+}

@@ -1,0 +1,25 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-keyword-partial",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "gamemode cr",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "gamemode creative"
+    ]
+  },
+  "notes": "No trailing space: slotIndex 0, gamemode's first slot is keyword(survival/creative/adventure/spectator). partial \"cr\" case-insensitive-prefix-matches only \"creative\"."
+}

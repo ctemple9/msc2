@@ -1,0 +1,58 @@
+{
+  "domain": "command-catalog",
+  "case": "commands-for-java-server-type",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "commands(for:)",
+    "line": 461
+  },
+  "input": {
+    "serverType": "java"
+  },
+  "expected": {
+    "names": [
+      "tp",
+      "teleport",
+      "give",
+      "kick",
+      "ban",
+      "ban-ip",
+      "pardon",
+      "op",
+      "deop",
+      "msg",
+      "tell",
+      "kill",
+      "gamemode",
+      "effect",
+      "xp",
+      "experience",
+      "clear",
+      "time",
+      "weather",
+      "difficulty",
+      "gamerule",
+      "setworldspawn",
+      "spawnpoint",
+      "list",
+      "seed",
+      "say",
+      "title",
+      "save-all",
+      "save-off",
+      "save-on",
+      "reload",
+      "stop",
+      "whitelist",
+      "banlist",
+      "enchant",
+      "attribute",
+      "setblock",
+      "fill",
+      "clone",
+      "summon",
+      "particle"
+    ]
+  },
+  "notes": "commands(for: .java) filters the 42-entry static catalog to supportsJava, preserving declaration order. Only allowlist (Bedrock-only, BDS's allowlist equivalent to Java's whitelist) is excluded, giving 41 of 42. Verified by running the literal source function (copied into a standalone Swift script) rather than hand-counting, since a single missed flag would silently mislabel a fixture as passing."
+}

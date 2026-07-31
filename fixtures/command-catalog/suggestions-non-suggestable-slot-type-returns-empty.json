@@ -1,0 +1,23 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-non-suggestable-slot-type-returns-empty",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "give Steve diamond",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": []
+  },
+  "notes": "slotIndex 1 (no trailing space, two filled tokens) lands on give's second slot, a freeText item-id slot. The suggestion switch only handles playerName and keyword; coordinates/integer/freeText all fall through the `default: return []` case, so no suggestions are ever offered for those three slot kinds regardless of partial input."
+}

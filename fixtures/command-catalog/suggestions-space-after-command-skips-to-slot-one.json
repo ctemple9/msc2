@@ -1,0 +1,28 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-space-after-command-skips-to-slot-one",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "tp ",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "tp  Steve",
+      "tp  Alex",
+      "tp  Alexander",
+      "tp  Notch"
+    ]
+  },
+  "notes": "Same off-by-one as suggestions-space-after-single-slot-command-out-of-range (slotIndex lands on 1, not 0, right after \"cmd \"), but tp has two playerName slots, so slotIndex 1 is in range and lands on the *second* playerName slot (destination player) \u2014 meaning \"tp \" suggests player names for the wrong slot, skipping the first entirely. Also note the double space in each result: baseTokens = tokens.map(...) = [\"tp\", \"\"] when endsWithSpace, so base = \"tp \" (trailing space from joining with the empty token), then \"\\(base) \\(name)\" appends a second space. Verified by running the literal source function, not hand-derived."
+}

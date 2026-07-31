@@ -1,0 +1,23 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-unknown-command-name",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "frobnicate foo",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": []
+  },
+  "notes": "Two tokens routes past the command-name branch into argument completion; available.first(where: { $0.name == commandName }) finds no match for 'frobnicate', so the guard returns [] before any argument-slot logic runs."
+}

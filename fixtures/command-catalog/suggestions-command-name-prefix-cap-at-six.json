@@ -1,0 +1,30 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-command-name-prefix-cap-at-six",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "s",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "/setworldspawn",
+      "/spawnpoint",
+      "/seed",
+      "/say",
+      "/save-all",
+      "/save-off"
+    ]
+  },
+  "notes": "Ten Java commands start with 's' (setworldspawn, spawnpoint, seed, say, save-all, save-off, save-on, stop, setblock, summon); .prefix(6) caps the result to the first six in catalog declaration order, dropping save-on, stop, setblock, summon."
+}

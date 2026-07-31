@@ -1,0 +1,26 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-player-name-partial-prefix",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "kick al",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "kick Alex",
+      "kick Alexander"
+    ]
+  },
+  "notes": "No trailing space: slotIndex = max(0, filledTokens.count - 1) = 0, the correct first slot (playerName). partial = \"al\" filters onlinePlayers by case-insensitive prefix, preserving onlinePlayers input order (Alex before Alexander)."
+}

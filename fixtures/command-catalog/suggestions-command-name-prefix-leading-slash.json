@@ -1,0 +1,29 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-command-name-prefix-leading-slash",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "/t",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "/tp",
+      "/teleport",
+      "/tell",
+      "/time",
+      "/title"
+    ]
+  },
+  "notes": "Identical result to suggestions-command-name-prefix: raw.hasPrefix(\"/\") strips the leading slash before matching, so typing the slash the UI already displays doesn't change the match set."
+}

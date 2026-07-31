@@ -1,0 +1,46 @@
+{
+  "domain": "command-catalog",
+  "case": "commands-for-bedrock-server-type",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "commands(for:)",
+    "line": 461
+  },
+  "input": {
+    "serverType": "bedrock"
+  },
+  "expected": {
+    "names": [
+      "tp",
+      "teleport",
+      "give",
+      "kick",
+      "op",
+      "deop",
+      "msg",
+      "tell",
+      "kill",
+      "gamemode",
+      "effect",
+      "clear",
+      "time",
+      "weather",
+      "difficulty",
+      "gamerule",
+      "setworldspawn",
+      "spawnpoint",
+      "list",
+      "seed",
+      "say",
+      "title",
+      "stop",
+      "allowlist",
+      "enchant",
+      "setblock",
+      "fill",
+      "clone",
+      "summon"
+    ]
+  },
+  "notes": "commands(for: .bedrock) filters to supportsBedrock, preserving declaration order. 13 Java-only admin/legacy commands are excluded (ban, ban-ip, pardon, xp, experience, save-all, save-off, save-on, reload, whitelist, banlist, attribute, particle), giving 29 of 42."
+}

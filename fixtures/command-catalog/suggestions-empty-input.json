@@ -1,0 +1,23 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-empty-input",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": []
+  },
+  "notes": "guard !input.isEmpty else { return [] } \u2014 the function's first line."
+}

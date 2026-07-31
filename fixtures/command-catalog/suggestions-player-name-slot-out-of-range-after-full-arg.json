@@ -1,0 +1,23 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-player-name-slot-out-of-range-after-full-arg",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "kick Alex ",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": []
+  },
+  "notes": "tokens = [\"kick\", \"Alex\", \"\"], filledTokens = [\"Alex\", \"\"] has count 2, endsWithSpace true so slotIndex = 2. kick has two slots (indices 0-1), so slotIndex 2 fails the range guard and returns [] \u2014 the same off-by-one, now pushing past the end of a two-slot command entirely."
+}

@@ -1,0 +1,29 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-command-name-prefix",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "t",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "/tp",
+      "/teleport",
+      "/tell",
+      "/time",
+      "/title"
+    ]
+  },
+  "notes": "Single token, no trailing space: command-name-prefix branch. Five Java commands start with 't', all returned '/'-prefixed, in catalog declaration order (under the 6-item cap so no truncation exercised here)."
+}

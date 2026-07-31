@@ -1,0 +1,34 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-player-name-cap-at-six",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "op p",
+    "serverType": "java",
+    "onlinePlayers": [
+      "P1",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P7",
+      "P8"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "op P1",
+      "op P2",
+      "op P3",
+      "op P4",
+      "op P5",
+      "op P6"
+    ]
+  },
+  "notes": "Eight online players all match the empty-after-lowercasing prefix \"p\"; .prefix(6) caps the player-name branch the same way it caps the command-name branch, preserving onlinePlayers input order."
+}

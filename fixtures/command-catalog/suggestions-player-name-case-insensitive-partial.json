@@ -1,0 +1,26 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-player-name-case-insensitive-partial",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "kick AL",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "kick Alex",
+      "kick Alexander"
+    ]
+  },
+  "notes": "Identical to suggestions-player-name-partial-prefix: partial.lowercased() is compared against $0.name.lowercased(), so an uppercase partial still matches."
+}

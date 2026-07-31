@@ -1,0 +1,23 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-command-name-prefix-respects-server-type",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "ba",
+    "serverType": "bedrock",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": []
+  },
+  "notes": "ban, ban-ip, and banlist all start with 'ba' but are Java-only (supportsBedrock: false), so they're excluded from `available` before the prefix filter ever runs \u2014 for Bedrock, 'ba' matches nothing. Demonstrates commands(for:) gates the prefix-match pool, not just commands(for:) itself."
+}

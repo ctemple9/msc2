@@ -1,0 +1,23 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-space-after-single-slot-command-out-of-range",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "op ",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": []
+  },
+  "notes": "Non-obvious source quirk, verified by running the literal Swift function rather than derived by hand: \"op \".split(separator: \" \", omittingEmptySubsequences: false) produces [\"op\", \"\"] (a trailing empty token from the trailing space), so filledTokens = [\"\"] has count 1, and since endsWithSpace is true, slotIndex = filledTokens.count = 1. op has only one argument slot (index 0), so slotIndex 1 fails the `slotIndex < argumentSlots.count` guard and the function returns [] instead of the expected player-name suggestions. Preserved as-is: a real MSC 1 behavior, not a bug this port introduces."
+}

@@ -1,0 +1,29 @@
+{
+  "domain": "command-catalog",
+  "case": "suggestions-command-name-prefix-case-insensitive",
+  "source": {
+    "file": "MinecraftCommandRegistry.swift",
+    "test": "suggestions(for:serverType:onlinePlayers:)",
+    "line": 473
+  },
+  "input": {
+    "input": "T",
+    "serverType": "java",
+    "onlinePlayers": [
+      "Steve",
+      "Alex",
+      "Alexander",
+      "Notch"
+    ]
+  },
+  "expected": {
+    "suggestions": [
+      "/tp",
+      "/teleport",
+      "/tell",
+      "/time",
+      "/title"
+    ]
+  },
+  "notes": "prefix.lowercased() is compared against already-lowercase command names, so an uppercase prefix still matches."
+}

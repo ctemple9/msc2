@@ -263,6 +263,8 @@ Three things follow, and conflating them is a mistake:
 
 **Until these are specified, treat the auth design as incomplete.**
 
+**Phase 2 scope (P2.3).** Phase 2's own gate (`msc2-port-plan.md` §3) needs only "the existing iOS app connects and reads status against a stub agent" — one client, one loopback transport, no real mutation behind it. Read against MSC 1's actual mechanism (`RemoteAPIServer+HTTP.swift`'s bearer lookup, `MSCSettingsView.swift`'s `mscremote://pair` deep link, `KeychainTokenStore.swift`), the token in that flow is not the product of a cryptographic pairing exchange — it's the same string created on the Mac side and embedded directly in the QR/link. What Phase 2 genuinely lacks is the token-issuance and persistent-storage machinery around it, which needs the `SecretStore` trait (Phase 3) and does not exist yet. Phase 2 therefore implements bearer-token *verification* only — a single fixed dev token from an environment variable, checked by `msc-agent`'s middleware, clearly commented as a placeholder — and points the re-hosted iOS client at it directly rather than through a real pairing flow. None of the six numbered gaps above are closed by this: items 2–6 don't apply to a loopback-only, iOS-only dev loop, and item 1 (local automatic authorization) is untouched either way. Full scoping and source citations in `docs/msc2/api-contract/auth-scope-phase2.md`.
+
 ---
 
 ## D-013 — Multi-host data model from day one

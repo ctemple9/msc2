@@ -748,7 +748,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.2 — Decide the educational content format and the `helpId` contract shape
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/helpid-contract.md`, `docs/msc2/msc2-decisions.md` (amend D-026)
 **What:** D-026 leaves open "content format" and "embedded vs on-disk," flagging both as real product-shape calls. Recommend Markdown with YAML front-matter (the doc's own "obvious candidate") and embedding content in the agent binary (via `rust-embed` or `include_str!`) for v1 — guarantees the handbook is always present, matching the product promise that help never requires a separate download; on-disk override can be added later if hot-editing content without a release turns out to matter. Record both as **Proposed**, explicitly flagged for Cameron to confirm or overrule during the Read move — this is exactly the kind of call CLAUDE.md says not to make silently. Define the `helpId` shape precisely: a dotted-namespace string (`settings.difficulty`, `health.tick-lag`, `diagnostics.crash.forge-dep`), resolved via a new `GET /v1/help/{helpId}` route. Enumerate every DTO field `msc2-engineering.md` §18 names as needing one (settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings) so P2.8 knows exactly where to attach it.
 **Verify:** `grep -c 'helpId' docs/msc2/api-contract/helpid-contract.md` → non-zero; `grep -c '^## D-026' docs/msc2/msc2-decisions.md` → `1` (confirms this amends the existing entry rather than duplicating it)
@@ -756,7 +756,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.3 — Scope Phase 2's authentication surface and record what stays deferred
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/auth-scope-phase2.md`, `docs/msc2/msc2-decisions.md` (amend D-012)
 **What:** Phase 2's gate needs only the **iOS app** to connect to a **local, loopback** skeletal agent — not a Tauri desktop app connecting to a remote host, and not a browser. Scope this phase's auth work to exactly that: implement bearer-token *verification* (the already-Approved iOS mechanism — QR pairing → keychain token → bearer header — minus the real pairing-secret exchange, which needs Phase 3's `SecretStore` trait and doesn't exist yet). Stand in a single fixed dev token for now, clearly commented as a placeholder. Explicitly record as still-open, not solved by this phase: remote desktop pairing, per-host credential storage, LAN TLS provisioning, Tailscale posture, browser origin policy and CSRF — none of which an iOS-only, loopback-only gate requires. Amend D-012 with this scoping so a future reader doesn't mistake Phase 2's dev token for the six gaps being closed.
 **Verify:** `grep -c 'Phase 2 scope' docs/msc2/msc2-decisions.md` → at least `1`

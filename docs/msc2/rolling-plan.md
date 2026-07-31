@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 0 complete (gate holds — fixture harness, API baseline, symbol ledger all verified; Codex review incorporated) — Phase 1 next
-> **Next move:** PLAN (write the Phase 1 step list — domain types and pure rules)
+> ## STATUS: Phase 1 in progress — P1.1 done, awaiting verification
+> **Next move:** VERIFY (Cameron runs P1.1's Verify command, then EXECUTE continues with P1.2)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
-> **Last updated:** 2026-07-31
+> **Last updated:** 2026-07-30
 
 ---
 
@@ -51,7 +51,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 |---|---|---|
 | **Setup** | Repo, docs, agent instructions, CI, editor config | complete |
 | **0** | Freeze the baseline and build the harness | complete |
-| 1 | Domain types and pure rules | **next** |
+| 1 | Domain types and pure rules | **planned** |
 | 2 | API contract and operation model | not started |
 | 3 | Safety substrate | not started |
 | 4 | Java lifecycle vertical slice | not started |
@@ -539,6 +539,172 @@ For the fourteen families MSC 1's own route list gives an exact sub-route count 
 **Verify:** `python3 tools/api-baseline-check.py --typed-failures` → `ok 68` (the count of corrected status-code entries) — then `python3 tools/api-baseline-check.py --depth-all` → `ok 88` (unchanged path/method count, this step only touches response schemas)
 **Commit:** `P0.32: fix typed-failure response schemas Codex's review caught`
 **Batch:** solo
+
+---
+
+## Phase 1 — Domain types and pure rules
+
+**Gate** (`msc2-port-plan.md` §3): Rust passes the Phase 0 pure fixtures. No user files touched.
+
+**Rust starts here.** `Cargo.toml` did not exist through Phase 0 (Python stdlib only); P1.1 creates it. Everything in this phase lives in one crate, `msc-domain` — per `msc2-engineering.md` §6, domain types and parsers carry **no I/O**; that rule is load-bearing for two scoping calls this phase makes explicitly (P1.5, P1.10/12).
+
+**Domain list, from `msc2-port-plan.md` §3:** "Server identity, flavors, version comparison, Java policy, property models, command catalog, TPS parsing, crash analysis, slug normalization, and the router rule engine (matcher, fallback resolver, composer, troubleshooting engine, runtime resolver)." All ten are accounted for below.
+
+15 steps, five groups:
+
+| Group | Steps | Deliverable |
+|---|---|---|
+| Rust workspace | P1.1–P1.2 | Cargo workspace, `msc-domain` crate, a native fixture-loading test harness |
+| Existing-fixture domains | P1.3–P1.7 | version comparison, TPS parsing, Java runtime policy, property models, crash analysis + slug normalization — ported and passing their Phase 0 fixtures |
+| New-characterization domains | P1.8–P1.9 | server identity & flavors, command catalog — MSC 1 has no tests for either, so fixtures are written from source before porting |
+| Router rule engine | P1.10–P1.14 | matcher, fallback decision tree, composer, troubleshooting engine, runtime resolver — all five newly characterized; zero MSC 1 test coverage exists for any of them |
+| Phase exit | P1.15 | full-suite gate check against the port plan's own exit criteria |
+
+**Not in this phase.** The port plan's domain list is deliberately narrower than "everything Phase 0 extracted." These fixture domains stay unported until the phase named for them: `dto-contract`/`http-parse-request`/`remote-api-integration` (58 fixtures, Phase 2 — API contract), `network-safety` (13, Phase 3 — safety substrate, same reason as P1.5's filesystem split), `config-roundtrip` (7, Phase 5 — configuration and migration), `args-file-resolution` (12) and `headless-script` (19, both Phase 7 — server families and provisioning), and the five modpack domains — `curseforge-modpack`, `modpack-client-only`, `modpack-pinning`, `mrpack-extraction`, `pack-managed-guard` (57 total, Phase 8). That's 166 of the 270 Phase 0 fixtures accounted for elsewhere; this phase wires the remaining 96 that fall under its own domain list (see P1.3–P1.7), plus new characterization work Phase 0 had no test source for at all.
+
+---
+
+### Rust workspace
+
+### P1.1 — Cargo workspace and the `msc-domain` crate skeleton
+**Status:** awaiting verification
+**Files:** `Cargo.toml` (workspace root), `crates/msc-domain/Cargo.toml`, `crates/msc-domain/src/lib.rs`, `rust-toolchain.toml`, `.github/workflows/ci.yml`
+**What:** Create the Cargo workspace per `msc2-engineering.md` §6's module boundaries, starting with exactly one member crate: `msc-domain` (server models, flavors, versions, settings schema, parsers, diagnostics policy — **no I/O**, per that section's direction rule). An empty `lib.rs` with one placeholder test so `cargo build`/`cargo test` have something to run before P1.2 adds the real harness. Pin the toolchain via `rust-toolchain.toml` so `cargo fmt`/`cargo clippy` behave identically for Cameron and CI. `S.3`'s CI toolchain job was written to install Rust and "build once `Cargo.toml` appears" — it now has; wire it to actually run `cargo build --workspace`, `cargo fmt --check`, and `cargo clippy --workspace -- -D warnings` on all three OSes.
+**Verify:** `cd ~/msc2 && cargo build --workspace && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings` → all exit 0
+**Commit:** `P1.1: create the Cargo workspace and msc-domain crate skeleton`
+**Batch:** stop-after
+
+### P1.2 — Native fixture-loading test harness
+**Status:** not started
+**Files:** `crates/msc-domain/tests/fixture_harness.rs` (or equivalent test-support module)
+**What:** A Rust counterpart to P0.2's Python runner: deserializes a fixture file into the P0.1 shape (`domain`, `case`, `source`, `input`, `expected`, `notes`) and turns every file under `fixtures/<domain>/` into its own test — e.g. via `datatest-stable` or an equivalent build-script-generated-test approach — so a failing case names itself in `cargo nextest run` output the same way a failing Python fixture names itself today. Prove it against P0.2's own two self-test fixtures (`fixtures/_selftest/pass.json`, `fail.json`) before wiring any real domain: one meta-test asserts the harness's comparison function reports a match for `pass.json` and correctly reports a mismatch for `fail.json` — mirroring the Python runner's `--selftest` mode, which reports each fixture's outcome rather than letting the deliberately-broken one fail the build.
+**Verify:** `cargo nextest run -p msc-domain fixture_harness_selftest` → `1 test run: 1 passed`
+**Commit:** `P1.2: build the native fixture-loading test harness`
+**Batch:** solo
+
+---
+
+### Existing-fixture domains
+
+### P1.3 — Port version comparison
+**Status:** not started
+**Files:** `crates/msc-domain/src/version.rs`, `crates/msc-domain/tests/version_comparison.rs`
+**What:** Port `ComponentVersion` parsing and comparison (`ComponentVersionParsingTests.swift` origin, `fixtures/component-version/`) — the primitive MSC 2 needs everywhere a Paper/Purpur build number, Minecraft version string, or loader version gets compared, including the ordering behavior the downgrade guards several agent workflows depend on (`MCVersionComparator.isDowngrade`, symbol ledger target_domain `java-runtime`/`components` — those call sites port later; Phase 1 only needs the comparison primitive). Wire all 21 fixtures through the P1.2 harness.
+**Verify:** `cargo nextest run -p msc-domain version_comparison` → `21 tests run: 21 passed`
+**Commit:** `P1.3: port version comparison`
+**Batch:** safe
+
+### P1.4 — Port TPS parsing
+**Status:** not started
+**Files:** `crates/msc-domain/src/tps.rs`, `crates/msc-domain/tests/tps.rs`
+**What:** Port the TPS-sample parser (`TpsMonitoringTests.swift` origin, `fixtures/tps/`) — console-reply-line to TPS-figure conversion, including the negative-sample clamp-to-zero behavior `fixture-format.md`'s own worked example documents. Wire all 27 fixtures.
+**Verify:** `cargo nextest run -p msc-domain tps` → `27 tests run: 27 passed`
+**Commit:** `P1.4: port TPS parsing`
+**Batch:** safe
+
+### P1.5 — Port Java runtime policy (pure subset)
+**Status:** not started
+**Files:** `crates/msc-domain/src/java_runtime.rs`, `crates/msc-domain/tests/java_runtime_guards.rs`
+**What:** Port the pure guard/warning logic from `JavaRuntimeGuardsTests.swift` (`fixtures/java-runtime-guards/`): `requiredJavaMajor`'s Minecraft-version-to-Java-major mapping, and the too-old/too-new compatibility-warning classification. **Scope note, a deliberate call, not a silent skip:** 8 of the 15 fixtures in this domain touch the real filesystem — `detect-installed-java-runtimes-*` (×3) scans a directory tree, `normalization-*` (×5) stats candidate paths — and `msc-domain` carries no I/O per `msc2-engineering.md` §6. Those 8 stay unported here and move to `msc-infrastructure` once Phase 3 builds the filesystem substrate behind a trait. Only the 7 pure fixtures (`no-warning-*` ×3, `too-old-warning-still-fires`, `too-new-warning-*` ×2, `required-java-major-mapping`) are wired in this step. Flagged here for Cameron to overrule if he'd rather stub a filesystem trait early instead of waiting for Phase 3.
+**Verify:** `cargo nextest run -p msc-domain java_runtime_guards` → `7 tests run: 7 passed`
+**Commit:** `P1.5: port Java runtime policy (pure subset)`
+**Batch:** stop-after
+
+### P1.6 — Port property models
+**Status:** not started
+**Files:** `crates/msc-domain/src/properties.rs`, `crates/msc-domain/src/settings_schema.rs`, `crates/msc-domain/tests/server_properties.rs`, `crates/msc-domain/tests/settings_schema.rs`
+**What:** Port `ServerPropertiesModel` (`ServerPropertiesModelTests.swift` origin, `fixtures/server-properties/` — the unknown-key-preserving round trip `msc2-engineering.md` §7 names directly: "silently rewriting `server.properties` with only the recognized keys is destructive") and the settings schema (`ServerSettingsSchemaTests.swift` origin, `fixtures/settings-schema/` — type coercion, range clamping, the level-type wire-token mapping, case-insensitive enums). Two modules, each wired to its own fixture directory.
+**Verify:** `cargo nextest run -p msc-domain server_properties` → `7 tests run: 7 passed`; then `cargo nextest run -p msc-domain settings_schema` → `16 tests run: 16 passed`
+**Commit:** `P1.6: port property models`
+**Batch:** safe
+
+### P1.7 — Port crash analysis and slug normalization
+**Status:** not started
+**Files:** `crates/msc-domain/src/crash_analysis.rs`, `crates/msc-domain/src/slug.rs`, `crates/msc-domain/tests/connector_crash_analysis.rs`, `crates/msc-domain/tests/startup_crash_analyzer.rs`
+**What:** Port `StartupCrashAnalyzer` (`ConnectorCrashAnalysisTests.swift` + `StartupCrashAnalyzerTests.swift` origins — Forge dependency-block parsing, connector entrypoint failure attribution, Fabric/Forge missing- and wrong-dependency-version attribution) and `ModrinthSlugNormalizer` (`canonicalSlug` / `normalizedSlug` / `isKnownAlias`). MSC 1 has no separate test file for the normalizer — it doesn't need new characterization, because 4 of the 11 `connector-crash-analysis` fixtures already exercise it directly (MSC 1's own test file bundles the two together). `searchQuery`, the normalizer's one method with no fixture of its own, is a one-line wrapper (`canonical.isEmpty ? raw : canonical`) — port it as part of `slug.rs` but don't invent a fixture for a wrapper the existing 4 already cover the substance of.
+**Verify:** `cargo nextest run -p msc-domain connector_crash_analysis` → `11 tests run: 11 passed`; then `cargo nextest run -p msc-domain startup_crash_analyzer` → `7 tests run: 7 passed`
+**Commit:** `P1.7: port crash analysis and slug normalization`
+**Batch:** safe
+
+---
+
+### New-characterization domains
+
+Both files below have **no MSC 1 test file** — nothing to extract. Per `fixture-format.md`, `expected` values still may not be invented; they come from reading the source's closed, deterministic logic directly (every case is enumerable by inspection) — the same evidentiary standard `fixture-format.md` calls "MSC 1 run by hand" for untested pure functions. `source.test` in each new fixture should name the property or method being characterized, not a fabricated Swift test name.
+
+### P1.8 — Characterize and port server identity & flavors
+**Status:** not started
+**Files:** `fixtures/server-identity/`, `crates/msc-domain/src/identity.rs`, `crates/msc-domain/tests/server_identity.rs`
+**What:** `ServerType` (`java`/`bedrock`, `AppConfig.swift`) and `JavaServerFlavor` (`JavaServerFlavor.swift`, 246 lines, 9 cases: `paper, purpur, pufferfish, vanilla, fabric, neoforge, spigot, forge, quilt`). Write fixtures covering, per flavor: `category`, `isForgeFamily`, `addOnKind`, `provisioningKind`, `modrinthProjectType`, `modrinthLoaderFacets`, `autoTpsCommand`, `isRecommended`, `isAvailableInCreateFlow` — one case per flavor bundling all nine. Add boundary cases for `tpsPollCommand(minecraftVersion:)` / `supportsVanillaTickQuery` around the 1.20.3 threshold (below, exactly at, above, and nil/empty version), and one case per `JavaServerCategory` for `createFlowChoices`. `displayName`, `shortDescription`, and `iconName` are client-rendering per the port plan's deletion test (§1) and are not ported. This is judgment work with a new fixture domain — cross-check the finished fixture set against `JavaServerFlavor.swift` line by line before wiring the Rust port.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/server-identity --expect <n>` → `ok <n>` (count fixed once the fixtures are written — roughly 9 property-bundle cases + ~5 TPS-threshold cases + 2 `createFlowChoices` cases); then `cargo nextest run -p msc-domain server_identity` → `<n> tests run: <n> passed`
+**Commit:** `P1.8: characterize and port server identity & flavors`
+**Batch:** solo
+
+### P1.9 — Characterize and port the command catalog
+**Status:** not started
+**Files:** `fixtures/command-catalog/`, `crates/msc-domain/src/commands.rs`, `crates/msc-domain/tests/command_catalog.rs`
+**What:** `MinecraftCommandRegistry.swift` (542 lines, 42 command definitions). Two things to characterize: (1) the static catalog's `commands(for:)` Java/Bedrock filter — assert the exact filtered name list per `ServerType`, not a re-typed copy of all 42 definitions; (2) the autocomplete engine, `suggestions(for:serverType:onlinePlayers:)` — command-name-prefix completion, argument-slot detection (including "input ends with a space starts a new slot"), player-name filtering against a fake online-player list, keyword-option filtering, and the empty-input / unknown-command-name cases that return `[]`.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/command-catalog --expect <n>` → `ok <n>`; then `cargo nextest run -p msc-domain command_catalog` → `<n> tests run: <n> passed`
+**Commit:** `P1.9: characterize and port the command catalog`
+**Batch:** solo
+
+---
+
+### Router rule engine
+
+Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — per `msc2-decisions.md` D-026 point 3, "the matcher, fallback resolver, composer, and troubleshooting decision tree are executable behavior and are translated to Rust" (the runtime resolver is a fifth, separately named in the port plan and already adjudicated agent-owned in the symbol ledger, see P1.14). The guide **catalog and step content** are data, not logic — per D-026 point 1, they migrate to JSON "at any time," on their own schedule, not gated to this phase. P1.10–P1.13 introduce one small, shared, representative sample of guide records — not the real catalog — sufficient to exercise the engines; P1.10 builds it, P1.11–P1.13 reuse it.
+
+### P1.10 — Characterize and port the router matcher
+**Status:** not started
+**Files:** `fixtures/router-matcher/`, `fixtures/router-sample-catalog.json`, `crates/msc-domain/src/router/matcher.rs`, `crates/msc-domain/tests/router_matcher.rs`
+**What:** `RouterPortForwardGuideMatcher.swift` (320 lines) — "scores guide candidates against user input and returns ranked results with confidence metadata... normalizes freeform user input, infers likely router/provider families, ranks candidate guides, and suggests a fallback when there is no exact family guide in the current catalog" (the file's own doc comment). Build `fixtures/router-sample-catalog.json` first — a handful of representative guide records covering at least two router brands and one mesh-system brand, used by this step and reused by P1.11–P1.13. Characterize: exact-name match, fuzzy/partial match, family inference from a misspelled or partial brand name, tie-break ordering between equally-scored candidates, and the no-match fallback path.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/router-matcher --expect <n>` → `ok <n>` (live count, fixed at write time); then `cargo nextest run -p msc-domain router_matcher` → `<n> tests run: <n> passed`
+**Commit:** `P1.10: characterize and port the router matcher`
+**Batch:** solo
+
+### P1.11 — Characterize and port the router fallback decision tree
+**Status:** not started
+**Files:** `fixtures/router-fallback-tree/`, `crates/msc-domain/src/router/fallback_tree.rs`, `crates/msc-domain/tests/router_fallback_tree.rs`
+**What:** `RouterPortForwardFallbackDecisionTree.swift` (610 lines — the largest of the five) — "models a deterministic decision tree plus a resolver that can route a user toward the best available guide, an honest fallback, or an unknown-router help path," driving "the step-by-step router identification funnel" (the file's own doc comment). Characterize the full `RouterPortForwardDecisionNodeID` state machine directly from source — it's a closed enum-driven tree, not open-ended parsing: every node's transitions, and all three terminal outcomes (best-guide, fallback-guide, unknown-router-help). Reuses P1.10's sample catalog.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/router-fallback-tree --expect <n>` → `ok <n>`; then `cargo nextest run -p msc-domain router_fallback_tree` → `<n> tests run: <n> passed`
+**Commit:** `P1.11: characterize and port the router fallback decision tree`
+**Batch:** solo
+
+### P1.12 — Characterize and port the router guide composer
+**Status:** not started
+**Files:** `fixtures/router-composer/`, `crates/msc-domain/src/router/composer.rs`, `crates/msc-domain/tests/router_composer.rs`
+**What:** `RouterPortForwardGuideComposer.swift` (306 lines) — "composes fully ordered logical guide structures from seed data, merging router-specific steps, prerequisites, value summaries, and notes into a renderable section list" (the file's own doc comment). Characterize section ordering, merge precedence when a router-specific step overrides a shared one, and prerequisite/value-summary/notes assembly. Reuses P1.10's sample catalog.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/router-composer --expect <n>` → `ok <n>`; then `cargo nextest run -p msc-domain router_composer` → `<n> tests run: <n> passed`
+**Commit:** `P1.12: characterize and port the router guide composer`
+**Batch:** solo
+
+### P1.13 — Characterize and port the router troubleshooting engine
+**Status:** not started
+**Files:** `fixtures/router-troubleshooting/`, `crates/msc-domain/src/router/troubleshooting.rs`, `crates/msc-domain/tests/router_troubleshooting.rs`
+**What:** `RouterPortForwardTroubleshootingEngine.swift` (550 lines) — a "rule-based troubleshooting engine for router and port-forwarding failures. Accepts user-reported symptoms and returns prioritised causes and recommended actions" (the file's own doc comment). Characterize the full `RouterPortForwardSymptomID` set from the source's rule table: each symptom's ranked causes, recommended actions, and any linked-topic references.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/router-troubleshooting --expect <n>` → `ok <n>`; then `cargo nextest run -p msc-domain router_troubleshooting` → `<n> tests run: <n> passed`
+**Commit:** `P1.13: characterize and port the router troubleshooting engine`
+**Batch:** solo
+
+### P1.14 — Characterize and port the router runtime resolver
+**Status:** not started
+**Files:** `fixtures/router-runtime-resolver/`, `crates/msc-domain/src/router/runtime_resolver.rs`, `crates/msc-domain/tests/router_runtime_resolver.rs`
+**What:** `RouterPortForwardGuideRuntimeResolver.swift` (291 lines) — already adjudicated agent-owned in the symbol ledger (`msc2-symbol-ledger.csv`, two rows for this file: `makeRecommendedProtocol`, and the `resolve`/`resolveGuide`/`resolveBestMatch`/`resolveItem`/`resolveText` family — the latter corrected to agent during Codex's P0.27 review, on the strength of D-026 naming it directly). Resolves dynamic tokens (selected server's live IP/gateway/ports) against a composed guide's placeholders, plus `makeRecommendedProtocol`'s rule (TCP always; UDP only when Bedrock or Geyser is enabled). Characterize both: token resolution across a `RouterPortForwardGuideRuntimeContext` fixture matrix (server selected/not selected, IP known/unknown, Bedrock on/off), and the protocol-recommendation rule across Java-only / Java+Geyser / Bedrock-only combinations.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/router-runtime-resolver --expect <n>` → `ok <n>`; then `cargo nextest run -p msc-domain router_runtime_resolver` → `<n> tests run: <n> passed`
+**Commit:** `P1.14: characterize and port the router runtime resolver`
+**Batch:** solo
+
+---
+
+### Phase exit
+
+### P1.15 — Phase 1 exit gate check
+**Status:** not started
+**Files:** none (verification only)
+**What:** Run every Phase 1 domain together and confirm the crate stays clean: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and the full `cargo nextest run -p msc-domain` suite (every domain from P1.3–P1.14 in one run). Confirm `msc-domain` still carries no I/O dependency, per its module-boundary rule — check its `Cargo.toml` pulls in no filesystem/network/process crates. This checks the port plan's own Phase 1 exit criteria verbatim: "Rust passes the Phase 0 pure fixtures. No user files touched."
+**Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run -p msc-domain` → all green; then `grep -E '^\s*(tokio|reqwest|std::fs|walkdir|notify)' crates/msc-domain/Cargo.toml` → no matches
+**Commit:** _(n/a — verification only, unless a fix is needed)_
+**Batch:** stop-after
 
 ---
 

@@ -77,15 +77,14 @@ jobs:
           rustc --version
           cargo --version
 
-      # Once crates/ exists these become real. Until then the matrix
-      # itself is the thing being proven.
+      # P1.1 added crates/msc-domain, so the matrix now has something real
+      # to build. Test-running (cargo nextest run) joins this job in P1.2,
+      # once there's a real fixture-driven test suite to run it against.
       - name: Build
-        run: |
-          if [ -f Cargo.toml ]; then
-            cargo fmt --all -- --check
-            cargo clippy --all-targets -- -D warnings
-            cargo test --all
-          else
-            echo "No Cargo.toml yet — matrix verified, nothing to build."
-          fi
-        shell: bash
+        run: cargo build --workspace
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings

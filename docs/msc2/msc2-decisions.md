@@ -537,11 +537,11 @@ This is unresolved design work with wide blast radius, recorded as Open rather t
 - Localization, currently a declined non-goal, becomes tractable later without touching any client.
 - Someone must decide the content format (Markdown with front-matter is the obvious candidate) and whether content is embedded in the agent binary or read from disk — the latter permits updates without a release, the former guarantees it is always present.
 
-**Open.** Content format · embedded vs on-disk · whether the concept-guide diagrams are assets or generated · how content is versioned against API versions when a topic describes a feature an older client lacks.
+**Open.** Whether the concept-guide diagrams are assets or generated · how content is versioned against API versions when a topic describes a feature an older client lacks. (Content format and embedded-vs-on-disk, formerly open here, were confirmed 2026-07-31 — see the Phase 2 addendum below.)
 
 **Revisit if:** the content model proves too rigid for the router guides, which are the most structurally complex educational surface and the natural stress test.
 
-**Phase 2 addendum (P2.2, still Proposed pending Cameron's confirmation).** The two mechanism questions this entry left open — content format, and embedded vs on-disk — now have a recommendation, not a decision: Markdown with YAML front-matter, embedded in the `msc-agent` binary for v1 (on-disk override deferred, not foreclosed). Full reasoning, and the precise `helpId` shape (`<namespace>.<name>`, resolved via `GET /v1/help/{helpId}`) with every DTO field from §18's list mapped to a concrete MSC 1 field, is in `docs/msc2/api-contract/helpid-contract.md`. Diagram format and cross-version content degradation remain genuinely open — not addressed by this addendum.
+**Phase 2 addendum (P2.2).** The two mechanism questions this entry left open — content format, and embedded vs on-disk — are now confirmed, not just recommended: Markdown with YAML front-matter, embedded in the `msc-agent` binary for v1 (on-disk override deferred, not foreclosed). **Confirmed by:** Cameron Temple · **Date:** 2026-07-31. Also confirmed: `SettingFieldDTO`'s existing free-text `help` field is *replaced* by `helpId` in the v1 contract, not kept alongside it. Full reasoning, and the precise `helpId` shape (`<namespace>.<name>`, resolved via `GET /v1/help/{helpId}`) with every DTO field from §18's list mapped to a concrete MSC 1 field, is in `docs/msc2/api-contract/helpid-contract.md`. Diagram format and cross-version content degradation remain genuinely open — not addressed by this addendum.
 
 ---
 

@@ -1,12 +1,12 @@
 # The `helpId` contract — content format and wire shape
 
-**Status: Proposed.** Both decisions below are flagged for Cameron to confirm or overrule during the Read move, per D-026's own "Open" list and `msc2-engineering.md` §18/§19 ("Educational content format; embedded vs on-disk … blocks Phase 2 contract freeze"). This document does not promote D-026 to Approved on either point — it amends D-026 with a recommendation.
+**Status: Confirmed** by Cameron Temple, 2026-07-31. Both decisions below were proposed during P2.2 and confirmed during the Read move that followed, per D-026's own "Open" list and `msc2-engineering.md` §18/§19 ("Educational content format; embedded vs on-disk … blocks Phase 2 contract freeze"). D-026 is amended accordingly.
 
 ---
 
 ## 1. Content format: Markdown with YAML front-matter
 
-**Recommendation.** Each topic is one `.md` file: YAML front-matter for structured fields, Markdown body for prose.
+Each topic is one `.md` file: YAML front-matter for structured fields, Markdown body for prose.
 
 ```markdown
 ---
@@ -29,7 +29,7 @@ Rejected alternative: plain JSON strings for body text. Works for the wire forma
 
 ## 2. Storage: embedded in the agent binary for v1
 
-**Recommendation.** Content files live under `content/help/**/*.md` in the repo and are compiled into the `msc-agent` binary at build time (`rust-embed` or `include_str!` — a build-time choice, not a contract concern; either produces the same runtime behavior).
+Content files live under `content/help/**/*.md` in the repo and are compiled into the `msc-agent` binary at build time (`rust-embed` or `include_str!` — a build-time choice, not a contract concern; either produces the same runtime behavior).
 
 Why: matches the product promise in D-026's origin quote — "the application teaches without forcing the user to leave the interface" — which only holds unconditionally if help is *always* present, including on a freshly-installed agent with no network access and no separate content package to fetch. On-disk override remains available to add later (Phase 5+, configuration/migration territory) if hot-editing content without a release turns out to matter in practice; nothing in this contract forecloses it — a future on-disk path can shadow the embedded copy by `id` without changing the `GET /v1/help/{helpId}` response shape.
 

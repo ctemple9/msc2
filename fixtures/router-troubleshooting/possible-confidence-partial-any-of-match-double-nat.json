@@ -1,0 +1,50 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "possible-confidence-partial-any-of-match-double-nat",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "cannot_connect_externally",
+      "two_routers_present"
+    ],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "If the WAN IP of your own router is private, there is definitely another upstream routing layer."
+    ],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [
+      {
+        "confidence": "possible",
+        "id": "double_nat",
+        "matchedSymptoms": [
+          "cannot_connect_externally",
+          "two_routers_present"
+        ],
+        "score": 8,
+        "severity": "medium"
+      }
+    ],
+    "recommendedActions": [
+      "Check whether your ISP device and your own router are both doing routing.",
+      "If possible, put one device into bridge / passthrough mode.",
+      "Otherwise forward on the upstream router as well.",
+      "Check whether both the ISP device and another router or mesh system are routing.",
+      "Put one device into bridge / passthrough mode when possible."
+    ],
+    "summary": "Most likely cause: You may be behind two routers.",
+    "symptoms": [
+      "cannot_connect_externally",
+      "two_routers_present"
+    ]
+  },
+  "notes": "`double-nat` has 4 `anyOf` requirements, so `max(1, 4/2) == 2` matches are needed for `strong`; only 1 present here yields `possible`. Also a real (not synthetic) dedup case: the double-nat topic's own suggestedNextActions and the double-nat rule's nextActions share one identical string (\"Otherwise forward on the upstream router as well.\") \u2014 recommendedActions has 5 entries, not 6, because deduplicatedStrings collapses it."
+}

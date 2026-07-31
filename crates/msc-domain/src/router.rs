@@ -7,3 +7,4 @@
 pub mod composer;
 pub mod fallback_tree;
 pub mod matcher;
+pub mod troubleshooting;

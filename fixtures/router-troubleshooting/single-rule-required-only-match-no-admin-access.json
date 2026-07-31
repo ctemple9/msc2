@@ -1,0 +1,48 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "single-rule-required-only-match-no-admin-access",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "no_router_admin_access"
+    ],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "This is especially common on apartment, dorm, campus, and shared-building networks."
+    ],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [
+      {
+        "confidence": "strong",
+        "id": "no_admin_access",
+        "matchedSymptoms": [
+          "no_router_admin_access"
+        ],
+        "score": 6,
+        "severity": "medium"
+      }
+    ],
+    "recommendedActions": [
+      "Check whether you have the router admin login.",
+      "Ask the network owner or ISP whether forwarding is allowed.",
+      "Use a fallback remote-access solution if direct forwarding is blocked.",
+      "Check whether you have the router admin credentials.",
+      "Ask the ISP, property manager, or network owner whether inbound forwarding is allowed.",
+      "Use another remote-access path when the network policy blocks direct inbound rules."
+    ],
+    "summary": "Most likely cause: You may not have permission to change router settings.",
+    "symptoms": [
+      "no_router_admin_access"
+    ]
+  },
+  "notes": "`no-admin-access` is the one real rule with an empty `allOf` \u2014 its cause fires from `anyOf` alone. Also exercises the `anyOf.count / 2` confidence threshold at its edge: `anyOf.count == 2`, so `max(1, 2/2) == 1` and a single match is already enough for `strong` confidence."
+}

@@ -1,0 +1,64 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "fallback-state-and-gateway-ip-with-causes-bullets-appended-deduped",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "cannot_connect_externally",
+      "mac_ip_address_changed"
+    ],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": {
+      "networkType": null,
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "detectedGatewayIpAddress": "10.0.0.5"
+  },
+  "expected": {
+    "escalationBullets": [
+      "If the router UI lists multiple copies of the same device, delete stale target entries before re-testing.",
+      "Check the sticker on the router, gateway, or mesh node for the brand and model.",
+      "Check your phone or Mac for router apps that may already identify the brand.",
+      "Separate the provider name from the device doing routing before you continue.",
+      "The app detected a gateway IP of 10.0.0.5.",
+      "Common local gateway addresses are 192.168.1.1, 192.168.0.1, and 10.0.0.1.",
+      "Port forwarding may also be labeled NAT Forwarding, Virtual Server, Applications & Gaming, Port Rules, Firewall Rules, or Advanced NAT."
+    ],
+    "fallbackResolutionKind": "unknownRouterHelp",
+    "likelyCauses": [
+      {
+        "confidence": "strong",
+        "id": "local_ip_changed",
+        "matchedSymptoms": [
+          "cannot_connect_externally",
+          "mac_ip_address_changed"
+        ],
+        "score": 7,
+        "severity": "medium"
+      }
+    ],
+    "recommendedActions": [
+      "Check the Mac's current local IP in the app.",
+      "Update the router rule so it points to the current local IP.",
+      "Reserve the Mac's IP in the router later so it stops changing.",
+      "Re-check the Mac's current local IP in Minecraft Server Controller.",
+      "Update the router rule so it points to the current host Mac address.",
+      "Reserve the Mac's DHCP address later so it stops changing."
+    ],
+    "summary": "Most likely cause: Your Mac's local IP changed.",
+    "symptoms": [
+      "cannot_connect_externally",
+      "mac_ip_address_changed"
+    ]
+  },
+  "notes": "Causes present (local-ip-changed) *and* a fallbackState/gateway IP supplied together: escalationBullets is the rule's own bullet followed by the fallbackResolution's explanationBullets (which include the gateway-IP-specific unknown-router bullet), all through one final dedup pass \u2014 proves the two bullet sources are concatenated in that order (rule bullets first, fallback bullets appended after), not merged/sorted. summary still reflects the cause (score-based summary takes priority over the fallback-aware branch whenever any cause exists at all)."
+}

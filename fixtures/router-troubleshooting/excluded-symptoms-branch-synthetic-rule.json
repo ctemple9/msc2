@@ -1,0 +1,31 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "excluded-symptoms-branch-synthetic-rule",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "mac_ip_address_changed",
+      "security_tool_may_be_blocking"
+    ],
+    "rules": "synthetic_exclusion",
+    "topics": "full",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [],
+    "recommendedActions": [],
+    "summary": "No strong failure cause was detected yet. Use the generic troubleshooting path and verify the router, target device, IP, port, and protocol.",
+    "symptoms": [
+      "mac_ip_address_changed",
+      "security_tool_may_be_blocking"
+    ]
+  },
+  "notes": "MSC 1's real 9-rule table declares `excludedSymptoms: []` on every single rule, so `evaluate`'s exclusion short-circuit is structurally unreachable against real data. Exercised via a synthetic 10th rule added only in the Rust test file (not literal MSC 1 content, same precedent as P1.12's synthetic guide): `excludedSymptoms: [securityToolMayBeBlocking]`, `anyOf: [macIPAddressChanged]`. Both the real local-ip-changed rule (needs cannotConnectExternally, absent here) and the synthetic rule (excluded by securityToolMayBeBlocking's presence) are filtered out, so likelyCauses is empty despite macIPAddressChanged being present."
+}

@@ -1,0 +1,35 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "fallback-state-needs-more-info-kind-identify-router-path-summary",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": {
+      "networkType": "isp_gateway",
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "Choose the provider gateway family next, or search by gateway line such as XB7 or BGW320.",
+      "If your own router is behind the provider modem, use the router path instead."
+    ],
+    "fallbackResolutionKind": "needsMoreInfo",
+    "likelyCauses": [],
+    "recommendedActions": [],
+    "summary": "No strong failure cause was detected yet. Identify the correct router path first, then re-run troubleshooting with more specific symptoms.",
+    "symptoms": []
+  },
+  "notes": "fallbackResolution.kind=needsMoreInfo (the other kind, besides unknownRouterHelp, that triggers the fallback-aware summary branch) with no causes \u2014 confirms both members of that `||` condition independently, not just unknownRouterHelp."
+}

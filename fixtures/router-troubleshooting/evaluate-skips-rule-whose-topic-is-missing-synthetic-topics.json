@@ -1,0 +1,31 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "evaluate-skips-rule-whose-topic-is-missing-synthetic-topics",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "cannot_connect_externally",
+      "selected_wrong_target_device"
+    ],
+    "rules": "standard",
+    "topics": "missing_wrong_device",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [],
+    "recommendedActions": [],
+    "summary": "No strong failure cause was detected yet. Use the generic troubleshooting path and verify the router, target device, IP, port, and protocol.",
+    "symptoms": [
+      "cannot_connect_externally",
+      "selected_wrong_target_device"
+    ]
+  },
+  "notes": "Against the real 9-rule/9-topic table these are always 1:1, so `evaluate`'s `guard let topic = repository.troubleshootingTopic(id:)` nil-return is structurally unreachable \u2014 exercised here with a deliberately incomplete 8-topic list (missing wrong_device) built in the Rust test file, the same 'second smaller catalog' pattern P1.11 used for genericMeshResolution's not-seeded branch. wrong-device's symptoms are otherwise a clean strong match; with its topic missing, the whole cause silently disappears rather than erroring."
+}

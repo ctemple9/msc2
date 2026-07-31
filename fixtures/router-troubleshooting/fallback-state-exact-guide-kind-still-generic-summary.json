@@ -1,0 +1,34 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "fallback-state-exact-guide-kind-still-generic-summary",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": {
+      "networkType": null,
+      "searchQuery": "eero",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "Matched this guide because: exact keyword, keyword prefix, keyword substring, token overlap, family alias, mesh intent."
+    ],
+    "fallbackResolutionKind": "exactGuide",
+    "likelyCauses": [],
+    "recommendedActions": [],
+    "summary": "No strong failure cause was detected yet. Use the generic troubleshooting path and verify the router, target device, IP, port, and protocol.",
+    "symptoms": []
+  },
+  "notes": "A fallbackState with a query that resolves to kind=exactGuide (neither unknownRouterHelp nor needsMoreInfo) and no symptoms/causes: proves makeSummary's fallback-aware branch is conditioned on the specific resolution *kind*, not merely on whether a fallbackResolution exists \u2014 summary falls through to the same plain generic-troubleshooting text as the no-fallback-at-all case, even though a fallbackResolution is present (its explanationBullets do still land in escalationBullets)."
+}

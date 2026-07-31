@@ -1,0 +1,69 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "two-causes-also-check-summary-joins-remaining-titles",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "cannot_connect_externally",
+      "mac_ip_address_changed",
+      "firewall_prompt_seen"
+    ],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "If the router UI lists multiple copies of the same device, delete stale target entries before re-testing."
+    ],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [
+      {
+        "confidence": "strong",
+        "id": "firewall_blocked",
+        "matchedSymptoms": [
+          "cannot_connect_externally",
+          "firewall_prompt_seen"
+        ],
+        "score": 8,
+        "severity": "medium"
+      },
+      {
+        "confidence": "strong",
+        "id": "local_ip_changed",
+        "matchedSymptoms": [
+          "cannot_connect_externally",
+          "mac_ip_address_changed"
+        ],
+        "score": 7,
+        "severity": "medium"
+      }
+    ],
+    "recommendedActions": [
+      "Verify the server is running and reachable on the local network first.",
+      "Review macOS firewall or security-tool rules.",
+      "Re-test from outside your network after confirming local connectivity.",
+      "Check the Mac's current local IP in the app.",
+      "Update the router rule so it points to the current local IP.",
+      "Reserve the Mac's IP in the router later so it stops changing.",
+      "Verify the server is running and reachable on your LAN first.",
+      "Review macOS firewall permissions and any third-party security tools.",
+      "Re-test externally after confirming the host is accepting local traffic.",
+      "Re-check the Mac's current local IP in Minecraft Server Controller.",
+      "Update the router rule so it points to the current host Mac address.",
+      "Reserve the Mac's DHCP address later so it stops changing."
+    ],
+    "summary": "Most likely cause: The Mac firewall or another filter may still be blocking traffic. Also check: Your Mac's local IP changed.",
+    "symptoms": [
+      "cannot_connect_externally",
+      "mac_ip_address_changed",
+      "firewall_prompt_seen"
+    ]
+  },
+  "notes": "Exactly two causes (firewall-blocked score 8 strong, local-ip-changed score 7 strong) \u2014 confirms the exactly-one-remaining-title phrasing of the 'Also check: X.' summary branch, distinct from the three-cause comma-joined case covered by the tie-break fixture."
+}

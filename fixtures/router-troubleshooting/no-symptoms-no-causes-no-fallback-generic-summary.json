@@ -1,0 +1,25 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "no-symptoms-no-causes-no-fallback-generic-summary",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [],
+    "recommendedActions": [],
+    "summary": "No strong failure cause was detected yet. Use the generic troubleshooting path and verify the router, target device, IP, port, and protocol.",
+    "symptoms": []
+  },
+  "notes": "Baseline: no symptoms, no rule fires, no fallbackState passed at all \u2014 confirms the plain generic-troubleshooting-path summary (the third, 'else' branch of makeSummary, distinct from both the one-cause/multi-cause branches and the fallback-aware 'identify the correct router path' branch)."
+}

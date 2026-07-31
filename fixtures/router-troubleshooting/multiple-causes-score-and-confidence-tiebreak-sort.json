@@ -1,0 +1,87 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "multiple-causes-score-and-confidence-tiebreak-sort",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "cannot_connect_externally",
+      "mac_ip_address_changed",
+      "selected_wrong_target_device",
+      "two_routers_present"
+    ],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "If the WAN IP of your own router is private, there is definitely another upstream routing layer.",
+      "If the router UI lists multiple copies of the same device, delete stale target entries before re-testing."
+    ],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [
+      {
+        "confidence": "strong",
+        "id": "wrong_device",
+        "matchedSymptoms": [
+          "cannot_connect_externally",
+          "selected_wrong_target_device"
+        ],
+        "score": 8,
+        "severity": "medium"
+      },
+      {
+        "confidence": "possible",
+        "id": "double_nat",
+        "matchedSymptoms": [
+          "cannot_connect_externally",
+          "two_routers_present"
+        ],
+        "score": 8,
+        "severity": "medium"
+      },
+      {
+        "confidence": "strong",
+        "id": "local_ip_changed",
+        "matchedSymptoms": [
+          "cannot_connect_externally",
+          "mac_ip_address_changed"
+        ],
+        "score": 7,
+        "severity": "medium"
+      }
+    ],
+    "recommendedActions": [
+      "Confirm the selected target device matches the host Mac.",
+      "Use the detected local IP from the app when possible.",
+      "Delete duplicate rules that point to old devices.",
+      "Check whether your ISP device and your own router are both doing routing.",
+      "If possible, put one device into bridge / passthrough mode.",
+      "Otherwise forward on the upstream router as well.",
+      "Check the Mac's current local IP in the app.",
+      "Update the router rule so it points to the current local IP.",
+      "Reserve the Mac's IP in the router later so it stops changing.",
+      "Confirm the selected target device is the Mac running Minecraft Server Controller.",
+      "Match the target device entry to the local IP shown in the app.",
+      "Remove duplicate rules that still point to older devices.",
+      "Check whether both the ISP device and another router or mesh system are routing.",
+      "Put one device into bridge / passthrough mode when possible.",
+      "Re-check the Mac's current local IP in Minecraft Server Controller.",
+      "Update the router rule so it points to the current host Mac address.",
+      "Reserve the Mac's DHCP address later so it stops changing."
+    ],
+    "summary": "Most likely cause: The port forward may point to the wrong target device. Also check: You may be behind two routers, Your Mac's local IP changed.",
+    "symptoms": [
+      "cannot_connect_externally",
+      "mac_ip_address_changed",
+      "selected_wrong_target_device",
+      "two_routers_present"
+    ]
+  },
+  "notes": "Three causes fire at once: wrong-device (score 8, strong), double-nat (score 8, possible), local-ip-changed (score 7, strong). Confirms the full three-way sort: score descending first (7 sorts last); a tie at score 8 is broken by confidence (strong before possible), not by insertion or topic-title order."
+}

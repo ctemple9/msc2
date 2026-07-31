@@ -1,0 +1,48 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "excluded-symptoms-absent-synthetic-rule-fires-normally",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [
+      "mac_ip_address_changed"
+    ],
+    "rules": "synthetic_exclusion",
+    "topics": "full",
+    "fallbackState": null,
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "If the router UI lists multiple copies of the same device, delete stale target entries before re-testing."
+    ],
+    "fallbackResolutionKind": null,
+    "likelyCauses": [
+      {
+        "confidence": "strong",
+        "id": "local_ip_changed",
+        "matchedSymptoms": [
+          "mac_ip_address_changed"
+        ],
+        "score": 9,
+        "severity": "high"
+      }
+    ],
+    "recommendedActions": [
+      "Check the Mac's current local IP in the app.",
+      "Update the router rule so it points to the current local IP.",
+      "Reserve the Mac's IP in the router later so it stops changing.",
+      "Re-check the Mac's current local IP in Minecraft Server Controller.",
+      "Update the router rule so it points to the current host Mac address.",
+      "Reserve the Mac's DHCP address later so it stops changing."
+    ],
+    "summary": "Most likely cause: Your Mac's local IP changed.",
+    "symptoms": [
+      "mac_ip_address_changed"
+    ]
+  },
+  "notes": "Companion to the exclusion fixture: same synthetic rule and rule set, but without the excluding symptom present, so the synthetic rule fires normally (score 9, strong \u2014 anyOf.count==1 so max(1,0)==1 threshold). Proves the exclusion fixture's empty result is really caused by the excludedSymptoms check, not by some other difference between the two inputs."
+}

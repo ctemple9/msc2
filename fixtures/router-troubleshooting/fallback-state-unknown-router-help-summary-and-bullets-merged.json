@@ -1,0 +1,38 @@
+{
+  "domain": "router-troubleshooting",
+  "case": "fallback-state-unknown-router-help-summary-and-bullets-merged",
+  "source": {
+    "file": "RouterPortForwardTroubleshootingEngine.swift",
+    "test": "analyze(symptoms:fallbackState:runtimeContext:)",
+    "line": 118
+  },
+  "input": {
+    "symptoms": [],
+    "rules": "standard",
+    "topics": "full",
+    "fallbackState": {
+      "networkType": null,
+      "searchQuery": "",
+      "onlyKnowsIsp": false,
+      "onlyKnowsMeshSystem": false,
+      "unsureWhetherIspOrOwnRouter": false,
+      "wantsAdvancedTroubleshooting": false
+    },
+    "detectedGatewayIpAddress": null
+  },
+  "expected": {
+    "escalationBullets": [
+      "Check the sticker on the router, gateway, or mesh node for the brand and model.",
+      "Check your phone or Mac for router apps that may already identify the brand.",
+      "Separate the provider name from the device doing routing before you continue.",
+      "Common local gateway addresses are 192.168.1.1, 192.168.0.1, and 10.0.0.1.",
+      "Port forwarding may also be labeled NAT Forwarding, Virtual Server, Applications & Gaming, Port Rules, Firewall Rules, or Advanced NAT."
+    ],
+    "fallbackResolutionKind": "unknownRouterHelp",
+    "likelyCauses": [],
+    "recommendedActions": [],
+    "summary": "No strong failure cause was detected yet. Identify the correct router path first, then re-run troubleshooting with more specific symptoms.",
+    "symptoms": []
+  },
+  "notes": "A default (all-empty) FallbackState with no symptoms: no causes fire, but a fallbackState was supplied, so fallback_tree::resolve runs and returns kind=unknownRouterHelp (empty query short-circuits to the unknown-router fallback). escalationBullets is empty from causes but still ends up non-empty \u2014 it's populated entirely by fallbackResolution.explanationBullets appended in the final dedup pass. summary switches to the fallback-aware 'identify the correct router path' text since unknownRouterHelp is one of the two kinds that branch checks."
+}

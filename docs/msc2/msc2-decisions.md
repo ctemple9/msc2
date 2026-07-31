@@ -381,6 +381,16 @@ Permission category strings (`players`, `settings`, `worlds`, `mods`) are enforc
 
 **Open work.** The current category vocabulary has not been validated against all 87 routes; it may need to be finer or coarser. Determine before the contract is frozen.
 
+**Validation against all 88 baseline routes (P2.1).** Read directly from `RemoteAPIServer+HTTP.swift`'s `respond(to:clientFD:)` — the `adminOnlyPOSTPaths` set, the `pathPermissions` map, and the three hardcoded `guard case .admin = requestRole` checks (`GET /files`, `GET /files/read`, `GET /users`) — against every path in `docs/msc2/api-baseline/openapi.json`. Full per-route table in `docs/msc2/api-contract/permission-vocabulary.csv` (88 rows). Findings:
+
+1. **The four-category list in this entry's own "Verified in MSC 1" block was incomplete.** MSC 1 enforces **eight** named-token permission categories on POST routes, not four: `serverControl` (4 routes — `/start`, `/stop`, `/command`, `/active-server`), `players` (3), `settings` (7), `addons` (8 — this entry said `mods`; the code's actual string is `addons`, covering both components *and* resource packs), `worlds` (7), `broadcast` (7), `networking` (2 — playit start/stop), `fleet` (6 — server CRUD + templates).
+2. **A ninth bucket is real but isn't a named-token permission at all.** Six routes are gated to the `admin` token role directly, bypassing the named-token permission map entirely: `POST /users`, `POST /users/revoke`, `POST /users/update` (admin-only by omission — in `adminOnlyPOSTPaths` but absent from `pathPermissions`, so no permission string can ever unlock them for a named token) plus `GET /users`, `GET /files`, `GET /files/read` (admin-only via an explicit role guard ahead of the normal GET-is-always-allowed rule). Recommend formalizing this as a real fifth category, `admin`, rather than leaving it as an implicit "absent from the map" convention — the implicit form is exactly what let this entry undercount in the first place.
+3. **One correction to this step's own starting premise:** `/health/repair` does **not** need a new bucket — it already carries `settings` in `pathPermissions`. The `admin`-only routes are specifically the user-management and file-browser paths, not health.
+4. **A likely-unintentional gap, not a vocabulary question:** `POST /watchdog/enable` and `POST /watchdog/disable` sit in neither `adminOnlyPOSTPaths` nor `pathPermissions` — any authenticated token, including a guest, can toggle the watchdog today. Flagged for Cameron; not fixed here (D-019 is about the vocabulary, not about re-gating a specific route — that's a product/security call, not this step's to make).
+5. **38 of the 88 routes require no permission category at all** — every GET except the three `admin`-gated ones, plus the two watchdog POSTs — accessible to any authenticated token today.
+
+**Revised decision (still Proposed, pending Cameron's confirmation — not promoted to Approved by this step):** the formal MSC 2 vocabulary should be the nine buckets above — `serverControl`, `players`, `settings`, `addons`, `worlds`, `broadcast`, `networking`, `fleet`, `admin` — carrying MSC 1's `mods` category forward as `addons` to match the code, and making the previously-implicit "absent from the permission map" admin gate an explicit category instead.
+
 ---
 
 ## D-020 — Where MSC 2's documents and code live

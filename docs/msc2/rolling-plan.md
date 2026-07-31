@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 1 complete — Phase 2 not yet planned
-> **Next move:** PLAN (an agent writes the Phase 2 step list into this file; no code)
+> ## STATUS: Phase 2 planned — Cameron's review next
+> **Next move:** READ (Cameron reviews the Phase 2 step list below before Execute begins on P2.1)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-07-31
 
@@ -52,7 +52,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **Setup** | Repo, docs, agent instructions, CI, editor config | complete |
 | **0** | Freeze the baseline and build the harness | complete |
 | 1 | Domain types and pure rules | complete |
-| 2 | API contract and operation model | not started |
+| 2 | API contract and operation model | planned |
 | 3 | Safety substrate | not started |
 | 4 | Java lifecycle vertical slice | not started |
 | 5 | Configuration and migration | not started |
@@ -703,6 +703,227 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Files:** none (verification only)
 **What:** Run every Phase 1 domain together and confirm the crate stays clean: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, and the full `cargo nextest run -p msc-domain` suite (every domain from P1.3–P1.14 in one run). Confirm `msc-domain` still carries no I/O dependency, per its module-boundary rule — check its `Cargo.toml` pulls in no filesystem/network/process crates. This checks the port plan's own Phase 1 exit criteria verbatim: "Rust passes the Phase 0 pure fixtures. No user files touched."
 **Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run -p msc-domain` → all green; then `grep -E '^\s*(tokio|reqwest|std::fs|walkdir|notify)' crates/msc-domain/Cargo.toml` → no matches
+**Commit:** _(n/a — verification only, unless a fix is needed)_
+**Batch:** stop-after
+
+---
+
+## Phase 2 — API contract and operation model
+
+**Gate** (`msc2-port-plan.md` §3): "Versioned HTTP and WebSocket contract generated from the schema. Operation IDs, progress, structured errors, capability advertisement, cancellation. A skeletal agent whose routes can be exercised without real mutation." **Exit criteria: the existing iOS app connects and reads status against a stub agent.**
+
+**Rust crates start appearing beyond `msc-domain`.** Per `msc2-engineering.md` §6, this phase brings in `msc-api` (routes, DTOs, WebSocket events, auth, permission checks) and `msc-agent` (service startup, routing, static asset serving) — the two crates immediately outward of `msc-domain` in the direction rule. `msc-application` and `msc-infrastructure` (real orchestration, real filesystem/process I/O) are **not** built this phase: the port plan's own words are "a skeletal agent whose routes can be exercised **without real mutation**," so every handler this phase wires returns canned or in-memory data, never touches a real server process or a real file.
+
+**Three open items block calling the contract "frozen," not necessarily Phase 2 by name.** `msc2-engineering.md` §19 ties the D-019 permission vocabulary, the D-026 educational-content shape, and the D-012 auth gaps to "contract freeze." Read literally, D-012's six gaps would require designing the full desktop/web remote-pairing and browser-origin story before this phase could close — but Phase 2's own gate only requires the **iOS** app to connect, and D-016's "UI never gates correctness" / vertical-slice principle argues against solving Tauri/browser auth (Phase 11's problem) to satisfy an iOS-only gate. P2.3 below makes that scoping call explicitly, in writing, rather than silently either overclaiming the contract is fully frozen or silently ignoring the engineering doc's own table. Cameron should confirm or overrule this scoping during the Read move — it's the single biggest judgment call in this phase's plan.
+
+21 steps, six groups:
+
+| Group | Steps | Deliverable |
+|---|---|---|
+| Contract-freeze prerequisites | P2.1–P2.3 | D-019 vocabulary validated against all 88 baseline routes; D-026 content format and `helpId` shape decided; D-012 scoped for what this phase actually needs |
+| v1 contract design | P2.4–P2.8 | `docs/msc2/api-contract/openapi.json` — the versioned HTTP+WS contract everything else in this phase implements |
+| Domain model extensions | P2.9–P2.10 | Operation-state and capability types added to `msc-domain`, still no I/O |
+| Skeletal agent | P2.11–P2.17 | `msc-api` and `msc-agent` crates: a running, auth-gated, contract-conformant stub agent |
+| iOS re-pointing | P2.18–P2.20 | The existing iOS app, copied into this repo and re-pointed, connects to the skeletal agent and reads status — the phase gate itself |
+| Phase exit | P2.21 | Full-suite gate check against the port plan's own exit criteria |
+
+**Not in this phase**, deferred on purpose:
+
+- **Real host/helper/capability detection, the `SecretStore`-backed pairing flow, rate limiting, and audit logging** — all Phase 3 substrate work. This phase's capability and auth responses are honest placeholders, documented as such.
+- **The operation journal (restart survival)** — Phase 3. This phase's operations live in an in-memory map only; the agent forgetting them on restart is expected, not a bug, this phase.
+- **Desktop/web (Tauri) remote pairing, browser origin policy, CSRF, LAN TLS provisioning, Tailscale posture** — Phase 11, per P2.3's scoping.
+- **A general OpenAPI-to-Rust / OpenAPI-to-Swift codegen pipeline.** `msc2-engineering.md` §5 states the ultimate intent ("generates the Rust server types and the Swift iOS client models"), but building a generic codegen tool is its own project. This phase hand-writes both sides against the frozen schema, with a conformance checker (P2.11, P2.17) standing in for generation-time guarantees. Revisit once the contract has had a chance to stabilize — generating code against a contract that's still moving is wasted work.
+- **WebSocket push for status, players, notifications, metrics.** MSC 1 polls all four over HTTP today (P0.24's finding); nothing in this phase's gate needs push delivery for them. Only `console` (real baseline behavior) and `operation-progress` (new, needed to observe cancellation) get WS channels this phase.
+
+---
+
+### Contract-freeze prerequisites
+
+### P2.1 — Validate the D-019 permission-category vocabulary against all 88 baseline routes
+**Status:** awaiting verification
+**Files:** `docs/msc2/api-contract/permission-vocabulary.csv`, `docs/msc2/msc2-decisions.md` (amend D-019)
+**What:** D-019 names four permission categories MSC 1 enforces (`players`, `settings`, `worlds`, `mods`) but notes "the current category vocabulary has not been validated against all 87 routes" (now 88 per P0.30). Read the actual enforcement in `RemoteAPIServer+HTTP.swift`'s dispatcher and record, per route, which category (or categories) it actually requires — not an assumption from the route's name. Several routes plainly need a fifth bucket the existing four don't cover (`/users*`, `/health/repair`, `/files*` — administrative/owner-only, not any of `players`/`settings`/`worlds`/`mods`); record that gap plainly rather than forcing a fit. Amend D-019 with the outcome — either "four categories confirmed sufficient" or a proposed fifth (`admin`) category — still **Proposed**, pending Cameron's confirmation, not silently promoted to Approved.
+**Verify:** `python3 -c "import csv;print(len(list(csv.DictReader(open('docs/msc2/api-contract/permission-vocabulary.csv')))))"` → `88`
+**Commit:** `P2.1: validate the permission-category vocabulary against all 88 baseline routes`
+**Batch:** solo
+
+### P2.2 — Decide the educational content format and the `helpId` contract shape
+**Status:** not started
+**Files:** `docs/msc2/api-contract/helpid-contract.md`, `docs/msc2/msc2-decisions.md` (amend D-026)
+**What:** D-026 leaves open "content format" and "embedded vs on-disk," flagging both as real product-shape calls. Recommend Markdown with YAML front-matter (the doc's own "obvious candidate") and embedding content in the agent binary (via `rust-embed` or `include_str!`) for v1 — guarantees the handbook is always present, matching the product promise that help never requires a separate download; on-disk override can be added later if hot-editing content without a release turns out to matter. Record both as **Proposed**, explicitly flagged for Cameron to confirm or overrule during the Read move — this is exactly the kind of call CLAUDE.md says not to make silently. Define the `helpId` shape precisely: a dotted-namespace string (`settings.difficulty`, `health.tick-lag`, `diagnostics.crash.forge-dep`), resolved via a new `GET /v1/help/{helpId}` route. Enumerate every DTO field `msc2-engineering.md` §18 names as needing one (settings fields, health cards, diagnostics, performance metrics, connection methods, crash-analysis findings) so P2.8 knows exactly where to attach it.
+**Verify:** `grep -c 'helpId' docs/msc2/api-contract/helpid-contract.md` → non-zero; `grep -c '^## D-026' docs/msc2/msc2-decisions.md` → `1` (confirms this amends the existing entry rather than duplicating it)
+**Commit:** `P2.2: decide the educational content format and helpId contract shape`
+**Batch:** stop-after
+
+### P2.3 — Scope Phase 2's authentication surface and record what stays deferred
+**Status:** not started
+**Files:** `docs/msc2/api-contract/auth-scope-phase2.md`, `docs/msc2/msc2-decisions.md` (amend D-012)
+**What:** Phase 2's gate needs only the **iOS app** to connect to a **local, loopback** skeletal agent — not a Tauri desktop app connecting to a remote host, and not a browser. Scope this phase's auth work to exactly that: implement bearer-token *verification* (the already-Approved iOS mechanism — QR pairing → keychain token → bearer header — minus the real pairing-secret exchange, which needs Phase 3's `SecretStore` trait and doesn't exist yet). Stand in a single fixed dev token for now, clearly commented as a placeholder. Explicitly record as still-open, not solved by this phase: remote desktop pairing, per-host credential storage, LAN TLS provisioning, Tailscale posture, browser origin policy and CSRF — none of which an iOS-only, loopback-only gate requires. Amend D-012 with this scoping so a future reader doesn't mistake Phase 2's dev token for the six gaps being closed.
+**Verify:** `grep -c 'Phase 2 scope' docs/msc2/msc2-decisions.md` → at least `1`
+**Commit:** `P2.3: scope Phase 2 authentication to iOS-only, loopback-only, and record what's deferred`
+**Batch:** solo
+
+---
+
+### v1 contract design
+
+### P2.4 — Design the v1 route namespace, skew behavior, and error envelope
+**Status:** not started
+**Files:** `docs/msc2/api-contract/versioning-and-errors.md`
+**What:** Per D-010, design the route-versioning mechanism (not the N-3 floor, still unset): every route lives under `/v1/`; the agent reports its API major/minor and capability set (feeding P2.6); a request from a client below the supported floor gets a clear structured refusal, not a generic 404. Design one consistent `ErrorDTO` (`code`, `message`, `helpId?`, `details?`) replacing the baseline's split `Error`/typed-DTO failure pattern that P0.32 catalogued — recorded here as a deliberate D-006-point-3 correction, not silent.
+**Verify:** `grep -cE '^### ' docs/msc2/api-contract/versioning-and-errors.md` → at least `3`
+**Commit:** `P2.4: design the v1 route namespace, skew behavior, and error envelope`
+**Batch:** solo
+
+### P2.5 — Design the operation model contract
+**Status:** not started
+**Files:** `docs/msc2/api-contract/operation-model.md`
+**What:** Design `OperationDTO { id, type, target, state, progress, statusLine, result?, error? }` per `msc2-engineering.md` §5, with `state` as the closed enum `queued|running|succeeded|failed|cancelled`. Design the three routes needed to exercise it without real mutation: `POST /v1/operations` (accepts an operation type/target, returns an id), `GET /v1/operations/{id}`, `POST /v1/operations/{id}/cancel`. Record explicitly that restart-survival (the operation journal) is Phase 3 scope — this designs the wire shape only.
+**Verify:** `grep -c 'queued|running|succeeded|failed|cancelled' docs/msc2/api-contract/operation-model.md` → at least `1`
+**Commit:** `P2.5: design the operation model contract`
+**Batch:** solo
+
+### P2.6 — Design the capability-advertisement contract
+**Status:** not started
+**Files:** `docs/msc2/api-contract/capability-model.md`
+**What:** Design `GET /v1/capabilities`, returning agent version, API major/minor (from P2.4), host OS, per-server-type feature flags, the token's permission set (from P2.1), and installed-helper presence flags — the exact list `msc2-engineering.md` §5 names under "Capability discovery." Since the skeletal agent has no real detection yet, the schema is designed now and populated with clearly-labeled placeholder values until Phase 3/4 wire real detection behind it.
+**Verify:** `grep -c 'capabilities' docs/msc2/api-contract/capability-model.md` → at least `1`
+**Commit:** `P2.6: design the capability-advertisement contract`
+**Batch:** solo
+
+### P2.7 — Design the console and operation-progress WebSocket schemas
+**Status:** not started
+**Files:** `docs/msc2/api-contract/websocket-v1.json`
+**What:** Carry P0.24's one real baseline channel forward unchanged in wire shape, versioned at `/v1/console/stream` (same bearer auth, same 200-line-backfill-then-live model, same 5000-line ring buffer, same 64 KB inbound-frame cap). Design one new channel, `operation-progress` at `/v1/operations/{id}/stream`, pushing `OperationDTO` updates from P2.5 as they change, with the same bounded-history-then-live delivery discipline. `status`/`players`/`notifications`/`metrics` stay HTTP-polled this phase — see the phase's "Not in this phase" note.
+**Verify:** `python3 -c "import json;d=json.load(open('docs/msc2/api-contract/websocket-v1.json'));print(sorted(c['name'] for c in d['channels']))"` → `['console', 'operation-progress']`
+**Commit:** `P2.7: design the console and operation-progress WebSocket schemas`
+**Batch:** solo
+
+### P2.8 — Assemble the MSC 2 v1 OpenAPI contract
+**Status:** not started
+**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`
+**What:** Seed from `docs/msc2/api-baseline/openapi.json` (the 88-route MSC 1 baseline, P0.23/P0.30/P0.32) and apply, in order: the `/v1/` namespace and `ErrorDTO` envelope (P2.4), the operation routes (P2.5), the capabilities route (P2.6), the `helpId` field on every schema P2.2 enumerated, and the permission-category annotation on every route (P2.1). This is the file the port plan's Phase 2 description calls "versioned HTTP...contract generated from the schema" — the frozen deliverable every later step in this phase builds against. Build a checker script, in the style of P0.23's, asserting: every route sits under `/v1/`, every route declares a permission category, every field flagged for `helpId` in P2.2 actually carries one, and the total route count matches baseline (88) plus the new operation/capability/help/pair routes this phase adds.
+**Verify:** `python3 tools/api-contract-check.py --v1-summary` → prints the route count and zero missing-category/missing-helpId violations
+**Commit:** `P2.8: assemble the MSC 2 v1 OpenAPI contract`
+**Batch:** stop-after
+
+---
+
+### Domain model extensions
+
+### P2.9 — Port the operation domain types into `msc-domain`
+**Status:** not started
+**Files:** `crates/msc-domain/src/operation.rs`, `crates/msc-domain/tests/operation.rs`, `crates/msc-domain/src/lib.rs`
+**What:** Implement P2.5's schema in Rust: `OperationId`, the closed `OperationState` enum with its legal-transition rules (`queued→running→{succeeded,failed}`; any non-terminal state `→cancelled`; terminal states accept no further transition), `OperationProgress` (step/total plus a human-readable status line), and a result type carrying either a typed success value or P2.4's `ErrorDTO` shape. **This is new MSC 2 construction, not a port** — MSC 1 has no operation-journal concept, so D-018's evidence-before-translation discipline (which governs *ported* behavior) doesn't apply here; there is no MSC 1 fixture to extract. Verified with hand-written Rust unit tests covering every legal transition and rejecting every illegal one.
+**Verify:** `cargo nextest run -p msc-domain operation` → all tests pass, including at least one illegal-transition rejection test
+**Commit:** `P2.9: port operation domain types into msc-domain`
+**Batch:** solo
+
+### P2.10 — Port the capability domain type into `msc-domain`
+**Status:** not started
+**Files:** `crates/msc-domain/src/capability.rs`, `crates/msc-domain/tests/capability.rs`, `crates/msc-domain/src/lib.rs`
+**What:** Implement P2.6's schema as a pure `CapabilitySet` data type — agent version, API major/minor, host OS enum, per-server-type feature flags, and P2.1's permission-category enum. No I/O: the real detection logic that populates this type is Phase 3/4 infrastructure work, per the module-boundary rule in §6, not this crate's job.
+**Verify:** `cargo nextest run -p msc-domain capability` → all tests pass
+**Commit:** `P2.10: port capability domain type into msc-domain`
+**Batch:** safe
+
+---
+
+### Skeletal agent
+
+### P2.11 — `msc-api` crate: v1 DTOs
+**Status:** not started
+**Files:** `Cargo.toml` (workspace), `crates/msc-api/Cargo.toml`, `crates/msc-api/src/lib.rs`, `crates/msc-api/src/dto/*.rs`, `.github/workflows/ci.yml`
+**What:** New workspace member per `msc2-engineering.md` §6 ("routes · DTOs · WebSocket events... authentication · permission checks · rate limiting"). Hand-write serde structs for every schema P2.8's `openapi.json` defines that the skeletal agent will actually serve this phase: `OperationDTO`, `ErrorDTO`, `CapabilitiesDTO`, and the status/health DTOs. Add a conformance test serializing each DTO's example value and validating it against the matching `openapi.json` schema — the same schema-depth discipline P0.23 used, now checking Rust output against the schema instead of the schema's own shape. Extend CI (as P1.1 did for `msc-domain`) to build/lint/test this new crate on all three OSes.
+**Verify:** `cargo nextest run -p msc-api dto_conformance` → all tests pass
+**Commit:** `P2.11: scaffold the msc-api crate with v1 DTOs`
+**Batch:** stop-after
+
+### P2.12 — `msc-agent` crate: axum skeleton and dev-mode bearer auth
+**Status:** not started
+**Files:** `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth.rs`, `.github/workflows/ci.yml`
+**What:** New workspace member (§6: "service startup · dependency assembly · scheduler · operation recovery · static asset serving"). An `axum` server bound to loopback by default (§10: "the management API binds to loopback by default"), with a single dev-mode bearer-token middleware implementing P2.3's scoped-down auth — one fixed token from an env var, rejecting anything else with P2.4's `ErrorDTO` 401 shape — gating every route except `GET /v1/health`. The code comments this plainly as a development stand-in for the real pairing/`SecretStore` flow, not a preview of it.
+**Verify:** `cargo run -p msc-agent -- serve --bind 127.0.0.1:48400 &` then `curl -s -o /dev/null -w '%{http_code}' localhost:48400/v1/health` → `200`; `curl -s -o /dev/null -w '%{http_code}' localhost:48400/v1/status` (no token) → `401`
+**Commit:** `P2.12: scaffold the msc-agent crate with dev-mode bearer auth`
+**Batch:** solo
+
+### P2.13 — Skeletal handlers: status, health, capabilities
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/capabilities.rs`
+**What:** Wire `GET /v1/status`, `GET /v1/health`, `GET /v1/capabilities` to return canned `msc-api` DTOs — a single hard-coded fake server, honestly labeled as placeholder data wherever the schema allows a notes field. This is the minimum route set P2.20's iOS gate actually needs, and the port plan's own "exercised without real mutation" language for this phase.
+**Verify:** `curl -s -H "Authorization: Bearer $MSC_DEV_TOKEN" localhost:48400/v1/status | python3 -m json.tool` → valid JSON matching the status schema, no server error
+**Commit:** `P2.13: wire skeletal status, health, and capabilities handlers`
+**Batch:** stop-after
+
+### P2.14 — Skeletal handlers: operation lifecycle
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/operations.rs`
+**What:** Wire `POST /v1/operations`, `GET /v1/operations/{id}`, `POST /v1/operations/{id}/cancel` against an in-memory (non-journaled — that's Phase 3) map of id → `OperationState`. A background task advances a freshly-created operation through `queued→running→succeeded` over a few seconds so `GET` shows real progression; `cancel` legally transitions a `running` operation to `cancelled` per P2.9's state machine, and is rejected on a terminal one.
+**Verify:** `curl -s -X POST -H "Authorization: Bearer $MSC_DEV_TOKEN" localhost:48400/v1/operations -d '{"type":"demo-install"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['state'])"` → `queued`; polling `GET /v1/operations/{id}` a few seconds later → `succeeded`
+**Commit:** `P2.14: wire skeletal operation lifecycle handlers`
+**Batch:** safe
+
+### P2.15 — Console WebSocket channel
+**Status:** not started
+**Files:** `crates/msc-agent/src/ws/console.rs`
+**What:** Reimplement P0.24's documented baseline behavior over `axum`'s WebSocket support at `/v1/console/stream`: same bearer auth as HTTP routes, the 200-line-backfill-then-live delivery model, the 5000-line ring buffer (D-021 point 2's bounded-memory rule starts applying here), and the 64 KB inbound-frame cap. With no real server process yet, backfill is a canned fixed line set and "live" lines come from a demo ticker, so the bounded-history-then-live behavior is actually observable end-to-end rather than asserted.
+**Verify:** a short-lived WebSocket client (e.g. Python `websockets`) connects to `ws://127.0.0.1:48400/v1/console/stream` with the dev bearer token, receives the canned backfill immediately, then at least one live demo line within 5 seconds
+**Commit:** `P2.15: wire the console WebSocket channel`
+**Batch:** solo
+
+### P2.16 — Operation-progress WebSocket channel
+**Status:** not started
+**Files:** `crates/msc-agent/src/ws/operations.rs`
+**What:** Wire `/v1/operations/{id}/stream` per P2.7's schema, pushing `OperationDTO` updates as P2.14's demo ticker advances the fake operation, with the same bearer auth and bounded-connection discipline P2.15 established.
+**Verify:** connecting to `/v1/operations/{id}/stream` immediately after `POST /v1/operations` and reading frames shows the same `queued→running→succeeded` sequence P2.14's HTTP polling shows
+**Commit:** `P2.16: wire the operation-progress WebSocket channel`
+**Batch:** safe
+
+### P2.17 — Contract-conformance checker against the live skeletal agent
+**Status:** not started
+**Files:** `tools/contract-conformance-check.py`
+**What:** A dependency-free Python script that calls every route this phase implements against a running `msc-agent` (health, status, capabilities, operation lifecycle) and validates each live JSON response against P2.8's `openapi.json` schema for that route — P0.23's schema-depth discipline, now pointed at a live server instead of a static document. This turns "a skeletal agent whose routes can be exercised" (the port plan's own words) into one command instead of manual `curl` checks.
+**Verify:** `cargo run -p msc-agent -- serve --bind 127.0.0.1:48400 & sleep 1; python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$MSC_DEV_TOKEN"` → `ok <n>`, non-zero exit and a named route on any mismatch
+**Commit:** `P2.17: build the contract-conformance checker`
+**Batch:** solo
+
+---
+
+### iOS re-pointing
+
+### P2.18 — Copy the existing iOS client into the msc2 repo
+**Status:** not started
+**Files:** `clients/ios/` (new)
+**What:** Per D-004 ("the existing SwiftUI iOS client is retained and re-pointed") and `CLAUDE.md` rule 8 (MSC 1 is read-only, always), copy `MSCiOS/MSCRemoteiOS.xcodeproj` and `MSCiOS/MSCRemoteiOS_Swift` verbatim from the oracle (`~/Documents/Swift Projects/minecraft-server-controller`) into `clients/ios/` in this repo — a straight file copy, no edits. This becomes the client this repo owns and evolves from here forward; the oracle copy is never touched.
+**Verify:** `diff -rq "$HOME/Documents/Swift Projects/minecraft-server-controller/MSCiOS" clients/ios/` → no differences; `git -C "$HOME/Documents/Swift Projects/minecraft-server-controller" status --short` → empty (confirms the oracle itself was never written to)
+**Commit:** `P2.18: copy the existing iOS client into clients/ios`
+**Batch:** stop-after
+
+### P2.19 — Repoint the iOS client's networking layer at the v1 skeletal agent
+**Status:** not started
+**Files:** `clients/ios/MSCRemoteiOS_Swift/` (the Remote-API client class — identify the exact file during this step, since P2.18 is a verbatim copy and its layout isn't pre-known here)
+**What:** Change the copied client's base URL and auth-header logic to target `http://127.0.0.1:48400/v1/` and send P2.3's dev bearer token, commented plainly as a temporary stand-in for the real QR-pairing flow (out of scope until Phase 3's `SecretStore` work lands). Hand-write the minimal Swift `Codable` model for `GET /v1/status`'s response — codegen is explicitly deferred, see this phase's "Not in this phase" note. Scope narrowly to the one call P2.20's gate needs; do not repoint the app's entire networking surface in this step.
+**Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS build` → `BUILD SUCCEEDED`
+**Commit:** `P2.19: repoint the iOS client's status call at the v1 skeletal agent`
+**Batch:** solo
+
+### P2.20 — Confirm the iOS app connects and reads status — closes the Phase 2 gate
+**Status:** not started
+**Files:** none (verification only)
+**What:** With `msc-agent` running locally and serving P2.13's status route, launch the repointed iOS app (a simulator is sufficient) and confirm its status screen renders the skeletal agent's canned data rather than an error or blank state. This is the port plan's Phase 2 exit criterion, verbatim: "the existing iOS app connects and reads status against a stub agent."
+**Verify:** manual — Cameron runs the simulator against a running `msc-agent`, observes the status screen populated from it, and reports pass/fail. No scripted Verify is possible for a UI render.
+**Commit:** _(n/a — verification only)_
+**Batch:** stop-after
+
+---
+
+### Phase exit
+
+### P2.21 — Phase 2 exit gate check
+**Status:** not started
+**Files:** none (verification only)
+**What:** Run every Phase 2 deliverable together: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, P2.8's contract checker, and P2.17's live conformance checker. Confirm `msc-domain` still carries no I/O dependency (unchanged from P1.15) and that `msc-api` carries no process/filesystem I/O beyond serialization. Re-confirm P2.20's manual iOS result is recorded in this file. This checks the port plan's own Phase 2 exit criterion verbatim: "the existing iOS app connects and reads status against a stub agent."
+**Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace` → all green; then `python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$MSC_DEV_TOKEN"` → both `ok`
 **Commit:** _(n/a — verification only, unless a fix is needed)_
 **Batch:** stop-after
 

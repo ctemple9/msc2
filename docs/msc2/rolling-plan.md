@@ -756,7 +756,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.3 — Scope Phase 2's authentication surface and record what stays deferred
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/auth-scope-phase2.md`, `docs/msc2/msc2-decisions.md` (amend D-012)
 **What:** Phase 2's gate needs only the **iOS app** to connect to a **local, loopback** skeletal agent — not a Tauri desktop app connecting to a remote host, and not a browser. Scope this phase's auth work to exactly that: implement bearer-token *verification* (the already-Approved iOS mechanism — QR pairing → keychain token → bearer header — minus the real pairing-secret exchange, which needs Phase 3's `SecretStore` trait and doesn't exist yet). Stand in a single fixed dev token for now, clearly commented as a placeholder. Explicitly record as still-open, not solved by this phase: remote desktop pairing, per-host credential storage, LAN TLS provisioning, Tailscale posture, browser origin policy and CSRF — none of which an iOS-only, loopback-only gate requires. Amend D-012 with this scoping so a future reader doesn't mistake Phase 2's dev token for the six gaps being closed.
 **Verify:** `grep -c 'Phase 2 scope' docs/msc2/msc2-decisions.md` → at least `1`
@@ -768,7 +768,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### v1 contract design
 
 ### P2.4 — Design the v1 route namespace, skew behavior, and error envelope
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/versioning-and-errors.md`
 **What:** Per D-010, design the route-versioning mechanism (not the N-3 floor, still unset): every route lives under `/v1/`; the agent reports its API major/minor and capability set (feeding P2.6); a request from a client below the supported floor gets a clear structured refusal, not a generic 404. Design one consistent `ErrorDTO` (`code`, `message`, `helpId?`, `details?`) replacing the baseline's split `Error`/typed-DTO failure pattern that P0.32 catalogued — recorded here as a deliberate D-006-point-3 correction, not silent.
 **Verify:** `grep -cE '^### ' docs/msc2/api-contract/versioning-and-errors.md` → at least `3`

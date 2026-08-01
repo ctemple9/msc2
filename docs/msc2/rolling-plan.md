@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 2 complete (gate holds — v1 contract, skeletal agent, and iOS status read all verified; Codex review incorporated) — Phase 3 next
-> **Next move:** PLAN (write the Phase 3 step list — safety substrate)
+> ## STATUS: Phase 3 planned (20 steps written; two blocking Open items — D-025 service identity, D-012's Linux secret-storage gap — scoped as the phase's own first steps, not silently resolved) — Read next
+> **Next move:** READ (Cameron reviews the Phase 3 plan — P3.1–P3.3's judgment calls are the ones that matter most before execution starts)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-01
 
@@ -53,7 +53,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **0** | Freeze the baseline and build the harness | complete |
 | 1 | Domain types and pure rules | complete |
 | 2 | API contract and operation model | complete |
-| 3 | Safety substrate | not started |
+| 3 | Safety substrate | planned |
 | 4 | Java lifecycle vertical slice | not started |
 | 5 | Configuration and migration | not started |
 | 6 | Worlds and backups | not started |
@@ -926,6 +926,245 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **What:** Run every Phase 2 deliverable together: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, P2.8's contract checker, and P2.17's live conformance checker. Confirm `msc-domain` still carries no I/O dependency (unchanged from P1.15) and that `msc-api` carries no process/filesystem I/O beyond serialization. Re-confirm P2.20's manual iOS result is recorded in this file. This checks the port plan's own Phase 2 exit criterion verbatim: "the existing iOS app connects and reads status against a stub agent."
 **Note:** All green, no fixes needed. `cargo fmt --check` clean; `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo nextest run --workspace` → 215/215 passed; `tools/api-contract-check.py --v1-summary` → `routes: 93`, zero missing-category/missing-helpid/non-ErrorDTO violations; `tools/contract-conformance-check.py` against a live `msc-agent` (`MSC_DEV_TOKEN=msc2-dev-token`, same instance P2.20 left running) → `ok 6`. `crates/msc-domain/Cargo.toml` depends only on `regex` (serde/serde_json are dev-dependencies, test-only); `crates/msc-api/Cargo.toml` depends only on `serde`/`serde_json`. Grepped both crates' `src/` for `std::fs`, `std::net`, `std::process` (and `tokio` in `msc-domain`) — none found in either. P2.20's manual result is recorded at line 914 above (Status: DONE, RUNNING status confirmed live from `/v1/status`).
 **Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace` → all green; then `python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$MSC_DEV_TOKEN"` → both `ok`
+**Commit:** _(n/a — verification only, unless a fix is needed)_
+**Batch:** stop-after
+
+---
+
+## Phase 3 — Safety substrate
+
+**Gate** (`msc2-port-plan.md` §3): "Approved server roots and path safety · atomic writes · versioned configuration with migrations · `SecretStore` trait · audit log · download staging with checksum verification · operation journal · operation exclusivity. Windows CI begins here (D-017), covering path separators and length limits, file-locking semantics, service lifecycle, and case-insensitive path comparison." **Exit criteria: substrate fixtures pass on macOS, Linux, and Windows.**
+
+**This phase is recorded as blocked, not merely proposed.** `msc2-decisions.md` D-025 (service identity and privilege boundaries) says so explicitly: "**Blocks:** Phase 3 (safety substrate) and the D-012 authentication design." D-025 is **Open** — "identified, not decided" — the weakest status in the register, one rung below even *Proposed*. Building `SecretStore` or any file-owning substrate code before answering "which account runs the agent, and who owns the files it creates" would be guessing at exactly the kind of platform-specific, wide-blast-radius question `msc2-engineering.md` §8 says was never guessed at. `msc2-engineering.md` §8 separately flags Linux secret storage itself as **unresolved** — the `keyring` crate's Secret Service backend doesn't exist on minimal Debian, a primary deployment target (D-011). Both gaps get their own step, first, in this plan — not resolved *by* this planning document (that would be code/config decided outside the Execute move), but scoped into a concrete, checkable step an Execute conversation can actually close, the same pattern P2.1–P2.3 used for Phase 2's own open items. **Read this plan with those three steps first** — they're the biggest judgment calls in it, and everything else in the phase is downstream of their answers.
+
+**New workspace members.** Per `msc2-engineering.md` §6's module boundaries, this phase brings in `msc-infrastructure` ("filesystem repositories · HTTP providers · archives · process supervisor · metrics · config · audit · trait definitions for platform capabilities") and the first slice of the three platform crates — `msc-platform-macos`, `msc-platform-windows`, `msc-platform-linux` — but only their `SecretStore` implementation. Service registration (`launchd`/Windows Service/`systemd` installation), process supervision, Job Objects, cgroups, and the VZ sidecar client are named in §6 for those same crates but are **Phase 4 and Phase 10 work**, not this phase's.
+
+20 steps, eleven groups:
+
+| Group | Steps | Deliverable |
+|---|---|---|
+| Prerequisite decisions | P3.1–P3.3 | D-025 service identity scoped (Proposed, not Approved); D-012's Linux secret-storage backend chosen; Phase 3's substrate surface scoped, D-024/D-021 deferral recorded |
+| Workspace scaffold | P3.4 | `msc-infrastructure` crate + `FileSystem` trait (real + fake impl), wired to CI on all three platforms |
+| Path safety and atomic writes | P3.5–P3.6 | approved-server-root path resolution + a generic atomic-write primitive, both fixture-tested |
+| Versioned configuration | P3.7 | the config-lifecycle mechanism — schema version, corruption recovery, unknown-field survival — as a reusable primitive |
+| `SecretStore` | P3.8–P3.12 | the trait, three real platform implementations, and a cross-platform conformance check tying them together |
+| Audit log | P3.13 | JSONL audit trail with 30-day retention |
+| Download staging | P3.14 | generic stage → checksum-verify → move-into-place primitive |
+| Operation journal and exclusivity | P3.15–P3.16 | restart-survivable operation journal; per-target operation locking |
+| Leftover fixture domains | P3.17–P3.18 | `network-safety` (13 fixtures) and the `java-runtime-guards` filesystem leftover (8 fixtures), both deferred here from Phase 1 |
+| Windows validation | P3.19 | the first substrate tests that actually exercise Windows-specific behavior (D-017) |
+| Phase exit | P3.20 | full gate check across macOS, Linux, and Windows CI |
+
+**Not in this phase**, deferred on purpose:
+
+- **Real service registration** — installing the agent as a `launchd` LaunchDaemon, Windows Service, or `systemd` unit, and the OS integration testing that goes with it. That's Phase 4's gate ("headless service ownership proven on macOS, Linux, and Windows"). This phase only decides *identity and ownership* (P3.1); it doesn't install anything.
+- **D-024 power management** (sleep inhibition, the two host-role policies, misconfiguration detection/warning). The port plan's own §3 prose for this phase names exactly eight substrate items and power management isn't one of them, even though the separate acceptance-test inventory (§4B) places "cross-platform sleep inhibition and the two power policies" here. Its verification shape — real OS power APIs (`IOPMAssertion`/`SetThreadExecutionState`/`systemd-inhibit`) — doesn't fit this phase's fixture-parity gate the way path safety or `SecretStore` do. Deferred to land with Phase 4's platform-service work, where "remote-starting a stopped server" (the scenario D-024 exists for) first becomes something the codebase can actually attempt. **Flagged for Cameron to confirm or overrule during the Read move** — this is a real scoping call, not an oversight.
+- **D-021's headless-package GUI-link verification** ("CI check on every headless artifact: link no GUI framework"). A packaging concern, not blocked on anything this phase builds, and not yet assigned to a specific phase anywhere in the port plan — noted here rather than quietly invented a home for.
+- **Real per-domain download workflows** — Paper/Xbox-jar/plugin/modpack downloads stay in their own phases (7–9). This phase builds only the shared staging primitive (P3.14) those workflows will call instead of each reimplementing temp-then-verify-then-move.
+- **Wiring the new `SecretStore` into `msc-agent`'s real pairing flow**, replacing P2.3's fixed dev token with actual QR-pairing-issued, durably-stored credentials. `msc2-decisions.md`'s D-012 Phase 2 scope note says plainly that this is what Phase 3's `SecretStore` trait is *for* — but no phase in `msc2-port-plan.md` is actually named as the one that does this wiring. Recorded here as a genuine, currently-homeless gap (the same kind of finding D-027 exists to record), not left implicit. Cameron should decide during the Read move whether it belongs at the end of this phase, the start of Phase 4, or gets its own line in the port plan.
+- **The rest of D-012's open items** (remote desktop pairing, LAN TLS provisioning, Tailscale posture, browser origin policy/CSRF) — untouched by this phase, exactly as Phase 2 left them.
+
+---
+
+### Prerequisite decisions
+
+### P3.1 — Decide service identity and privilege boundaries for v1 (D-025)
+**Status:** not started
+**Files:** `docs/msc2/substrate/service-identity.md`, `docs/msc2/msc2-decisions.md` (amend D-025)
+**What:** D-025 asks six questions and is Open on all of them. Answer them as far as this phase can responsibly go — **Proposed, not Approved**, exactly like P2.1–P2.3 did for Phase 2's own open items — and name what genuinely can't be resolved by reading docs. Recommended direction, to confirm or overrule: on all three platforms, **the agent runs as the account that installed it** by default — macOS LaunchDaemon with `UserName` set to the installing user (not `root`), Windows Service "Log on as" that same user (not `SYSTEM`), Linux `systemd` unit with `User=`/`Group=` set the same way (not a dedicated system account) — rather than a separate service identity. This answers question 2 (file ownership) by construction: the agent's files are the installing user's files, so a desktop user opening, editing, or backing up them directly needs no special group membership or ACL dance. It answers question 3 (escalation): routine operation needs none; only writing the daemon/service/unit file at install time does, and that's already gated by the OS's own installer-elevation prompt, the same as installing MSC 1 today. Offer a dedicated-service-account mode as an explicitly **deferred, v1.1** option for a true multi-admin dedicated host with no single "owning" desktop user — not required now. **One sub-question this step cannot resolve by reading docs alone, and must say so rather than guess:** whether a macOS LaunchDaemon running with `UserName` set to a real user can actually reach that user's *login* Keychain — LaunchDaemons run outside any login session, and a `UserName` key does not, by itself, grant access to an unlocked login keychain. This directly decides whether P3.9's macOS `SecretStore` implementation targets the login keychain or the System keychain, so **P3.9 cannot start until this sub-question is closed** — flag it plainly rather than let P3.9 discover it mid-implementation. TCC (question 5) is recorded as unverifiable from docs alone and left as a known unknown to test once a LaunchDaemon actually exists (Phase 4), not guessed here.
+**Verify:** `grep -c 'Phase 3 scope' docs/msc2/msc2-decisions.md` → at least `1`; `test -f docs/msc2/substrate/service-identity.md && echo present` → `present`
+**Commit:** `P3.1: decide service identity and privilege boundaries for v1 (D-025)`
+**Batch:** solo
+
+### P3.2 — Decide the Linux headless secret-storage backend
+**Status:** not started
+**Files:** `docs/msc2/substrate/secret-storage.md`, `docs/msc2/msc2-engineering.md` (amend §8's "Linux secret storage is unresolved" section)
+**What:** §8 names three candidates and states its own preference: "`systemd` credentials (`LoadCredential=`/`systemd-creds`)... Preferred candidate." Confirm that choice in writing rather than let it stay an unconfirmed aside — D-011 already commits Linux to a `systemd` unit with zero desktop dependencies, so `systemd-creds` integrates with infrastructure this project already requires, and needs no second code path for a desktop-Secret-Service case, which §8 itself flags as undesirable ("two code paths and two threat models to reason about"). Record explicitly what this backend does and does not protect against at rest, per §8's own requirement, and how P3.1's service-identity answer (the agent running as the installing user, not a dedicated account) interacts with `systemd-creds`' usual `DynamicUser=` pairing — confirm it still works keyed to a normal user unit, or say plainly if it doesn't and adjust. Proposed, pending Cameron's confirmation, same pattern as every other judgment call in this register.
+**Verify:** `grep -c 'systemd-creds\|LoadCredential' docs/msc2/substrate/secret-storage.md` → at least `1`
+**Commit:** `P3.2: decide the Linux headless secret-storage backend`
+**Batch:** solo
+
+### P3.3 — Scope Phase 3's substrate surface and record what's deferred
+**Status:** not started
+**Files:** `docs/msc2/substrate/phase3-scope.md`
+**What:** Write down, in one place, the "Not in this phase" list already stated in this plan's own intro above — D-024 power management, D-021's headless-link verification, real service registration, real per-domain downloads, and the currently-homeless `SecretStore`-into-real-pairing wiring gap — as a scoping document Cameron can confirm or overrule during the Read move, the same role `auth-scope-phase2.md` played for Phase 2. This is the step that makes the deferrals load-bearing rather than just plan prose that could quietly drift once execution starts.
+**Verify:** `grep -c '^##' docs/msc2/substrate/phase3-scope.md` → at least `5` (one heading per deferred item)
+**Commit:** `P3.3: scope Phase 3's substrate surface and record what's deferred`
+**Batch:** solo
+
+---
+
+### Workspace scaffold
+
+### P3.4 — Scaffold the `msc-infrastructure` crate and the `FileSystem` trait
+**Status:** not started
+**Files:** `Cargo.toml` (workspace), `crates/msc-infrastructure/Cargo.toml`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/src/fs.rs`, `.github/workflows/ci.yml`
+**What:** New workspace member per `msc2-engineering.md` §6. Define a `FileSystem` trait covering the minimal surface every later step in this phase needs (read, write, stat, list, rename, remove) with two implementations: a real `StdFileSystem` backed by `std::fs`, and an in-memory `FakeFileSystem` for tests — built to accept the same `fsTree` shape P0.5's deferred fixtures already use (`{"<path>": {"type": "file", "executable": true}}`), so P3.18 can consume those fixtures directly without reshaping them. Depends on `msc-domain` (inward, per the direction rule); nothing depends on it yet. Extend CI to build/lint/test this crate on all three OSes, as P1.1 did for `msc-domain` and P2.11 did for `msc-api`.
+**Verify:** `cargo build -p msc-infrastructure && cargo nextest run -p msc-infrastructure fs` → passes, including at least one test exercising `FakeFileSystem`
+**Commit:** `P3.4: scaffold the msc-infrastructure crate and FileSystem trait`
+**Batch:** stop-after
+
+---
+
+### Path safety and atomic writes
+
+### P3.5 — Characterize and port approved-server-root path safety
+**Status:** not started
+**Files:** `fixtures/path-safety/`, `crates/msc-infrastructure/src/path_safety.rs`, `crates/msc-infrastructure/tests/path_safety.rs`
+**What:** MSC 1 has no dedicated test file for this; the reference implementations are `resolvedServerFileURL` in `AppViewModel+APIWiringContent.swift` (already flagged in the symbol ledger: "a real PATH-TRAVERSAL SAFETY CHECK: resolves symlinks and requires the resolved path to stay within the server's root directory... directly the kind of path-safety policy `msc2-port-plan.md`'s Phase 3 substrate calls for") and `validateResetDeletionTarget` in `AppViewModel+ConfigHelpers.swift` (refuses to delete `/`, the home directory, `/Applications`, or anything outside the actual approved root — the ledger's own words: "this IS the kind of path-safety policy... Phase 3 substrate... calls for"). Characterize both into one `safe_path(root, requested) -> Result<PathBuf, PathSafetyError>` primitive, built on P3.4's `FileSystem` trait for the symlink-resolution step so it's testable without touching the real filesystem: standardize and resolve symlinks on both root and candidate, require the resolved candidate to equal the root or start with `root + separator`. New fixtures, characterized directly from the two source functions per `fixture-format.md`'s "MSC 1 run by hand" standard for untested pure logic: (1) a plain in-root path, (2) a `..`-escape attempt, (3) a symlink inside the root pointing outside it, (4) the empty-relative-path case (candidate equals root), (5) a forbidden absolute path (`/`), (6) a forbidden absolute path (the home directory), (7) a sibling directory sharing the root's name as a string prefix (e.g. `/srv/server1x` vs. root `/srv/server1`) — the classic off-by-one a naive `hasPrefix` check gets wrong, which this fixture pins down as *not* an escape.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/path-safety --expect 7` → `ok 7`; then `cargo nextest run -p msc-infrastructure path_safety` → `7 tests run: 7 passed`
+**Commit:** `P3.5: characterize and port approved-server-root path safety`
+**Batch:** solo
+
+### P3.6 — Atomic write primitive
+**Status:** not started
+**Files:** `fixtures/atomic-write/`, `crates/msc-infrastructure/src/atomic_write.rs`, `crates/msc-infrastructure/tests/atomic_write.rs`
+**What:** MSC 1's temp-file-then-rename pattern recurs everywhere without ever being its own primitive: `ConfigManager.save` ("atomically encodes+writes config.json"), `WorldSlotManager.createSlot`/`.updateSlotFromCurrentWorld` ("zips to a temp file then atomically replaces, so a failed zip never corrupts the existing archive"), `AppViewModel+WorldSlots.restoreSlotBackup` ("atomically swaps the slot's world.zip via a temp-file copy+move"). Build the one reusable `atomic_write(path, bytes) -> Result<(), AtomicWriteError>` every later config/metadata/world writer will call instead of reimplementing temp-then-rename per call site. New fixtures, characterizing the pattern itself rather than one call site: (1) a successful write to a new path, (2) overwriting an existing file replaces its content correctly, (3) a missing parent directory produces a clear error and leaves no partial file behind, (4) the pre-existing destination file is untouched when a write is interrupted before the rename step (simulated by writing the temp file and asserting the destination's content is unchanged without performing the rename).
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/atomic-write --expect 4` → `ok 4`; then `cargo nextest run -p msc-infrastructure atomic_write` → `4 tests run: 4 passed`
+**Commit:** `P3.6: build the atomic write primitive`
+**Batch:** solo
+
+---
+
+### Versioned configuration
+
+### P3.7 — Versioned configuration with migrations
+**Status:** not started
+**Files:** `fixtures/config-lifecycle/`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-infrastructure/tests/config_lifecycle.rs`
+**What:** Port the *mechanism* `ConfigManager.swift` demonstrates (symbol-ledger rows `init`/`reload`/`save`, lines 40–236) — not MSC 1's specific `AppConfig` schema, which is Phase 5's job (`fixtures/config-roundtrip/`, already deferred there by the Phase 1 plan, and needs the historical `server_config_swift.json` corpus this phase doesn't have). What this phase owns is the generic policy every later versioned-config consumer will reuse: a schema-version field on every saved config; on decode failure, preserve the corrupt file as a timestamped `.corrupt-<ts>` copy before falling back to defaults, rather than overwriting the evidence (`ConfigManager.init`'s R3 behavior); unknown fields survive a read-modify-write round trip instead of being silently dropped — `msc2-engineering.md` §7's own justification for this, "silently rewriting `server.properties` with only the recognized keys is destructive," generalized here to any versioned config, not just `server.properties`. Saves go through P3.6's atomic-write primitive. New fixtures, characterized directly from `ConfigManager.swift` since no MSC 1 test file exercises corruption recovery specifically: (1) a valid file loads cleanly, (2) a missing file falls back to defaults, (3) corrupted JSON is preserved as `.corrupt-<ts>` and defaults are returned, (4) a file carrying unknown/future fields round-trips those fields unchanged.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/config-lifecycle --expect 4` → `ok 4`; then `cargo nextest run -p msc-infrastructure config_lifecycle` → `4 tests run: 4 passed`
+**Commit:** `P3.7: build the versioned configuration and migration primitive`
+**Batch:** solo
+
+---
+
+### `SecretStore`
+
+### P3.8 — Design the `SecretStore` trait and its cross-platform contract fixtures
+**Status:** not started
+**Files:** `docs/msc2/substrate/secret-storage.md` (extend from P3.2), `crates/msc-infrastructure/src/secret_store.rs`, `fixtures/secret-store-contract/`
+**What:** Generalize `KeychainManager.swift`'s five hardcoded read/write/delete pairs (Remote API admin token, Remote API guest token, per-server Xbox broadcast alt-password, Playit secret key, CurseForge API key — `readRemoteAPIToken`/`writeRemoteAPIToken`/`readXboxBroadcastAltPassword`/etc., lines 53–132) into one keyed trait: `trait SecretStore { fn get(&self, key: &str) -> Result<Option<String>>; fn set(&self, key: &str, value: &str) -> Result<()>; fn delete(&self, key: &str) -> Result<()>; }`, replacing MSC 1's five bespoke `service`/`account` pairs (`read(service:account:)`/`write(service:account:)`/`delete(service:account:)`, lines 162–228) with a documented key-naming scheme, so a new secret kind never needs a new trait method again. Record, per P3.1's flagged sub-question, which Keychain scope the macOS implementation targets and why — this document is where that answer must land before P3.9 can start. Write the five contract fixtures every platform implementation must satisfy, reusable rather than tied to one platform: (1) round-trip — set then get returns the same value, (2) reading a never-set key returns `None`, not an error, (3) `set` on an existing key overwrites it, (4) delete then get returns `None`, (5) deleting a never-set key is a no-op, not an error.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/secret-store-contract --expect 5` → `ok 5`
+**Commit:** `P3.8: design the SecretStore trait and its cross-platform contract fixtures`
+**Batch:** solo
+
+### P3.9 — `SecretStore` for macOS: Keychain
+**Status:** not started
+**Files:** `crates/msc-platform-macos/Cargo.toml`, `crates/msc-platform-macos/src/lib.rs`, `crates/msc-platform-macos/src/secret_store.rs`, `.github/workflows/ci.yml`
+**What:** New workspace member — this step builds only the Keychain piece of `msc-platform-macos`; `launchd` registration and the VZ sidecar client (also named for this crate in §6) are Phase 4 and Phase 10. Implement P3.8's `SecretStore` trait against macOS Keychain Services at the scope P3.1 resolved (System keychain if P3.1 found the login keychain unreachable from a `UserName`-scoped LaunchDaemon, login keychain otherwise), via the `security-framework` crate. Run P3.8's five contract fixtures against this real implementation.
+**Verify:** (macOS CI runner) `cargo nextest run -p msc-platform-macos secret_store_contract` → `5 tests run: 5 passed`
+**Commit:** `P3.9: implement SecretStore for macOS Keychain`
+**Batch:** safe — the design judgment already happened in P3.8; this step implements against P3.8's already-fixed trait and five contract fixtures, the same shape as P1.3–P1.7's mechanical fixture ports
+
+### P3.10 — `SecretStore` for Windows: Credential Manager
+**Status:** not started
+**Files:** `crates/msc-platform-windows/Cargo.toml`, `crates/msc-platform-windows/src/lib.rs`, `crates/msc-platform-windows/src/secret_store.rs`, `.github/workflows/ci.yml`
+**What:** New workspace member — this step builds only the Credential Manager/DPAPI piece of `msc-platform-windows`; Windows Service registration, Job Objects, and firewall handling (also named for this crate in §6) are Phase 4. Implement P3.8's trait against Windows Credential Manager — confirm against the chosen crate's actual Windows backend (DPAPI directly, or Credential Manager wrapping it) rather than assuming one. Run P3.8's five contract fixtures against it.
+**Verify:** (Windows CI runner) `cargo nextest run -p msc-platform-windows secret_store_contract` → `5 tests run: 5 passed`
+**Commit:** `P3.10: implement SecretStore for Windows Credential Manager`
+**Batch:** safe — same reasoning as P3.9: implements against P3.8's already-fixed contract, no open design question left
+
+### P3.11 — `SecretStore` for Linux: the backend P3.2 chose
+**Status:** not started
+**Files:** `crates/msc-platform-linux/Cargo.toml`, `crates/msc-platform-linux/src/lib.rs`, `crates/msc-platform-linux/src/secret_store.rs`, `.github/workflows/ci.yml`
+**What:** New workspace member — this step builds only the secret-store piece of `msc-platform-linux`; the `systemd` unit itself and cgroups handling (also named for this crate in §6) are Phase 4. Implement P3.8's trait against whichever backend P3.2 actually decided (§8's stated preference is `systemd-creds` — confirm P3.2's recorded decision rather than assume it went that way). Document exactly what it protects against at rest, per §8's own requirement. Run P3.8's five contract fixtures against it.
+**Verify:** (Linux CI runner) `cargo nextest run -p msc-platform-linux secret_store_contract` → `5 tests run: 5 passed`
+**Commit:** `P3.11: implement SecretStore for Linux`
+**Batch:** safe — same reasoning as P3.9/P3.10
+
+### P3.12 — Cross-platform `SecretStore` conformance summary
+**Status:** not started
+**Files:** `docs/msc2/substrate/secret-storage.md` (extend with a threat-model comparison table), `.github/workflows/ci.yml`
+**What:** Confirm all three platforms' `secret_store_contract` suites (P3.9–P3.11) run in the same CI run rather than three isolated green checkmarks nobody compares. Add a comparison table to `secret-storage.md` — one row per platform, columns for backend used, scope (login/System/machine), and what it protects against at rest — so a future reader (Cameron, or whoever designs the real pairing flow this trait is for) has one place to see all three side by side instead of three separate crate doc comments.
+**Verify:** `gh run list --limit 1` → `success`, with the run log showing all three `secret_store_contract` suites; `grep -c '^|' docs/msc2/substrate/secret-storage.md` → the comparison table has at least 3 data rows (one per platform)
+**Commit:** `P3.12: cross-platform SecretStore conformance summary`
+**Batch:** stop-after
+
+---
+
+### Audit log
+
+### P3.13 — Port the audit log
+**Status:** not started
+**Files:** `fixtures/audit-log/`, `crates/msc-infrastructure/src/audit_log.rs`, `crates/msc-infrastructure/tests/audit_log.rs`
+**What:** Port `AuditLogger.swift` (139 lines): a JSONL audit trail for Remote API mutations and auth failures, one file per UTC day, a dedicated serial writer queue so concurrent callers never interleave writes, and 30-day retention (`pruneOldFiles`). Entry shape: timestamp, client IP, token label, method, path, status code (`Entry`, lines 14–20) — matches `msc2-engineering.md` §7's "commands and administrative actions are attributed to the local GUI, a CLI user, or a named remote token." New fixtures, characterized directly from source since no MSC 1 test file exercises this: (1) a single entry round-trips through JSONL correctly, (2) entries from concurrent writers preserve call order (the serial-queue guarantee), (3) a file older than the 30-day retention window is pruned, (4) a file exactly at the 30-day boundary is kept, (5) a corrupt or partial line in an existing file doesn't crash the writer.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/audit-log --expect 5` → `ok 5`; then `cargo nextest run -p msc-infrastructure audit_log` → `5 tests run: 5 passed`
+**Commit:** `P3.13: port the audit log`
+**Batch:** solo
+
+---
+
+### Download staging
+
+### P3.14 — Download staging with checksum verification
+**Status:** not started
+**Files:** `fixtures/download-staging/`, `crates/msc-infrastructure/src/download_staging.rs`, `crates/msc-infrastructure/tests/download_staging.rs`
+**What:** `msc2-engineering.md` §7: "Downloads land in a temporary location, are checksum-verified where the provider publishes one, and are moved into active use only after validation. Interrupted downloads are safely retryable. Cached files record origin and version." Every real MSC 1 download-and-install workflow — `AppViewModel+PaperTemplateDownload.downloadLatestPaperTemplate`, `AppViewModel+XboxBroadcastDownload.downloadOrUpdateXboxBroadcastJar`, `AppViewModel+PluginManagement.downloadLatestForPlugin` ("streams the download to a temp file... moves the new file into place") — repeats the same temp-then-verify-then-move shape without ever sharing a primitive. Those per-domain workflows stay in their own phases (7–9, where their loader/provider-specific logic belongs); this phase builds the one reusable primitive they'll call instead of each reimplementing it: `stage_download(dest, bytes, expected_checksum: Option<...>) -> Result<CachedFile, DownloadStagingError>`, where `CachedFile` records origin URL and version alongside the moved file, per §7's "cached files record origin and version." New fixtures: (1) a successful stage-and-move with a matching checksum, (2) a checksum mismatch is rejected and the temp file is cleaned up without touching any existing destination file, (3) no checksum published still stages and moves, just unverified, (4) an interrupted download (a partial temp file left over from a prior attempt) is safely retried rather than corrupted or double-appended.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/download-staging --expect 4` → `ok 4`; then `cargo nextest run -p msc-infrastructure download_staging` → `4 tests run: 4 passed`
+**Commit:** `P3.14: build the download staging primitive`
+**Batch:** solo
+
+---
+
+### Operation journal and exclusivity
+
+### P3.15 — Operation journal (restart survival)
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/operation_journal.rs`, `crates/msc-infrastructure/tests/operation_journal.rs`
+**What:** New MSC 2 construction, not a port — MSC 1 has no operation-journal concept, the same D-018 exemption P2.9 recorded for the `OperationState` machinery this builds on. Extend P2.9's `OperationState` (`msc-domain`) with restart survival: every operation is journaled (via P3.6's atomic-write primitive) before it begins; on agent startup, the journal is read and any operation left non-terminal is reconciled — not silently resumed, and not silently forgotten, per §7: "incomplete operations are reconciled and their outcome explained rather than silently forgotten." Hand-written Rust tests, same style as P2.9: (1) a completed operation's journal entry is inert on restart, (2) a `running` entry is reconciled to a terminal `failed` state carrying an "agent restarted mid-operation" explanation, (3) a `queued` entry (never actually started) is likewise reconciled rather than silently resumed, since this phase has no real work-resumption mechanism yet.
+**Verify:** `cargo nextest run -p msc-infrastructure operation_journal` → all tests pass, including at least one restart-reconciliation test
+**Commit:** `P3.15: build the operation journal`
+**Batch:** solo
+
+### P3.16 — Operation exclusivity
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/operation_journal.rs` (extend), `crates/msc-infrastructure/tests/operation_exclusivity.rs`
+**What:** §7: "Only one conflicting operation runs against a server at a time. Starting a backup during a world replacement is refused, not queued silently." Add a per-target check to P3.15's journal: before admitting a new operation, look for any non-terminal (queued/running) operation already against the same target and reject the new one with a structured conflict error (P2.4's `ErrorDTO` shape) rather than queueing it — "refused, not queued silently" is the port plan's own wording. The conflict rule itself is deliberately coarse here — same-target-any-operation conflicts with same-target-any-operation — since the real operation-type catalog (which types may safely coexist) doesn't exist until later phases populate it; a fine-grained matrix is flagged as a later-phase refinement, not invented now.
+**Verify:** `cargo nextest run -p msc-infrastructure operation_exclusivity` → all tests pass, including a same-target rejection and a different-target acceptance
+**Commit:** `P3.16: build operation exclusivity`
+**Batch:** solo
+
+---
+
+### Leftover fixture domains
+
+### P3.17 — Port network-safety fixtures
+**Status:** not started
+**Files:** `crates/msc-domain/src/network_safety.rs`, `crates/msc-domain/tests/network_safety.rs`
+**What:** Port `NetworkSafety.isLocalOrPrivateHost` and its supporting classification logic (`NetworkSafety.swift`) against the 13 fixtures P0.14 already extracted (`fixtures/network-safety/`) — loopback, private-range including the 172.16.0.0/12 boundary case, mDNS/`.local`, IPv6 loopback and link-local, and public-address rejection. Pure function, no I/O, so it lives in `msc-domain` alongside the other Phase 1 domains despite landing in this phase — deferred here by the Phase 1 plan's own note, thematically because it backs D-012's LAN-encryption and off-loopback safety questions this phase's substrate work sits next to, not because it needs any capability `msc-domain`'s no-I/O crate lacks.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/network-safety --expect 13` → `ok 13`; then `cargo nextest run -p msc-domain network_safety` → `13 tests run: 13 passed`
+**Commit:** `P3.17: port network-safety fixtures`
+**Batch:** safe
+
+### P3.18 — Port the java-runtime-guards filesystem leftover
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/java_runtime_detection.rs`, `crates/msc-infrastructure/tests/java_runtime_detection.rs`
+**What:** The 8 fixtures P1.5 explicitly deferred ("move to `msc-infrastructure` once Phase 3 builds the filesystem substrate behind a trait"): `detect-installed-java-runtimes-*` (×3 — macOS JDK-bundle layout, plain `JAVA_HOME`-style layout, invalid-candidate rejection) and `normalization-*` (×5 — already-executable path unchanged, bare command passthrough, directory-without-`bin/java` error, home-dir-to-`bin/java` resolution, nonexistent-path error), from `JavaRuntimeGuardsTests.swift` via `fixtures/java-runtime-guards/`. Port `JavaRuntimeManager.detectInstalledJavaRuntimes` and its path-normalization helper against P3.4's `FileSystem` trait, using `FakeFileSystem` to inject each fixture's `fsTree` input exactly as recorded — no real filesystem access in the test suite.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-runtime-guards --expect 15` → `ok 15` (the directory's existing total: P1.5's 7 pure fixtures plus these 8); then `cargo nextest run -p msc-infrastructure java_runtime_detection` → `8 tests run: 8 passed`
+**Commit:** `P3.18: port the java-runtime-guards filesystem leftover`
+**Batch:** safe
+
+---
+
+### Windows validation
+
+### P3.19 — Windows-specific substrate validation
+**Status:** not started
+**Files:** `crates/msc-infrastructure/tests/windows_substrate.rs` (`#[cfg(windows)]`-gated)
+**What:** Per D-017 ("Windows CI for the agent... begins with the filesystem/config/security substrate") and §8's named hazards: "path separators and length limits, file-locking semantics — Windows will not let you delete an open file, service lifecycle and logout behavior, case-insensitive path comparison." CI has built and tested this crate on Windows since P3.4, but nothing yet asserts a Windows-*specific* behavior; this step adds the first ones, gated so they only run on the Windows CI runner: (1) P3.5's path safety against backslash-separated and long (>260 character, exercising extended-length-path handling) inputs, (2) P3.6's atomic write against a destination another handle already has open — Windows refuses the rename the POSIX-only fixtures never exercised; assert the primitive surfaces a clear error rather than hanging or silently succeeding, (3) P3.5 again with two candidate paths differing only in case — Windows' case-insensitive-but-case-preserving filesystem must not treat them as an escape from the root.
+**Verify:** (Windows CI runner) `cargo nextest run -p msc-infrastructure windows_substrate` → `3 tests run: 3 passed`; absent from macOS/Linux runner output, per the `cfg(windows)` gate
+**Commit:** `P3.19: add Windows-specific substrate validation`
+**Batch:** solo
+
+---
+
+### Phase exit
+
+### P3.20 — Phase 3 exit gate check
+**Status:** not started
+**Files:** none (verification only)
+**What:** Run every Phase 3 deliverable together on all three CI platforms: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace` — covering `msc-domain`'s new `network_safety` module, `msc-infrastructure`'s path-safety/atomic-write/config-lifecycle/audit-log/download-staging/operation-journal/operation-exclusivity/java-runtime-detection modules, and each platform crate's `SecretStore` implementation on its own native runner. Confirm `msc-domain` still carries no I/O dependency (unchanged rule from P1.15/P2.21). Confirm P3.19's Windows-specific tests actually ran on the Windows leg of CI rather than being silently absent everywhere. This checks the port plan's own Phase 3 exit criterion verbatim: "substrate fixtures pass on macOS, Linux, and Windows."
+**Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace` → all green; `gh run list --limit 1` → `success`, with the log showing all three OS legs passed
 **Commit:** _(n/a — verification only, unless a fix is needed)_
 **Batch:** stop-after
 

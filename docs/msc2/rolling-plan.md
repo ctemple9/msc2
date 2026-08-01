@@ -892,7 +892,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### iOS re-pointing
 
 ### P2.18 — Copy the existing iOS client into the msc2 repo
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/ios/` (new)
 **What:** Per D-004 ("the existing SwiftUI iOS client is retained and re-pointed") and `CLAUDE.md` rule 8 (MSC 1 is read-only, always), copy `MSCiOS/MSCRemoteiOS.xcodeproj` and `MSCiOS/MSCRemoteiOS_Swift` verbatim from the oracle (`~/Documents/Swift Projects/minecraft-server-controller`) into `clients/ios/` in this repo — a straight file copy, no edits. This becomes the client this repo owns and evolves from here forward; the oracle copy is never touched.
 **Verify:** `diff -rq "$HOME/Documents/Swift Projects/minecraft-server-controller/MSCiOS" clients/ios/` → no differences; `git -C "$HOME/Documents/Swift Projects/minecraft-server-controller" status --short` → empty (confirms the oracle itself was never written to)

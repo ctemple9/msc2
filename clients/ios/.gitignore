@@ -1,0 +1,57 @@
+# ============================================================
+# MSC Remote (iOS) — .gitignore
+# ============================================================
+
+# ----- macOS -----
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+
+# ----- Xcode -----
+build/
+DerivedData/
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+xcuserdata/
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+
+# ----- Swift Package Manager -----
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# ----- CocoaPods (if ever used) -----
+Pods/
+Podfile.lock
+
+# ----- Large media -----
+# splash_intro.mp4 is committed directly (3.2 MB, acceptable for git)
+
+# ----- Test outputs -----
+*.log
+*.dSYM/
+*.dSYM.zip
+
+# ----- Archives / distribution -----
+*.dmg
+*.ipa
+*.xcarchive
+
+# ----- Editor -----
+.vscode/
+*.swp
+*~

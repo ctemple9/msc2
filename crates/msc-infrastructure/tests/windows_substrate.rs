@@ -47,7 +47,7 @@ fn path_safety_backslash_and_long_paths() {
     // limit resolves without truncation or panic — extended-length paths
     // are routine for deeply nested modpack/world directory trees.
     let long_segment = "a".repeat(50);
-    let deep_relative = vec![long_segment.as_str(); 8].join(r"\"); // > 260 chars total with root
+    let deep_relative = [long_segment.as_str(); 8].join(r"\"); // > 260 chars total with root
     let long_path = safe_path(&fs, &root, Some(&deep_relative), &home)
         .unwrap_or_else(|e| panic!("long path should resolve, got {e:?}"));
     assert!(

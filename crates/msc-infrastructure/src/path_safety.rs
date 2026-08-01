@@ -84,7 +84,7 @@ pub fn safe_path(
     };
     let candidate_resolved = resolve(fs, &lexically_normalize(&candidate_raw))?;
 
-    if candidate_resolved == root_resolved || candidate_resolved.starts_with(&root_resolved) {
+    if path_has_prefix(&candidate_resolved, &root_resolved) {
         Ok(candidate_resolved)
     } else {
         Err(PathSafetyError::Escape {
@@ -100,7 +100,72 @@ pub fn safe_path(
 /// Checking "has no parent" instead of the literal string `"/"` covers the
 /// same case without assuming Unix.
 fn is_forbidden_root(root: &Path, home_dir: &Path) -> bool {
-    root.parent().is_none() || root == home_dir
+    root.parent().is_none() || paths_equal(root, home_dir)
+}
+
+/// Whether `candidate` equals `root`, or has `root` as a leading run of
+/// components — the escape check's actual test. `Path::starts_with`
+/// already covers both (it returns `true` for an exact match too), but its
+/// component comparison is byte-exact on every platform, including
+/// Windows, where the real filesystem is case-insensitive-but-case-
+/// preserving: `C:\Servers\World` and `C:\Servers\WORLD` name the same
+/// real directory there, and P3.19 found the byte-exact check flags a
+/// same-real-path request that merely differs in case as an escape. Walked
+/// by hand rather than via `Path::starts_with` so [`components_match`]'s
+/// platform-aware comparison can be substituted in.
+fn path_has_prefix(candidate: &Path, root: &Path) -> bool {
+    let mut candidate_components = candidate.components();
+    for root_component in root.components() {
+        match candidate_components.next() {
+            Some(candidate_component) if components_match(candidate_component, root_component) => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+/// Same idea as [`path_has_prefix`] but for exact equality (used by
+/// [`is_forbidden_root`]'s `home_dir` check) — both paths must be fully
+/// consumed with every component matching, not just one being a prefix of
+/// the other.
+fn paths_equal(a: &Path, b: &Path) -> bool {
+    let mut a_components = a.components();
+    let mut b_components = b.components();
+    loop {
+        match (a_components.next(), b_components.next()) {
+            (Some(x), Some(y)) if components_match(x, y) => {}
+            (None, None) => return true,
+            _ => return false,
+        }
+    }
+}
+
+/// Component equality, case-sensitive everywhere except Windows. Unix
+/// filesystems generally are case-sensitive (and where they aren't, e.g. a
+/// case-insensitive APFS volume, MSC 1 never accounted for it either — not
+/// a regression this fix introduces), so `..` traversal must keep telling
+/// `server1` and `Server1` apart there. Windows never does, for any
+/// component kind that carries a name — a bare drive letter (`C:` vs
+/// `c:`) is exactly as case-insensitive as a directory name is. Folds via
+/// `eq_ignore_ascii_case` rather than a full Unicode case fold: strictly
+/// more conservative (it can only make two components compare as
+/// *different* that Windows would treat as the same, never the reverse),
+/// so it can't turn a real escape into a false negative — it can only
+/// under-fix a small class of non-ASCII-cased same-directory spellings,
+/// which is an acceptable v1 limitation, not a safety regression.
+fn components_match(a: Component, b: Component) -> bool {
+    if cfg!(windows) {
+        match (a, b) {
+            (Component::Normal(_), Component::Normal(_))
+            | (Component::Prefix(_), Component::Prefix(_)) => a
+                .as_os_str()
+                .to_string_lossy()
+                .eq_ignore_ascii_case(&b.as_os_str().to_string_lossy()),
+            _ => a == b,
+        }
+    } else {
+        a == b
+    }
 }
 
 /// Collapses `.` and `..` components without touching the filesystem —

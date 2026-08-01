@@ -39,6 +39,17 @@ struct OperationRecord {
     error: Option<ErrorDto>,
 }
 
+impl OperationsState {
+    /// Current `OperationDTO` for `id`, or `None` if unknown. Used by the
+    /// operation-progress WebSocket handler (P2.16) to existence-check
+    /// before upgrading and to poll for changes afterward, without
+    /// exposing the record type or the lock itself outside this module.
+    pub fn snapshot(&self, id: &str) -> Option<OperationDto> {
+        let operations = self.0.lock().expect("operations lock poisoned");
+        operations.get(id).map(|record| to_dto(id, record))
+    }
+}
+
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
 /// Opaque and server-generated, per `operation-model.md` §2 — the format

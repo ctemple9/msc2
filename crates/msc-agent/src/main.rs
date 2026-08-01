@@ -53,18 +53,27 @@ fn build_app() -> Router {
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
     let public = Router::new().route("/health", get(routes::health::health));
 
+    // Shared by the HTTP operation-lifecycle routes and the
+    // operation-progress WebSocket route below — both must observe the
+    // same in-memory map, not two independent ones.
+    let operations_state = routes::operations::OperationsState::default();
+
     let operations = Router::new()
         .route("/operations", post(routes::operations::create))
         .route("/operations/:id", get(routes::operations::get))
         .route("/operations/:id/cancel", post(routes::operations::cancel))
-        .with_state(routes::operations::OperationsState::default());
+        .with_state(operations_state.clone());
+
+    let operation_progress = Router::new()
+        .route("/operations/:id/stream", get(ws::operations::upgrade))
+        .with_state(operations_state);
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))
         .with_state(ws::console::ConsoleState::default());
 
     // Every other route this phase wires runs behind the bearer-token
-    // check — including the console WebSocket upgrade, since the auth
+    // check — including both WebSocket upgrades, since the auth
     // middleware runs on the ordinary HTTP request before the protocol
     // switch happens (websocket-v1.json: "evaluated before the WS-upgrade
     // special case is reached").
@@ -72,6 +81,7 @@ fn build_app() -> Router {
         .route("/status", get(routes::status::status))
         .route("/capabilities", get(routes::capabilities::capabilities))
         .merge(operations)
+        .merge(operation_progress)
         .merge(console)
         .route_layer(axum::middleware::from_fn(auth::require_bearer_token));
 

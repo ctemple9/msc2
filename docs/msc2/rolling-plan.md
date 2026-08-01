@@ -872,7 +872,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.16 — Operation-progress WebSocket channel
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/ws/operations.rs`
 **What:** Wire `/v1/operations/{id}/stream` per P2.7's schema, pushing `OperationDTO` updates as P2.14's demo ticker advances the fake operation, with the same bearer auth and bounded-connection discipline P2.15 established.
 **Verify:** connecting to `/v1/operations/{id}/stream` immediately after `POST /v1/operations` and reading frames shows the same `queued→running→succeeded` sequence P2.14's HTTP polling shows

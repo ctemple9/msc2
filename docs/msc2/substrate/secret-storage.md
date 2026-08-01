@@ -1,6 +1,8 @@
-# Linux headless secret-storage backend (D-012 / `msc2-engineering.md` §8)
+# Secret storage: Linux backend decision (P3.2) and the `SecretStore` trait (P3.8)
 
-**Status: Confirmed** by Cameron Temple, 2026-08-01 — `systemd-creds` as the backend, and (resolving §5's flagged constraint) **Debian 12 "bookworm" as MSC 2's Linux minimum**, over building the root-owned-file fallback to also cover Debian 11 and older. `msc2-decisions.md` D-011 is amended accordingly.
+**Status: Confirmed** by Cameron Temple, 2026-08-01 — `systemd-creds` as the Linux backend, and (resolving §5's flagged constraint) **Debian 12 "bookworm" as MSC 2's Linux minimum**, over building the root-owned-file fallback to also cover Debian 11 and older. `msc2-decisions.md` D-011 is amended accordingly.
+
+**Sections 1–7 below are P3.2's Linux-backend decision.** Sections 8 onward are P3.8's extension: the cross-platform `SecretStore` trait every platform implementation (P3.9 macOS, P3.10 Windows, P3.11 this Linux backend) builds against, its key-naming scheme, and the macOS Keychain-scope answer P3.9 needs before it can start.
 
 ---
 
@@ -76,3 +78,61 @@ Per §6 of the Phase 3 intro's "not in this phase" list and this step's own scop
 | Who runs `systemd-creds encrypt`, and when? | The installer, during the same elevated install-time window that already writes the unit file (P3.1) |
 | Minimum `systemd` version? | 250+, for the *encrypted* credential directives. **Confirmed: Debian 12 (bookworm) is MSC 2's Linux floor** — ships 252, qualifies. Debian 11 (bullseye) ships 247 and is not supported. |
 | Is the Secret-Service branch built? | No — one code path only, per §8's own stated reason to avoid two threat models |
+
+---
+
+## 8. The `SecretStore` trait
+
+MSC 1's `KeychainManager.swift` hardcodes five read/write/delete pairs, one method-set per secret kind (`readRemoteAPIToken`/`writeRemoteAPIToken`, `readRemoteAPIGuestToken`/`writeRemoteAPIGuestToken`, `readXboxBroadcastAltPassword(forServerId:)`/`writeXboxBroadcastAltPassword(_:forServerId:)`, `readPlayitSecretKey`/`writePlayitSecretKey`, `readCurseForgeAPIKey`/`writeCurseForgeAPIKey`, lines 53–132) sitting on top of three generic Keychain primitives keyed by a `(service, account)` pair (`read`/`write`/`delete`, lines 162–228). Every new secret MSC 1 ever needed a new pair of typed methods for.
+
+`msc-infrastructure::secret_store` generalizes this to one trait, keyed by a single string instead of a `(service, account)` pair, so a new secret kind is a new key, not a new method:
+
+```rust
+pub trait SecretStore {
+    fn get(&self, key: &str) -> Result<Option<String>>;
+    fn set(&self, key: &str, value: &str) -> Result<()>;
+    fn delete(&self, key: &str) -> Result<()>;
+}
+```
+
+Behavior generalized directly from `KeychainManager`'s own primitives, not invented:
+
+- `get` on a key that was never set returns `Ok(None)`, not an error — `read`'s own `guard status == errSecSuccess ... else return nil` folds `errSecItemNotFound` into `nil`, not a thrown error (line 162).
+- `set` is an upsert — `write`'s own doc comment states this plainly: "Upsert: updates if the item exists, adds if it does not" (line 184).
+- `delete` on a key that was never set is `Ok(())`, not an error — `delete`'s own comment: "`errSecItemNotFound` is acceptable — the item was already absent" (line 221).
+
+The five contract fixtures in §11 pin down exactly these three behaviors (plus round-trip and overwrite), so every platform implementation is checked against the same cases MSC 1's own comments already promised, not against a fresh guess per platform.
+
+## 9. Key-naming scheme
+
+MSC 1's `(service, account)` pair collapses to one dot-delimited string key: `<domain>.<secret>` for a single global secret, `<domain>.<secret>.<scope-id>` when MSC 1 scoped the secret per-server via its `account` field. Table below is the literal migration of all five of `KeychainManager`'s secrets — this is what wiring `SecretStore` into real pairing (the homeless gap Phase 3's scope doc already flags) will use, not a hypothetical extension:
+
+| MSC 1 (`service`, `account`) | `SecretStore` key |
+|---|---|
+| `remoteapitoken`, `owner` | `remote-api.owner-token` |
+| `remoteapiguesttoken`, `guest` | `remote-api.guest-token` |
+| `xboxbroadcast.altpassword`, `<server UUID>` | `xbox-broadcast.alt-password.<server-id>` |
+| `playit.secretkey`, `agent` | `playit.secret-key` |
+| `curseforge.apikey`, `apikey` | `curseforge.api-key` |
+
+No Rust constants for these five are defined yet — nothing in the codebase calls `SecretStore::get`/`set` until the pairing-flow wiring gap (`phase3-scope.md`) is picked up, so a constants module would have no caller and would just be guessed-at scaffolding. This table is the scheme that call site follows when it lands.
+
+## 10. macOS Keychain scope, for P3.9
+
+**Confirmed by Cameron Temple, 2026-08-01 (`service-identity.md` §3): the macOS `SecretStore` implementation targets the System keychain**, not the login keychain — restated here in full because this is the document P3.9 needs to be self-sufficient from, per this step's own charge to record the answer before P3.9 can start.
+
+Why: a `LaunchDaemon` runs outside any `loginwindow` security session (`service-identity.md` §4). Setting `UserName` changes the Unix UID/GID the process runs under; it does not attach the process to a login session or to that session's keychain-unlock state. Whether a `UserName`-scoped `LaunchDaemon` can reach the login keychain in practice is genuinely untestable until Phase 4 builds a real `LaunchDaemon` — so P3.9 is unblocked by targeting the System keychain (`SecKeychain` system domain, not tied to any login session, reachable by any locally-running process including daemons) now, rather than waiting on a test that can't happen yet. If Phase 4's live test later shows login-keychain access does work, that's a strictly better outcome adoptable then, without having blocked this phase on it.
+
+What this does and does not protect at rest, per §8's own requirement, restated in this platform's terms: per-item access-control lists restrict readability to the agent's own process, but the System keychain is a **machine-scoped** secret store, not a user-scoped one — recoverable by anything running as root on the same machine. Same category as this document's own Linux answer (§2) and the Windows DPAPI machine-scope answer D-025 already gives; not a weaker answer than the other two platforms, the same shape of answer for the same reason (§2's own closing point: none of the three platforms give an unprivileged headless service a *session*-scoped store, because none of the three have a login session to scope to).
+
+## 11. Contract fixtures
+
+Five fixtures, `fixtures/secret-store-contract/*.json`, characterized directly from `KeychainManager`'s own primitives and their doc comments (§8 above), not pulled from a dedicated MSC 1 test file — none exists, the same "characterize from source" pattern P3.5 used for path safety. Every platform implementation (P3.9 macOS, P3.10 Windows, P3.11 Linux) runs these same five against itself; `crates/msc-infrastructure/src/secret_store.rs` also ships a `FakeSecretStore` (in-memory) that satisfies them today, so the contract is checkable before any platform crate exists.
+
+| Case | What it pins down |
+|---|---|
+| `round-trip-set-then-get` | `set` then `get` returns the same value |
+| `get-of-unset-key-returns-none` | Reading a never-set key returns `Ok(None)`, not an error |
+| `set-overwrites-existing-key` | `set` on an existing key overwrites it (the upsert behavior `write`'s own comment names) |
+| `delete-then-get-returns-none` | `delete` then `get` returns `Ok(None)` |
+| `delete-of-unset-key-is-noop` | Deleting a never-set key is `Ok(())`, not an error (the `errSecItemNotFound`-is-acceptable behavior `delete`'s own comment names) |

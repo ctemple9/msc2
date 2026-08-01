@@ -1,0 +1,23 @@
+{
+  "domain": "secret-store-contract",
+  "case": "round-trip-set-then-get",
+  "source": {
+    "file": "KeychainManager.swift",
+    "test": "write",
+    "line": 184
+  },
+  "input": {
+    "key": "remote-api.owner-token",
+    "operations": [
+      { "op": "set", "value": "tok-abc123" },
+      { "op": "get" }
+    ]
+  },
+  "expected": {
+    "results": [
+      { "op": "set", "ok": true },
+      { "op": "get", "value": "tok-abc123" }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises KeychainManager directly; characterized from write (line 184) and read (line 162) together, since a round trip needs both. SecretStore generalizes MSC 1's five (service, account) pairs to one string key -- 'remote-api.owner-token' is the migration of (remoteapitoken, owner), per secret-storage.md section 9."
+}

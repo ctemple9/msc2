@@ -1,0 +1,25 @@
+{
+  "domain": "secret-store-contract",
+  "case": "set-overwrites-existing-key",
+  "source": {
+    "file": "KeychainManager.swift",
+    "test": "write",
+    "line": 184
+  },
+  "input": {
+    "key": "curseforge.api-key",
+    "operations": [
+      { "op": "set", "value": "first-key" },
+      { "op": "set", "value": "second-key" },
+      { "op": "get" }
+    ]
+  },
+  "expected": {
+    "results": [
+      { "op": "set", "ok": true },
+      { "op": "set", "ok": true },
+      { "op": "get", "value": "second-key" }
+    ]
+  },
+  "notes": "write's own doc comment: 'Upsert: updates if the item exists, adds if it does not' (line 184) -- SecItemUpdate on an existing (service, account) replaces the stored value rather than erroring or duplicating. SecretStore::set preserves this upsert behavior under the collapsed single-key scheme."
+}

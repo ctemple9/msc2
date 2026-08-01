@@ -1,0 +1,21 @@
+{
+  "domain": "secret-store-contract",
+  "case": "delete-of-unset-key-is-noop",
+  "source": {
+    "file": "KeychainManager.swift",
+    "test": "delete",
+    "line": 221
+  },
+  "input": {
+    "key": "remote-api.guest-token",
+    "operations": [
+      { "op": "delete" }
+    ]
+  },
+  "expected": {
+    "results": [
+      { "op": "delete", "ok": true }
+    ]
+  },
+  "notes": "delete's own comment: 'errSecItemNotFound is acceptable -- the item was already absent' (line 221) -- the status check returns true for both errSecSuccess and errSecItemNotFound. SecretStore::delete generalizes this: Ok(()) for a key that was never set, never an Err."
+}

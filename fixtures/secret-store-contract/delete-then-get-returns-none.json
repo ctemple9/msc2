@@ -1,0 +1,25 @@
+{
+  "domain": "secret-store-contract",
+  "case": "delete-then-get-returns-none",
+  "source": {
+    "file": "KeychainManager.swift",
+    "test": "delete",
+    "line": 221
+  },
+  "input": {
+    "key": "xbox-broadcast.alt-password.11111111-1111-1111-1111-111111111111",
+    "operations": [
+      { "op": "set", "value": "alt-pw" },
+      { "op": "delete" },
+      { "op": "get" }
+    ]
+  },
+  "expected": {
+    "results": [
+      { "op": "set", "ok": true },
+      { "op": "delete", "ok": true },
+      { "op": "get", "value": null }
+    ]
+  },
+  "notes": "readXboxBroadcastAltPassword/writeXboxBroadcastAltPassword scope this secret per server via the account field (a server UUID, lines 78-89). SecretStore's key-naming scheme (secret-storage.md section 9) folds that scoping into the key itself: 'xbox-broadcast.alt-password.<server-id>'. After delete, get must return None, not a stale value or an error."
+}

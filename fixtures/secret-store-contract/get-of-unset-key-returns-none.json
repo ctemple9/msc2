@@ -1,0 +1,21 @@
+{
+  "domain": "secret-store-contract",
+  "case": "get-of-unset-key-returns-none",
+  "source": {
+    "file": "KeychainManager.swift",
+    "test": "read",
+    "line": 162
+  },
+  "input": {
+    "key": "playit.secret-key",
+    "operations": [
+      { "op": "get" }
+    ]
+  },
+  "expected": {
+    "results": [
+      { "op": "get", "value": null }
+    ]
+  },
+  "notes": "read's own guard folds a Keychain miss (status != errSecSuccess, which includes errSecItemNotFound) into a plain nil return, not a thrown error. SecretStore::get generalizes this: Ok(None) for a key that was never set, never an Err."
+}

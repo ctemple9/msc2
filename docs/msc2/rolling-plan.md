@@ -921,9 +921,10 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Phase exit
 
 ### P2.21 — Phase 2 exit gate check
-**Status:** not started
+**Status:** awaiting verification
 **Files:** none (verification only)
 **What:** Run every Phase 2 deliverable together: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace`, P2.8's contract checker, and P2.17's live conformance checker. Confirm `msc-domain` still carries no I/O dependency (unchanged from P1.15) and that `msc-api` carries no process/filesystem I/O beyond serialization. Re-confirm P2.20's manual iOS result is recorded in this file. This checks the port plan's own Phase 2 exit criterion verbatim: "the existing iOS app connects and reads status against a stub agent."
+**Note:** All green, no fixes needed. `cargo fmt --check` clean; `cargo clippy --workspace --all-targets -- -D warnings` clean; `cargo nextest run --workspace` → 215/215 passed; `tools/api-contract-check.py --v1-summary` → `routes: 93`, zero missing-category/missing-helpid/non-ErrorDTO violations; `tools/contract-conformance-check.py` against a live `msc-agent` (`MSC_DEV_TOKEN=msc2-dev-token`, same instance P2.20 left running) → `ok 6`. `crates/msc-domain/Cargo.toml` depends only on `regex` (serde/serde_json are dev-dependencies, test-only); `crates/msc-api/Cargo.toml` depends only on `serde`/`serde_json`. Grepped both crates' `src/` for `std::fs`, `std::net`, `std::process` (and `tokio` in `msc-domain`) — none found in either. P2.20's manual result is recorded at line 914 above (Status: DONE, RUNNING status confirmed live from `/v1/status`).
 **Verify:** `cd ~/msc2 && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace` → all green; then `python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$MSC_DEV_TOKEN"` → both `ok`
 **Commit:** _(n/a — verification only, unless a fix is needed)_
 **Batch:** stop-after

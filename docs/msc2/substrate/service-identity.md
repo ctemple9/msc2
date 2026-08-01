@@ -1,6 +1,6 @@
 # Service identity and privilege boundaries for v1 (D-025)
 
-**Status: Proposed**, pending Cameron's confirmation during the Read move — except question 4's macOS sub-case and question 5 (TCC), which stay **Open**, not guessed at, per D-025's own standard for what this register accepts as a decision. `msc2-decisions.md` is amended accordingly.
+**Status: Confirmed** by Cameron Temple, 2026-08-01 — questions 1, 2, 3, and 6 (the installing-user identity model and the install-time-only escalation boundary), and the recommended macOS default of §3 (design P3.9 against the System keychain now, rather than block on a live LaunchDaemon test). Question 4's macOS sub-case and question 5 (TCC) stay genuinely **Open** — Cameron's confirmation picks the default to build against, it does not resolve the underlying, untestable-until-Phase-4 platform question of whether a `UserName`-scoped LaunchDaemon can actually reach the login Keychain. `msc2-decisions.md` is amended accordingly.
 
 ---
 
@@ -57,9 +57,9 @@ What can be said from documented platform behavior, short of a live test:
 - Login Keychain access is conventionally scoped to processes running *inside* a user's GUI/security session — which is exactly the boundary D-025 exists because a headless LaunchDaemon crosses.
 - This is widely reported, consistent practitioner experience among macOS systems programmers, but it is not something this audit corpus — built from MSC 1's own source, which has never run as a LaunchDaemon — can verify. Guessing an answer here would produce exactly the "decision with no evidence behind it" D-025 itself warns against.
 
-**Consequence for this phase:** P3.9 (the macOS `SecretStore` implementation) cannot responsibly choose between targeting the login keychain and targeting the **System** keychain (`SecKeychain` system domain, not tied to any login session, reachable by any locally-running process including daemons) until this is tested against an actual `LaunchDaemon` — which doesn't exist until Phase 4 builds real service registration. **P3.9 should not start until this sub-question is closed.**
+**Consequence for this phase:** P3.9 (the macOS `SecretStore` implementation) cannot responsibly choose between targeting the login keychain and targeting the **System** keychain (`SecKeychain` system domain, not tied to any login session, reachable by any locally-running process including daemons) until this is tested against an actual `LaunchDaemon` — which doesn't exist until Phase 4 builds real service registration.
 
-Recommended default to unblock P3.9 without guessing at the real answer: **design `SecretStore`'s macOS implementation against the System keychain**, with per-item access-control lists restricting readability to the agent's own process, and document plainly (per §8's own requirement, "what it does and does not protect against") that this is a machine-scoped secret, not a user-scoped one — recoverable by anything running as root on the same machine, same as DPAPI's machine scope and `systemd-creds` without per-user isolation. If Phase 4's live LaunchDaemon test shows login-keychain access does work with `UserName` set, that's a strictly better outcome and can be adopted then without having blocked this phase on it.
+**Confirmed by Cameron Temple, 2026-08-01: design `SecretStore`'s macOS implementation against the System keychain now**, rather than block P3.9 on a live LaunchDaemon test that can't happen until Phase 4. This unblocks P3.9 — it does not close the underlying platform question, which stays Open. Per-item access-control lists restrict readability to the agent's own process; document plainly (per §8's own requirement, "what it does and does not protect against") that this is a machine-scoped secret, not a user-scoped one — recoverable by anything running as root on the same machine, same as DPAPI's machine scope and `systemd-creds` without per-user isolation. If Phase 4's live LaunchDaemon test shows login-keychain access does work with `UserName` set, that's a strictly better outcome and can be adopted then without having blocked this phase on it.
 
 ## 4. Question 5 — TCC — recorded as unverifiable from docs, deferred to Phase 4
 
@@ -73,9 +73,9 @@ For a genuine multi-admin dedicated host with no single "owning" desktop user, r
 
 | # | Question | Status |
 |---|---|---|
-| 1 | Which OS account runs the agent? | **Proposed** — the installing user, all three platforms |
-| 2 | Who owns server directories? | **Proposed** — same account, by construction |
-| 3 | When is privilege escalation permitted? | **Proposed** — install-time daemon/service/unit registration only |
-| 4 | Machine-scoped secret storage | **Proposed** for Windows/Linux (DPAPI user-scope, `systemd-creds` — see P3.2) · **Open** for macOS (login vs. System keychain reachability from a `UserName`-scoped LaunchDaemon) — blocks P3.9 |
+| 1 | Which OS account runs the agent? | **Confirmed** (Cameron Temple, 2026-08-01) — the installing user, all three platforms |
+| 2 | Who owns server directories? | **Confirmed** — same account, by construction |
+| 3 | When is privilege escalation permitted? | **Confirmed** — install-time daemon/service/unit registration only |
+| 4 | Machine-scoped secret storage | **Confirmed** for Windows/Linux (DPAPI user-scope, `systemd-creds` — see P3.2) · macOS default **confirmed as System keychain** to unblock P3.9 — underlying login-vs-System-keychain reachability from a `UserName`-scoped LaunchDaemon stays **Open**, untested until Phase 4 |
 | 5 | How does a desktop user grant file access (TCC)? | **Open** — unverifiable from docs, deferred to a real Phase 4 LaunchDaemon |
-| 6 | How do updates cross the privilege boundary? | **Proposed** — binary updates follow install location; daemon/service/unit-definition updates need the same elevation installation did |
+| 6 | How do updates cross the privilege boundary? | **Confirmed** — binary updates follow install location; daemon/service/unit-definition updates need the same elevation installation did |

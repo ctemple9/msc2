@@ -1,3 +1,8 @@
 [workspace]
 resolver = "2"
-members = ["crates/msc-domain", "crates/msc-api", "crates/msc-agent"]
+members = [
+    "crates/msc-domain",
+    "crates/msc-api",
+    "crates/msc-agent",
+    "crates/msc-infrastructure",
+]

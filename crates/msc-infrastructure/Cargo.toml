@@ -1,0 +1,8 @@
+[package]
+name = "msc-infrastructure"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+msc-domain = { path = "../msc-domain" }
+serde_json = "1"

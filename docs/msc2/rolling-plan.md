@@ -997,10 +997,10 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Workspace scaffold
 
 ### P3.4 — Scaffold the `msc-infrastructure` crate and the `FileSystem` trait
-**Status:** not started
-**Files:** `Cargo.toml` (workspace), `crates/msc-infrastructure/Cargo.toml`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/src/fs.rs`, `.github/workflows/ci.yml`
-**What:** New workspace member per `msc2-engineering.md` §6. Define a `FileSystem` trait covering the minimal surface every later step in this phase needs (read, write, stat, list, rename, remove) with two implementations: a real `StdFileSystem` backed by `std::fs`, and an in-memory `FakeFileSystem` for tests — built to accept the same `fsTree` shape P0.5's deferred fixtures already use (`{"<path>": {"type": "file", "executable": true}}`), so P3.18 can consume those fixtures directly without reshaping them. Depends on `msc-domain` (inward, per the direction rule); nothing depends on it yet. Extend CI to build/lint/test this crate on all three OSes, as P1.1 did for `msc-domain` and P2.11 did for `msc-api`.
-**Verify:** `cargo build -p msc-infrastructure && cargo nextest run -p msc-infrastructure fs` → passes, including at least one test exercising `FakeFileSystem`
+**Status:** awaiting verification
+**Files:** `Cargo.toml` (workspace), `crates/msc-infrastructure/Cargo.toml`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/src/fs.rs`, `crates/msc-infrastructure/tests/fs.rs`
+**What:** New workspace member per `msc2-engineering.md` §6. Defined a `FileSystem` trait covering the minimal surface every later step in this phase needs (`read`, `write`, `stat`, `list`, `rename`, `remove`) with two implementations: a real `StdFileSystem` backed by `std::fs`, and an in-memory `FakeFileSystem` for tests — constructible via `FakeFileSystem::from_tree(&serde_json::Value)`, which consumes the exact `fsTree` shape P0.5's deferred fixtures already use (`{"<path>": {"type": "file", "executable": true}}`), so P3.18 can build one straight from a fixture's `input.fsTree` without reshaping it. Depends on `msc-domain` (inward, per the direction rule); nothing depends on it yet. **`.github/workflows/ci.yml` needed no change** — P2.11 already generalized `Build`/`Test` to `--workspace`, so adding the crate to the workspace's `members` list was enough for CI to pick it up on all three OSes; confirmed by reading the file rather than assumed.
+**Verify:** `cargo build -p msc-infrastructure && cargo nextest run -p msc-infrastructure fs` → passes (matches 1 test by nextest's substring rule — `fake_file_system_builds_from_fixture_fs_tree`, which does exercise `FakeFileSystem`); `cargo nextest run -p msc-infrastructure` (no filter) → `4 tests run: 4 passed`
 **Commit:** `P3.4: scaffold the msc-infrastructure crate and FileSystem trait`
 **Batch:** stop-after
 

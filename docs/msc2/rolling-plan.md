@@ -840,7 +840,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.12 — `msc-agent` crate: axum skeleton and dev-mode bearer auth
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth.rs`, `.github/workflows/ci.yml`
 **What:** New workspace member (§6: "service startup · dependency assembly · scheduler · operation recovery · static asset serving"). An `axum` server bound to loopback by default (§10: "the management API binds to loopback by default"), with a single dev-mode bearer-token middleware implementing P2.3's scoped-down auth — one fixed token from an env var, rejecting anything else with P2.4's `ErrorDTO` 401 shape — gating every route except `GET /v1/health`. The code comments this plainly as a development stand-in for the real pairing/`SecretStore` flow, not a preview of it.
 **Verify:** `cargo run -p msc-agent -- serve --bind 127.0.0.1:48400 &` then `curl -s -o /dev/null -w '%{http_code}' localhost:48400/v1/health` → `200`; `curl -s -o /dev/null -w '%{http_code}' localhost:48400/v1/status` (no token) → `401`

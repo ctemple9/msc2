@@ -4,6 +4,7 @@
 
 mod auth;
 mod routes;
+mod ws;
 
 use std::net::SocketAddr;
 
@@ -58,12 +59,20 @@ fn build_app() -> Router {
         .route("/operations/:id/cancel", post(routes::operations::cancel))
         .with_state(routes::operations::OperationsState::default());
 
+    let console = Router::new()
+        .route("/console/stream", get(ws::console::upgrade))
+        .with_state(ws::console::ConsoleState::default());
+
     // Every other route this phase wires runs behind the bearer-token
-    // check.
+    // check — including the console WebSocket upgrade, since the auth
+    // middleware runs on the ordinary HTTP request before the protocol
+    // switch happens (websocket-v1.json: "evaluated before the WS-upgrade
+    // special case is reached").
     let protected = Router::new()
         .route("/status", get(routes::status::status))
         .route("/capabilities", get(routes::capabilities::capabilities))
         .merge(operations)
+        .merge(console)
         .route_layer(axum::middleware::from_fn(auth::require_bearer_token));
 
     Router::new().nest("/v1", public.merge(protected))

@@ -864,7 +864,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** safe
 
 ### P2.15 — Console WebSocket channel
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/ws/console.rs`
 **What:** Reimplement P0.24's documented baseline behavior over `axum`'s WebSocket support at `/v1/console/stream`: same bearer auth as HTTP routes, the 200-line-backfill-then-live delivery model, the 5000-line ring buffer (D-021 point 2's bounded-memory rule starts applying here), and the 64 KB inbound-frame cap. With no real server process yet, backfill is a canned fixed line set and "live" lines come from a demo ticker, so the bounded-history-then-live behavior is actually observable end-to-end rather than asserted.
 **Verify:** a short-lived WebSocket client (e.g. Python `websockets`) connects to `ws://127.0.0.1:48400/v1/console/stream` with the dev bearer token, receives the canned backfill immediately, then at least one live demo line within 5 seconds

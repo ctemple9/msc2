@@ -10,8 +10,8 @@ path = "src/main.rs"
 [dependencies]
 msc-api = { path = "../msc-api" }
 msc-domain = { path = "../msc-domain" }
-axum = "0.7"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time"] }
+axum = { version = "0.7", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

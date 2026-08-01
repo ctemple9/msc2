@@ -3,7 +3,7 @@
 //! Two implementations ship here: [`StdFileSystem`], backed by `std::fs`,
 //! and [`FakeFileSystem`], an in-memory stand-in for tests.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -107,6 +107,13 @@ struct FakeEntry {
 pub struct FakeFileSystem {
     files: Mutex<BTreeMap<PathBuf, FakeEntry>>,
     symlinks: Mutex<BTreeMap<PathBuf, PathBuf>>,
+    /// Directories that exist but hold no file, tracked explicitly since
+    /// `stat`'s usual "some file starts with this path" inference can't
+    /// see them. P3.18's `normalization-directory-without-bin-java` fixture
+    /// is the first case that needs this: a freshly created, empty JAVA_HOME
+    /// candidate directory, which the fixture's `fsTree` has no way to spell
+    /// (P0.1's fsTree schema only defines `"file"` and `"symlink"` entries).
+    dirs: Mutex<BTreeSet<PathBuf>>,
 }
 
 impl FakeFileSystem {
@@ -155,6 +162,7 @@ impl FakeFileSystem {
         Self {
             files: Mutex::new(files),
             symlinks: Mutex::new(symlinks),
+            dirs: Mutex::new(BTreeSet::new()),
         }
     }
 
@@ -183,6 +191,14 @@ impl FakeFileSystem {
             .lock()
             .unwrap()
             .insert(path.into(), target.into());
+        self
+    }
+
+    /// Seed a directory that exists but holds no file — see the `dirs`
+    /// field's own doc comment for why this can't be expressed through
+    /// `from_tree`'s fixture-shaped input alone.
+    pub fn with_dir(self, path: impl Into<PathBuf>) -> Self {
+        self.dirs.lock().unwrap().insert(path.into());
         self
     }
 }
@@ -219,9 +235,12 @@ impl FileSystem for FakeFileSystem {
                 executable: entry.executable,
             });
         }
-        // No directory entries are stored explicitly — a path counts as a
-        // directory here if some stored file lives underneath it.
-        if files.keys().any(|p| p != path && p.starts_with(path)) {
+        // A path counts as a directory if some stored file lives underneath
+        // it, or if it was seeded explicitly via `with_dir` (for a
+        // directory that exists but is empty).
+        if files.keys().any(|p| p != path && p.starts_with(path))
+            || self.dirs.lock().unwrap().contains(path)
+        {
             return Ok(Metadata {
                 is_file: false,
                 is_dir: true,
@@ -234,13 +253,27 @@ impl FileSystem for FakeFileSystem {
         ))
     }
 
+    /// Immediate children of `path`: any stored file directly inside it,
+    /// plus one path segment for each stored file nested further below —
+    /// the same "return subdirectories too, not just direct files" behavior
+    /// `std::fs::read_dir` gives `StdFileSystem::list`. The original
+    /// exact-parent-match version only ever saw flat, single-level
+    /// directories (audit logs, operation journals); P3.18's
+    /// `detect_installed_java_runtimes` is the first caller that needs to
+    /// walk a real tree (e.g. discovering `temurin-21.jdk` as a child of a
+    /// search root from a file two levels further down), so this
+    /// generalizes to match.
     fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
         let files = self.files.lock().unwrap();
-        Ok(files
-            .keys()
-            .filter(|p| p.parent() == Some(path))
-            .cloned()
-            .collect())
+        let mut children = BTreeSet::new();
+        for file_path in files.keys() {
+            if let Ok(rel) = file_path.strip_prefix(path)
+                && let Some(first) = rel.components().next()
+            {
+                children.insert(path.join(first));
+            }
+        }
+        Ok(children.into_iter().collect())
     }
 
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {

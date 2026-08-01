@@ -977,7 +977,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P3.2 — Decide the Linux headless secret-storage backend
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/substrate/secret-storage.md`, `docs/msc2/msc2-engineering.md` (amend §8's "Linux secret storage is unresolved" section)
 **What:** §8 names three candidates and states its own preference: "`systemd` credentials (`LoadCredential=`/`systemd-creds`)... Preferred candidate." Confirm that choice in writing rather than let it stay an unconfirmed aside — D-011 already commits Linux to a `systemd` unit with zero desktop dependencies, so `systemd-creds` integrates with infrastructure this project already requires, and needs no second code path for a desktop-Secret-Service case, which §8 itself flags as undesirable ("two code paths and two threat models to reason about"). Record explicitly what this backend does and does not protect against at rest, per §8's own requirement, and how P3.1's service-identity answer (the agent running as the installing user, not a dedicated account) interacts with `systemd-creds`' usual `DynamicUser=` pairing — confirm it still works keyed to a normal user unit, or say plainly if it doesn't and adjust. Proposed, pending Cameron's confirmation, same pattern as every other judgment call in this register.
 **Verify:** `grep -c 'systemd-creds\|LoadCredential' docs/msc2/substrate/secret-storage.md` → at least `1`
@@ -985,7 +985,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P3.3 — Scope Phase 3's substrate surface and record what's deferred
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/substrate/phase3-scope.md`
 **What:** Write down, in one place, the "Not in this phase" list already stated in this plan's own intro above — D-024 power management, D-021's headless-link verification, real service registration, real per-domain downloads, and the currently-homeless `SecretStore`-into-real-pairing wiring gap — as a scoping document Cameron can confirm or overrule during the Read move, the same role `auth-scope-phase2.md` played for Phase 2. This is the step that makes the deferrals load-bearing rather than just plan prose that could quietly drift once execution starts.
 **Verify:** `grep -c '^##' docs/msc2/substrate/phase3-scope.md` → at least `5` (one heading per deferred item)

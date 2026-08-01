@@ -1,6 +1,6 @@
 # v1 route namespace, skew behavior, and error envelope
 
-**Status: Proposed.** This designs the mechanism D-010 already approved (floor + degradation + refusal + major-namespace) down to wire-level detail — header names, status codes, exact DTO shape. The one number D-010 explicitly left open, the floor width (was estimated at N-3), stays open here too; see §7. The error-envelope unification in §5–6 is a new correction against the baseline, recorded under D-006 point 3, and is Proposed until Cameron confirms it during the Read move.
+**Status: Confirmed** by Cameron Temple, 2026-07-31. This designs the mechanism D-010 already approved (floor + degradation + refusal + major-namespace) down to wire-level detail — header names, status codes, exact DTO shape. The one number D-010 explicitly left open, the floor width (was estimated at N-3), stays open here too; see §7. Two design choices were confirmed during the Read move that followed: the client-version-reporting mechanism in §3 (a build-time request header, over a handshake route), and the error-envelope unification in §5–6 (a D-006-point-3 correction against the baseline, recorded as accepted rather than left open for P2.8 to reconsider).
 
 ---
 

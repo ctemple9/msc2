@@ -1,0 +1,19 @@
+{
+  "domain": "atomic-write",
+  "case": "missing-parent-directory-errors-without-partial-file",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlot",
+    "line": 391
+  },
+  "input": {
+    "existingFiles": [],
+    "path": "/srv/does-not-exist/config.json",
+    "contents": "{\"tps\":20}"
+  },
+  "expected": {
+    "error": "missing_parent_directory",
+    "destinationContents": null
+  },
+  "notes": "Unlike ConfigManager.save (which creates its parent directory before writing), the shared primitive does not — createSlot's callers always write into a slot directory the caller already created, so a missing parent is a caller bug, not a case to paper over. Characterized directly, not pulled from a Swift assertion: no MSC 1 code path exercises writing into a nonexistent directory, since FileManager calls there always follow a directory-creation step."
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "atomic-write",
+  "case": "overwrite-existing-file-replaces-content",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "updateSlotFromCurrentWorld",
+    "line": 470
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/server1/config.json", "contents": "{\"tps\":19}" }
+    ],
+    "path": "/srv/server1/config.json",
+    "contents": "{\"tps\":20}"
+  },
+  "expected": {
+    "error": null,
+    "destinationContents": "{\"tps\":20}"
+  },
+  "notes": "Mirrors updateSlotFromCurrentWorld's tempZip-then-moveItem replacement of an existing world.zip. No MSC 1 test file exercises this directly; characterized from the source's remove-existing-destination-then-move sequence (WorldSlotManager.swift:516-527)."
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "atomic-write",
+  "case": "successful-write-to-new-path",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "save",
+    "line": 215
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/server1/.keep", "contents": "" }
+    ],
+    "path": "/srv/server1/config.json",
+    "contents": "{\"tps\":20}"
+  },
+  "expected": {
+    "error": null,
+    "destinationContents": "{\"tps\":20}"
+  },
+  "notes": "No MSC 1 test file exercises this pattern directly; characterized from ConfigManager.save's 'data.write(to: configURL, options: [.atomic])' and the temp-then-rename shape recurring across WorldSlotManager.swift. The parent directory ('/srv/server1') is only known to exist here because a sibling file ('.keep') is seeded in it — FakeFileSystem infers directory existence from child files, per fs.rs."
+}

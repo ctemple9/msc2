@@ -1017,7 +1017,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P3.6 — Atomic write primitive
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/atomic-write/`, `crates/msc-infrastructure/src/atomic_write.rs`, `crates/msc-infrastructure/tests/atomic_write.rs`
 **What:** MSC 1's temp-file-then-rename pattern recurs everywhere without ever being its own primitive: `ConfigManager.save` ("atomically encodes+writes config.json"), `WorldSlotManager.createSlot`/`.updateSlotFromCurrentWorld` ("zips to a temp file then atomically replaces, so a failed zip never corrupts the existing archive"), `AppViewModel+WorldSlots.restoreSlotBackup` ("atomically swaps the slot's world.zip via a temp-file copy+move"). Build the one reusable `atomic_write(path, bytes) -> Result<(), AtomicWriteError>` every later config/metadata/world writer will call instead of reimplementing temp-then-rename per call site. New fixtures, characterizing the pattern itself rather than one call site: (1) a successful write to a new path, (2) overwriting an existing file replaces its content correctly, (3) a missing parent directory produces a clear error and leaves no partial file behind, (4) the pre-existing destination file is untouched when a write is interrupted before the rename step (simulated by writing the temp file and asserting the destination's content is unchanged without performing the rename).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/atomic-write --expect 4` → `ok 4`; then `cargo nextest run -p msc-infrastructure atomic_write` → `4 tests run: 4 passed`

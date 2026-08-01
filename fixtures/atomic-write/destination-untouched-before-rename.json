@@ -1,0 +1,20 @@
+{
+  "domain": "atomic-write",
+  "case": "destination-untouched-before-rename",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "updateSlotFromCurrentWorld",
+    "line": 486
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/server1/config.json", "contents": "{\"tps\":19}" }
+    ],
+    "path": "/srv/server1/config.json",
+    "contents": "{\"tps\":20}"
+  },
+  "expected": {
+    "destinationContents": "{\"tps\":19}"
+  },
+  "notes": "Pins down the invariant the whole primitive depends on: updateSlotFromCurrentWorld writes to 'world.update.tmp.zip' (WorldSlotManager.swift:486) and only moveItem's it over the real slot zip once the write fully succeeds (line 524). This fixture simulates a write interrupted before that move — the harness writes straight to the primitive's own temp path (via temp_path_for) and asserts the destination still holds its original content, without ever calling atomic_write or its rename step."
+}

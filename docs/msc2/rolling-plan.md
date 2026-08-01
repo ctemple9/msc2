@@ -856,7 +856,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.14 — Skeletal handlers: operation lifecycle
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/operations.rs`
 **What:** Wire `POST /v1/operations`, `GET /v1/operations/{id}`, `POST /v1/operations/{id}/cancel` against an in-memory (non-journaled — that's Phase 3) map of id → `OperationState`. A background task advances a freshly-created operation through `queued→running→succeeded` over a few seconds so `GET` shows real progression; `cancel` legally transitions a `running` operation to `cancelled` per P2.9's state machine, and is rejected on a terminal one.
 **Verify:** `curl -s -X POST -H "Authorization: Bearer $MSC_DEV_TOKEN" localhost:48400/v1/operations -d '{"type":"demo-install"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['state'])"` → `queued`; polling `GET /v1/operations/{id}` a few seconds later → `succeeded`

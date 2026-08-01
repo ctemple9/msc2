@@ -1,6 +1,6 @@
 //! `msc-agent` — the background service (§4 "Service mode" in
 //! `msc2-engineering.md`). P2.12 built the axum skeleton and the dev-mode
-//! bearer-auth gate; P2.13 wires the first three route handlers behind it.
+//! bearer-auth gate; P2.13/P2.14 wire the route handlers behind it.
 
 mod auth;
 mod routes;
@@ -8,7 +8,7 @@ mod routes;
 use std::net::SocketAddr;
 
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -52,11 +52,18 @@ fn build_app() -> Router {
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
     let public = Router::new().route("/health", get(routes::health::health));
 
+    let operations = Router::new()
+        .route("/operations", post(routes::operations::create))
+        .route("/operations/:id", get(routes::operations::get))
+        .route("/operations/:id/cancel", post(routes::operations::cancel))
+        .with_state(routes::operations::OperationsState::default());
+
     // Every other route this phase wires runs behind the bearer-token
     // check.
     let protected = Router::new()
         .route("/status", get(routes::status::status))
         .route("/capabilities", get(routes::capabilities::capabilities))
+        .merge(operations)
         .route_layer(axum::middleware::from_fn(auth::require_bearer_token));
 
     Router::new().nest("/v1", public.merge(protected))

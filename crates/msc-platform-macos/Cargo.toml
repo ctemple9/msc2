@@ -1,0 +1,11 @@
+[package]
+name = "msc-platform-macos"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+msc-infrastructure = { path = "../msc-infrastructure" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"
+security-framework-sys = "2"

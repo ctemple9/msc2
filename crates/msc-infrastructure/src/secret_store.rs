@@ -17,6 +17,7 @@
 
 use std::collections::BTreeMap;
 use std::fmt;
+use std::path::Path;
 use std::sync::Mutex;
 
 #[derive(Debug)]
@@ -83,6 +84,92 @@ impl SecretStore for FakeSecretStore {
     }
 }
 
+/// All five `fixtures/secret-store-contract/*.json` case names, in the
+/// order every platform implementation (P3.9 macOS, P3.10 Windows, P3.11
+/// Linux) runs them.
+pub const CONTRACT_CASES: [&str; 5] = [
+    "round-trip-set-then-get",
+    "get-of-unset-key-returns-none",
+    "set-overwrites-existing-key",
+    "delete-then-get-returns-none",
+    "delete-of-unset-key-is-noop",
+];
+
+/// Runs one `fixtures/secret-store-contract/<case>.json` fixture against
+/// `store`, replaying its `input.operations` in order and asserting each
+/// against the matching entry in `expected.results`. Shared so every
+/// platform implementation is checked against the exact same fixture
+/// files P3.8 wrote, not a fresh re-guess of the contract per platform.
+///
+/// `fixtures_dir` is the repo-root `fixtures/` directory; each caller
+/// passes `Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")`
+/// from its own crate so the path resolves regardless of which crate's
+/// `tests/` directory this runs from.
+pub fn run_contract_fixture(store: &dyn SecretStore, fixtures_dir: &Path, case: &str) {
+    let path = fixtures_dir
+        .join("secret-store-contract")
+        .join(format!("{case}.json"));
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("{}: could not read fixture: {e}", path.display()));
+    let json: serde_json::Value = serde_json::from_str(&text)
+        .unwrap_or_else(|e| panic!("{}: could not parse fixture JSON: {e}", path.display()));
+
+    let key = json["input"]["key"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{case}: input.key missing"));
+    let operations = json["input"]["operations"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{case}: input.operations missing"));
+    let results = json["expected"]["results"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{case}: expected.results missing"));
+    assert_eq!(
+        operations.len(),
+        results.len(),
+        "{case}: operations/results length mismatch"
+    );
+
+    for (op, expected) in operations.iter().zip(results) {
+        match op["op"].as_str() {
+            Some("set") => {
+                let value = op["value"]
+                    .as_str()
+                    .unwrap_or_else(|| panic!("{case}: set op missing value"));
+                let ok = store.set(key, value).is_ok();
+                assert_eq!(
+                    ok,
+                    expected["ok"].as_bool().unwrap_or(false),
+                    "{case}: set op result mismatch"
+                );
+            }
+            Some("get") => {
+                let actual = store
+                    .get(key)
+                    .unwrap_or_else(|e| panic!("{case}: get op returned Err: {e}"));
+                let expected_value = expected["value"].as_str().map(str::to_string);
+                assert_eq!(actual, expected_value, "{case}: get op result mismatch");
+            }
+            Some("delete") => {
+                let ok = store.delete(key).is_ok();
+                assert_eq!(
+                    ok,
+                    expected["ok"].as_bool().unwrap_or(false),
+                    "{case}: delete op result mismatch"
+                );
+            }
+            other => panic!("{case}: unknown op {other:?}"),
+        }
+    }
+}
+
+/// Runs all five contract fixtures against `store`. See
+/// [`run_contract_fixture`] for the path convention `fixtures_dir` follows.
+pub fn run_contract_fixtures(store: &dyn SecretStore, fixtures_dir: &Path) {
+    for case in CONTRACT_CASES {
+        run_contract_fixture(store, fixtures_dir, case);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -128,5 +215,12 @@ mod tests {
         let store = FakeSecretStore::new();
         assert!(store.delete("remote-api.guest-token").is_ok());
         assert_eq!(store.get("remote-api.guest-token").unwrap(), None);
+    }
+
+    #[test]
+    fn shared_contract_runner_passes_against_fake_store() {
+        let fixtures_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures");
+        let store = FakeSecretStore::new();
+        run_contract_fixtures(&store, &fixtures_dir);
     }
 }

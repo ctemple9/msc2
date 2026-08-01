@@ -5,4 +5,5 @@ members = [
     "crates/msc-api",
     "crates/msc-agent",
     "crates/msc-infrastructure",
+    "crates/msc-platform-macos",
 ]

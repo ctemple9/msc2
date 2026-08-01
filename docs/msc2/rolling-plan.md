@@ -900,7 +900,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.19 — Repoint the iOS client's networking layer at the v1 skeletal agent
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/ios/MSCRemoteiOS_Swift/` (the Remote-API client class — identify the exact file during this step, since P2.18 is a verbatim copy and its layout isn't pre-known here)
 **What:** Change the copied client's base URL and auth-header logic to target `http://127.0.0.1:48400/v1/` and send P2.3's dev bearer token, commented plainly as a temporary stand-in for the real QR-pairing flow (out of scope until Phase 3's `SecretStore` work lands). Hand-write the minimal Swift `Codable` model for `GET /v1/status`'s response — codegen is explicitly deferred, see this phase's "Not in this phase" note. Scope narrowly to the one call P2.20's gate needs; do not repoint the app's entire networking surface in this step.
 **Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS build` → `BUILD SUCCEEDED`

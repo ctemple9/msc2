@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 2 planned — Cameron's review next
-> **Next move:** READ (Cameron reviews the Phase 2 step list below before Execute begins on P2.1)
+> ## STATUS: Phase 2 complete (gate holds — v1 contract, skeletal agent, and iOS status read all verified; Codex review incorporated) — Phase 3 next
+> **Next move:** PLAN (write the Phase 3 step list — safety substrate)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
-> **Last updated:** 2026-07-31
+> **Last updated:** 2026-08-01
 
 ---
 
@@ -52,7 +52,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **Setup** | Repo, docs, agent instructions, CI, editor config | complete |
 | **0** | Freeze the baseline and build the harness | complete |
 | 1 | Domain types and pure rules | complete |
-| 2 | API contract and operation model | planned |
+| 2 | API contract and operation model | complete |
 | 3 | Safety substrate | not started |
 | 4 | Java lifecycle vertical slice | not started |
 | 5 | Configuration and migration | not started |
@@ -840,7 +840,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.12 — `msc-agent` crate: axum skeleton and dev-mode bearer auth
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth.rs`, `.github/workflows/ci.yml`
 **What:** New workspace member (§6: "service startup · dependency assembly · scheduler · operation recovery · static asset serving"). An `axum` server bound to loopback by default (§10: "the management API binds to loopback by default"), with a single dev-mode bearer-token middleware implementing P2.3's scoped-down auth — one fixed token from an env var, rejecting anything else with P2.4's `ErrorDTO` 401 shape — gating every route except `GET /v1/health`. The code comments this plainly as a development stand-in for the real pairing/`SecretStore` flow, not a preview of it.
 **Verify:** `cargo run -p msc-agent -- serve --bind 127.0.0.1:48400 &` then `curl -s -o /dev/null -w '%{http_code}' localhost:48400/v1/health` → `200`; `curl -s -o /dev/null -w '%{http_code}' localhost:48400/v1/status` (no token) → `401`
@@ -934,6 +934,63 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-08-01 — Codex Phase 2 review: gate holds, with scoped stub caveats
+
+Codex reviewed Phase 2 as a gate check, not a step-compliance check, and did not
+implement this phase. The Phase 2 gate in `msc2-port-plan.md` is: "Versioned
+HTTP and WebSocket contract generated from the schema. Operation IDs, progress,
+structured errors, capability advertisement, cancellation. A skeletal agent
+whose routes can be exercised without real mutation." Its exit criterion is:
+"the existing iOS app connects and reads status against a stub agent." The gate
+holds under the Phase 2 scope recorded in this plan: the v1 contract is present,
+the skeletal agent exercises the status/health/capabilities/operation routes and
+the two Phase 2 WebSocket channels, and the copied iOS app has been shown to
+read live status from that stub.
+
+Evidence checked: `cargo fmt --check` passed; `cargo clippy --workspace
+--all-targets -- -D warnings` passed; `cargo nextest run --workspace` passed
+with `215 tests run: 215 passed` and one nextest-reported leaky test; `python3
+tools/api-contract-check.py --v1-summary` reported 93 routes, all under `/v1/`,
+with zero missing permission categories, zero non-`ErrorDTO` non-2xx responses,
+and zero missing `helpId` fields; `xcodebuild -project
+clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS build` succeeded; a live
+`msc-agent` with `MSC_DEV_TOKEN=msc2-dev-token` returned `200` for `/v1/health`,
+`401` for unauthenticated `/v1/status`, and authenticated `/v1/status` returned
+the canned running server JSON; `tools/contract-conformance-check.py` against the
+live agent returned `ok 6`; an ad-hoc WebSocket check observed console backfill
+plus a live demo line and operation-progress frames ending in `succeeded`. The
+manual iOS gate evidence is the P2.20 note above: Cameron reached **STATUS:
+RUNNING** from live `/v1/status` in the simulator after typing the Phase 2 dev
+token manually.
+
+No product or architecture drift from the vision was found. Phase 2 keeps the
+agent as the single owner of server-management behavior, keeps the iOS app as
+the retained client, keeps management loopback-only for the scoped dev agent,
+adds `helpId` to the v1 contract before later client work, and avoids real
+filesystem/process mutation before the Phase 3 substrate. Two scope caveats are
+not gate failures, but must stay visible: the generic OpenAPI-to-Rust/Swift
+codegen pipeline is deliberately deferred and replaced for now by conformance
+checks, and the D-012 desktop/browser auth gaps remain open rather than closed
+by the fixed dev token.
+
+Later phases should audit five items. First, replace the fixed dev token with
+the real Phase 3 `SecretStore`/pairing path, including rate limiting, audit
+logging, and the fresh-install Keychain empty-string bug that made P2.20 need a
+manual token workaround. Second, decide when generated Rust/Swift types become
+mandatory instead of hand-written DTO mirrors; do not let the Phase 2
+conformance-check substitute become the permanent contract discipline. Third,
+add scripted WebSocket conformance checks for console and operation progress,
+since P2.17 covers only ordinary JSON HTTP routes. Fourth, audit the one
+nextest-reported leaky test before it becomes CI noise or hides a real resource
+leak. Fifth, when the real iOS status/dashboard work expands beyond the gate,
+re-check the temporary `serverType: "paper"` mapping through the old iOS
+`java|bedrock` enum.
+
+No earlier phase needs amending. The Phase 0/1 amendments already recorded still
+stand. The current rolling-plan status line and P2.12's status are stale
+relative to the completed Phase 2 history, but that is current-plan
+housekeeping, not an earlier-phase gate amendment.
 
 ### 2026-07-31 — Codex Phase 1 review: gate holds; tighten gate wording
 

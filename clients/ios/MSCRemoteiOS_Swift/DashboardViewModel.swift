@@ -113,16 +113,20 @@ final class DashboardViewModel: ObservableObject {
         do {
             let client = try requireClient()
 
-            async let s1 = client.getStatus()
-            async let s2 = client.getServers()
-            async let s3 = client.getConsoleTail(n: tailN)
+            // Status is fetched on its own: against the Phase 2 skeletal agent, `getServers()`
+            // and `getConsoleTail()` 404 (those routes don't exist yet), and bundling all three
+            // into one `try await` would let that sibling failure blank out a status fetch that
+            // actually succeeded. Non-fatal here — a missing server list / console tail just
+            // leaves the previous values in place.
+            async let s2 = try? client.getServers()
+            async let s3 = try? client.getConsoleTail(n: tailN)
 
-            let (fetchedStatus, fetchedServers, fetchedTail) = try await (s1, s2, s3)
-
+            let fetchedStatus = try await client.getStatus()
             status = fetchedStatus
-            servers = fetchedServers
-            consoleTail = fetchedTail
             lastUpdated = Date()
+
+            if let fetchedServers = await s2 { servers = fetchedServers }
+            if let fetchedTail = await s3 { consoleTail = fetchedTail }
         } catch {
             errorMessage = error.localizedDescription
         }

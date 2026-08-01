@@ -146,8 +146,30 @@ final class RemoteAPIClient {
 
     // MARK: - Read-only endpoints
 
+    /// Hand-written mirror of `GET /v1/status`'s wire shape
+    /// (`crates/msc-api/src/dto/status.rs`). Temporary: a general OpenAPI-to-Swift
+    /// codegen pipeline is explicitly deferred past Phase 2 (rolling-plan.md P2.19),
+    /// so this is maintained by hand against the v1 contract for now. `serverType`
+    /// decodes as a raw `String` here rather than the legacy `ServerType` enum
+    /// because the skeletal agent's canned response ("paper") is a flavor value the
+    /// old java/bedrock enum was never meant to hold.
+    private struct V1StatusDTO: Decodable {
+        let running: Bool
+        let activeServerId: String?
+        let pid: Int?
+        let serverType: String?
+        let dockerContainerRunning: Bool?
+        let dockerContainerStatus: String?
+    }
+
     func getStatus() async throws -> RemoteAPIStatus {
-        try await get(path: "/status", query: [:], as: RemoteAPIStatus.self)
+        let dto = try await get(path: "/status", query: [:], as: V1StatusDTO.self)
+        return RemoteAPIStatus(running: dto.running,
+                               activeServerId: dto.activeServerId,
+                               pid: dto.pid,
+                               serverType: dto.serverType.flatMap(ServerType.init(rawValue:)),
+                               dockerContainerRunning: dto.dockerContainerRunning,
+                               dockerContainerStatus: dto.dockerContainerStatus)
     }
 
     func getServers() async throws -> [ServerDTO] {

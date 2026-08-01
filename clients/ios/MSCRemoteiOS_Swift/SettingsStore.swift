@@ -32,6 +32,14 @@ final class SettingsStore: ObservableObject {
 
     private static let maxRecents: Int = 10
 
+    /// Temporary stand-in for the real QR-pairing flow (Phase 3's `SecretStore` work,
+    /// per P2.19/`docs/msc2/api-contract/auth-scope-phase2.md`). Pre-fills a fresh
+    /// install so the app points at the local v1 skeletal agent without manual setup.
+    /// To exercise this, run `msc-agent` with `MSC_DEV_TOKEN` set to `devDefaultToken`'s
+    /// value below.
+    static let devDefaultBaseURLString = "http://127.0.0.1:48400/v1"
+    static let devDefaultToken = "msc2-dev-token"
+
     @Published var baseURLString: String
     @Published var tokenDraft: String
 
@@ -63,8 +71,8 @@ final class SettingsStore: ObservableObject {
     // MARK: - Init
 
     init() {
-        self.baseURLString    = UserDefaults.standard.string(forKey: Keys.baseURL) ?? ""
-        self.tokenDraft       = (try? KeychainTokenStore.loadToken()) ?? ""
+        self.baseURLString    = UserDefaults.standard.string(forKey: Keys.baseURL) ?? Self.devDefaultBaseURLString
+        self.tokenDraft       = (try? KeychainTokenStore.loadToken()) ?? Self.devDefaultToken
 
         let rawFav = (UserDefaults.standard.array(forKey: Keys.favoriteCommands) as? [String]) ?? []
         let rawRec = (UserDefaults.standard.array(forKey: Keys.recentCommands) as? [String]) ?? []

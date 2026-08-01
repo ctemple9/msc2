@@ -800,7 +800,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.8 — Assemble the MSC 2 v1 OpenAPI contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`
 **What:** Seed from `docs/msc2/api-baseline/openapi.json` (the 88-route MSC 1 baseline, P0.23/P0.30/P0.32) and apply, in order: the `/v1/` namespace and `ErrorDTO` envelope (P2.4), the operation routes (P2.5), the capabilities route (P2.6), the `helpId` field on every schema P2.2 enumerated, and the permission-category annotation on every route (P2.1). This is the file the port plan's Phase 2 description calls "versioned HTTP...contract generated from the schema" — the frozen deliverable every later step in this phase builds against. Build a checker script, in the style of P0.23's, asserting: every route sits under `/v1/`, every route declares a permission category, every field flagged for `helpId` in P2.2 actually carries one, and the total route count matches baseline (88) plus the new operation/capability/help/pair routes this phase adds. **Open item from P2.1:** `POST /watchdog/enable` and `POST /watchdog/disable` had no permission gate at all in MSC 1 (any authenticated token, including guest, could call them) — decide the category for these two routes here rather than carrying the gap forward silently.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary` → prints the route count and zero missing-category/missing-helpId violations
@@ -812,7 +812,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Domain model extensions
 
 ### P2.9 — Port the operation domain types into `msc-domain`
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/operation.rs`, `crates/msc-domain/tests/operation.rs`, `crates/msc-domain/src/lib.rs`
 **What:** Implement P2.5's schema in Rust: `OperationId`, the closed `OperationState` enum with its legal-transition rules (`queued→running→{succeeded,failed}`; any non-terminal state `→cancelled`; terminal states accept no further transition), `OperationProgress` (step/total plus a human-readable status line), and a result type carrying either a typed success value or P2.4's `ErrorDTO` shape. **This is new MSC 2 construction, not a port** — MSC 1 has no operation-journal concept, so D-018's evidence-before-translation discipline (which governs *ported* behavior) doesn't apply here; there is no MSC 1 fixture to extract. Verified with hand-written Rust unit tests covering every legal transition and rejecting every illegal one.
 **Verify:** `cargo nextest run -p msc-domain operation` → all tests pass, including at least one illegal-transition rejection test
@@ -820,7 +820,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.10 — Port the capability domain type into `msc-domain`
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/capability.rs`, `crates/msc-domain/tests/capability.rs`, `crates/msc-domain/src/lib.rs`
 **What:** Implement P2.6's schema as a pure `CapabilitySet` data type — agent version, API major/minor, host OS enum, per-server-type feature flags, and P2.1's permission-category enum. No I/O: the real detection logic that populates this type is Phase 3/4 infrastructure work, per the module-boundary rule in §6, not this crate's job.
 **Verify:** `cargo nextest run -p msc-domain capability` → all tests pass
@@ -832,7 +832,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Skeletal agent
 
 ### P2.11 — `msc-api` crate: v1 DTOs
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `Cargo.toml` (workspace), `crates/msc-api/Cargo.toml`, `crates/msc-api/src/lib.rs`, `crates/msc-api/src/dto/*.rs`, `.github/workflows/ci.yml`
 **What:** New workspace member per `msc2-engineering.md` §6 ("routes · DTOs · WebSocket events... authentication · permission checks · rate limiting"). Hand-write serde structs for every schema P2.8's `openapi.json` defines that the skeletal agent will actually serve this phase: `OperationDTO`, `ErrorDTO`, `CapabilitiesDTO`, and the status/health DTOs. Add a conformance test serializing each DTO's example value and validating it against the matching `openapi.json` schema — the same schema-depth discipline P0.23 used, now checking Rust output against the schema instead of the schema's own shape. Extend CI (as P1.1 did for `msc-domain`) to build/lint/test this new crate on all three OSes.
 **Verify:** `cargo nextest run -p msc-api dto_conformance` → all tests pass
@@ -848,7 +848,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.13 — Skeletal handlers: status, health, capabilities
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/capabilities.rs`
 **What:** Wire `GET /v1/status`, `GET /v1/health`, `GET /v1/capabilities` to return canned `msc-api` DTOs — a single hard-coded fake server, honestly labeled as placeholder data wherever the schema allows a notes field. This is the minimum route set P2.20's iOS gate actually needs, and the port plan's own "exercised without real mutation" language for this phase.
 **Verify:** `curl -s -H "Authorization: Bearer $MSC_DEV_TOKEN" localhost:48400/v1/status | python3 -m json.tool` → valid JSON matching the status schema, no server error
@@ -856,7 +856,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.14 — Skeletal handlers: operation lifecycle
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/operations.rs`
 **What:** Wire `POST /v1/operations`, `GET /v1/operations/{id}`, `POST /v1/operations/{id}/cancel` against an in-memory (non-journaled — that's Phase 3) map of id → `OperationState`. A background task advances a freshly-created operation through `queued→running→succeeded` over a few seconds so `GET` shows real progression; `cancel` legally transitions a `running` operation to `cancelled` per P2.9's state machine, and is rejected on a terminal one.
 **Verify:** `curl -s -X POST -H "Authorization: Bearer $MSC_DEV_TOKEN" localhost:48400/v1/operations -d '{"type":"demo-install"}' | python3 -c "import json,sys;print(json.load(sys.stdin)['state'])"` → `queued`; polling `GET /v1/operations/{id}` a few seconds later → `succeeded`
@@ -864,7 +864,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** safe
 
 ### P2.15 — Console WebSocket channel
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/ws/console.rs`
 **What:** Reimplement P0.24's documented baseline behavior over `axum`'s WebSocket support at `/v1/console/stream`: same bearer auth as HTTP routes, the 200-line-backfill-then-live delivery model, the 5000-line ring buffer (D-021 point 2's bounded-memory rule starts applying here), and the 64 KB inbound-frame cap. With no real server process yet, backfill is a canned fixed line set and "live" lines come from a demo ticker, so the bounded-history-then-live behavior is actually observable end-to-end rather than asserted.
 **Verify:** a short-lived WebSocket client (e.g. Python `websockets`) connects to `ws://127.0.0.1:48400/v1/console/stream` with the dev bearer token, receives the canned backfill immediately, then at least one live demo line within 5 seconds
@@ -872,7 +872,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.16 — Operation-progress WebSocket channel
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/ws/operations.rs`
 **What:** Wire `/v1/operations/{id}/stream` per P2.7's schema, pushing `OperationDTO` updates as P2.14's demo ticker advances the fake operation, with the same bearer auth and bounded-connection discipline P2.15 established.
 **Verify:** connecting to `/v1/operations/{id}/stream` immediately after `POST /v1/operations` and reading frames shows the same `queued→running→succeeded` sequence P2.14's HTTP polling shows
@@ -880,7 +880,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** safe
 
 ### P2.17 — Contract-conformance checker against the live skeletal agent
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/contract-conformance-check.py`
 **What:** A dependency-free Python script that calls every route this phase implements against a running `msc-agent` (health, status, capabilities, operation lifecycle) and validates each live JSON response against P2.8's `openapi.json` schema for that route — P0.23's schema-depth discipline, now pointed at a live server instead of a static document. This turns "a skeletal agent whose routes can be exercised" (the port plan's own words) into one command instead of manual `curl` checks.
 **Verify:** `cargo run -p msc-agent -- serve --bind 127.0.0.1:48400 & sleep 1; python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$MSC_DEV_TOKEN"` → `ok <n>`, non-zero exit and a named route on any mismatch
@@ -892,7 +892,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### iOS re-pointing
 
 ### P2.18 — Copy the existing iOS client into the msc2 repo
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/ios/` (new)
 **What:** Per D-004 ("the existing SwiftUI iOS client is retained and re-pointed") and `CLAUDE.md` rule 8 (MSC 1 is read-only, always), copy `MSCiOS/MSCRemoteiOS.xcodeproj` and `MSCiOS/MSCRemoteiOS_Swift` verbatim from the oracle (`~/Documents/Swift Projects/minecraft-server-controller`) into `clients/ios/` in this repo — a straight file copy, no edits. This becomes the client this repo owns and evolves from here forward; the oracle copy is never touched.
 **Verify:** `diff -rq "$HOME/Documents/Swift Projects/minecraft-server-controller/MSCiOS" clients/ios/` → no differences; `git -C "$HOME/Documents/Swift Projects/minecraft-server-controller" status --short` → empty (confirms the oracle itself was never written to)
@@ -900,7 +900,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** stop-after
 
 ### P2.19 — Repoint the iOS client's networking layer at the v1 skeletal agent
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/ios/MSCRemoteiOS_Swift/` (the Remote-API client class — identify the exact file during this step, since P2.18 is a verbatim copy and its layout isn't pre-known here)
 **What:** Change the copied client's base URL and auth-header logic to target `http://127.0.0.1:48400/v1/` and send P2.3's dev bearer token, commented plainly as a temporary stand-in for the real QR-pairing flow (out of scope until Phase 3's `SecretStore` work lands). Hand-write the minimal Swift `Codable` model for `GET /v1/status`'s response — codegen is explicitly deferred, see this phase's "Not in this phase" note. Scope narrowly to the one call P2.20's gate needs; do not repoint the app's entire networking surface in this step.
 **Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS build` → `BUILD SUCCEEDED`

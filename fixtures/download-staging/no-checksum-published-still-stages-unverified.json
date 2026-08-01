@@ -1,0 +1,30 @@
+{
+  "domain": "download-staging",
+  "case": "no-checksum-published-still-stages-unverified",
+  "source": {
+    "file": "AppViewModel+PaperTemplateDownload.swift",
+    "test": "downloadLatestPaperTemplate",
+    "line": 18
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/templates/.keep", "contents": "" }
+    ],
+    "dest": "/srv/app/templates/plugin.jar",
+    "bytesUtf8": "plugin-jar-contents-v2",
+    "originUrl": "https://api.papermc.io/paper.jar",
+    "version": "2.0.0",
+    "expectedSha1Hex": null
+  },
+  "expected": {
+    "error": null,
+    "destinationContents": "plugin-jar-contents-v2",
+    "tempFileExists": false,
+    "cachedFile": {
+      "path": "/srv/app/templates/plugin.jar",
+      "originUrl": "https://api.papermc.io/paper.jar",
+      "version": "2.0.0"
+    }
+  },
+  "notes": "Mirrors downloadLatestPaperTemplate: PaperDownloader.downloadLatestPaper publishes no checksum, so MSC 1 stages and moves the JAR unverified (lines 40-50) — matches msc2-engineering.md §7's 'checksum-verified where the provider publishes one' (not every provider does). expectedSha1Hex is JSON null here, distinct from the wrong-value case in the sibling checksum-mismatch fixture."
+}

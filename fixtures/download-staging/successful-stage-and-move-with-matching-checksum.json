@@ -1,0 +1,30 @@
+{
+  "domain": "download-staging",
+  "case": "successful-stage-and-move-with-matching-checksum",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "downloadLatestForPlugin",
+    "line": 1
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/templates/.keep", "contents": "" }
+    ],
+    "dest": "/srv/app/templates/plugin.jar",
+    "bytesUtf8": "plugin-jar-contents-v1",
+    "originUrl": "https://api.modrinth.com/plugin.jar",
+    "version": "1.2.3",
+    "expectedSha1Hex": "d1434be5db668fbf3bfcc1887e9d9354e29428ef"
+  },
+  "expected": {
+    "error": null,
+    "destinationContents": "plugin-jar-contents-v1",
+    "tempFileExists": false,
+    "cachedFile": {
+      "path": "/srv/app/templates/plugin.jar",
+      "originUrl": "https://api.modrinth.com/plugin.jar",
+      "version": "1.2.3"
+    }
+  },
+  "notes": "No MSC 1 test file exercises a checksum-verified download — downloadLatestForPlugin, downloadLatestPaperTemplate, and downloadOrUpdateXboxBroadcastJar all repeat the same temp-then-move shape (streams to a temp file, moveItem's it over the final name once the download succeeds) but none of them checksum-verify what they downloaded. Characterized from msc2-engineering.md §7's requirement instead, using ResourcePackManager.sha1Hex's own hex-SHA1 shape as the checksum format precedent (the nearest thing MSC 1 has to a download checksum), since it's the same primitive family. 'd1434be5db668fbf3bfcc1887e9d9354e29428ef' is the real SHA1 of the literal bytes 'plugin-jar-contents-v1' (independently computed via Python's hashlib, not invented)."
+}

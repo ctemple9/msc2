@@ -1,0 +1,110 @@
+{
+  "description": "MSC 2's v1 WebSocket surface, per docs/msc2/rolling-plan.md P2.7 (Proposed, pending Cameron's confirmation during the Read move). Two channels: `console`, carrying P0.24's one real MSC 1 baseline channel forward with an unchanged wire shape at a versioned path; and `operation-progress`, a new channel with no MSC 1 equivalent, pushing P2.5's OperationDTO as it changes. `status`, `players`, `notifications`, and `metrics` are NOT WebSocket channels this phase — msc2-engineering.md §5 names them as eventual channels, but P0.24 found MSC 1 polls all four over HTTP today and this phase's own 'Not in this phase' note (rolling-plan.md, Phase 2 preamble) keeps them HTTP-polled until a later phase's gate actually needs push delivery for one of them.",
+  "version": "v1",
+  "channels": [
+    {
+      "name": "console",
+      "path": "/v1/console/stream",
+      "baseline": "docs/msc2/api-baseline/websocket-events.json (P0.24) — same channel, versioned path, wire shape unchanged",
+      "direction": "server-to-client, one-way",
+      "handshake": {
+        "method": "GET",
+        "requiredHeaders": {
+          "Upgrade": "websocket",
+          "Connection": "must contain 'upgrade' (case-insensitive substring match, not exact)",
+          "Sec-WebSocket-Key": "client nonce, required and non-empty"
+        },
+        "acceptKeyAlgorithm": "base64(SHA1(trim(Sec-WebSocket-Key) + \"258EAFA5-E914-47DA-95CA-C5AB0DC85B11\"))",
+        "successResponse": "HTTP/1.1 101 Switching Protocols, with Upgrade: websocket, Connection: Upgrade, Sec-WebSocket-Accept: <computed>",
+        "failureResponse": "HTTP 400 with P2.4 §5's ErrorDTO (code: \"invalid_body\", message naming the missing/empty Sec-WebSocket-Key) if the upgrade headers are malformed — a deliberate P2.4 §6 (D-006 point 3) correction against the baseline's bespoke {\"error\": \"websocket_upgrade_failed\"} shape, not a wire-shape change to the channel itself"
+      },
+      "auth": {
+        "mechanism": "Identical bearer-token check applied to every /v1/ route (P2.3's fixed dev token this phase), evaluated before the WS-upgrade special case is reached",
+        "requiredRole": "any authenticated role may connect — GET routes carry no additional per-path permission gate, per P2.1's finding carried into P2.8's vocabulary assignment",
+        "failureResponse": "HTTP 401 with P2.4 §5's ErrorDTO (code: \"unauthorized\") for a missing/invalid token — same correction as failureResponse above, replacing the baseline's bespoke failure body with the one contract-wide envelope"
+      },
+      "payload": {
+        "type": "ConsoleLineDTO",
+        "fields": {
+          "ts": "string",
+          "source": "string",
+          "level": "string, optional",
+          "text": "string"
+        },
+        "framing": "one JSON-encoded ConsoleLineDTO per WebSocket text frame (opcode 0x1, FIN bit set) — unchanged from P0.24"
+      },
+      "deliveryModel": {
+        "kind": "bounded-history-then-live",
+        "backfillCount": 200,
+        "backfillSource": "tailConsoleLines(n: 200), sent as 200 individual frames immediately on successful upgrade, before any live line — unchanged from P0.24",
+        "liveSource": "every new console line is broadcast to all currently-connected WS clients for this channel as it arrives",
+        "ringBufferLimit": 5000,
+        "ringBufferBehavior": "the backing console buffer (also serving GET /v1/console/tail) is capped at 5000 lines; oldest lines are trimmed once the cap is exceeded — unchanged from P0.24"
+      },
+      "inboundHandling": {
+        "textFrames": "intentionally ignored — the server never executes WebSocket-received text as a command; POST /v1/command is the only command-execution path, unchanged from P0.24",
+        "pingFrames": "opcode 0x9 -> server replies with a pong frame (opcode 0x8A) carrying the same payload",
+        "pongFrames": "opcode 0xA -> no-op",
+        "closeFrames": "opcode 0x8 -> server replies with a close frame (opcode 0x88, empty payload) and tears down the connection",
+        "fragmentation": "not supported — frames with FIN=0 are not reassembled, unchanged from P0.24",
+        "frameSizeCap": {
+          "maxInboundFrameBytes": 65536,
+          "onExceeded": "server sends a close frame and tears down the connection"
+        }
+      },
+      "notes": "Wire shape (ConsoleLineDTO, the 200-line backfill, the 5000-line ring buffer, the 64 KB inbound cap, ping/pong/close handling) is carried forward from P0.24 unchanged — only the path gains the /v1/ prefix and the two error responses above move onto P2.4's unified ErrorDTO envelope, since both are ordinary HTTP responses issued before the protocol switches to WebSocket and P2.4 §5 covers 'every non-2xx response across every /v1/ route,' not just fully-JSON routes."
+    },
+    {
+      "name": "operation-progress",
+      "path": "/v1/operations/{id}/stream",
+      "baseline": "none — MSC 1 has no operation concept at all (P2.9's framing); this channel is greenfield design against msc2-engineering.md §5's 'operation progress' WebSocket channel and P2.5's OperationDTO, carrying the same weight as P2.5/P2.6's own designs: Proposed, not yet extracted from any oracle",
+      "direction": "server-to-client, one-way — creating and cancelling an operation stay HTTP-only (POST /v1/operations, POST /v1/operations/{id}/cancel per P2.5 §4); this channel never accepts commands, consistent with console's one-way discipline",
+      "handshake": {
+        "method": "GET",
+        "requiredHeaders": {
+          "Upgrade": "websocket",
+          "Connection": "must contain 'upgrade' (case-insensitive substring match, not exact)",
+          "Sec-WebSocket-Key": "client nonce, required and non-empty"
+        },
+        "acceptKeyAlgorithm": "base64(SHA1(trim(Sec-WebSocket-Key) + \"258EAFA5-E914-47DA-95CA-C5AB0DC85B11\"))",
+        "successResponse": "HTTP/1.1 101 Switching Protocols, with Upgrade: websocket, Connection: Upgrade, Sec-WebSocket-Accept: <computed>",
+        "failureResponse": "HTTP 400 with ErrorDTO (code: \"invalid_body\") for malformed upgrade headers, same as console; additionally, HTTP 404 with ErrorDTO (code: \"not_found\", helpId: \"operations.not-found\") if {id} names no operation the agent currently holds — reusing P2.5 §4.2's exact GET /v1/operations/{id} response verbatim rather than inventing a WS-only not-found shape. This existence check runs before the upgrade is attempted."
+      },
+      "auth": {
+        "mechanism": "Identical bearer-token check applied to every /v1/ route (P2.3's fixed dev token this phase), evaluated before the WS-upgrade special case is reached, same as console",
+        "requiredRole": "any authenticated role may connect this phase; the permission category for the /v1/operations* route family (including this stream) is assigned in P2.8, per P2.5 §5's own deferral — not decided in this document",
+        "failureResponse": "HTTP 401 with ErrorDTO (code: \"unauthorized\") for a missing/invalid token, same as console"
+      },
+      "payload": {
+        "type": "OperationDTO",
+        "fields": "id, type, target, state, progress, statusLine, result?, error? — exactly P2.5 §2's shape, unchanged for this transport",
+        "framing": "one JSON-encoded OperationDTO per WebSocket text frame (opcode 0x1, FIN bit set), same framing convention as console"
+      },
+      "deliveryModel": {
+        "kind": "bounded-history-then-live",
+        "backfillCount": 1,
+        "backfillSource": "the operation's current OperationDTO (from the in-memory map P2.5 §6 describes), sent as a single frame immediately on successful upgrade — deliberately not a replay of every past progress tick. Unlike console lines, which are an append-only log where 'history' means the last N discrete past entries, an OperationDTO is a single mutable current-state snapshot: there is no sequence of past states worth replaying, only where things stand right now. A client reconnecting mid-operation needs the current state, not a transcript of every intermediate progress percentage that led to it.",
+        "liveSource": "every change to the operation's state, progress, or statusLine (per P2.5 §3's transition rules) is broadcast as a fresh OperationDTO frame to all currently-connected WS clients for this id",
+        "ringBufferLimit": "not applicable — no history buffer exists for this channel; only the current OperationDTO is held, consistent with P2.5 §6's 'in-memory map only, no operation journal this phase'",
+        "terminalClosure": "once a frame carrying a terminal state (succeeded, failed, or cancelled — P2.5 §3) is sent, the server immediately sends a close frame and tears down the connection: no further update will ever arrive for a terminal operation, so holding the socket open serves no purpose. Clients should treat this closure as a normal, expected end-of-stream, not an error — it always follows a terminal-state frame, never precedes one."
+      },
+      "inboundHandling": {
+        "textFrames": "intentionally ignored, same rule and same reason as console — POST /v1/operations/{id}/cancel is the only way to affect an operation; this channel is observation-only",
+        "pingFrames": "opcode 0x9 -> server replies with a pong frame (opcode 0x8A) carrying the same payload",
+        "pongFrames": "opcode 0xA -> no-op",
+        "closeFrames": "opcode 0x8 -> server replies with a close frame (opcode 0x88, empty payload) and tears down the connection",
+        "fragmentation": "not supported — frames with FIN=0 are not reassembled, same as console",
+        "frameSizeCap": {
+          "maxInboundFrameBytes": 65536,
+          "onExceeded": "server sends a close frame and tears down the connection"
+        }
+      },
+      "notes": "Reuses console's exact upgrade mechanics, auth check, and inbound-frame handling (same axum WS infrastructure, not a per-channel reimplementation) — the only things genuinely new to this channel are the path, the not-found existence check ahead of the upgrade, the OperationDTO payload, and the single-snapshot-then-live delivery model plus its terminal-state auto-close, both driven by OperationDTO being a mutable snapshot rather than an append-only log. See docs/msc2/api-contract/operation-model.md §5 (this document is the streaming-transport design that section explicitly deferred) and P2.9 for the Rust OperationState type this channel observes."
+    }
+  ],
+  "notDesignedHere": [
+    "status, players, notifications, metrics channels — msc2-engineering.md §5 names all six eventually; only console and operation-progress get a WS channel this phase, per the Phase 2 preamble's 'Not in this phase' note. The other four stay HTTP-polled, matching MSC 1's own behavior for all four today (P0.24's finding).",
+    "the ErrorDTO code vocabulary beyond what's cited above — P2.8 assigns concrete codes across the whole contract; this document only names the two codes (invalid_body, unauthorized, not_found) that already exist verbatim in P2.4 §5 and P2.5 §4.2.",
+    "permission-category assignment for /v1/operations/{id}/stream — deferred to P2.8, consistent with operation-model.md §5's deferral for the three HTTP operation routes."
+  ]
+}

@@ -292,11 +292,11 @@ Unresolved, and blocking the substrate:
 
 This is recorded as **Open** rather than guessed. It also blocks the D-012 local-authorization design, which assumes an answer to the first question.
 
-### Linux secret storage is unresolved (open)
+### Linux secret storage — Proposed resolution (P3.2)
 
 The `keyring` crate resolves to the freedesktop **Secret Service** on Linux, which is provided by `gnome-keyring` or KWallet — **desktop components that a minimal Debian installation does not have.** Since headless minimal Debian is a primary deployment target (D-011), the crate cannot be the sole answer.
 
-A headless fallback is required. Candidates, to be decided:
+A headless fallback is required. Candidates considered:
 
 | Option | Notes |
 |---|---|
@@ -304,7 +304,7 @@ A headless fallback is required. Candidates, to be decided:
 | **Root-owned file with restrictive permissions** | Simple, universal, no dependencies. Weaker at rest; acceptable only with clear documentation of the threat model. |
 | **Secret Service when present, fallback when absent** | Best experience on desktop Linux, but two code paths and two threat models to reason about. |
 
-Whichever is chosen, the `SecretStore` trait must state **what it does and does not protect against** on each platform. Silently degrading from a hardware-backed keychain to a file with no notice would be worse than not offering the abstraction.
+**Proposed, pending Cameron's confirmation (P3.2, 2026-08-01): `systemd` credentials.** One code path, no new dependency beyond the service manager D-011 already requires, and it states what it does and does not protect against at rest (TPM2-sealed when available; a root-on-this-machine-can-decrypt host-key fallback otherwise — a machine-scoped secret, the same category as the Windows DPAPI answer and the macOS System-keychain default in D-025). It requires `systemd` ≥ 250 for the encrypted-credential directives, which is a real, currently-unpinned constraint against D-011's "minimal Debian" target (Debian 12 qualifies; Debian 11 does not) — flagged, not silently assumed. Full reasoning, the at-rest threat model, the interaction with P3.1's installing-user identity, and the open re-provisioning question in `docs/msc2/substrate/secret-storage.md`.
 
 ### Headless is first-class on every platform (D-011)
 

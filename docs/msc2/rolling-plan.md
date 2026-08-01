@@ -792,7 +792,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.7 — Design the console and operation-progress WebSocket schemas
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/websocket-v1.json`
 **What:** Carry P0.24's one real baseline channel forward unchanged in wire shape, versioned at `/v1/console/stream` (same bearer auth, same 200-line-backfill-then-live model, same 5000-line ring buffer, same 64 KB inbound-frame cap). Design one new channel, `operation-progress` at `/v1/operations/{id}/stream`, pushing `OperationDTO` updates from P2.5 as they change, with the same bounded-history-then-live delivery discipline. `status`/`players`/`notifications`/`metrics` stay HTTP-polled this phase — see the phase's "Not in this phase" note.
 **Verify:** `python3 -c "import json;d=json.load(open('docs/msc2/api-contract/websocket-v1.json'));print(sorted(c['name'] for c in d['channels']))"` → `['console', 'operation-progress']`
@@ -800,7 +800,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.8 — Assemble the MSC 2 v1 OpenAPI contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`
 **What:** Seed from `docs/msc2/api-baseline/openapi.json` (the 88-route MSC 1 baseline, P0.23/P0.30/P0.32) and apply, in order: the `/v1/` namespace and `ErrorDTO` envelope (P2.4), the operation routes (P2.5), the capabilities route (P2.6), the `helpId` field on every schema P2.2 enumerated, and the permission-category annotation on every route (P2.1). This is the file the port plan's Phase 2 description calls "versioned HTTP...contract generated from the schema" — the frozen deliverable every later step in this phase builds against. Build a checker script, in the style of P0.23's, asserting: every route sits under `/v1/`, every route declares a permission category, every field flagged for `helpId` in P2.2 actually carries one, and the total route count matches baseline (88) plus the new operation/capability/help/pair routes this phase adds. **Open item from P2.1:** `POST /watchdog/enable` and `POST /watchdog/disable` had no permission gate at all in MSC 1 (any authenticated token, including guest, could call them) — decide the category for these two routes here rather than carrying the gap forward silently.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary` → prints the route count and zero missing-category/missing-helpId violations

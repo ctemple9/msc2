@@ -784,7 +784,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.6 — Design the capability-advertisement contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/capability-model.md`
 **What:** Design `GET /v1/capabilities`, returning agent version, API major/minor (from P2.4), host OS, per-server-type feature flags, the token's permission set (from P2.1), and installed-helper presence flags — the exact list `msc2-engineering.md` §5 names under "Capability discovery." Since the skeletal agent has no real detection yet, the schema is designed now and populated with clearly-labeled placeholder values until Phase 3/4 wire real detection behind it.
 **Verify:** `grep -c 'capabilities' docs/msc2/api-contract/capability-model.md` → at least `1`

@@ -768,7 +768,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### v1 contract design
 
 ### P2.4 — Design the v1 route namespace, skew behavior, and error envelope
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/versioning-and-errors.md`
 **What:** Per D-010, design the route-versioning mechanism (not the N-3 floor, still unset): every route lives under `/v1/`; the agent reports its API major/minor and capability set (feeding P2.6); a request from a client below the supported floor gets a clear structured refusal, not a generic 404. Design one consistent `ErrorDTO` (`code`, `message`, `helpId?`, `details?`) replacing the baseline's split `Error`/typed-DTO failure pattern that P0.32 catalogued — recorded here as a deliberate D-006-point-3 correction, not silent.
 **Verify:** `grep -cE '^### ' docs/msc2/api-contract/versioning-and-errors.md` → at least `3`
@@ -776,7 +776,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.5 — Design the operation model contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/operation-model.md`
 **What:** Design `OperationDTO { id, type, target, state, progress, statusLine, result?, error? }` per `msc2-engineering.md` §5, with `state` as the closed enum `queued|running|succeeded|failed|cancelled`. Design the three routes needed to exercise it without real mutation: `POST /v1/operations` (accepts an operation type/target, returns an id), `GET /v1/operations/{id}`, `POST /v1/operations/{id}/cancel`. Record explicitly that restart-survival (the operation journal) is Phase 3 scope — this designs the wire shape only.
 **Verify:** `grep -c 'queued|running|succeeded|failed|cancelled' docs/msc2/api-contract/operation-model.md` → at least `1`

@@ -848,7 +848,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.13 — Skeletal handlers: status, health, capabilities
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/capabilities.rs`
 **What:** Wire `GET /v1/status`, `GET /v1/health`, `GET /v1/capabilities` to return canned `msc-api` DTOs — a single hard-coded fake server, honestly labeled as placeholder data wherever the schema allows a notes field. This is the minimum route set P2.20's iOS gate actually needs, and the port plan's own "exercised without real mutation" language for this phase.
 **Verify:** `curl -s -H "Authorization: Bearer $MSC_DEV_TOKEN" localhost:48400/v1/status | python3 -m json.tool` → valid JSON matching the status schema, no server error

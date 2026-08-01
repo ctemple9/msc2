@@ -1,16 +1,14 @@
 //! `msc-agent` — the background service (§4 "Service mode" in
-//! `msc2-engineering.md`). This step (P2.12) is the axum skeleton and the
-//! dev-mode bearer-auth gate only; route handlers are wired starting
-//! P2.13.
+//! `msc2-engineering.md`). P2.12 built the axum skeleton and the dev-mode
+//! bearer-auth gate; P2.13 wires the first three route handlers behind it.
 
 mod auth;
+mod routes;
 
 use std::net::SocketAddr;
 
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::Router;
 use axum::routing::get;
-use axum::{Json, Router};
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
@@ -52,25 +50,14 @@ async fn main() {
 fn build_app() -> Router {
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
-    let public = Router::new().route("/health", get(health));
+    let public = Router::new().route("/health", get(routes::health::health));
 
     // Every other route this phase wires runs behind the bearer-token
-    // check. `/status` here is a placeholder proving the gate itself
-    // works; P2.13 replaces it with the real canned `RemoteApiStatus` DTO.
+    // check.
     let protected = Router::new()
-        .route("/status", get(status_placeholder))
+        .route("/status", get(routes::status::status))
+        .route("/capabilities", get(routes::capabilities::capabilities))
         .route_layer(axum::middleware::from_fn(auth::require_bearer_token));
 
     Router::new().nest("/v1", public.merge(protected))
-}
-
-async fn health() -> StatusCode {
-    StatusCode::OK
-}
-
-async fn status_placeholder() -> impl IntoResponse {
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({ "placeholder": true })),
-    )
 }

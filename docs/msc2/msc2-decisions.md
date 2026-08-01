@@ -493,6 +493,8 @@ Every cell is Implemented, Planned, or **Intentional exception**.
 
 **Revisit if:** the dedicated-host policy proves unacceptable on battery-powered hardware.
 
+**Phase 3 addendum (P3.3).** `msc2-port-plan.md` §3's own Phase 3 prose lists eight substrate items and doesn't name this one, but §4B's separate acceptance-test table placed "cross-platform sleep inhibition and the two power policies (D-024)" at "Phase 3" anyway — a contradiction between two sections of the same document, flagged rather than silently resolved by `docs/msc2/substrate/phase3-scope.md`. **Confirmed by Cameron Temple, 2026-08-01: D-024 lands in Phase 4**, not Phase 3, alongside real service registration — its verification needs live OS power APIs (`IOPMAssertion`/`SetThreadExecutionState`/`systemd-inhibit`), not the fixture-comparison shape every other Phase 3 item uses, and its purpose (remote-starting a stopped server) isn't attemptable until Phase 4's real service lifecycle exists.
+
 ---
 
 ## D-025 — Service identity and privilege boundaries

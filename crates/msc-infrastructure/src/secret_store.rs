@@ -105,14 +105,33 @@ pub const CONTRACT_CASES: [&str; 5] = [
 /// passes `Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures")`
 /// from its own crate so the path resolves regardless of which crate's
 /// `tests/` directory this runs from.
-pub fn run_contract_fixture(store: &dyn SecretStore, fixtures_dir: &Path, case: &str) {
+fn load_contract_fixture(fixtures_dir: &Path, case: &str) -> serde_json::Value {
     let path = fixtures_dir
         .join("secret-store-contract")
         .join(format!("{case}.json"));
     let text = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("{}: could not read fixture: {e}", path.display()));
-    let json: serde_json::Value = serde_json::from_str(&text)
-        .unwrap_or_else(|e| panic!("{}: could not parse fixture JSON: {e}", path.display()));
+    serde_json::from_str(&text)
+        .unwrap_or_else(|e| panic!("{}: could not parse fixture JSON: {e}", path.display()))
+}
+
+/// Returns the `input.key` a contract fixture exercises, without running
+/// it. A store implementation backed by a real, persistent, shared OS
+/// facility (Windows Credential Manager, a Linux `systemd-creds` file --
+/// unlike macOS's throwaway-keychain-per-test approach, neither has a
+/// cheap disposable-instance equivalent) can use this to clear that exact
+/// key before and after its own test, so repeated local runs don't leave
+/// residue behind or get tripped up by a previous run's leftovers.
+pub fn contract_fixture_key(fixtures_dir: &Path, case: &str) -> String {
+    let json = load_contract_fixture(fixtures_dir, case);
+    json["input"]["key"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{case}: input.key missing"))
+        .to_string()
+}
+
+pub fn run_contract_fixture(store: &dyn SecretStore, fixtures_dir: &Path, case: &str) {
+    let json = load_contract_fixture(fixtures_dir, case);
 
     let key = json["input"]["key"]
         .as_str()

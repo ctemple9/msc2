@@ -1,0 +1,23 @@
+{
+  "domain": "config-lifecycle",
+  "case": "valid-file-loads-cleanly",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "init",
+    "line": 86
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/config.json", "contents": "{\"schemaVersion\":1,\"tps\":20}" }
+    ],
+    "path": "/srv/app/config.json",
+    "defaults": { "schemaVersion": 1, "tps": 10 },
+    "nowUnixNanos": 1700000000000000000
+  },
+  "expected": {
+    "config": { "schemaVersion": 1, "tps": 20 },
+    "corruptBackupPath": null,
+    "destinationContents": { "schemaVersion": 1, "tps": 20 }
+  },
+  "notes": "Mirrors ConfigManager.init's success path (line 86-87, 'let decoder = JSONDecoder(); self.config = try decoder.decode(...)'): a file that parses is returned as-is. Unlike ConfigManager (which always calls save() afterward at line 109 to durably re-store Keychain-populated fields — a concern outside this generic primitive's scope), load_config does not rewrite the file on a clean read; destinationContents pins that down."
+}

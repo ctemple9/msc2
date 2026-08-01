@@ -1,0 +1,23 @@
+{
+  "domain": "config-lifecycle",
+  "case": "missing-file-falls-back-to-defaults",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "init",
+    "line": 143
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/.keep", "contents": "" }
+    ],
+    "path": "/srv/app/config.json",
+    "defaults": { "schemaVersion": 1, "tps": 10 },
+    "nowUnixNanos": 1700000000000000000
+  },
+  "expected": {
+    "config": { "schemaVersion": 1, "tps": 10 },
+    "corruptBackupPath": null,
+    "destinationContents": { "schemaVersion": 1, "tps": 10 }
+  },
+  "notes": "Mirrors ConfigManager.init's else branch (line 143-147): no file at all, so defaults are used directly — no corrupt-file preservation, since there was never a file to preserve. Also mirrors that branch's own save() call: defaults are persisted to path immediately, so the next load finds a real file instead of re-deriving defaults every time. The sibling '.keep' file exists only so FakeFileSystem recognizes '/srv/app' as an existing directory (per fs.rs, a fake directory's existence is inferred from a child file) — config.json itself is genuinely absent."
+}

@@ -1,0 +1,24 @@
+{
+  "domain": "config-lifecycle",
+  "case": "corrupted-json-preserved-and-defaults-returned",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "init",
+    "line": 111
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/config.json", "contents": "{not valid json" }
+    ],
+    "path": "/srv/app/config.json",
+    "defaults": { "schemaVersion": 1, "tps": 10 },
+    "nowUnixNanos": 1700000000000000000
+  },
+  "expected": {
+    "config": { "schemaVersion": 1, "tps": 10 },
+    "corruptBackupPath": "/srv/app/config.json.corrupt-1700000000000000000",
+    "corruptBackupContents": "{not valid json",
+    "destinationContents": { "schemaVersion": 1, "tps": 10 }
+  },
+  "notes": "Mirrors ConfigManager.init's catch branch (line 111-141, R3): a file that exists but fails to decode is copied to a timestamped '.corrupt-<ts>' sibling *before* path is overwritten with defaults, so the original bytes survive for recovery instead of being lost to the overwrite. 'now' is injected (unlike Swift's DateFormatter(Date())) so the exact backup path is predictable in a test rather than only checkable by prefix."
+}

@@ -203,10 +203,10 @@ fn encode_key(key: &str) -> String {
 }
 
 fn default_base_dir() -> PathBuf {
-    if let Ok(xdg) = std::env::var("XDG_DATA_HOME") {
-        if !xdg.is_empty() {
-            return PathBuf::from(xdg).join("msc2").join("secrets");
-        }
+    if let Ok(xdg) = std::env::var("XDG_DATA_HOME")
+        && !xdg.is_empty()
+    {
+        return PathBuf::from(xdg).join("msc2").join("secrets");
     }
     let home = std::env::var("HOME").unwrap_or_else(|_| "/root".to_string());
     PathBuf::from(home).join(".local/share/msc2/secrets")

@@ -115,3 +115,31 @@ fn fake_file_system_builds_from_fixture_fs_tree() {
     let listed = fs.list(dir).expect("list");
     assert_eq!(listed, vec![good.to_path_buf()]);
 }
+
+/// P3.20a: `list()` used to build its result with `Path::join`, which
+/// inserts `std::path::MAIN_SEPARATOR` — a backslash on Windows — even
+/// though every fixture path here is written with forward slashes. That
+/// broke any caller comparing the result as a raw string (found in
+/// `audit_log.rs`'s test by P3.20's exit gate check, on Windows CI only).
+/// `PathBuf` equality is component-based and wouldn't have caught this, so
+/// this test checks the literal string form directly.
+#[test]
+fn fake_file_system_list_returns_forward_slash_paths() {
+    let tree = json!({
+        "/srv/app/audit/audit-2023-10-15.jsonl": {
+            "type": "file",
+            "executable": false
+        }
+    });
+    let fs = FakeFileSystem::from_tree(&tree);
+
+    let listed = fs
+        .list(std::path::Path::new("/srv/app/audit"))
+        .expect("list");
+    let as_strings: Vec<String> = listed
+        .iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect();
+
+    assert_eq!(as_strings, vec!["/srv/app/audit/audit-2023-10-15.jsonl"]);
+}

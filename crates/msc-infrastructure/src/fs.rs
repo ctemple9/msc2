@@ -92,6 +92,26 @@ fn is_executable(_meta: &std::fs::Metadata) -> bool {
     false
 }
 
+/// Joins `base` and `component` with a literal `/`, never
+/// `std::path::MAIN_SEPARATOR`. Every fixture path in this codebase is
+/// written with forward slashes (`docs/msc2/fixture-format.md`), and
+/// `FakeFileSystem` is meant to behave identically on every host OS since
+/// it never touches a real filesystem — but `Path::join`/`PathBuf::push`
+/// insert the *host's* separator, a backslash on Windows, when joining two
+/// components that aren't already separator-terminated. `PathBuf`'s own
+/// `Eq`/`Hash` are component-based and don't care, but a caller that
+/// formats the result as a raw string (`to_string_lossy()` against a
+/// fixture's literal expected string, as `audit_log.rs`'s test does) does
+/// — found by P3.20's exit gate check, fixed by P3.20a.
+fn join_forward_slash(base: &Path, component: &std::ffi::OsStr) -> PathBuf {
+    let mut joined = base.to_string_lossy().into_owned();
+    if !joined.ends_with('/') {
+        joined.push('/');
+    }
+    joined.push_str(&component.to_string_lossy());
+    PathBuf::from(joined)
+}
+
 #[derive(Debug, Clone)]
 struct FakeEntry {
     contents: Vec<u8>,
@@ -270,7 +290,7 @@ impl FileSystem for FakeFileSystem {
             if let Ok(rel) = file_path.strip_prefix(path)
                 && let Some(first) = rel.components().next()
             {
-                children.insert(path.join(first));
+                children.insert(join_forward_slash(path, first.as_os_str()));
             }
         }
         Ok(children.into_iter().collect())

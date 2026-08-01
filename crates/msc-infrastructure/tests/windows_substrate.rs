@@ -63,15 +63,28 @@ fn path_safety_backslash_and_long_paths() {
 }
 
 /// (2) P3.6's atomic write against a destination another handle already
-/// has open. `std::fs::File::open` on Windows requests
-/// `FILE_SHARE_READ | FILE_SHARE_WRITE` but not `FILE_SHARE_DELETE`, so a
-/// rename that would replace the open file is refused by the OS — assert
-/// `atomic_write` surfaces that as a clear `Io` error, and leaves the
-/// original destination content in place, rather than hanging or silently
-/// succeeding. Needs the real filesystem: this is real Windows lock
-/// semantics, not something `FakeFileSystem` can model.
+/// has open. **P3.20b correction:** the original version of this test
+/// opened the destination with plain `std::fs::File::open`, which on
+/// Windows requests `FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE`
+/// — Rust's std has included `FILE_SHARE_DELETE` in its default share mode
+/// for years specifically so ordinary Rust-to-Rust renames succeed even
+/// against another handle the same process (or a cooperative one) holds
+/// open, more like POSIX. That handle never actually blocked the rename —
+/// confirmed empirically on real Windows CI (run 30702485721): the test
+/// got `Ok(())`, not an `Io` error. The hazard D-017/§8 actually names
+/// ("Windows will not let you delete an open file") is about an
+/// *uncooperative* locker — antivirus, a non-Rust process, anything that
+/// doesn't opt into delete-sharing — which is what `share_mode` here
+/// reproduces by explicitly omitting `FILE_SHARE_DELETE`. Needs the real
+/// filesystem: this is real Windows lock semantics, not something
+/// `FakeFileSystem` can model.
 #[test]
 fn atomic_write_destination_locked_by_open_handle() {
+    use std::os::windows::fs::OpenOptionsExt;
+
+    const FILE_SHARE_READ: u32 = 0x0000_0001;
+    const FILE_SHARE_WRITE: u32 = 0x0000_0002;
+
     let fs = StdFileSystem;
     let dir = std::env::temp_dir().join(format!(
         "msc2-windows-substrate-{}-{}",
@@ -83,8 +96,14 @@ fn atomic_write_destination_locked_by_open_handle() {
     std::fs::write(&dest, b"original").expect("seed destination file");
 
     // Hold an open handle on the destination for the whole atomic_write
-    // call, without FILE_SHARE_DELETE, so the rename step can't replace it.
-    let handle = std::fs::File::open(&dest).expect("open destination to hold a lock");
+    // call, sharing read/write but deliberately not FILE_SHARE_DELETE, so
+    // the rename step genuinely can't replace it — the real uncooperative-
+    // locker scenario, not Rust's own cooperative default.
+    let handle = std::fs::OpenOptions::new()
+        .read(true)
+        .share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE)
+        .open(&dest)
+        .expect("open destination to hold a non-delete-shared lock");
 
     let result = atomic_write(&fs, &dest, b"new contents");
 

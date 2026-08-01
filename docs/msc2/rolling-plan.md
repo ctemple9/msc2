@@ -832,7 +832,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Skeletal agent
 
 ### P2.11 — `msc-api` crate: v1 DTOs
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `Cargo.toml` (workspace), `crates/msc-api/Cargo.toml`, `crates/msc-api/src/lib.rs`, `crates/msc-api/src/dto/*.rs`, `.github/workflows/ci.yml`
 **What:** New workspace member per `msc2-engineering.md` §6 ("routes · DTOs · WebSocket events... authentication · permission checks · rate limiting"). Hand-write serde structs for every schema P2.8's `openapi.json` defines that the skeletal agent will actually serve this phase: `OperationDTO`, `ErrorDTO`, `CapabilitiesDTO`, and the status/health DTOs. Add a conformance test serializing each DTO's example value and validating it against the matching `openapi.json` schema — the same schema-depth discipline P0.23 used, now checking Rust output against the schema instead of the schema's own shape. Extend CI (as P1.1 did for `msc-domain`) to build/lint/test this new crate on all three OSes.
 **Verify:** `cargo nextest run -p msc-api dto_conformance` → all tests pass

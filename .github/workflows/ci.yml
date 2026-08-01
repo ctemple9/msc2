@@ -72,14 +72,14 @@ jobs:
         with:
           components: rustfmt, clippy
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
       - name: Report toolchain
         run: |
           rustc --version
           cargo --version
 
-      # P1.1 added crates/msc-domain, so the matrix now has something real
-      # to build. Test-running (cargo nextest run) joins this job in P1.2,
-      # once there's a real fixture-driven test suite to run it against.
       - name: Build
         run: cargo build --workspace
 
@@ -88,3 +88,9 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # P2.11 added crates/msc-api alongside msc-domain, so this is the
+      # first step where the workspace has more than one crate's worth of
+      # tests to run — cargo nextest run --workspace covers both.
+      - name: Test
+        run: cargo nextest run --workspace

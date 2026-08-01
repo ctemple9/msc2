@@ -1,0 +1,28 @@
+{
+  "domain": "audit-log",
+  "case": "single-entry-round-trips-through-jsonl",
+  "source": {
+    "file": "AuditLogger.swift",
+    "test": "write",
+    "line": 92
+  },
+  "input": {
+    "dir": "/srv/app/audit",
+    "existingFiles": [
+      { "path": "/srv/app/audit/.keep", "contents": "" }
+    ],
+    "entry": {
+      "timestampUnixNanos": 1700000000123000000,
+      "clientIp": "127.0.0.1",
+      "tokenLabel": "admin",
+      "method": "POST",
+      "path": "/start",
+      "statusCode": 200
+    }
+  },
+  "expected": {
+    "filePath": "/srv/app/audit/audit-2023-11-14.jsonl",
+    "fileContents": "{\"ts\":\"2023-11-14T22:13:20.123Z\",\"ip\":\"127.0.0.1\",\"token\":\"admin\",\"method\":\"POST\",\"path\":\"/start\",\"status\":200}\n"
+  },
+  "notes": "No MSC 1 test file exercises AuditLogger.write directly (RemoteAPIAuditLogTests only checks that an entry reaches a test observer, already covered by fixtures/remote-api-integration/); characterized straight from the manual JSONL-line construction at lines 106-112 and the file-per-UTC-day naming at lines 68-72. 1700000000.123 is 2023-11-14T22:13:20.123Z. The '.keep' sibling seeds '/srv/app/audit' as an existing directory for FakeFileSystem (fs.rs infers directory existence from child files) — this primitive does not create its own output directory, unlike AuditLogger.write itself (lines 97-104); see audit_log.rs's module docs for why."
+}

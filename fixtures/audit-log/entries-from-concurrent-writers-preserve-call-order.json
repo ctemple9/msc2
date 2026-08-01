@@ -1,0 +1,50 @@
+{
+  "domain": "audit-log",
+  "case": "entries-from-concurrent-writers-preserve-call-order",
+  "source": {
+    "file": "AuditLogger.swift",
+    "test": "log",
+    "line": 26
+  },
+  "input": {
+    "dir": "/srv/app/audit",
+    "existingFiles": [
+      { "path": "/srv/app/audit/.keep", "contents": "" }
+    ],
+    "entries": [
+      {
+        "timestampUnixNanos": 1700000000000000000,
+        "clientIp": "10.0.0.1",
+        "tokenLabel": "admin",
+        "method": "POST",
+        "path": "/start",
+        "statusCode": 200
+      },
+      {
+        "timestampUnixNanos": 1700000000500000000,
+        "clientIp": "10.0.0.2",
+        "tokenLabel": "guest",
+        "method": "POST",
+        "path": "/stop",
+        "statusCode": 403
+      },
+      {
+        "timestampUnixNanos": 1700000001000000000,
+        "clientIp": "10.0.0.3",
+        "tokenLabel": "admin",
+        "method": "GET",
+        "path": "/settings",
+        "statusCode": 200
+      }
+    ]
+  },
+  "expected": {
+    "filePath": "/srv/app/audit/audit-2023-11-14.jsonl",
+    "fileLines": [
+      "{\"ts\":\"2023-11-14T22:13:20.000Z\",\"ip\":\"10.0.0.1\",\"token\":\"admin\",\"method\":\"POST\",\"path\":\"/start\",\"status\":200}",
+      "{\"ts\":\"2023-11-14T22:13:20.500Z\",\"ip\":\"10.0.0.2\",\"token\":\"guest\",\"method\":\"POST\",\"path\":\"/stop\",\"status\":403}",
+      "{\"ts\":\"2023-11-14T22:13:21.000Z\",\"ip\":\"10.0.0.3\",\"token\":\"admin\",\"method\":\"GET\",\"path\":\"/settings\",\"status\":200}"
+    ]
+  },
+  "notes": "AuditLogger.log (line 54-56) hands each entry to a serial DispatchQueue, so entries submitted one after another always land in the file in submission order and never interleave mid-line — this fixture pins down that guarantee for sequential submission. A JSON fixture can't itself encode genuine multi-thread scheduling, so tests/audit_log.rs additionally carries one non-fixture test (audit_log_concurrent_threads_preserve_submission_order) that spawns real OS threads, each acquiring AuditLog's own write lock in turn, to confirm the same ordering guarantee holds when calls to log() actually originate from different threads rather than one sequential loop."
+}

@@ -1,0 +1,31 @@
+{
+  "domain": "audit-log",
+  "case": "corrupt-or-partial-line-does-not-crash-writer",
+  "source": {
+    "file": "AuditLogger.swift",
+    "test": "write",
+    "line": 114
+  },
+  "input": {
+    "dir": "/srv/app/audit",
+    "existingFiles": [
+      {
+        "path": "/srv/app/audit/audit-2023-11-14.jsonl",
+        "contents": "{\"ts\":\"2023-11-14T20:00:00.000Z\",\"ip\":\"1.2.3.4\",\"token\":\"admin\",\"method\":\"POST\",\"path\":\"/start\",\"status\":200}\n{\"ts\":\"2023-11-14T21:00:00.000Z\",\"ip\":\"1.2.3.4\","
+      }
+    ],
+    "entry": {
+      "timestampUnixNanos": 1700000000123000000,
+      "clientIp": "5.6.7.8",
+      "tokenLabel": "guest",
+      "method": "GET",
+      "path": "/status",
+      "statusCode": 200
+    }
+  },
+  "expected": {
+    "filePath": "/srv/app/audit/audit-2023-11-14.jsonl",
+    "fileContents": "{\"ts\":\"2023-11-14T20:00:00.000Z\",\"ip\":\"1.2.3.4\",\"token\":\"admin\",\"method\":\"POST\",\"path\":\"/start\",\"status\":200}\n{\"ts\":\"2023-11-14T21:00:00.000Z\",\"ip\":\"1.2.3.4\",{\"ts\":\"2023-11-14T22:13:20.123Z\",\"ip\":\"5.6.7.8\",\"token\":\"guest\",\"method\":\"GET\",\"path\":\"/status\",\"status\":200}\n"
+  },
+  "notes": "The existing file's second line is a truncated write (no closing brace, no trailing newline) — simulating a prior crash mid-write. AuditLogger.write never reads or parses the file it's appending to (FileHandle.seekToEndOfFile then a raw write(data), lines 114-121), so it has no opportunity to notice or repair the truncated line; it just appends the new line's bytes immediately after whatever was already there, producing a file whose second physical line is now the old partial fragment glued directly onto the new entry's JSON with no separator. That glued, unparseable second line is the correct, faithful output here — not a bug this primitive should fix — since AuditLogger.swift itself has no such repair logic and no MSC 1 code path attempts to parse a JSONL audit file back in, only to append to it."
+}

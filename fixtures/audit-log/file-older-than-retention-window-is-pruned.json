@@ -1,0 +1,20 @@
+{
+  "domain": "audit-log",
+  "case": "file-older-than-retention-window-is-pruned",
+  "source": {
+    "file": "AuditLogger.swift",
+    "test": "pruneOldFiles",
+    "line": 74
+  },
+  "input": {
+    "dir": "/srv/app/audit",
+    "existingFiles": [
+      { "path": "/srv/app/audit/audit-2023-10-14.jsonl", "contents": "{\"ts\":\"2023-10-14T00:00:00.000Z\",\"ip\":\"1.2.3.4\",\"token\":\"admin\",\"method\":\"GET\",\"path\":\"/\",\"status\":200}\n" }
+    ],
+    "nowUnixNanos": 1700000000000000000
+  },
+  "expected": {
+    "remainingFiles": []
+  },
+  "notes": "2023-10-14 is 31 UTC days before 2023-11-14 (now) — one day past the 30-day retention window (retentionDays = 30, line 29) — so pruneOldFiles removes it. Mirrors lines 74-90's cutoff/removal loop; characterized directly since no MSC 1 test exercises pruning. Reads the file's date from its own name rather than a filesystem creation timestamp — see audit_log.rs's prune_old_files doc comment for why FileSystem (crate::fs) makes that the faithful equivalent here."
+}

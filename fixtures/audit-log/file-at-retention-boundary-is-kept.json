@@ -1,0 +1,20 @@
+{
+  "domain": "audit-log",
+  "case": "file-at-retention-boundary-is-kept",
+  "source": {
+    "file": "AuditLogger.swift",
+    "test": "pruneOldFiles",
+    "line": 74
+  },
+  "input": {
+    "dir": "/srv/app/audit",
+    "existingFiles": [
+      { "path": "/srv/app/audit/audit-2023-10-15.jsonl", "contents": "{\"ts\":\"2023-10-15T00:00:00.000Z\",\"ip\":\"1.2.3.4\",\"token\":\"admin\",\"method\":\"GET\",\"path\":\"/\",\"status\":200}\n" }
+    ],
+    "nowUnixNanos": 1700000000000000000
+  },
+  "expected": {
+    "remainingFiles": ["/srv/app/audit/audit-2023-10-15.jsonl"]
+  },
+  "notes": "2023-10-15 is exactly 30 UTC days before 2023-11-14 (now) — retentionDays itself (line 29) — so it must survive: pruneOldFiles' own comparison is 'created < cutoff' (line 86), a strict less-than, so a file exactly at the boundary is kept, not pruned. The companion fixture 'file-older-than-retention-window-is-pruned' pins the very next day (31 days old) as the first day that IS pruned, so the boundary itself is exercised from both sides."
+}

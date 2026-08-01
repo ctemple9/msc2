@@ -1,6 +1,6 @@
 # Linux headless secret-storage backend (D-012 / `msc2-engineering.md` §8)
 
-**Status: Proposed**, pending Cameron Temple's confirmation — 2026-08-01. Same pattern as every other judgment call in this register: this step reasons through the choice `msc2-engineering.md` §8 already leaned toward, states the answer in writing, and stops short of marking it Approved.
+**Status: Confirmed** by Cameron Temple, 2026-08-01 — `systemd-creds` as the backend, and (resolving §5's flagged constraint) **Debian 12 "bookworm" as MSC 2's Linux minimum**, over building the root-owned-file fallback to also cover Debian 11 and older. `msc2-decisions.md` D-011 is amended accordingly.
 
 ---
 
@@ -55,7 +55,7 @@ Concretely: the installer, already running elevated to write the `systemd` unit 
 | 12 "bookworm" (current stable) | 252 | Yes |
 | 11 "bullseye" (oldstable) | 247 | **No** |
 
-**This step cannot responsibly decide MSC 2's minimum supported Debian release** — that's a product/support-matrix decision, not a secret-storage implementation detail, and nothing in the audit corpus or `msc2-decisions.md` currently pins one. Flagged here because it is a direct, concrete consequence of this choice: if bullseye-or-older needs to be supported, `systemd-creds` cannot be the sole backend on Linux, and the root-owned-file fallback from §8's own table would need to be built as a real runtime fallback rather than left unbuilt. Recommendation: pin the minimum to Debian 12 (bookworm) or any distribution with `systemd` ≥ 250, since bookworm has been current stable since mid-2023 and is what a new minimal-Debian install performed today would produce — but this is Cameron's call, not one this step makes unilaterally.
+**Confirmed by Cameron Temple, 2026-08-01: MSC 2's Linux minimum is Debian 12 "bookworm"** (or any distribution with `systemd` ≥ 250), over building the root-owned-file fallback to also cover Debian 11 and older. This closes the question this step could not decide unilaterally — bookworm has been current stable since mid-2023, and is what a fresh minimal-Debian install performed today would produce, matching D-011's own framing. `msc2-decisions.md` D-011 is amended with this floor. The root-owned-file fallback (§8's own table) is therefore **not** built as a runtime path in v1 — see §6.
 
 ## 6. What this does not build
 
@@ -74,5 +74,5 @@ Per §6 of the Phase 3 intro's "not in this phase" list and this step's own scop
 | What does it *not* protect against? | Anything running as root on the same live machine — a machine-scoped secret, same category as Windows DPAPI and the macOS System-keychain default (D-025) |
 | Does it require `DynamicUser=`? | No — works identically with P3.1's static installing-user `User=`/`Group=` |
 | Who runs `systemd-creds encrypt`, and when? | The installer, during the same elevated install-time window that already writes the unit file (P3.1) |
-| Minimum `systemd` version? | 250+, for the *encrypted* credential directives. Debian 12 (bookworm) ships 252 and qualifies; Debian 11 (bullseye) ships 247 and does not — flagged for Cameron, not decided here |
+| Minimum `systemd` version? | 250+, for the *encrypted* credential directives. **Confirmed: Debian 12 (bookworm) is MSC 2's Linux floor** — ships 252, qualifies. Debian 11 (bullseye) ships 247 and is not supported. |
 | Is the Secret-Service branch built? | No — one code path only, per §8's own stated reason to avoid two threat models |

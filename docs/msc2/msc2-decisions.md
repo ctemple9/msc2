@@ -241,6 +241,8 @@ Three things follow, and conflating them is a mistake:
 
 **Consequences.** Two distribution artifacts per platform: an application bundle and a headless package. Self-update must handle app, agent, and sidecar as a coordinated set on macOS/Windows and defer to the package manager on Linux. Headless packages must be verified to link no GUI frameworks (D-021).
 
+**Phase 3 addendum (P3.2).** "A minimal Debian install" (above) didn't pin a release. P3.2's choice of `systemd-creds` for Linux secret storage (§8) requires `systemd` ≥ 250, which Debian 11 "bullseye" (systemd 247) doesn't have. **Confirmed by Cameron Temple, 2026-08-01: MSC 2's Linux minimum is Debian 12 "bookworm"** (systemd 252) or any distribution with `systemd` ≥ 250 — over building a weaker root-owned-file fallback to also cover older releases. Full reasoning in `docs/msc2/substrate/secret-storage.md`.
+
 ---
 
 ## D-012 — Authentication and session model

@@ -7,4 +7,5 @@ members = [
     "crates/msc-infrastructure",
     "crates/msc-platform-macos",
     "crates/msc-platform-windows",
+    "crates/msc-platform-linux",
 ]

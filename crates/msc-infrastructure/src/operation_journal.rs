@@ -1,5 +1,5 @@
-//! `OperationJournal`: restart survival for `msc_domain::operation`'s
-//! `OperationState` machine.
+//! `OperationJournal`: restart survival and per-target exclusivity for
+//! `msc_domain::operation`'s `OperationState` machine.
 //!
 //! Greenfield MSC 2 construction, not a port — MSC 1 has no
 //! operation-journal concept, the same D-018 exemption P2.9 recorded for
@@ -18,6 +18,14 @@
 //! actually started is reconciled to `cancelled` instead, which *is* a
 //! legal transition out of `queued`. This falls directly out of reusing
 //! the domain type's own transition table rather than reaching around it.
+//!
+//! §7 also has a second sentence: "Only one conflicting operation runs
+//! against a server at a time. Starting a backup during a world
+//! replacement is refused, not queued silently." [`OperationJournal::admit`]
+//! is what makes that true — the per-target exclusivity check `record`
+//! alone doesn't perform, since `record` has to stay usable for
+//! `reconcile_on_startup`'s own re-journaling of entries that have already
+//! passed the check once.
 
 use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;
@@ -79,6 +87,28 @@ impl fmt::Display for JournalError {
 
 impl std::error::Error for JournalError {}
 
+/// What [`OperationJournal::admit`] returns instead of journaling a new
+/// entry, per §7's per-target exclusivity rule. `Conflict` reuses
+/// `OperationError` — already P2.4's `ErrorDTO` shape, per that type's own
+/// doc comment — rather than inventing a second structured-error type for
+/// the same wire shape.
+#[derive(Debug)]
+pub enum AdmitError {
+    Journal(JournalError),
+    Conflict(OperationError),
+}
+
+impl fmt::Display for AdmitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AdmitError::Journal(err) => write!(f, "{err}"),
+            AdmitError::Conflict(err) => write!(f, "{}", err.message),
+        }
+    }
+}
+
+impl std::error::Error for AdmitError {}
+
 /// One journal file per operation (`<dir>/<id>.json`), mirroring
 /// [`crate::audit_log::AuditLog`]'s one-file-per-day convention: each
 /// write is independent, so recording one operation's transition never
@@ -115,6 +145,65 @@ impl<'fs> OperationJournal<'fs> {
         let bytes = serde_json::to_vec_pretty(&entry_to_value(entry))
             .expect("JournalEntry always serializes to valid JSON");
         atomic_write(self.fs, &self.entry_path(&entry.id), &bytes).map_err(JournalError::Write)
+    }
+
+    /// Journals `entry`, first enforcing `msc2-engineering.md` §7's
+    /// per-target exclusivity rule: "Only one conflicting operation runs
+    /// against a server at a time. Starting a backup during a world
+    /// replacement is refused, not queued silently." If any other
+    /// non-terminal (`queued`/`running`) entry already shares `entry`'s
+    /// target, `entry` is rejected with [`AdmitError::Conflict`] instead of
+    /// being journaled — refused outright, never silently queued behind
+    /// the existing operation — and the existing entry is left untouched.
+    ///
+    /// An entry with no target (`target: None`) never conflicts with
+    /// anything and is always admitted: there is no shared target to hold
+    /// exclusively. The rule itself is deliberately coarse —
+    /// same-target-any-operation conflicts with same-target-any-operation
+    /// — since the real operation-type catalog (which types may safely
+    /// coexist against the same target) doesn't exist until later phases
+    /// populate it.
+    pub fn admit(&self, entry: &JournalEntry) -> Result<(), AdmitError> {
+        if let Some(target) = &entry.target
+            && let Some(existing) = self
+                .find_non_terminal_for_target(target, &entry.id)
+                .map_err(AdmitError::Journal)?
+        {
+            return Err(AdmitError::Conflict(conflict_error(&existing, target)));
+        }
+        self.record(entry).map_err(AdmitError::Journal)
+    }
+
+    /// The first non-terminal journaled entry (other than `exclude_id`)
+    /// whose target matches `target`, or `None` if there isn't one.
+    /// Shares `reconcile_on_startup`'s walk-every-file-under-`dir` shape,
+    /// skipping anything that isn't a journal entry this module wrote —
+    /// same reasoning as there.
+    fn find_non_terminal_for_target(
+        &self,
+        target: &str,
+        exclude_id: &OperationId,
+    ) -> Result<Option<JournalEntry>, JournalError> {
+        for path in self.fs.list(&self.dir).map_err(JournalError::Io)? {
+            let bytes = match self.fs.read(&path) {
+                Ok(bytes) => bytes,
+                Err(err) if err.kind() == io::ErrorKind::NotFound => continue,
+                Err(err) => return Err(JournalError::Io(err)),
+            };
+            let Ok(value) = serde_json::from_slice::<Value>(&bytes) else {
+                continue; // not a journal file this module wrote; leave it alone
+            };
+            let Some(candidate) = entry_from_value(&value) else {
+                continue;
+            };
+            if &candidate.id != exclude_id
+                && candidate.target.as_deref() == Some(target)
+                && !candidate.state.is_terminal()
+            {
+                return Ok(Some(candidate));
+            }
+        }
+        Ok(None)
     }
 
     /// Reads back `id`'s journaled entry, or `None` if it was never
@@ -200,6 +289,32 @@ fn reconciliation_target(state: OperationState) -> Option<OperationState> {
         OperationState::Running => Some(OperationState::Failed),
         OperationState::Queued => Some(OperationState::Cancelled),
         OperationState::Succeeded | OperationState::Failed | OperationState::Cancelled => None,
+    }
+}
+
+/// The structured conflict error [`OperationJournal::admit`] returns when
+/// `existing` already holds `target` — P2.4's `ErrorDTO` shape, same as
+/// `reconcile_on_startup`'s `operation_interrupted` error above. `code` is
+/// this step's own choice: `operation-model.md` §4.3 leaves "what
+/// `ErrorDTO.code` a conflicting request gets back" to whichever phase
+/// actually implements exclusivity, which is this one.
+fn conflict_error(existing: &JournalEntry, target: &str) -> OperationError {
+    let mut details = BTreeMap::new();
+    details.insert("target".to_string(), target.to_string());
+    details.insert(
+        "conflictingOperationId".to_string(),
+        existing.id.as_str().to_string(),
+    );
+    OperationError {
+        code: "operation_conflict".to_string(),
+        message: format!(
+            "a {} operation ({}) is already {} against {target}",
+            existing.operation_type,
+            existing.id.as_str(),
+            existing.state.raw_value(),
+        ),
+        help_id: None,
+        details,
     }
 }
 

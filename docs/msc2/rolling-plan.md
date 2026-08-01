@@ -1129,7 +1129,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Leftover fixture domains
 
 ### P3.17 — Port network-safety fixtures
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/network_safety.rs`, `crates/msc-domain/tests/network_safety.rs`
 **What:** Port `NetworkSafety.isLocalOrPrivateHost` and its supporting classification logic (`NetworkSafety.swift`) against the 13 fixtures P0.14 already extracted (`fixtures/network-safety/`) — loopback, private-range including the 172.16.0.0/12 boundary case, mDNS/`.local`, IPv6 loopback and link-local, and public-address rejection. Pure function, no I/O, so it lives in `msc-domain` alongside the other Phase 1 domains despite landing in this phase — deferred here by the Phase 1 plan's own note, thematically because it backs D-012's LAN-encryption and off-loopback safety questions this phase's substrate work sits next to, not because it needs any capability `msc-domain`'s no-I/O crate lacks.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/network-safety --expect 13` → `ok 13`; then `cargo nextest run -p msc-domain network_safety` → `13 tests run: 13 passed`

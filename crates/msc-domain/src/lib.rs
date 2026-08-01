@@ -3,6 +3,7 @@ pub mod commands;
 pub mod crash_analysis;
 pub mod identity;
 pub mod java_runtime;
+pub mod network_safety;
 pub mod operation;
 pub mod properties;
 pub mod router;

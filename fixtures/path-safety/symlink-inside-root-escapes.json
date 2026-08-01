@@ -1,0 +1,25 @@
+{
+  "domain": "path-safety",
+  "case": "symlink-inside-root-escapes",
+  "source": {
+    "file": "AppViewModel+APIWiringContent.swift",
+    "test": "resolvedServerFileURL",
+    "line": 41
+  },
+  "input": {
+    "root": "/srv/server1",
+    "relativePath": "link-out",
+    "homeDir": "/Users/cameron",
+    "fsTree": {
+      "/srv/server1/link-out": {
+        "type": "symlink",
+        "target": "/etc/passwd"
+      }
+    }
+  },
+  "expected": {
+    "path": null,
+    "error": "escape"
+  },
+  "notes": "resolvedServerFileURL calls .resolvingSymlinksInPath() before comparing against root specifically to catch this case: a path that is lexically inside root but points outside it once symlinks are followed. No MSC 1 test file exists; characterized directly from the source."
+}

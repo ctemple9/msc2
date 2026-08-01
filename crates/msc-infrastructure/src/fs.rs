@@ -26,6 +26,12 @@ pub trait FileSystem {
     fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn remove(&self, path: &Path) -> io::Result<()>;
+    /// The immediate target of `path`, if it's a symlink. Errors the same
+    /// way `std::fs::read_link` does for a path that doesn't exist or
+    /// isn't a symlink — P3.5's `path_safety` module treats that error as
+    /// "not a symlink, leave the component as-is" rather than a real
+    /// failure, since a path-safety candidate need not exist yet.
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf>;
 }
 
 /// The real filesystem.
@@ -66,6 +72,10 @@ impl FileSystem for StdFileSystem {
             std::fs::remove_file(path)
         }
     }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        std::fs::read_link(path)
+    }
 }
 
 #[cfg(unix)]
@@ -96,6 +106,7 @@ struct FakeEntry {
 #[derive(Debug, Default)]
 pub struct FakeFileSystem {
     files: Mutex<BTreeMap<PathBuf, FakeEntry>>,
+    symlinks: Mutex<BTreeMap<PathBuf, PathBuf>>,
 }
 
 impl FakeFileSystem {
@@ -103,36 +114,47 @@ impl FakeFileSystem {
         Self::default()
     }
 
-    /// `tree` is the fixture-format `fsTree` object. Every entry seen in
-    /// the fixture corpus so far is `"type": "file"` — no directory
-    /// entries exist yet, so any other type is treated as a fixture bug
-    /// and panics rather than being silently ignored.
+    /// `tree` is the fixture-format `fsTree` object. Every file entry
+    /// seen in the fixture corpus so far is `"type": "file"`; P3.5 adds
+    /// `"type": "symlink"` with a `"target"` string (its fixtures are the
+    /// first to need one). Any other type is treated as a fixture bug and
+    /// panics rather than being silently ignored.
     pub fn from_tree(tree: &serde_json::Value) -> Self {
         let object = tree.as_object().expect("fsTree must be a JSON object");
         let mut files = BTreeMap::new();
+        let mut symlinks = BTreeMap::new();
         for (path, meta) in object {
             let entry_type = meta
                 .get("type")
                 .and_then(|v| v.as_str())
                 .unwrap_or_else(|| panic!("fsTree entry {path:?} missing 'type'"));
-            assert_eq!(
-                entry_type, "file",
-                "fsTree entry {path:?} has unsupported type {entry_type:?}"
-            );
-            let executable = meta
-                .get("executable")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            files.insert(
-                PathBuf::from(path),
-                FakeEntry {
-                    contents: Vec::new(),
-                    executable,
-                },
-            );
+            match entry_type {
+                "file" => {
+                    let executable = meta
+                        .get("executable")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    files.insert(
+                        PathBuf::from(path),
+                        FakeEntry {
+                            contents: Vec::new(),
+                            executable,
+                        },
+                    );
+                }
+                "symlink" => {
+                    let target = meta
+                        .get("target")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_else(|| panic!("fsTree symlink {path:?} missing 'target'"));
+                    symlinks.insert(PathBuf::from(path), PathBuf::from(target));
+                }
+                other => panic!("fsTree entry {path:?} has unsupported type {other:?}"),
+            }
         }
         Self {
             files: Mutex::new(files),
+            symlinks: Mutex::new(symlinks),
         }
     }
 
@@ -151,6 +173,16 @@ impl FakeFileSystem {
                 executable,
             },
         );
+        self
+    }
+
+    /// Seed a single symlink, for tests that don't start from a fixture's
+    /// `fsTree`.
+    pub fn with_symlink(self, path: impl Into<PathBuf>, target: impl Into<PathBuf>) -> Self {
+        self.symlinks
+            .lock()
+            .unwrap()
+            .insert(path.into(), target.into());
         self
     }
 }
@@ -230,5 +262,14 @@ impl FileSystem for FakeFileSystem {
                 path.display().to_string(),
             ))
         }
+    }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        self.symlinks
+            .lock()
+            .unwrap()
+            .get(path)
+            .cloned()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, path.display().to_string()))
     }
 }

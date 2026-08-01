@@ -985,7 +985,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P3.3 — Scope Phase 3's substrate surface and record what's deferred
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/substrate/phase3-scope.md`
 **What:** Write down, in one place, the "Not in this phase" list already stated in this plan's own intro above — D-024 power management, D-021's headless-link verification, real service registration, real per-domain downloads, and the currently-homeless `SecretStore`-into-real-pairing wiring gap — as a scoping document Cameron can confirm or overrule during the Read move, the same role `auth-scope-phase2.md` played for Phase 2. This is the step that makes the deferrals load-bearing rather than just plan prose that could quietly drift once execution starts.
 **Verify:** `grep -c '^##' docs/msc2/substrate/phase3-scope.md` → at least `5` (one heading per deferred item)
@@ -997,7 +997,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Workspace scaffold
 
 ### P3.4 — Scaffold the `msc-infrastructure` crate and the `FileSystem` trait
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `Cargo.toml` (workspace), `crates/msc-infrastructure/Cargo.toml`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/src/fs.rs`, `crates/msc-infrastructure/tests/fs.rs`
 **What:** New workspace member per `msc2-engineering.md` §6. Defined a `FileSystem` trait covering the minimal surface every later step in this phase needs (`read`, `write`, `stat`, `list`, `rename`, `remove`) with two implementations: a real `StdFileSystem` backed by `std::fs`, and an in-memory `FakeFileSystem` for tests — constructible via `FakeFileSystem::from_tree(&serde_json::Value)`, which consumes the exact `fsTree` shape P0.5's deferred fixtures already use (`{"<path>": {"type": "file", "executable": true}}`), so P3.18 can build one straight from a fixture's `input.fsTree` without reshaping it. Depends on `msc-domain` (inward, per the direction rule); nothing depends on it yet. **`.github/workflows/ci.yml` needed no change** — P2.11 already generalized `Build`/`Test` to `--workspace`, so adding the crate to the workspace's `members` list was enough for CI to pick it up on all three OSes; confirmed by reading the file rather than assumed.
 **Verify:** `cargo build -p msc-infrastructure && cargo nextest run -p msc-infrastructure fs` → passes (matches 1 test by nextest's substring rule — `fake_file_system_builds_from_fixture_fs_tree`, which does exercise `FakeFileSystem`); `cargo nextest run -p msc-infrastructure` (no filter) → `4 tests run: 4 passed`
@@ -1009,7 +1009,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Path safety and atomic writes
 
 ### P3.5 — Characterize and port approved-server-root path safety
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/path-safety/`, `crates/msc-infrastructure/src/path_safety.rs`, `crates/msc-infrastructure/tests/path_safety.rs`
 **What:** MSC 1 has no dedicated test file for this; the reference implementations are `resolvedServerFileURL` in `AppViewModel+APIWiringContent.swift` (already flagged in the symbol ledger: "a real PATH-TRAVERSAL SAFETY CHECK: resolves symlinks and requires the resolved path to stay within the server's root directory... directly the kind of path-safety policy `msc2-port-plan.md`'s Phase 3 substrate calls for") and `validateResetDeletionTarget` in `AppViewModel+ConfigHelpers.swift` (refuses to delete `/`, the home directory, `/Applications`, or anything outside the actual approved root — the ledger's own words: "this IS the kind of path-safety policy... Phase 3 substrate... calls for"). Characterize both into one `safe_path(root, requested) -> Result<PathBuf, PathSafetyError>` primitive, built on P3.4's `FileSystem` trait for the symlink-resolution step so it's testable without touching the real filesystem: standardize and resolve symlinks on both root and candidate, require the resolved candidate to equal the root or start with `root + separator`. New fixtures, characterized directly from the two source functions per `fixture-format.md`'s "MSC 1 run by hand" standard for untested pure logic: (1) a plain in-root path, (2) a `..`-escape attempt, (3) a symlink inside the root pointing outside it, (4) the empty-relative-path case (candidate equals root), (5) a forbidden absolute path (`/`), (6) a forbidden absolute path (the home directory), (7) a sibling directory sharing the root's name as a string prefix (e.g. `/srv/server1x` vs. root `/srv/server1`) — the classic off-by-one a naive `hasPrefix` check gets wrong, which this fixture pins down as *not* an escape.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/path-safety --expect 7` → `ok 7`; then `cargo nextest run -p msc-infrastructure path_safety` → `7 tests run: 7 passed`

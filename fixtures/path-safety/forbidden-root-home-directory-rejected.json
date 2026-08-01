@@ -1,0 +1,20 @@
+{
+  "domain": "path-safety",
+  "case": "forbidden-root-home-directory-rejected",
+  "source": {
+    "file": "AppViewModel+ConfigHelpers.swift",
+    "test": "validateResetDeletionTarget",
+    "line": 169
+  },
+  "input": {
+    "root": "/Users/cameron",
+    "relativePath": "",
+    "homeDir": "/Users/cameron",
+    "fsTree": {}
+  },
+  "expected": {
+    "path": null,
+    "error": "forbidden_root"
+  },
+  "notes": "validateResetDeletionTarget refuses a target equal to FileManager's homeDirectoryForCurrentUser/NSHomeDirectory(). No MSC 1 test file exists; characterized directly from the source."
+}

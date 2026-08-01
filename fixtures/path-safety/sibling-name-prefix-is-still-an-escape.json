@@ -1,0 +1,20 @@
+{
+  "domain": "path-safety",
+  "case": "sibling-name-prefix-is-still-an-escape",
+  "source": {
+    "file": "AppViewModel+APIWiringContent.swift",
+    "test": "resolvedServerFileURL",
+    "line": 53
+  },
+  "input": {
+    "root": "/srv/server1",
+    "relativePath": "../server1x/inner.txt",
+    "homeDir": "/Users/cameron",
+    "fsTree": {}
+  },
+  "expected": {
+    "path": null,
+    "error": "escape"
+  },
+  "notes": "Pins down the classic off-by-one: a naive `candidate.hasPrefix(root)` string check would wrongly treat /srv/server1x as inside root /srv/server1, since the literal characters match as a prefix. resolvedServerFileURL's actual guard checks `candidatePath.hasPrefix(rootPath + \"/\")` (line 53) specifically to avoid that — this fixture proves the port keeps the '+ separator' guard and correctly rejects the sibling as an escape rather than reintroducing the bug."
+}

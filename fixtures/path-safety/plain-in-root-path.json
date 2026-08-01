@@ -1,0 +1,20 @@
+{
+  "domain": "path-safety",
+  "case": "plain-in-root-path",
+  "source": {
+    "file": "AppViewModel+APIWiringContent.swift",
+    "test": "resolvedServerFileURL",
+    "line": 41
+  },
+  "input": {
+    "root": "/srv/server1",
+    "relativePath": "logs/latest.log",
+    "homeDir": "/Users/cameron",
+    "fsTree": {}
+  },
+  "expected": {
+    "path": "/srv/server1/logs/latest.log",
+    "error": null
+  },
+  "notes": "No MSC 1 test file exists for this function (deferred coverage, per the symbol ledger); characterized directly from resolvedServerFileURL's own logic rather than pulled from an assertion."
+}

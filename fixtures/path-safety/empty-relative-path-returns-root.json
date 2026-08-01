@@ -1,0 +1,20 @@
+{
+  "domain": "path-safety",
+  "case": "empty-relative-path-returns-root",
+  "source": {
+    "file": "AppViewModel+APIWiringContent.swift",
+    "test": "resolvedServerFileURL",
+    "line": 41
+  },
+  "input": {
+    "root": "/srv/server1",
+    "relativePath": "",
+    "homeDir": "/Users/cameron",
+    "fsTree": {}
+  },
+  "expected": {
+    "path": "/srv/server1",
+    "error": null
+  },
+  "notes": "resolvedServerFileURL treats a nil/empty (whitespace-trimmed) relativePath as a request for the root itself, not an error. No MSC 1 test file exists; characterized directly from the source."
+}

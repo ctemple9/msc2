@@ -1,3 +1,4 @@
+pub mod capability;
 pub mod commands;
 pub mod crash_analysis;
 pub mod identity;

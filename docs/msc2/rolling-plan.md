@@ -820,7 +820,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** solo
 
 ### P2.10 — Port the capability domain type into `msc-domain`
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/capability.rs`, `crates/msc-domain/tests/capability.rs`, `crates/msc-domain/src/lib.rs`
 **What:** Implement P2.6's schema as a pure `CapabilitySet` data type — agent version, API major/minor, host OS enum, per-server-type feature flags, and P2.1's permission-category enum. No I/O: the real detection logic that populates this type is Phase 3/4 infrastructure work, per the module-boundary rule in §6, not this crate's job.
 **Verify:** `cargo nextest run -p msc-domain capability` → all tests pass

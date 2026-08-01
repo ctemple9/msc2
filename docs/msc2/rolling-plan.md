@@ -880,7 +880,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 **Batch:** safe
 
 ### P2.17 — Contract-conformance checker against the live skeletal agent
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/contract-conformance-check.py`
 **What:** A dependency-free Python script that calls every route this phase implements against a running `msc-agent` (health, status, capabilities, operation lifecycle) and validates each live JSON response against P2.8's `openapi.json` schema for that route — P0.23's schema-depth discipline, now pointed at a live server instead of a static document. This turns "a skeletal agent whose routes can be exercised" (the port plan's own words) into one command instead of manual `curl` checks.
 **Verify:** `cargo run -p msc-agent -- serve --bind 127.0.0.1:48400 & sleep 1; python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$MSC_DEV_TOKEN"` → `ok <n>`, non-zero exit and a named route on any mismatch

@@ -812,7 +812,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Domain model extensions
 
 ### P2.9 — Port the operation domain types into `msc-domain`
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/operation.rs`, `crates/msc-domain/tests/operation.rs`, `crates/msc-domain/src/lib.rs`
 **What:** Implement P2.5's schema in Rust: `OperationId`, the closed `OperationState` enum with its legal-transition rules (`queued→running→{succeeded,failed}`; any non-terminal state `→cancelled`; terminal states accept no further transition), `OperationProgress` (step/total plus a human-readable status line), and a result type carrying either a typed success value or P2.4's `ErrorDTO` shape. **This is new MSC 2 construction, not a port** — MSC 1 has no operation-journal concept, so D-018's evidence-before-translation discipline (which governs *ported* behavior) doesn't apply here; there is no MSC 1 fixture to extract. Verified with hand-written Rust unit tests covering every legal transition and rejecting every illegal one.
 **Verify:** `cargo nextest run -p msc-domain operation` → all tests pass, including at least one illegal-transition rejection test

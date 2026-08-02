@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 3 complete (gate holds — 287 tests green on macOS/Linux/Windows CI; Codex review incorporated, documentation drift closed by P3.21) — Phase 4 next
-> **Next move:** PLAN (write the Phase 4 step list — Java lifecycle vertical slice)
+> ## STATUS: Phase 4 in progress — P4.1 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.1 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
-> **Last updated:** 2026-08-01
+> **Last updated:** 2026-08-02
 
 ---
 
@@ -54,7 +54,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 1 | Domain types and pure rules | complete |
 | 2 | API contract and operation model | complete |
 | 3 | Safety substrate | complete |
-| 4 | Java lifecycle vertical slice | not started |
+| 4 | Java lifecycle vertical slice | planned |
 | 5 | Configuration and migration | not started |
 | 6 | Worlds and backups | not started |
 | 7 | Server families and provisioning | not started |
@@ -1209,6 +1209,297 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Verify:** `grep -rn "DPAPI machine-scope answer\|Windows DPAPI and the macOS System-keychain\|Windows DPAPI machine-scope answer\|DPAPI.s machine scope and \`systemd-creds\`\|Windows DPAPI answer and the macOS System-keychain" docs/msc2/msc2-engineering.md docs/msc2/substrate/secret-storage.md docs/msc2/substrate/service-identity.md` → no matches (the five specific wrong phrasings Codex's review flagged are gone); `grep -n "P3.11 later found" docs/msc2/msc2-engineering.md` → one match
 **Commit:** `P3.21: fix DPAPI-scope and Linux secret-store documentation drift Codex's review found`
 **Batch:** solo
+
+---
+
+## Phase 4 — Java lifecycle vertical slice
+
+**Gate** (`msc2-port-plan.md` §3): one imported Paper server, end to end: import and detect · start · console · command · status and metrics · graceful stop · restart. Driven from the CLI **and the existing iOS app**. Headless service ownership proven on **macOS (LaunchDaemon), Linux (`systemd`), and Windows (Service)** — all three, not two. Closing every client changes nothing about the running server; on Windows, neither does signing out.
+
+**Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. The ledger points this phase mainly at `ServerProcessManager.swift`, `JavaServerBackend.swift`, `ServerLifecycleManager.swift`, `AppViewModel+ServerControls.swift`, `AppViewModel+OutputHandling.swift`, `AppViewModel+JavaProcessCleanup.swift`, `AppViewModel+ServerImport.swift`, `JavaProcessScanner.swift`, `JavaRuntimeManager.swift`, `ConsoleManager.swift`, `EULAManager.swift`, and `ServerPropertiesManager.swift`.
+
+**Phase 4 also absorbs four items deliberately deferred from Phase 3:** real `SecretStore`-backed pairing replaces the Phase 2 dev token; Linux's file-based `LinuxSecretStore` stand-in is either replaced by the privileged `systemd-creds` helper or explicitly reconfirmed; the macOS LaunchDaemon keychain/TCC questions are tested with a real daemon; and D-024 power management lands alongside real service lifecycle. The D-021 no-GUI-link check gets a home here because this is the first phase that produces real headless service artifacts.
+
+28 steps, ten groups:
+
+| Group | Steps | Deliverable |
+|---|---|---|
+| Phase scope and open decisions | P4.1–P4.4 | CLI packaging, real pairing scope, Linux privileged-helper decision, macOS LaunchDaemon unknowns turned into executable checks |
+| Real credentials | P4.5 | Pairing/token storage replaces `MSC_DEV_TOKEN` for real mutation |
+| Application lifecycle core | P4.6–P4.10 | `msc-application`, Paper import, launch command construction, process supervisor trait, real process implementations |
+| Console, status, metrics | P4.11–P4.15 | real console line framing/history/WS, command input, lifecycle state, performance snapshots, restart |
+| API and operation integration | P4.16–P4.17 | v1 lifecycle routes backed by real services, operation journal/exclusivity wired into lifecycle work |
+| CLI | P4.18 | `msc` commands for the vertical slice |
+| iOS | P4.19–P4.20 | copied iOS client drives the same real lifecycle slice |
+| Service ownership | P4.21–P4.24 | install/start/stop/status adapters for LaunchDaemon, `systemd`, Windows Service, including Windows Job Objects |
+| Power and packaging | P4.25–P4.26 | D-024 power policies and D-021 headless no-GUI-link verification |
+| Phase exit | P4.27–P4.28 | scripted live-server conformance plus final tri-platform gate check |
+
+**Not in this phase.** Server creation/provisioning beyond importing one existing Paper directory stays Phase 7. Full configuration/migration stays Phase 5. Worlds/backups stay Phase 6. Mods/plugins/modpacks stay Phase 8. Tauri/web UI stays Phase 11. Bedrock stays Phase 10. Remote desktop pairing, LAN TLS, Tailscale posture, and browser cookie/CSRF remain D-012 open items unless directly needed by the iOS/CLI local-network slice below.
+
+---
+
+### Phase scope and open decisions
+
+### P4.1 — Scope the Phase 4 vertical slice and service-proof plan
+**Status:** awaiting verification
+**Files:** `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Write the Phase 4 scoping note before code: exact definition of "one imported Paper server," which routes/CLI/iOS screens are in the slice, which MSC 1 symbols are the oracle, how service ownership will be proven on macOS/Linux/Windows, and which deferred Phase 3 items are now load-bearing. Include the open port-plan question "does the CLI ship inside the agent binary or separately?" with a recommendation; default recommendation is one binary with `serve` and CLI subcommands, matching D-002's "single binary per platform" wording unless Cameron overrules it.
+**Verify:** `grep -c '^##' docs/msc2/lifecycle/phase4-scope.md && grep -n 'CLI' docs/msc2/lifecycle/phase4-scope.md` → headings exist and the CLI packaging decision is recorded
+**Commit:** `P4.1: scope the Java lifecycle vertical slice`
+**Batch:** solo
+
+### P4.2 — Design real pairing and credential storage for the Phase 4 clients
+**Status:** not started
+**Files:** `docs/msc2/lifecycle/pairing-phase4.md`, `docs/msc2/msc2-decisions.md`
+**What:** Replace P2.3's fixed `MSC_DEV_TOKEN` scope with the real Phase 4 path: token issuance, token lookup in `SecretStore`, per-host key names, revocation shape, rate limiting on auth failures, audit attribution, and the copied iOS client's fresh-install empty-token bug from P2.20. Keep the design limited to the clients this phase actually drives (CLI and existing iOS app); do not silently close D-012's remaining desktop/browser/LAN/Tailscale/CSRF gaps.
+**Verify:** `grep -c 'MSC_DEV_TOKEN' docs/msc2/lifecycle/pairing-phase4.md && grep -c 'rate limit\|audit' docs/msc2/lifecycle/pairing-phase4.md` → dev-token retirement plus rate-limit/audit handling are explicitly covered
+**Commit:** `P4.2: design Phase 4 pairing and credential storage`
+**Batch:** solo
+
+### P4.3 — Decide the Linux privileged `systemd-creds` helper path
+**Status:** not started
+**Files:** `docs/msc2/substrate/secret-storage.md`, `docs/msc2/lifecycle/linux-credential-helper.md`, `docs/msc2/msc2-decisions.md`
+**What:** Turn P3.11's two-track Linux finding into a Phase 4 implementation decision: either build the privileged helper now, alongside real `systemd` service registration, or explicitly reconfirm the weaker file-based `LinuxSecretStore` stand-in for the Phase 4 gate with a revisit trigger. If building the helper, define its socket permissions, request protocol, install-time elevation boundary, and how it preserves P3.1's "routine operation needs no escalation" rule.
+**Verify:** `grep -E 'build the helper|reconfirm the file-based stand-in' docs/msc2/lifecycle/linux-credential-helper.md` → one explicit path chosen
+**Commit:** `P4.3: decide the Linux privileged credential-helper path`
+**Batch:** solo
+
+### P4.4 — Write executable checks for macOS LaunchDaemon keychain and TCC behavior
+**Status:** not started
+**Files:** `tools/phase4/macos-launchdaemon-check.sh`, `docs/msc2/substrate/service-identity.md`
+**What:** Build the live test P3.1/P3.8 could not run: install a minimal test LaunchDaemon with `UserName` set to the installing user, have it try the login keychain and System keychain paths, and have it touch a user-selected test directory so TCC behavior is observed rather than guessed. The script must uninstall its test daemon and leave no service behind. Record the observed result in `service-identity.md`; do not change the production default until the test says doing so is justified.
+**Verify:** `sudo tools/phase4/macos-launchdaemon-check.sh --dry-run` → prints the planned plist path, daemon label, and cleanup actions without installing anything
+**Commit:** `P4.4: build the macOS LaunchDaemon keychain and TCC checks`
+**Batch:** solo
+
+---
+
+### Real credentials
+
+### P4.5 — Wire `SecretStore` into agent auth and retire the dev token for real mutation
+**Status:** not started
+**Files:** `crates/msc-agent/src/auth/`, `crates/msc-api/src/`, `crates/msc-infrastructure/src/secret_store.rs`, `clients/ios/MSCRemoteiOS_Swift/`, `tools/contract-conformance-check.py`
+**What:** Implement P4.2's scoped real credential path: token issuance/loading through `SecretStore`, bearer verification from stored tokens, auth-failure rate limiting, audit-log entries for auth failures and lifecycle mutations, and removal of `MSC_DEV_TOKEN` from every route that can touch a real server. Fix the copied iOS client's empty-Keychain-token fallback so a fresh install can use the real pairing/token path instead of the P2.20 manual workaround.
+**Verify:** `cargo nextest run -p msc-agent auth_real_tokens && python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --expect-auth-store` → token-backed auth passes and dev-token fallback is not accepted for protected routes
+**Commit:** `P4.5: wire SecretStore into real agent authentication`
+**Batch:** stop-after
+
+---
+
+### Application lifecycle core
+
+### P4.6 — Scaffold `msc-application` and the lifecycle domain boundary
+**Status:** not started
+**Files:** `Cargo.toml`, `crates/msc-application/Cargo.toml`, `crates/msc-application/src/lib.rs`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/tests/lifecycle_state.rs`
+**What:** Add the application-service crate from `msc2-engineering.md` §6. Define the minimal lifecycle state and service boundary for one imported Java server: stopped, starting, running, stopping, crashed; active server identity; injected repositories/process supervisor/console sink; and no direct client/UI dependencies. This is the Rust replacement for the parts of `ServerLifecycleManager.swift` and `AppViewModel+ServerControls.swift` that gate real server state, not a full server-creation system.
+**Verify:** `cargo nextest run -p msc-application lifecycle_state` → lifecycle-state tests pass
+**Commit:** `P4.6: scaffold msc-application and lifecycle state`
+**Batch:** stop-after
+
+### P4.7 — Characterize Paper launch-command construction
+**Status:** not started
+**Files:** `fixtures/java-launch-paper/`, `crates/msc-application/src/java_launch.rs`, `crates/msc-application/tests/java_launch_paper.rs`
+**What:** Characterize the Paper subset of `ServerProcessManager.startServer`, `JavaServerBackend.swift`, `JavaServerLaunchHelper`, and the already-extracted `headless-script` launch fixtures: Java path validation result consumed from Phase 3, heap flags, sandbox-suppression JVM flags, user extra flags, `-jar` Paper jar path, working directory, and missing-jar failure. Do not pull Forge/NeoForge args-file behavior into this phase; that stays Phase 7.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-launch-paper --expect 8 && cargo nextest run -p msc-application java_launch_paper` → fixtures validate and Paper launch tests pass
+**Commit:** `P4.7: characterize Paper launch command construction`
+**Batch:** solo
+
+### P4.8 — Import and detect one existing Paper server directory
+**Status:** not started
+**Files:** `fixtures/paper-import/`, `crates/msc-application/src/import.rs`, `crates/msc-application/tests/paper_import.rs`
+**What:** Implement the narrow import path the Phase 4 gate requires, using `AppViewModel+ServerImport.swift`, `ServerEditorJarsTab.moddedServerIsInstalled`, `EULAManager.swift`, and `ServerPropertiesManager.swift` as the oracle: detect an existing Paper server folder, read `eula.txt`, preserve unknown `server.properties` keys through the Phase 1 property model, infer game port/max players/world name where available, assign a stable server id, and register it without copying or mutating the world. Transfer-package import and raw ZIP import stay Phase 5.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/paper-import --expect 6 && cargo nextest run -p msc-application paper_import` → import fixtures and tests pass
+**Commit:** `P4.8: import and detect an existing Paper server`
+**Batch:** solo
+
+### P4.9 — Build the process supervisor trait and fake process harness
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/process.rs`, `crates/msc-infrastructure/tests/process_supervisor.rs`, `crates/msc-application/tests/lifecycle_with_fake_process.rs`
+**What:** Define the process-supervisor abstraction that lifecycle code consumes: spawn with working directory/env/args, stream stdout/stderr bytes, write stdin commands, request graceful stop, force terminate, observe pid/exit status. Include a fake supervisor that can emit partial output chunks, hold trailing partial lines, accept commands, and simulate normal/crash exits so lifecycle tests do not need Java yet.
+**Verify:** `cargo nextest run -p msc-infrastructure process_supervisor && cargo nextest run -p msc-application lifecycle_with_fake_process` → fake process and lifecycle tests pass
+**Commit:** `P4.9: build the process supervisor trait and fake harness`
+**Batch:** solo
+
+### P4.10 — Implement real Java process supervisors for macOS/Linux and Windows
+**Status:** not started
+**Files:** `crates/msc-platform-macos/src/process.rs`, `crates/msc-platform-linux/src/process.rs`, `crates/msc-platform-windows/src/process.rs`, `crates/msc-platform-windows/tests/job_object.rs`
+**What:** Implement P4.9's trait on all three platforms. macOS/Linux use `tokio::process`/POSIX process groups where appropriate. Windows uses Job Objects so child-process cleanup is testable before the service layer, matching the §4B acceptance item "Job Object process trees." Preserve `ServerProcessManager` line-framing and termination callback ordering semantics where they are observable. No Bedrock process support in this step.
+**Verify:** `cargo nextest run --workspace process_supervisor_real` → platform-gated real supervisor tests pass on each native CI runner
+**Commit:** `P4.10: implement real Java process supervisors`
+**Batch:** stop-after
+
+---
+
+### Console, status, metrics
+
+### P4.11 — Port real console byte-stream framing and bounded history
+**Status:** not started
+**Files:** `fixtures/console-framing/`, `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-infrastructure/tests/console_framing.rs`, `crates/msc-agent/src/ws/console.rs`
+**What:** Port `ServerProcessManager.handleIncoming`/`flushPendingOutput` and the P0.24 console history contract against real fixtures: arbitrary byte chunks, mixed newline boundaries, trailing partial line flush on EOF, 5000-line backing buffer, 200-line WebSocket backfill, and `GET /v1/console/tail?n=` clamped 1-2000. Replace the Phase 2 demo ticker/backfill with lines from the real lifecycle console buffer.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/console-framing --expect 7 && cargo nextest run -p msc-infrastructure console_framing` → console framing/history tests pass
+**Commit:** `P4.11: port real console framing and bounded history`
+**Batch:** solo
+
+### P4.12 — Port command input semantics
+**Status:** not started
+**Files:** `fixtures/command-input/`, `crates/msc-application/src/commands.rs`, `crates/msc-application/tests/command_input.rs`
+**What:** Port the command-delivery behavior from `ServerProcessManager.sendCommand` and the `/command` baseline: reject missing/empty commands at the API layer, append a newline if missing, surface stdin write failures, and refuse commands when no server is running. Keep command autocomplete/catalog behavior where it already lives from Phase 1; this is delivery to the server process.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/command-input --expect 5 && cargo nextest run -p msc-application command_input` → command delivery tests pass
+**Commit:** `P4.12: port command input semantics`
+**Batch:** safe
+
+### P4.13 — Port lifecycle output parsing needed for ready/running state
+**Status:** not started
+**Files:** `fixtures/java-ready-state/`, `crates/msc-application/src/output_reducer.rs`, `crates/msc-application/tests/java_ready_state.rs`
+**What:** Port the Phase 4 subset of `AppViewModel+OutputHandling.handleServerOutputLine`: Paper ready detection (`Done (`), unexpected-stop/crash classification when readiness never happened, Java join/leave line parsing needed for session status, and the handoff to Phase 1 TPS parsing. Do not port Bedrock, broadcast, world-time, backups console waiters, or startup-diagnostic soft-failure scans beyond what this slice needs.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-ready-state --expect 8 && cargo nextest run -p msc-application java_ready_state` → ready-state/output reducer tests pass
+**Commit:** `P4.13: port Java lifecycle output parsing`
+**Batch:** solo
+
+### P4.14 — Implement status and performance snapshots for the active Paper server
+**Status:** not started
+**Files:** `crates/msc-application/src/status.rs`, `crates/msc-infrastructure/src/metrics.rs`, `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-application/tests/status_metrics.rs`
+**What:** Replace Phase 2's canned `/v1/status` and missing/canned `/v1/performance` behavior with real data from the lifecycle service: running state, active server id, pid, server type, current TPS sample, players online count, CPU/RAM where the platform can report it, configured RAM max, and world-size MB. Keep bounded histories per D-021; do not add unbounded metric storage.
+**Verify:** `cargo nextest run -p msc-application status_metrics && python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$(msc token print --test)" --routes status,performance` → status/metrics tests and live schema checks pass
+**Commit:** `P4.14: implement real status and performance snapshots`
+**Batch:** stop-after
+
+### P4.15 — Implement graceful stop and restart
+**Status:** not started
+**Files:** `fixtures/java-stop-restart/`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/tests/java_stop_restart.rs`
+**What:** Port the Phase 4 stop/restart behavior from `AppViewModel+ServerControls.swift` and `ServerProcessManager.requestStop`/`terminate`: send `stop`, wait for process exit, transition state correctly, preserve console closure behavior, and implement restart as stop-then-start with no duplicate launch. Force-stop UI prompts and backup-before-update semantics stay later phases unless needed to recover a failed graceful stop test.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-stop-restart --expect 6 && cargo nextest run -p msc-application java_stop_restart` → graceful stop/restart tests pass
+**Commit:** `P4.15: implement graceful stop and restart`
+**Batch:** solo
+
+---
+
+### API and operation integration
+
+### P4.16 — Back v1 lifecycle routes with the real lifecycle service
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/{servers,status,console,commands,lifecycle,performance}.rs`, `tools/contract-conformance-check.py`
+**What:** Wire the existing v1 contract to real application behavior for the Phase 4 route set: `GET /v1/servers`, `POST /v1/servers/import` for the Paper import path, `POST /v1/active-server`, `POST /v1/start`, `POST /v1/stop`, `POST /v1/command`, `GET /v1/status`, `GET /v1/performance`, `GET /v1/console/tail`, and the console WebSocket. Preserve the P2.4 `ErrorDTO` envelope and P2.1 permission categories.
+**Verify:** `python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$(msc token print --test)" --routes phase4-lifecycle` → every Phase 4 lifecycle route matches `openapi.json`
+**Commit:** `P4.16: wire real lifecycle behavior behind v1 routes`
+**Batch:** stop-after
+
+### P4.17 — Journal lifecycle operations and enforce exclusivity
+**Status:** not started
+**Files:** `crates/msc-application/src/operations.rs`, `crates/msc-infrastructure/src/operation_journal.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-application/tests/lifecycle_operations.rs`
+**What:** Connect Phase 3's operation journal/exclusivity to real lifecycle work. Start/import/restart get journal records before mutation begins; agent restart reconciles incomplete lifecycle work; same-server conflicting operations are refused with `operation_conflict`; operation-progress WebSocket frames reflect real lifecycle progress instead of P2.14's demo operation.
+**Verify:** `cargo nextest run -p msc-application lifecycle_operations && python3 tools/phase4/live-operation-restart-check.py --base-url http://127.0.0.1:48400` → operation tests and live restart reconciliation pass
+**Commit:** `P4.17: journal lifecycle operations and enforce exclusivity`
+**Batch:** solo
+
+---
+
+### CLI
+
+### P4.18 — Add CLI commands for the Java lifecycle slice
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/cli_lifecycle.rs`
+**What:** Implement the Phase 4 CLI surface in the same binary unless P4.1 chooses otherwise: `msc serve`, `msc token`/pairing helpers needed for this phase, `msc server import`, `msc server start`, `msc server stop`, `msc server restart`, `msc command`, `msc status`, `msc console tail`, and `--json` output where `msc2-engineering.md` §4 requires it. The CLI talks through the same HTTP API path the clients use; it does not call application services directly except for `serve`.
+**Verify:** `cargo nextest run -p msc-agent cli_lifecycle && tools/phase4/cli-lifecycle-smoke.sh` → CLI tests and smoke flow pass
+**Commit:** `P4.18: add CLI commands for the Java lifecycle slice`
+**Batch:** stop-after
+
+---
+
+### iOS
+
+### P4.19 — Repoint iOS models and networking for Phase 4 lifecycle routes
+**Status:** not started
+**Files:** `clients/ios/MSCRemoteiOS_Swift/`
+**What:** Expand the copied iOS client beyond P2.19's status-only call: real token storage/pairing from P4.5, server list, active-server selection, start/stop/restart, command send, console tail/stream where the existing app has the surface, and performance/status display. Keep the MSC 1 oracle copy untouched. Hand-written models are still allowed for this phase only; codegen remains a later audit item unless Cameron promotes it now.
+**Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS build` → `BUILD SUCCEEDED`
+**Commit:** `P4.19: repoint iOS lifecycle networking at the real agent`
+**Batch:** solo
+
+### P4.20 — iOS drives the imported Paper server end to end
+**Status:** not started
+**Files:** `tools/phase4/ios-lifecycle-check.md`, `docs/msc2/rolling-plan.md`
+**What:** Verification-support step for the iOS side of the gate. Write a short repeatable checklist Cameron can run in the simulator or on device: pair, see imported Paper server, start it, watch status become running, send a command, see console output, stop, restart. Record the observed result in this step's note during execution; no production code changes in this step unless the check finds a bug, in which case stop and fix within this step before committing.
+**Verify:** `test -f tools/phase4/ios-lifecycle-check.md && grep -c 'start.*command.*stop.*restart' tools/phase4/ios-lifecycle-check.md` → checklist exists and covers the gate actions
+**Commit:** `P4.20: document the iOS lifecycle gate check`
+**Batch:** stop-after
+
+---
+
+### Service ownership
+
+### P4.21 — Service manager trait and install/status command model
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/service.rs`, `crates/msc-agent/src/cli/service.rs`, `crates/msc-infrastructure/tests/service_model.rs`
+**What:** Define the shared service-management model used by all platform adapters: install, uninstall, start, stop, status, service log path, configured run user, binary path, working directory, environment, and expected port. The CLI exposes these as explicit admin/install commands so Phase 4 service tests do not depend on the GUI. This is the cross-platform contract; no platform registration yet.
+**Verify:** `cargo nextest run -p msc-infrastructure service_model` → service model tests pass
+**Commit:** `P4.21: define the service manager trait and CLI model`
+**Batch:** solo
+
+### P4.22 — macOS LaunchDaemon service ownership
+**Status:** not started
+**Files:** `crates/msc-platform-macos/src/service.rs`, `tools/phase4/macos-service-lifecycle.sh`, `crates/msc-platform-macos/tests/service_plist.rs`
+**What:** Implement LaunchDaemon plist generation/install/start/stop/status for the agent running as the installing user via `UserName`, not LaunchAgent. The integration script installs the service, starts the imported Paper server through it, confirms the server process survives closing the CLI/iOS clients, runs P4.4's keychain/TCC checks in the real daemon context, then uninstalls cleanly.
+**Verify:** `sudo tools/phase4/macos-service-lifecycle.sh --server-dir "$MSC2_PHASE4_PAPER_SERVER"` → LaunchDaemon installs, runs server, survives client exit, and uninstalls cleanly
+**Commit:** `P4.22: prove macOS LaunchDaemon service ownership`
+**Batch:** solo
+
+### P4.23 — Linux `systemd` service ownership and credential helper
+**Status:** not started
+**Files:** `crates/msc-platform-linux/src/service.rs`, `crates/msc-platform-linux/src/credential_helper.rs`, `tools/phase4/linux-service-lifecycle.sh`, `crates/msc-platform-linux/tests/systemd_unit.rs`
+**What:** Implement `systemd` unit generation/install/start/stop/status for the agent running as the installing user, plus the P4.3 Linux credential-helper path if selected. The integration script targets Debian 12/systemd >= 250, starts the imported Paper server through the service, confirms client exit does not stop it, checks helper/socket permissions when present, then uninstalls cleanly.
+**Verify:** `sudo tools/phase4/linux-service-lifecycle.sh --server-dir "$MSC2_PHASE4_PAPER_SERVER"` → `systemd` service and credential-helper checks pass
+**Commit:** `P4.23: prove Linux systemd service ownership`
+**Batch:** solo
+
+### P4.24 — Windows Service ownership, Job Objects, and sign-out survival check
+**Status:** not started
+**Files:** `crates/msc-platform-windows/src/service.rs`, `tools/phase4/windows-service-lifecycle.ps1`, `crates/msc-platform-windows/tests/service_definition.rs`
+**What:** Implement Windows Service registration/start/stop/status for the agent running as the installing user, with lifecycle-owned Java processes assigned to Job Objects. The PowerShell script installs the service, starts the imported Paper server, verifies client exit does not stop it, records a checkpoint for Cameron to sign out and back in, then verifies the service/server survived and uninstalls cleanly. CI can verify service definition and Job Object behavior; the real sign-out proof is a Cameron-run Windows check.
+**Verify:** `powershell -ExecutionPolicy Bypass -File tools/phase4/windows-service-lifecycle.ps1 -ServerDir $env:MSC2_PHASE4_PAPER_SERVER` → service starts the server, survives the scripted client-exit check, and reports the sign-out checkpoint result
+**Commit:** `P4.24: prove Windows Service ownership and sign-out survival`
+**Batch:** solo
+
+---
+
+### Power and packaging
+
+### P4.25 — Implement D-024 power-management policies
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/power.rs`, `crates/msc-platform-macos/src/power.rs`, `crates/msc-platform-linux/src/power.rs`, `crates/msc-platform-windows/src/power.rs`, `tools/phase4/power-policy-check.*`
+**What:** Implement the two host-role policies confirmed for Phase 4: dedicated/headless host prevents sleep whenever remote management is enabled; normal desktop prevents sleep only while a server or critical operation is running. macOS uses `IOPMAssertion`, Windows uses `SetThreadExecutionState`, Linux uses `systemd-inhibit`. Add warning probes for known incompatible configurations where they can be detected without making claims the platform cannot support. This step proves the "remote-starting a stopped server" premise D-024 exists for.
+**Verify:** `cargo nextest run --workspace power_policy && tools/phase4/power-policy-check.sh --dry-run` → policy state-machine tests pass and platform check reports intended inhibitor actions
+**Commit:** `P4.25: implement Phase 4 power-management policies`
+**Batch:** solo
+
+### P4.26 — Headless package no-GUI-link verification
+**Status:** not started
+**Files:** `.github/workflows/ci.yml`, `tools/phase4/headless-link-check.py`, `docs/msc2/rolling-plan.md`
+**What:** Give D-021 requirement #1 a concrete home: build headless artifacts for macOS/Linux/Windows and mechanically verify they link no GUI frameworks or desktop dependencies. macOS checks should reject AppKit/window-server linkage in the agent package; Linux checks should reject X11/Wayland/GTK/KDE dependencies; Windows checks should reject GUI subsystem linkage for the headless binary. This is packaging verification only, not the Tauri app.
+**Verify:** `python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` → all three headless artifacts pass the no-GUI-link checks
+**Commit:** `P4.26: add headless no-GUI-link verification`
+**Batch:** solo
+
+---
+
+### Phase exit
+
+### P4.27 — Live Paper lifecycle conformance check
+**Status:** not started
+**Files:** `tools/phase4/live-paper-lifecycle-check.py`, `corpus/server-dirs/README.md`
+**What:** Build one command that drives the whole non-service vertical slice against a real imported Paper server directory: import/detect, set active server, start, observe console ready line, query status/performance, send `say` command, read console tail/WebSocket, stop gracefully, restart, and stop again. The script uses the public API/CLI, not internal Rust functions, so it verifies the same path iOS and CLI consume. It requires Cameron to provide or point at a real Paper server directory; do not fabricate a server corpus.
+**Verify:** `python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48400` → all lifecycle actions pass
+**Commit:** `P4.27: build the live Paper lifecycle conformance check`
+**Batch:** stop-after
+
+### P4.28 — Phase 4 exit gate check
+**Status:** not started
+**Files:** none (verification only unless a gate bug is found)
+**What:** Run the full Phase 4 gate together: formatting, clippy, workspace tests, API contract checks, live Paper lifecycle check, CLI smoke check, iOS lifecycle checklist, macOS LaunchDaemon service check, Linux `systemd` service check, Windows Service/sign-out check, D-024 power-policy check, and D-021 no-GUI-link verification. Confirm the imported Paper server remains running when clients close and under each platform service manager. If any item fails, stop and fix only the failing gate item; do not advance to Phase 5.
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace && python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48400 && python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` → all local checks green; platform service scripts and iOS/Windows manual checks recorded in this step's execution note
+**Commit:** `P4.28: run the Phase 4 exit gate check`
+**Batch:** stop-after
 
 ---
 

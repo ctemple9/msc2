@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.11 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.11 Verify command)
+> ## STATUS: Phase 4 in progress — P4.13 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.13 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1334,7 +1334,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Console, status, metrics
 
 ### P4.11 — Port real console byte-stream framing and bounded history
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/console-framing/`, `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-infrastructure/tests/console_framing.rs`, `crates/msc-agent/src/ws/console.rs`
 **What:** Port `ServerProcessManager.handleIncoming`/`flushPendingOutput` and the P0.24 console history contract against real fixtures: arbitrary byte chunks, mixed newline boundaries, trailing partial line flush on EOF, 5000-line backing buffer, 200-line WebSocket backfill, and `GET /v1/console/tail?n=` clamped 1-2000. Replace the Phase 2 demo ticker/backfill with lines from the real lifecycle console buffer.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/console-framing --expect 7 && cargo nextest run -p msc-infrastructure console_framing` → console framing/history tests pass
@@ -1342,7 +1342,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.12 — Port command input semantics
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/command-input/`, `crates/msc-application/src/commands.rs`, `crates/msc-application/tests/command_input.rs`
 **What:** Port the command-delivery behavior from `ServerProcessManager.sendCommand` and the `/command` baseline: reject missing/empty commands at the API layer, append a newline if missing, surface stdin write failures, and refuse commands when no server is running. Keep command autocomplete/catalog behavior where it already lives from Phase 1; this is delivery to the server process.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/command-input --expect 5 && cargo nextest run -p msc-application command_input` → command delivery tests pass
@@ -1350,7 +1350,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** safe
 
 ### P4.13 — Port lifecycle output parsing needed for ready/running state
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/java-ready-state/`, `crates/msc-application/src/output_reducer.rs`, `crates/msc-application/tests/java_ready_state.rs`
 **What:** Port the Phase 4 subset of `AppViewModel+OutputHandling.handleServerOutputLine`: Paper ready detection (`Done (`), unexpected-stop/crash classification when readiness never happened, Java join/leave line parsing needed for session status, and the handoff to Phase 1 TPS parsing. Do not port Bedrock, broadcast, world-time, backups console waiters, or startup-diagnostic soft-failure scans beyond what this slice needs.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-ready-state --expect 8 && cargo nextest run -p msc-application java_ready_state` → ready-state/output reducer tests pass

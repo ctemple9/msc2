@@ -1,0 +1,21 @@
+{
+  "domain": "java-ready-state",
+  "case": "exit-after-ready-is-stopped-after-ready",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "diagnoseUnexpectedStop treats post-ready exit separately from startup hard fail",
+    "line": 181
+  },
+  "input": {
+    "lines": [
+      "[12:00:00] [Server thread/INFO]: Done (1.234s)! For help, type \"help\"",
+      "[12:05:00] [Server thread/ERROR]: Encountered an unexpected exception"
+    ],
+    "processExit": {"code": 1}
+  },
+  "expected": {
+    "events": ["ready"],
+    "reachedReady": true,
+    "stopKind": "stopped_after_ready"
+  }
+}

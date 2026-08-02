@@ -1,0 +1,100 @@
+//! Java lifecycle console-line reducer for the Phase 4 vertical slice.
+//!
+//! MSC 1 hangs several side effects off each sanitized console line. This
+//! reducer ports only the Java lifecycle subset needed before status snapshots:
+//! ready detection, Java join/leave events, TPS samples, and the distinction
+//! between "never reached ready" startup failures and later unexpected stops.
+
+use msc_domain::tps;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum OutputEvent {
+    Ready,
+    PlayerJoined(String),
+    PlayerLeft(String),
+    TpsSample(tps::Sample),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UnexpectedStopKind {
+    StartupFailedBeforeReady,
+    StoppedAfterReady,
+}
+
+#[derive(Debug, Default)]
+pub struct JavaOutputReducer {
+    reached_ready: bool,
+    online_players: Vec<String>,
+}
+
+impl JavaOutputReducer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn reached_ready(&self) -> bool {
+        self.reached_ready
+    }
+
+    pub fn online_players(&self) -> &[String] {
+        &self.online_players
+    }
+
+    pub fn process_line(&mut self, clean: &str) -> Vec<OutputEvent> {
+        let mut events = Vec::new();
+
+        if !self.reached_ready && is_paper_ready_line(clean) {
+            self.reached_ready = true;
+            events.push(OutputEvent::Ready);
+        }
+
+        if let Some(sample) = tps::parse(clean) {
+            events.push(OutputEvent::TpsSample(sample));
+        }
+
+        if let Some(name) = parse_java_player_name(clean, " joined the game") {
+            self.upsert_online_player(&name);
+            events.push(OutputEvent::PlayerJoined(name));
+        } else if let Some(name) = parse_java_player_name(clean, " left the game") {
+            self.remove_online_player(&name);
+            events.push(OutputEvent::PlayerLeft(name));
+        }
+
+        events
+    }
+
+    pub fn classify_unexpected_stop(&self) -> UnexpectedStopKind {
+        if self.reached_ready {
+            UnexpectedStopKind::StoppedAfterReady
+        } else {
+            UnexpectedStopKind::StartupFailedBeforeReady
+        }
+    }
+
+    fn upsert_online_player(&mut self, name: &str) {
+        if let Some(existing) = self
+            .online_players
+            .iter_mut()
+            .find(|existing| existing.eq_ignore_ascii_case(name))
+        {
+            *existing = name.to_string();
+        } else {
+            self.online_players.push(name.to_string());
+        }
+    }
+
+    fn remove_online_player(&mut self, name: &str) {
+        self.online_players
+            .retain(|existing| !existing.eq_ignore_ascii_case(name));
+    }
+}
+
+pub fn is_paper_ready_line(clean: &str) -> bool {
+    clean.contains("Done (")
+}
+
+pub fn parse_java_player_name(clean: &str, marker: &str) -> Option<String> {
+    let before_marker = clean.split_once(marker)?.0;
+    let name = before_marker.split_whitespace().last()?.trim();
+    (!name.is_empty()).then(|| name.to_string())
+}

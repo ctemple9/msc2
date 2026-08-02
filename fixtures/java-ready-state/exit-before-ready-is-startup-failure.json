@@ -1,0 +1,21 @@
+{
+  "domain": "java-ready-state",
+  "case": "exit-before-ready-is-startup-failure",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "diagnoseUnexpectedStop treats pre-ready exit as hard fail",
+    "line": 181
+  },
+  "input": {
+    "lines": [
+      "[12:00:00] [Server thread/INFO]: Starting minecraft server version 1.21.4",
+      "[12:00:01] [Server thread/ERROR]: Failed to bind to port"
+    ],
+    "processExit": {"code": 1}
+  },
+  "expected": {
+    "events": [],
+    "reachedReady": false,
+    "stopKind": "startup_failed_before_ready"
+  }
+}

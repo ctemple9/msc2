@@ -1,0 +1,20 @@
+{
+  "domain": "java-ready-state",
+  "case": "java-leave-line-removes-online-player",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseJavaPlayerEvent extracts the last token before left the game",
+    "line": 634
+  },
+  "input": {
+    "lines": [
+      "[12:00:02] [Server thread/INFO]: camkage joined the game",
+      "[12:03:10] [Server thread/INFO]: camkage left the game"
+    ]
+  },
+  "expected": {
+    "events": ["player_joined", "player_left"],
+    "player": "camkage",
+    "onlinePlayers": []
+  }
+}

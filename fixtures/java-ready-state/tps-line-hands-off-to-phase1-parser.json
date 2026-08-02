@@ -1,0 +1,20 @@
+{
+  "domain": "java-ready-state",
+  "case": "tps-line-hands-off-to-phase1-parser",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseTps delegates to TpsLineParser.parse",
+    "line": 372
+  },
+  "input": {
+    "lines": ["[12:00:03] [Server thread/INFO]: TPS from last 1m, 5m, 15m: 19.98, 20.0, 20.0"]
+  },
+  "expected": {
+    "events": ["tps_sample"],
+    "sample": {
+      "t1": 19.98,
+      "t5": 20.0,
+      "t15": 20.0
+    }
+  }
+}

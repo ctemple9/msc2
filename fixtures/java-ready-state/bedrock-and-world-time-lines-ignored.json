@@ -1,0 +1,20 @@
+{
+  "domain": "java-ready-state",
+  "case": "bedrock-and-world-time-lines-ignored",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "Phase 4 Java reducer does not port Bedrock ready or world-time waiters",
+    "line": 17
+  },
+  "input": {
+    "lines": [
+      "[INFO] Server started.",
+      "[12:00:04] [Server thread/INFO]: The game time is 24000 tick(s)",
+      "[12:00:05] [Server thread/INFO]: Timeline minecraft:day is at 1000 tick(s)"
+    ]
+  },
+  "expected": {
+    "events": [],
+    "reachedReady": false
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "java-ready-state",
+  "case": "paper-done-line-marks-ready",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "Paper ready detection sets serverReadyForAutoMetrics",
+    "line": 41
+  },
+  "input": {
+    "lines": ["[12:00:00] [Server thread/INFO]: Done (1.234s)! For help, type \"help\""]
+  },
+  "expected": {
+    "events": ["ready"],
+    "reachedReady": true
+  }
+}

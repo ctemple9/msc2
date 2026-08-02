@@ -1,0 +1,17 @@
+{
+  "domain": "java-ready-state",
+  "case": "java-join-line-parses-player-name",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseJavaPlayerEvent extracts the last token before joined the game",
+    "line": 625
+  },
+  "input": {
+    "lines": ["[12:00:02] [Server thread/INFO]: camkage joined the game"]
+  },
+  "expected": {
+    "events": ["player_joined"],
+    "player": "camkage",
+    "onlinePlayers": ["camkage"]
+  }
+}

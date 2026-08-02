@@ -1,0 +1,19 @@
+{
+  "domain": "java-ready-state",
+  "case": "ready-is-emitted-once",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "ready block is guarded by serverReadyForAutoMetrics",
+    "line": 79
+  },
+  "input": {
+    "lines": [
+      "[12:00:00] [Server thread/INFO]: Done (1.234s)! For help, type \"help\"",
+      "[12:00:01] [Server thread/INFO]: Done (1.500s)! For help, type \"help\""
+    ]
+  },
+  "expected": {
+    "events": ["ready"],
+    "reachedReady": true
+  }
+}

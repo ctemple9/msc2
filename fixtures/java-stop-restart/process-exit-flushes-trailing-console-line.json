@@ -1,0 +1,18 @@
+{
+  "domain": "java-stop-restart",
+  "case": "process-exit-flushes-trailing-console-line",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "terminationHandler flushes pending output before termination callback",
+    "line": 270
+  },
+  "input": {
+    "initialState": "running",
+    "action": "stop",
+    "stdoutChunks": ["Saving chunks"]
+  },
+  "expected": {
+    "flushedConsoleLines": ["Saving chunks"],
+    "stateAfterExit": "stopped"
+  }
+}

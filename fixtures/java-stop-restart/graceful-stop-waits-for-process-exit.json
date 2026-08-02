@@ -1,0 +1,19 @@
+{
+  "domain": "java-stop-restart",
+  "case": "graceful-stop-waits-for-process-exit",
+  "source": {
+    "file": "AppViewModel.swift",
+    "test": "onDidTerminate clears running state",
+    "line": 1142
+  },
+  "input": {
+    "initialState": "running",
+    "action": "stop",
+    "processExit": {"code": 0}
+  },
+  "expected": {
+    "stateBeforeExit": "stopping",
+    "stateAfterExit": "stopped",
+    "activeProcessAfterExit": null
+  }
+}

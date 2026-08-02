@@ -1,0 +1,19 @@
+{
+  "domain": "java-stop-restart",
+  "case": "stop-write-failure-keeps-running",
+  "source": {
+    "file": "AppViewModel+ServerControls.swift",
+    "test": "Stop Failed path leaves process running",
+    "line": 285
+  },
+  "input": {
+    "initialState": "running",
+    "action": "stop",
+    "stdinFailure": "broken pipe"
+  },
+  "expected": {
+    "errorContains": "broken pipe",
+    "stateAfterRequest": "running",
+    "stdinWrites": []
+  }
+}

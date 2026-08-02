@@ -1,0 +1,18 @@
+{
+  "domain": "java-stop-restart",
+  "case": "graceful-stop-sends-stop-and-enters-stopping",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "requestStop sends stop over stdin",
+    "line": 343
+  },
+  "input": {
+    "initialState": "running",
+    "action": "stop"
+  },
+  "expected": {
+    "stateAfterRequest": "stopping",
+    "stdinWrites": ["stop\n"],
+    "spawnCount": 1
+  }
+}

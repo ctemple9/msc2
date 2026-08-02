@@ -185,6 +185,7 @@ pub struct LifecycleService<'deps> {
     state: LifecycleState,
     output_reducer: JavaOutputReducer,
     latest_tps: Option<tps::Sample>,
+    pending_restart: Option<ProcessSpawnRequest>,
 }
 
 impl<'deps> LifecycleService<'deps> {
@@ -203,6 +204,7 @@ impl<'deps> LifecycleService<'deps> {
             state: LifecycleState::Stopped,
             output_reducer: JavaOutputReducer::new(),
             latest_tps: None,
+            pending_restart: None,
         }
     }
 
@@ -284,6 +286,7 @@ impl<'deps> LifecycleService<'deps> {
         self.active_ram_max_mb = ram_max_mb;
         self.output_reducer = JavaOutputReducer::new();
         self.latest_tps = None;
+        self.pending_restart = None;
         self.console
             .append_system_line(&id, &format!("Starting server: {}", server.name));
         Ok(pid)
@@ -304,6 +307,23 @@ impl<'deps> LifecycleService<'deps> {
         self.process_supervisor.request_graceful_stop(pid)?;
         self.state = next;
         self.console.append_system_line(&id, "Stopping server.");
+        Ok(())
+    }
+
+    pub fn restart_active_server(
+        &mut self,
+        launch: ProcessSpawnRequest,
+    ) -> Result<(), LifecycleError> {
+        let id = self.active_server_id()?.clone();
+        let next = self
+            .state
+            .transition_to(LifecycleState::Stopping)
+            .map_err(LifecycleError::IllegalTransition)?;
+        let pid = self.active_process_id()?;
+        self.process_supervisor.request_graceful_stop(pid)?;
+        self.state = next;
+        self.pending_restart = Some(launch);
+        self.console.append_system_line(&id, "Restarting server.");
         Ok(())
     }
 
@@ -343,7 +363,13 @@ impl<'deps> LifecycleService<'deps> {
             LifecycleState::Starting | LifecycleState::Running => LifecycleState::Crashed,
             LifecycleState::Stopped | LifecycleState::Crashed => return Ok(()),
         };
-        self.transition_to(next)
+        self.transition_to(next)?;
+
+        if let Some(launch) = self.pending_restart.take() {
+            self.start_active_server(launch)?;
+        }
+
+        Ok(())
     }
 
     pub fn handle_process_event(

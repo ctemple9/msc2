@@ -1,0 +1,19 @@
+{
+  "domain": "java-stop-restart",
+  "case": "restart-sends-stop-and-defers-launch-until-exit",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "terminationHandler owns lifecycle completion",
+    "line": 276
+  },
+  "input": {
+    "initialState": "running",
+    "action": "restart"
+  },
+  "expected": {
+    "stateAfterRequest": "stopping",
+    "stdinWrites": ["stop\n"],
+    "spawnCountBeforeExit": 1,
+    "duplicateRestartRejected": true
+  }
+}

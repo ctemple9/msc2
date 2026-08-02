@@ -1,0 +1,20 @@
+{
+  "domain": "java-stop-restart",
+  "case": "restart-starts-new-process-after-exit",
+  "source": {
+    "file": "AppViewModel+ServerControls.swift",
+    "test": "restart is stop then start with already-running guard",
+    "line": 77
+  },
+  "input": {
+    "initialState": "running",
+    "action": "restart",
+    "processExit": {"code": 0}
+  },
+  "expected": {
+    "stateAfterExit": "starting",
+    "spawnCountAfterExit": 2,
+    "oldPid": 1000,
+    "newPid": 1001
+  }
+}

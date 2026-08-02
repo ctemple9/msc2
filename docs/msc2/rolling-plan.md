@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.14 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.14 Verify command)
+> ## STATUS: Phase 4 in progress — P4.15 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.15 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1358,7 +1358,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.14 — Implement status and performance snapshots for the active Paper server
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/status.rs`, `crates/msc-infrastructure/src/metrics.rs`, `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-application/tests/status_metrics.rs`
 **What:** Replace Phase 2's canned `/v1/status` and missing/canned `/v1/performance` behavior with real data from the lifecycle service: running state, active server id, pid, server type, current TPS sample, players online count, CPU/RAM where the platform can report it, configured RAM max, and world-size MB. Keep bounded histories per D-021; do not add unbounded metric storage.
 **Verify:** `cargo nextest run -p msc-application status_metrics && cargo nextest run -p msc-agent status_performance_routes && cargo nextest run -p msc-api dto_conformance_performance_snapshot_matches_schema && python3 tools/contract-conformance-check.py --selftest` → status/metrics tests, route serialization, DTO schema, and checker self-test pass
@@ -1366,7 +1366,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P4.15 — Implement graceful stop and restart
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/java-stop-restart/`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/tests/java_stop_restart.rs`
 **What:** Port the Phase 4 stop/restart behavior from `AppViewModel+ServerControls.swift` and `ServerProcessManager.requestStop`/`terminate`: send `stop`, wait for process exit, transition state correctly, preserve console closure behavior, and implement restart as stop-then-start with no duplicate launch. Force-stop UI prompts and backup-before-update semantics stay later phases unless needed to recover a failed graceful stop test.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-stop-restart --expect 6 && cargo nextest run -p msc-application java_stop_restart` → graceful stop/restart tests pass

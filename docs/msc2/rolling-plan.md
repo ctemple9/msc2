@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 3 planned (20 steps written; two blocking Open items — D-025 service identity, D-012's Linux secret-storage gap — scoped as the phase's own first steps, not silently resolved) — Read next
-> **Next move:** READ (Cameron reviews the Phase 3 plan — P3.1–P3.3's judgment calls are the ones that matter most before execution starts)
+> ## STATUS: Phase 3 complete (gate holds — 287 tests green on macOS/Linux/Windows CI; Codex review incorporated, documentation drift closed by P3.21) — Phase 4 next
+> **Next move:** PLAN (write the Phase 4 step list — Java lifecycle vertical slice)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-01
 
@@ -53,7 +53,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **0** | Freeze the baseline and build the harness | complete |
 | 1 | Domain types and pure rules | complete |
 | 2 | API contract and operation model | complete |
-| 3 | Safety substrate | planned |
+| 3 | Safety substrate | complete |
 | 4 | Java lifecycle vertical slice | not started |
 | 5 | Configuration and migration | not started |
 | 6 | Worlds and backups | not started |

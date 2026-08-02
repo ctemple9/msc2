@@ -1342,7 +1342,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.12 — Port command input semantics
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/command-input/`, `crates/msc-application/src/commands.rs`, `crates/msc-application/tests/command_input.rs`
 **What:** Port the command-delivery behavior from `ServerProcessManager.sendCommand` and the `/command` baseline: reject missing/empty commands at the API layer, append a newline if missing, surface stdin write failures, and refuse commands when no server is running. Keep command autocomplete/catalog behavior where it already lives from Phase 1; this is delivery to the server process.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/command-input --expect 5 && cargo nextest run -p msc-application command_input` → command delivery tests pass

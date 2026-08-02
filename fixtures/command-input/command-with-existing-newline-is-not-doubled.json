@@ -1,0 +1,17 @@
+{
+  "domain": "command-input",
+  "case": "command-with-existing-newline-is-not-doubled",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "sendCommand adds newline",
+    "line": 315
+  },
+  "input": {
+    "state": "running",
+    "command": "say hi\n"
+  },
+  "expected": {
+    "stdinBytes": [115, 97, 121, 32, 104, 105, 10]
+  },
+  "notes": "The API path trims user input before delivery, so MSC 1's Java path normally never sees a trailing newline. MSC 2 keeps delivery idempotent here so a direct caller cannot accidentally send a blank command after the intended one."
+}

@@ -1,0 +1,28 @@
+{
+  "domain": "command-input",
+  "case": "api-validation-rejects-missing-and-empty",
+  "source": {
+    "file": "RemoteAPIServer+HTTP.swift",
+    "test": "POST /command validation",
+    "line": 672
+  },
+  "input": {
+    "requests": [
+      {},
+      {
+        "command": "   \n\t "
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "error": "missing_command"
+      },
+      {
+        "error": "missing_command"
+      }
+    ]
+  },
+  "notes": "MSC 1 rejects an empty /command body as missing_body, then rejects a present-but-blank command field as missing_command after trimming whitespace. P4.12 owns the command-field validation; body-level JSON errors stay with the API route wiring in P4.16."
+}

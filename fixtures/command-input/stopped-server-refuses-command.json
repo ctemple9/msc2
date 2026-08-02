@@ -1,0 +1,17 @@
+{
+  "domain": "command-input",
+  "case": "stopped-server-refuses-command",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "sendCommand requires running process",
+    "line": 319
+  },
+  "input": {
+    "state": "stopped",
+    "command": "say hi"
+  },
+  "expected": {
+    "error": "server_not_running",
+    "stdinWrites": []
+  }
+}

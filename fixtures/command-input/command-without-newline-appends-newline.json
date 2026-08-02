@@ -1,0 +1,16 @@
+{
+  "domain": "command-input",
+  "case": "command-without-newline-appends-newline",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "sendCommand adds newline",
+    "line": 315
+  },
+  "input": {
+    "state": "running",
+    "command": "say hi"
+  },
+  "expected": {
+    "stdinBytes": [115, 97, 121, 32, 104, 105, 10]
+  }
+}

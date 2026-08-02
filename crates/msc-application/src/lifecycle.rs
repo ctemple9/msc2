@@ -120,6 +120,7 @@ pub enum LifecycleError {
     NoActiveServer,
     ServerNotFound(ServerId),
     AlreadyInState(LifecycleState),
+    ServerNotRunning,
     WrongActiveServer {
         expected: ServerId,
         actual: ServerId,
@@ -135,6 +136,7 @@ impl fmt::Display for LifecycleError {
             Self::NoActiveServer => write!(f, "no active server selected"),
             Self::ServerNotFound(id) => write!(f, "server not found: {}", id.as_str()),
             Self::AlreadyInState(state) => write!(f, "server is already {}", state.raw_value()),
+            Self::ServerNotRunning => write!(f, "server is not running"),
             Self::WrongActiveServer { expected, actual } => write!(
                 f,
                 "event for server {} does not match active server {}",
@@ -248,6 +250,16 @@ impl<'deps> LifecycleService<'deps> {
         self.process_supervisor.request_graceful_stop(pid)?;
         self.state = next;
         self.console.append_system_line(&id, "Stopping server.");
+        Ok(())
+    }
+
+    pub fn send_command(&self, command: &str) -> Result<(), LifecycleError> {
+        if self.state != LifecycleState::Running {
+            return Err(LifecycleError::ServerNotRunning);
+        }
+        let pid = self.active_process_id()?;
+        let payload = crate::commands::stdin_payload(command);
+        self.process_supervisor.write_stdin(pid, &payload)?;
         Ok(())
     }
 

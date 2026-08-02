@@ -1,0 +1,17 @@
+{
+  "domain": "command-input",
+  "case": "stdin-write-failure-surfaces",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "sendCommand surfaces write failure",
+    "line": 329
+  },
+  "input": {
+    "state": "running",
+    "command": "say hi",
+    "stdinFailure": "broken pipe"
+  },
+  "expected": {
+    "errorContains": "broken pipe"
+  }
+}

@@ -69,13 +69,31 @@ Whether a macOS LaunchDaemon touching a user's Documents folder or an external v
 
 For a genuine multi-admin dedicated host with no single "owning" desktop user, running the agent as a dedicated service account (with explicit group-based ownership handoff for server directories) is a real, coherent alternative. It is **not** built in v1 — D-011's own rationale is a single-owner machine, and building the group/ACL machinery a dedicated account requires, for a scenario this product doesn't yet target, would be exactly the kind of premature generality this project's own conventions warn against. Recorded here as a named **v1.1 option**, not silently foreclosed.
 
-## 6. Summary — status of each of D-025's six questions after this step
+## 6. Phase 4 executable macOS check
+
+P4.4 adds `tools/phase4/macos-launchdaemon-check.sh`, a live check for the two macOS questions this document deliberately left open in Phase 3. It installs a short-lived LaunchDaemon with `UserName` set to the installing user, runs a one-shot worker under that daemon identity, records the result, then unloads and removes the test daemon.
+
+The worker checks three things:
+
+- Login keychain behavior: `security add-generic-password`, `find-generic-password`, and `delete-generic-password` against the installing user's `~/Library/Keychains/login.keychain-db` path, falling back to `login.keychain` on older systems.
+- System keychain behavior: the same add/find/delete sequence against `/Library/Keychains/System.keychain`.
+- TCC behavior: create, write, read, delete, and remove a deliberately chosen test directory, such as a directory under Documents or on an external volume.
+
+The script's dry run is the P4.4 verification command. It prints the planned plist path, daemon label, keychain paths, TCC directory, and cleanup actions without installing anything. The real run is intentionally still explicit:
+
+```text
+sudo tools/phase4/macos-launchdaemon-check.sh --tcc-dir "$HOME/Documents/MSC2LaunchDaemonTccCheck"
+```
+
+Observed result as of P4.4: dry-run planning works; the live keychain/TCC answer is still pending until Cameron or the later macOS service step runs the real command on the target machine. The production macOS `SecretStore` default therefore remains the System keychain answer confirmed in §3; this check exists to replace that conservative default only if the live daemon evidence justifies it.
+
+## 7. Summary — status of each of D-025's six questions after this step
 
 | # | Question | Status |
 |---|---|---|
 | 1 | Which OS account runs the agent? | **Confirmed** (Cameron Temple, 2026-08-01) — the installing user, all three platforms |
 | 2 | Who owns server directories? | **Confirmed** — same account, by construction |
 | 3 | When is privilege escalation permitted? | **Confirmed** — install-time daemon/service/unit registration only |
-| 4 | Machine-scoped secret storage | **Confirmed** for Windows/Linux (DPAPI user-scope, `systemd-creds` — see P3.2) · macOS default **confirmed as System keychain** to unblock P3.9 — underlying login-vs-System-keychain reachability from a `UserName`-scoped LaunchDaemon stays **Open**, untested until Phase 4 |
-| 5 | How does a desktop user grant file access (TCC)? | **Open** — unverifiable from docs, deferred to a real Phase 4 LaunchDaemon |
+| 4 | Machine-scoped secret storage | **Confirmed** for Windows/Linux (DPAPI user-scope, `systemd-creds` — see P3.2) · macOS default **confirmed as System keychain** to unblock P3.9 — underlying login-vs-System-keychain reachability from a `UserName`-scoped LaunchDaemon now has a P4.4 executable check, live result pending |
+| 5 | How does a desktop user grant file access (TCC)? | **Open** — P4.4 executable check added, live result pending |
 | 6 | How do updates cross the privilege boundary? | **Confirmed** — binary updates follow install location; daemon/service/unit-definition updates need the same elevation installation did |

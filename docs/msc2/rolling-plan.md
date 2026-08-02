@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.3 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.3 Verify command)
+> ## STATUS: Phase 4 in progress — P4.4 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.4 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1258,7 +1258,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.3 — Decide the Linux privileged `systemd-creds` helper path
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/substrate/secret-storage.md`, `docs/msc2/lifecycle/linux-credential-helper.md`, `docs/msc2/msc2-decisions.md`
 **What:** Turn P3.11's two-track Linux finding into a Phase 4 implementation decision: either build the privileged helper now, alongside real `systemd` service registration, or explicitly reconfirm the weaker file-based `LinuxSecretStore` stand-in for the Phase 4 gate with a revisit trigger. If building the helper, define its socket permissions, request protocol, install-time elevation boundary, and how it preserves P3.1's "routine operation needs no escalation" rule.
 **Verify:** `grep -E 'build the helper|reconfirm the file-based stand-in' docs/msc2/lifecycle/linux-credential-helper.md` → one explicit path chosen
@@ -1266,7 +1266,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.4 — Write executable checks for macOS LaunchDaemon keychain and TCC behavior
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase4/macos-launchdaemon-check.sh`, `docs/msc2/substrate/service-identity.md`
 **What:** Build the live test P3.1/P3.8 could not run: install a minimal test LaunchDaemon with `UserName` set to the installing user, have it try the login keychain and System keychain paths, and have it touch a user-selected test directory so TCC behavior is observed rather than guessed. The script must uninstall its test daemon and leave no service behind. Record the observed result in `service-identity.md`; do not change the production default until the test says doing so is justified.
 **Verify:** `sudo tools/phase4/macos-launchdaemon-check.sh --dry-run` → prints the planned plist path, daemon label, and cleanup actions without installing anything

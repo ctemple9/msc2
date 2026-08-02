@@ -49,6 +49,8 @@ async fn main() {
 }
 
 fn build_app() -> Router {
+    let auth_state = auth::AuthState::empty_service_store();
+
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
     let public = Router::new().route("/health", get(routes::health::health));
@@ -72,8 +74,8 @@ fn build_app() -> Router {
         .route("/console/stream", get(ws::console::upgrade))
         .with_state(ws::console::ConsoleState::default());
 
-    // Every other route this phase wires runs behind the bearer-token
-    // check — including both WebSocket upgrades, since the auth
+    // Every other route this phase wires runs behind the SecretStore-backed
+    // bearer-token check — including both WebSocket upgrades, since the auth
     // middleware runs on the ordinary HTTP request before the protocol
     // switch happens (websocket-v1.json: "evaluated before the WS-upgrade
     // special case is reached").
@@ -83,7 +85,10 @@ fn build_app() -> Router {
         .merge(operations)
         .merge(operation_progress)
         .merge(console)
-        .route_layer(axum::middleware::from_fn(auth::require_bearer_token));
+        .route_layer(axum::middleware::from_fn_with_state(
+            auth_state,
+            auth::require_bearer_token,
+        ));
 
     Router::new().nest("/v1", public.merge(protected))
 }

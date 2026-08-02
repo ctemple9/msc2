@@ -32,13 +32,10 @@ final class SettingsStore: ObservableObject {
 
     private static let maxRecents: Int = 10
 
-    /// Temporary stand-in for the real QR-pairing flow (Phase 3's `SecretStore` work,
-    /// per P2.19/`docs/msc2/api-contract/auth-scope-phase2.md`). Pre-fills a fresh
-    /// install so the app points at the local v1 skeletal agent without manual setup.
-    /// To exercise this, run `msc-agent` with `MSC_DEV_TOKEN` set to `devDefaultToken`'s
-    /// value below.
+    /// Local development default for the agent URL only. Phase 4 removed
+    /// the fixed bearer-token fallback: an absent Keychain item now means
+    /// "not paired", not "use MSC_DEV_TOKEN".
     static let devDefaultBaseURLString = "http://127.0.0.1:48400/v1"
-    static let devDefaultToken = "msc2-dev-token"
 
     @Published var baseURLString: String
     @Published var tokenDraft: String
@@ -72,7 +69,7 @@ final class SettingsStore: ObservableObject {
 
     init() {
         self.baseURLString    = UserDefaults.standard.string(forKey: Keys.baseURL) ?? Self.devDefaultBaseURLString
-        self.tokenDraft       = (try? KeychainTokenStore.loadToken()) ?? Self.devDefaultToken
+        self.tokenDraft       = Self.loadSavedTokenDraft()
 
         let rawFav = (UserDefaults.standard.array(forKey: Keys.favoriteCommands) as? [String]) ?? []
         let rawRec = (UserDefaults.standard.array(forKey: Keys.recentCommands) as? [String]) ?? []
@@ -147,7 +144,7 @@ final class SettingsStore: ObservableObject {
     }
 
     func loadTokenFromKeychain() {
-        tokenDraft = (try? KeychainTokenStore.loadToken()) ?? ""
+        tokenDraft = Self.loadSavedTokenDraft()
     }
 
     func clearToken() {
@@ -279,6 +276,10 @@ final class SettingsStore: ObservableObject {
         if trimmed.contains("://") { return trimmed }
         return "http://\(trimmed)"
     }
-}
 
+    private static func loadSavedTokenDraft() -> String {
+        guard let token = try? KeychainTokenStore.loadToken() else { return "" }
+        return token ?? ""
+    }
+}
 

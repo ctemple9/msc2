@@ -3,23 +3,34 @@ import Security
 
 enum KeychainTokenStore {
     private static let service = "com.camerontemple.MSCRemoteiOS"
-    private static let account = "remote_api_token"
+    private static let defaultHostID = "default"
 
     enum KeychainError: Error {
         case unexpectedStatus(OSStatus)
         case invalidData
     }
 
-    static func saveToken(_ token: String) throws {
-        let data = Data(token.utf8)
+    private static func account(forHostID hostID: String) -> String {
+        let trimmed = hostID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeHostID = trimmed.isEmpty ? defaultHostID : trimmed
+        return "host-token.\(safeHostID)"
+    }
+
+    static func saveToken(_ token: String, forHostID hostID: String = defaultHostID) throws {
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            try? deleteToken(forHostID: hostID)
+            return
+        }
+        let data = Data(trimmed.utf8)
 
         // Delete existing first to keep behavior consistent.
-        try? deleteToken()
+        try? deleteToken(forHostID: hostID)
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account(forHostID: hostID),
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
@@ -30,11 +41,11 @@ enum KeychainTokenStore {
         }
     }
 
-    static func loadToken() throws -> String {
+    static func loadToken(forHostID hostID: String = defaultHostID) throws -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account(forHostID: hostID),
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -43,7 +54,7 @@ enum KeychainTokenStore {
         let status = SecItemCopyMatching(query as CFDictionary, &item)
 
         if status == errSecItemNotFound {
-            return ""
+            return nil
         }
 
         guard status == errSecSuccess else {
@@ -55,14 +66,20 @@ enum KeychainTokenStore {
             throw KeychainError.invalidData
         }
 
-        return token
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            try? deleteToken(forHostID: hostID)
+            return nil
+        }
+
+        return trimmed
     }
 
-    static func deleteToken() throws {
+    static func deleteToken(forHostID hostID: String = defaultHostID) throws {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account(forHostID: hostID)
         ]
 
         let status = SecItemDelete(query as CFDictionary)
@@ -72,4 +89,3 @@ enum KeychainTokenStore {
         throw KeychainError.unexpectedStatus(status)
     }
 }
-

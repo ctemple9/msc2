@@ -22,6 +22,7 @@ tools/api-contract-check.py (P2.8).
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -101,6 +102,25 @@ def request(base_url, method, path, token, body=None):
         return resp.status, json.loads(resp.read())
 
 
+def request_expect_http_error(base_url, method, path, token, expected_status, body=None):
+    url = base_url.rstrip("/") + path
+    headers = {"Authorization": f"Bearer {token}"}
+    data = None
+    if body is not None:
+        data = json.dumps(body).encode()
+        headers["Content-Type"] = "application/json"
+    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            payload = resp.read().decode(errors="replace")
+            raise AssertionError(f"expected HTTP {expected_status}, got {resp.status}: {payload}")
+    except urllib.error.HTTPError as e:
+        payload = json.loads(e.read())
+        if e.code != expected_status:
+            raise AssertionError(f"expected HTTP {expected_status}, got {e.code}: {payload}")
+        return payload
+
+
 def run_checks(contract, base_url, token):
     """Returns a list of (route_name, passed, detail) tuples, one per route
     this phase's agent implements."""
@@ -172,6 +192,35 @@ def live_check(base_url, token):
     return 0
 
 
+def expect_auth_store_check(base_url):
+    """P4.5 live check: the old MSC_DEV_TOKEN value must not authorize
+    protected routes. Token-backed success is covered by msc-agent's
+    auth_real_tokens tests, because a running service no longer exposes a
+    fixed dev-token shortcut to mint credentials."""
+    contract = load_contract()
+    dev_token = os.environ.get("MSC_DEV_TOKEN") or "msc2-dev-token"
+    checks = [
+        ("GET /v1/status", "GET", "/v1/status", None),
+        ("GET /v1/capabilities", "GET", "/v1/capabilities", None),
+        ("POST /v1/operations", "POST", "/v1/operations", {"type": "demo-install"}),
+    ]
+    for name, method, path, body in checks:
+        try:
+            payload = request_expect_http_error(base_url, method, path, dev_token, 401, body=body)
+            assert_conforms(contract, {"$ref": "#/components/schemas/ErrorDTO"}, payload, "ErrorDTO")
+            if payload.get("code") != "unauthorized":
+                raise AssertionError(f"{name}: expected unauthorized error, got {payload}")
+        except (urllib.error.URLError, TimeoutError) as e:
+            print(f"FAIL {name}: connection error: {e}", file=sys.stderr)
+            return 1
+        except (AssertionError, json.JSONDecodeError) as e:
+            print(f"FAIL {name}: {e}", file=sys.stderr)
+            return 1
+
+    print(f"ok auth-store {len(checks)}")
+    return 0
+
+
 def selftest():
     """A tiny embedded schema/instance pair, independent of the real
     openapi.json or any live server -- checkable on its own, same principle
@@ -209,15 +258,21 @@ def selftest():
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--base-url", help="e.g. http://127.0.0.1:48400")
-    parser.add_argument("--token", help="dev bearer token (MSC_DEV_TOKEN)")
+    parser.add_argument("--token", help="bearer token for full live route conformance")
+    parser.add_argument("--expect-auth-store", action="store_true", help="P4.5: assert MSC_DEV_TOKEN no longer authorizes protected routes")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
 
     if args.selftest:
         sys.exit(selftest())
 
+    if args.expect_auth_store:
+        if not args.base_url:
+            parser.error("--base-url is required with --expect-auth-store")
+        sys.exit(expect_auth_store_check(args.base_url))
+
     if not args.base_url or not args.token:
-        parser.error("--base-url and --token are required unless --selftest")
+        parser.error("--base-url and --token are required unless --selftest or --expect-auth-store")
 
     sys.exit(live_check(args.base_url, args.token))
 

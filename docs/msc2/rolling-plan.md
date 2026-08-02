@@ -1169,7 +1169,7 @@ Five files, 2,077 lines total, **zero MSC 1 test coverage** for any of them — 
 ### Phase exit
 
 ### P3.20 — Phase 3 exit gate check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** none (verification only)
 **What:** Run every Phase 3 deliverable together on all three CI platforms: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace` — covering `msc-domain`'s new `network_safety` module, `msc-infrastructure`'s path-safety/atomic-write/config-lifecycle/audit-log/download-staging/operation-journal/operation-exclusivity/java-runtime-detection modules, and each platform crate's `SecretStore` implementation on its own native runner. Confirm `msc-domain` still carries no I/O dependency (unchanged rule from P1.15/P2.21). Confirm P3.19's Windows-specific tests actually ran on the Windows leg of CI rather than being silently absent everywhere. This checks the port plan's own Phase 3 exit criterion verbatim: "substrate fixtures pass on macOS, Linux, and Windows."
 
@@ -1183,7 +1183,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P3.20a — Fix `FakeFileSystem::list`'s Windows separator regression found by P3.20
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/fs.rs`, `crates/msc-infrastructure/tests/fs.rs`
 **What:** P3.20's own exit gate check found that P3.18's generalization of `FakeFileSystem::list` (`children.insert(path.join(first))`) builds each returned path with `Path::join`/`PathBuf::push`, which insert `std::path::MAIN_SEPARATOR` — a backslash on Windows — even though every fixture path in this codebase is written with forward slashes. `PathBuf`'s own `Eq`/`Hash` don't care (component-based, and Windows path parsing treats `/` and `\` as equivalent separators), but `audit_log.rs`'s test compares `list()`'s output as a raw string against a fixture's literal forward-slash expectation, which does. **Cameron Temple confirmed: fix `FakeFileSystem`, not the test** — the fake filesystem exists specifically to behave identically on every host OS, and every fixture author so far has assumed forward slashes, so guaranteeing that at the source keeps the assumption true for every future caller, not just `audit_log.rs`'s. Added `join_forward_slash(base: &Path, component: &OsStr) -> PathBuf`, a small helper that concatenates with a literal `/` regardless of host OS, and used it in place of `path.join(first)`. `StdFileSystem::list` (the real-filesystem implementation, used only by `StdFileSystem`'s own tests) is untouched — real files legitimately use the host's real separator, this fix is scoped to the fake, fixture-facing implementation only. New test `fake_file_system_list_returns_forward_slash_paths` in `tests/fs.rs` reproduces the exact case P3.20 found (a nested `/srv/app/audit/...` path) and asserts the literal string form, not just `PathBuf` equality, since `PathBuf` equality is what already silently tolerated the bug. Verified beyond the macOS-native test run (which can't exercise the Windows-only branch, since there isn't one — the fix is OS-independent by construction, no `cfg` gating): `cargo check --workspace --target x86_64-pc-windows-msvc --all-targets` passes, confirming the new code type-checks against the Windows target; the real proof is the next Windows CI run actually completing `audit_log`'s suite and reaching P3.19's `windows_substrate` tests, which this step's own Verify line names as the authority, same shape as P3.10/P3.11/P3.19's own verification notes.
 **Verify:** `cargo nextest run -p msc-infrastructure --test fs` → `5 tests run: 5 passed` (the existing 4 plus this step's new one); `cargo nextest run --workspace` → `287 tests run: 287 passed, 0 skipped`; then (Windows CI runner, next push) `gh run list --limit 1` → `success`, with the log showing `audit_log`'s full suite passing and `windows_substrate`'s 3 tests actually appearing and passing — closing both findings P3.20 raised
@@ -1193,7 +1193,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P3.20b — Fix the Windows locked-file test's premise, found running P3.20a's own CI proof
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/tests/windows_substrate.rs`
 **What:** With P3.20a's fix unblocking the Windows run far enough for P3.19's third test to finally execute, `atomic_write_destination_locked_by_open_handle` failed for real: `expected a clear Io error while the destination is locked, got Ok(())`. The test's own doc comment assumed `std::fs::File::open` on Windows requests `FILE_SHARE_READ | FILE_SHARE_WRITE` but not `FILE_SHARE_DELETE`, so a rename over it should be refused — wrong. Rust's std has included `FILE_SHARE_DELETE` in its default Windows share mode for years specifically so ordinary Rust-to-Rust renames succeed against another handle held open, closer to POSIX rename semantics. That handle never blocked anything; `atomic_write` (P3.6, already DONE) correctly performed the rename, and the test's premise — not the primitive — was wrong. **Cameron Temple confirmed: option A** — fix the test to actually reproduce the hazard D-017/§8 name ("Windows will not let you delete an open file"), which is about an *uncooperative* locker (antivirus, a non-Rust process, anything that doesn't opt into delete-sharing), not Rust's own cooperative default. Opened the held handle via `std::fs::OpenOptions::new().read(true).share_mode(FILE_SHARE_READ | FILE_SHARE_WRITE).open(&dest)` (`std::os::windows::fs::OpenOptionsExt`), explicitly omitting `FILE_SHARE_DELETE` — the real scenario the original comment described but the code never actually produced. No change to `atomic_write.rs` itself: it already does nothing but call `fs.rename` and map any error to `AtomicWriteError::Io`, so if the corrected lock genuinely blocks the rename, the primitive should already surface it correctly — this step's Verify is what confirms that's actually true on real Windows, not assumed. Test-only change, confined to `windows_substrate.rs`; `#![cfg(windows)]` keeps it compiling to zero tests on macOS/Linux, confirmed directly (`cargo test -p msc-infrastructure --test windows_substrate` → `0 passed; 0 failed`).
 **Verify:** `cargo check --workspace --target x86_64-pc-windows-msvc --all-targets` → passes (confirmed); `cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings` → clean (confirmed); `cargo fmt --check` / `cargo clippy --workspace --all-targets -- -D warnings` / `cargo nextest run --workspace` on macOS → all clean, `287 tests run: 287 passed, 0 skipped` (confirmed); real pass/fail happens on the next Windows CI run — `gh run list --limit 1` → `success`, with `atomic_write_destination_locked_by_open_handle` now passing (or, if it still fails, a real gap in `atomic_write.rs` itself, not the test)
@@ -1215,6 +1215,81 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-08-01 — Codex Phase 3 review: gate holds, with documentation drift to clean up
+
+Codex reviewed Phase 3 as a gate check, not a step-compliance check, and did not
+implement this phase. The Phase 3 gate in `msc2-port-plan.md` is: "Approved
+server roots and path safety · atomic writes · versioned configuration with
+migrations · `SecretStore` trait · audit log · download staging with checksum
+verification · operation journal · operation exclusivity." Windows CI also
+begins here, covering path separators and length limits, file-locking semantics,
+service lifecycle, and case-insensitive path comparison. The exit criterion is:
+"substrate fixtures pass on macOS, Linux, and Windows." The gate holds as of
+the latest CI run checked during review.
+
+Evidence checked: local `cargo fmt --check` and `cargo clippy --workspace
+--all-targets -- -D warnings` both passed; local `cargo nextest run --workspace`
+reported `287 tests run: 287 passed`; a focused substrate run covered path
+safety, atomic writes, config lifecycle, audit log, download staging, operation
+journal, operation exclusivity, network safety, Java runtime detection, and
+filesystem fake behavior with `44 tests run: 44 passed` (one nextest leak
+warning on `audit_log_corrupt_or_partial_line_does_not_crash_writer`); fixture
+directories validated for the fixture-backed substrate domains
+(`path-safety` 7, `atomic-write` 4, `config-lifecycle` 4,
+`secret-store-contract` 5, `audit-log` 5, `download-staging` 4,
+`network-safety` 13, `java-runtime-detection` 8). GitHub Actions run
+`30711083073` was green across `macos-latest`, `ubuntu-latest`, and
+`windows-latest`; the Windows log explicitly shows `windows_substrate` tests
+`path_safety_backslash_and_long_paths`,
+`path_safety_case_difference_is_not_an_escape`, and
+`atomic_write_destination_locked_by_open_handle` all passing, plus the five
+Windows `secret_store_contract_*` tests. The Ubuntu log shows the five Linux
+`secret_store_contract_*` tests and `key_file_and_secrets_dir_are_owner_only`
+passing. The local macOS run shows the five macOS Keychain
+`secret_store_contract_*` tests passing.
+
+No code/product drift from the vision was found: the phase stayed inside the
+agent-owned safety substrate, did not add real service registration before
+Phase 4, did not wire real pairing ahead of its confirmed Phase 4 placement,
+kept user-file mutation behind path-safety/atomic-write/config primitives, and
+started Windows validation where D-017 requires it. There is documentation drift
+inside the controlled set that should be amended before Phase 4: after P3.11,
+the actual Linux v1 backend is the explicitly temporary file-based
+`LinuxSecretStore`, with the `systemd-creds` privileged-helper design deferred
+to Phase 4; however `msc2-engineering.md` §8 still reads as though
+`systemd-creds` is the current Linux implementation. Also, older summary text in
+`docs/msc2/substrate/secret-storage.md` §2/§10 and
+`docs/msc2/substrate/service-identity.md` §3 still compares macOS/Linux to a
+"Windows DPAPI machine-scope" answer, while D-025, P3.10, and the P3.12
+comparison table correctly say Windows Credential Manager uses DPAPI
+user-scope for the installing user's account.
+
+Later phases should audit six items. First, Phase 4 must replace the Linux
+file-based stand-in with the privileged `systemd-creds` helper, or explicitly
+reconfirm the weaker v1 backend before it becomes permanent. Second, Phase 4
+must test the still-open macOS LaunchDaemon questions: login-vs-System-keychain
+reachability and TCC behavior when a daemon touches user-controlled paths. Third,
+Phase 4 should wire `SecretStore` into real pairing and retire the Phase 2 dev
+token, including rate limiting and audit attribution. Fourth, D-024 power
+management must land with real service lifecycle, as confirmed in
+`phase3-scope.md`. Fifth, the D-021 headless-package GUI-link CI check is still
+unassigned in the port plan and needs a home. Sixth, keep an eye on the audit
+log concurrency/leak signal: the latest CI is green, but P3.20b recorded one
+macOS CI failure of `audit_log_entries_from_concurrent_writers_preserve_call_order`,
+and this review's focused local run produced one nextest leak warning in the
+audit-log suite.
+
+**Amended 2026-08-01, same day (P3.21):** the documentation-drift paragraph
+above is closed. `msc2-engineering.md` §8, `secret-storage.md` §2/§7/§10, and
+`service-identity.md` §3 no longer call Windows DPAPI machine-scoped, and
+`msc2-engineering.md` §8 now states the actual v1 Linux backend (file-based
+`LinuxSecretStore`) alongside the still-deferred `systemd-creds` helper design.
+The six items for later phases to audit are unaffected and still stand.
+
+No earlier phase needs amending. The Phase 0/1/2 amendments already recorded
+still stand. The needed amendments are Phase 3/control-document cleanup, not a
+change to an earlier phase gate.
 
 ### 2026-08-01 — Codex Phase 2 review: gate holds, with scoped stub caveats
 

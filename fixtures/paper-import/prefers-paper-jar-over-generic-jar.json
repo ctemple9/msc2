@@ -1,0 +1,35 @@
+{
+  "domain": "paper-import",
+  "case": "prefers-paper-jar-over-generic-jar",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "detectJavaFlavor",
+    "line": 431
+  },
+  "input": {
+    "displayName": "Jar Choice",
+    "serverDir": "/srv/jar-choice",
+    "entries": [
+      { "name": "server.jar", "kind": "file" },
+      { "name": "paper-1.21.4-52.jar", "kind": "file" },
+      { "name": "README.txt", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "level-name=world\n",
+      "eula.txt": "eula=true\n"
+    }
+  },
+  "expected": {
+    "id": "paper-9e09b99056aecc2f",
+    "displayName": "Jar Choice",
+    "paperJarPath": "/srv/jar-choice/paper-1.21.4-52.jar",
+    "eulaAccepted": true,
+    "gamePort": 25565,
+    "maxPlayers": 20,
+    "worldName": "world",
+    "rawProperties": {
+      "level-name": "world"
+    }
+  },
+  "notes": "MSC 1's Paper default prefers a root paper*.jar over another generic jar in the same folder."
+}

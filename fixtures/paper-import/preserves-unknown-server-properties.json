@@ -1,0 +1,37 @@
+{
+  "domain": "paper-import",
+  "case": "preserves-unknown-server-properties",
+  "source": {
+    "file": "ServerPropertiesManager.swift",
+    "test": "readProperties",
+    "line": 20
+  },
+  "input": {
+    "displayName": "Custom Props",
+    "serverDir": "/srv/custom-props",
+    "entries": [
+      { "name": "paper-1.20.4-497.jar", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": " server-port = 25580 \nmax-players = 8\nlevel-name = custom_world\nrcon.password = secret-ish\nview-distance = 7\n",
+      "eula.txt": "EULA=TRUE\n"
+    }
+  },
+  "expected": {
+    "id": "paper-b2c65d1553eaee74",
+    "displayName": "Custom Props",
+    "paperJarPath": "/srv/custom-props/paper-1.20.4-497.jar",
+    "eulaAccepted": true,
+    "gamePort": 25580,
+    "maxPlayers": 8,
+    "worldName": "custom_world",
+    "rawProperties": {
+      "server-port": "25580",
+      "max-players": "8",
+      "level-name": "custom_world",
+      "rcon.password": "secret-ish",
+      "view-distance": "7"
+    }
+  },
+  "notes": "Pins ServerPropertiesManager's whitespace trimming and unknown-key preservation before the imported server is ever rewritten by a later settings step."
+}

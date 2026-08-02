@@ -1,0 +1,24 @@
+{
+  "domain": "paper-import",
+  "case": "rejects-directory-without-java-jar",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory",
+    "line": 240
+  },
+  "input": {
+    "displayName": "No Jar",
+    "serverDir": "/srv/no-jar",
+    "entries": [
+      { "name": "server.properties", "kind": "file" },
+      { "name": "world", "kind": "directory" }
+    ],
+    "files": {
+      "server.properties": "server-port=25565\n"
+    }
+  },
+  "expected": {
+    "errorContains": "no Java server JAR found"
+  },
+  "notes": "The Phase 4 import path is only for an existing Paper Java server directory; a folder with no root JAR is refused rather than registered as an unusable lifecycle target."
+}

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.7 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.7 Verify command)
+> ## STATUS: Phase 4 in progress — P4.8 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.8 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1290,7 +1290,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Application lifecycle core
 
 ### P4.6 — Scaffold `msc-application` and the lifecycle domain boundary
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `Cargo.toml`, `crates/msc-application/Cargo.toml`, `crates/msc-application/src/lib.rs`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/tests/lifecycle_state.rs`
 **What:** Add the application-service crate from `msc2-engineering.md` §6. Define the minimal lifecycle state and service boundary for one imported Java server: stopped, starting, running, stopping, crashed; active server identity; injected repositories/process supervisor/console sink; and no direct client/UI dependencies. This is the Rust replacement for the parts of `ServerLifecycleManager.swift` and `AppViewModel+ServerControls.swift` that gate real server state, not a full server-creation system.
 **Verify:** `cargo nextest run -p msc-application lifecycle_state` → lifecycle-state tests pass
@@ -1298,7 +1298,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P4.7 — Characterize Paper launch-command construction
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/java-launch-paper/`, `crates/msc-application/src/java_launch.rs`, `crates/msc-application/tests/java_launch_paper.rs`
 **What:** Characterize the Paper subset of `ServerProcessManager.startServer`, `JavaServerBackend.swift`, `JavaServerLaunchHelper`, and the already-extracted `headless-script` launch fixtures: Java path validation result consumed from Phase 3, heap flags, sandbox-suppression JVM flags, user extra flags, `-jar` Paper jar path, working directory, and missing-jar failure. Do not pull Forge/NeoForge args-file behavior into this phase; that stays Phase 7.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-launch-paper --expect 8 && cargo nextest run -p msc-application java_launch_paper` → fixtures validate and Paper launch tests pass
@@ -1306,8 +1306,8 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.8 — Import and detect one existing Paper server directory
-**Status:** not started
-**Files:** `fixtures/paper-import/`, `crates/msc-application/src/import.rs`, `crates/msc-application/tests/paper_import.rs`
+**Status:** awaiting verification
+**Files:** `fixtures/paper-import/`, `crates/msc-application/src/lib.rs`, `crates/msc-application/src/import.rs`, `crates/msc-application/tests/paper_import.rs`
 **What:** Implement the narrow import path the Phase 4 gate requires, using `AppViewModel+ServerImport.swift`, `ServerEditorJarsTab.moddedServerIsInstalled`, `EULAManager.swift`, and `ServerPropertiesManager.swift` as the oracle: detect an existing Paper server folder, read `eula.txt`, preserve unknown `server.properties` keys through the Phase 1 property model, infer game port/max players/world name where available, assign a stable server id, and register it without copying or mutating the world. Transfer-package import and raw ZIP import stay Phase 5.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/paper-import --expect 6 && cargo nextest run -p msc-application paper_import` → import fixtures and tests pass
 **Commit:** `P4.8: import and detect an existing Paper server`

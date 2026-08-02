@@ -1,0 +1,28 @@
+{
+  "domain": "paper-import",
+  "case": "missing-properties-use-minecraft-defaults",
+  "source": {
+    "file": "ServerPropertiesManager.swift",
+    "test": "readProperties + ServerPropertiesModel defaults",
+    "line": 14
+  },
+  "input": {
+    "displayName": "Default Paper",
+    "serverDir": "/srv/default-paper",
+    "entries": [
+      { "name": "paper.jar", "kind": "file" }
+    ],
+    "files": {}
+  },
+  "expected": {
+    "id": "paper-84ae0b87aff5f0c6",
+    "displayName": "Default Paper",
+    "paperJarPath": "/srv/default-paper/paper.jar",
+    "eulaAccepted": null,
+    "gamePort": 25565,
+    "maxPlayers": 20,
+    "worldName": "world",
+    "rawProperties": {}
+  },
+  "notes": "MSC 1 treats a missing server.properties file as an empty dictionary; the property model supplies Minecraft defaults, and missing eula.txt remains unknown rather than false."
+}

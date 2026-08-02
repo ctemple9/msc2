@@ -1,0 +1,39 @@
+{
+  "domain": "paper-import",
+  "case": "detects-existing-paper-server",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory + detectJavaFlavor",
+    "line": 235
+  },
+  "input": {
+    "displayName": "Family Paper",
+    "serverDir": "/srv/family-paper",
+    "entries": [
+      { "name": "paper-1.21.1-131.jar", "kind": "file" },
+      { "name": "plugins", "kind": "directory" },
+      { "name": "world", "kind": "directory" }
+    ],
+    "files": {
+      "server.properties": "# Minecraft server properties\nserver-port=25570\nmax-players=12\nlevel-name=project_jc\nmotd=Family Server\ngeyser-custom-key=kept\n",
+      "eula.txt": "# accepted\neula=true\n"
+    }
+  },
+  "expected": {
+    "id": "paper-2f072e2bbbbe79f7",
+    "displayName": "Family Paper",
+    "paperJarPath": "/srv/family-paper/paper-1.21.1-131.jar",
+    "eulaAccepted": true,
+    "gamePort": 25570,
+    "maxPlayers": 12,
+    "worldName": "project_jc",
+    "rawProperties": {
+      "server-port": "25570",
+      "max-players": "12",
+      "level-name": "project_jc",
+      "motd": "Family Server",
+      "geyser-custom-key": "kept"
+    }
+  },
+  "notes": "Pins the Phase 4 import happy path: detect a root Paper JAR, read eula.txt, infer game port, player cap, and configured level name, and retain plugin-added server.properties keys through the Phase 1 property model."
+}

@@ -6,11 +6,16 @@
 //! or any other client surface.
 
 use msc_domain::identity::JavaServerFlavor;
+use msc_domain::tps;
+use msc_infrastructure::metrics::{ProcessMetricsProvider, directory_size_mb};
 use msc_infrastructure::process::{
     ProcessError, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
 };
 use std::fmt;
 use std::path::PathBuf;
+
+use crate::output_reducer::{JavaOutputReducer, OutputEvent};
+use crate::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServerId(String);
@@ -176,7 +181,10 @@ pub struct LifecycleService<'deps> {
     console: &'deps dyn ConsoleSink,
     active_server: Option<ServerId>,
     active_process: Option<ProcessId>,
+    active_ram_max_mb: Option<f64>,
     state: LifecycleState,
+    output_reducer: JavaOutputReducer,
+    latest_tps: Option<tps::Sample>,
 }
 
 impl<'deps> LifecycleService<'deps> {
@@ -191,7 +199,10 @@ impl<'deps> LifecycleService<'deps> {
             console,
             active_server: None,
             active_process: None,
+            active_ram_max_mb: None,
             state: LifecycleState::Stopped,
+            output_reducer: JavaOutputReducer::new(),
+            latest_tps: None,
         }
     }
 
@@ -205,6 +216,45 @@ impl<'deps> LifecycleService<'deps> {
 
     pub fn active_process(&self) -> Option<ProcessId> {
         self.active_process
+    }
+
+    pub fn status_snapshot(&self) -> Result<LifecycleStatusSnapshot, LifecycleError> {
+        let server = self.load_active_server_if_selected()?;
+        Ok(LifecycleStatusSnapshot {
+            running: self.state.process_may_be_alive(),
+            active_server_id: self
+                .active_server
+                .as_ref()
+                .map(|id| id.as_str().to_string()),
+            pid: self.active_process.map(|pid| i64::from(pid.raw())),
+            server_type: server.map(|server| server.flavor.raw_value().to_string()),
+        })
+    }
+
+    pub fn performance_snapshot(
+        &self,
+        metrics: &dyn ProcessMetricsProvider,
+        ts: impl Into<String>,
+    ) -> Result<PerformanceSnapshot, LifecycleError> {
+        let server = self.load_active_server_if_selected()?;
+        let usage = self
+            .active_process
+            .and_then(|pid| metrics.process_usage(pid));
+        let world_size_mb = server
+            .as_ref()
+            .and_then(|server| directory_size_mb(&server.directory.join("world")).ok());
+        let server_type = server.map(|server| server.flavor.raw_value().to_string());
+
+        Ok(PerformanceSnapshot {
+            ts: ts.into(),
+            tps_1m: self.latest_tps.map(|sample| sample.t1),
+            players_online: Some(self.output_reducer.online_players().len() as i64),
+            cpu_percent: usage.and_then(|usage| usage.cpu_percent),
+            ram_used_mb: usage.and_then(|usage| usage.ram_used_mb),
+            ram_max_mb: self.active_ram_max_mb,
+            world_size_mb,
+            server_type,
+        })
     }
 
     pub fn select_active_server(&mut self, id: ServerId) -> Result<(), LifecycleError> {
@@ -227,9 +277,13 @@ impl<'deps> LifecycleService<'deps> {
             .state
             .transition_to(LifecycleState::Starting)
             .map_err(LifecycleError::IllegalTransition)?;
+        let ram_max_mb = parse_xmx_mb(&launch);
         let pid = self.process_supervisor.spawn(launch)?;
         self.state = next;
         self.active_process = Some(pid);
+        self.active_ram_max_mb = ram_max_mb;
+        self.output_reducer = JavaOutputReducer::new();
+        self.latest_tps = None;
         self.console
             .append_system_line(&id, &format!("Starting server: {}", server.name));
         Ok(pid)
@@ -263,9 +317,27 @@ impl<'deps> LifecycleService<'deps> {
         Ok(())
     }
 
+    pub fn ingest_console_line(&mut self, clean: &str) -> Result<Vec<OutputEvent>, LifecycleError> {
+        let id = self.active_server_id()?.clone();
+        let events = self.output_reducer.process_line(clean);
+        for event in &events {
+            match event {
+                OutputEvent::Ready if self.state == LifecycleState::Starting => {
+                    self.mark_ready(&id)?;
+                }
+                OutputEvent::TpsSample(sample) => {
+                    self.latest_tps = Some(*sample);
+                }
+                OutputEvent::Ready | OutputEvent::PlayerJoined(_) | OutputEvent::PlayerLeft(_) => {}
+            }
+        }
+        Ok(events)
+    }
+
     pub fn mark_process_exited(&mut self, id: &ServerId) -> Result<(), LifecycleError> {
         self.require_active_server(id)?;
         self.active_process = None;
+        self.active_ram_max_mb = None;
         let next = match self.state {
             LifecycleState::Stopping => LifecycleState::Stopped,
             LifecycleState::Starting | LifecycleState::Running => LifecycleState::Crashed,
@@ -331,6 +403,13 @@ impl<'deps> LifecycleService<'deps> {
             .ok_or_else(|| LifecycleError::ServerNotFound(id.clone()))
     }
 
+    fn load_active_server_if_selected(&self) -> Result<Option<ImportedJavaServer>, LifecycleError> {
+        self.active_server
+            .as_ref()
+            .map(|id| self.load_server(id))
+            .transpose()
+    }
+
     fn transition_to(&mut self, next: LifecycleState) -> Result<(), LifecycleError> {
         self.state = self
             .state
@@ -338,4 +417,22 @@ impl<'deps> LifecycleService<'deps> {
             .map_err(LifecycleError::IllegalTransition)?;
         Ok(())
     }
+}
+
+fn parse_xmx_mb(launch: &ProcessSpawnRequest) -> Option<f64> {
+    launch
+        .arguments
+        .iter()
+        .rev()
+        .find_map(|argument| parse_memory_flag_mb(argument, "-Xmx"))
+}
+
+fn parse_memory_flag_mb(argument: &str, prefix: &str) -> Option<f64> {
+    let raw = argument.strip_prefix(prefix)?;
+    let (number, multiplier) = match raw.chars().last()? {
+        'g' | 'G' => (&raw[..raw.len() - 1], 1024.0),
+        'm' | 'M' => (&raw[..raw.len() - 1], 1.0),
+        _ => (raw, 1.0),
+    };
+    Some(number.parse::<f64>().ok()? * multiplier)
 }

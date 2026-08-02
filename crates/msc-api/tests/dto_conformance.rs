@@ -15,7 +15,8 @@
 use msc_api::dto::{
     BedrockBackendDto, BedrockSupportDto, CapabilitiesDto, ErrorDto, HealthCardDto,
     HealthResponseDto, HelpersDto, HostOsDto, OperationDto, OperationProgressDto,
-    OperationStateDto, PermissionCategoryDto, RemoteApiStatus, ServerTypesDto,
+    OperationStateDto, PerformanceMetricNumberDto, PerformanceSnapshotDto, PermissionCategoryDto,
+    RemoteApiStatus, ServerTypesDto,
 };
 use serde_json::{Value, json};
 use std::path::Path;
@@ -111,6 +112,10 @@ fn assert_conforms(contract: &Value, schema: &Value, instance: &Value, path: &st
                 "{path}: expected integer, got {instance}"
             )
         }
+        Some("number") => assert!(
+            instance.is_number(),
+            "{path}: expected number, got {instance}"
+        ),
         Some("boolean") => assert!(
             instance.is_boolean(),
             "{path}: expected boolean, got {instance}"
@@ -285,6 +290,39 @@ fn dto_conformance_status_stopped_matches_schema() {
     };
     let instance = serde_json::to_value(&example).unwrap();
     assert_conforms(&contract, schema, &instance, "RemoteAPIStatus");
+}
+
+#[test]
+fn dto_conformance_performance_snapshot_matches_schema() {
+    let contract = load_contract();
+    let schema = schema_for(&contract, "PerformanceSnapshotDTO");
+    let example = PerformanceSnapshotDto {
+        ts: "2026-08-02T00:00:00Z".to_string(),
+        tps_1m: Some(PerformanceMetricNumberDto {
+            value: 19.8,
+            help_id: Some("performance.tps".to_string()),
+        }),
+        players_online: Some(3),
+        cpu_percent: Some(PerformanceMetricNumberDto {
+            value: 42.0,
+            help_id: Some("performance.cpu".to_string()),
+        }),
+        ram_used_mb: Some(PerformanceMetricNumberDto {
+            value: 768.0,
+            help_id: Some("performance.ram".to_string()),
+        }),
+        ram_max_mb: Some(PerformanceMetricNumberDto {
+            value: 2048.0,
+            help_id: Some("performance.ram".to_string()),
+        }),
+        world_size_mb: Some(PerformanceMetricNumberDto {
+            value: 512.0,
+            help_id: Some("performance.world-size".to_string()),
+        }),
+        server_type: Some("paper".to_string()),
+    };
+    let instance = serde_json::to_value(&example).unwrap();
+    assert_conforms(&contract, schema, &instance, "PerformanceSnapshotDTO");
 }
 
 /// A health response with two cards, one carrying every optional field

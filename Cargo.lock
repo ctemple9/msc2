@@ -544,6 +544,7 @@ dependencies = [
  "base64",
  "clap",
  "msc-api",
+ "msc-application",
  "msc-domain",
  "msc-infrastructure",
  "rand",

@@ -76,13 +76,19 @@ fn build_app() -> Router {
         .route("/console/tail", get(ws::console::tail))
         .with_state(console_state);
 
+    let status_state = routes::status::StatusRoutesState::default();
+    let status = Router::new()
+        .route("/status", get(routes::status::status))
+        .route("/performance", get(routes::performance::performance))
+        .with_state(status_state);
+
     // Every other route this phase wires runs behind the SecretStore-backed
     // bearer-token check — including both WebSocket upgrades, since the auth
     // middleware runs on the ordinary HTTP request before the protocol
     // switch happens (websocket-v1.json: "evaluated before the WS-upgrade
     // special case is reached").
     let protected = Router::new()
-        .route("/status", get(routes::status::status))
+        .merge(status)
         .route("/capabilities", get(routes::capabilities::capabilities))
         .merge(operations)
         .merge(operation_progress)

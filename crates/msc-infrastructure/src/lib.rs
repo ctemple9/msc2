@@ -5,6 +5,7 @@ pub mod console_buffer;
 pub mod download_staging;
 pub mod fs;
 pub mod java_runtime_detection;
+pub mod metrics;
 pub mod operation_journal;
 pub mod path_safety;
 pub mod process;

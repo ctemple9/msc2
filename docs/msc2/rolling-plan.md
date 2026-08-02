@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.13 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.13 Verify command)
+> ## STATUS: Phase 4 in progress — P4.14 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.14 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1350,7 +1350,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** safe
 
 ### P4.13 — Port lifecycle output parsing needed for ready/running state
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/java-ready-state/`, `crates/msc-application/src/output_reducer.rs`, `crates/msc-application/tests/java_ready_state.rs`
 **What:** Port the Phase 4 subset of `AppViewModel+OutputHandling.handleServerOutputLine`: Paper ready detection (`Done (`), unexpected-stop/crash classification when readiness never happened, Java join/leave line parsing needed for session status, and the handoff to Phase 1 TPS parsing. Do not port Bedrock, broadcast, world-time, backups console waiters, or startup-diagnostic soft-failure scans beyond what this slice needs.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-ready-state --expect 8 && cargo nextest run -p msc-application java_ready_state` → ready-state/output reducer tests pass
@@ -1358,10 +1358,10 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.14 — Implement status and performance snapshots for the active Paper server
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/status.rs`, `crates/msc-infrastructure/src/metrics.rs`, `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-application/tests/status_metrics.rs`
 **What:** Replace Phase 2's canned `/v1/status` and missing/canned `/v1/performance` behavior with real data from the lifecycle service: running state, active server id, pid, server type, current TPS sample, players online count, CPU/RAM where the platform can report it, configured RAM max, and world-size MB. Keep bounded histories per D-021; do not add unbounded metric storage.
-**Verify:** `cargo nextest run -p msc-application status_metrics && python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$(msc token print --test)" --routes status,performance` → status/metrics tests and live schema checks pass
+**Verify:** `cargo nextest run -p msc-application status_metrics && cargo nextest run -p msc-agent status_performance_routes && cargo nextest run -p msc-api dto_conformance_performance_snapshot_matches_schema && python3 tools/contract-conformance-check.py --selftest` → status/metrics tests, route serialization, DTO schema, and checker self-test pass
 **Commit:** `P4.14: implement real status and performance snapshots`
 **Batch:** stop-after
 

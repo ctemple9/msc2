@@ -19,3 +19,31 @@ pub struct RemoteApiStatus {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub docker_container_status: Option<String>,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceSnapshotDto {
+    pub ts: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tps_1m: Option<PerformanceMetricNumberDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub players_online: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cpu_percent: Option<PerformanceMetricNumberDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ram_used_mb: Option<PerformanceMetricNumberDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ram_max_mb: Option<PerformanceMetricNumberDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_size_mb: Option<PerformanceMetricNumberDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_type: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PerformanceMetricNumberDto {
+    pub value: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub help_id: Option<String>,
+}

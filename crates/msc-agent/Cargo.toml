@@ -9,6 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 msc-api = { path = "../msc-api" }
+msc-application = { path = "../msc-application" }
 msc-domain = { path = "../msc-domain" }
 msc-infrastructure = { path = "../msc-infrastructure" }
 axum = { version = "0.7", features = ["ws"] }

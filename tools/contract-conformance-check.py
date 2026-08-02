@@ -82,6 +82,9 @@ def assert_conforms(contract, schema, instance, path):
     elif schema_type == "integer":
         if not isinstance(instance, int) or isinstance(instance, bool):
             raise AssertionError(f"{path}: expected integer, got {instance!r}")
+    elif schema_type == "number":
+        if not isinstance(instance, (int, float)) or isinstance(instance, bool):
+            raise AssertionError(f"{path}: expected number, got {instance!r}")
     elif schema_type == "boolean":
         if not isinstance(instance, bool):
             raise AssertionError(f"{path}: expected boolean, got {instance!r}")
@@ -121,12 +124,17 @@ def request_expect_http_error(base_url, method, path, token, expected_status, bo
         return payload
 
 
-def run_checks(contract, base_url, token):
+def run_checks(contract, base_url, token, selected_routes=None):
     """Returns a list of (route_name, passed, detail) tuples, one per route
     this phase's agent implements."""
     results = []
+    selected = None
+    if selected_routes is not None:
+        selected = {route.strip() for route in selected_routes.split(",") if route.strip()}
 
-    def check(name, method, path, schema_name, expected_status, body=None):
+    def check(route_key, name, method, path, schema_name, expected_status, body=None):
+        if selected is not None and route_key not in selected:
+            return None
         try:
             status, payload = request(base_url, method, path, token, body)
         except urllib.error.HTTPError as e:
@@ -149,11 +157,16 @@ def run_checks(contract, base_url, token):
         results.append((name, True, None))
         return payload
 
-    check("GET /v1/health", "GET", "/v1/health", "HealthResponseDTO", 200)
-    check("GET /v1/status", "GET", "/v1/status", "RemoteAPIStatus", 200)
-    check("GET /v1/capabilities", "GET", "/v1/capabilities", "CapabilitiesDTO", 200)
+    check("health", "GET /v1/health", "GET", "/v1/health", "HealthResponseDTO", 200)
+    check("status", "GET /v1/status", "GET", "/v1/status", "RemoteAPIStatus", 200)
+    check("performance", "GET /v1/performance", "GET", "/v1/performance", "PerformanceSnapshotDTO", 200)
+    check("capabilities", "GET /v1/capabilities", "GET", "/v1/capabilities", "CapabilitiesDTO", 200)
+
+    if selected is not None and "operations" not in selected:
+        return results
 
     created = check(
+        "operations",
         "POST /v1/operations",
         "POST",
         "/v1/operations",
@@ -166,8 +179,9 @@ def run_checks(contract, base_url, token):
         results.append(("GET /v1/operations/{id}", False, "no operation id from create response"))
         results.append(("POST /v1/operations/{id}/cancel", False, "no operation id from create response"))
     else:
-        check("GET /v1/operations/{id}", "GET", f"/v1/operations/{op_id}", "OperationDTO", 200)
+        check("operations", "GET /v1/operations/{id}", "GET", f"/v1/operations/{op_id}", "OperationDTO", 200)
         check(
+            "operations",
             "POST /v1/operations/{id}/cancel",
             "POST",
             f"/v1/operations/{op_id}/cancel",
@@ -178,9 +192,9 @@ def run_checks(contract, base_url, token):
     return results
 
 
-def live_check(base_url, token):
+def live_check(base_url, token, routes):
     contract = load_contract()
-    results = run_checks(contract, base_url, token)
+    results = run_checks(contract, base_url, token, routes)
     failed = [(name, detail) for name, passed, detail in results if not passed]
 
     if failed:
@@ -260,6 +274,7 @@ def main():
     parser.add_argument("--base-url", help="e.g. http://127.0.0.1:48400")
     parser.add_argument("--token", help="bearer token for full live route conformance")
     parser.add_argument("--expect-auth-store", action="store_true", help="P4.5: assert MSC_DEV_TOKEN no longer authorizes protected routes")
+    parser.add_argument("--routes", help="comma-separated route keys, e.g. status,performance")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
 
@@ -274,7 +289,7 @@ def main():
     if not args.base_url or not args.token:
         parser.error("--base-url and --token are required unless --selftest or --expect-auth-store")
 
-    sys.exit(live_check(args.base_url, args.token))
+    sys.exit(live_check(args.base_url, args.token, args.routes))
 
 
 if __name__ == "__main__":

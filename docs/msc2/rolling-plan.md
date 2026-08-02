@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.26 awaiting verification
-> **Next move:** VERIFY P4.26
+> ## STATUS: Phase 4 in progress — P4.27 awaiting verification
+> **Next move:** VERIFY P4.27
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1487,7 +1487,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Phase exit
 
 ### P4.27 — Live Paper lifecycle conformance check
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase4/live-paper-lifecycle-check.py`, `corpus/server-dirs/README.md`
 **What:** Build one command that drives the whole non-service vertical slice against a real imported Paper server directory: import/detect, set active server, start, observe console ready line, query status/performance, send `say` command, read console tail/WebSocket, stop gracefully, restart, and stop again. The script uses the public API/CLI, not internal Rust functions, so it verifies the same path iOS and CLI consume. It requires Cameron to provide or point at a real Paper server directory; do not fabricate a server corpus.
 **Verify:** `python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48400` → all lifecycle actions pass

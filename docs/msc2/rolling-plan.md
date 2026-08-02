@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.9 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.9 Verify command)
+> ## STATUS: Phase 4 in progress — P4.10 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.10 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1314,7 +1314,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.9 — Build the process supervisor trait and fake process harness
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/process.rs`, `crates/msc-infrastructure/tests/process_supervisor.rs`, `crates/msc-application/tests/lifecycle_with_fake_process.rs`
 **What:** Define the process-supervisor abstraction that lifecycle code consumes: spawn with working directory/env/args, stream stdout/stderr bytes, write stdin commands, request graceful stop, force terminate, observe pid/exit status. Include a fake supervisor that can emit partial output chunks, hold trailing partial lines, accept commands, and simulate normal/crash exits so lifecycle tests do not need Java yet.
 **Verify:** `cargo nextest run -p msc-infrastructure process_supervisor && cargo nextest run -p msc-application lifecycle_with_fake_process` → fake process and lifecycle tests pass
@@ -1322,9 +1322,9 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.10 — Implement real Java process supervisors for macOS/Linux and Windows
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-platform-macos/src/process.rs`, `crates/msc-platform-linux/src/process.rs`, `crates/msc-platform-windows/src/process.rs`, `crates/msc-platform-windows/tests/job_object.rs`
-**What:** Implement P4.9's trait on all three platforms. macOS/Linux use `tokio::process`/POSIX process groups where appropriate. Windows uses Job Objects so child-process cleanup is testable before the service layer, matching the §4B acceptance item "Job Object process trees." Preserve `ServerProcessManager` line-framing and termination callback ordering semantics where they are observable. No Bedrock process support in this step.
+**What:** Implement P4.9's trait on all three platforms. macOS/Linux use the P4.9 synchronous trait shape with background stdout/stderr reader threads plus POSIX process groups so forced termination reaches Java child processes. Windows assigns each child to a Job Object and force-terminates the job so child-process cleanup is testable before the service layer, matching the §4B acceptance item "Job Object process trees." Exit events are queued only after stdout/stderr readers drain, preserving `ServerProcessManager` termination callback ordering where it is observable. No Bedrock process support in this step.
 **Verify:** `cargo nextest run --workspace process_supervisor_real` → platform-gated real supervisor tests pass on each native CI runner
 **Commit:** `P4.10: implement real Java process supervisors`
 **Batch:** stop-after

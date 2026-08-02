@@ -593,6 +593,7 @@ name = "msc-platform-linux"
 version = "0.1.0"
 dependencies = [
  "chacha20poly1305",
+ "libc",
  "msc-infrastructure",
 ]
 
@@ -600,6 +601,7 @@ dependencies = [
 name = "msc-platform-macos"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "msc-infrastructure",
  "security-framework",
  "security-framework-sys",

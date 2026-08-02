@@ -1410,7 +1410,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### iOS
 
 ### P4.19 — Repoint iOS models and networking for Phase 4 lifecycle routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/ios/MSCRemoteiOS_Swift/`
 **What:** Expand the copied iOS client beyond P2.19's status-only call: real token storage/pairing from P4.5, server list, active-server selection, start/stop/restart, command send, console tail/stream where the existing app has the surface, and performance/status display. Keep the MSC 1 oracle copy untouched. Hand-written models are still allowed for this phase only; codegen remains a later audit item unless Cameron promotes it now.
 **Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS build` → `BUILD SUCCEEDED`
@@ -1431,7 +1431,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Service ownership
 
 ### P4.21 — Service manager trait and install/status command model
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/service.rs`, `crates/msc-agent/src/cli/service.rs`, `crates/msc-infrastructure/tests/service_model.rs`
 **What:** Define the shared service-management model used by all platform adapters: install, uninstall, start, stop, status, service log path, configured run user, binary path, working directory, environment, and expected port. The CLI exposes these as explicit admin/install commands so Phase 4 service tests do not depend on the GUI. This is the cross-platform contract; no platform registration yet.
 **Verify:** `cargo nextest run -p msc-infrastructure service_model` → service model tests pass

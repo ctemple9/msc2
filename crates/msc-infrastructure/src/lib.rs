@@ -10,3 +10,4 @@ pub mod operation_journal;
 pub mod path_safety;
 pub mod process;
 pub mod secret_store;
+pub mod service;

@@ -1,6 +1,8 @@
 //! Phase 4 CLI commands. Every subcommand except `serve` talks to the
 //! same HTTP API the iOS client uses.
 
+pub mod service;
+
 use std::fmt::Display;
 
 use axum::http::{Method, StatusCode, Uri};
@@ -66,6 +68,11 @@ pub enum Command {
     Send(CommandArgs),
     /// Show the active server's current lifecycle state.
     Status,
+    /// Install or inspect the background service registration.
+    Service {
+        #[command(subcommand)]
+        command: service::ServiceCommand,
+    },
     /// Read recent console lines from the active server.
     Console {
         #[command(subcommand)]
@@ -201,6 +208,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
             }
             Ok(())
         }
+        Command::Service { command } => service::run(common, command).await,
         Command::Server { command } => run_server(common, command).await,
         Command::Send(args) => run_command(common, args).await,
         Command::Console { command } => run_console(common, command).await,

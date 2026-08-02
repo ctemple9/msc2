@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.17 DONE
-> **Next move:** EXECUTE P4.18
+> ## STATUS: Phase 4 in progress — P4.18 awaiting verification
+> **Next move:** VERIFY P4.18
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1398,7 +1398,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### CLI
 
 ### P4.18 — Add CLI commands for the Java lifecycle slice
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/cli_lifecycle.rs`
 **What:** Implement the Phase 4 CLI surface in the same binary unless P4.1 chooses otherwise: `msc serve`, `msc token`/pairing helpers needed for this phase, `msc server import`, `msc server start`, `msc server stop`, `msc server restart`, `msc command`, `msc status`, `msc console tail`, and `--json` output where `msc2-engineering.md` §4 requires it. The CLI talks through the same HTTP API path the clients use; it does not call application services directly except for `serve`.
 **Verify:** `cargo nextest run -p msc-agent cli_lifecycle && tools/phase4/cli-lifecycle-smoke.sh` → CLI tests and smoke flow pass

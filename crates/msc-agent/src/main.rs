@@ -3,52 +3,56 @@
 //! bearer-auth gate; P2.13/P2.14 wire the route handlers behind it.
 
 mod auth;
+mod cli;
 mod routes;
 mod ws;
 
 use std::net::SocketAddr;
+use std::process::ExitCode;
 
 use axum::Router;
 use axum::routing::{get, post};
-use clap::{Parser, Subcommand};
+use clap::Parser;
 
 #[derive(Parser)]
-#[command(name = "msc-agent", about = "MSC 2 background agent")]
-struct Cli {
+#[command(name = "msc", about = "MSC 2 service and CLI")]
+struct App {
+    #[command(flatten)]
+    common: cli::CommonArgs,
     #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Subcommand)]
-enum Command {
-    /// Start the agent's HTTP management API.
-    Serve {
-        /// Address to bind the management API to. Loopback by default
-        /// (`msc2-engineering.md` §10: "the management API binds to
-        /// loopback by default") — LAN/Tailscale binding is opt-in and
-        /// not implemented by the skeletal agent.
-        #[arg(long, default_value = "127.0.0.1:48400")]
-        bind: SocketAddr,
-    },
+    command: cli::Command,
 }
 
 #[tokio::main]
-async fn main() {
-    let Cli { command } = Cli::parse();
-    let Command::Serve { bind } = command;
+async fn main() -> ExitCode {
+    let App { common, command } = App::parse();
+    let result = match command {
+        cli::Command::Serve { bind } => run_service(bind).await,
+        command => cli::run(common, command).await,
+    };
 
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            error.print();
+            ExitCode::from(error.exit_code())
+        }
+    }
+}
+
+async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
     let listener = tokio::net::TcpListener::bind(bind)
         .await
-        .unwrap_or_else(|err| panic!("failed to bind {bind}: {err}"));
+        .map_err(|err| cli::CliError::internal(format!("failed to bind {bind}: {err}")))?;
 
-    println!("msc-agent listening on {bind}");
+    println!("msc listening on {bind}");
 
     axum::serve(listener, build_app())
         .await
-        .expect("server error");
+        .map_err(|err| cli::CliError::internal(format!("server error: {err}")))
 }
 
-fn build_app() -> Router {
+pub(crate) fn build_app() -> Router {
     let auth_state = auth::AuthState::empty_service_store_with_test_bootstrap_env();
 
     // GET /v1/health is the one route the dev-mode auth gate does not

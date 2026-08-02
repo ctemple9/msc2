@@ -167,11 +167,11 @@ impl From<ProcessError> for LifecycleError {
     }
 }
 
-pub trait JavaServerRepository {
+pub trait JavaServerRepository: Send + Sync {
     fn load(&self, id: &ServerId) -> Result<Option<ImportedJavaServer>, LifecycleError>;
 }
 
-pub trait ConsoleSink {
+pub trait ConsoleSink: Send + Sync {
     fn append_system_line(&self, server_id: &ServerId, line: &str);
 }
 

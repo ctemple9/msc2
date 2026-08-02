@@ -5,8 +5,8 @@ use msc_application::lifecycle::{
 use msc_infrastructure::process::{
     FakeProcessSupervisor, OutputLineFramer, ProcessEvent, ProcessSpawnRequest, ProcessSupervisor,
 };
-use std::cell::RefCell;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 struct FakeRepository {
     server: ImportedJavaServer,
@@ -20,12 +20,12 @@ impl JavaServerRepository for FakeRepository {
 
 #[derive(Default)]
 struct FakeConsole {
-    lines: RefCell<Vec<String>>,
+    lines: Mutex<Vec<String>>,
 }
 
 impl ConsoleSink for FakeConsole {
     fn append_system_line(&self, _server_id: &ServerId, line: &str) {
-        self.lines.borrow_mut().push(line.to_string());
+        self.lines.lock().unwrap().push(line.to_string());
     }
 }
 

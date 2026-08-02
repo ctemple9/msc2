@@ -122,7 +122,7 @@ impl fmt::Display for ProcessError {
 
 impl std::error::Error for ProcessError {}
 
-pub trait ProcessSupervisor {
+pub trait ProcessSupervisor: Send + Sync {
     fn spawn(&self, request: ProcessSpawnRequest) -> Result<ProcessId, ProcessError>;
     fn write_stdin(&self, pid: ProcessId, bytes: &[u8]) -> Result<(), ProcessError>;
 

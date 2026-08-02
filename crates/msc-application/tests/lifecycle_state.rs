@@ -3,8 +3,8 @@ use msc_application::lifecycle::{
     LifecycleState, ServerId,
 };
 use msc_infrastructure::process::{FakeProcessSupervisor, ProcessSpawnRequest};
-use std::cell::RefCell;
 use std::path::PathBuf;
+use std::sync::Mutex;
 
 const ALL_STATES: [LifecycleState; 5] = [
     LifecycleState::Stopped,
@@ -42,13 +42,14 @@ impl JavaServerRepository for FakeRepository {
 
 #[derive(Default)]
 struct FakeConsole {
-    lines: RefCell<Vec<(ServerId, String)>>,
+    lines: Mutex<Vec<(ServerId, String)>>,
 }
 
 impl ConsoleSink for FakeConsole {
     fn append_system_line(&self, server_id: &ServerId, line: &str) {
         self.lines
-            .borrow_mut()
+            .lock()
+            .unwrap()
             .push((server_id.clone(), line.to_string()));
     }
 }
@@ -134,7 +135,7 @@ fn lifecycle_state_start_uses_injected_repository_process_and_console() {
         Some(server.directory.clone())
     );
     assert_eq!(
-        console.lines.borrow().as_slice(),
+        console.lines.lock().unwrap().as_slice(),
         &[(server.id.clone(), "Starting server: Survival".to_string())]
     );
 }
@@ -157,7 +158,7 @@ fn lifecycle_state_failed_process_start_keeps_server_stopped() {
         Err(LifecycleError::Process("start failed".to_string()))
     );
     assert_eq!(service.state(), LifecycleState::Stopped);
-    assert!(console.lines.borrow().is_empty());
+    assert!(console.lines.lock().unwrap().is_empty());
 }
 
 #[test]

@@ -2,22 +2,32 @@
 
 use axum::Json;
 use axum::extract::State;
-use msc_api::dto::{PerformanceMetricNumberDto, PerformanceSnapshotDto, RemoteApiStatus};
+use msc_api::dto::RemoteApiStatus;
+#[cfg(test)]
+use msc_api::dto::{PerformanceMetricNumberDto, PerformanceSnapshotDto};
+#[cfg(test)]
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
+#[cfg(test)]
 use std::sync::{Arc, RwLock};
+#[cfg(test)]
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use crate::routes::lifecycle::LifecycleRoutesState;
+
+#[cfg(test)]
 #[derive(Clone)]
 pub struct StatusRoutesState {
     inner: Arc<RwLock<StatusSnapshots>>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone)]
 struct StatusSnapshots {
     status: LifecycleStatusSnapshot,
     performance: PerformanceSnapshot,
 }
 
+#[cfg(test)]
 impl Default for StatusRoutesState {
     fn default() -> Self {
         Self::new(
@@ -41,6 +51,7 @@ impl Default for StatusRoutesState {
     }
 }
 
+#[cfg(test)]
 impl StatusRoutesState {
     pub fn new(status: LifecycleStatusSnapshot, performance: PerformanceSnapshot) -> Self {
         Self {
@@ -86,10 +97,19 @@ impl StatusRoutesState {
     }
 }
 
-pub async fn status(State(state): State<StatusRoutesState>) -> Json<RemoteApiStatus> {
-    Json(state.status())
+pub async fn status(State(state): State<LifecycleRoutesState>) -> Json<RemoteApiStatus> {
+    let snapshot = state.status_snapshot();
+    Json(RemoteApiStatus {
+        running: snapshot.running,
+        active_server_id: snapshot.active_server_id,
+        pid: snapshot.pid,
+        server_type: snapshot.server_type,
+        docker_container_running: None,
+        docker_container_status: None,
+    })
 }
 
+#[cfg(test)]
 fn metric(value: Option<f64>, help_id: &'static str) -> Option<PerformanceMetricNumberDto> {
     value.map(|value| PerformanceMetricNumberDto {
         value,
@@ -97,6 +117,7 @@ fn metric(value: Option<f64>, help_id: &'static str) -> Option<PerformanceMetric
     })
 }
 
+#[cfg(test)]
 fn unix_timestamp_string() -> String {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)

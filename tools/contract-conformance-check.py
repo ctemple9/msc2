@@ -21,11 +21,18 @@ tools/api-contract-check.py (P2.8).
 """
 
 import argparse
+import base64
 import json
 import os
+import socket
+import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
+import zipfile
+from pathlib import Path
+from urllib.parse import urlparse
 
 CONTRACT_PATH = "docs/msc2/api-contract/openapi.json"
 
@@ -124,15 +131,23 @@ def request_expect_http_error(base_url, method, path, token, expected_status, bo
         return payload
 
 
+def schema_ref(schema_name):
+    return {"$ref": f"#/components/schemas/{schema_name}"}
+
+
+def array_schema(item_schema_name):
+    return {"type": "array", "items": schema_ref(item_schema_name)}
+
+
 def run_checks(contract, base_url, token, selected_routes=None):
     """Returns a list of (route_name, passed, detail) tuples, one per route
     this phase's agent implements."""
     results = []
     selected = None
     if selected_routes is not None:
-        selected = {route.strip() for route in selected_routes.split(",") if route.strip()}
+        selected = expand_route_selection(selected_routes)
 
-    def check(route_key, name, method, path, schema_name, expected_status, body=None):
+    def check_schema(route_key, name, method, path, schema, expected_status, body=None):
         if selected is not None and route_key not in selected:
             return None
         try:
@@ -149,7 +164,7 @@ def run_checks(contract, base_url, token, selected_routes=None):
             return payload
 
         try:
-            assert_conforms(contract, {"$ref": f"#/components/schemas/{schema_name}"}, payload, schema_name)
+            assert_conforms(contract, schema, payload, schema.get("$ref", route_key))
         except AssertionError as e:
             results.append((name, False, str(e)))
             return payload
@@ -157,10 +172,14 @@ def run_checks(contract, base_url, token, selected_routes=None):
         results.append((name, True, None))
         return payload
 
+    def check(route_key, name, method, path, schema_name, expected_status, body=None):
+        return check_schema(route_key, name, method, path, schema_ref(schema_name), expected_status, body)
+
     check("health", "GET /v1/health", "GET", "/v1/health", "HealthResponseDTO", 200)
     check("status", "GET /v1/status", "GET", "/v1/status", "RemoteAPIStatus", 200)
     check("performance", "GET /v1/performance", "GET", "/v1/performance", "PerformanceSnapshotDTO", 200)
     check("capabilities", "GET /v1/capabilities", "GET", "/v1/capabilities", "CapabilitiesDTO", 200)
+    check_phase4_lifecycle_routes(contract, base_url, token, selected, results, check, check_schema)
 
     if selected is not None and "operations" not in selected:
         return results
@@ -190,6 +209,181 @@ def run_checks(contract, base_url, token, selected_routes=None):
         )
 
     return results
+
+
+def expand_route_selection(selected_routes):
+    selected = {route.strip() for route in selected_routes.split(",") if route.strip()}
+    if "phase4-lifecycle" not in selected:
+        return selected
+    selected.remove("phase4-lifecycle")
+    selected.update(
+        {
+            "servers",
+            "servers-import",
+            "active-server",
+            "start",
+            "stop",
+            "command",
+            "status",
+            "performance",
+            "console-tail",
+            "console-ws",
+        }
+    )
+    return selected
+
+
+def check_phase4_lifecycle_routes(contract, base_url, token, selected, results, check, check_schema):
+    phase4_keys = {
+        "servers",
+        "servers-import",
+        "active-server",
+        "start",
+        "stop",
+        "command",
+        "console-tail",
+        "console-ws",
+    }
+    if selected is not None and not (selected & phase4_keys):
+        return
+
+    check_schema("servers", "GET /v1/servers", "GET", "/v1/servers", array_schema("ServerDTO"), 200)
+
+    with tempfile.TemporaryDirectory(prefix="msc2-phase4-lifecycle-") as tmp:
+        server_dir = Path(tmp) / "paper"
+        server_dir.mkdir()
+        build_fake_paper_jar(server_dir / "paper.jar")
+        (server_dir / "eula.txt").write_text("eula=true\n")
+        (server_dir / "server.properties").write_text(
+            "server-port=25565\nmax-players=20\nlevel-name=world\n"
+        )
+
+        imported = check(
+            "servers-import",
+            "POST /v1/servers/import",
+            "POST",
+            "/v1/servers/import",
+            "ServerImportResultDTO",
+            200,
+            body={
+                "action": "importExisting",
+                "sourcePath": str(server_dir),
+                "displayName": "Contract Paper",
+                "serverType": "java",
+                "importKind": "paper",
+            },
+        )
+        server_id = imported.get("serverId") if isinstance(imported, dict) else None
+        if not server_id:
+            results.append(("POST /v1/active-server", False, "no serverId from import response"))
+            results.append(("POST /v1/start", False, "no serverId from import response"))
+            results.append(("POST /v1/command", False, "no serverId from import response"))
+            results.append(("POST /v1/stop", False, "no serverId from import response"))
+            return
+
+        check(
+            "active-server",
+            "POST /v1/active-server",
+            "POST",
+            "/v1/active-server",
+            "SimpleResult",
+            200,
+            body={"serverId": server_id},
+        )
+        check("start", "POST /v1/start", "POST", "/v1/start", "SimpleResult", 200)
+        wait_for_running_status(base_url, token, contract, results)
+        check(
+            "command",
+            "POST /v1/command",
+            "POST",
+            "/v1/command",
+            "CommandResult",
+            200,
+            body={"command": "say contract-check"},
+        )
+        check_schema(
+            "console-tail",
+            "GET /v1/console/tail",
+            "GET",
+            "/v1/console/tail?n=20",
+            array_schema("ConsoleLineDTO"),
+            200,
+        )
+        check_console_websocket(base_url, token, results)
+        check("stop", "POST /v1/stop", "POST", "/v1/stop", "SimpleResult", 200)
+
+
+def build_fake_paper_jar(jar_path):
+    source = jar_path.with_name("FakePaper.java")
+    source.write_text(
+        """
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+
+public class FakePaper {
+    public static void main(String[] args) throws Exception {
+        System.out.println("Done (0.001s)! For help, type \\"help\\"");
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            System.out.println("command:" + line);
+            if (line.trim().equals("stop")) {
+                break;
+            }
+        }
+    }
+}
+""".strip()
+    )
+    subprocess.run(["javac", str(source)], check=True, cwd=jar_path.parent)
+    with zipfile.ZipFile(jar_path, "w") as jar:
+        jar.writestr("META-INF/MANIFEST.MF", "Manifest-Version: 1.0\nMain-Class: FakePaper\n\n")
+        jar.write(jar_path.with_name("FakePaper.class"), "FakePaper.class")
+
+
+def wait_for_running_status(base_url, token, contract, results):
+    for _ in range(50):
+        try:
+            status, payload = request(base_url, "GET", "/v1/status", token)
+            assert status == 200
+            assert_conforms(contract, schema_ref("RemoteAPIStatus"), payload, "RemoteAPIStatus")
+            if payload.get("running") and payload.get("pid"):
+                return
+        except Exception:
+            pass
+        import time
+
+        time.sleep(0.1)
+    results.append(("GET /v1/status after start", False, "server did not report a running pid"))
+
+
+def check_console_websocket(base_url, token, results):
+    parsed = urlparse(base_url)
+    host = parsed.hostname or "127.0.0.1"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    path_prefix = parsed.path.rstrip("/")
+    key = base64.b64encode(os.urandom(16)).decode()
+    request_text = (
+        f"GET {path_prefix}/v1/console/stream HTTP/1.1\r\n"
+        f"Host: {host}:{port}\r\n"
+        "Upgrade: websocket\r\n"
+        "Connection: Upgrade\r\n"
+        f"Sec-WebSocket-Key: {key}\r\n"
+        "Sec-WebSocket-Version: 13\r\n"
+        f"Authorization: Bearer {token}\r\n"
+        "\r\n"
+    )
+    try:
+        with socket.create_connection((host, port), timeout=5) as sock:
+            sock.sendall(request_text.encode())
+            response = sock.recv(1024).decode(errors="replace")
+    except OSError as e:
+        results.append(("GET /v1/console/stream", False, f"connection error: {e}"))
+        return
+    if response.startswith("HTTP/1.1 101") or response.startswith("HTTP/1.0 101"):
+        results.append(("GET /v1/console/stream", True, None))
+    else:
+        results.append(("GET /v1/console/stream", False, response.split("\r\n", 1)[0]))
 
 
 def live_check(base_url, token, routes):

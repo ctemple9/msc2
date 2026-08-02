@@ -46,10 +46,6 @@ impl Default for ConsoleState {
 }
 
 impl ConsoleState {
-    #[expect(
-        dead_code,
-        reason = "P4.16 wires lifecycle process output into this buffer; P4.11 removes the demo source first."
-    )]
     pub fn push(&self, line: ConsoleLine) {
         let mut buffer = self.buffer.lock().expect("console buffer lock poisoned");
         buffer.push(line.clone());

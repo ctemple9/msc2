@@ -71,16 +71,23 @@ fn build_app() -> Router {
         .with_state(operations_state);
 
     let console_state = ws::console::ConsoleState::default();
+    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::new(console_state.clone());
+
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))
         .route("/console/tail", get(ws::console::tail))
         .with_state(console_state);
 
-    let status_state = routes::status::StatusRoutesState::default();
-    let status = Router::new()
+    let lifecycle = Router::new()
+        .route("/servers", get(routes::servers::list))
+        .route("/servers/import", post(routes::servers::import))
+        .route("/active-server", post(routes::lifecycle::active_server))
+        .route("/start", post(routes::lifecycle::start))
+        .route("/stop", post(routes::lifecycle::stop))
+        .route("/command", post(routes::commands::command))
         .route("/status", get(routes::status::status))
         .route("/performance", get(routes::performance::performance))
-        .with_state(status_state);
+        .with_state(lifecycle_state);
 
     // Every other route this phase wires runs behind the SecretStore-backed
     // bearer-token check — including both WebSocket upgrades, since the auth
@@ -88,7 +95,7 @@ fn build_app() -> Router {
     // switch happens (websocket-v1.json: "evaluated before the WS-upgrade
     // special case is reached").
     let protected = Router::new()
-        .merge(status)
+        .merge(lifecycle)
         .route("/capabilities", get(routes::capabilities::capabilities))
         .merge(operations)
         .merge(operation_progress)

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.15 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.15 Verify command)
+> ## STATUS: Phase 4 in progress — P4.16 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.16 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1366,7 +1366,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P4.15 — Implement graceful stop and restart
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/java-stop-restart/`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/tests/java_stop_restart.rs`
 **What:** Port the Phase 4 stop/restart behavior from `AppViewModel+ServerControls.swift` and `ServerProcessManager.requestStop`/`terminate`: send `stop`, wait for process exit, transition state correctly, preserve console closure behavior, and implement restart as stop-then-start with no duplicate launch. Force-stop UI prompts and backup-before-update semantics stay later phases unless needed to recover a failed graceful stop test.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-stop-restart --expect 6 && cargo nextest run -p msc-application java_stop_restart` → graceful stop/restart tests pass
@@ -1378,7 +1378,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### API and operation integration
 
 ### P4.16 — Back v1 lifecycle routes with the real lifecycle service
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/{servers,status,console,commands,lifecycle,performance}.rs`, `tools/contract-conformance-check.py`
 **What:** Wire the existing v1 contract to real application behavior for the Phase 4 route set: `GET /v1/servers`, `POST /v1/servers/import` for the Paper import path, `POST /v1/active-server`, `POST /v1/start`, `POST /v1/stop`, `POST /v1/command`, `GET /v1/status`, `GET /v1/performance`, `GET /v1/console/tail`, and the console WebSocket. Preserve the P2.4 `ErrorDTO` envelope and P2.1 permission categories.
 **Verify:** `python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --token "$(msc token print --test)" --routes phase4-lifecycle` → every Phase 4 lifecycle route matches `openapi.json`

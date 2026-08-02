@@ -585,6 +585,7 @@ name = "msc-infrastructure"
 version = "0.1.0"
 dependencies = [
  "msc-domain",
+ "serde",
  "serde_json",
 ]
 

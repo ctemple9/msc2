@@ -1,0 +1,18 @@
+{
+  "domain": "console-framing",
+  "case": "blank-console-lines-are-preserved",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "handleIncoming(data:) emits an empty string for adjacent newlines",
+    "line": 374
+  },
+  "input": {
+    "chunks": [
+      [102, 105, 114, 115, 116, 10, 10, 116, 104, 105, 114, 100, 10]
+    ],
+    "flush": false
+  },
+  "expected": {
+    "lines": ["first", "", "third"]
+  }
+}

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.10 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.10 Verify command)
+> ## STATUS: Phase 4 in progress — P4.11 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.11 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1322,7 +1322,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.10 — Implement real Java process supervisors for macOS/Linux and Windows
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-platform-macos/src/process.rs`, `crates/msc-platform-linux/src/process.rs`, `crates/msc-platform-windows/src/process.rs`, `crates/msc-platform-windows/tests/job_object.rs`
 **What:** Implement P4.9's trait on all three platforms. macOS/Linux use the P4.9 synchronous trait shape with background stdout/stderr reader threads plus POSIX process groups so forced termination reaches Java child processes. Windows assigns each child to a Job Object and force-terminates the job so child-process cleanup is testable before the service layer, matching the §4B acceptance item "Job Object process trees." Exit events are queued only after stdout/stderr readers drain, preserving `ServerProcessManager` termination callback ordering where it is observable. No Bedrock process support in this step.
 **Verify:** `cargo nextest run --workspace process_supervisor_real` → platform-gated real supervisor tests pass on each native CI runner
@@ -1334,7 +1334,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Console, status, metrics
 
 ### P4.11 — Port real console byte-stream framing and bounded history
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/console-framing/`, `crates/msc-infrastructure/src/console_buffer.rs`, `crates/msc-infrastructure/tests/console_framing.rs`, `crates/msc-agent/src/ws/console.rs`
 **What:** Port `ServerProcessManager.handleIncoming`/`flushPendingOutput` and the P0.24 console history contract against real fixtures: arbitrary byte chunks, mixed newline boundaries, trailing partial line flush on EOF, 5000-line backing buffer, 200-line WebSocket backfill, and `GET /v1/console/tail?n=` clamped 1-2000. Replace the Phase 2 demo ticker/backfill with lines from the real lifecycle console buffer.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/console-framing --expect 7 && cargo nextest run -p msc-infrastructure console_framing` → console framing/history tests pass

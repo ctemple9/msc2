@@ -1,0 +1,18 @@
+{
+  "domain": "console-framing",
+  "case": "flush-after-complete-line-emits-no-extra-line",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "flushPendingOutput() returns when pendingOutput is empty",
+    "line": 392
+  },
+  "input": {
+    "chunks": [
+      [99, 111, 109, 112, 108, 101, 116, 101, 10]
+    ],
+    "flush": true
+  },
+  "expected": {
+    "lines": ["complete"]
+  }
+}

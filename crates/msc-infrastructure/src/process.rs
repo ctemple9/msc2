@@ -4,6 +4,8 @@
 //! cross-platform contract and a fake harness so application lifecycle tests
 //! can exercise process output, stdin, and exits without starting Java.
 
+use crate::console_buffer::ConsoleLineFramer;
+
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
@@ -134,7 +136,7 @@ pub trait ProcessSupervisor {
 
 #[derive(Debug, Default)]
 pub struct OutputLineFramer {
-    pending: Vec<u8>,
+    inner: ConsoleLineFramer,
 }
 
 impl OutputLineFramer {
@@ -143,24 +145,11 @@ impl OutputLineFramer {
     }
 
     pub fn push(&mut self, bytes: &[u8]) -> Vec<String> {
-        self.pending.extend_from_slice(bytes);
-        let mut lines = Vec::new();
-
-        while let Some(newline_index) = self.pending.iter().position(|byte| *byte == b'\n') {
-            let line = self.pending.drain(..newline_index).collect::<Vec<_>>();
-            self.pending.drain(..1);
-            lines.push(String::from_utf8_lossy(&line).into_owned());
-        }
-
-        lines
+        self.inner.push_bytes(bytes)
     }
 
     pub fn flush(&mut self) -> Option<String> {
-        if self.pending.is_empty() {
-            return None;
-        }
-        let line = std::mem::take(&mut self.pending);
-        Some(String::from_utf8_lossy(&line).into_owned())
+        self.inner.flush()
     }
 
     pub fn push_event(&mut self, event: &ProcessEvent) -> Vec<String> {

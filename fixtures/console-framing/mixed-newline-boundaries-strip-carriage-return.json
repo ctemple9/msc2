@@ -1,0 +1,19 @@
+{
+  "domain": "console-framing",
+  "case": "mixed-newline-boundaries-strip-carriage-return",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "handleIncoming(data:) splits on LF and emits CRLF text without CR",
+    "line": 374
+  },
+  "input": {
+    "chunks": [
+      [111, 110, 101, 13, 10, 116],
+      [119, 111, 10, 116, 104, 114, 101, 101, 13, 10]
+    ],
+    "flush": false
+  },
+  "expected": {
+    "lines": ["one", "two", "three"]
+  }
+}

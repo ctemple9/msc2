@@ -1,0 +1,19 @@
+{
+  "domain": "console-framing",
+  "case": "split-line-across-byte-chunks",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "handleIncoming(data:) accumulates partial Data until newline",
+    "line": 365
+  },
+  "input": {
+    "chunks": [
+      [68, 111, 110, 101, 32],
+      [40, 49, 46, 50, 51, 52, 115, 41, 10]
+    ],
+    "flush": false
+  },
+  "expected": {
+    "lines": ["Done (1.234s)"]
+  }
+}

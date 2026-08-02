@@ -1,0 +1,30 @@
+{
+  "domain": "console-framing",
+  "case": "history-limit-backfill-and-tail-clamps",
+  "source": {
+    "file": "RemoteAPIServer.swift; RemoteAPIServer+HTTP.swift",
+    "test": "consoleBufferLimit, WebSocket initial tail, and GET /console/tail n clamp",
+    "line": 476
+  },
+  "input": {
+    "lineCount": 5005,
+    "tailRequests": {
+      "default": null,
+      "belowMin": "0",
+      "aboveMax": "9999",
+      "invalid": "not-a-number",
+      "three": "3"
+    }
+  },
+  "expected": {
+    "historyLen": 5000,
+    "firstStored": "line-6",
+    "defaultTailLen": 200,
+    "belowMinTailLen": 1,
+    "aboveMaxTailLen": 2000,
+    "invalidTailLen": 200,
+    "webSocketBackfillLen": 200,
+    "webSocketBackfillFirst": "line-4806",
+    "threeTailTexts": ["line-5003", "line-5004", "line-5005"]
+  }
+}

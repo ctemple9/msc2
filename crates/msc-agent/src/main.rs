@@ -70,9 +70,11 @@ fn build_app() -> Router {
         .route("/operations/:id/stream", get(ws::operations::upgrade))
         .with_state(operations_state);
 
+    let console_state = ws::console::ConsoleState::default();
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))
-        .with_state(ws::console::ConsoleState::default());
+        .route("/console/tail", get(ws::console::tail))
+        .with_state(console_state);
 
     // Every other route this phase wires runs behind the SecretStore-backed
     // bearer-token check — including both WebSocket upgrades, since the auth

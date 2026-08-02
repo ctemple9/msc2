@@ -1,0 +1,18 @@
+{
+  "domain": "console-framing",
+  "case": "invalid-utf8-is-lossy-decoded",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "String(decoding:as:) fallback keeps malformed process output displayable",
+    "line": 382
+  },
+  "input": {
+    "chunks": [
+      [79, 75, 32, 240, 40, 140, 40, 10]
+    ],
+    "flush": false
+  },
+  "expected": {
+    "lines": ["OK \ufffd(\ufffd("]
+  }
+}

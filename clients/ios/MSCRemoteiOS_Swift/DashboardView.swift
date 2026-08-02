@@ -183,7 +183,8 @@ struct DashboardView: View {
                         selectedServerId: $selectedServerId,
                         manageAction: { showManageServers = true },
                         startAction: { Task { await startServer() } },
-                        stopAction: { Task { await stopServer() } }
+                        stopAction: { Task { await stopServer() } },
+                        restartAction: { Task { await restartServer() } }
                     )
                     .frame(maxWidth: .infinity)
                 }
@@ -209,7 +210,8 @@ struct DashboardView: View {
                     selectedServerId: $selectedServerId,
                     manageAction: { showManageServers = true },
                     startAction: { Task { await startServer() } },
-                    stopAction: { Task { await stopServer() } }
+                    stopAction: { Task { await stopServer() } },
+                    restartAction: { Task { await restartServer() } }
                 )
             }
 
@@ -386,6 +388,11 @@ struct DashboardView: View {
         guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
         let ok = await vm.stop(baseURL: baseURL, token: token)
         if ok { hapticSuccess(); await refreshUntilRunningState(expectedRunning: false) } else { hapticError() }
+    }
+    private func restartServer() async {
+        guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
+        let ok = await vm.restart(baseURL: baseURL, token: token)
+        if ok { hapticSuccess(); await refreshUntilRunningState(expectedRunning: true) } else { hapticError() }
     }
     private func sendCommandString(_ cmd: String) async {
         guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }

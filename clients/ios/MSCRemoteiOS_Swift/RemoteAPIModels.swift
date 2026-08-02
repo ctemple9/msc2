@@ -254,6 +254,7 @@ extension ConsoleLineDTO: Codable {
 struct SimpleResult: Codable, Equatable {
     let result: String
     let activeServerId: String?
+    let operationId: String?
 }
 
 struct CommandResult: Codable, Equatable {
@@ -264,9 +265,15 @@ struct CommandResult: Codable, Equatable {
 
 // MARK: - Performance
 
+struct PerformanceMetricNumberDTO: Codable, Equatable {
+    let value: Double
+    let helpId: String?
+}
+
 /// Snapshot payload from the Remote API.
-/// Keep fields optional so the client is robust if the server rolls out gradually.
-struct PerformanceSnapshotDTO: Codable, Equatable {
+/// Phase 4 wraps most numeric fields as `{ value, helpId }`, but the copied
+/// app still accepts legacy bare numbers so older agents do not break.
+struct PerformanceSnapshotDTO: Decodable, Equatable {
     /// Timestamp string (recommended ISO8601). Optional for robustness.
     let ts: String?
 
@@ -294,6 +301,41 @@ struct PerformanceSnapshotDTO: Codable, Equatable {
     let serverType: ServerType?
 
     var resolvedServerType: ServerType { serverType ?? .java }
+
+    private enum CodingKeys: String, CodingKey {
+        case ts
+        case tps1m
+        case playersOnline
+        case cpuPercent
+        case ramUsedMB
+        case ramMaxMB
+        case worldSizeMB
+        case serverType
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        ts = try container.decodeIfPresent(String.self, forKey: .ts)
+        tps1m = try Self.decodeMetric(from: container, forKey: .tps1m)
+        playersOnline = try container.decodeIfPresent(Int.self, forKey: .playersOnline)
+        cpuPercent = try Self.decodeMetric(from: container, forKey: .cpuPercent)
+        ramUsedMB = try Self.decodeMetric(from: container, forKey: .ramUsedMB)
+        ramMaxMB = try Self.decodeMetric(from: container, forKey: .ramMaxMB)
+        worldSizeMB = try Self.decodeMetric(from: container, forKey: .worldSizeMB)
+
+        let rawServerType = try container.decodeIfPresent(String.self, forKey: .serverType)
+        serverType = rawServerType.flatMap(ServerType.init(rawValue:))
+    }
+
+    private static func decodeMetric(
+        from container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) throws -> Double? {
+        if let wrapped = try container.decodeIfPresent(PerformanceMetricNumberDTO.self, forKey: key) {
+            return wrapped.value
+        }
+        return try container.decodeIfPresent(Double.self, forKey: key)
+    }
 }
 
 // MARK: - Players

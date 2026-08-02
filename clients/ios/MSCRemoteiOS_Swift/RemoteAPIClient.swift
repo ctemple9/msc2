@@ -33,6 +33,11 @@ enum RemoteAPIError: LocalizedError {
 }
 
 final class RemoteAPIClient {
+    private struct ErrorEnvelope: Decodable {
+        let code: String
+        let message: String
+    }
+
     private let baseURL: URL
     private let token: String
 
@@ -327,6 +332,21 @@ final class RemoteAPIClient {
 
     func stop() async throws -> SimpleResult {
         try await post(path: "/stop", body: EmptyBody(), as: SimpleResult.self)
+    }
+
+    func restart() async throws -> SimpleResult {
+        let status = try await getStatus()
+        if status.running {
+            _ = try await stop()
+            try await waitForStoppedBeforeRestart()
+        }
+
+        let startResult = try await start()
+        return SimpleResult(
+            result: "restart_requested",
+            activeServerId: startResult.activeServerId,
+            operationId: startResult.operationId
+        )
     }
 
     func sendCommand(_ command: String) async throws -> CommandResult {
@@ -945,7 +965,7 @@ final class RemoteAPIClient {
             }
 
             guard (200...299).contains(http.statusCode) else {
-                let body = String(data: data, encoding: .utf8)
+                let body = bestEffortErrorMessage(from: data)
                 throw RemoteAPIError.httpStatus(http.statusCode, body)
             }
 
@@ -983,7 +1003,7 @@ final class RemoteAPIClient {
             }
 
             guard (200...299).contains(http.statusCode) else {
-                let body = String(data: data, encoding: .utf8)
+                let body = bestEffortErrorMessage(from: data)
                 throw RemoteAPIError.httpStatus(http.statusCode, body)
             }
 
@@ -997,5 +1017,24 @@ final class RemoteAPIClient {
         } catch {
             throw RemoteAPIError.network(error.localizedDescription)
         }
+    }
+
+    private func waitForStoppedBeforeRestart() async throws {
+        let deadline = Date().addingTimeInterval(15)
+        while Date() < deadline {
+            let status = try await getStatus()
+            if !status.running {
+                return
+            }
+            try await Task.sleep(nanoseconds: 250_000_000)
+        }
+        throw RemoteAPIError.network("Timed out waiting for the server to stop before restart.")
+    }
+
+    private func bestEffortErrorMessage(from data: Data) -> String? {
+        if let envelope = try? JSONDecoder().decode(ErrorEnvelope.self, from: data) {
+            return envelope.message
+        }
+        return String(data: data, encoding: .utf8)
     }
 }

@@ -435,6 +435,18 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    func restart(baseURL: URL, token: String) async -> Bool {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            _ = try await requireClient().restart()
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
     func sendCommand(baseURL: URL, token: String, command: String) async -> Bool {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil

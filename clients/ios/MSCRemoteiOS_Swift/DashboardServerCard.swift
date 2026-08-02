@@ -11,6 +11,7 @@ struct DashboardServerCard: View {
     let manageAction: () -> Void
     let startAction: () -> Void
     let stopAction: () -> Void
+    let restartAction: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -98,6 +99,9 @@ struct DashboardServerCard: View {
                 MSCActionButton(title: "Start", icon: "play.fill", style: .primary,
                                 isEnabled: isPaired && !isRunning,
                                 action: startAction)
+                MSCActionButton(title: "Restart", icon: "arrow.clockwise", style: .secondary,
+                                isEnabled: isPaired && isRunning,
+                                action: restartAction)
                 MSCActionButton(title: "Stop", icon: "stop.fill", style: .danger,
                                 isEnabled: isPaired && isRunning,
                                 action: stopAction)

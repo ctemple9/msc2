@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.18 awaiting verification
-> **Next move:** VERIFY P4.18
+> ## STATUS: Phase 4 in progress — P4.19 awaiting verification
+> **Next move:** VERIFY P4.19
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1398,7 +1398,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### CLI
 
 ### P4.18 — Add CLI commands for the Java lifecycle slice
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/cli/`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/cli_lifecycle.rs`
 **What:** Implement the Phase 4 CLI surface in the same binary unless P4.1 chooses otherwise: `msc serve`, `msc token`/pairing helpers needed for this phase, `msc server import`, `msc server start`, `msc server stop`, `msc server restart`, `msc command`, `msc status`, `msc console tail`, and `--json` output where `msc2-engineering.md` §4 requires it. The CLI talks through the same HTTP API path the clients use; it does not call application services directly except for `serve`.
 **Verify:** `cargo nextest run -p msc-agent cli_lifecycle && tools/phase4/cli-lifecycle-smoke.sh` → CLI tests and smoke flow pass
@@ -1410,7 +1410,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### iOS
 
 ### P4.19 — Repoint iOS models and networking for Phase 4 lifecycle routes
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/ios/MSCRemoteiOS_Swift/`
 **What:** Expand the copied iOS client beyond P2.19's status-only call: real token storage/pairing from P4.5, server list, active-server selection, start/stop/restart, command send, console tail/stream where the existing app has the surface, and performance/status display. Keep the MSC 1 oracle copy untouched. Hand-written models are still allowed for this phase only; codegen remains a later audit item unless Cameron promotes it now.
 **Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS build` → `BUILD SUCCEEDED`

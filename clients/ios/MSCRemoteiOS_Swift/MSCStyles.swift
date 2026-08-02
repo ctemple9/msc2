@@ -149,7 +149,7 @@ struct MSCStatusDot: View {
 struct MSCActionButton: View {
     let title: String
     let icon: String
-    enum Style { case primary, danger }
+    enum Style { case primary, secondary, danger }
     let style: Style
     let isEnabled: Bool
     let action: () -> Void
@@ -162,12 +162,12 @@ struct MSCActionButton: View {
                 .frame(height: 44)
                 .foregroundStyle(
                     isEnabled
-                        ? (style == .primary ? MSCRemoteStyle.bgBase : .white)
+                        ? foregroundColor
                         : MSCRemoteStyle.textTertiary
                 )
                 .background(
                     isEnabled
-                        ? (style == .primary ? MSCRemoteStyle.accent : MSCRemoteStyle.danger)
+                        ? backgroundColor
                         : MSCRemoteStyle.bgElevated
                 )
                 .clipShape(RoundedRectangle(cornerRadius: MSCRemoteStyle.radiusSM, style: .continuous))
@@ -178,5 +178,24 @@ struct MSCActionButton: View {
         }
         .disabled(!isEnabled)
     }
-}
 
+    private var foregroundColor: Color {
+        switch style {
+        case .primary:
+            return MSCRemoteStyle.bgBase
+        case .secondary, .danger:
+            return .white
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch style {
+        case .primary:
+            return MSCRemoteStyle.accent
+        case .secondary:
+            return MSCRemoteStyle.textSecondary
+        case .danger:
+            return MSCRemoteStyle.danger
+        }
+    }
+}

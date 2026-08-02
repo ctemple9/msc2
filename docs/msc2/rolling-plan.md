@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.5 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.5 Verify command)
+> ## STATUS: Phase 4 in progress — P4.6 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.6 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1278,7 +1278,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Real credentials
 
 ### P4.5 — Wire `SecretStore` into agent auth and retire the dev token for real mutation
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/auth/`, `crates/msc-api/src/`, `crates/msc-infrastructure/src/secret_store.rs`, `clients/ios/MSCRemoteiOS_Swift/`, `tools/contract-conformance-check.py`
 **What:** Implement P4.2's scoped real credential path: token issuance/loading through `SecretStore`, bearer verification from stored tokens, auth-failure rate limiting, audit-log entries for auth failures and lifecycle mutations, and removal of `MSC_DEV_TOKEN` from every route that can touch a real server. Fix the copied iOS client's empty-Keychain-token fallback so a fresh install can use the real pairing/token path instead of the P2.20 manual workaround.
 **Verify:** `cargo nextest run -p msc-agent auth_real_tokens && python3 tools/contract-conformance-check.py --base-url http://127.0.0.1:48400 --expect-auth-store` → token-backed auth passes and dev-token fallback is not accepted for protected routes
@@ -1290,7 +1290,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Application lifecycle core
 
 ### P4.6 — Scaffold `msc-application` and the lifecycle domain boundary
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `Cargo.toml`, `crates/msc-application/Cargo.toml`, `crates/msc-application/src/lib.rs`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/tests/lifecycle_state.rs`
 **What:** Add the application-service crate from `msc2-engineering.md` §6. Define the minimal lifecycle state and service boundary for one imported Java server: stopped, starting, running, stopping, crashed; active server identity; injected repositories/process supervisor/console sink; and no direct client/UI dependencies. This is the Rust replacement for the parts of `ServerLifecycleManager.swift` and `AppViewModel+ServerControls.swift` that gate real server state, not a full server-creation system.
 **Verify:** `cargo nextest run -p msc-application lifecycle_state` → lifecycle-state tests pass

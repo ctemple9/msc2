@@ -7,3 +7,4 @@
 pub mod process;
 #[cfg(target_os = "windows")]
 pub mod secret_store;
+pub mod service;

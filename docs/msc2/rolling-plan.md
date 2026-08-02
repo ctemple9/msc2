@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.23 awaiting verification
-> **Next move:** VERIFY P4.23
+> ## STATUS: Phase 4 in progress — P4.24 awaiting verification
+> **Next move:** VERIFY P4.24
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1455,7 +1455,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.24 — Windows Service ownership, Job Objects, and sign-out survival check
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-platform-windows/src/service.rs`, `tools/phase4/windows-service-lifecycle.ps1`, `crates/msc-platform-windows/tests/service_definition.rs`
 **What:** Implement Windows Service registration/start/stop/status for the agent running as the installing user, with lifecycle-owned Java processes assigned to Job Objects. The PowerShell script installs the service, starts the imported Paper server, verifies client exit does not stop it, records a checkpoint for Cameron to sign out and back in, then verifies the service/server survived and uninstalls cleanly. CI can verify service definition and Job Object behavior; the real sign-out proof is a Cameron-run Windows check.
 **Verify:** `powershell -ExecutionPolicy Bypass -File tools/phase4/windows-service-lifecycle.ps1 -ServerDir $env:MSC2_PHASE4_PAPER_SERVER` → service starts the server, survives the scripted client-exit check, and reports the sign-out checkpoint result

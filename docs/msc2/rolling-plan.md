@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.1 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.1 Verify command)
+> ## STATUS: Phase 4 in progress — P4.2 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.2 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1242,7 +1242,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Phase scope and open decisions
 
 ### P4.1 — Scope the Phase 4 vertical slice and service-proof plan
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Write the Phase 4 scoping note before code: exact definition of "one imported Paper server," which routes/CLI/iOS screens are in the slice, which MSC 1 symbols are the oracle, how service ownership will be proven on macOS/Linux/Windows, and which deferred Phase 3 items are now load-bearing. Include the open port-plan question "does the CLI ship inside the agent binary or separately?" with a recommendation; default recommendation is one binary with `serve` and CLI subcommands, matching D-002's "single binary per platform" wording unless Cameron overrules it.
 **Verify:** `grep -c '^##' docs/msc2/lifecycle/phase4-scope.md && grep -n 'CLI' docs/msc2/lifecycle/phase4-scope.md` → headings exist and the CLI packaging decision is recorded
@@ -1250,7 +1250,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.2 — Design real pairing and credential storage for the Phase 4 clients
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/lifecycle/pairing-phase4.md`, `docs/msc2/msc2-decisions.md`
 **What:** Replace P2.3's fixed `MSC_DEV_TOKEN` scope with the real Phase 4 path: token issuance, token lookup in `SecretStore`, per-host key names, revocation shape, rate limiting on auth failures, audit attribution, and the copied iOS client's fresh-install empty-token bug from P2.20. Keep the design limited to the clients this phase actually drives (CLI and existing iOS app); do not silently close D-012's remaining desktop/browser/LAN/Tailscale/CSRF gaps.
 **Verify:** `grep -c 'MSC_DEV_TOKEN' docs/msc2/lifecycle/pairing-phase4.md && grep -c 'rate limit\|audit' docs/msc2/lifecycle/pairing-phase4.md` → dev-token retirement plus rate-limit/audit handling are explicitly covered

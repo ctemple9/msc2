@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.25 awaiting verification
-> **Next move:** VERIFY P4.25
+> ## STATUS: Phase 4 in progress — P4.26 awaiting verification
+> **Next move:** VERIFY P4.26
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1475,7 +1475,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.26 — Headless package no-GUI-link verification
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/ci.yml`, `tools/phase4/headless-link-check.py`, `docs/msc2/rolling-plan.md`
 **What:** Give D-021 requirement #1 a concrete home: build headless artifacts for macOS/Linux/Windows and mechanically verify they link no GUI frameworks or desktop dependencies. macOS checks should reject AppKit/window-server linkage in the agent package; Linux checks should reject X11/Wayland/GTK/KDE dependencies; Windows checks should reject GUI subsystem linkage for the headless binary. This is packaging verification only, not the Tauri app.
 **Verify:** `python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` → all three headless artifacts pass the no-GUI-link checks

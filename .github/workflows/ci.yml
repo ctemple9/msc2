@@ -63,7 +63,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            binary_name: msc
+          - os: macos-latest
+            platform: macos
+            binary_name: msc
+          - os: windows-latest
+            platform: windows
+            binary_name: msc.exe
     steps:
       - uses: actions/checkout@v4
 
@@ -94,3 +103,34 @@ jobs:
       # tests to run — cargo nextest run --workspace covers both.
       - name: Test
         run: cargo nextest run --workspace
+
+      - name: Collect headless artifact
+        shell: bash
+        run: |
+          dest="target/phase4-headless/${{ matrix.platform }}"
+          mkdir -p "$dest"
+          cp "target/debug/${{ matrix.binary_name }}" "$dest/${{ matrix.binary_name }}"
+
+      - name: Upload headless artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: headless-${{ matrix.platform }}
+          path: target/phase4-headless
+          if-no-files-found: error
+
+  headless-link:
+    name: Headless no-GUI link check
+    needs: toolchain
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download native headless artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: headless-*
+          path: target/phase4-headless
+          merge-multiple: true
+
+      - name: Verify headless artifacts link no GUI frameworks
+        run: python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless

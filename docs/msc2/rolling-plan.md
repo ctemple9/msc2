@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.19 awaiting verification
-> **Next move:** VERIFY P4.19
+> ## STATUS: Phase 4 in progress — P4.23 awaiting verification
+> **Next move:** VERIFY P4.23
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1447,7 +1447,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.23 — Linux `systemd` service ownership and credential helper
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-platform-linux/src/service.rs`, `crates/msc-platform-linux/src/credential_helper.rs`, `tools/phase4/linux-service-lifecycle.sh`, `crates/msc-platform-linux/tests/systemd_unit.rs`
 **What:** Implement `systemd` unit generation/install/start/stop/status for the agent running as the installing user, plus the P4.3 Linux credential-helper path if selected. The integration script targets Debian 12/systemd >= 250, starts the imported Paper server through the service, confirms client exit does not stop it, checks helper/socket permissions when present, then uninstalls cleanly.
 **Verify:** `sudo tools/phase4/linux-service-lifecycle.sh --server-dir "$MSC2_PHASE4_PAPER_SERVER"` → `systemd` service and credential-helper checks pass

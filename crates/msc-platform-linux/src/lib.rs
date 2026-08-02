@@ -3,7 +3,11 @@
 //! are Phase 4. This crate currently ships the P3.11 `SecretStore`
 //! implementation plus P4.10's Java process supervisor.
 
+#[cfg(unix)]
+pub mod credential_helper;
 #[cfg(target_os = "linux")]
 pub mod process;
 #[cfg(target_os = "linux")]
 pub mod secret_store;
+#[cfg(unix)]
+pub mod service;

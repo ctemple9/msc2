@@ -526,6 +526,17 @@ Question 4 (machine-scoped secret storage) is answered for Windows (DPAPI user-s
 
 **Amendment, 2026-08-01 (P3.11 implementation finding):** the Linux half of question 4, above, said `systemd-creds` answers it — building P3.11 against that found it doesn't, for a reason deeper than provisioning: both encrypting *and* decrypting via `systemd-creds` require root on any machine without a TPM2 chip, which is not an edge case (it includes this project's own CI). **Cameron Temple confirmed, 2026-08-01: the real target is a small privileged helper, deferred to build alongside Phase 4's real service registration; P3.11 ships an explicitly-labeled v1 stand-in instead** — a file encrypted with a key owned by the agent's own installing-user account, needing no root at any point. Full finding, evidence, and the two-track decision in `docs/msc2/substrate/secret-storage.md` §12.
 
+**Phase 4 implementation decision (P4.3, 2026-08-02):** build the Linux
+privileged credential helper in P4.23, alongside real `systemd` service
+registration. The helper is a hidden mode of the same `msc` binary, installed
+during the same elevated window that writes the service units, reached by the
+unprivileged agent over a Unix socket restricted to the installing user's UID,
+and is the only Linux component that touches `systemd-creds` or the root-owned
+encrypted credential blobs. The P3.11 file-based `LinuxSecretStore` remains for
+development/tests/non-service runs, but is not the accepted backend for the
+Phase 4 Linux headless-service gate. Full design:
+`docs/msc2/lifecycle/linux-credential-helper.md`.
+
 ---
 
 ## D-026 — Educational content is served data, not client code

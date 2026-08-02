@@ -162,6 +162,26 @@ Confirmed against two independent sources, not memory: the `systemd-creds` manpa
 
 **Revisit trigger:** once Phase 4 lands real service registration for the agent itself, build track 1 (the privileged helper) and retire this file-based stand-in, rather than letting it become the permanent answer by default.
 
+## 12A. P4.3 decision: build the helper for the Linux service gate
+
+**Status:** P4.3 implementation decision. Proposed until Cameron verifies P4.3.
+
+P4.3 closes the revisit trigger above: Phase 4 builds the privileged
+`systemd-creds` helper alongside the real Linux `systemd` service registration
+in P4.23. The file-based `LinuxSecretStore` remains available for local
+development, tests, and temporary non-service runs, but it is not the accepted
+backend for the Phase 4 Linux headless-service proof.
+
+Full helper design: `docs/msc2/lifecycle/linux-credential-helper.md`.
+
+The important boundary is unchanged from P3.1 and P3.11: installing service
+units and the helper socket/service uses the one install-time elevation window;
+routine agent operation, token creation, pairing, and lifecycle control do not
+ask for `sudo`. The agent runs as the installing user and talks to a root-run
+helper over a Unix socket restricted to that installing user's UID. Only the
+helper touches `systemd-creds` and the root-owned encrypted credential blob
+directory.
+
 ---
 
 ## 13. Cross-platform conformance summary (P3.12)

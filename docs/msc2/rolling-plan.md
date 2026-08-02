@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.2 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.2 Verify command)
+> ## STATUS: Phase 4 in progress — P4.3 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.3 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1250,7 +1250,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.2 — Design real pairing and credential storage for the Phase 4 clients
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/lifecycle/pairing-phase4.md`, `docs/msc2/msc2-decisions.md`
 **What:** Replace P2.3's fixed `MSC_DEV_TOKEN` scope with the real Phase 4 path: token issuance, token lookup in `SecretStore`, per-host key names, revocation shape, rate limiting on auth failures, audit attribution, and the copied iOS client's fresh-install empty-token bug from P2.20. Keep the design limited to the clients this phase actually drives (CLI and existing iOS app); do not silently close D-012's remaining desktop/browser/LAN/Tailscale/CSRF gaps.
 **Verify:** `grep -c 'MSC_DEV_TOKEN' docs/msc2/lifecycle/pairing-phase4.md && grep -c 'rate limit\|audit' docs/msc2/lifecycle/pairing-phase4.md` → dev-token retirement plus rate-limit/audit handling are explicitly covered
@@ -1258,7 +1258,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.3 — Decide the Linux privileged `systemd-creds` helper path
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/substrate/secret-storage.md`, `docs/msc2/lifecycle/linux-credential-helper.md`, `docs/msc2/msc2-decisions.md`
 **What:** Turn P3.11's two-track Linux finding into a Phase 4 implementation decision: either build the privileged helper now, alongside real `systemd` service registration, or explicitly reconfirm the weaker file-based `LinuxSecretStore` stand-in for the Phase 4 gate with a revisit trigger. If building the helper, define its socket permissions, request protocol, install-time elevation boundary, and how it preserves P3.1's "routine operation needs no escalation" rule.
 **Verify:** `grep -E 'build the helper|reconfirm the file-based stand-in' docs/msc2/lifecycle/linux-credential-helper.md` → one explicit path chosen

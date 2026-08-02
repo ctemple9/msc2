@@ -6,4 +6,5 @@ pub mod fs;
 pub mod java_runtime_detection;
 pub mod operation_journal;
 pub mod path_safety;
+pub mod process;
 pub mod secret_store;

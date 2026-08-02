@@ -6,6 +6,9 @@
 //! or any other client surface.
 
 use msc_domain::identity::JavaServerFlavor;
+use msc_infrastructure::process::{
+    ProcessError, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
+};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -151,13 +154,14 @@ impl fmt::Display for LifecycleError {
 
 impl std::error::Error for LifecycleError {}
 
-pub trait JavaServerRepository {
-    fn load(&self, id: &ServerId) -> Result<Option<ImportedJavaServer>, LifecycleError>;
+impl From<ProcessError> for LifecycleError {
+    fn from(value: ProcessError) -> Self {
+        Self::Process(value.to_string())
+    }
 }
 
-pub trait ProcessSupervisor {
-    fn start(&self, server: &ImportedJavaServer) -> Result<(), LifecycleError>;
-    fn request_stop(&self, server_id: &ServerId) -> Result<(), LifecycleError>;
+pub trait JavaServerRepository {
+    fn load(&self, id: &ServerId) -> Result<Option<ImportedJavaServer>, LifecycleError>;
 }
 
 pub trait ConsoleSink {
@@ -169,6 +173,7 @@ pub struct LifecycleService<'deps> {
     process_supervisor: &'deps dyn ProcessSupervisor,
     console: &'deps dyn ConsoleSink,
     active_server: Option<ServerId>,
+    active_process: Option<ProcessId>,
     state: LifecycleState,
 }
 
@@ -183,6 +188,7 @@ impl<'deps> LifecycleService<'deps> {
             process_supervisor,
             console,
             active_server: None,
+            active_process: None,
             state: LifecycleState::Stopped,
         }
     }
@@ -195,6 +201,10 @@ impl<'deps> LifecycleService<'deps> {
         self.active_server.as_ref()
     }
 
+    pub fn active_process(&self) -> Option<ProcessId> {
+        self.active_process
+    }
+
     pub fn select_active_server(&mut self, id: ServerId) -> Result<(), LifecycleError> {
         if self.state.process_may_be_alive() && self.active_server.as_ref() != Some(&id) {
             return Err(LifecycleError::AlreadyInState(self.state));
@@ -205,18 +215,22 @@ impl<'deps> LifecycleService<'deps> {
         Ok(())
     }
 
-    pub fn start_active_server(&mut self) -> Result<(), LifecycleError> {
+    pub fn start_active_server(
+        &mut self,
+        launch: ProcessSpawnRequest,
+    ) -> Result<ProcessId, LifecycleError> {
         let id = self.active_server_id()?.clone();
         let server = self.load_server(&id)?;
         let next = self
             .state
             .transition_to(LifecycleState::Starting)
             .map_err(LifecycleError::IllegalTransition)?;
-        self.process_supervisor.start(&server)?;
+        let pid = self.process_supervisor.spawn(launch)?;
         self.state = next;
+        self.active_process = Some(pid);
         self.console
             .append_system_line(&id, &format!("Starting server: {}", server.name));
-        Ok(())
+        Ok(pid)
     }
 
     pub fn mark_ready(&mut self, id: &ServerId) -> Result<(), LifecycleError> {
@@ -230,7 +244,8 @@ impl<'deps> LifecycleService<'deps> {
             .state
             .transition_to(LifecycleState::Stopping)
             .map_err(LifecycleError::IllegalTransition)?;
-        self.process_supervisor.request_stop(&id)?;
+        let pid = self.active_process_id()?;
+        self.process_supervisor.request_graceful_stop(pid)?;
         self.state = next;
         self.console.append_system_line(&id, "Stopping server.");
         Ok(())
@@ -238,6 +253,7 @@ impl<'deps> LifecycleService<'deps> {
 
     pub fn mark_process_exited(&mut self, id: &ServerId) -> Result<(), LifecycleError> {
         self.require_active_server(id)?;
+        self.active_process = None;
         let next = match self.state {
             LifecycleState::Stopping => LifecycleState::Stopped,
             LifecycleState::Starting | LifecycleState::Running => LifecycleState::Crashed,
@@ -246,10 +262,43 @@ impl<'deps> LifecycleService<'deps> {
         self.transition_to(next)
     }
 
+    pub fn handle_process_event(
+        &mut self,
+        pid: ProcessId,
+        event: &ProcessEvent,
+    ) -> Result<(), LifecycleError> {
+        self.require_active_process(pid)?;
+        match event {
+            ProcessEvent::Output { .. } => Ok(()),
+            ProcessEvent::Exited(_) => {
+                let id = self.active_server_id()?.clone();
+                self.mark_process_exited(&id)
+            }
+        }
+    }
+
     fn active_server_id(&self) -> Result<&ServerId, LifecycleError> {
         self.active_server
             .as_ref()
             .ok_or(LifecycleError::NoActiveServer)
+    }
+
+    fn active_process_id(&self) -> Result<ProcessId, LifecycleError> {
+        self.active_process
+            .ok_or_else(|| LifecycleError::Process("no active process".to_string()))
+    }
+
+    fn require_active_process(&self, pid: ProcessId) -> Result<(), LifecycleError> {
+        let active = self.active_process_id()?;
+        if active == pid {
+            Ok(())
+        } else {
+            Err(LifecycleError::Process(format!(
+                "event for process {} does not match active process {}",
+                pid.raw(),
+                active.raw()
+            )))
+        }
     }
 
     fn require_active_server(&self, id: &ServerId) -> Result<(), LifecycleError> {

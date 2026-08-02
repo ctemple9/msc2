@@ -1,7 +1,8 @@
 use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
-    LifecycleState, ProcessSupervisor, ServerId,
+    LifecycleState, ServerId,
 };
+use msc_infrastructure::process::{FakeProcessSupervisor, ProcessSpawnRequest};
 use std::cell::RefCell;
 use std::path::PathBuf;
 
@@ -40,32 +41,6 @@ impl JavaServerRepository for FakeRepository {
 }
 
 #[derive(Default)]
-struct FakeProcessSupervisor {
-    starts: RefCell<Vec<ServerId>>,
-    stops: RefCell<Vec<ServerId>>,
-    fail_start: bool,
-    fail_stop: bool,
-}
-
-impl ProcessSupervisor for FakeProcessSupervisor {
-    fn start(&self, server: &ImportedJavaServer) -> Result<(), LifecycleError> {
-        if self.fail_start {
-            return Err(LifecycleError::Process("start failed".to_string()));
-        }
-        self.starts.borrow_mut().push(server.id.clone());
-        Ok(())
-    }
-
-    fn request_stop(&self, server_id: &ServerId) -> Result<(), LifecycleError> {
-        if self.fail_stop {
-            return Err(LifecycleError::Process("stop failed".to_string()));
-        }
-        self.stops.borrow_mut().push(server_id.clone());
-        Ok(())
-    }
-}
-
-#[derive(Default)]
 struct FakeConsole {
     lines: RefCell<Vec<(ServerId, String)>>,
 }
@@ -80,6 +55,10 @@ impl ConsoleSink for FakeConsole {
 
 fn paper_server() -> ImportedJavaServer {
     ImportedJavaServer::paper("paper-1", "Survival", PathBuf::from("/srv/paper"))
+}
+
+fn launch_request() -> ProcessSpawnRequest {
+    ProcessSpawnRequest::new("/usr/bin/java", "/srv/paper").args(["-jar", "paper.jar", "--nogui"])
 }
 
 fn service<'deps>(
@@ -123,7 +102,7 @@ fn lifecycle_state_service_requires_an_active_server_before_starting() {
     let mut service = service(&repository, &process, &console);
 
     assert_eq!(
-        service.start_active_server(),
+        service.start_active_server(launch_request()),
         Err(LifecycleError::NoActiveServer)
     );
     assert_eq!(service.state(), LifecycleState::Stopped);
@@ -143,13 +122,16 @@ fn lifecycle_state_start_uses_injected_repository_process_and_console() {
         .select_active_server(server.id.clone())
         .expect("active server can be selected");
     service
-        .start_active_server()
+        .start_active_server(launch_request())
         .expect("start is delegated to the process supervisor");
 
     assert_eq!(service.state(), LifecycleState::Starting);
     assert_eq!(
-        process.starts.borrow().as_slice(),
-        std::slice::from_ref(&server.id)
+        process
+            .spawned_requests()
+            .first()
+            .map(|(_, request)| request.working_directory.clone()),
+        Some(server.directory.clone())
     );
     assert_eq!(
         console.lines.borrow().as_slice(),
@@ -163,17 +145,15 @@ fn lifecycle_state_failed_process_start_keeps_server_stopped() {
     let repository = FakeRepository {
         server: Some(server.clone()),
     };
-    let process = FakeProcessSupervisor {
-        fail_start: true,
-        ..FakeProcessSupervisor::default()
-    };
+    let process = FakeProcessSupervisor::default();
+    process.fail_next_spawn("start failed");
     let console = FakeConsole::default();
     let mut service = service(&repository, &process, &console);
 
     service.select_active_server(server.id).unwrap();
 
     assert_eq!(
-        service.start_active_server(),
+        service.start_active_server(launch_request()),
         Err(LifecycleError::Process("start failed".to_string()))
     );
     assert_eq!(service.state(), LifecycleState::Stopped);
@@ -191,7 +171,7 @@ fn lifecycle_state_ready_line_moves_starting_server_to_running() {
     let mut service = service(&repository, &process, &console);
 
     service.select_active_server(server.id.clone()).unwrap();
-    service.start_active_server().unwrap();
+    service.start_active_server(launch_request()).unwrap();
     service.mark_ready(&server.id).unwrap();
 
     assert_eq!(service.state(), LifecycleState::Running);
@@ -203,16 +183,15 @@ fn lifecycle_state_failed_stop_keeps_server_running() {
     let repository = FakeRepository {
         server: Some(server.clone()),
     };
-    let process = FakeProcessSupervisor {
-        fail_stop: true,
-        ..FakeProcessSupervisor::default()
-    };
+    let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
     let mut service = service(&repository, &process, &console);
 
     service.select_active_server(server.id.clone()).unwrap();
-    service.start_active_server().unwrap();
+    service.start_active_server(launch_request()).unwrap();
     service.mark_ready(&server.id).unwrap();
+
+    process.fail_next_stdin("stop failed");
 
     assert_eq!(
         service.request_stop(),
@@ -232,7 +211,7 @@ fn lifecycle_state_unexpected_exit_marks_running_server_crashed() {
     let mut service = service(&repository, &process, &console);
 
     service.select_active_server(server.id.clone()).unwrap();
-    service.start_active_server().unwrap();
+    service.start_active_server(launch_request()).unwrap();
     service.mark_ready(&server.id).unwrap();
     service.mark_process_exited(&server.id).unwrap();
 
@@ -250,14 +229,14 @@ fn lifecycle_state_requested_stop_delegates_and_exits_to_stopped() {
     let mut service = service(&repository, &process, &console);
 
     service.select_active_server(server.id.clone()).unwrap();
-    service.start_active_server().unwrap();
+    service.start_active_server(launch_request()).unwrap();
     service.mark_ready(&server.id).unwrap();
     service.request_stop().unwrap();
 
     assert_eq!(service.state(), LifecycleState::Stopping);
     assert_eq!(
-        process.stops.borrow().as_slice(),
-        std::slice::from_ref(&server.id)
+        process.graceful_stops().as_slice(),
+        &[msc_infrastructure::process::ProcessId::new(1000)]
     );
 
     service.mark_process_exited(&server.id).unwrap();
@@ -276,7 +255,7 @@ fn lifecycle_state_event_for_non_active_server_is_rejected() {
     let other = ServerId::new("other-server");
 
     service.select_active_server(server.id.clone()).unwrap();
-    service.start_active_server().unwrap();
+    service.start_active_server(launch_request()).unwrap();
 
     assert_eq!(
         service.mark_ready(&other),

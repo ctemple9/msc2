@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.8 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.8 Verify command)
+> ## STATUS: Phase 4 in progress — P4.9 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.9 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1306,7 +1306,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.8 — Import and detect one existing Paper server directory
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/paper-import/`, `crates/msc-application/src/lib.rs`, `crates/msc-application/src/import.rs`, `crates/msc-application/tests/paper_import.rs`
 **What:** Implement the narrow import path the Phase 4 gate requires, using `AppViewModel+ServerImport.swift`, `ServerEditorJarsTab.moddedServerIsInstalled`, `EULAManager.swift`, and `ServerPropertiesManager.swift` as the oracle: detect an existing Paper server folder, read `eula.txt`, preserve unknown `server.properties` keys through the Phase 1 property model, infer game port/max players/world name where available, assign a stable server id, and register it without copying or mutating the world. Transfer-package import and raw ZIP import stay Phase 5.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/paper-import --expect 6 && cargo nextest run -p msc-application paper_import` → import fixtures and tests pass
@@ -1314,7 +1314,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.9 — Build the process supervisor trait and fake process harness
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/process.rs`, `crates/msc-infrastructure/tests/process_supervisor.rs`, `crates/msc-application/tests/lifecycle_with_fake_process.rs`
 **What:** Define the process-supervisor abstraction that lifecycle code consumes: spawn with working directory/env/args, stream stdout/stderr bytes, write stdin commands, request graceful stop, force terminate, observe pid/exit status. Include a fake supervisor that can emit partial output chunks, hold trailing partial lines, accept commands, and simulate normal/crash exits so lifecycle tests do not need Java yet.
 **Verify:** `cargo nextest run -p msc-infrastructure process_supervisor && cargo nextest run -p msc-application lifecycle_with_fake_process` → fake process and lifecycle tests pass

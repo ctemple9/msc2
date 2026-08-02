@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 msc-domain = { path = "../msc-domain" }
+msc-infrastructure = { path = "../msc-infrastructure" }
 
 [dev-dependencies]
 serde_json = "1"

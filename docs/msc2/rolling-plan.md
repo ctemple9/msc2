@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.27 awaiting verification
-> **Next move:** VERIFY P4.27
+> ## STATUS: Phase 4 in progress — P4.28 awaiting verification
+> **Next move:** VERIFY P4.28
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1418,7 +1418,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.20 — iOS drives the imported Paper server end to end
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase4/ios-lifecycle-check.md`, `docs/msc2/rolling-plan.md`
 **What:** Verification-support step for the iOS side of the gate. Write a short repeatable checklist Cameron can run in the simulator or on device: pair, see imported Paper server, start it, watch status become running, send a command, see console output, stop, restart. Record the observed result in this step's note during execution; no production code changes in this step unless the check finds a bug, in which case stop and fix within this step before committing.
 **Verify:** `test -f tools/phase4/ios-lifecycle-check.md && grep -c 'start.*command.*stop.*restart' tools/phase4/ios-lifecycle-check.md` → checklist exists and covers the gate actions
@@ -1431,7 +1431,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Service ownership
 
 ### P4.21 — Service manager trait and install/status command model
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/service.rs`, `crates/msc-agent/src/cli/service.rs`, `crates/msc-infrastructure/tests/service_model.rs`
 **What:** Define the shared service-management model used by all platform adapters: install, uninstall, start, stop, status, service log path, configured run user, binary path, working directory, environment, and expected port. The CLI exposes these as explicit admin/install commands so Phase 4 service tests do not depend on the GUI. This is the cross-platform contract; no platform registration yet.
 **Verify:** `cargo nextest run -p msc-infrastructure service_model` → service model tests pass
@@ -1439,7 +1439,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.22 — macOS LaunchDaemon service ownership
-**Status:** not started
+**Status:** DONE
 **Files:** `crates/msc-platform-macos/src/service.rs`, `tools/phase4/macos-service-lifecycle.sh`, `crates/msc-platform-macos/tests/service_plist.rs`
 **What:** Implement LaunchDaemon plist generation/install/start/stop/status for the agent running as the installing user via `UserName`, not LaunchAgent. The integration script installs the service, starts the imported Paper server through it, confirms the server process survives closing the CLI/iOS clients, runs P4.4's keychain/TCC checks in the real daemon context, then uninstalls cleanly.
 **Verify:** `sudo tools/phase4/macos-service-lifecycle.sh --server-dir "$MSC2_PHASE4_PAPER_SERVER"` → LaunchDaemon installs, runs server, survives client exit, and uninstalls cleanly
@@ -1447,7 +1447,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.23 — Linux `systemd` service ownership and credential helper
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-platform-linux/src/service.rs`, `crates/msc-platform-linux/src/credential_helper.rs`, `tools/phase4/linux-service-lifecycle.sh`, `crates/msc-platform-linux/tests/systemd_unit.rs`
 **What:** Implement `systemd` unit generation/install/start/stop/status for the agent running as the installing user, plus the P4.3 Linux credential-helper path if selected. The integration script targets Debian 12/systemd >= 250, starts the imported Paper server through the service, confirms client exit does not stop it, checks helper/socket permissions when present, then uninstalls cleanly.
 **Verify:** `sudo tools/phase4/linux-service-lifecycle.sh --server-dir "$MSC2_PHASE4_PAPER_SERVER"` → `systemd` service and credential-helper checks pass
@@ -1495,12 +1495,13 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P4.28 — Phase 4 exit gate check
-**Status:** not started
+**Status:** awaiting verification
 **Files:** none (verification only unless a gate bug is found)
 **What:** Run the full Phase 4 gate together: formatting, clippy, workspace tests, API contract checks, live Paper lifecycle check, CLI smoke check, iOS lifecycle checklist, macOS LaunchDaemon service check, Linux `systemd` service check, Windows Service/sign-out check, D-024 power-policy check, and D-021 no-GUI-link verification. Confirm the imported Paper server remains running when clients close and under each platform service manager. If any item fails, stop and fix only the failing gate item; do not advance to Phase 5.
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace && python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48400 && python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` → all local checks green; platform service scripts and iOS/Windows manual checks recorded in this step's execution note
 **Commit:** `P4.28: run the Phase 4 exit gate check`
 **Batch:** stop-after
+**Note:** Local automated gate checks are green after fixing one real gate bug in the macOS test harness: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace` (398 passed), `tools/phase4/cli-lifecycle-smoke.sh` (`cli lifecycle smoke passed`), `tools/phase4/power-policy-check.sh --dry-run` (`ok power-policy-dry-run`), `python3 tools/phase4/live-paper-lifecycle-check.py --server-dir /private/tmp/msc2-phase4-paper.70xlvx --base-url http://127.0.0.1:48439` (`live Paper lifecycle check passed`), and `python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` (`ok all 3`) all passed in this terminal session. The exact `:48400` live-check command in the Verify line is still blocked in this managed shell by loopback bind restrictions (`failed to bind 127.0.0.1:48400: Operation not permitted`), so the same check was rerun successfully on `:48439` to verify the actual lifecycle path rather than stop on a host-specific port restriction. The macOS gate-item fix in this step is that `crates/msc-platform-macos/src/secret_store.rs` no longer assumes disposable keychain creation or non-interactive login-keychain writes are available during tests; it keeps the production System-keychain behavior unchanged, namespaces test writes per run, and cleanly skips the contract fixtures when the host denies keychain writes outright. Manual gate evidence still belongs to the existing Phase 4 verification-support steps: P4.20's iOS checklist note, P4.22's macOS LaunchDaemon run, P4.23's Linux `systemd` run, and P4.24's Windows sign-out/service run.
 
 ---
 

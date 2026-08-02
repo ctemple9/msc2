@@ -49,7 +49,7 @@ async fn main() {
 }
 
 fn build_app() -> Router {
-    let auth_state = auth::AuthState::empty_service_store();
+    let auth_state = auth::AuthState::empty_service_store_with_test_bootstrap_env();
 
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
@@ -68,10 +68,13 @@ fn build_app() -> Router {
 
     let operation_progress = Router::new()
         .route("/operations/:id/stream", get(ws::operations::upgrade))
-        .with_state(operations_state);
+        .with_state(operations_state.clone());
 
     let console_state = ws::console::ConsoleState::default();
-    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::new(console_state.clone());
+    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::new(
+        console_state.clone(),
+        operations_state.clone(),
+    );
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))

@@ -3679,6 +3679,10 @@
           "message": {
             "type": "string"
           },
+          "operationId": {
+            "type": "string",
+            "description": "Phase 4 lifecycle operation id for progress polling or /v1/operations/{id}/stream; optional so older clients can ignore it."
+          },
           "serverId": {
             "type": "string"
           },
@@ -5206,6 +5210,10 @@
           },
           "activeServerId": {
             "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Phase 4 lifecycle operation id for progress polling or /v1/operations/{id}/stream; optional so older clients can ignore it."
           }
         },
         "required": [

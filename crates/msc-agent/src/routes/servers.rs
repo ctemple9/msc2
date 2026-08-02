@@ -13,6 +13,7 @@ use msc_api::dto::{
 use msc_application::import::{
     PaperImportError, PaperImportRequest, StdPaperImportFileSystem, import_existing_paper_server,
 };
+use std::collections::BTreeMap;
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
@@ -84,22 +85,36 @@ pub async fn import(
         .display_name
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| default_display_name(&source_path));
+    let operation_id = match state.begin_import_operation(&source_path) {
+        Ok(operation_id) => operation_id,
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
     let request = PaperImportRequest::new(display_name, PathBuf::from(&source_path));
     let fs = StdPaperImportFileSystem;
     let mut registry = RouteRegistry { state: &state };
 
     match import_existing_paper_server(&fs, &mut registry, &request) {
-        Ok(server) => Json(ServerImportResultDto {
-            success: true,
-            message: "Imported Paper server.".to_string(),
-            server_id: Some(server.id.as_str().to_string()),
-            server_name: Some(server.display_name),
-            imported: Some(1),
-            skipped: Some(0),
-            replaced: Some(false),
-        })
-        .into_response(),
-        Err(error) => import_error_response(error),
+        Ok(server) => {
+            let mut result = BTreeMap::new();
+            result.insert("serverId".to_string(), server.id.as_str().to_string());
+            let _ = state.finish_operation_success(&operation_id, "Imported Paper server.", result);
+            Json(ServerImportResultDto {
+                success: true,
+                message: "Imported Paper server.".to_string(),
+                operation_id: Some(operation_id.as_str().to_string()),
+                server_id: Some(server.id.as_str().to_string()),
+                server_name: Some(server.display_name),
+                imported: Some(1),
+                skipped: Some(0),
+                replaced: Some(false),
+            })
+            .into_response()
+        }
+        Err(error) => {
+            let _ =
+                state.finish_operation_failure(&operation_id, "import_error", error.to_string());
+            import_error_response(error)
+        }
     }
 }
 

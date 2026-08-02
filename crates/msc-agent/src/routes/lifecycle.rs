@@ -19,6 +19,7 @@ use msc_application::lifecycle::{
     ServerId,
 };
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
+use msc_domain::operation::OperationId;
 use msc_infrastructure::console_buffer::ConsoleLine;
 use msc_infrastructure::metrics::PsProcessMetricsProvider;
 use msc_infrastructure::process::{
@@ -27,6 +28,7 @@ use msc_infrastructure::process::{
 use tokio::task::JoinHandle;
 
 use crate::auth::AuthenticatedCredential;
+use crate::routes::operations::{OperationsState, operation_error_response};
 use crate::ws::console::ConsoleState;
 
 #[derive(Clone)]
@@ -40,6 +42,8 @@ struct LifecycleRoutesInner {
     console: &'static AgentConsoleSink,
     metrics: PsProcessMetricsProvider,
     lifecycle: Mutex<LifecycleService<'static>>,
+    operations: OperationsState,
+    active_lifecycle_operation: Mutex<Option<OperationId>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
 }
 
@@ -58,7 +62,7 @@ pub struct AgentConsoleSink {
 }
 
 impl LifecycleRoutesState {
-    pub fn new(console_state: ConsoleState) -> Self {
+    pub fn new(console_state: ConsoleState, operations: OperationsState) -> Self {
         let registry = Box::leak(Box::new(AgentServerRegistry::default()));
         let process = Box::leak(default_process_supervisor());
         let console = Box::leak(Box::new(AgentConsoleSink {
@@ -73,13 +77,15 @@ impl LifecycleRoutesState {
                 console,
                 metrics: PsProcessMetricsProvider::default(),
                 lifecycle: Mutex::new(lifecycle),
+                operations,
+                active_lifecycle_operation: Mutex::new(None),
                 pump_tasks: Mutex::new(Vec::new()),
             }),
         }
     }
 
     #[cfg(test)]
-    pub fn with_fake_process(console_state: ConsoleState) -> Self {
+    pub fn with_fake_process(console_state: ConsoleState, operations: OperationsState) -> Self {
         let registry = Box::leak(Box::new(AgentServerRegistry::default()));
         let process = Box::leak(Box::new(
             msc_infrastructure::process::FakeProcessSupervisor::new(),
@@ -96,6 +102,8 @@ impl LifecycleRoutesState {
                 console,
                 metrics: PsProcessMetricsProvider::default(),
                 lifecycle: Mutex::new(lifecycle),
+                operations,
+                active_lifecycle_operation: Mutex::new(None),
                 pump_tasks: Mutex::new(Vec::new()),
             }),
         }
@@ -103,6 +111,37 @@ impl LifecycleRoutesState {
 
     pub fn register_imported_paper(&self, server: ImportedPaperServer) {
         self.inner.registry.insert(server);
+    }
+
+    pub fn begin_import_operation(
+        &self,
+        source_path: &str,
+    ) -> Result<OperationId, msc_application::operations::LifecycleOperationError> {
+        self.inner.operations.begin_lifecycle(
+            "paper-import",
+            Some(source_path.to_string()),
+            "Importing Paper server.",
+        )
+    }
+
+    pub fn finish_operation_success(
+        &self,
+        operation_id: &OperationId,
+        status_line: &str,
+        result: BTreeMap<String, String>,
+    ) -> Result<(), msc_application::operations::LifecycleOperationError> {
+        self.inner
+            .operations
+            .succeed(operation_id, status_line, result)
+    }
+
+    pub fn finish_operation_failure(
+        &self,
+        operation_id: &OperationId,
+        code: &str,
+        message: String,
+    ) -> Result<(), msc_application::operations::LifecycleOperationError> {
+        self.inner.operations.fail(operation_id, code, message)
     }
 
     pub fn servers(&self) -> Vec<RegisteredServerDtoParts> {
@@ -129,7 +168,7 @@ impl LifecycleRoutesState {
         Ok(active)
     }
 
-    pub fn start_active_server(&self) -> Result<Option<String>, LifecycleError> {
+    pub fn start_active_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
         self.drain_active_process_events();
         let active = self
             .inner
@@ -139,20 +178,54 @@ impl LifecycleRoutesState {
             .active_server()
             .cloned()
             .ok_or(LifecycleError::NoActiveServer)?;
+        let operation_id = self.inner.operations.begin_lifecycle(
+            "java-start",
+            Some(active.as_str().to_string()),
+            "Starting Java server.",
+        )?;
         let registered = self
             .inner
             .registry
             .get(&active)
-            .ok_or_else(|| LifecycleError::ServerNotFound(active.clone()))?;
-        let launch = build_launch_request(&registered)?;
-        let pid = self
+            .ok_or_else(|| LifecycleError::ServerNotFound(active.clone()))
+            .inspect_err(|error| {
+                let _ =
+                    self.inner
+                        .operations
+                        .fail(&operation_id, "lifecycle_error", error.to_string());
+            })?;
+        let launch = build_launch_request(&registered).inspect_err(|error| {
+            let _ = self
+                .inner
+                .operations
+                .fail(&operation_id, "lifecycle_error", error.to_string());
+        })?;
+        let pid = match self
             .inner
             .lifecycle
             .lock()
             .unwrap()
-            .start_active_server(launch)?;
+            .start_active_server(launch)
+        {
+            Ok(pid) => pid,
+            Err(error) => {
+                let _ =
+                    self.inner
+                        .operations
+                        .fail(&operation_id, "lifecycle_error", error.to_string());
+                return Err(error.into());
+            }
+        };
+        let _ = self
+            .inner
+            .operations
+            .progress(&operation_id, 1, 2, "Java process spawned.");
+        *self.inner.active_lifecycle_operation.lock().unwrap() = Some(operation_id.clone());
         self.spawn_process_pump(pid);
-        Ok(Some(active.as_str().to_string()))
+        Ok(LifecycleActionResult {
+            active_server_id: Some(active.as_str().to_string()),
+            operation_id: Some(operation_id.as_str().to_string()),
+        })
     }
 
     pub fn stop_active_server(&self) -> Result<Option<String>, LifecycleError> {
@@ -224,19 +297,31 @@ impl LifecycleRoutesState {
         for event in events {
             for line in framer.push_event(&event) {
                 self.push_process_line(&event, &line);
-                let _ = self
+                let output_events = self
                     .inner
                     .lifecycle
                     .lock()
                     .unwrap()
-                    .ingest_console_line(&line);
+                    .ingest_console_line(&line)
+                    .unwrap_or_default();
+                if output_events.iter().any(|event| {
+                    matches!(event, msc_application::output_reducer::OutputEvent::Ready)
+                }) {
+                    self.finish_active_lifecycle_operation_success("Java server is ready.");
+                }
             }
+            let exited = matches!(event, ProcessEvent::Exited(_));
             let _ = self
                 .inner
                 .lifecycle
                 .lock()
                 .unwrap()
                 .handle_process_event(pid, &event);
+            if exited {
+                self.finish_active_lifecycle_operation_failure(
+                    "Java process exited before readiness.",
+                );
+            }
         }
     }
 
@@ -251,6 +336,55 @@ impl LifecycleRoutesState {
         self.inner
             .console
             .push(ConsoleLine::new(source, None, text.to_string()));
+    }
+
+    fn finish_active_lifecycle_operation_success(&self, status_line: &str) {
+        let Some(operation_id) = self.inner.active_lifecycle_operation.lock().unwrap().take()
+        else {
+            return;
+        };
+        let mut result = BTreeMap::new();
+        if let Some(active) = self.active_server_id() {
+            result.insert("activeServerId".to_string(), active);
+        }
+        let _ = self
+            .inner
+            .operations
+            .succeed(&operation_id, status_line, result);
+    }
+
+    fn finish_active_lifecycle_operation_failure(&self, message: &str) {
+        let Some(operation_id) = self.inner.active_lifecycle_operation.lock().unwrap().take()
+        else {
+            return;
+        };
+        let _ = self
+            .inner
+            .operations
+            .fail(&operation_id, "lifecycle_error", message.to_string());
+    }
+}
+
+pub struct LifecycleActionResult {
+    pub active_server_id: Option<String>,
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug)]
+pub enum LifecycleRouteError {
+    Lifecycle(LifecycleError),
+    Operation(msc_application::operations::LifecycleOperationError),
+}
+
+impl From<LifecycleError> for LifecycleRouteError {
+    fn from(value: LifecycleError) -> Self {
+        Self::Lifecycle(value)
+    }
+}
+
+impl From<msc_application::operations::LifecycleOperationError> for LifecycleRouteError {
+    fn from(value: msc_application::operations::LifecycleOperationError) -> Self {
+        Self::Operation(value)
     }
 }
 
@@ -275,10 +409,11 @@ pub async fn start(
     match state.start_active_server() {
         Ok(active_server_id) => Json(SimpleResultDto {
             result: "start_requested".to_string(),
-            active_server_id,
+            active_server_id: active_server_id.active_server_id,
+            operation_id: active_server_id.operation_id,
         })
         .into_response(),
-        Err(error) => lifecycle_error_response(error),
+        Err(error) => lifecycle_route_error_response(error),
     }
 }
 
@@ -294,6 +429,7 @@ pub async fn stop(
         Ok(active_server_id) => Json(SimpleResultDto {
             result: "stop_requested".to_string(),
             active_server_id,
+            operation_id: None,
         })
         .into_response(),
         Err(error) => lifecycle_error_response(error),
@@ -321,6 +457,7 @@ pub async fn active_server(
         Ok(active_server_id) => Json(SimpleResultDto {
             result: "activated".to_string(),
             active_server_id: Some(active_server_id),
+            operation_id: None,
         })
         .into_response(),
         Err(error) => lifecycle_error_response(error),
@@ -420,6 +557,13 @@ pub fn lifecycle_error_response(error: LifecycleError) -> Response {
             "internal_error",
             &error.to_string(),
         ),
+    }
+}
+
+pub fn lifecycle_route_error_response(error: LifecycleRouteError) -> Response {
+    match error {
+        LifecycleRouteError::Lifecycle(error) => lifecycle_error_response(error),
+        LifecycleRouteError::Operation(error) => operation_error_response(error),
     }
 }
 
@@ -534,7 +678,10 @@ mod tests {
 
     #[tokio::test]
     async fn phase4_lifecycle_routes_state_selects_starts_and_stops_active_server() {
-        let state = LifecycleRoutesState::with_fake_process(ConsoleState::default());
+        let state = LifecycleRoutesState::with_fake_process(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
         let server_dir = std::env::temp_dir().join(format!(
             "msc2-agent-lifecycle-routes-{}",
             std::process::id()
@@ -552,7 +699,8 @@ mod tests {
         );
 
         let active = state.start_active_server().unwrap();
-        assert_eq!(active.as_deref(), Some("paper-1"));
+        assert_eq!(active.active_server_id.as_deref(), Some("paper-1"));
+        assert!(active.operation_id.is_some());
         let status = state.status_snapshot();
         assert!(status.running);
         assert_eq!(status.active_server_id.as_deref(), Some("paper-1"));

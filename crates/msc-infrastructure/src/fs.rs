@@ -19,7 +19,7 @@ pub struct Metadata {
     pub executable: bool,
 }
 
-pub trait FileSystem {
+pub trait FileSystem: Send + Sync {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
     fn stat(&self, path: &Path) -> io::Result<Metadata>;

@@ -44,6 +44,8 @@ pub struct ServerImportResultDto {
     pub success: bool,
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_name: Option<String>,
@@ -97,4 +99,6 @@ pub struct SimpleResultDto {
     pub result: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_server_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
 }

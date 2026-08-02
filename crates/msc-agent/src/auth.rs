@@ -113,6 +113,16 @@ impl AuthState {
         Self::new(Arc::new(FakeSecretStore::new()))
     }
 
+    pub fn empty_service_store_with_test_bootstrap_env() -> Self {
+        let state = Self::empty_service_store();
+        if let Ok(token) = std::env::var("MSC2_TEST_BOOTSTRAP_TOKEN") {
+            state
+                .register_test_bootstrap_token(&token)
+                .expect("MSC2_TEST_BOOTSTRAP_TOKEN must have msc2_<id>_<secret> shape");
+        }
+        state
+    }
+
     pub fn new(secret_store: Arc<dyn SecretStore + Send + Sync>) -> Self {
         Self {
             inner: Arc::new(AuthStateInner {
@@ -164,6 +174,35 @@ impl AuthState {
             token: format!("{TOKEN_PREFIX}_{credential_id}_{secret}"),
             credential_id,
         })
+    }
+
+    fn register_test_bootstrap_token(&self, token: &str) -> Result<(), SecretStoreError> {
+        let (credential_id, secret) = parse_token(token).ok_or_else(|| {
+            SecretStoreError("bootstrap token must be msc2_<id>_<secret>".to_string())
+        })?;
+        let salt = random_secret_salt();
+        let salt_bytes = verifier_salt_bytes(&salt).expect("generated salt is base64url");
+        let verifier = TokenVerifierRecord {
+            algorithm: HASH_ALGORITHM.to_string(),
+            salt,
+            hash: hash_secret(secret, &salt_bytes),
+        };
+
+        self.inner.secret_store.set(
+            &secret_store_key(credential_id),
+            &serde_json::to_string(&verifier).expect("TokenVerifierRecord serializes"),
+        )?;
+        self.inner.registry.lock().unwrap().insert(
+            credential_id.to_string(),
+            CredentialRecord {
+                label: "phase4-live-check".to_string(),
+                role: CredentialRole::Admin,
+                permissions: all_permissions(),
+                expires_at: None,
+                revoked: false,
+            },
+        );
+        Ok(())
     }
 
     #[cfg(test)]

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.16 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.16 Verify command)
+> ## STATUS: Phase 4 in progress — P4.17 DONE
+> **Next move:** EXECUTE P4.18
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1386,8 +1386,8 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P4.17 — Journal lifecycle operations and enforce exclusivity
-**Status:** not started
-**Files:** `crates/msc-application/src/operations.rs`, `crates/msc-infrastructure/src/operation_journal.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-application/tests/lifecycle_operations.rs`
+**Status:** DONE
+**Files:** `crates/msc-application/src/operations.rs`, `crates/msc-infrastructure/src/operation_journal.rs`, `crates/msc-infrastructure/src/fs.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-api/src/dto/lifecycle.rs`, `docs/msc2/api-contract/openapi.json`, `tools/phase4/live-operation-restart-check.py`, `crates/msc-application/tests/lifecycle_operations.rs`
 **What:** Connect Phase 3's operation journal/exclusivity to real lifecycle work. Start/import/restart get journal records before mutation begins; agent restart reconciles incomplete lifecycle work; same-server conflicting operations are refused with `operation_conflict`; operation-progress WebSocket frames reflect real lifecycle progress instead of P2.14's demo operation.
 **Verify:** `cargo nextest run -p msc-application lifecycle_operations && python3 tools/phase4/live-operation-restart-check.py --base-url http://127.0.0.1:48400` → operation tests and live restart reconciliation pass
 **Commit:** `P4.17: journal lifecycle operations and enforce exclusivity`

@@ -1202,6 +1202,14 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Commit:** `P3.20b: fix the Windows locked-file test's premise`
 **Batch:** solo
 
+### P3.21 — Fix DPAPI-scope and Linux-secret-store documentation drift found by Codex's Phase 3 review
+**Status:** awaiting verification
+**Files:** `docs/msc2/msc2-engineering.md`, `docs/msc2/substrate/secret-storage.md`, `docs/msc2/substrate/service-identity.md`
+**What:** Codex's Phase 3 review (below) found two accuracy gaps in the controlled document set, both closed here. First, three passages (`secret-storage.md` §2, §7, §10; `service-identity.md` §3) called Windows DPAPI a "machine-scoped" secret — the same category as the Linux `systemd-creds` host-key fallback and the macOS System keychain. Wrong, per this project's own later, more careful finding: `secret-storage.md` §13 (P3.12's cross-platform comparison) established that Windows Credential Manager wraps DPAPI's *per-user* mode, tied to the installing account, not the whole machine. Corrected each passage to say so and point at §13 as the authority, rather than silently deleting the earlier wrong claim. Second, `msc2-engineering.md` §8 still read as though `systemd-creds` were the shipped Linux implementation; it's the real target design, deferred to Phase 4 — the actual v1 backend, found by P3.11, is the file-based `LinuxSecretStore` owned by the installing user, not root. Added the P3.11 finding and a pointer to `secret-storage.md` §12/§13 so the engineering doc matches what's actually running.
+**Verify:** `grep -rn "DPAPI machine-scope answer\|Windows DPAPI and the macOS System-keychain\|Windows DPAPI machine-scope answer\|DPAPI.s machine scope and \`systemd-creds\`\|Windows DPAPI answer and the macOS System-keychain" docs/msc2/msc2-engineering.md docs/msc2/substrate/secret-storage.md docs/msc2/substrate/service-identity.md` → no matches (the five specific wrong phrasings Codex's review flagged are gone); `grep -n "P3.11 later found" docs/msc2/msc2-engineering.md` → one match
+**Commit:** `P3.21: fix DPAPI-scope and Linux secret-store documentation drift Codex's review found`
+**Batch:** solo
+
 ---
 
 ## Amendments log

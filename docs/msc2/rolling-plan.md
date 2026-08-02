@@ -1418,11 +1418,12 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.20 — iOS drives the imported Paper server end to end
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase4/ios-lifecycle-check.md`, `docs/msc2/rolling-plan.md`
 **What:** Verification-support step for the iOS side of the gate. Write a short repeatable checklist Cameron can run in the simulator or on device: pair, see imported Paper server, start it, watch status become running, send a command, see console output, stop, restart. Record the observed result in this step's note during execution; no production code changes in this step unless the check finds a bug, in which case stop and fix within this step before committing.
 **Verify:** `test -f tools/phase4/ios-lifecycle-check.md && grep -c 'start.*command.*stop.*restart' tools/phase4/ios-lifecycle-check.md` → checklist exists and covers the gate actions
 **Commit:** `P4.20: document the iOS lifecycle gate check`
+**Note:** Checklist authored against the current copied iOS app surfaces (Settings pairing, Dashboard lifecycle controls, Commands/Console). This terminal-only environment could verify the checklist file itself, but it could not drive the live simulator/device walkthrough, so the observed end-to-end result still needs Cameron's manual run and note here before the Phase 4 gate can count iOS as proven.
 **Batch:** stop-after
 
 ---

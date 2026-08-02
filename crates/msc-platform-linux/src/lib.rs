@@ -6,6 +6,8 @@
 #[cfg(unix)]
 pub mod credential_helper;
 #[cfg(target_os = "linux")]
+pub mod power;
+#[cfg(target_os = "linux")]
 pub mod process;
 #[cfg(target_os = "linux")]
 pub mod secret_store;

@@ -4,6 +4,8 @@
 //! `SecretStore` implementation plus P4.10's Java process supervisor.
 
 #[cfg(target_os = "windows")]
+pub mod power;
+#[cfg(target_os = "windows")]
 pub mod process;
 #[cfg(target_os = "windows")]
 pub mod secret_store;

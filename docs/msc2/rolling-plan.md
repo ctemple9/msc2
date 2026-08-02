@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.24 awaiting verification
-> **Next move:** VERIFY P4.24
+> ## STATUS: Phase 4 in progress — P4.25 awaiting verification
+> **Next move:** VERIFY P4.25
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1467,7 +1467,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Power and packaging
 
 ### P4.25 — Implement D-024 power-management policies
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/power.rs`, `crates/msc-platform-macos/src/power.rs`, `crates/msc-platform-linux/src/power.rs`, `crates/msc-platform-windows/src/power.rs`, `tools/phase4/power-policy-check.*`
 **What:** Implement the two host-role policies confirmed for Phase 4: dedicated/headless host prevents sleep whenever remote management is enabled; normal desktop prevents sleep only while a server or critical operation is running. macOS uses `IOPMAssertion`, Windows uses `SetThreadExecutionState`, Linux uses `systemd-inhibit`. Add warning probes for known incompatible configurations where they can be detected without making claims the platform cannot support. This step proves the "remote-starting a stopped server" premise D-024 exists for.
 **Verify:** `cargo nextest run --workspace power_policy && tools/phase4/power-policy-check.sh --dry-run` → policy state-machine tests pass and platform check reports intended inhibitor actions

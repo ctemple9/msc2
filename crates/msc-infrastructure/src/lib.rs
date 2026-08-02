@@ -8,6 +8,7 @@ pub mod java_runtime_detection;
 pub mod metrics;
 pub mod operation_journal;
 pub mod path_safety;
+pub mod power;
 pub mod process;
 pub mod secret_store;
 pub mod service;

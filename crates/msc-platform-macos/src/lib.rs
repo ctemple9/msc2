@@ -4,6 +4,8 @@
 //! `SecretStore` implementation plus P4.10's Java process supervisor.
 
 #[cfg(target_os = "macos")]
+pub mod power;
+#[cfg(target_os = "macos")]
 pub mod process;
 #[cfg(target_os = "macos")]
 pub mod secret_store;

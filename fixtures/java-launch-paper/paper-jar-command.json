@@ -1,0 +1,43 @@
+{
+  "domain": "java-launch-paper",
+  "case": "paper-jar-command",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testPaperJarCommand",
+    "line": 68
+  },
+  "input": {
+    "validatedJava": {
+      "executablePath": "/usr/bin/java",
+      "prefixArguments": []
+    },
+    "serverDir": "/srv/mc",
+    "paperJarPath": "/srv/mc/paper-1.20.1-196.jar",
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "extraFlags": "",
+    "existingFiles": [
+      "/srv/mc/paper-1.20.1-196.jar"
+    ]
+  },
+  "expected": {
+    "executablePath": "/usr/bin/java",
+    "workingDirectory": "/srv/mc",
+    "arguments": [
+      "-Xms1024M",
+      "-Xmx2048M",
+      "-Djna.nosys=true",
+      "-Djna.nounpack=true",
+      "-Djline.terminal=dumb",
+      "-Dio.netty.noUnsafe=true",
+      "-jar",
+      "paper-1.20.1-196.jar",
+      "--nogui"
+    ],
+    "argumentsContains": [
+      "-Xms1024M",
+      "-Xmx2048M"
+    ]
+  },
+  "notes": "Paper launch mirrors JavaServerLaunchHelper.resolve plus ServerProcessManager.startServer after Java validation has already produced an executable URL. The Paper JAR is launched by basename from the server working directory."
+}

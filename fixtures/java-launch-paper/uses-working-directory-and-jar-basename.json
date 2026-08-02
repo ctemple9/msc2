@@ -1,0 +1,39 @@
+{
+  "domain": "java-launch-paper",
+  "case": "uses-working-directory-and-jar-basename",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "startServer Paper branch",
+    "line": 260
+  },
+  "input": {
+    "validatedJava": {
+      "executablePath": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java",
+      "prefixArguments": []
+    },
+    "serverDir": "/srv/my server",
+    "paperJarPath": "/srv/my server/paper.jar",
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "extraFlags": "",
+    "existingFiles": [
+      "/srv/my server/paper.jar"
+    ]
+  },
+  "expected": {
+    "executablePath": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java",
+    "workingDirectory": "/srv/my server",
+    "arguments": [
+      "-Xms1024M",
+      "-Xmx2048M",
+      "-Djna.nosys=true",
+      "-Djna.nounpack=true",
+      "-Djline.terminal=dumb",
+      "-Dio.netty.noUnsafe=true",
+      "-jar",
+      "paper.jar",
+      "--nogui"
+    ]
+  },
+  "notes": "ServerProcessManager sets currentDirectoryURL to the server folder and appends only the JAR basename. Because this is argv construction, spaces in the working directory need no shell quoting here."
+}

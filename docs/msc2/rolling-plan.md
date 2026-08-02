@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.6 awaiting verification
-> **Next move:** VERIFY (Cameron runs the P4.6 Verify command)
+> ## STATUS: Phase 4 in progress — P4.7 awaiting verification
+> **Next move:** VERIFY (Cameron runs the P4.7 Verify command)
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
 > **Last updated:** 2026-08-02
 
@@ -1298,7 +1298,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P4.7 — Characterize Paper launch-command construction
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/java-launch-paper/`, `crates/msc-application/src/java_launch.rs`, `crates/msc-application/tests/java_launch_paper.rs`
 **What:** Characterize the Paper subset of `ServerProcessManager.startServer`, `JavaServerBackend.swift`, `JavaServerLaunchHelper`, and the already-extracted `headless-script` launch fixtures: Java path validation result consumed from Phase 3, heap flags, sandbox-suppression JVM flags, user extra flags, `-jar` Paper jar path, working directory, and missing-jar failure. Do not pull Forge/NeoForge args-file behavior into this phase; that stays Phase 7.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/java-launch-paper --expect 8 && cargo nextest run -p msc-application java_launch_paper` → fixtures validate and Paper launch tests pass

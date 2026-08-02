@@ -1,0 +1,42 @@
+{
+  "domain": "java-launch-paper",
+  "case": "env-prefix-arguments-precede-jvm-flags",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "validatedJavaLaunchInfo command-on-PATH case",
+    "line": 114
+  },
+  "input": {
+    "validatedJava": {
+      "executablePath": "/usr/bin/env",
+      "prefixArguments": [
+        "java"
+      ]
+    },
+    "serverDir": "/srv/mc",
+    "paperJarPath": "server.jar",
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "extraFlags": "",
+    "existingFiles": [
+      "/srv/mc/server.jar"
+    ]
+  },
+  "expected": {
+    "executablePath": "/usr/bin/env",
+    "workingDirectory": "/srv/mc",
+    "arguments": [
+      "java",
+      "-Xms1024M",
+      "-Xmx2048M",
+      "-Djna.nosys=true",
+      "-Djna.nounpack=true",
+      "-Djline.terminal=dumb",
+      "-Dio.netty.noUnsafe=true",
+      "-jar",
+      "server.jar",
+      "--nogui"
+    ]
+  },
+  "notes": "MSC 1 launches a bare command through /usr/bin/env. The validated Java result therefore contributes prefixArguments that must appear before JVM flags."
+}

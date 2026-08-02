@@ -1,0 +1,45 @@
+{
+  "domain": "java-launch-paper",
+  "case": "extra-flags-are-split-into-arguments",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testExtraFlagsAreIncluded",
+    "line": 253
+  },
+  "input": {
+    "validatedJava": {
+      "executablePath": "/usr/bin/java",
+      "prefixArguments": []
+    },
+    "serverDir": "/srv/mc",
+    "paperJarPath": "server.jar",
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "extraFlags": "-XX:+UseG1GC -XX:MaxGCPauseMillis=200",
+    "existingFiles": [
+      "/srv/mc/server.jar"
+    ]
+  },
+  "expected": {
+    "executablePath": "/usr/bin/java",
+    "workingDirectory": "/srv/mc",
+    "arguments": [
+      "-Xms1024M",
+      "-Xmx2048M",
+      "-Djna.nosys=true",
+      "-Djna.nounpack=true",
+      "-Djline.terminal=dumb",
+      "-Dio.netty.noUnsafe=true",
+      "-XX:+UseG1GC",
+      "-XX:MaxGCPauseMillis=200",
+      "-jar",
+      "server.jar",
+      "--nogui"
+    ],
+    "argumentsContains": [
+      "-XX:+UseG1GC",
+      "-XX:MaxGCPauseMillis=200"
+    ]
+  },
+  "notes": "MSC 1 treats extraFlags as a whitespace-separated string and appends the resulting parts after the built-in JVM flags."
+}

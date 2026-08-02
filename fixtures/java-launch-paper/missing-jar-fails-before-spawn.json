@@ -1,0 +1,25 @@
+{
+  "domain": "java-launch-paper",
+  "case": "missing-jar-fails-before-spawn",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "startServer Paper branch missing JAR validation",
+    "line": 265
+  },
+  "input": {
+    "validatedJava": {
+      "executablePath": "/usr/bin/java",
+      "prefixArguments": []
+    },
+    "serverDir": "/srv/mc",
+    "paperJarPath": "/srv/mc/paper.jar",
+    "minRamGB": 1,
+    "maxRamGB": 2,
+    "extraFlags": "",
+    "existingFiles": []
+  },
+  "expected": {
+    "errorContains": "Server JAR not found in server folder: /srv/mc/paper.jar"
+  },
+  "notes": "MSC 1 checks the JAR by basename inside the working directory before spawning the process. This pins the failure message shape the lifecycle layer can surface later."
+}

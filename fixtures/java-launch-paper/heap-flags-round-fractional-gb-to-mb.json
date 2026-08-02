@@ -1,0 +1,43 @@
+{
+  "domain": "java-launch-paper",
+  "case": "heap-flags-round-fractional-gb-to-mb",
+  "source": {
+    "file": "HeadlessScriptGeneratorTests.swift",
+    "test": "testRamFlagsMatchSheetValues",
+    "line": 270
+  },
+  "input": {
+    "validatedJava": {
+      "executablePath": "/usr/bin/java",
+      "prefixArguments": []
+    },
+    "serverDir": "/srv/mc",
+    "paperJarPath": "server.jar",
+    "minRamGB": 1.5,
+    "maxRamGB": 4.5,
+    "extraFlags": "",
+    "existingFiles": [
+      "/srv/mc/server.jar"
+    ]
+  },
+  "expected": {
+    "executablePath": "/usr/bin/java",
+    "workingDirectory": "/srv/mc",
+    "arguments": [
+      "-Xms1536M",
+      "-Xmx4608M",
+      "-Djna.nosys=true",
+      "-Djna.nounpack=true",
+      "-Djline.terminal=dumb",
+      "-Dio.netty.noUnsafe=true",
+      "-jar",
+      "server.jar",
+      "--nogui"
+    ],
+    "argumentsContains": [
+      "-Xms1536M",
+      "-Xmx4608M"
+    ]
+  },
+  "notes": "JavaServerLaunchHelper.megabytes(fromGB:) multiplies GB by 1024 and rounds to whole MB before building -Xms/-Xmx."
+}

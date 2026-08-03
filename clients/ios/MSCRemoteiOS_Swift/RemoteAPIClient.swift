@@ -73,7 +73,7 @@ final class RemoteAPIClient {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw RemoteAPIError.missingToken }
 
-        self.baseURL = baseURL
+        self.baseURL = Self.normalizedBaseURL(baseURL)
         self.token = trimmed
 
         let httpConfig = URLSessionConfiguration.ephemeral
@@ -899,6 +899,21 @@ final class RemoteAPIClient {
         let email: String
         let password: String
         let gamertag: String
+    }
+
+    /// This client's request paths (`/status`, `/start`, ...) are bare,
+    /// unversioned paths inherited unchanged from MSC 1, which never had
+    /// an API version prefix. MSC 2's agent serves every route under
+    /// `/v1/` (a Phase 2 decision) — so append `v1` to whatever base URL
+    /// the user typed, once, idempotently, rather than requiring every
+    /// person pairing this app to know and type the prefix themselves.
+    private static func normalizedBaseURL(_ url: URL) -> URL {
+        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        let existingPath = (comps?.path ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if existingPath != "v1" {
+            comps?.path = "/" + ([existingPath, "v1"].filter { !$0.isEmpty }.joined(separator: "/"))
+        }
+        return comps?.url ?? url
     }
 
     private func makeHTTPURL(path: String, query: [String: String]) throws -> URL {

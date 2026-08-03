@@ -27,8 +27,14 @@ pub struct SystemLaunchctl;
 pub trait Launchctl: Send + Sync {
     fn bootstrap(&self, plist_path: &Path) -> Result<(), ServiceError>;
     fn bootout(&self, plist_path: &Path) -> Result<(), ServiceError>;
-    fn start(&self, service_target: &str) -> Result<(), ServiceError>;
-    fn stop(&self, service_target: &str) -> Result<(), ServiceError>;
+    /// `label` is the bare `Label` from the plist — `start`/`stop` are
+    /// the legacy launchctl subcommand family and, unlike
+    /// `bootstrap`/`bootout`/`print`, do not take a `<domain>/<label>`
+    /// target (`launchctl start system/<label>` fails silently with
+    /// exit 3/ESRCH against real launchd; `launchctl start <label>` on
+    /// the identical job succeeds).
+    fn start(&self, label: &str) -> Result<(), ServiceError>;
+    fn stop(&self, label: &str) -> Result<(), ServiceError>;
     fn print(&self, service_target: &str) -> Result<String, ServiceError>;
 }
 
@@ -41,12 +47,12 @@ impl Launchctl for SystemLaunchctl {
         run_launchctl(&["bootout", "system"], Some(plist_path)).map(|_| ())
     }
 
-    fn start(&self, service_target: &str) -> Result<(), ServiceError> {
-        run_launchctl(&["start", service_target], None).map(|_| ())
+    fn start(&self, label: &str) -> Result<(), ServiceError> {
+        run_launchctl(&["start", label], None).map(|_| ())
     }
 
-    fn stop(&self, service_target: &str) -> Result<(), ServiceError> {
-        run_launchctl(&["stop", service_target], None).map(|_| ())
+    fn stop(&self, label: &str) -> Result<(), ServiceError> {
+        run_launchctl(&["stop", label], None).map(|_| ())
     }
 
     fn print(&self, service_target: &str) -> Result<String, ServiceError> {
@@ -161,7 +167,15 @@ impl<L: Launchctl> MacosLaunchdServiceManager<L> {
 
     fn start(&self, service_name: &str) -> Result<ServiceStatusReport, ServiceError> {
         let plist_path = self.require_installed(service_name)?;
-        self.launchctl.start(&service_target(service_name))?;
+        // `start`/`stop` are the legacy launchctl subcommand family and
+        // take a bare label, unlike `bootstrap`/`bootout`/`print`'s
+        // `<domain>/<label>` target syntax — confirmed against real
+        // launchd: `launchctl start system/<label>` fails silently with
+        // exit 3 (ESRCH), `launchctl start <label>` on the identical job
+        // succeeds. Passing the domain-prefixed target here was never
+        // exercised against real launchd before (only against the fake
+        // in tests), so it shipped broken.
+        self.launchctl.start(service_name)?;
         let definition = LaunchDaemonPlist::from_plist_file(&plist_path)?.into_request()?;
         match self.status(service_name)? {
             ServiceStatusReport {
@@ -175,7 +189,7 @@ impl<L: Launchctl> MacosLaunchdServiceManager<L> {
 
     fn stop(&self, service_name: &str) -> Result<ServiceStatusReport, ServiceError> {
         let plist_path = self.require_installed(service_name)?;
-        self.launchctl.stop(&service_target(service_name))?;
+        self.launchctl.stop(service_name)?;
         let definition = LaunchDaemonPlist::from_plist_file(&plist_path)?.into_request()?;
         Ok(ServiceStatusReport::stopped(definition))
     }

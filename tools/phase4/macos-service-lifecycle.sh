@@ -206,11 +206,8 @@ PY
 echo "bootstrapping LaunchDaemon ${LABEL}"
 /bin/launchctl bootstrap system "${PLIST_PATH}"
 
-# `bootstrap` can return before launchd has fully committed the job into
-# its table, so an immediate `start` can race it and fail with ESRCH ("No
-# such process") even though the job was just registered successfully.
-# Poll `launchctl print` (which only succeeds once the job is visible)
-# before calling `start`, instead of assuming `bootstrap` is synchronous.
+# Confirm the job is visible before starting it — cheap, and a clearer
+# failure than whatever `start` would do against a job that never loaded.
 for attempt in $(seq 1 20); do
   if /bin/launchctl print "system/${LABEL}" >/dev/null 2>&1; then
     break
@@ -222,7 +219,13 @@ for attempt in $(seq 1 20); do
   /bin/sleep 0.25
 done
 
-/bin/launchctl start "system/${LABEL}"
+# `start`/`stop` are the legacy launchctl subcommand family and take a
+# bare label, unlike `bootstrap`/`bootout`/`print`'s `<domain>/<label>`
+# target syntax — confirmed directly against real launchd: `launchctl
+# start system/<label>` fails silently with exit 3 (ESRCH, "no such
+# process") even though the identical job responds fine to `print
+# system/<label>`; `launchctl start <label>` on that same job succeeds.
+/bin/launchctl start "${LABEL}"
 
 python3 - "${BASE_URL}" <<'PY'
 import sys

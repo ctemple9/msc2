@@ -55,21 +55,21 @@ impl Launchctl for FakeLaunchctl {
         Ok(())
     }
 
-    fn start(&self, service_target: &str) -> Result<(), msc_infrastructure::service::ServiceError> {
+    fn start(&self, label: &str) -> Result<(), msc_infrastructure::service::ServiceError> {
         self.state
             .lock()
             .unwrap()
             .calls
-            .push(format!("start {service_target}"));
+            .push(format!("start {label}"));
         Ok(())
     }
 
-    fn stop(&self, service_target: &str) -> Result<(), msc_infrastructure::service::ServiceError> {
+    fn stop(&self, label: &str) -> Result<(), msc_infrastructure::service::ServiceError> {
         self.state
             .lock()
             .unwrap()
             .calls
-            .push(format!("stop {service_target}"));
+            .push(format!("stop {label}"));
         Ok(())
     }
 
@@ -218,9 +218,9 @@ fn start_stop_and_uninstall_issue_expected_launchctl_calls() {
         launchctl.calls(),
         vec![
             format!("bootstrap {}", plist_path.display()),
-            "start system/com.msc2.agent".to_string(),
+            "start com.msc2.agent".to_string(),
             "print system/com.msc2.agent".to_string(),
-            "stop system/com.msc2.agent".to_string(),
+            "stop com.msc2.agent".to_string(),
             format!("bootout {}", plist_path.display()),
         ]
     );

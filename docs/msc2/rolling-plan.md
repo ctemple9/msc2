@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — gate-review fixes (P4.29, P4.30) awaiting verification; P4.22 landed for real
-> **Next move:** VERIFY P4.29, P4.30. Then run the remaining privileged/manual checks: P4.20 (iOS, needs simulator/device), P4.22/P4.23 (sudo LaunchDaemon/systemd integration scripts), P4.24 (Windows sign-out).
-> **Repo:** https://github.com/ctemple9/msc2 · CI confirmed green on macOS, Linux, and Windows as of commit `0b00b8d` ([run 30775096731](https://github.com/ctemple9/msc2/actions/runs/30775096731)) — the prior "CI green" claim here was never actually checked against a real Actions run; Claude's Phase 4 gate review found it red on all three legs, see the amendments log.
+> ## STATUS: Phase 4 in progress — macOS LaunchDaemon (P4.22) proven on real hardware; iOS, Linux, Windows still needed
+> **Next move:** VERIFY P4.29–P4.33. Then: P4.20 (iOS, needs simulator/device), P4.23 (sudo systemd integration script, real Linux host), P4.24 (Windows sign-out check, real Windows host).
+> **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, and Windows as of commit `7a8ea59` ([run 30777077981](https://github.com/ctemple9/msc2/actions/runs/30777077981)). The prior "CI green" claim on this line was never actually checked against a real Actions run — Claude's Phase 4 gate review found it red on all three legs; see the amendments log for that, and for the P4.31→P4.33 debugging trail (a real `launchctl start`/`stop` bug in the shipped Rust code, only found by running the real integration script against a real server, not by any unit test).
 > **Last updated:** 2026-08-03
 
 ---
@@ -1553,6 +1553,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Commit:** `P4.33: fix launchctl start/stop target syntax — bare label, not system/<label>`
 **Batch:** stop-after
 **Why three wrong turns before this one, honestly recorded:** each prior fix (retry loop, signing) was a reasonable hypothesis given the evidence available at the time — silent failures with no error text give few clues — and each was tested and ruled out with real evidence rather than assumed correct, which is what eventually surfaced the actual bug. Recorded plainly per this file's own convention rather than only keeping the step that turned out to be right.
+**Confirmed on real hardware:** Cameron's next run — `sudo tools/phase4/macos-service-lifecycle.sh --server-dir /Users/camerontemple/MinecraftServers/java/paper` against his real, already-existing Paper server — printed `macOS LaunchDaemon lifecycle check passed`. This is P4.22's own outstanding integration-script proof, closed: real LaunchDaemon install under `/Library/LaunchDaemons` with `UserName` set to the installing user, real Paper import and start through the public CLI/API path, the running agent and Java server both confirmed alive with no client connected, P4.4's keychain/TCC check run in the real daemon context, then a clean stop and uninstall. CI is also green on this commit (`7a8ea59`) on all three platforms.
 
 ---
 

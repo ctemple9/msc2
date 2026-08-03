@@ -8,7 +8,6 @@ use msc_infrastructure::audit_log::{AuditLog, Entry};
 use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -122,50 +121,45 @@ fn audit_log_entries_from_concurrent_writers_preserve_call_order() {
 
     // The fixture above only exercises sequential submission — a JSON
     // fixture can't itself encode genuine thread scheduling. This second
-    // half of the same test exercises the same ordering guarantee under
-    // real thread concurrency instead: `AuditLog::log` takes its own
-    // write lock, so whichever thread acquires it first writes first, and
-    // threads here are synchronized (via `barrier` + a short stagger) to
-    // acquire it in a known order, making the expected output
-    // deterministic rather than a flaky race.
-    concurrent_threads_preserve_submission_order();
+    // half of the same test exercises the property `AuditLog`'s doc
+    // comment actually promises: one writer lock *per instance*, so
+    // concurrent calls to `log` on the *same* instance never interleave
+    // or corrupt each other's lines — the real production shape, where
+    // one long-lived `AuditLog` is shared by every caller. An earlier
+    // version of this test built a separate `AuditLog` per thread, which
+    // gives each thread its own independent lock and doesn't exercise
+    // that guarantee at all; it relied on a `thread::sleep` stagger to
+    // keep the resulting races from colliding, which was flaky under CI
+    // load and occasionally lost entries outright rather than just
+    // reordering them. `std::thread::scope` lets every thread borrow the
+    // one shared, non-'static `AuditLog` directly, so the real lock is
+    // what's under test.
+    concurrent_threads_never_interleave_or_corrupt();
 }
 
-fn concurrent_threads_preserve_submission_order() {
-    let fs = Arc::new(FakeFileSystem::new().with_file("/srv/app/audit/.keep", Vec::new(), false));
+fn concurrent_threads_never_interleave_or_corrupt() {
+    let fs = FakeFileSystem::new().with_file("/srv/app/audit/.keep", Vec::new(), false);
+    let log = AuditLog::new(&fs, "/srv/app/audit");
+    let barrier = std::sync::Barrier::new(3);
 
-    // AuditLog borrows `&dyn FileSystem` non-'static, so it can't be
-    // moved into a spawned thread directly. Build one AuditLog per
-    // thread against the same shared FakeFileSystem instead — they all
-    // still serialize through FakeFileSystem's own internal Mutex-guarded
-    // maps, which is the property this test actually checks: no matter
-    // how many writers exist, their appends never corrupt or interleave.
-    let barrier = Arc::new(std::sync::Barrier::new(3));
-    let mut handles = Vec::new();
-    for i in 0..3u16 {
-        let fs = Arc::clone(&fs);
-        let barrier = Arc::clone(&barrier);
-        handles.push(thread::spawn(move || {
-            barrier.wait();
-            // Stagger so thread i's write reliably lands after thread
-            // i-1's, keeping the resulting order deterministic to assert
-            // on rather than racy.
-            thread::sleep(Duration::from_millis(u64::from(i) * 20));
-            let log = AuditLog::new(fs.as_ref(), "/srv/app/audit");
-            let entry = Entry {
-                timestamp: UNIX_EPOCH + Duration::from_secs(1_700_000_000 + u64::from(i)),
-                client_ip: format!("10.0.0.{i}"),
-                token_label: "admin".to_string(),
-                method: "GET".to_string(),
-                path: "/status".to_string(),
-                status_code: 200,
-            };
-            log.log(&entry).expect("log");
-        }));
-    }
-    for handle in handles {
-        handle.join().expect("thread panicked");
-    }
+    thread::scope(|scope| {
+        for i in 0..3u16 {
+            let log = &log;
+            let barrier = &barrier;
+            scope.spawn(move || {
+                barrier.wait();
+                let entry = Entry {
+                    timestamp: UNIX_EPOCH + Duration::from_secs(1_700_000_000 + u64::from(i)),
+                    client_ip: format!("10.0.0.{i}"),
+                    token_label: "admin".to_string(),
+                    method: "GET".to_string(),
+                    path: "/status".to_string(),
+                    status_code: 200,
+                };
+                log.log(&entry).expect("log");
+            });
+        }
+    });
 
     let bytes = fs
         .read(Path::new("/srv/app/audit/audit-2023-11-14.jsonl"))
@@ -175,12 +169,14 @@ fn concurrent_threads_preserve_submission_order() {
     assert_eq!(
         lines.len(),
         3,
-        "all three entries present, none interleaved"
+        "all three entries present, none interleaved: {lines:?}"
     );
-    for (i, line) in lines.iter().enumerate() {
-        assert!(
-            line.contains(&format!("\"ip\":\"10.0.0.{i}\"")),
-            "line {i} out of order or corrupted: {line}"
+    for i in 0..3u16 {
+        let needle = format!("\"ip\":\"10.0.0.{i}\"");
+        let matches = lines.iter().filter(|line| line.contains(&needle)).count();
+        assert_eq!(
+            matches, 1,
+            "expected exactly one line for 10.0.0.{i}, found {matches}: {lines:?}"
         );
     }
 }

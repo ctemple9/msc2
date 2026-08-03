@@ -92,21 +92,21 @@ fn parse_logind_conf(contents: &str) -> Vec<PowerWarning> {
         if line.is_empty() || line.starts_with('#') {
             continue;
         }
-        if let Some(value) = line.strip_prefix("HandleLidSwitch=") {
-            if value != "ignore" {
-                warnings.push(PowerWarning::new(
-                    "linux-lid-switch",
-                    format!("systemd logind HandleLidSwitch is {value}."),
-                ));
-            }
+        if let Some(value) = line.strip_prefix("HandleLidSwitch=")
+            && value != "ignore"
+        {
+            warnings.push(PowerWarning::new(
+                "linux-lid-switch",
+                format!("systemd logind HandleLidSwitch is {value}."),
+            ));
         }
-        if let Some(value) = line.strip_prefix("IdleAction=") {
-            if value != "ignore" {
-                warnings.push(PowerWarning::new(
-                    "linux-idle-action",
-                    format!("systemd logind IdleAction is {value}."),
-                ));
-            }
+        if let Some(value) = line.strip_prefix("IdleAction=")
+            && value != "ignore"
+        {
+            warnings.push(PowerWarning::new(
+                "linux-idle-action",
+                format!("systemd logind IdleAction is {value}."),
+            ));
         }
     }
     warnings

@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use std::fs;
 use std::io;
 use std::path::Path;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::process::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -19,6 +20,7 @@ pub trait ProcessMetricsProvider {
 
 #[derive(Debug, Clone, Copy)]
 pub struct PsProcessMetricsProvider {
+    #[cfg_attr(not(any(target_os = "macos", target_os = "linux")), allow(dead_code))]
     logical_core_count: usize,
 }
 

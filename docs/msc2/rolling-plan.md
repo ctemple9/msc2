@@ -1455,7 +1455,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.24 — Windows Service ownership, Job Objects, and sign-out survival check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-platform-windows/src/service.rs`, `tools/phase4/windows-service-lifecycle.ps1`, `crates/msc-platform-windows/tests/service_definition.rs`
 **What:** Implement Windows Service registration/start/stop/status for the agent running as the installing user, with lifecycle-owned Java processes assigned to Job Objects. The PowerShell script installs the service, starts the imported Paper server, verifies client exit does not stop it, records a checkpoint for Cameron to sign out and back in, then verifies the service/server survived and uninstalls cleanly. CI can verify service definition and Job Object behavior; the real sign-out proof is a Cameron-run Windows check.
 **Verify:** `powershell -ExecutionPolicy Bypass -File tools/phase4/windows-service-lifecycle.ps1 -ServerDir $env:MSC2_PHASE4_PAPER_SERVER` → service starts the server, survives the scripted client-exit check, and reports the sign-out checkpoint result
@@ -1467,7 +1467,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Power and packaging
 
 ### P4.25 — Implement D-024 power-management policies
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/power.rs`, `crates/msc-platform-macos/src/power.rs`, `crates/msc-platform-linux/src/power.rs`, `crates/msc-platform-windows/src/power.rs`, `tools/phase4/power-policy-check.*`
 **What:** Implement the two host-role policies confirmed for Phase 4: dedicated/headless host prevents sleep whenever remote management is enabled; normal desktop prevents sleep only while a server or critical operation is running. macOS uses `IOPMAssertion`, Windows uses `SetThreadExecutionState`, Linux uses `systemd-inhibit`. Add warning probes for known incompatible configurations where they can be detected without making claims the platform cannot support. This step proves the "remote-starting a stopped server" premise D-024 exists for.
 **Verify:** `cargo nextest run --workspace power_policy && tools/phase4/power-policy-check.sh --dry-run` → policy state-machine tests pass and platform check reports intended inhibitor actions
@@ -1475,7 +1475,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** solo
 
 ### P4.26 — Headless package no-GUI-link verification
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `.github/workflows/ci.yml`, `tools/phase4/headless-link-check.py`, `docs/msc2/rolling-plan.md`
 **What:** Give D-021 requirement #1 a concrete home: build headless artifacts for macOS/Linux/Windows and mechanically verify they link no GUI frameworks or desktop dependencies. macOS checks should reject AppKit/window-server linkage in the agent package; Linux checks should reject X11/Wayland/GTK/KDE dependencies; Windows checks should reject GUI subsystem linkage for the headless binary. This is packaging verification only, not the Tauri app.
 **Verify:** `python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` → all three headless artifacts pass the no-GUI-link checks
@@ -1487,7 +1487,7 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ### Phase exit
 
 ### P4.27 — Live Paper lifecycle conformance check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase4/live-paper-lifecycle-check.py`, `corpus/server-dirs/README.md`
 **What:** Build one command that drives the whole non-service vertical slice against a real imported Paper server directory: import/detect, set active server, start, observe console ready line, query status/performance, send `say` command, read console tail/WebSocket, stop gracefully, restart, and stop again. The script uses the public API/CLI, not internal Rust functions, so it verifies the same path iOS and CLI consume. It requires Cameron to provide or point at a real Paper server directory; do not fabricate a server corpus.
 **Verify:** `python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48400` → all lifecycle actions pass
@@ -1495,13 +1495,26 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Batch:** stop-after
 
 ### P4.28 — Phase 4 exit gate check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** none (verification only unless a gate bug is found)
 **What:** Run the full Phase 4 gate together: formatting, clippy, workspace tests, API contract checks, live Paper lifecycle check, CLI smoke check, iOS lifecycle checklist, macOS LaunchDaemon service check, Linux `systemd` service check, Windows Service/sign-out check, D-024 power-policy check, and D-021 no-GUI-link verification. Confirm the imported Paper server remains running when clients close and under each platform service manager. If any item fails, stop and fix only the failing gate item; do not advance to Phase 5.
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo nextest run --workspace && python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48400 && python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` → all local checks green; platform service scripts and iOS/Windows manual checks recorded in this step's execution note
 **Commit:** `P4.28: run the Phase 4 exit gate check`
 **Batch:** stop-after
 **Note:** Local automated gate checks are green after fixing one real gate bug in the macOS test harness: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo nextest run --workspace` (398 passed), `tools/phase4/cli-lifecycle-smoke.sh` (`cli lifecycle smoke passed`), `tools/phase4/power-policy-check.sh --dry-run` (`ok power-policy-dry-run`), `python3 tools/phase4/live-paper-lifecycle-check.py --server-dir /private/tmp/msc2-phase4-paper.70xlvx --base-url http://127.0.0.1:48439` (`live Paper lifecycle check passed`), and `python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless` (`ok all 3`) all passed in this terminal session. The exact `:48400` live-check command in the Verify line is still blocked in this managed shell by loopback bind restrictions (`failed to bind 127.0.0.1:48400: Operation not permitted`), so the same check was rerun successfully on `:48439` to verify the actual lifecycle path rather than stop on a host-specific port restriction. The macOS gate-item fix in this step is that `crates/msc-platform-macos/src/secret_store.rs` no longer assumes disposable keychain creation or non-interactive login-keychain writes are available during tests; it keeps the production System-keychain behavior unchanged, namespaces test writes per run, and cleanly skips the contract fixtures when the host denies keychain writes outright. Manual gate evidence still belongs to the existing Phase 4 verification-support steps: P4.20's iOS checklist note, P4.22's macOS LaunchDaemon run, P4.23's Linux `systemd` run, and P4.24's Windows sign-out/service run.
+
+**Correction, same day:** this Note claimed local checks were green and did not check whether the P4.28 commit's actual GitHub Actions run passed. It didn't — Claude's Phase 4 gate review (recorded below) found `gh run view` on the P4.28 commit (`30759345129`) red on all three matrix legs. See P4.29.
+
+### P4.29 — Fix the three real CI failures found on the P4.28 gate commit
+**Status:** awaiting verification
+**Files:** `crates/msc-platform-linux/src/power.rs`, `crates/msc-infrastructure/src/metrics.rs`, `crates/msc-infrastructure/tests/audit_log.rs`
+**What:** Claude's Phase 4 gate review found the P4.28 commit's own CI run (`30759345129`) red on macOS, Linux, and Windows — contradicting the rolling-plan status line's "CI green" claim, which was never checked against a real Actions run. Three independent bugs, each fixed at the root rather than suppressed:
+  - **Linux clippy:** two `collapsible_if` errors in `power.rs`'s `parse_logind_conf` (P4.25) — collapsed into `if let ... && ...` using the 2024-edition let-chain the crate's `edition = "2024"` already supports.
+  - **Windows clippy:** `metrics.rs`'s `use std::process::Command` and `PsProcessMetricsProvider::logical_core_count` are only read inside `#[cfg(any(target_os = "macos", target_os = "linux"))]` blocks (`ps` isn't available on Windows, so `process_usage` returns `None` there per P4.14's "CPU/RAM where the platform can report it" scope) — both are unconditional, so Windows saw an unused import and dead field. `Command`'s import is now `#[cfg]`-gated the same way; the field keeps its cross-platform shape (so `new()`'s signature doesn't change per platform) but is `#[cfg_attr(not(...), allow(dead_code))]` on non-Unix.
+  - **macOS test, `audit_log_entries_from_concurrent_writers_preserve_call_order`:** this is the same test P3.20b already flagged as a one-off CI failure and left for Cameron rather than "fixing by loosening the assertion." Investigating properly found a real test-design bug, not scheduler flakiness: the test built one `AuditLog` **per thread**, and `AuditLog`'s writer lock is a `Mutex` **per instance** — three independent, uncoordinated locks racing the same underlying file, which can lose entries outright (reproduced locally: 1 of 3 entries survived once the test's old `thread::sleep` stagger, which had been narrowing the race window rather than closing it, was removed). Production only ever constructs one long-lived `AuditLog`, so this never affected real behavior — but the test wasn't exercising the guarantee `AuditLog`'s own doc comment promises ("one writer lock per instance... however \[calls are\] invoked — including from separate threads"). Rewritten with `std::thread::scope` so all three threads borrow the *same* `AuditLog`, which is what actually puts the real per-instance lock under test; the final assertion also no longer assumes a specific arrival order (which was never a real guarantee — only "no interleaving/corruption" is), checking instead that all three entries are present exactly once regardless of landing order.
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace` → all clean, `398 tests run: 398 passed`; `for i in $(seq 1 20); do cargo nextest run -p msc-infrastructure audit_log_entries_from_concurrent_writers_preserve_call_order || break; done` → 20/20 passed; then the next GitHub Actions run on this commit (`gh run list --limit 1`) → `success` on all three matrix legs, which is the actual gate evidence P4.28's Note should have had
+**Commit:** `P4.29: fix the three real CI failures found on the P4.28 gate commit`
+**Batch:** stop-after
 
 ---
 

@@ -107,7 +107,13 @@ pub fn build_paper_launch_command(
     request: &PaperLaunchRequest,
 ) -> Result<PaperLaunchCommand, JavaLaunchError> {
     let jar_name = paper_jar_name(&request.paper_jar_path);
-    let jar_in_working_dir = request.server_dir.join(&jar_name);
+    // `server_dir` comes from the same forward-slash convention every
+    // fixture in this codebase uses; `Path::join` would insert a
+    // backslash on Windows, leaving the error message below with a
+    // mixed-separator path (`/srv/mc\paper.jar`) even though it resolves
+    // to the same file. See `msc_infrastructure::fs::join_forward_slash`.
+    let jar_in_working_dir =
+        msc_infrastructure::fs::join_forward_slash(&request.server_dir, jar_name.as_ref());
     if !fs.is_file(&jar_in_working_dir) {
         return Err(JavaLaunchError::ServerJarNotFound {
             path: jar_in_working_dir,

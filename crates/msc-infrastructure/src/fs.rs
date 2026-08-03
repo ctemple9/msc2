@@ -103,7 +103,17 @@ fn is_executable(_meta: &std::fs::Metadata) -> bool {
 /// formats the result as a raw string (`to_string_lossy()` against a
 /// fixture's literal expected string, as `audit_log.rs`'s test does) does
 /// — found by P3.20's exit gate check, fixed by P3.20a.
-fn join_forward_slash(base: &Path, component: &std::ffi::OsStr) -> PathBuf {
+/// Joins `base` and `component` with a literal `/` regardless of host OS.
+/// Every fixture path in this codebase is written with forward slashes, and
+/// `Path::join`/`PathBuf::push` insert `std::path::MAIN_SEPARATOR` (a
+/// backslash on Windows) instead — harmless for `Path` equality/lookup
+/// (Windows treats `/` and `\` as equivalent separators), but visible in
+/// anything that renders the path back out as text: fixture assertions,
+/// and any user-facing message built from a fixture-shaped path. `pub`
+/// so other crates constructing paths from the same forward-slash
+/// convention (`msc-application`'s Paper launch-command construction,
+/// found needing this by a Windows CI failure) don't have to duplicate it.
+pub fn join_forward_slash(base: &Path, component: &std::ffi::OsStr) -> PathBuf {
     let mut joined = base.to_string_lossy().into_owned();
     if !joined.ends_with('/') {
         joined.push('/');

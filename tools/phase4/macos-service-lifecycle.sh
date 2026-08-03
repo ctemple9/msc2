@@ -193,6 +193,23 @@ PY
 
 echo "bootstrapping LaunchDaemon ${LABEL}"
 /bin/launchctl bootstrap system "${PLIST_PATH}"
+
+# `bootstrap` can return before launchd has fully committed the job into
+# its table, so an immediate `start` can race it and fail with ESRCH ("No
+# such process") even though the job was just registered successfully.
+# Poll `launchctl print` (which only succeeds once the job is visible)
+# before calling `start`, instead of assuming `bootstrap` is synchronous.
+for attempt in $(seq 1 20); do
+  if /bin/launchctl print "system/${LABEL}" >/dev/null 2>&1; then
+    break
+  fi
+  if [ "${attempt}" -eq 20 ]; then
+    echo "LaunchDaemon ${LABEL} never became visible to launchctl after bootstrap" >&2
+    exit 1
+  fi
+  /bin/sleep 0.25
+done
+
 /bin/launchctl start "system/${LABEL}"
 
 python3 - "${BASE_URL}" <<'PY'

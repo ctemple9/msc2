@@ -1526,6 +1526,14 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 **Commit:** `P4.30: fix a Windows path-separator bug in Paper launch-command construction`
 **Batch:** stop-after
 
+### P4.31 — Fix a `bootstrap`/`start` race in the macOS LaunchDaemon integration script
+**Status:** awaiting verification
+**Files:** `tools/phase4/macos-service-lifecycle.sh`
+**What:** Cameron's first real run of P4.22's integration script failed fast (`exit code: 3`, no error text) right after `launchctl bootstrap`. A `bash -x` trace showed the script jumped straight from `launchctl start` to the `cleanup` trap with nothing printed in between, and the kept-artifacts log directory (`--keep-artifacts`) had no `agent.log` at all — the agent binary was never actually spawned. `log show` for the daemon label confirmed `bootstrap` itself succeeded (`backgroundtaskmanagementd` registered it, disposition `allowed`), with nothing indicating a code-signature or permission rejection. Exit code `3` from `launchctl start` is `ESRCH` ("No such process") — `os.strerror(3)` confirms it. Root cause: the script calls `launchctl start` immediately after `launchctl bootstrap` with no gap, but `bootstrap` can return before launchd has fully committed the job into its internal table, so an immediate `start` can race it and fail to find the job that was just registered. This is a bug in this test script's timing only — `MacosLaunchdServiceManager::install()` (the real Rust code, already unit-tested in P4.22) only calls `bootstrap`; a separate, human-scale `start` call happens later through a normal CLI invocation, so the race doesn't exist in real usage, only in this script's back-to-back automation. Fixed by polling `launchctl print system/<label>` (which only succeeds once the job is visible) for up to 5 seconds before calling `start`, instead of assuming `bootstrap` is synchronous.
+**Verify:** `bash -n tools/phase4/macos-service-lifecycle.sh` → syntax OK (confirmed); real proof is Cameron's next `sudo tools/phase4/macos-service-lifecycle.sh --server-dir <path>` run completing past the point that failed before
+**Commit:** `P4.31: fix a bootstrap/start race in the macOS LaunchDaemon integration script`
+**Batch:** stop-after
+
 ---
 
 ## Amendments log

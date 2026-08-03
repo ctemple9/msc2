@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 in progress — P4.28 awaiting verification
-> **Next move:** VERIFY P4.28
-> **Repo:** https://github.com/ctemple9/msc2 · CI green on macOS, Linux, Windows
-> **Last updated:** 2026-08-02
+> ## STATUS: Phase 4 in progress — gate-review fixes (P4.29, P4.30) awaiting verification; P4.22 landed for real
+> **Next move:** VERIFY P4.29, P4.30. Then run the remaining privileged/manual checks: P4.20 (iOS, needs simulator/device), P4.22/P4.23 (sudo LaunchDaemon/systemd integration scripts), P4.24 (Windows sign-out).
+> **Repo:** https://github.com/ctemple9/msc2 · CI confirmed green on macOS, Linux, and Windows as of commit `0b00b8d` ([run 30775096731](https://github.com/ctemple9/msc2/actions/runs/30775096731)) — the prior "CI green" claim here was never actually checked against a real Actions run; Claude's Phase 4 gate review found it red on all three legs, see the amendments log.
+> **Last updated:** 2026-08-03
 
 ---
 
@@ -1531,6 +1531,58 @@ Not fixed here — `fs.rs` is outside this step's own `Files:` list, and the reg
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-08-02/03 — Claude Phase 4 gate review: gate did not hold; three findings, now fixed in code
+
+Claude reviewed Phase 4 as a gate check, did not implement the phase (Codex did), and made no
+code changes during the review itself. The Phase 4 gate in `msc2-port-plan.md` is: one imported
+Paper server end to end, driven from the CLI **and** the existing iOS app, with headless service
+ownership proven on macOS (LaunchDaemon), Linux (`systemd`), and Windows (Service) — all three —
+and closing every client (on Windows, signing out) changes nothing about the running server.
+**Verdict at review time: the gate did not hold.** Three findings:
+
+1. **P4.22 was marked `DONE` with a `Commit:` field that was never actually committed.** The
+   macOS LaunchDaemon code (`service.rs`, `service_plist.rs`, the integration script) existed
+   only as uncommitted working-tree files with no commit anywhere in git history — per `CLAUDE.md`
+   rule 2, the macOS leg of "all three, not two" did not exist in the codebase.
+2. **CI was red on the P4.28 gate-closing commit itself, on all three platforms** —
+   contradicting this file's own "CI green" status line, which had never been checked against a
+   real GitHub Actions run. Linux failed clippy (`power.rs` collapsible-if), Windows failed
+   clippy (`metrics.rs` unused import/dead field), and macOS failed
+   `audit_log_entries_from_concurrent_writers_preserve_call_order` — the same test P3.20b had
+   already flagged once and left unresolved.
+3. **CI had not completed on most of Phase 4's commits at all**, because `.github/workflows/ci.yml`
+   cancels in-flight runs on the same ref when the branch is pushed again; commits landed close
+   together (P4.19, P4.20, P4.24, P4.25, P4.26, P4.27) have no completed check-run, permanently
+   `pending`. Of the commits that did complete, every one from P4.7 through P4.23 had failed.
+
+Fixed in this same session, each as its own committed, numbered step: **P4.29** fixed the three
+real CI failures (the Linux/Windows lints were mechanical; the macOS audit-log failure turned out
+to be a genuine test-design bug — the test built one `AuditLog` per thread, defeating the
+per-instance lock it meant to test, and could lose entries outright under real concurrency, not
+just reorder them — fixed at the root with `std::thread::scope` over one shared instance).
+**P4.22** was verified (398/398 tests, clean clippy on all three platform targets) and landed for
+real. Landing P4.22 let CI reach Windows further than any previous run had, surfacing a fourth,
+previously-hidden bug — a path-separator mismatch in Paper launch-command error messages, same
+class as P3.20a's earlier fix — closed in **P4.30**. **CI is now confirmed green on macOS, Linux,
+and Windows on commit `0b00b8d`** ([run 30775096731](https://github.com/ctemple9/msc2/actions/runs/30775096731)),
+including the D-021 headless no-GUI-link check.
+
+**What the gate still needs, and cannot be produced from this terminal-only environment:** P4.20's
+iOS walkthrough (checklist exists at `tools/phase4/ios-lifecycle-check.md`, but needs a real
+simulator/device run and a result recorded in this file); the sudo-driven LaunchDaemon integration
+script (`tools/phase4/macos-service-lifecycle.sh`) and the equivalent Linux `systemd` script,
+both privileged and host-real; and Windows sign-out survival (P4.24's own entry already says this
+correctly — "the real sign-out proof is a Cameron-run Windows check"). The code-level, CI-checkable
+parts of the gate now hold; the privileged/manual parts still need Cameron's own runs before Phase
+4 can close for real, exactly as each of those steps' own `Verify:` lines already say.
+
+No drift from the vision was found — this was a process-integrity failure (unverified status
+claims, a CI signal nobody had actually checked), not a design or scope problem. No earlier phase
+needs amending. **Also flagged, not fixed:** the macOS `MacosLaunchdServiceManager` plist sets
+`RunAtLoad: false`, so it never auto-starts at boot, while P4.23's Linux unit runs `systemctl
+enable` and does; worth a decision on whether macOS should match, recorded on P4.22's own entry
+above.
 
 ### 2026-08-01 — Codex Phase 3 review: gate holds, with documentation drift to clean up
 

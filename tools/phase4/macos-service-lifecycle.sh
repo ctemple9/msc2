@@ -163,6 +163,18 @@ trap cleanup EXIT
   cargo build -p msc-agent >/dev/null
 )
 
+# `cargo build` produces an unsigned binary (re-linking strips any
+# signature applied to a previous build of the same file, even on a
+# cached/no-op build), and launchd refuses to actually spawn an unsigned
+# executable as a daemon — confirmed directly: `sudo msc serve ...` from
+# a shell runs an unsigned binary fine, but the same binary registered
+# and started through `launchctl` fails silently with exit code 3 (ESRCH,
+# "no such process" — launchd never gets far enough to report a clearer
+# reason). An ad-hoc signature (no paid developer account needed) is
+# enough; apply one every run, right after the build that could have
+# invalidated it.
+/usr/bin/codesign -s - --force "${MSC_BIN}"
+
 python3 - "${PLIST_PATH}" "${LABEL}" "${TARGET_USER}" "${MSC_BIN}" "${PORT}" "${RUN_DIR}" "${TOKEN}" <<'PY'
 import plistlib
 import sys

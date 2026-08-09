@@ -19,7 +19,7 @@ HELPER_STORE_DIR="/var/lib/msc2/credentials"
 PORT=""
 BASE_URL=""
 TOKEN="msc2_phase4_systemd_secret"
-MSC_BIN="${ROOT}/target/debug/msc"
+MSC_BIN="${RUN_DIR}/bin/msc"
 SERVER_NAME="Phase4 Paper"
 SERVER_PORT=""
 
@@ -111,6 +111,17 @@ fi
 
 TARGET_GROUP="$(id -gn "${TARGET_USER}")"
 
+# Under a plain `sudo`, PATH follows sudoers' secure_path, which does not
+# include the installing user's ~/.cargo/bin -- rustup never installs
+# system-wide. Add it if cargo isn't already reachable, so this script works
+# whether it's invoked directly or with the caller's PATH threaded through.
+if ! command -v cargo >/dev/null 2>&1; then
+  target_cargo_bin="$(getent passwd "${TARGET_USER}" | cut -d: -f6)/.cargo/bin"
+  if [ -x "${target_cargo_bin}/cargo" ]; then
+    PATH="${PATH}:${target_cargo_bin}"
+  fi
+fi
+
 require_tool cargo
 require_tool python3
 require_tool curl
@@ -162,7 +173,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "${RUN_DIR}/logs" "${RUN_DIR}/journal" "${RUN_DIR}/state"
+mkdir -p "${RUN_DIR}/logs" "${RUN_DIR}/journal" "${RUN_DIR}/state" "${RUN_DIR}/bin"
 chown -R "${TARGET_USER}:${TARGET_GROUP}" "${RUN_DIR}"
 chmod -R 700 "${RUN_DIR}"
 
@@ -178,6 +189,20 @@ fi
   cd "${ROOT}"
   cargo build -p msc-agent >/dev/null
 )
+
+# systemd's ad hoc unit here runs in the init_t SELinux domain regardless of
+# its configured User=, and init_t cannot execute files typed user_home_t --
+# which is exactly what anything under the cloned repo's home-directory path
+# is labeled. Copying it under RUN_DIR alone isn't enough either: tmp_t (used
+# for the rest of RUN_DIR, fine for a daemon's log/state writes) still isn't
+# an executable type as far as init_t is concerned -- confirmed by a real AVC
+# denial, not assumed. bin_t is the type ordinary system executables carry
+# and the one init_t is actually allowed to exec.
+cp "${ROOT}/target/debug/msc" "${MSC_BIN}"
+chmod 755 "${MSC_BIN}"
+if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
+  chcon -t bin_t "${MSC_BIN}"
+fi
 
 cat > "${AGENT_UNIT_PATH}" <<UNIT
 [Unit]

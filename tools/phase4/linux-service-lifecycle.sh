@@ -166,6 +166,14 @@ mkdir -p "${RUN_DIR}/logs" "${RUN_DIR}/journal" "${RUN_DIR}/state"
 chown -R "${TARGET_USER}:${TARGET_GROUP}" "${RUN_DIR}"
 chmod -R 700 "${RUN_DIR}"
 
+# On SELinux-enforcing hosts, a directory created here under an interactive
+# sudo shell is type-transitioned to user_tmp_t, but the systemd-spawned
+# agent process runs in init_t regardless of its configured User=. init_t
+# cannot write user_tmp_t, so relabel to the generic tmp_t the unit needs.
+if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
+  chcon -R -t tmp_t "${RUN_DIR}"
+fi
+
 (
   cd "${ROOT}"
   cargo build -p msc-agent >/dev/null

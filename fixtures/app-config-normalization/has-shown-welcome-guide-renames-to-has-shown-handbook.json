@@ -1,0 +1,22 @@
+{
+  "domain": "app-config-normalization",
+  "case": "has-shown-welcome-guide-renames-to-has-shown-handbook",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 803
+  },
+  "input": {
+    "cases": [
+      { "json": { "has_shown_welcome_guide": true } },
+      { "json": { "has_shown_handbook": true } }
+    ]
+  },
+  "expected": {
+    "cases": [
+      { "hasShownHandbook": true },
+      { "hasShownHandbook": false }
+    ]
+  },
+  "notes": "CodingKeys (source line 636) permanently maps the Swift property `hasShownHandbook` to the wire key `has_shown_welcome_guide` -- the property was renamed for readability but the JSON key was never migrated, and never will be. This is the one concrete renamed-field case the decoder actually supports; it is not evidence of a generic decodeIfPresent-driven old-key migration. Case 2 pins that: a config that instead uses the field's own (made-up) snake_case name, `has_shown_handbook`, is NOT recognized by the decoder at all and falls back to the default (false), proving the decode only ever reads the one real wire key."
+}

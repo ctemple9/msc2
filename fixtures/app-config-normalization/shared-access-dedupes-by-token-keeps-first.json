@@ -1,0 +1,24 @@
+{
+  "domain": "app-config-normalization",
+  "case": "shared-access-dedupes-by-token-keeps-first",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 789
+  },
+  "input": {
+    "json": {
+      "remote_api_shared_access": [
+        { "id": "id-1", "label": "First", "token": "dup-token", "role": "admin" },
+        { "id": "id-2", "label": "Second", "token": "dup-token", "role": "guest" }
+      ]
+    }
+  },
+  "expected": {
+    "remainingCount": 1,
+    "keptId": "id-1",
+    "keptLabel": "First",
+    "keptRole": "admin"
+  },
+  "notes": "Characterized from AppConfig.init(from:) lines 789-790: `guard seenTokens.insert(entry.token).inserted else { continue }`, iterating the array in order, so the first entry with a given (trimmed) token wins and later duplicates are dropped."
+}

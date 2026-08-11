@@ -1,0 +1,29 @@
+{
+  "domain": "app-config-normalization",
+  "case": "shared-access-blank-id-gets-generated-id",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 785
+  },
+  "input": {
+    "json": {
+      "remote_api_shared_access": [
+        {
+          "id": "   ",
+          "label": "Friend",
+          "token": "tok-2",
+          "role": "admin"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "entryCount": 1,
+    "label": "Friend",
+    "token": "tok-2",
+    "idIsBlankInInput": "   ",
+    "idMustBeFreshlyGeneratedAndNonBlank": true
+  },
+  "notes": "Characterized from AppConfig.init(from:) lines 785-787: `if entry.id.trimmingCharacters(...).isEmpty { entry.id = UUID().uuidString }`. The generated id is nondeterministic (a fresh UUID per decode), so this fixture cannot pin a literal expected id -- the Rust test asserts the decoded id is non-empty and not equal to the blank input instead of an exact string match. Rust's port generates via `Uuid::new_v4()` (the `uuid` crate, newly added as a runtime dependency for this step) rather than Foundation's UUID; the two produce different random bytes but the same hyphenated 36-character shape."
+}

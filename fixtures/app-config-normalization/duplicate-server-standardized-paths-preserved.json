@@ -1,0 +1,37 @@
+{
+  "domain": "app-config-normalization",
+  "case": "duplicate-server-standardized-paths-preserved",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 744
+  },
+  "input": {
+    "json": {
+      "servers": [
+        {
+          "id": "srv-a",
+          "display_name": "A",
+          "server_dir": "/servers/shared",
+          "paper_jar_path": "/servers/shared/paper.jar",
+          "min_ram_gb": 2.0,
+          "max_ram_gb": 4.0
+        },
+        {
+          "id": "srv-b",
+          "display_name": "B",
+          "server_dir": "/servers/shared",
+          "paper_jar_path": "/servers/shared/paper.jar",
+          "min_ram_gb": 2.0,
+          "max_ram_gb": 4.0
+        }
+      ]
+    }
+  },
+  "expected": {
+    "serverCount": 2,
+    "ids": ["srv-a", "srv-b"],
+    "serverDirs": ["/servers/shared", "/servers/shared"]
+  },
+  "notes": "Same decode site as duplicate-server-ids-preserved.json (AppConfig.init(from:) line 744-746): two distinct server ids that happen to share the same standardized server_dir path also both survive decode unmerged. `server_dir`-collision handling (P5.7's restore-merge, which does compare standardized paths) lives in ConfigManager's recovery merge, not in AppConfig's own decoder -- this fixture pins that AppConfig itself is path-collision-agnostic too, just like it is id-collision-agnostic."
+}

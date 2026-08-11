@@ -1,0 +1,27 @@
+{
+  "domain": "app-config-normalization",
+  "case": "shared-access-trims-label-and-token",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 783
+  },
+  "input": {
+    "json": {
+      "remote_api_shared_access": [
+        {
+          "id": "entry-1",
+          "label": "  Friend's Phone  ",
+          "token": "  tok-1  ",
+          "role": "admin"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "entries": [
+      { "id": "entry-1", "label": "Friend's Phone", "token": "tok-1" }
+    ]
+  },
+  "notes": "Characterized from AppConfig.init(from:) lines 783-784: `entry.label = entry.label.trimmingCharacters(...)`, same for token. Whitespace-and-newline padding around both fields is stripped on decode; id is untouched here because it is already non-blank (see shared-access-blank-id-gets-generated-id.json for the id-blank branch)."
+}

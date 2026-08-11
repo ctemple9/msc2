@@ -1,0 +1,37 @@
+{
+  "domain": "app-config-normalization",
+  "case": "duplicate-server-ids-preserved",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 744
+  },
+  "input": {
+    "json": {
+      "servers": [
+        {
+          "id": "srv-1",
+          "display_name": "Server One",
+          "server_dir": "/servers/one",
+          "paper_jar_path": "/servers/one/paper.jar",
+          "min_ram_gb": 2.0,
+          "max_ram_gb": 4.0
+        },
+        {
+          "id": "srv-1",
+          "display_name": "Server Two",
+          "server_dir": "/servers/two",
+          "paper_jar_path": "/servers/two/paper.jar",
+          "min_ram_gb": 1.0,
+          "max_ram_gb": 2.0
+        }
+      ]
+    }
+  },
+  "expected": {
+    "serverCount": 2,
+    "ids": ["srv-1", "srv-1"],
+    "displayNames": ["Server One", "Server Two"]
+  },
+  "notes": "AppConfig.init(from:) line 744-746 decodes `servers` as a plain `[ConfigServer].self` array with no id-uniqueness pass at all -- `remoteAPISharedAccess` gets a dedupe pass (lines 779-792) immediately next to this in the same initializer, but `servers` deliberately does not. Two entries sharing the same id both survive decode unmerged and unmodified; this pins that AppConfig itself never treats server-id collisions the way it treats shared-access-token collisions."
+}

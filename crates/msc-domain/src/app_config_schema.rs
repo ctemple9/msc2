@@ -8,16 +8,12 @@
 //! through the repository, per `settings_schema.rs`'s own domain/infra
 //! split).
 //!
-//! Two normalization passes are deliberately **not** in this file yet:
-//! `AppConfig.init(from:)` also trims `remoteAPIPreferredPairingHost`
-//! (turning blank into `nil`) and trims/dedupes/drops-blank-token on
-//! `remoteAPISharedAccess`. Neither is exercised by this step's four
-//! target fixtures (`app-config-full-round-trip`,
-//! `app-config-missing-optional-fields-get-defaults`,
-//! `config-server-full-round-trip`,
-//! `config-server-missing-optional-fields-get-defaults`) — see
-//! `rolling-plan.md` P5.5, which characterizes and ports that pass on top
-//! of the raw decode implemented here.
+//! `AppConfig.init(from:)`'s decode-time normalization pass (P5.5) is
+//! implemented here too: trimming/blank-to-`None` on
+//! `remote_api_preferred_pairing_host`, and trim/fresh-id/drop-blank-token/
+//! dedupe-by-token on `remote_api_shared_access`. See
+//! `fixtures/app-config-normalization/` and
+//! `tests/app_config_normalization.rs`.
 //!
 //! Two genuine source quirks are preserved exactly, not "fixed":
 //! `remoteAPIToken` is never decoded from or encoded to JSON (Keychain
@@ -32,6 +28,8 @@
 
 use crate::identity::{JavaServerFlavor, ServerType};
 use serde_json::{Map, Value};
+use std::collections::HashSet;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodeError(pub String);
@@ -798,14 +796,15 @@ impl AppConfig {
             defaults.remote_api_expose_on_lan,
         )?;
 
-        // Raw decode only -- P5.5 adds the trim/blank-to-nil normalization
-        // this field also gets in the source.
-        let remote_api_preferred_pairing_host = opt_str(v, "remote_api_preferred_pairing_host")?
-            .or_else(|| defaults.remote_api_preferred_pairing_host.clone());
+        // Trim; a value that is blank (or trims to blank) becomes `None`
+        // rather than an empty string -- matches source lines 764-773.
+        let remote_api_preferred_pairing_host = {
+            let raw = opt_str(v, "remote_api_preferred_pairing_host")?
+                .or_else(|| defaults.remote_api_preferred_pairing_host.clone());
+            raw.map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+        };
 
-        // Raw decode only -- P5.5 adds the trim/dedupe/blank-token-drop
-        // normalization this array also gets in the source.
-        let remote_api_shared_access = match present(v, "remote_api_shared_access") {
+        let decoded_shared_access = match present(v, "remote_api_shared_access") {
             None => defaults.remote_api_shared_access.clone(),
             Some(Value::Array(items)) => items
                 .iter()
@@ -813,6 +812,27 @@ impl AppConfig {
                 .collect::<Result<Vec<_>, _>>()?,
             Some(_) => return Err(err("field \"remote_api_shared_access\" is not an array")),
         };
+        // Normalize: trim label/token, generate a fresh id for a blank one
+        // (id itself is trimmed only to test for blankness, never stored
+        // trimmed), drop entries whose token is blank after trimming, and
+        // dedupe by token keeping the first -- matches source lines
+        // 779-792 exactly.
+        let mut seen_tokens = HashSet::new();
+        let mut remote_api_shared_access = Vec::with_capacity(decoded_shared_access.len());
+        for mut entry in decoded_shared_access {
+            entry.label = entry.label.trim().to_string();
+            entry.token = entry.token.trim().to_string();
+            if entry.id.trim().is_empty() {
+                entry.id = Uuid::new_v4().to_string().to_uppercase();
+            }
+            if entry.token.is_empty() {
+                continue;
+            }
+            if !seen_tokens.insert(entry.token.clone()) {
+                continue;
+            }
+            remote_api_shared_access.push(entry);
+        }
 
         let duckdns_hostname =
             opt_str(v, "duckdns_hostname")?.or_else(|| defaults.duckdns_hostname.clone());

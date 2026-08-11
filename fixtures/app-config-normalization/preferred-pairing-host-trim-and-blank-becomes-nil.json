@@ -1,0 +1,22 @@
+{
+  "domain": "app-config-normalization",
+  "case": "preferred-pairing-host-trim-and-blank-becomes-nil",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 765
+  },
+  "input": {
+    "cases": [
+      { "json": { "remote_api_preferred_pairing_host": "  my-mac.ts.net  " } },
+      { "json": { "remote_api_preferred_pairing_host": "   \n\t  " } }
+    ]
+  },
+  "expected": {
+    "cases": [
+      { "remoteApiPreferredPairingHost": "my-mac.ts.net" },
+      { "remoteApiPreferredPairingHost": null }
+    ]
+  },
+  "notes": "No XCTest exercises this pass directly, so this fixture is characterized straight from AppConfig.init(from:) lines 764-773, not extracted from a Swift test. Source: `let rawPreferred = decoded ?? defaults.remoteAPIPreferredPairingHost; if let rawPreferred { trimmed = rawPreferred.trimmed(); self.remoteAPIPreferredPairingHost = trimmed.isEmpty ? nil : trimmed } else { nil }`. Two sub-cases in one fixture: surrounding whitespace is stripped down to the real value, and a whitespace-only value collapses to nil rather than an empty string."
+}

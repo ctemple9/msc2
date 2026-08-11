@@ -1,0 +1,22 @@
+{
+  "domain": "app-config-normalization",
+  "case": "shared-access-drops-blank-token-entry",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 788
+  },
+  "input": {
+    "json": {
+      "remote_api_shared_access": [
+        { "id": "id-1", "label": "Keep Me", "token": "tok-keep", "role": "admin" },
+        { "id": "id-2", "label": "Drop Me", "token": "   ", "role": "admin" }
+      ]
+    }
+  },
+  "expected": {
+    "remainingCount": 1,
+    "remainingTokens": ["tok-keep"]
+  },
+  "notes": "Characterized from AppConfig.init(from:) line 788: `guard !entry.token.isEmpty else { continue }`. This runs after trimming (line 784), so a token that is only whitespace is dropped too, not just a literal empty string."
+}

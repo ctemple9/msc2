@@ -15,9 +15,20 @@
 //! `msc2-engineering.md` §7 names exactly this failure mode for
 //! `server.properties`; this primitive generalizes the fix to any
 //! versioned config.
+//!
+//! [`load_app_config`]/[`save_app_config`] (P5.6) compose the above with
+//! P5.4/P5.5's typed `AppConfig` schema — the first real consumer of this
+//! primitive. `AppConfig`'s own wire format carries MSC 1's real version
+//! marker, `config_version` (`corpus/configs/server-config-*.json` has it,
+//! not `schemaVersion`), so these two functions also stamp this module's
+//! own [`SCHEMA_VERSION_FIELD`] onto the encoded value before it reaches
+//! [`save_config`]. `AppConfig::decode` ignores unrecognized keys, so the
+//! extra field is inert on read; it exists only to satisfy this
+//! primitive's own invariant, not because MSC 1 ever wrote such a key.
 
 use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;
+use msc_domain::app_config_schema::{AppConfig, DecodeError};
 use serde_json::Value;
 use std::fmt;
 use std::io;
@@ -152,4 +163,93 @@ pub fn corrupt_backup_path(path: &Path, now: SystemTime) -> PathBuf {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     path.with_file_name(format!("{file_name}.corrupt-{nanos}"))
+}
+
+/// Result of [`load_app_config`]: the decoded, port-clamped `AppConfig`
+/// plus whatever [`load_config`] reported about a corrupt-file recovery.
+#[derive(Debug)]
+pub struct AppConfigLoadOutcome {
+    pub config: AppConfig,
+    pub corrupt_backup_path: Option<PathBuf>,
+}
+
+#[derive(Debug)]
+pub enum AppConfigLoadError {
+    Load(ConfigLoadError),
+    Decode(DecodeError),
+}
+
+impl fmt::Display for AppConfigLoadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AppConfigLoadError::Load(err) => write!(f, "{err}"),
+            AppConfigLoadError::Decode(err) => write!(f, "{err}"),
+        }
+    }
+}
+
+impl std::error::Error for AppConfigLoadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            AppConfigLoadError::Load(err) => Some(err),
+            // `DecodeError` (msc-domain) doesn't implement `std::error::Error`
+            // yet -- nothing to chain to.
+            AppConfigLoadError::Decode(_) => None,
+        }
+    }
+}
+
+/// Stamps this module's [`SCHEMA_VERSION_FIELD`] onto an encoded
+/// `AppConfig` value — see this module's doc comment for why `AppConfig`
+/// itself doesn't carry that literal key.
+fn stamp_schema_version(mut value: Value, config_version: i64) -> Value {
+    if let Some(obj) = value.as_object_mut() {
+        obj.insert(
+            SCHEMA_VERSION_FIELD.to_string(),
+            Value::from(config_version),
+        );
+    }
+    value
+}
+
+/// Loads `path` as a typed `AppConfig` through [`load_config`], then
+/// clamps `remote_api_port` to [`AppConfig::DEFAULT_REMOTE_API_PORT`] when
+/// it falls outside `1..=65535` — `ConfigManager.init`'s port-validation
+/// step (source lines 101-104), which sits after decode and before
+/// `populateSecretsFromKeychain()`/`save()`, not inside
+/// `AppConfig.init(from:)` itself (P5.5 already scoped that boundary).
+/// The clamp is in-memory only: MSC 1 immediately re-`save()`s afterward,
+/// but that re-save exists there to durably persist Keychain-populated
+/// fields (out of this step's scope — P5.8/P5.9), not specifically to
+/// persist the clamp, so this function leaves persisting a clamped value
+/// to whichever caller next calls [`save_app_config`].
+pub fn load_app_config(
+    fs: &dyn FileSystem,
+    path: &Path,
+    defaults: &AppConfig,
+    now: SystemTime,
+) -> Result<AppConfigLoadOutcome, AppConfigLoadError> {
+    let defaults_value = stamp_schema_version(defaults.encode(), defaults.config_version);
+    let outcome = load_config(fs, path, &defaults_value, now).map_err(AppConfigLoadError::Load)?;
+    let mut config =
+        AppConfig::decode(&outcome.config, defaults).map_err(AppConfigLoadError::Decode)?;
+    if !(1..=65535).contains(&config.remote_api_port) {
+        config.remote_api_port = AppConfig::DEFAULT_REMOTE_API_PORT;
+    }
+    Ok(AppConfigLoadOutcome {
+        config,
+        corrupt_backup_path: outcome.corrupt_backup_path,
+    })
+}
+
+/// Saves `config` through [`save_config`], stamping
+/// [`SCHEMA_VERSION_FIELD`] onto the encoded value first — see this
+/// module's doc comment.
+pub fn save_app_config(
+    fs: &dyn FileSystem,
+    path: &Path,
+    config: &AppConfig,
+) -> Result<(), ConfigSaveError> {
+    let value = stamp_schema_version(config.encode(), config.config_version);
+    save_config(fs, path, &value)
 }

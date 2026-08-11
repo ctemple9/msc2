@@ -1,0 +1,10 @@
+{
+  "files": [
+    {
+      "file": "server-config-2026-08-11.json",
+      "era": "config_version 1, collected 2026-08-11 from Cameron's live macOS MSC 1 install (~/Library/Application Support/MinecraftServerController/server_config_swift.json)",
+      "sanitized": "Replaced the local macOS account name in every absolute path (java_path, paper_template_dir, plugin_template_dir, and each server's paper_jar_path/server_dir/xbox_broadcast_config_path) with the placeholder 'msc1-owner'. No secret values were present to redact -- this install's Remote API token and any Xbox Broadcast password already live in Keychain, not this JSON, so remote_api_shared_access is genuinely empty and no plaintext-secret keys appear. Key presence, value types, schema version, and nesting are all unchanged from the source file; only string leaf values were touched."
+    }
+  ],
+  "note": "Only one real config is available -- P5.3's original bar called for two distinct schema eras, but no second era exists anywhere on Cameron's machines (checked: other Application Support copies, Time Machine local snapshots, MSC 1's own git history for the gitignored config path, iCloud). Cameron confirmed this directly and approved relaxing the bar to one real config; recorded in docs/msc2/config-migration/phase5-scope.md. Era-diversity coverage for defaulting/rename/duplicate-ID normalization comes from P5.4/P5.5's dedicated characterization fixtures instead, not from this corpus."
+}

@@ -10,7 +10,7 @@ This note fixes the boundaries for Phase 5 before code starts, in the same role 
 
 The port plan states no separate Phase 5 exit criterion in `msc2-port-plan.md` beyond the phase gate itself, so `rolling-plan.md`'s own working gate is what this phase is held to:
 
-- At least two sanitized, provenance-recorded `server_config_swift.json` files from real MSC 1 installs, and one real MSC 1-generated `.msctransfer` package, pass the Rust readers.
+- At least one sanitized, provenance-recorded `server_config_swift.json` file from a real MSC 1 install (two, from distinct schema eras, was the original bar — genuinely unavailable; see "Evidence required" below), and one real MSC 1-generated `.msctransfer` package, pass the Rust readers.
 - The typed `AppConfig`/`ConfigServer` schema reproduces MSC 1's concrete defaulting, rename, malformed/unknown-field, duplicate-ID/path, shared-access normalization, and port-clamping behavior through the existing atomic config repository.
 - Corrupt-backup discovery and merge work.
 - The explicit legacy-secret migration handles only the plaintext owner token and per-server Xbox passwords MSC 1 actually migrates, under a documented Phase 4 credential-transition contract.
@@ -26,7 +26,7 @@ The port plan states no separate Phase 5 exit criterion in `msc2-port-plan.md` b
 
 Before any translation work in P5.4 onward, P5.3 must collect:
 
-- At least **two sanitized `server_config_swift.json` files** from real MSC 1 installs, from **distinct schema eras** (so defaulting/rename behavior is actually exercised, not just replayed from one snapshot), plus a provenance manifest recording source and sanitization for each.
+- At least **two sanitized `server_config_swift.json` files** from real MSC 1 installs, from **distinct schema eras** (so defaulting/rename behavior is actually exercised, not just replayed from one snapshot), plus a provenance manifest recording source and sanitization for each. **Update (P5.3):** only one real config exists — Cameron checked other Application Support copies, local Time Machine snapshots, MSC 1's own git history (the config path is correctly gitignored there, since it's runtime data), and iCloud, and confirmed no second-era config survives anywhere. He approved relaxing this bar to one real config rather than inventing a second. The era-diversity coverage a second era would have exercised (defaulting, renamed keys, duplicate-ID/path handling) is carried instead by P5.4/P5.5's dedicated characterization fixtures, extracted directly from MSC 1's own test assertions — this corpus's remaining job, proving the Rust reader actually parses/round-trips a real production file end to end (P5.24/P5.25), is still meaningfully served by one real file. `real-corpus-check.py`'s inventory gate (P5.2) now requires at least one config file, not two.
 - **Any real `.corrupt-*` backup** MSC 1 has actually produced, if one exists on Cameron's machines — used by the corruption-recovery steps (P5.6–P5.7). Not required to block P5.3 if genuinely unavailable, but not to be fabricated either.
 - **One real MSC 1-generated `.msctransfer` package**, produced with MSC 1's own Export Servers function, supplied through a local environment path (`MSC2_PHASE5_TRANSFER_PACKAGE`) rather than committed to git, because it carries real world/server data. Its format version, source, size, and SHA-256 get recorded in `corpus/configs/README.md`.
 

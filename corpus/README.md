@@ -14,13 +14,14 @@ meant to be checked into source control.
 
 ## configs/
 
-**Empty — needs real files from Cameron.** Historical `server_config_swift.json`
-files from actual MSC 1 installs, ideally spanning several app versions, so
-the config-roundtrip domain (`fixtures/config-roundtrip/`, P0.15) and any
-later config-migration work can be checked against real on-disk shapes, not
-just the two synthetic "old JSON" fixtures already extracted. Also useful:
-any real `.corrupt-<timestamp>` sibling file, if one has ever actually been
-produced by the R3 recovery path.
+**Populated by P5.3.** One real, sanitized `server_config_swift.json` from
+Cameron's live MSC 1 install, plus a real MSC 1-generated `.msctransfer`
+package (referenced via `$MSC2_PHASE5_TRANSFER_PACKAGE`, not committed here —
+see `configs/README.md`). A second config from a distinct schema era was
+sought but confirmed unavailable anywhere on Cameron's machines; `configs/README.md`
+records that gap and how P5.4/P5.5's fixtures cover the era-diversity behavior
+it would otherwise have exercised. Still useful if one ever surfaces: any real
+`.corrupt-<timestamp>` sibling file produced by the R3 recovery path.
 
 ## logs/
 

@@ -1697,10 +1697,12 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 **Batch:** solo
 
 ### P5.3 — Collect the required MSC 1 migration evidence
-**Status:** not started
-**Files:** `corpus/configs/`, `corpus/configs/README.md`
+**Status:** awaiting verification
+**Files:** `corpus/configs/`, `corpus/configs/README.md`, `corpus/README.md`, `docs/msc2/config-migration/phase5-scope.md`, `tools/phase5/real-corpus-check.py`
 **What:** Before translation begins, add at least two sanitized `server_config_swift.json` files from real MSC 1 installs and a provenance manifest showing distinct schema eras. Generate one real `.msctransfer` package with MSC 1's Export Servers function, keep the package outside git because it contains world/server data, and record its format version, source, size, and SHA-256 in the corpus README. Sanitization may replace secret values, absolute paths, addresses, and player identities but must not change key presence, types, schema version, or nesting. If this evidence is unavailable, stop here rather than substituting invented fixtures for the port plan's historical corpus.
-**Verify:** `python3 tools/phase5/real-corpus-check.py --inventory --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 2 --require-transfer`
+
+**Actual result:** only one real `server_config_swift.json` exists — checked this Mac's Application Support, local Time Machine snapshots, MSC 1's own git history (gitignored there, correctly), and iCloud; Cameron confirmed directly no second-era config survives anywhere. Per this step's own "stop rather than invent" instruction, work paused and Cameron was asked how to proceed; he approved relaxing the bar to one real config rather than fabricating a second, so `real-corpus-check.py` (P5.2) and `phase5-scope.md` (P5.1) were both updated in this same commit to require one config file, not two, with the era-diversity gap and reasoning recorded in `corpus/configs/README.md`. A real `.msctransfer` package (format v2, 629,955,199 bytes, 2 servers) was supplied by Cameron and its metadata recorded in the corpus README; it stays outside git at the path given via `$MSC2_PHASE5_TRANSFER_PACKAGE`.
+**Verify:** `MSC2_PHASE5_TRANSFER_PACKAGE=/path/to/your.msctransfer python3 tools/phase5/real-corpus-check.py --corpus-dir corpus/configs`
 **Commit:** `P5.3: collect the MSC 1 migration evidence`
 **Batch:** solo
 

@@ -8,7 +8,9 @@ section demands isn't actually there yet.
 
 Inventory mode (the only mode this step builds) checks a corpus directory
 against its own `manifest.json`:
-  - at least two parseable JSON config files
+  - at least one parseable JSON config file (two preferred, from distinct
+    schema eras -- P5.3 relaxed this to one when a second era turned out to
+    be genuinely unavailable; see phase5-scope.md's "Evidence required")
   - every config file has a manifest entry recording its source era and
     whether/how it was sanitized
   - no two config files hash identically -- a repeated file presented as a
@@ -88,10 +90,10 @@ def check_inventory(corpus_dir: Path, transfer_package: str | None) -> str:
         raise CheckError(f"{corpus_dir}: corpus directory does not exist")
 
     config_files = config_files_in(corpus_dir)
-    if len(config_files) < 2:
+    if len(config_files) < 1:
         raise CheckError(
-            f"{corpus_dir}: found {len(config_files)} config file(s), need at least 2 "
-            "from distinct schema eras"
+            f"{corpus_dir}: found {len(config_files)} config file(s), need at least 1 "
+            "(two preferred, from distinct schema eras)"
         )
 
     manifest = load_manifest(corpus_dir)

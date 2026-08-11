@@ -1,0 +1,32 @@
+{
+  "domain": "config-recovery",
+  "case": "unreadable-backup-no-mutation",
+  "source": {
+    "file": "AppViewModel+ConfigRecovery.swift",
+    "test": "restoreServersFromBackup(at:)",
+    "line": 56
+  },
+  "input": {
+    "live": {
+      "servers": [
+        {
+          "id": "srv-existing",
+          "display_name": "Existing",
+          "server_dir": "/servers/existing",
+          "paper_jar_path": "/servers/existing/paper.jar",
+          "min_ram_gb": 2.0,
+          "max_ram_gb": 4.0
+        }
+      ]
+    },
+    "backupFileExists": false
+  },
+  "expected": {
+    "restored": 0,
+    "skipped": 0,
+    "errorPresent": true,
+    "liveServersUnchanged": true,
+    "finalServerCount": 1
+  },
+  "notes": "`Data(contentsOf: url)` (line 56) fails when the backup file can't be read, and the function returns immediately with `BackupRestoreResult(restored: 0, skipped: 0, error: \"Could not read backup file.\")` -- `configManager.config.servers` is never touched, `configManager.save()`/`reloadServersFromConfig()` (lines 85-89) are only reached when `restored > 0`, which can't happen on this path."
+}

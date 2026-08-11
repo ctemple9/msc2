@@ -1,0 +1,42 @@
+{
+  "domain": "config-recovery",
+  "case": "live-path-collision",
+  "source": {
+    "file": "AppViewModel+ConfigRecovery.swift",
+    "test": "restoreServersFromBackup(at:)",
+    "line": 68
+  },
+  "input": {
+    "live": {
+      "servers": [
+        {
+          "id": "srv-existing",
+          "display_name": "Existing",
+          "server_dir": "/servers/shared",
+          "paper_jar_path": "/servers/shared/paper.jar",
+          "min_ram_gb": 2.0,
+          "max_ram_gb": 4.0
+        }
+      ]
+    },
+    "backup": {
+      "servers": [
+        {
+          "id": "srv-different-id",
+          "display_name": "Different Id, Same Dir",
+          "server_dir": "/servers/./shared",
+          "paper_jar_path": "/servers/shared/paper.jar",
+          "min_ram_gb": 1.0,
+          "max_ram_gb": 2.0
+        }
+      ]
+    }
+  },
+  "expected": {
+    "restored": 0,
+    "skipped": 1,
+    "error": null,
+    "finalServerCount": 1
+  },
+  "notes": "The backup entry's id doesn't match the live server's id, but its serverDir standardizes to the same path (`/servers/./shared` -> `/servers/shared`, matching Foundation's `.standardized.path`) -- MSC 1 skips on path collision alone, id aside. existingPaths is built from configManager.config.servers (line 68-70) before the merge loop even starts."
+}

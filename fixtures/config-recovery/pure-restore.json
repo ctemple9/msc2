@@ -1,0 +1,51 @@
+{
+  "domain": "config-recovery",
+  "case": "pure-restore",
+  "source": {
+    "file": "AppViewModel+ConfigRecovery.swift",
+    "test": "restoreServersFromBackup(at:)",
+    "line": 55
+  },
+  "input": {
+    "live": {
+      "servers": [
+        {
+          "id": "srv-existing",
+          "display_name": "Existing",
+          "server_dir": "/servers/existing",
+          "paper_jar_path": "/servers/existing/paper.jar",
+          "min_ram_gb": 2.0,
+          "max_ram_gb": 4.0
+        }
+      ]
+    },
+    "backup": {
+      "servers": [
+        {
+          "id": "srv-new-1",
+          "display_name": "New One",
+          "server_dir": "/servers/new-1",
+          "paper_jar_path": "/servers/new-1/paper.jar",
+          "min_ram_gb": 1.0,
+          "max_ram_gb": 2.0
+        },
+        {
+          "id": "srv-new-2",
+          "display_name": "New Two",
+          "server_dir": "/servers/new-2",
+          "paper_jar_path": "/servers/new-2/paper.jar",
+          "min_ram_gb": 1.0,
+          "max_ram_gb": 2.0
+        }
+      ]
+    }
+  },
+  "expected": {
+    "restored": 2,
+    "skipped": 0,
+    "error": null,
+    "restoredServerIds": ["srv-new-1", "srv-new-2"],
+    "finalServerCount": 3
+  },
+  "notes": "Neither backup entry's id nor standardized serverDir collides with the one live server, so both restore and the live entry is untouched. Baseline case for the merge -- no collision, no duplication."
+}

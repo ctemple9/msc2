@@ -1,0 +1,41 @@
+{
+  "domain": "config-recovery",
+  "case": "duplicate-entries-in-backup",
+  "source": {
+    "file": "AppViewModel+ConfigRecovery.swift",
+    "test": "restoreServersFromBackup(at:)",
+    "line": 75
+  },
+  "input": {
+    "live": {
+      "servers": []
+    },
+    "backup": {
+      "servers": [
+        {
+          "id": "srv-dup",
+          "display_name": "Duplicate One",
+          "server_dir": "/servers/dup",
+          "paper_jar_path": "/servers/dup/paper.jar",
+          "min_ram_gb": 1.0,
+          "max_ram_gb": 2.0
+        },
+        {
+          "id": "srv-dup",
+          "display_name": "Duplicate Two",
+          "server_dir": "/servers/dup",
+          "paper_jar_path": "/servers/dup/paper.jar",
+          "min_ram_gb": 1.0,
+          "max_ram_gb": 2.0
+        }
+      ]
+    }
+  },
+  "expected": {
+    "restored": 2,
+    "skipped": 0,
+    "error": null,
+    "finalServerCount": 2
+  },
+  "notes": "Pins MSC 1's real (not obviously intentional, but real) behavior: `existingPaths`/`existingIDs` (lines 68-71) are captured once from the live config *before* the `for server in decoded.servers` loop (line 75) runs, and are never updated inside it. So when two backup entries duplicate each other's id and standardized path, but neither collides with anything already in the live config, both restore -- the second is never checked against the first, only against the original live snapshot. A dedupe-within-the-loop implementation would wrongly skip the second entry here; this fixture exists specifically to catch that divergence."
+}

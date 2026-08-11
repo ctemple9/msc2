@@ -1,0 +1,42 @@
+{
+  "domain": "config-recovery",
+  "case": "live-id-collision",
+  "source": {
+    "file": "AppViewModel+ConfigRecovery.swift",
+    "test": "restoreServersFromBackup(at:)",
+    "line": 71
+  },
+  "input": {
+    "live": {
+      "servers": [
+        {
+          "id": "srv-shared",
+          "display_name": "Existing",
+          "server_dir": "/servers/existing",
+          "paper_jar_path": "/servers/existing/paper.jar",
+          "min_ram_gb": 2.0,
+          "max_ram_gb": 4.0
+        }
+      ]
+    },
+    "backup": {
+      "servers": [
+        {
+          "id": "srv-shared",
+          "display_name": "Same Id, Different Dir",
+          "server_dir": "/servers/different",
+          "paper_jar_path": "/servers/different/paper.jar",
+          "min_ram_gb": 1.0,
+          "max_ram_gb": 2.0
+        }
+      ]
+    }
+  },
+  "expected": {
+    "restored": 0,
+    "skipped": 1,
+    "error": null,
+    "finalServerCount": 1
+  },
+  "notes": "The backup entry's serverDir doesn't match the live server's path, but its id does -- MSC 1 skips on id collision alone, path aside (line 77: `existingPaths.contains(normalised) || existingIDs.contains(server.id)`, an OR, either condition alone is enough to skip)."
+}

@@ -1,0 +1,29 @@
+{
+  "domain": "config-recovery",
+  "case": "discovery-ordering",
+  "source": {
+    "file": "AppViewModel+ConfigRecovery.swift",
+    "test": "findCorruptBackups()",
+    "line": 19
+  },
+  "input": {
+    "configPath": "/srv/msc2/server_config_swift.json",
+    "dirEntries": [
+      "server_config_swift.json.corrupt-200",
+      "server_config_swift.json.corrupt-500",
+      "server_config_swift.json.corrupt-300",
+      "server_config_swift.json.corrupt-not-a-number",
+      "server_config_swift.json",
+      "some-other-file.json"
+    ]
+  },
+  "expected": {
+    "orderedBackupFiles": [
+      "server_config_swift.json.corrupt-500",
+      "server_config_swift.json.corrupt-300",
+      "server_config_swift.json.corrupt-200",
+      "server_config_swift.json.corrupt-not-a-number"
+    ]
+  },
+  "notes": "findCorruptBackups (lines 19-33) filters the app directory's contents to names with the `server_config_swift.json.corrupt-` prefix, then sorts newest-creation-date first, falling back to `.distantPast` when a creation date can't be read (line 29-30). This crate has no filesystem creation-date metadata to read (`FileSystem`, P3.4), so it sorts on the nanosecond suffix `corrupt_backup_path` itself embeds when writing each backup -- numerically equivalent for anything this crate wrote. A suffix that doesn't parse as a number sorts last, mirroring the `.distantPast` fallback. `server_config_swift.json` itself (no `.corrupt-` suffix) and an unrelated file are excluded, matching the source's `hasPrefix` filter."
+}

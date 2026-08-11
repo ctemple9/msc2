@@ -170,8 +170,12 @@ fn components_match(a: Component, b: Component) -> bool {
 
 /// Collapses `.` and `..` components without touching the filesystem —
 /// Foundation's `standardizedFileURL`, run before `resolvingSymlinksInPath`
-/// in both source functions.
-fn lexically_normalize(path: &Path) -> PathBuf {
+/// in both source functions. `pub(crate)` rather than private: P5.7's
+/// `config_repository::restore_servers_from_backup` needs the same
+/// lexical-only standardization MSC 1's `.standardized.path` performs
+/// when comparing `serverDir` values, and this is already that behavior's
+/// one home in the crate.
+pub(crate) fn lexically_normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
     for component in path.components() {
         match component {

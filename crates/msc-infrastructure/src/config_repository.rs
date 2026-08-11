@@ -25,11 +25,22 @@
 //! [`save_config`]. `AppConfig::decode` ignores unrecognized keys, so the
 //! extra field is inert on read; it exists only to satisfy this
 //! primitive's own invariant, not because MSC 1 ever wrote such a key.
+//!
+//! [`find_corrupt_backups`]/[`server_count_in_backup`]/
+//! [`restore_servers_from_backup`] (P5.7) port
+//! `AppViewModel+ConfigRecovery.swift`'s corrupt-backup discovery and
+//! recovery merge — the two functions that read the `.corrupt-*` siblings
+//! [`load_config`] itself writes. The source's second recovery path,
+//! `rescanAndImportServers` (walking the servers root for untracked
+//! folders), is a separate, unrelated mechanism the same file happens to
+//! also define — P5.22's job, not this module's.
 
 use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;
+use crate::path_safety::lexically_normalize;
 use msc_domain::app_config_schema::{AppConfig, DecodeError};
 use serde_json::Value;
+use std::collections::HashSet;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -252,4 +263,147 @@ pub fn save_app_config(
 ) -> Result<(), ConfigSaveError> {
     let value = stamp_schema_version(config.encode(), config.config_version);
     save_config(fs, path, &value)
+}
+
+/// Every `.corrupt-<nanos>` backup sibling of `config_path`, newest first —
+/// matches `findCorruptBackups` (`AppViewModel+ConfigRecovery.swift` lines
+/// 19-33). MSC 1 sorts by each file's real filesystem creation date;
+/// `FileSystem` (P3.4) exposes no such metadata (the same gap `AuditLog`'s
+/// own retention logic hit — P3.13's doc comment explains it), so this
+/// reads the same ordering key out of the filename instead:
+/// [`corrupt_backup_path`] already derives a backup's name from `now` when
+/// it's written, so sorting on that embedded nanosecond suffix numerically
+/// is exactly equivalent to sorting on creation time for any backup this
+/// crate ever wrote. A sibling whose suffix doesn't parse as a number
+/// sorts as oldest, mirroring MSC 1's `.distantPast` fallback for a file
+/// whose creation date can't be read.
+pub fn find_corrupt_backups(fs: &dyn FileSystem, config_path: &Path) -> Vec<PathBuf> {
+    let parent = config_path.parent().unwrap_or_else(|| Path::new(""));
+    let file_name = config_path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let prefix = format!("{file_name}.corrupt-");
+
+    let mut backups: Vec<(u128, PathBuf)> = fs
+        .list(parent)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|path| {
+            let name = path.file_name()?.to_string_lossy().into_owned();
+            let suffix = name.strip_prefix(&prefix)?;
+            Some((suffix.parse::<u128>().unwrap_or(0), path))
+        })
+        .collect();
+    backups.sort_by_key(|(nanos, _)| std::cmp::Reverse(*nanos));
+    backups.into_iter().map(|(_, path)| path).collect()
+}
+
+/// A cheap peek at how many servers a `.corrupt-*` backup holds, without
+/// fully decoding it as a typed `AppConfig` — matches `serverCountInBackup`
+/// (lines 36-42). `None` covers both an unreadable file and JSON with no
+/// (or non-array) `servers` field, the same as MSC 1's own
+/// `guard let ... else { return nil }` chain.
+pub fn server_count_in_backup(fs: &dyn FileSystem, path: &Path) -> Option<usize> {
+    let bytes = fs.read(path).ok()?;
+    let value: Value = serde_json::from_slice(&bytes).ok()?;
+    value.get("servers")?.as_array().map(Vec::len)
+}
+
+/// What [`restore_servers_from_backup`] found, matching `BackupRestoreResult`
+/// (lines 46-50).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BackupRestoreResult {
+    pub restored: usize,
+    pub skipped: usize,
+    pub error: Option<String>,
+}
+
+/// Decodes `backup_path` as a full `AppConfig` and merges its `servers`
+/// into `live`, matching `restoreServersFromBackup` (lines 55-91). A
+/// backup entry is skipped when its lexically standardized `server_dir`
+/// or its `id` was already present in `live` *before this restore began*
+/// — those two sets are captured once, up front, and never updated as
+/// entries get merged in. That's not an oversight to "fix": it's why two
+/// backup entries that duplicate each other (but collide with nothing in
+/// `live`) both restore, rather than the second being treated as a
+/// duplicate of the first (see the `duplicate-entries-in-backup`
+/// fixture) — `existingPaths`/`existingIDs` are plain `let` constants in
+/// the source, computed once before its `for server in decoded.servers`
+/// loop and never reassigned inside it.
+///
+/// Unlike MSC 1, this doesn't save or reload anything itself — it hands
+/// back the merged `AppConfig` (identical to `live` when nothing restored
+/// or the backup couldn't be used) and leaves persisting it to whichever
+/// caller wants [`save_app_config`], the same split [`load_app_config`]
+/// already draws between decoding and its own in-memory port clamp.
+pub fn restore_servers_from_backup(
+    fs: &dyn FileSystem,
+    backup_path: &Path,
+    defaults: &AppConfig,
+    live: &AppConfig,
+) -> (AppConfig, BackupRestoreResult) {
+    let bytes = match fs.read(backup_path) {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            return (
+                live.clone(),
+                BackupRestoreResult {
+                    restored: 0,
+                    skipped: 0,
+                    error: Some("Could not read backup file.".to_string()),
+                },
+            );
+        }
+    };
+
+    let decoded = serde_json::from_slice::<Value>(&bytes)
+        .map_err(|e| e.to_string())
+        .and_then(|value| AppConfig::decode(&value, defaults).map_err(|e| e.to_string()));
+    let decoded = match decoded {
+        Ok(decoded) => decoded,
+        Err(message) => {
+            return (
+                live.clone(),
+                BackupRestoreResult {
+                    restored: 0,
+                    skipped: 0,
+                    error: Some(format!("Backup could not be decoded: {message}")),
+                },
+            );
+        }
+    };
+
+    let existing_paths: HashSet<PathBuf> = live
+        .servers
+        .iter()
+        .map(|server| lexically_normalize(Path::new(&server.server_dir)))
+        .collect();
+    let existing_ids: HashSet<&str> = live
+        .servers
+        .iter()
+        .map(|server| server.id.as_str())
+        .collect();
+
+    let mut merged = live.clone();
+    let mut restored = 0usize;
+    let mut skipped = 0usize;
+    for server in decoded.servers {
+        let normalized = lexically_normalize(Path::new(&server.server_dir));
+        if existing_paths.contains(&normalized) || existing_ids.contains(server.id.as_str()) {
+            skipped += 1;
+            continue;
+        }
+        merged.servers.push(server);
+        restored += 1;
+    }
+
+    (
+        merged,
+        BackupRestoreResult {
+            restored,
+            skipped,
+            error: None,
+        },
+    )
 }

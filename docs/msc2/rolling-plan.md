@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 gate holds — complete. Cameron confirmed P4.23 (Linux) on 2026-08-11; every leg (macOS P4.22, Linux P4.23, Windows P4.24, iOS P4.20) is DONE. Next: Plan Phase 5.
-> **Next move:** Phase 5 — Configuration and migration. Per the six-move loop, planning it is a separate conversation (an agent reads the vision + port plan + rolling plan and writes the step list; writes no code).
+> ## STATUS: Phase 4 gate holds — complete (confirmed 2026-08-11). Phase 5 — Configuration and migration — is planned: 26 steps written below, none started. The first two drafts did not pass Codex's MSC 1 cross-checks; this plan incorporates both finding sets and requires real migration evidence before translation. Next: Read — Cameron reviews the working exit gate, the required real config/transfer corpus, the migration-only world-slot fallback, the explicit legacy-owner credential transition, and the two gaps still flagged homeless (`/users` CRUD routes, `helpId` content-serving) before Execute begins.
+> **Next move:** Cameron reads the Phase 5 plan. Per the six-move loop, Execute then runs one step (or a Batch-approved range) per conversation.
 > **Repo:** https://github.com/ctemple9/msc2 · CI green on commit `3934b77` ([run 31468299346](https://github.com/ctemple9/msc2/actions/runs/31468299346)) — all jobs, including the D-021 headless no-GUI-link check. P4.39 re-ran every local gate check against this same commit (`fmt`, `clippy` on all three platform targets, `cargo nextest run --workspace` at 398/398, the CLI smoke test, the D-024 power-policy dry run, and the live Paper lifecycle check) — all clean. The prior "CI green" claim on this line was once false (see the amendments log, and the P4.31→P4.33 macOS debugging trail) — this one is checked, not assumed. P4.34/P4.35 (Linux) and P4.36–P4.38 (Windows) are the same shape of finding as P4.31→P4.33's macOS trail: real bugs in each platform's *integration script*, not the shipped Rust service code, found only by running the real script against real hardware and reading real evidence (`journalctl`/`ausearch` on Fedora's SELinux denials, `Get-WinEvent` on Windows' service-logon and console-host failures) — never by guessing. Full detail in each step's own note.
 > **Last updated:** 2026-08-11
 
@@ -1643,9 +1643,327 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 
 ---
 
+## Phase 5 — Configuration and migration
+
+**Gate** (`msc2-port-plan.md` §3): "Historical MSC config corpus · settings schema as a versioned contract · corruption recovery · MSC 1 transfer-package import (D-009) · raw server-directory import."
+
+**Exit criteria — the port plan states no separate Phase 5 exit criterion, so this is the phase's working gate:** at least two sanitized, provenance-recorded `server_config_swift.json` files from real MSC 1 installs and one real MSC 1-generated `.msctransfer` package pass the Rust readers; the typed `AppConfig`/`ConfigServer` schema reproduces MSC 1's concrete defaulting, rename, malformed/unknown-field, duplicate-ID/path, shared-access normalization, and port-clamping behavior through the existing atomic config repository; corrupt-backup discovery and merge work; the explicit legacy-secret migration handles only the plaintext owner token and per-server Xbox passwords MSC 1 actually migrates, under a documented Phase 4 credential-transition contract; `GET`/`POST /v1/settings` use the frozen multi-DTO contract and persist then re-read changes; MSC 1 transfer packages import end to end through the public API and CLI, with a successful export backup required before `replaceAll`; Java and Bedrock folders and ZIPs scan and import with loader, version, worlds, EULA, and settings labelled from evidence; rescan registers untracked directories in place; the self-contained CLI smoke covers settings, transfer, and raw import; and fixtures pass in macOS, Linux, and Windows CI. The formal world-slot model remains Phase 6, so Phase 5 copies and labels world data without creating MSC 2 slots.
+
+**Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. `AppConfig.swift` (883 lines — `ConfigServer`, `RemoteAPISharedAccessEntry`, `AppConfig` itself, all with hand-written `Codable` defaulting and a real decode-time normalization pass), `ConfigManager.swift` (308 lines — load/save/migrate lifecycle), `AppViewModel+ConfigRecovery.swift` (184 lines — corrupt-backup discovery/merge **and** a second, separate untracked-folder rescan path), `AppViewModel+ServerTransfer.swift` (603 lines — export/inspect/apply; no MSC 1 test file exists for any of it), `AppViewModel+ServerImport.swift` (already partially used by P4.8 — its real scope is far larger: copies/unzips into an MSC-owned root, detects Bedrock as well as Java, reads EULA, discovers and ranks worlds, creates an initial world slot), `AppViewModel+APIWiringServerMgmt.swift` (the real `serverImportProvider`/`serverImportScanProvider` HTTP wiring — the actual `action`/`importKind`/`transferMode`/`backupPath` wire contract), `AppViewModel+APIWiringSettings.swift` (the real settings GET/POST wiring, not just the pure schema), `KeychainManager.swift` (`deleteAllMSCSecrets`, and the migration target for `ConfigManager.init`'s legacy plaintext secrets), `RemoteAPIServerDTOs.swift` (the actual wire-level DTOs this phase's Rust types must match byte-for-byte where the contract already froze them), `RemoteAPIServer+Settings.swift` (the DTO-building half `settings_schema.rs` deliberately left unported in P1.6).
+
+**Phase 5 also absorbs one item deliberately deferred from Phase 4:** P4.8's own scope note says plainly, "Transfer-package import and raw ZIP import stay Phase 5" — this phase is where that boundary resolves, broadening P4.8's Paper-only registration into the two D-009 import paths.
+
+26 steps, six groups:
+
+| Group | Steps | Deliverable |
+|---|---|---|
+| Phase scope and evidence | P5.1–P5.3 | confirmed boundary, failing checker self-tests, and real evidence collected before translation |
+| `AppConfig`/`ConfigServer` schema | P5.4–P5.9 | typed schema, concrete compatibility cases, corruption recovery, recovery merge, explicit and durable secret transition |
+| Settings as a versioned contract | P5.10–P5.11 | frozen DTOs and routes, then a self-contained CLI smoke |
+| MSC 1 transfer-package import and safety backup | P5.12–P5.17 | exact format, export, inspection, apply, handler orchestration, route/CLI smoke |
+| Raw server-directory import | P5.18–P5.22 | characterization, read-only scan, copy/extract apply, route/CLI smoke, in-place rescan |
+| Phase exit | P5.23–P5.26 | all corpus dimensions, mandatory real-corpus run, complete gate check |
+
+**Planned batch ranges:** after their preceding solo step is verified, `P5.13–P5.14`, `P5.16–P5.17`, `P5.19–P5.20`, and `P5.21–P5.22` may each run as one BATCH EXECUTE conversation. The `stop-after` steps end their ranges. `P5.4` and `P5.10` are also safe, but each is isolated by adjacent solo work and therefore does not form a useful contiguous range.
+
+**Not in this phase**, deferred on purpose:
+
+- **Per-flavor provisioning and installers** (Vanilla/Fabric/Forge/NeoForge/Purpur download-and-install flows, args-file launch construction) stay Phase 7. This phase's raw-directory import only *detects, infers, and copies* what already exists on disk; it installs nothing.
+- **The formal world-slot model** stays Phase 6. Raw import copies and labels world data but does not create a slot. Transfer import copies MSC 1's `world_slots` data verbatim and may use a narrow migration-only reader for the package's active-slot marker/archive when an older package lacks live worlds; that compatibility fallback is not MSC 2's slot registry or mutation model. **This is a real sequencing tension, not an oversight:** MSC 1's raw importer calls `createInitialWorldSlotIfNeeded`, but Phase 6 owns the formal replacement.
+- **Bedrock settings** (`applyBedrock`) and any Bedrock-specific config schema stay Phase 10, per D-022's separate Bedrock matrix. This phase's settings *route* is Java-only, matching `settings_schema.rs`'s own existing Java-only port (P1.6) and Phase 4's Java-only lifecycle scope — but P5.18's raw-directory import **does** detect a Bedrock server directory (MSC 1 does; excluding it would be a real capability regression, not a scope simplification) even though this phase can't yet expose Bedrock settings for it.
+- **Named-token CRUD HTTP routes** (`POST /users`, `/users/update`, `/users/revoke`, `GET /users`) are not built here. `RemoteAPISharedAccessEntry`'s *schema* is ported as part of `AppConfig`'s own shape, because config round-trip parity needs it — but the routes themselves aren't in the port plan's Phase 5 bullet list and aren't named in any phase. **Recorded as a currently homeless gap**, the same way P3.3 flagged Phase 3's own gaps, for Cameron to place during the Read move rather than silently building or silently skipping it.
+- **`GET /v1/help/{helpId}` content-serving and the handbook/concept-guide/router-guide content itself** (D-026) are likewise not built here. The DTO-level `helpId` *pointer* field already exists in the frozen contract (P2.2/P2.8) and this phase's settings route carries it on every field per that contract — but resolving the pointer to real content isn't named in any phase's bullet list either. **Also recorded as homeless**, not absorbed into this phase's much narrower "settings schema" bullet.
+- **A standalone, publicly routable transfer-package *export* endpoint** is not built. The frozen v1 contract has no export route, and D-009 only requires MSC 2 to read MSC 1's format for migration. This phase still builds `exportServerTransfer` internally because the HTTP import handler must complete that backup before calling `applyTransferImport` in `replaceAll` mode.
+- **D-027** (the CurseForge manual-download workflow) stays Open, revisited at Phase 8.
+
+---
+
+### Phase scope
+
+### P5.1 — Scope Phase 5 and record what's deferred
+**Status:** awaiting verification
+**Files:** `docs/msc2/config-migration/phase5-scope.md`
+**What:** Write the Phase 5 scoping note before code, in the same role as `phase3-scope.md` and `phase4-scope.md`. Record the working exit gate above, the MSC 1 symbol inventory, and the exact evidence required: at least two sanitized real historical MSC 1 configs from different schema eras, any real `.corrupt-*` backup available, and one real MSC 1-generated `.msctransfer` package supplied through a local environment path rather than committed with world data. Pin the source behavior that later steps must not reinterpret: `excludedTopLevelDirs` is a stale unused constant and does not suppress MSC 1's unconditional live-world export; `action == "scan"` is raw-directory scan only; the HTTP import handler owns the pre-`replaceAll` backup and transfer inspection; rescan registers folders already under the server root without copying them; ConfigManager's plaintext migration reads an owner token and per-server Xbox passwords, not a guest token. Record the Phase 6 world-slot boundary and the homeless `/users` CRUD and D-026 help-content work without assigning either one silently.
+**Verify:** `python3 -c "from pathlib import Path; p=Path('docs/msc2/config-migration/phase5-scope.md'); s=p.read_text(); required=['Working exit gate','Evidence required','Transfer behavior','Raw import boundary','Secret migration','Deferred and homeless']; missing=[x for x in required if x not in s]; assert not missing, missing"`
+**Commit:** `P5.1: scope Phase 5 and record what's deferred`
+**Batch:** solo
+
+### P5.2 — Build the real-corpus checker before collecting evidence
+**Status:** not started
+**Files:** `tools/phase5/real-corpus-check.py`, `tools/phase5/fixtures/`, `corpus/configs/README.md`
+**What:** Build the dependency-free checker used by P5.24 and the gate. Its inventory mode requires at least two parseable JSON config files plus a provenance manifest that records source era and sanitization, rejects duplicate hashes presented as two samples, and requires `MSC2_PHASE5_TRANSFER_PACKAGE` to name an existing `.msctransfer` file. Its later exercise mode can invoke the Rust tests once they exist. Ship passing and deliberately failing self-test directories proving that empty, single-file, duplicate, malformed, and missing-transfer inputs return non-zero. Do not add invented configs to `corpus/`; its README continues to distinguish real corpus evidence from fixtures.
+**Verify:** `python3 tools/phase5/real-corpus-check.py --selftest`
+**Commit:** `P5.2: build the Phase 5 real-corpus checker`
+**Batch:** solo
+
+### P5.3 — Collect the required MSC 1 migration evidence
+**Status:** not started
+**Files:** `corpus/configs/`, `corpus/configs/README.md`
+**What:** Before translation begins, add at least two sanitized `server_config_swift.json` files from real MSC 1 installs and a provenance manifest showing distinct schema eras. Generate one real `.msctransfer` package with MSC 1's Export Servers function, keep the package outside git because it contains world/server data, and record its format version, source, size, and SHA-256 in the corpus README. Sanitization may replace secret values, absolute paths, addresses, and player identities but must not change key presence, types, schema version, or nesting. If this evidence is unavailable, stop here rather than substituting invented fixtures for the port plan's historical corpus.
+**Verify:** `python3 tools/phase5/real-corpus-check.py --inventory --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 2 --require-transfer`
+**Commit:** `P5.3: collect the MSC 1 migration evidence`
+**Batch:** solo
+
+---
+
+### `AppConfig`/`ConfigServer` schema
+
+### P5.4 — Port the `ConfigServer`/`AppConfig` typed schema
+**Status:** not started
+**Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/app_config_schema.rs`
+**What:** Port the pure decode/encode/defaulting half of `AppConfig.swift`'s `ConfigServer` and `AppConfig` types (symbol ledger rows `ConfigServer.init(from:)/encode(to:)`, `AppConfig.init(from:)/encode(to:)`, `ConfigServer.minRamMB/maxRamMB`): every field added after the initial schema decodes via an explicit default rather than failing the whole entry; an unknown/future `javaFlavor` string falls back to `.paper` via the same `try?`-swallow MSC 1 uses rather than invalidating the entry; `xboxBroadcastAltPassword` never round-trips through JSON (Keychain-only, ported separately in P5.8); the fractional-GB-to-whole-MB RAM conversion rounds the same way MSC 1 does. No I/O — this is a pure `serde_json::Value`-or-typed-struct transform, matching `settings_schema.rs`'s own module shape. Covers 4 of the 7 fixtures already sitting in `fixtures/config-roundtrip/` (extracted in P0.15, deliberately left unwired until this phase — see rolling-plan's own Phase 1 "Not in this phase" note): `app-config-full-round-trip`, `app-config-missing-optional-fields-get-defaults`, `config-server-full-round-trip`, `config-server-missing-optional-fields-get-defaults`. The remaining 3 fixtures in that same directory are P5.6's, not this step's — they exercise the corruption-recovery composition, not the schema alone. **Scope boundary, checked against the source, not assumed:** the one `remoteAPISharedAccess` entry `app-config-full-round-trip` carries proves basic round-trip only — it is not a duplicate/blank-token/multi-entry case, so it does not exercise `AppConfig.init(from:)`'s dedup/trim/drop normalization pass at all. That normalization is genuinely untested by anything extracted so far and is P5.5's job, not this step's.
+**Verify:** `cargo nextest run -p msc-domain app_config_schema` → `4 tests run: 4 passed`
+**Commit:** `P5.4: port the ConfigServer/AppConfig typed schema`
+**Batch:** safe
+
+### P5.5 — Characterize and port `AppConfig`'s decode-time normalization pass
+**Status:** not started
+**Files:** `fixtures/app-config-normalization/`, `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-domain/tests/app_config_normalization.rs`
+**What:** Characterize directly from `AppConfig.init(from:)` and port only what that decoder actually normalizes: trim the preferred pairing host and turn a blank value into `nil`; trim shared-access labels/tokens; generate a fresh ID for a blank shared-access ID; drop a blank token; and dedupe shared-access entries by token while keeping the first. Add separate fixtures for duplicate **server** IDs, duplicate standardized server paths, and ID/path conflicts and pin MSC 1's actual decode behavior: `AppConfig` preserves those server entries rather than silently treating shared-access-token normalization as server normalization. Add the concrete renamed-field case MSC 1 really supports, `has_shown_welcome_guide` decoding into `hasShownHandbook`; do not infer a generic old-key migration from `decodeIfPresent`. Port clamping separately in P5.6 because source places it in `ConfigManager.init`, not `AppConfig.init`.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/app-config-normalization --expect 9 && cargo nextest run -p msc-domain app_config_normalization`
+**Commit:** `P5.5: characterize and port AppConfig's decode-time normalization pass`
+**Batch:** solo
+
+### P5.6 — Wire the typed schema through the generic corruption-recovery primitive
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-infrastructure/tests/app_config_repository.rs`
+**What:** Prove the existing generic `load_config`/`save_config` primitive composes with P5.4/P5.5's typed schema. Clamp `remoteAPIPort` to the default when it is outside `1...65535`, at repository/load orchestration where MSC 1's `ConfigManager.init` owns it. Cover normal load, atomic save, malformed JSON creating a byte-for-byte `.corrupt-*` copy before the original is replaced with defaults, and the extracted fixture that tests only the isolated backup-copy sub-step. Keep those two corruption assertions distinct: MSC 1 preserves the unreadable bytes in the backup, not at the original path after recovery completes.
+**Verify:** `cargo nextest run -p msc-infrastructure app_config_repository`
+**Commit:** `P5.6: wire the typed AppConfig schema through corruption recovery`
+**Batch:** stop-after
+
+### P5.7 — Port corrupt-backup discovery and the config-recovery merge
+**Status:** not started
+**Files:** `fixtures/config-recovery/`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-infrastructure/tests/config_recovery.rs`
+**What:** Characterize and port `findCorruptBackups` (matching `.corrupt-*` siblings, newest creation date first), `serverCountInBackup` (cheap JSON server-array count), and `restoreServersFromBackup`. The merge compares every backup entry with the IDs and standardized paths that were present in the live config when the restore began; matching entries are skipped and nonmatching entries are appended. Fixtures cover pure restore, live-path collision, live-ID collision, two mutually duplicated entries inside one backup (pinning MSC 1's actual initial-set behavior), unreadable backup returning an error without mutation, and discovery ordering. P5.22 owns the separate in-place rescan path.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/config-recovery --expect 6 && cargo nextest run -p msc-infrastructure config_recovery`
+**Commit:** `P5.7: port corrupt-backup discovery and the config-recovery merge`
+**Batch:** solo
+
+### P5.8 — Port the plaintext-to-`SecretStore` secret migration
+**Status:** not started
+**Files:** `docs/msc2/config-migration/legacy-secret-transition.md`, `fixtures/secret-migration/`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-infrastructure/tests/secret_migration.rs`
+**What:** Document and port the source-parity half of the transition as an adapter over explicitly supplied bytes; it never discovers or opens MSC 1's application-support path. Extract exactly the plaintext keys MSC 1's `ConfigManager` handles: global `remote_api_token` and per-server `xbox_broadcast_alt_password`. Store them through `SecretStore` as `remote-api.owner-token` and `xbox-broadcast.alt-password.<server-id>`, then rewrite the config without either plaintext key. Do not invent a guest-token input. Blank values are ignored, passwords migrate independently, and rerunning cleaned input is a no-op. The note records the P5.9 replacement-bearer shape so the raw legacy owner token is never accepted directly by Phase 4 middleware.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/secret-migration --expect 5 && cargo nextest run -p msc-infrastructure secret_migration`
+**Commit:** `P5.8: port legacy plaintext secret extraction`
+**Batch:** solo
+
+### P5.9 — Make the migrated owner credential durable and authenticating
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/credential_repository.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/credential_repository.rs`, `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/main.rs`
+**What:** Close the persistence gap in Phase 4's credential implementation before using it for migration: persist the non-secret credential registry atomically in MSC 2's own application data and reconstruct `AuthState` from it on restart, while verifier records remain in `SecretStore`. For a P5.8 owner token, generate one credential ID, store a salted verifier using the old high-entropy token as the secret component, persist an admin registry entry, and return `msc2_<new-id>_<old-token>` once. Do not add a raw-token parsing fallback. A restart integration test must rebuild auth state from the registry and the same `SecretStore`, authenticate the replacement bearer, and prove rerunning migration does not duplicate the credential.
+**Verify:** `cargo nextest run -p msc-infrastructure credential_repository && cargo nextest run -p msc-agent migrated_owner_credential_survives_restart`
+**Commit:** `P5.9: persist migrated owner credentials`
+**Batch:** solo
+
+---
+
+### Settings as a versioned contract
+
+### P5.10 — Wire `GET`/`POST /v1/settings` through the frozen contract
+**Status:** not started
+**Files:** `crates/msc-api/src/dto/settings.rs`, `crates/msc-api/src/dto/mod.rs`, `crates/msc-agent/src/routes/settings.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/main.rs`
+**What:** Put Phase 1's pure Java settings validator behind the frozen DTO contract: `SettingOptionDto`; `SettingFieldDto` with the real `minInt`/`maxInt`/`unit`/`maxLength`/`options`/`helpId` fields; section grouping; `SettingsResponseDto`; and `SettingsUpdateResultDto`. `GET` returns `editable: false` plus `note: "no_active_server"` when appropriate. `POST` persists accepted changes atomically through the existing properties model, re-reads the file, and returns sections built from that fresh state; rejected keys retain their reasons, and `restartRequired` reflects whether the server is running. Keep this Java-only until Phase 10 and carry every frozen `helpId` pointer without pretending the still-homeless content route exists.
+**Verify:** `cargo nextest run -p msc-agent settings_route`
+**Commit:** `P5.10: wire settings through the frozen contract`
+**Batch:** safe
+
+### P5.11 — Add settings CLI commands and a self-contained smoke check
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `tools/phase5/cli-smoke.sh`
+**What:** Add `msc settings get` and `msc settings set <key>=<value>`. Create the Phase 5 CLI smoke harness here: it owns a temporary application root, creates a minimal Paper directory, starts `cargo run -p msc-agent --bin msc -- serve` on a free loopback port with a known Phase 4 bootstrap token, imports and selects the server, runs settings get/set through HTTP, checks JSON structurally and checks the persisted `server.properties`, then stops its agent in a trap. Later transfer/raw route steps extend this same script rather than relying on a separately-running agent or an installed `msc` binary. Include a `--settings` selector so this step can run only the portion it owns.
+**Verify:** `tools/phase5/cli-smoke.sh --settings`
+**Commit:** `P5.11: add settings CLI smoke coverage`
+**Batch:** solo
+
+---
+
+### MSC 1 transfer-package import and its export safety-net
+
+### P5.12 — Characterize the transfer-package manifest and layout
+**Status:** not started
+**Files:** `fixtures/transfer-package/`, `docs/msc2/config-migration/transfer-package-format.md`
+**What:** With no MSC 1 tests, characterize `AppViewModel+ServerTransfer.swift` before translation. Pin the exact v2 manifest fields, server-entry fields, directory layout, sanitization, config-extension allowlist, supported-version rejection, port-conflict messages, and apply-time world precedence. Record two easily-confused facts explicitly: the manifest has no world-precedence marker, and `excludedTopLevelDirs` is an unused stale constant contradicted by the later live-world export loop. Preserve observable output: export every configured live world folder whenever it exists, regardless of timestamps, alongside `world_slots`; do not turn the dead constant into new exclusion policy. Fixtures cover Java/Paper, Forge libraries, Bedrock worlds, no bundled jar, live-world-plus-slot layout, older package without live worlds, and newer unsupported format.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/transfer-package --expect 7`
+**Commit:** `P5.12: characterize the transfer-package manifest and layout`
+**Batch:** solo
+
+### P5.13 — Implement `exportServerTransfer`
+**Status:** not started
+**Files:** `crates/msc-application/Cargo.toml`, `Cargo.lock`, `crates/msc-application/src/transfer.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/transfer_export.rs`
+**What:** Port `exportServerTransfer` against all seven P5.12 fixtures. Stage and archive the exact v2 layout; bundle `paper.jar` when present, `world_slots`, backups, plugins, mods, resource packs, Forge/NeoForge libraries, allowed top-level config files, and every configured live Java world folder or Bedrock `worlds/` directory that exists. Sanitize machine-specific paths and Xbox account fields. Use a cross-platform Rust ZIP library and reject unsafe archive names. Do not expose a public export endpoint and do not apply the stale `excludedTopLevelDirs` constant. This function is consumed by P5.16's replace-all safety orchestration.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/transfer-package --expect 7 && cargo nextest run -p msc-application transfer_export`
+**Commit:** `P5.13: implement exportServerTransfer`
+**Batch:** safe
+
+### P5.14 — Implement transfer-package inspection
+**Status:** not started
+**Files:** `crates/msc-application/src/transfer.rs`, `crates/msc-application/tests/transfer_inspect.rs`
+**What:** Port `inspectTransferPackage` against P5.12's fixtures: extract into a temporary staging root with path-traversal, absolute-path, and symlink-escape rejection; decode `manifest.json`; reject a manifest whose `formatVersion` is newer than this build supports; and compare every entry's recorded Java/Bedrock port with locally-used ports, producing MSC 1's human-readable conflict strings. Inspection may write only to its disposable staging directory, never an owned server directory; every failure removes staging.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/transfer-package --expect 7 && cargo nextest run -p msc-application transfer_inspect`
+**Commit:** `P5.14: implement transfer-package inspection`
+**Batch:** stop-after
+
+### P5.15 — Implement transfer-package apply
+**Status:** not started
+**Files:** `crates/msc-application/src/transfer.rs`, `crates/msc-application/tests/transfer_apply.rs`
+**What:** Port only `applyTransferImport` itself. From an already-inspected staging directory, choose noncolliding destinations; restore configs, components, libraries, optional `paper.jar`, slots/backups, and world data; apply Java and Bedrock port override maps; sanitize/re-root server records; and clean failed per-server destinations. Prefer live Java/Bedrock worlds when present. For an older package with no live worlds, use a narrow read-only compatibility adapter for MSC 1's active-slot marker/archive to materialize the active world, without creating an MSC 2 slot model. Merge appends. Replace-all replaces the configured server set and performs MSC 1's full `deleteAllMSCSecrets` scope only when called after P5.16's safety preconditions. Fixtures prove fallback restoration, partial-server cleanup, and that config/secrets remain unchanged until build-stage work completes.
+**Verify:** `cargo nextest run -p msc-application transfer_apply`
+**Commit:** `P5.15: implement transfer-package apply`
+**Batch:** solo
+
+### P5.16 — Enforce replace-all backup ordering in import orchestration
+**Status:** not started
+**Files:** `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/tests/transfer_replace_all.rs`
+**What:** Port the orchestration MSC 1 keeps in `serverImportProvider`, not inside `applyTransferImport`, adding the DTO's transfer mode, backup path, and Java/Bedrock override maps needed to express it. For transfer `replaceAll`, reject a blank/missing `backupPath` as `backup_path_required`; complete P5.13 export to that path; map export failure to `backup_failed: <message>`; only then inspect and apply. Tests use event-recording fakes to prove apply and secret deletion are never reached after missing/failed backup and that call order is export, inspect, apply. Preserve MSC 1's broad full-secret wipe after a successful backup because `replaceAll` replaces the entire local server set, while documenting that user-visible behavior in P5.1.
+**Verify:** `cargo nextest run -p msc-agent transfer_replace_all`
+**Commit:** `P5.16: enforce transfer replace-all backup ordering`
+**Batch:** safe
+
+### P5.17 — Wire transfer-package import into `POST /v1/servers/import` and the CLI
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/servers.rs`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/cli/mod.rs`, `tools/phase5/cli-smoke.sh`
+**What:** Complete `ServerImportRequestDto` to the frozen shape: `action`, `sourcePath`, `importKind`, `displayName`, `serverType`, `activeWorldName`, `port`, `maxPlayers`, `acceptEula`, `enablePlayit`, `transferMode`, `backupPath`, `javaPortOverrides`, and `bedrockPortOverrides`. Preserve the real values `scan|importExisting|importTransfer` and `folder|zip|transfer|auto`. Transfer matching is evaluated only for non-scan requests; `action == "scan"` is never sent to transfer inspection and remains for P5.21 to wire to the raw scanner. Add the transfer CLI flags and extend `tools/phase5/cli-smoke.sh --transfer` to generate a deterministic fixture package, prove merge, prove missing-backup rejection, prove backup-before-replace-all, and parse the JSON results.
+**Verify:** `cargo nextest run -p msc-agent transfer_import_route && tools/phase5/cli-smoke.sh --transfer`
+**Commit:** `P5.17: wire transfer-package import into servers/import and the CLI`
+**Batch:** safe
+
+---
+
+### Raw server-directory import
+
+### P5.18 — Characterize raw import beyond Paper
+**Status:** not started
+**Files:** `fixtures/raw-server-import/`, `docs/msc2/config-migration/raw-import-behavior.md`
+**What:** Characterize the read-only half of `AppViewModel+ServerImport.swift` before translating it. Fixtures cover Java-vs-Bedrock selection; NeoForge and Forge `unix_args.txt` signatures; Fabric launcher and loader-version discovery; Purpur and `minecraft_server*` names; unmatched-jar Paper fallback; missing jar/binary; Java and Bedrock properties including port/max players/level name; EULA; ZIP single-root unwrapping; world discovery from root and `worlds/`, dimension-companion grouping, size aggregation, and configured-level-name ordering. Every inferred output distinguishes an observed value, MSC 1's documented default, and genuinely undetermined data. Document that this phase labels/copies worlds but Phase 6 creates formal slots.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/raw-server-import --expect 16`
+**Commit:** `P5.18: characterize raw server import behavior`
+**Batch:** solo
+
+### P5.19 — Implement read-only Java and Bedrock directory scanning
+**Status:** not started
+**Files:** `crates/msc-application/src/import.rs`, `crates/msc-application/tests/raw_server_scan.rs`
+**What:** Implement one reusable, read-only scanner against all P5.18 fixtures. The directory scanner returns server type, Java flavor, Minecraft/loader versions, primary launch artifact, parsed settings, port/max players, EULA state, discovered/grouped worlds, and labelled unknowns without copying or registering anything. A source adapter accepts a folder or ZIP; ZIP scan extracts through the same traversal-safe primitive into disposable staging, unwraps one top-level folder, scans it, and always removes staging. Preserve the complete NeoForge → Forge → Fabric → Purpur → Vanilla → Paper order. Raw import and P5.22 rescan share the directory scanner, while rescan never invokes copying or ZIP extraction.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/raw-server-import --expect 16 && cargo nextest run -p msc-application raw_server_scan`
+**Commit:** `P5.19: implement raw server directory scanning`
+**Batch:** safe
+
+### P5.20 — Implement raw folder and ZIP import into the owned root
+**Status:** not started
+**Files:** `crates/msc-application/src/import.rs`, `crates/msc-application/tests/raw_server_import.rs`
+**What:** Build the mutating importer around P5.19: validate the source through approved-root/path-safety primitives; sanitize and length-limit the destination name; refuse collisions; copy folders or extract ZIPs with traversal, absolute-path, and symlink-escape rejection; unwrap one top-level folder; apply caller overrides for port, max players, active world name, and EULA through the Java/Bedrock property models; register the copied server and make it active. On any failure after destination creation, remove the partial destination and leave config unchanged. Copy all world data but create no world slot until Phase 6.
+**Verify:** `cargo nextest run -p msc-application raw_server_import`
+**Commit:** `P5.20: implement raw folder and ZIP import`
+**Batch:** stop-after
+
+### P5.21 — Wire the broadened import into `POST /v1/servers/import` and the CLI
+**Status:** not started
+**Files:** `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/cli/mod.rs`, `tools/phase5/cli-smoke.sh`
+**What:** Wire `action: "scan"` to P5.19 and `action: "importExisting"` with `folder|zip|auto` to P5.20. Complete `ServerImportScanResponseDto` with the frozen `worlds`, `detectedMCVersion`, and `detectedLoaderVersion` fields as well as type/port/max/EULA/default-world/flavor. Extend the existing CLI import command for every raw request override and labelled scan field. Extend the self-contained smoke with `--raw`: create Java-folder, Java-ZIP, and Bedrock-folder samples; scan all three; import them; verify copied destinations and persisted overrides; and verify a traversal ZIP fails without leaving a destination.
+**Verify:** `cargo nextest run -p msc-agent raw_import_route && tools/phase5/cli-smoke.sh --raw`
+**Commit:** `P5.21: wire the broadened import into servers/import and the CLI`
+**Batch:** safe
+
+### P5.22 — Port `rescanAndImportServers`
+**Status:** not started
+**Files:** `crates/msc-application/src/import.rs`, `crates/msc-application/tests/rescan_import.rs`
+**What:** Port MSC 1's separate recovery rescan exactly: inspect the configured root plus its `java/` and `bedrock/` children one level deep, normalize paths, skip already-tracked and repeated candidates, require a jar or Bedrock binary, reuse P5.19's detection logic, and register qualifying directories **at their existing paths** with `hasEverStarted: true`. Do not call P5.20 and do not copy anything. Tests cover root/typed-subdirectory overlap, tracked paths, nonservers, Java/Bedrock detection, and no filesystem mutation.
+**Verify:** `cargo nextest run -p msc-application rescan_import`
+**Commit:** `P5.22: port rescanAndImportServers`
+**Batch:** stop-after
+
+---
+
+### Phase exit
+
+### P5.23 — Characterize the historical-corpus dimensions as fixtures
+**Status:** not started
+**Files:** `fixtures/config-corpus-dimensions/`, `crates/msc-domain/tests/app_config_schema.rs`, `crates/msc-infrastructure/tests/app_config_repository.rs`
+**What:** Assemble one explicit fixture matrix for every configuration dimension the port plan names, cross-referencing earlier fixtures but adding an executable case wherever only prose existed: missing fields default; concrete `has_shown_welcome_guide` rename; wrong-type/malformed fields fail into corruption recovery; unknown fields follow MSC 1's observed decode/save behavior; duplicate IDs, duplicate standardized paths, and conflicting ID/path pairs are preserved by ordinary decode; recovery merge skips conflicts against the initial live set; and an injected failure between temporary-file write and rename leaves the previous config intact when saving the real typed schema. The consumer-level interruption test must call `save_config`; symbol presence or a generic primitive test alone is not evidence that the consumer still uses it.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/config-corpus-dimensions --expect 8 && cargo nextest run -p msc-infrastructure config_corpus_dimensions`
+**Commit:** `P5.23: characterize the historical-corpus dimensions as fixtures`
+**Batch:** solo
+
+### P5.24 — Wire the Rust readers into the real-corpus checker
+**Status:** not started
+**Files:** `tools/phase5/real-corpus-check.py`, `crates/msc-infrastructure/tests/historical_config_corpus.rs`, `crates/msc-application/tests/real_transfer_corpus.rs`
+**What:** Extend P5.2's already-self-tested inventory checker with exercise mode. Run every manifest-listed historical config through the real typed repository load, normalization, save, and reload path in an isolated temporary directory and report each file independently. Run the real MSC 1-generated transfer package through inspection and a merge apply into a temporary owned root, checking that at least one server and its manifest-declared world/config payload arrive. Never mutate corpus inputs. Exercise mode retains P5.2's hard failure for empty, one-file, duplicate, malformed, unmanifested, or missing-transfer evidence.
+**Verify:** `python3 tools/phase5/real-corpus-check.py --selftest --exercise-selftest`
+**Commit:** `P5.24: wire Rust readers into the real-corpus checker`
+**Batch:** solo
+
+### P5.25 — Run the required real MSC 1 corpus
+**Status:** not started
+**Files:** `corpus/configs/README.md`
+**What:** Run P5.24's Rust-backed exercise mode against the real evidence collected in P5.3 and record the per-file and transfer-package results in the corpus README. Recheck the local package hash before and after to prove the checker did not mutate it. If any config fails load/save/reload, if the package fails inspect/apply, or if the evidence is missing, stop: fixtures cannot substitute for the port plan's historical-corpus and MSC 1-package deliverables.
+**Verify:** `python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 2 --require-transfer`
+**Commit:** `P5.25: validate the real MSC 1 migration corpus`
+**Batch:** stop-after
+
+### P5.26 — Phase 5 exit gate check
+**Status:** not started
+**Files:** none (verification only unless a gate bug is found)
+**What:** Run the complete working gate from this phase's header: formatting; native and cross-target clippy; all workspace and corpus-dimension tests; the self-contained settings/transfer/raw CLI smoke; and the mandatory real config and transfer corpus. Then inspect the actual GitHub Actions run for this commit and require green macOS, Linux, and Windows jobs. If any leg fails, stop and amend only the failing gate item; do not advance to Phase 6.
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/fixture-runner/run.py --validate-dir fixtures/config-corpus-dimensions --expect 8 && tools/phase5/cli-smoke.sh --all && python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 2 --require-transfer && run_id=$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P5.26: run the Phase 5 exit gate check`
+**Batch:** stop-after
+
+---
+
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-08-11 — Phase 5 replanned after Codex's second cross-check
+
+Cameron requested a fresh PLAN pass after Codex found that the first rewrite still was not ready.
+The Phase 5 list now requires real historical configs and a real MSC 1 transfer package before
+translation, preserves unconditional live-world export instead of activating the stale
+`excludedTopLevelDirs` constant, keeps transfer scan and replace-all orchestration in their real
+MSC 1 layers, separates raw scanning from copy/extract mutation and in-place rescan, names all
+frozen import DTO fields, makes migrated credentials durable across restart, and replaces
+placeholder live-CLI commands with one self-contained smoke harness. This entry records a plan
+correction only; no Phase 5 code existed or was changed.
+
+### 2026-08-11 — Codex cross-check of Claude's Phase 5 plan: did not pass; step list rewritten
+
+Codex cross-checked the first draft of the Phase 5 plan against MSC 1 source (not yet executed —
+this was a plan review, not a gate review) and found it did not pass. Nine findings, several
+critical: raw-directory import covered only Java flavor/port/max-players/world-name and omitted
+Bedrock detection, EULA handling, world discovery/ranking, and the actual copy/extraction into an
+MSC-owned root that `AppViewModel+ServerImport.swift` performs; the planned transfer-import route
+wiring used invented wire values (`action: "import"`, `importKind: "transfer-package"`) instead of
+MSC 1's real `action: "importTransfer"`/`importKind: "transfer"`, and dropped the mandatory
+pre-`replaceAll` export backup (`backupPath` + `exportServerTransfer`) MSC 1's own handler
+requires; the real-corpus validation step could report success with an empty corpus, meaning the
+port plan's own historical-config deliverable could pass without ever running against a historical
+config; the config-recovery step ported the merge but not the `findCorruptBackups`/
+`serverCountInBackup` discovery half, and mischaracterized one existing fixture
+(`r3-corrupt-file-does-not-wipe-original`) as testing the full composed `load_config` when its own
+notes describe a narrower, isolated claim; the settings route step invented a `constraints` DTO
+field instead of the frozen contract's real `minInt`/`maxInt`/`unit`/`maxLength`/`options` shape and
+didn't require the write-then-reread-echo behavior MSC 1's handler actually implements; several
+transfer-format claims (manifest precedence markers, `excludedTopLevelDirs` enforcement, vanilla
+jar detection) didn't match source; the secret-migration step migrated a legacy token without
+minting a credential that could actually authenticate against Phase 4's real auth path; and one
+step's `Batch: stop-after` should have been `solo` under this file's own definition (it builds a new
+checker script), plus the phase header's stated step count didn't match the list.
+
+Every finding was independently re-verified against the MSC 1 source cited (not accepted on claim
+alone) before revising — `AppViewModel+ServerImport.swift`, `RemoteAPIServerDTOs.swift`,
+`AppViewModel+APIWiringServerMgmt.swift`, `AppViewModel+APIWiringSettings.swift`,
+`AppViewModel+ServerTransfer.swift`, `AppViewModel+ConfigRecovery.swift`, `KeychainManager.swift`,
+and `docs/msc2/api-contract/openapi.json` — and all were confirmed accurate. The Phase 5 section of
+this plan was rewritten in place (same file, no separate patch record): 12 steps became 18,
+covering the corrected scope — Bedrock-inclusive raw import with an explicit world-slot sequencing
+tension recorded rather than silently resolved, correct wire values and mandatory replaceAll backup
+for transfer import, a dedicated corpus-dimension fixture step so the historical-config deliverable
+no longer depends on Cameron supplying files, corrupt-backup discovery alongside the merge (plus a
+newly identified second recovery path, `rescanAndImportServers`, given its own step), the real
+multi-DTO settings contract, and a two-part secret migration that actually mints an authenticating
+credential. This is a plan-move correction, not a gate finding — nothing had been executed yet, so
+no earlier phase needed amending; it's recorded here because CLAUDE.md's convention is that a
+review changing what was written gets logged, not folded in silently.
 
 ### 2026-08-02/03 — Claude Phase 4 gate review: gate did not hold; three findings, now fixed in code
 

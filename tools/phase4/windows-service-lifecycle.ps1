@@ -257,7 +257,7 @@ function Resume-Checkpoint([string]$CheckpointPath) {
     }
 }
 
-if (-not $IsWindows) {
+if ($PSVersionTable.PSEdition -eq "Core" -and -not $IsWindows) {
     throw "this check only runs on Windows"
 }
 

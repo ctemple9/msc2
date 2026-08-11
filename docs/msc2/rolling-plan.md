@@ -1681,7 +1681,7 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 ### Phase scope
 
 ### P5.1 — Scope Phase 5 and record what's deferred
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/config-migration/phase5-scope.md`
 **What:** Write the Phase 5 scoping note before code, in the same role as `phase3-scope.md` and `phase4-scope.md`. Record the working exit gate above, the MSC 1 symbol inventory, and the exact evidence required: at least two sanitized real historical MSC 1 configs from different schema eras, any real `.corrupt-*` backup available, and one real MSC 1-generated `.msctransfer` package supplied through a local environment path rather than committed with world data. Pin the source behavior that later steps must not reinterpret: `excludedTopLevelDirs` is a stale unused constant and does not suppress MSC 1's unconditional live-world export; `action == "scan"` is raw-directory scan only; the HTTP import handler owns the pre-`replaceAll` backup and transfer inspection; rescan registers folders already under the server root without copying them; ConfigManager's plaintext migration reads an owner token and per-server Xbox passwords, not a guest token. Record the Phase 6 world-slot boundary and the homeless `/users` CRUD and D-026 help-content work without assigning either one silently.
 **Verify:** `python3 -c "from pathlib import Path; p=Path('docs/msc2/config-migration/phase5-scope.md'); s=p.read_text(); required=['Working exit gate','Evidence required','Transfer behavior','Raw import boundary','Secret migration','Deferred and homeless']; missing=[x for x in required if x not in s]; assert not missing, missing"`
@@ -1689,7 +1689,7 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 **Batch:** solo
 
 ### P5.2 — Build the real-corpus checker before collecting evidence
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase5/real-corpus-check.py`, `tools/phase5/fixtures/`, `corpus/configs/README.md`
 **What:** Build the dependency-free checker used by P5.24 and the gate. Its inventory mode requires at least two parseable JSON config files plus a provenance manifest that records source era and sanitization, rejects duplicate hashes presented as two samples, and requires `MSC2_PHASE5_TRANSFER_PACKAGE` to name an existing `.msctransfer` file. Its later exercise mode can invoke the Rust tests once they exist. Ship passing and deliberately failing self-test directories proving that empty, single-file, duplicate, malformed, and missing-transfer inputs return non-zero. Do not add invented configs to `corpus/`; its README continues to distinguish real corpus evidence from fixtures.
 **Verify:** `python3 tools/phase5/real-corpus-check.py --selftest`

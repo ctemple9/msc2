@@ -1,0 +1,3 @@
+selftest placeholder -- not a real MSC 1 transfer package. Exists only so
+the "pass" fixture has a file at *.msctransfer for the checker's inventory
+mode to find. Real package content is exercised by P5.24, not this step.

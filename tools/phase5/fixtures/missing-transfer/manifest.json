@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "file": "config-a.json",
+      "era": "selftest: pre-worlds schema",
+      "sanitized": "invented selftest content, not real MSC 1 evidence"
+    },
+    {
+      "file": "config-b.json",
+      "era": "selftest: post-handbook-rename schema, one server entry",
+      "sanitized": "invented selftest content, not real MSC 1 evidence"
+    }
+  ]
+}

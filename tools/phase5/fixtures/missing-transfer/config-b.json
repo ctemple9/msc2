@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 2,
+  "hasShownHandbook": true,
+  "servers": [
+    {
+      "id": "SELFTEST-SERVER-1",
+      "name": "selftest-server",
+      "minRamGB": 2,
+      "maxRamGB": 4
+    }
+  ]
+}

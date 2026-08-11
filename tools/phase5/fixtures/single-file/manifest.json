@@ -1,0 +1,9 @@
+{
+  "files": [
+    {
+      "file": "config-a.json",
+      "era": "selftest: pre-worlds schema",
+      "sanitized": "invented selftest content, not real MSC 1 evidence"
+    }
+  ]
+}

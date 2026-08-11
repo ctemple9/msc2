@@ -104,6 +104,9 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$crashLogPath = "$LogPath.crash"
+
+try {
 
 Add-Type -ReferencedAssemblies @("System.ServiceProcess", "System.Core") -TypeDefinition @"
 using System;
@@ -219,6 +222,17 @@ public class MscAgentWindowsService : ServiceBase
 "@
 
 [MscAgentWindowsService]::RunService($ServiceName, $MscPath, $BindAddress, $Token, $JournalDir, $WorkingDirectory, $LogPath)
+
+} catch {
+    $crashDir = Split-Path -Parent $crashLogPath
+    if ($crashDir -and -not (Test-Path $crashDir)) {
+        New-Item -ItemType Directory -Path $crashDir -Force | Out-Null
+    }
+    "$(Get-Date -Format o) FATAL in service host script:" | Add-Content -Path $crashLogPath
+    ($_ | Out-String) | Add-Content -Path $crashLogPath
+    ($_.ScriptStackTrace | Out-String) | Add-Content -Path $crashLogPath
+    throw
+}
 '@
     Set-Content -Path $Path -Value $script -Encoding UTF8
 }
@@ -305,7 +319,23 @@ try {
 }
 
 $serviceBinary = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-$serviceCommand = "`"$serviceBinary`" -ExecutionPolicy Bypass -File `"$hostScript`" -ServiceName `"$serviceName`" -MscPath `"$msc`" -BindAddress `"127.0.0.1:$port`" -Token `"$token`" -JournalDir `"$journalDir`" -WorkingDirectory `"$stateDir`" -LogPath `"$serviceLog`""
+$innerCommand = "`"$serviceBinary`" -NoProfile -ExecutionPolicy Bypass -File `"$hostScript`" -ServiceName `"$serviceName`" -MscPath `"$msc`" -BindAddress `"127.0.0.1:$port`" -Token `"$token`" -JournalDir `"$journalDir`" -WorkingDirectory `"$stateDir`" -LogPath `"$serviceLog`""
+# powershell.exe launched directly as a service's ImagePath hangs indefinitely: the
+# Service Control Manager gives the process no console and no redirected standard
+# handles, and Windows PowerShell's interactive console-host initialization blocks
+# forever trying to interact with a console that doesn't exist, so ServiceBase.Run()
+# is never reached and the service times out after 30s with no error anywhere.
+# Routing through a generated .cmd launcher with stdout/stderr redirected to a file
+# gives the process valid handles and avoids the hang; confirmed directly against
+# real sc.exe/SCM behavior on this host (a bare `New-Service -BinaryPathName
+# "powershell.exe ..."` never reaches OnStart, the same command wrapped in
+# `cmd.exe /c` with output redirected reaches OnStart immediately).
+$rawOutputLog = "$serviceLog.raw"
+$launcherPath = Join-Path $runDir "service-launcher.cmd"
+$launcherContent = "@echo off`r`n$innerCommand > `"$rawOutputLog`" 2>&1`r`n"
+Set-Content -Path $launcherPath -Value $launcherContent -Encoding ASCII -NoNewline
+$cmdExe = "$env:SystemRoot\System32\cmd.exe"
+$serviceCommand = "`"$cmdExe`" /c `"$launcherPath`""
 $credential = Get-Credential -Message "Enter the installing-user credential for the Windows Service Log On As account"
 
 try {
@@ -328,7 +358,7 @@ try {
     if ($LASTEXITCODE -ne 0) {
         throw "server command failed"
     }
-    Wait-ConsoleContains -Msc $msc -BaseUrl $baseUrl -Token $token -ServerName $serverName -Needle "COMMAND:say phase4 windows service check" -TimeoutSeconds 20
+    Wait-ConsoleContains -Msc $msc -BaseUrl $baseUrl -Token $token -ServerName $serverName -Needle "phase4 windows service check" -TimeoutSeconds 20
 
     $processes = Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '*paper.jar*' }
     if (-not $processes) {

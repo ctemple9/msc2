@@ -65,6 +65,16 @@ for process ownership and client-closure behavior, but the credential portion
 of the Phase 4 record needs P4.41-P4.43 before it can be called a real
 platform-store proof.
 
+**P5.33 follow-up:** P4.42 superseded the production-store portion of that
+warning by wiring production `msc serve` to target-specific durable stores:
+macOS uses the approved System-keychain-root plus encrypted agent-owned store,
+Linux service runs use the P4.41 helper client, and Windows uses Credential
+Manager. P4.43 remains the evidence gate for real service-process credential
+persistence on all three operating systems; the macOS LaunchDaemon evidence
+has been rerun, but Linux/Windows evidence is still required before the full
+Phase 4 credential amendment can be closed. This does not reopen the already
+proven Paper lifecycle gate.
+
 ## CLI Packaging Recommendation
 
 Recommendation: ship one Rust binary per platform, installed as `msc`, with `msc serve` starting the agent service process and the other `msc ...` subcommands acting as CLI clients.
@@ -179,8 +189,8 @@ Phase 4 must consume or resolve these Phase 3 deferrals:
 
 | Item | Phase 4 handling |
 |---|---|
-| Fixed Phase 2 dev token | P4.2/P4.5 replace it with `SecretStore`-backed real credentials before lifecycle mutation. |
-| Linux `LinuxSecretStore` stand-in | P4.3 chose the privileged helper path; P4.23 installed only the unit/socket shape, so P4.41 must add the callable helper server/client before this credential portion is closed. |
+| Fixed Phase 2 dev token | P4.2/P4.5 replace it with `SecretStore`-backed real credentials before lifecycle mutation; P4.42 wires production startup to durable platform stores. |
+| Linux `LinuxSecretStore` stand-in | P4.3 chose the privileged helper path; P4.41 implemented the callable helper server/client and P4.42 made production Linux service auth use that helper client. P4.43 still must record all-OS service-process persistence evidence. |
 | macOS LaunchDaemon login-keychain/TCC unknowns | P4.4 writes executable checks; P4.22 runs them in the real service context. |
 | D-024 power management | P4.25 implements and verifies the two host-role policies alongside service lifecycle. |
 | D-021 no-GUI-link check | P4.26 gives the packaging check a concrete home. |

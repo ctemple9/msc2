@@ -113,6 +113,8 @@ One imported Paper server, end to end: import and detect · start · console · 
 
 Historical MSC config corpus · settings schema as a versioned contract · corruption recovery · MSC 1 transfer-package import (D-009) · raw server-directory import.
 
+Gate review amendment (P5.33): Phase 5 imports and labels world data but does not reconcile it into the formal world-slot model. Phase 6 must audit imported live-world and `world_slots` data before world mutations become authoritative.
+
 ### Phase 6 — Worlds and backups
 
 World discovery, slots, transactional mutations, backups, retention, verification, restore.
@@ -123,13 +125,17 @@ World discovery, slots, transactional mutations, backups, retention, verificatio
 
 Vanilla, Paper, Purpur, Fabric, NeoForge, Forge. Runtime selection, installer flows, archive behavior, startup diagnostics. Scope bounded by the 1.20 floor (D-014).
 
+Later audit: after Phase 5's broad raw import, Phase 7 must prove non-Paper Java servers are not merely classified but actually launchable with the correct family-specific startup shape.
+
 ### Phase 8 — Mods, plugins, modpacks
 
 Modrinth / Hangar / CurseForge providers · metadata parsing · dependency resolution · client-only classification · pack-managed guards · import · update · client export.
 
 ### Phase 9 — Networking and helpers
 
-Playit · resource-pack hosting · DuckDNS · port diagnostics · Xbox Broadcast · Geyser and Floodgate · notifications · helper process lifecycle.
+Playit · resource-pack hosting · DuckDNS · port diagnostics · Xbox Broadcast · Geyser and Floodgate · notifications · helper process lifecycle · named-token `/users` CRUD (`POST /users`, `/users/update`, `/users/revoke`, `GET /users`) · remaining D-012 remote-auth posture.
+
+Later audit: Phase 9 must prove credential CRUD and revocation against the same durable `SecretStore` path Phase 4/5 use, including invalidating revoked tokens across restart.
 
 ### Phase 10 — Bedrock runtimes
 
@@ -137,9 +143,15 @@ The `BedrockRuntime` trait, implemented **native Linux → native Windows → ma
 
 Bedrock files, properties, players, LevelDB, allowlist, permissions, metrics, and UDP behavior against shared fixtures. Publish the Bedrock compatibility matrix separately from the MSC agent matrix (D-022).
 
+Later audit: Phase 10 must reconcile Phase 5's Bedrock import records with real Bedrock lifecycle and settings behavior, including what imported Bedrock servers can and cannot do before native runtimes land.
+
 ### Phase 11 — Desktop and web clients
 
 Tauri shell plus the Svelte frontend, built against the proven API, preserving MSC 1's information architecture and design language.
+
+Also owns `GET /v1/help/{helpId}` and the handbook/concept-guide/router-guide content serving contract. The frozen settings schema may carry `helpId` pointers earlier, but resolving those pointers into client-visible guide content is Phase 11 work.
+
+Later audit: Phase 11 must prove clients consume the help-content contract instead of hardcoding divergent guide text.
 
 **UI completion never gates headless agent correctness.**
 

@@ -162,15 +162,21 @@ Confirmed against two independent sources, not memory: the `systemd-creds` manpa
 
 **Revisit trigger:** once Phase 4 lands real service registration for the agent itself, build track 1 (the privileged helper) and retire this file-based stand-in, rather than letting it become the permanent answer by default.
 
-## 12A. P4.3 decision: build the helper for the Linux service gate
+## 12A. P4.3/P4.41-P4.43 decision: build and prove the helper for the Linux service gate
 
-**Status:** P4.3 implementation decision. Proposed until Cameron verifies P4.3.
+**Status:** P4.3 implementation decision, amended by P5.33 after P4.41/P4.42.
 
-P4.3 closes the revisit trigger above: Phase 4 builds the privileged
-`systemd-creds` helper alongside the real Linux `systemd` service registration
-in P4.23. The file-based `LinuxSecretStore` remains available for local
-development, tests, and temporary non-service runs, but it is not the accepted
-backend for the Phase 4 Linux headless-service proof.
+P4.3 closed the revisit trigger above by choosing the privileged
+`systemd-creds` helper for installed Linux services. P4.41 then implemented the
+callable helper server/client, UID-restricted socket protocol, and
+`systemd-creds` get/set/delete behavior; P4.42 made production Linux service
+authentication use the helper client. The file-based `LinuxSecretStore` remains
+available for local development, tests, and temporary non-service runs, but it
+is not the accepted backend for installed-service authentication.
+
+P4.43 is still the evidence step that records credential persistence in real
+service processes across macOS, Linux, and Windows. Do not treat this section as
+claiming the full all-OS service-process proof until that step is complete.
 
 Full helper design: `docs/msc2/lifecycle/linux-credential-helper.md`.
 
@@ -190,8 +196,8 @@ All three platform implementations' `secret_store_contract` suites ran in the sa
 
 | Platform | Backend | Scope | What it protects against at rest | What it does *not* protect against |
 |---|---|---|---|---|
-| **macOS** (P3.9) | Keychain Services, System keychain (`SecKeychain::open("/Library/Keychains/System.keychain")`) | Machine-scoped — not tied to any login session (§10) | Per-item access-control lists restrict ordinary readability to the agent's own process | Anything running as **root** on the same machine (System keychain items are recoverable by root regardless of ACLs) |
+| **macOS** (P3.9, P4.42) | Install-time System-keychain root secret protecting the mutable encrypted agent-owned store. Direct routine System-keychain mutation by the LaunchDaemon was rejected after the live write probe failed. | Machine-scoped root material plus agent-owned durable data — not tied to any login session (§10) | Other ordinary users cannot read the root secret or the agent-owned encrypted store | Anything running as **root** on the same machine can recover or operate on the root material/store |
 | **Windows** (P3.10) | Credential Manager (`CredWriteW`/`CredReadW`/`CredDeleteW`, `CRED_TYPE_GENERIC`), which wraps DPAPI for the actual at-rest encryption | User-scoped — DPAPI's per-user mode, tied to the installing user's own account (`CRED_PERSIST_LOCAL_MACHINE` only controls *persistence across logons*, not *who* can decrypt) | Anything without that Windows user account's own credentials/logon session cannot decrypt | Anything running **as that same Windows user account** (any process running as them can read their own Credential Manager store) |
-| **Linux** (P3.11) | **Not the originally-confirmed `systemd-creds`** — see §12's finding. Actual v1 backend: a file per secret, ChaCha20-Poly1305-encrypted with a per-installation key file (`<base>/key`, mode `0600`) | User-scoped by construction — key file and `secrets/` directory (mode `0700`) are owned by the installing user, not root | Cryptographically opaque to anything that can't read `<base>/key`; not readable by other, unrelated OS accounts on the same machine | Anything running **as that same installing-user account** (same category as macOS/Windows above) — and, unlike `systemd-creds`' TPM2 mode, **not bound to the specific machine's hardware**: a copied key file plus secrets directory decrypts anywhere |
+| **Linux** (P3.11, P4.41/P4.42) | Installed services use the privileged `systemd-creds` helper client. The file-per-secret encrypted store from §12 remains a development/test and temporary non-service backend, not the installed-service answer. | Service credentials are mediated by the installing-user service plus a root-run helper socket restricted to that UID; encrypted blobs are root-owned and handled through `systemd-creds`. | Other unrelated OS accounts cannot read the helper socket or root-owned encrypted credential material; TPM2-backed hosts additionally bind the encrypted material to that machine. | Root on the same live machine can recover or operate on the credentials; non-TPM host-key fallback is only as strong as the root-owned host key. Full real-service persistence evidence remains P4.43. |
 
-**The shape of the answer is the same across all three, deliberately — not three unrelated designs that happen to coexist:** every platform's protection boundary is "recoverable by anything with the same account's access on this machine," never a true session-scoped secret, because (per §2's own closing point, echoed in `service-identity.md` §10) none of the three platforms give an unprivileged headless service access to a *session*-scoped store — none of the three have a login session to scope to. Linux is currently the **weakest of the three against the specific case of the whole disk/machine being cloned or exfiltrated** (macOS's System keychain and Windows' DPAPI are both bound to that specific machine's own keys; the v1 Linux file store is not) — a direct, named consequence of §12's finding, not an oversight, and exactly what track 1 (the privileged `systemd-creds` helper) exists to close once it's built.
+**The shape of the production answer is the same across all three, deliberately — not three unrelated designs that happen to coexist:** every installed-service backend is a durable platform secret path, never `FakeSecretStore`, and never a login-session-scoped store that a headless service cannot reliably access. The older Linux file store remains weaker against copied-disk/key exfiltration and is retained only for development, tests, and temporary non-service runs. P4.43 remains the step that records the final real-service persistence evidence across all three platforms.

@@ -2235,12 +2235,27 @@ corpus/configs/server-config-2026-08-11.json --real-transfer
 --workspace --all-targets -- -D warnings`.
 
 ### P5.33 — Amend earlier records and assign later audit ownership
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/config-migration/phase5-scope.md`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/substrate/secret-storage.md`, `docs/msc2/rolling-plan.md`
 **What:** Correct the Phase 0 ledger row that says `excludedTopLevelDirs` is enforced even though the MSC 1 source and P5.12 establish it is stale and unused. Replace the stale Phase 5 scope/read status and two-config evidence bar with the owner-approved one-config bar. Amend P4.3/P4.5 and the Phase 4→5 credential contract to describe the implementation now proven by P4.40–P4.43, without claiming that the literal Phase 4 Paper lifecycle gate had failed. Assign the still-homeless capabilities explicitly: named-token `/users` CRUD and the remaining D-012 remote-auth posture to Phase 9; `GET /v1/help/{helpId}` plus handbook/guide content to Phase 11. Record later audits for Phase 6 world-slot reconciliation of imported world data, Phase 7 non-Paper launchability after broad import, Phase 9 credential CRUD/revocation, Phase 10 Bedrock lifecycle/settings, and Phase 11 help-content/client contract use.
 **Verify:** `python3 -c "from pathlib import Path; ledger=Path('docs/msc2/audit/msc2-symbol-ledger.csv').read_text(); port=Path('docs/msc2/msc2-port-plan.md').read_text(); scope=Path('docs/msc2/config-migration/phase5-scope.md').read_text(); assert 'always excluded' not in next(line for line in ledger.splitlines() if 'excludedTopLevelDirs' in line); assert '/users' in port and '/v1/help/{helpId}' in port; assert 'at least one' in scope.lower()"`
 **Commit:** `P5.33: amend prior records after the Phase 5 review`
 **Batch:** solo
+
+**Actual result:** Amended documentation records without changing code. The
+Phase 0 symbol ledger now records `excludedTopLevelDirs` as stale/unused rather
+than an enforced transfer filter. `phase5-scope.md` now states the
+owner-approved one-config evidence bar directly while preserving why the
+original two-era bar was relaxed. `msc2-port-plan.md` now assigns named-token
+`/users` CRUD and the remaining D-012 remote-auth posture to Phase 9, assigns
+`GET /v1/help/{helpId}` plus handbook/guide content to Phase 11, and records
+later audits for Phase 6 world-slot reconciliation, Phase 7 non-Paper
+launchability, Phase 9 credential CRUD/revocation, Phase 10 Bedrock
+lifecycle/settings, and Phase 11 help-content contract use. The Phase 4
+credential records now say P4.42 superseded the old production
+`FakeSecretStore` warning, while P4.43 remains the all-OS real-service
+credential-persistence evidence gate; this macOS-only pass does not claim that
+Linux/Windows evidence is complete.
 
 ### P5.34 — Re-run the literal Phase 5 gate
 **Status:** not started

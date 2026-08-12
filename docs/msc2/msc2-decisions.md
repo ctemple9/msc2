@@ -537,6 +537,21 @@ development/tests/non-service runs, but is not the accepted backend for the
 Phase 4 Linux headless-service gate. Full design:
 `docs/msc2/lifecycle/linux-credential-helper.md`.
 
+**P4.40 credential amendment, 2026-08-12:** the Phase 4 credential record is
+amended without changing the owner-approved service identity or macOS
+System-keychain target. Review found two implementation gaps. First, production
+`msc serve` still constructs `AuthState` with `FakeSecretStore`, so P4.5 proved
+the bearer-token model and registry shape, not durable platform credential
+storage in the installed service. Second, P4.3 selected the Linux privileged
+helper, but the Phase 4 implementation did not yet provide the callable helper
+server/client path that the installed units name. The approved target remains:
+installing-user service identity, install-time-only elevation for privileged
+setup, macOS System-keychain material as the machine-scoped credential root
+unless live LaunchDaemon evidence proves a simpler path, Windows Credential
+Manager under the service account, and Linux helper-backed service storage.
+P4.41-P4.43 must prove those pieces before the credential portion of Phase 4 is
+closed.
+
 ---
 
 ## D-026 — Educational content is served data, not client code

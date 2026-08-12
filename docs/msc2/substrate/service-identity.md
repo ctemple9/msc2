@@ -87,6 +87,21 @@ sudo tools/phase4/macos-launchdaemon-check.sh --tcc-dir "$HOME/Documents/MSC2Lau
 
 Observed result as of P4.4: dry-run planning works; the live keychain/TCC answer is still pending until Cameron or the later macOS service step runs the real command on the target machine. The production macOS `SecretStore` default therefore remains the System keychain answer confirmed in §3; this check exists to replace that conservative default only if the live daemon evidence justifies it.
 
+**Production macOS credential write path (P4.40, 2026-08-12):** no new live
+LaunchDaemon keychain result was captured in this review session because the
+real check stopped at the local `sudo` password prompt. The earlier P3.9/P4.4
+evidence therefore still controls: unprivileged routine writes to the System
+keychain are not assumed to work, login-keychain reachability from a
+`UserName`-scoped LaunchDaemon remains open, and the owner-confirmed production
+target remains the System keychain until contrary daemon evidence exists. The
+implementation recommendation is to keep System-keychain use in the privileged
+install/update window and make routine service operation use a durable
+agent-owned encrypted credential store protected by that provisioned
+System-keychain material, unless a later live daemon run proves direct
+routine Keychain mutation is reliable. That recommendation is an implementation
+amendment path; it does not silently change the approved installing-user service
+identity or the confirmed System-keychain target.
+
 ## 7. Summary — status of each of D-025's six questions after this step
 
 | # | Question | Status |

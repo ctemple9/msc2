@@ -12,6 +12,15 @@ This note replaces the Phase 2 `MSC_DEV_TOKEN` stand-in for Phase 4's real
 mutating lifecycle slice. It does not design desktop/browser pairing, LAN TLS,
 Tailscale policy, cookie sessions, or CSRF. Those D-012 questions remain open.
 
+**P4.40 amendment, 2026-08-12:** this document remains the Phase 4 credential
+contract, but it is not an accurate statement of what production `msc serve`
+currently wires. The implemented bearer verifier uses the `SecretStore` trait
+interface and the documented token shape, yet the service construction path
+still supplies `FakeSecretStore`. Treat P4.5 as having implemented the auth
+model and tests, not as having proven durable platform secret storage in the
+installed service. P4.42 must replace that construction path with a production
+store factory before this contract is true in the running agent.
+
 ## Scope
 
 Phase 4 has two real clients: the CLI and the existing iOS app. Both use bearer

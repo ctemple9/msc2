@@ -214,3 +214,17 @@ These are implementation details, not product questions:
 The decision that matters for planning is closed here: Phase 4 builds the helper
 and does not accept the file-based Linux stand-in as the Linux service-gate
 backend.
+
+## P4.41 implementation contract amendment
+
+P4.40 found that Phase 4 selected this helper design but did not finish the
+runtime helper. The installed unit/socket shape alone is not the credential
+backend: the gate needs a callable `msc credential-helper serve` implementation,
+an unprivileged `SecretStore` client used by the installed agent, peer-UID
+enforcement, bounded newline-delimited JSON framing, key/value limits, and
+`systemd-creds` get/set/delete behavior with persistence through agent restart.
+
+Until P4.41 proves those behaviors through the socket, Linux production service
+authentication must not be described as backed by the approved helper. The
+P3.11 file store remains a development/test backend only, not an acceptable
+Phase 4 service credential proof.

@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 4 gate holds — complete (confirmed 2026-08-11). Phase 5 — Configuration and migration — is planned: 26 steps written below, none started. The first two drafts did not pass Codex's MSC 1 cross-checks; this plan incorporates both finding sets and requires real migration evidence before translation. Next: Read — Cameron reviews the working exit gate, the required real config/transfer corpus, the migration-only world-slot fallback, the explicit legacy-owner credential transition, and the two gaps still flagged homeless (`/users` CRUD routes, `helpId` content-serving) before Execute begins.
-> **Next move:** Cameron reads the Phase 5 plan. Per the six-move loop, Execute then runs one step (or a Batch-approved range) per conversation.
-> **Repo:** https://github.com/ctemple9/msc2 · CI green on commit `3934b77` ([run 31468299346](https://github.com/ctemple9/msc2/actions/runs/31468299346)) — all jobs, including the D-021 headless no-GUI-link check. P4.39 re-ran every local gate check against this same commit (`fmt`, `clippy` on all three platform targets, `cargo nextest run --workspace` at 398/398, the CLI smoke test, the D-024 power-policy dry run, and the live Paper lifecycle check) — all clean. The prior "CI green" claim on this line was once false (see the amendments log, and the P4.31→P4.33 macOS debugging trail) — this one is checked, not assumed. P4.34/P4.35 (Linux) and P4.36–P4.38 (Windows) are the same shape of finding as P4.31→P4.33's macOS trail: real bugs in each platform's *integration script*, not the shipped Rust service code, found only by running the real script against real hardware and reading real evidence (`journalctl`/`ausearch` on Fedora's SELinux denials, `Get-WinEvent` on Windows' service-logon and console-host failures) — never by guessing. Full detail in each step's own note.
-> **Last updated:** 2026-08-11
+> ## STATUS: Phase 5 review did not pass on 2026-08-12. The original P5.1–P5.26 work is implemented and individually verified, but the phase gate does not hold: imported servers and configuration are split across two runtime stores, production authentication still uses an in-memory `FakeSecretStore`, legacy-secret migration is not called during service startup, recovery rescan has no public caller, and `replaceAll` does not wipe the real credential store. A corrective plan now follows at P4.40–P4.43 and P5.27–P5.34.
+> **Next move:** Read — Cameron reviews the corrective plan. Execute then starts with P4.40 and runs one step (or an explicitly safe batch) per conversation.
+> **Repo:** https://github.com/ctemple9/msc2 · the last checked Phase 5 candidate was commit `a133c19`, with GitHub Actions run [`31618503388`](https://github.com/ctemple9/msc2/actions/runs/31618503388) green on macOS, Linux, Windows, repo invariants, and the D-021 headless check. That run is valid mechanical evidence but is not evidence that the Phase 5 gate holds; the review found missing production wiring outside its exercised paths.
+> **Last updated:** 2026-08-12
 
 ---
 
@@ -1647,13 +1647,13 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 
 **Gate** (`msc2-port-plan.md` §3): "Historical MSC config corpus · settings schema as a versioned contract · corruption recovery · MSC 1 transfer-package import (D-009) · raw server-directory import."
 
-**Exit criteria — the port plan states no separate Phase 5 exit criterion, so this is the phase's working gate:** at least two sanitized, provenance-recorded `server_config_swift.json` files from real MSC 1 installs and one real MSC 1-generated `.msctransfer` package pass the Rust readers; the typed `AppConfig`/`ConfigServer` schema reproduces MSC 1's concrete defaulting, rename, malformed/unknown-field, duplicate-ID/path, shared-access normalization, and port-clamping behavior through the existing atomic config repository; corrupt-backup discovery and merge work; the explicit legacy-secret migration handles only the plaintext owner token and per-server Xbox passwords MSC 1 actually migrates, under a documented Phase 4 credential-transition contract; `GET`/`POST /v1/settings` use the frozen multi-DTO contract and persist then re-read changes; MSC 1 transfer packages import end to end through the public API and CLI, with a successful export backup required before `replaceAll`; Java and Bedrock folders and ZIPs scan and import with loader, version, worlds, EULA, and settings labelled from evidence; rescan registers untracked directories in place; the self-contained CLI smoke covers settings, transfer, and raw import; and fixtures pass in macOS, Linux, and Windows CI. The formal world-slot model remains Phase 6, so Phase 5 copies and labels world data without creating MSC 2 slots.
+**Exit criteria — the port plan states no separate Phase 5 exit criterion, so this is the phase's working gate:** at least one sanitized, provenance-recorded `server_config_swift.json` file from a real MSC 1 install (the evidence bar Cameron approved after P5.3 established that no second era survives) and one real MSC 1-generated `.msctransfer` package pass the Rust readers **and the production service paths**; the typed `AppConfig`/`ConfigServer` schema reproduces MSC 1's concrete defaulting, rename, malformed/unknown-field, duplicate-ID/path, shared-access normalization, and port-clamping behavior through the existing atomic config repository; corrupt-backup discovery and merge work; the explicit legacy-secret migration handles only the plaintext owner token and per-server Xbox passwords MSC 1 actually migrates, runs during real service config loading, and leaves credentials usable after a fresh process starts; `GET`/`POST /v1/settings` use the frozen multi-DTO contract and persist then re-read changes; MSC 1 transfer packages import end to end through the public API and CLI into the same durable, lifecycle-capable server state as Paper import, with a successful export backup required before `replaceAll`; Java and Bedrock folders and ZIPs scan and import with loader, version, worlds, EULA, and settings labelled from evidence into that same state; recovery rescan is reachable through the public API and CLI and registers untracked directories in place; the self-contained CLI smoke covers settings, transfer, raw import, rescan, and a real process restart; and fixtures pass in macOS, Linux, and Windows CI. The formal world-slot model remains Phase 6, so Phase 5 copies and labels world data without creating MSC 2 slots.
 
 **Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. `AppConfig.swift` (883 lines — `ConfigServer`, `RemoteAPISharedAccessEntry`, `AppConfig` itself, all with hand-written `Codable` defaulting and a real decode-time normalization pass), `ConfigManager.swift` (308 lines — load/save/migrate lifecycle), `AppViewModel+ConfigRecovery.swift` (184 lines — corrupt-backup discovery/merge **and** a second, separate untracked-folder rescan path), `AppViewModel+ServerTransfer.swift` (603 lines — export/inspect/apply; no MSC 1 test file exists for any of it), `AppViewModel+ServerImport.swift` (already partially used by P4.8 — its real scope is far larger: copies/unzips into an MSC-owned root, detects Bedrock as well as Java, reads EULA, discovers and ranks worlds, creates an initial world slot), `AppViewModel+APIWiringServerMgmt.swift` (the real `serverImportProvider`/`serverImportScanProvider` HTTP wiring — the actual `action`/`importKind`/`transferMode`/`backupPath` wire contract), `AppViewModel+APIWiringSettings.swift` (the real settings GET/POST wiring, not just the pure schema), `KeychainManager.swift` (`deleteAllMSCSecrets`, and the migration target for `ConfigManager.init`'s legacy plaintext secrets), `RemoteAPIServerDTOs.swift` (the actual wire-level DTOs this phase's Rust types must match byte-for-byte where the contract already froze them), `RemoteAPIServer+Settings.swift` (the DTO-building half `settings_schema.rs` deliberately left unported in P1.6).
 
 **Phase 5 also absorbs one item deliberately deferred from Phase 4:** P4.8's own scope note says plainly, "Transfer-package import and raw ZIP import stay Phase 5" — this phase is where that boundary resolves, broadening P4.8's Paper-only registration into the two D-009 import paths.
 
-26 steps, six groups:
+26 original steps, six original groups, followed by the corrective work from the failed gate review:
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -1663,6 +1663,8 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 | MSC 1 transfer-package import and safety backup | P5.12–P5.17 | exact format, export, inspection, apply, handler orchestration, route/CLI smoke |
 | Raw server-directory import | P5.18–P5.22 | characterization, read-only scan, copy/extract apply, route/CLI smoke, in-place rescan |
 | Phase exit | P5.23–P5.26 | all corpus dimensions, mandatory real-corpus run, complete gate check |
+| Phase 4 credential amendments | P4.40–P4.43 | real platform stores in production, durable restart proof, and corrected earlier completion claims |
+| Phase 5 gate corrections | P5.27–P5.34 | one durable server state, production-wired migration/rescan/replace-all, public-path regression proof, and a literal gate re-run |
 
 **Planned batch ranges:** after their preceding solo step is verified, `P5.13–P5.14`, `P5.16–P5.17`, `P5.19–P5.20`, and `P5.21–P5.22` may each run as one BATCH EXECUTE conversation. The `stop-after` steps end their ranges. `P5.4` and `P5.10` are also safe, but each is isolated by adjacent solo work and therefore does not form a useful contiguous range.
 
@@ -1953,7 +1955,7 @@ Two scope points raised with Cameron before writing code, both confirmed via `As
 **Batch:** stop-after
 
 ### P5.26 — Phase 5 exit gate check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/rolling-plan.md` (this entry only — the gate itself found no bug in application code)
 **What:** Run the complete working gate from this phase's header: formatting; native and cross-target clippy; all workspace and corpus-dimension tests; the self-contained settings/transfer/raw CLI smoke; and the mandatory real config and transfer corpus. Then inspect the actual GitHub Actions run for this commit and require green macOS, Linux, and Windows jobs. If any leg fails, stop and amend only the failing gate item; do not advance to Phase 6.
 
@@ -1961,6 +1963,127 @@ Two scope points raised with Cameron before writing code, both confirmed via `As
 
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/fixture-runner/run.py --validate-dir fixtures/config-corpus-dimensions --expect 8 && tools/phase5/cli-smoke.sh --settings --transfer --raw && python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 1 --require-transfer && run_id=$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status` (the plan's original `--all` flag doesn't exist on `cli-smoke.sh` — see "Actual result")
 **Commit:** `P5.26: run the Phase 5 exit gate check`
+**Batch:** stop-after
+
+---
+
+## Corrective plan after the 2026-08-12 Phase 5 gate review
+
+The review checked the gate rather than the P5.1–P5.26 checklist. The mechanical checks were green, including 516 workspace tests, all three CLI smoke modes, the real config and 629,955,199-byte MSC 1 transfer package, all three target clippy runs, and GitHub Actions run `31618503388`. Those checks did not exercise the production joins between configuration, lifecycle, authentication, migration, and restart. The steps below close those joins. They do not reopen unrelated Phase 4 lifecycle behavior or Phase 5 translation work that already passed.
+
+### Earlier Phase 4 amendments
+
+### P4.40 — Amend the credential record and resolve the macOS durable-write design
+**Status:** DONE
+**Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/lifecycle/pairing-phase4.md`, `docs/msc2/lifecycle/linux-credential-helper.md`, `docs/msc2/substrate/service-identity.md`, `docs/msc2/msc2-decisions.md`
+**What:** Correct the earlier claim that P4.5 put the real platform `SecretStore` behind production authentication: `msc serve` currently constructs `FakeSecretStore`, so credentials survive only while that process lives. Also record that P4.3 selected the privileged Linux helper but P4.23 installed only its unit/socket shape, not a callable helper server and client. Re-read the already-run macOS daemon evidence and, if it did not record whether routine unprivileged writes succeed, rerun only that live check. Present Cameron one concrete recommendation for the remaining macOS design: an install-time-provisioned System-keychain root secret protecting a mutable agent-owned encrypted store, unless the live evidence proves a simpler daemon-safe Keychain path. Amend an Approved decision only after Cameron confirms it. This step changes the authority and the implementation contract, not Rust code.
+**Verify:** `python3 -c "from pathlib import Path; checks={'docs/msc2/lifecycle/phase4-scope.md':'P4.5 production credential amendment','docs/msc2/lifecycle/linux-credential-helper.md':'P4.41 implementation contract','docs/msc2/substrate/service-identity.md':'Production macOS credential write path','docs/msc2/msc2-decisions.md':'P4.40 credential amendment'}; missing=[f'{p}: {needle}' for p,needle in checks.items() if needle not in Path(p).read_text()]; assert not missing, missing"`
+**Commit:** `P4.40: amend the production credential contract`
+**Batch:** solo
+**Actual result:** Corrected the Phase 4 credential record without changing an
+Approved owner decision. `phase4-scope.md` now says P4.5 implemented the bearer
+auth model but production `msc serve` still uses `FakeSecretStore`; the Phase 4
+Paper lifecycle service evidence is not a durable platform-store credential
+proof. `pairing-phase4.md` keeps the token/registry contract but marks it as not
+yet wired to a production store factory. `linux-credential-helper.md` now says
+the unit/socket shape is not enough: P4.41 must implement the callable helper
+server/client, UID enforcement, bounded protocol, and `systemd-creds`
+get/set/delete behavior. `service-identity.md` records that this session could
+not rerun the real LaunchDaemon keychain check because `sudo` required a local
+password; the earlier evidence still controls, so the macOS recommendation is
+install-time System-keychain material protecting a durable agent-owned encrypted
+store unless later daemon evidence proves direct routine Keychain mutation is
+safe. `msc2-decisions.md` records the P4.40 credential amendment and points
+P4.41-P4.43 at the missing proof.
+
+### P4.41 — Implement the approved Linux credential-helper path end to end
+**Status:** not started
+**Files:** `crates/msc-platform-linux/src/credential_helper.rs`, `crates/msc-platform-linux/src/secret_store.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-platform-linux/tests/`, `tools/phase4/linux-service-lifecycle.sh`, `tools/phase4/linux-credential-helper-smoke.sh`
+**What:** Finish the helper design Cameron already approved in P4.3: add the root-run socket server command that the installed unit actually names, an unprivileged `SecretStore` client for the agent, UID/socket permission enforcement, bounded request framing, safe key validation, and `systemd-creds`-backed get/set/delete behavior. Keep the existing encrypted file store as an explicitly selected development/test backend only. Extend the real Linux service check so it connects through the socket and proves set, get, overwrite, delete, persistence across agent restart, rejection of another UID, and cleanup; merely seeing the socket file is not sufficient evidence.
+**Verify:** `sudo tools/phase4/linux-credential-helper-smoke.sh`
+**Commit:** `P4.41: complete the Linux credential helper`
+**Batch:** solo
+
+### P4.42 — Use durable platform stores in production authentication
+**Status:** not started
+**Files:** `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/Cargo.toml`, `crates/msc-platform-macos/src/secret_store.rs`, `crates/msc-platform-windows/src/secret_store.rs`, `crates/msc-platform-linux/src/secret_store.rs`, `crates/msc-agent/tests/auth_real_tokens.rs`
+**What:** Add one target-specific production `SecretStore` factory and make `msc serve` use it: the P4.40-approved backend on macOS, Credential Manager under the installing service account on Windows, and the P4.41 helper client for installed Linux services. Move the non-secret credential registry out of the OS temporary directory into the agent's durable application-data root. Keep `FakeSecretStore` available only through test constructors. Add a regression that creates a credential, drops every auth/runtime object, reconstructs them from the same durable paths, and proves the same bearer token still authenticates; also prove a production `serve` build has no path that selects the fake store.
+**Verify:** `cargo nextest run -p msc-agent auth_production_store`
+**Commit:** `P4.42: wire durable platform stores into production auth`
+**Batch:** stop-after
+
+### P4.43 — Prove credential persistence in real service processes on all three platforms
+**Status:** not started
+**Files:** `tools/phase4/macos-service-lifecycle.sh`, `tools/phase4/linux-service-lifecycle.sh`, `tools/phase4/windows-service-lifecycle.ps1`, `tools/phase4/credential-evidence-check.py`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Extend each real service lifecycle check with the missing production proof: issue or migrate a credential through the existing public pairing/bootstrap path, authenticate a protected request, restart the actual LaunchDaemon/systemd/Windows Service process, and authenticate again with the same credential. Record sanitized evidence from real macOS, Fedora/Debian-family Linux, and Windows runs; never record token material. Do not pull the still-deferred named-token `/users` CRUD routes into this step. Only after all three pass, close the P4.3/P4.5 amendments and restate accurately what the Phase 4 gate proved. This amends Phase 4's completion record without reopening its already-proven Paper lifecycle gate.
+**Verify:** `python3 tools/phase4/credential-evidence-check.py --require macos,linux,windows`
+**Commit:** `P4.43: prove service credential persistence on every platform`
+**Batch:** stop-after
+
+### Phase 5 gate corrections
+
+### P5.27 — Replace split registries with one durable application state
+**Status:** not started
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/durable_server_state.rs`
+**What:** Make one atomically persisted `AppConfig` repository the authority for server records, active-server selection, and the configured MSC-owned server root. Both lifecycle routes and configuration/import routes must receive the same state object; remove the second process-local `ConfigServerStore`. Reconstruct lifecycle-capable runtime entries from persisted `ConfigServer` records when a fresh agent process starts. The default production root must be a durable platform application-data location, never the OS temporary directory; tests may inject temporary roots explicitly.
+**Verify:** `cargo nextest run -p msc-agent durable_server_state`
+**Commit:** `P5.27: unify server state in durable AppConfig`
+**Batch:** solo
+
+### P5.28 — Make every import path lifecycle-capable and durable
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-application/src/import.rs`, `crates/msc-application/src/transfer.rs`, `crates/msc-agent/tests/import_lifecycle.rs`, `tools/phase5/cli-smoke.sh`
+**What:** Route Phase 4 Paper import, raw folder/ZIP import, and transfer-package import through P5.27's single state. Remove P5.21's `serverType`-presence fork: a valid `importExisting` request without the optional field must infer the source exactly as MSC 1 does instead of silently falling back to the Paper-only stand-in. After import, each Java server must list, select, expose settings, and enter the same start/stop lifecycle path; Bedrock remains lifecycle-deferred to Phase 10 but persists in the same config. Prove the records and active selection survive a fresh agent process and that imported files live under the configured durable root.
+**Verify:** `cargo nextest run -p msc-agent import_lifecycle && tools/phase5/cli-smoke.sh --import-lifecycle`
+**Commit:** `P5.28: make all imports lifecycle-capable`
+**Batch:** stop-after
+
+### P5.29 — Expose recovery rescan through the public contract
+**Status:** not started
+**Files:** `docs/msc2/api-contract/openapi.json`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/rescan_route.rs`, `tools/phase5/cli-smoke.sh`
+**What:** Give P5.22's recovery operation a production caller through the existing versioned server-import surface, using an explicit `rescan` action and a matching `msc server rescan` command. The route scans the configured durable root, registers qualifying untracked folders in place through P5.27's state, persists them atomically, returns added/skipped results, and performs no copy or ZIP extraction. Update the frozen schema additively and test permission/error behavior as well as a restart after rescan.
+**Verify:** `cargo nextest run -p msc-agent rescan_route && python3 tools/api-contract-check.py && tools/phase5/cli-smoke.sh --rescan`
+**Commit:** `P5.29: expose durable recovery rescan`
+**Batch:** stop-after
+
+### P5.30 — Run legacy-secret migration during real service startup
+**Status:** not started
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/startup_secret_migration.rs`, `tools/phase5/cli-smoke.sh`
+**What:** Call `migrate_legacy_secrets` from the real configuration-load path before the service starts accepting requests. Move only MSC 1's plaintext owner token and per-server Xbox passwords into P4.42's production-selected store, mint or register the owner credential in the exact form the bearer verifier consumes, atomically save the scrubbed `AppConfig`, and make retries idempotent. A subprocess test must start the agent against a legacy config, authenticate with the migrated owner token, stop the process, start a new process from the same data root, authenticate again, and confirm plaintext is absent from saved config; reusing one in-memory `Arc` is not restart evidence.
+**Verify:** `cargo nextest run -p msc-agent startup_secret_migration && tools/phase5/cli-smoke.sh --migration-restart`
+**Commit:** `P5.30: wire legacy secrets into startup migration`
+**Batch:** stop-after
+
+### P5.31 — Make replace-all operate on the complete state and real secrets
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/auth.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/replace_all.rs`, `tools/phase5/cli-smoke.sh`
+**What:** Replace P5.16's no-op production `wipe_all_secrets` and secondary-store replacement with a transaction over P5.27's complete persisted state. A successful export backup must cover every registered server before mutation begins; an inspection, backup, apply, config-save, or secret-store failure must leave the previous live state usable. On success, replace the full config/server set, delete every known remote-token and Xbox secret through the real `SecretStore`, invalidate the calling credential after its response, and rebuild lifecycle runtime state from the imported config. Cover mixed Paper/raw/transfer state rather than a transfer-only list.
+**Verify:** `cargo nextest run -p msc-agent replace_all && tools/phase5/cli-smoke.sh --replace-all`
+**Commit:** `P5.31: make replace-all transactional across state and secrets`
+**Batch:** solo
+
+### P5.32 — Add a restart-sensitive public-path gate harness
+**Status:** not started
+**Files:** `tools/phase5/phase5-gate-smoke.sh`, `tools/phase5/real-corpus-check.py`, `crates/msc-agent/tests/phase5_public_path.rs`, `.github/workflows/ci.yml`
+**What:** Build one gate harness that starts the real agent binary with isolated durable roots and exercises configuration load/save, settings write/re-read, Paper/raw/ZIP/transfer imports, active selection, Java lifecycle eligibility, recovery rescan, migration, replace-all backup/wipe, and a full process restart through only the public API/CLI. Extend real-corpus exercise mode so the sanitized MSC 1 config enters through service startup and the real MSC 1 transfer package enters through the public import path, not only direct library readers. Keep the large private corpus local; CI runs the same path against committed synthetic fixtures on macOS, Linux, and Windows.
+**Verify:** `tools/phase5/phase5-gate-smoke.sh --real-config corpus/configs/server-config-2026-08-11.json --real-transfer /path/to/your.msctransfer`
+**Commit:** `P5.32: add the restart-sensitive Phase 5 gate harness`
+**Batch:** solo
+
+### P5.33 — Amend earlier records and assign later audit ownership
+**Status:** not started
+**Files:** `docs/msc2/audit/msc2-symbol-ledger.csv`, `docs/msc2/msc2-port-plan.md`, `docs/msc2/config-migration/phase5-scope.md`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/substrate/secret-storage.md`, `docs/msc2/rolling-plan.md`
+**What:** Correct the Phase 0 ledger row that says `excludedTopLevelDirs` is enforced even though the MSC 1 source and P5.12 establish it is stale and unused. Replace the stale Phase 5 scope/read status and two-config evidence bar with the owner-approved one-config bar. Amend P4.3/P4.5 and the Phase 4→5 credential contract to describe the implementation now proven by P4.40–P4.43, without claiming that the literal Phase 4 Paper lifecycle gate had failed. Assign the still-homeless capabilities explicitly: named-token `/users` CRUD and the remaining D-012 remote-auth posture to Phase 9; `GET /v1/help/{helpId}` plus handbook/guide content to Phase 11. Record later audits for Phase 6 world-slot reconciliation of imported world data, Phase 7 non-Paper launchability after broad import, Phase 9 credential CRUD/revocation, Phase 10 Bedrock lifecycle/settings, and Phase 11 help-content/client contract use.
+**Verify:** `python3 -c "from pathlib import Path; ledger=Path('docs/msc2/audit/msc2-symbol-ledger.csv').read_text(); port=Path('docs/msc2/msc2-port-plan.md').read_text(); scope=Path('docs/msc2/config-migration/phase5-scope.md').read_text(); assert 'always excluded' not in next(line for line in ledger.splitlines() if 'excludedTopLevelDirs' in line); assert '/users' in port and '/v1/help/{helpId}' in port; assert 'at least one' in scope.lower()"`
+**Commit:** `P5.33: amend prior records after the Phase 5 review`
+**Batch:** solo
+
+### P5.34 — Re-run the literal Phase 5 gate
+**Status:** not started
+**Files:** `docs/msc2/rolling-plan.md` (this entry only unless the gate finds a defect)
+**What:** Run the corrected working gate from the Phase 5 header, not the old step checklist: formatting; native/Linux/Windows clippy; every workspace test; corpus dimensions; the restart-sensitive public-path harness; the real sanitized config through production startup; the real MSC 1 transfer package through the public import path; and the GitHub Actions macOS/Linux/Windows jobs for the exact candidate commit. Inspect persisted state after restart and require imported Java servers to be selectable, settings-capable, and lifecycle-capable. If any leg fails, stop and plan only the failing correction. Cameron alone marks this step `DONE` and advances to Phase 6 after running the Verify command.
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/fixture-runner/run.py --validate-dir fixtures/config-corpus-dimensions --expect 8 && tools/phase5/phase5-gate-smoke.sh --real-config corpus/configs/server-config-2026-08-11.json --real-transfer /path/to/your.msctransfer && run_id=$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P5.34: re-run the corrected Phase 5 gate`
 **Batch:** stop-after
 
 ---

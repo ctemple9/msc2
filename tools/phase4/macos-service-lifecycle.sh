@@ -16,6 +16,10 @@ TOKEN="msc2_phase4_launchdaemon_secret"
 MSC_BIN="${ROOT}/target/debug/msc"
 SERVER_NAME="Phase4 Paper"
 SERVER_PORT=""
+MACOS_ROOT_SERVICE="com.msc2.agent.root.${RUN_ID}"
+MACOS_ROOT_ACCOUNT="credential-root-v1"
+MACOS_SECRET_STORE_DIR="${RUN_DIR}/state/secrets"
+MACOS_DATA_DIR="${RUN_DIR}/state/data"
 
 usage() {
   cat <<USAGE
@@ -146,6 +150,7 @@ cleanup() {
   fi
   /bin/launchctl bootout system "${PLIST_PATH}" >/dev/null 2>&1 || true
   /bin/rm -f "${PLIST_PATH}"
+  /usr/bin/security delete-generic-password -s "${MACOS_ROOT_SERVICE}" -a "${MACOS_ROOT_ACCOUNT}" /Library/Keychains/System.keychain >/dev/null 2>&1 || true
   if [ "${KEEP_ARTIFACTS}" -eq 0 ]; then
     /bin/rm -rf "${RUN_DIR}"
   else
@@ -157,6 +162,9 @@ trap cleanup EXIT
 /bin/mkdir -p "${RUN_DIR}/logs" "${RUN_DIR}/journal" "${RUN_DIR}/state"
 /usr/sbin/chown -R "${TARGET_USER}:$(/usr/bin/id -gn "${TARGET_USER}")" "${RUN_DIR}"
 /bin/chmod -R 700 "${RUN_DIR}"
+/bin/mkdir -p "${MACOS_SECRET_STORE_DIR}" "${MACOS_DATA_DIR}"
+/usr/sbin/chown -R "${TARGET_USER}:$(/usr/bin/id -gn "${TARGET_USER}")" "${MACOS_SECRET_STORE_DIR}" "${MACOS_DATA_DIR}"
+/bin/chmod 700 "${MACOS_SECRET_STORE_DIR}" "${MACOS_DATA_DIR}"
 
 (
   cd "${ROOT}"
@@ -175,11 +183,38 @@ trap cleanup EXIT
 # invalidated it.
 /usr/bin/codesign -s - --force "${MSC_BIN}"
 
-python3 - "${PLIST_PATH}" "${LABEL}" "${TARGET_USER}" "${MSC_BIN}" "${PORT}" "${RUN_DIR}" "${TOKEN}" <<'PY'
+ROOT_KEY="$(python3 - <<'PY'
+import secrets
+print(secrets.token_hex(32))
+PY
+)"
+
+/usr/bin/security add-generic-password \
+  -U \
+  -s "${MACOS_ROOT_SERVICE}" \
+  -a "${MACOS_ROOT_ACCOUNT}" \
+  -w "${ROOT_KEY}" \
+  -T "${MSC_BIN}" \
+  /Library/Keychains/System.keychain >/dev/null
+unset ROOT_KEY
+
+python3 - "${PLIST_PATH}" "${LABEL}" "${TARGET_USER}" "${MSC_BIN}" "${PORT}" "${RUN_DIR}" "${TOKEN}" "${MACOS_ROOT_SERVICE}" "${MACOS_ROOT_ACCOUNT}" "${MACOS_SECRET_STORE_DIR}" "${MACOS_DATA_DIR}" <<'PY'
 import plistlib
 import sys
 
-plist_path, label, user, binary, port, run_dir, token = sys.argv[1:8]
+(
+    plist_path,
+    label,
+    user,
+    binary,
+    port,
+    run_dir,
+    token,
+    root_service,
+    root_account,
+    secret_store_dir,
+    data_dir,
+) = sys.argv[1:12]
 plist = {
     "Label": label,
     "ProgramArguments": [binary, "serve", "--bind", f"127.0.0.1:{port}"],
@@ -188,6 +223,10 @@ plist = {
     "EnvironmentVariables": {
         "MSC2_TEST_BOOTSTRAP_TOKEN": token,
         "MSC2_OPERATION_JOURNAL_DIR": run_dir + "/journal",
+        "MSC2_MACOS_SECRET_ROOT_SERVICE": root_service,
+        "MSC2_MACOS_SECRET_ROOT_ACCOUNT": root_account,
+        "MSC2_MACOS_SECRET_STORE_DIR": secret_store_dir,
+        "MSC2_DATA_DIR": data_dir,
         "RUST_LOG": "info",
         "MSC2_EXPECTED_PORT": port,
     },

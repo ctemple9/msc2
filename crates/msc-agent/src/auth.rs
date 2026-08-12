@@ -13,6 +13,7 @@
 //! a token can authenticate.
 
 use std::collections::{HashMap, VecDeque};
+use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -30,7 +31,9 @@ use msc_infrastructure::credential_repository::{
     CredentialRegistryEntry, CredentialRepository, CredentialRepositoryError,
 };
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
-use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore, SecretStoreError};
+#[cfg(test)]
+use msc_infrastructure::secret_store::FakeSecretStore;
+use msc_infrastructure::secret_store::{SecretStore, SecretStoreError};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -171,7 +174,10 @@ impl AuthState {
                 .unwrap_or_else(|error| panic!("failed to create {}: {error}", parent.display()));
         }
         let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
-        let state = Self::with_persistent_registry(Arc::new(FakeSecretStore::new()), fs, path)
+        let secret_store = production_secret_store().unwrap_or_else(|error| {
+            panic!("failed to initialize production secret store: {error}")
+        });
+        let state = Self::with_persistent_registry(secret_store, fs, path)
             .unwrap_or_else(|error| panic!("failed to load credential registry: {error}"));
 
         if let Ok(token) = std::env::var("MSC2_TEST_BOOTSTRAP_TOKEN") {
@@ -573,15 +579,126 @@ fn hex_lower(bytes: &[u8]) -> String {
     out
 }
 
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProductionSecretStoreKind {
+    #[cfg(target_os = "macos")]
+    MacosSystemKeychain,
+    #[cfg(target_os = "windows")]
+    WindowsCredentialManager,
+    #[cfg(target_os = "linux")]
+    LinuxCredentialHelper,
+}
+
+fn production_secret_store() -> Result<Arc<dyn SecretStore + Send + Sync>, SecretStoreError> {
+    #[cfg(target_os = "macos")]
+    {
+        Ok(Arc::new(
+            msc_platform_macos::secret_store::MacosSecretStore::system()?,
+        ))
+    }
+    #[cfg(target_os = "windows")]
+    {
+        Ok(Arc::new(
+            msc_platform_windows::secret_store::WindowsSecretStore::new(),
+        ))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Ok(Arc::new(
+            msc_platform_linux::secret_store::LinuxCredentialHelperSecretStore::new(),
+        ))
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        Err(SecretStoreError(
+            "no production SecretStore is available for this target".to_string(),
+        ))
+    }
+}
+
+#[cfg(test)]
+fn production_secret_store_kind() -> ProductionSecretStoreKind {
+    #[cfg(target_os = "macos")]
+    {
+        ProductionSecretStoreKind::MacosSystemKeychain
+    }
+    #[cfg(target_os = "windows")]
+    {
+        ProductionSecretStoreKind::WindowsCredentialManager
+    }
+    #[cfg(target_os = "linux")]
+    {
+        ProductionSecretStoreKind::LinuxCredentialHelper
+    }
+}
+
 /// Where [`AuthState::default_persistent_service_store`] persists the
-/// non-secret credential registry, overridable for a real deployment that
-/// wants it somewhere other than the OS temp directory — the same
-/// `MSC2_..._DIR` env-var convention
-/// `routes::operations::operation_journal_dir` already established.
+/// non-secret credential registry. A deployment may override the whole
+/// file path with `MSC2_CREDENTIAL_REGISTRY_PATH`; otherwise the registry
+/// lives under the durable app-data root, not the OS temporary directory.
 fn default_registry_path() -> PathBuf {
-    std::env::var_os("MSC2_CREDENTIAL_REGISTRY_PATH")
+    default_registry_path_from_env(|key| std::env::var_os(key))
+}
+
+fn default_registry_path_from_env(mut var: impl FnMut(&str) -> Option<OsString>) -> PathBuf {
+    var("MSC2_CREDENTIAL_REGISTRY_PATH")
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("msc2-credential-registry.json"))
+        .unwrap_or_else(|| default_app_data_dir_from_env(var).join("credential-registry.json"))
+}
+
+fn default_app_data_dir_from_env(mut var: impl FnMut(&str) -> Option<OsString>) -> PathBuf {
+    if let Some(path) = var("MSC2_DATA_DIR")
+        && !path.is_empty()
+    {
+        return PathBuf::from(path);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home = var("HOME").unwrap_or_else(|| OsString::from("/Library/Application Support"));
+        PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("MSC2")
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(local_app_data) = var("LOCALAPPDATA") {
+            return PathBuf::from(local_app_data).join("MSC2");
+        }
+        if let Some(app_data) = var("APPDATA") {
+            return PathBuf::from(app_data).join("MSC2");
+        }
+        let profile = var("USERPROFILE").unwrap_or_else(|| OsString::from(r"C:\MSC2"));
+        PathBuf::from(profile)
+            .join("AppData")
+            .join("Local")
+            .join("MSC2")
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(xdg) = var("XDG_DATA_HOME")
+            && !xdg.is_empty()
+        {
+            return PathBuf::from(xdg).join("msc2");
+        }
+        let home = var("HOME").unwrap_or_else(|| OsString::from("/var/lib/msc2"));
+        PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("msc2")
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".msc2")
+    }
 }
 
 /// `record`'s persisted shape — `role`/`permissions` become plain strings
@@ -713,6 +830,8 @@ pub fn all_permissions() -> Vec<PermissionCategoryDto> {
 mod tests {
     use super::*;
     use axum::http::HeaderValue;
+    use std::io;
+    use std::path::{Path, PathBuf};
 
     fn headers_with_bearer(token: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
@@ -891,6 +1010,138 @@ mod tests {
     fn migrate_owner_credential_is_none_when_nothing_was_extracted() {
         let state = test_state();
         assert_eq!(state.migrate_owner_credential().unwrap(), None);
+    }
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new(name: &str) -> Self {
+            let path = std::env::temp_dir().join(format!(
+                "msc2-auth-production-store-{name}-{}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&path);
+            std::fs::create_dir_all(&path).unwrap();
+            Self { path }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
+
+    struct DurableTestSecretStore {
+        dir: PathBuf,
+    }
+
+    impl DurableTestSecretStore {
+        fn new(dir: impl Into<PathBuf>) -> Self {
+            Self { dir: dir.into() }
+        }
+
+        fn path_for_key(&self, key: &str) -> PathBuf {
+            self.dir.join(key)
+        }
+    }
+
+    impl SecretStore for DurableTestSecretStore {
+        fn get(&self, key: &str) -> Result<Option<String>, SecretStoreError> {
+            match std::fs::read_to_string(self.path_for_key(key)) {
+                Ok(value) => Ok(Some(value)),
+                Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(None),
+                Err(err) => Err(SecretStoreError(format!("reading {key}: {err}"))),
+            }
+        }
+
+        fn set(&self, key: &str, value: &str) -> Result<(), SecretStoreError> {
+            std::fs::create_dir_all(&self.dir)
+                .map_err(|err| SecretStoreError(format!("creating secret dir: {err}")))?;
+            std::fs::write(self.path_for_key(key), value)
+                .map_err(|err| SecretStoreError(format!("writing {key}: {err}")))
+        }
+
+        fn delete(&self, key: &str) -> Result<(), SecretStoreError> {
+            match std::fs::remove_file(self.path_for_key(key)) {
+                Ok(()) => Ok(()),
+                Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(err) => Err(SecretStoreError(format!("deleting {key}: {err}"))),
+            }
+        }
+    }
+
+    #[test]
+    fn auth_production_store_reconstructs_bearer_from_durable_paths() {
+        let temp = TempDir::new("reconstructs-bearer");
+        let registry_path = temp.path().join("credential-registry.json");
+        let secret_dir = temp.path().join("secrets");
+        let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
+
+        let (issued_token, issued_id) = {
+            let secret_store: Arc<dyn SecretStore + Send + Sync> =
+                Arc::new(DurableTestSecretStore::new(&secret_dir));
+            let state =
+                AuthState::with_persistent_registry(secret_store, fs, &registry_path).unwrap();
+            let issued = state
+                .issue_credential(
+                    "owner-admin",
+                    CredentialRole::Admin,
+                    all_permissions(),
+                    None,
+                )
+                .unwrap();
+            let credential = state
+                .authenticate_headers(&headers_with_bearer(&issued.token), "before-restart")
+                .unwrap();
+            assert_eq!(credential.credential_id, issued.credential_id);
+            (issued.token, issued.credential_id)
+        };
+
+        let secret_store: Arc<dyn SecretStore + Send + Sync> =
+            Arc::new(DurableTestSecretStore::new(&secret_dir));
+        let restarted =
+            AuthState::with_persistent_registry(secret_store, fs, &registry_path).unwrap();
+        let credential = restarted
+            .authenticate_headers(&headers_with_bearer(&issued_token), "after-restart")
+            .expect("bearer token should authenticate after rebuilding auth state and store");
+
+        assert_eq!(credential.credential_id, issued_id);
+        assert_eq!(credential.role, CredentialRole::Admin);
+        assert_eq!(credential.permissions, all_permissions());
+    }
+
+    #[test]
+    fn auth_production_store_factory_is_target_specific_not_fake() {
+        let kind = production_secret_store_kind();
+        #[cfg(target_os = "macos")]
+        assert_eq!(kind, ProductionSecretStoreKind::MacosSystemKeychain);
+        #[cfg(target_os = "windows")]
+        assert_eq!(kind, ProductionSecretStoreKind::WindowsCredentialManager);
+        #[cfg(target_os = "linux")]
+        assert_eq!(kind, ProductionSecretStoreKind::LinuxCredentialHelper);
+    }
+
+    #[test]
+    fn auth_production_store_registry_defaults_to_durable_app_data() {
+        let path = default_registry_path_from_env(|key| match key {
+            "HOME" => Some(OsString::from("/Users/cameron")),
+            "USERPROFILE" => Some(OsString::from(r"C:\Users\cameron")),
+            _ => None,
+        });
+
+        assert!(path.ends_with("credential-registry.json"));
+        assert!(
+            !path.starts_with(std::env::temp_dir()),
+            "default credential registry must not live under the OS temp dir: {}",
+            path.display()
+        );
     }
 
     /// The P5.9 gate: a P5.8-style legacy owner token, sitting in

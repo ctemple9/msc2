@@ -2015,12 +2015,37 @@ Four real, scoped bugs found and fixed only by actually running the work, not by
 No macOS or Windows files touched; no changes outside the `Files:` list above plus `docs/msc2/rolling-plan.md`.
 
 ### P4.42 — Use durable platform stores in production authentication
-**Status:** not started
+**Status:** DONE
 **Files:** `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/Cargo.toml`, `crates/msc-platform-macos/src/secret_store.rs`, `crates/msc-platform-windows/src/secret_store.rs`, `crates/msc-platform-linux/src/secret_store.rs`, `crates/msc-agent/tests/auth_real_tokens.rs`
 **What:** Add one target-specific production `SecretStore` factory and make `msc serve` use it: the P4.40-approved backend on macOS, Credential Manager under the installing service account on Windows, and the P4.41 helper client for installed Linux services. Move the non-secret credential registry out of the OS temporary directory into the agent's durable application-data root. Keep `FakeSecretStore` available only through test constructors. Add a regression that creates a credential, drops every auth/runtime object, reconstructs them from the same durable paths, and proves the same bearer token still authenticates; also prove a production `serve` build has no path that selects the fake store.
 **Verify:** `cargo nextest run -p msc-agent auth_production_store`
 **Commit:** `P4.42: wire durable platform stores into production auth`
 **Batch:** stop-after
+
+**Actual result:** `AuthState::default_persistent_service_store()` now builds a
+target-specific production `SecretStore` instead of `FakeSecretStore`: macOS uses
+the P4.40 System-keychain-rooted encrypted store, Windows uses
+`WindowsSecretStore::new()` under the service account, and Linux uses P4.41's
+`LinuxCredentialHelperSecretStore` client. The macOS correction matters: a
+non-sudo startup probe confirmed the earlier direct System-keychain write path
+failed with `Write permissions error`, so `MacosSecretStore::system()` now reads
+one install-time-provisioned root key from the System keychain and performs
+routine get/set/delete against an agent-owned encrypted file store under the
+durable data root; if that root is missing, startup fails with an explicit
+`macOS credential root is not provisioned` error instead of silently falling back
+to fake or temp storage. `macos-service-lifecycle.sh` now provisions a unique
+test root key during its privileged install window and passes the matching root
+identity and data paths into the LaunchDaemon. The non-secret credential
+registry still honors `MSC2_CREDENTIAL_REGISTRY_PATH`, but its default moved
+from the OS temporary directory to the durable app-data root (`MSC2_DATA_DIR`
+override, otherwise platform app-data conventions). Added
+`auth_production_store_*` regressions proving a bearer token authenticates after
+rebuilding fresh auth and secret-store objects from the same durable paths,
+proving the production factory is target-specific rather than fake, and proving
+the default registry path is not under temp. Verified with `cargo nextest run -p
+msc-agent auth_production_store` (3/3 passed), `cargo fmt --check`, native
+`cargo clippy --workspace --all-targets -- -D warnings`, Linux-target clippy,
+and Windows-target clippy.
 
 ### P4.43 — Prove credential persistence in real service processes on all three platforms
 **Status:** not started

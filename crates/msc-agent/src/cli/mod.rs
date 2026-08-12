@@ -3,13 +3,15 @@
 
 pub mod service;
 
+use std::collections::HashMap;
 use std::fmt::Display;
 
 use axum::http::{Method, StatusCode, Uri};
 use clap::{Args, Subcommand};
 use msc_api::dto::{
     ActiveServerRequestDto, CommandRequestDto, CommandResultDto, ErrorDto, RemoteApiStatus,
-    ServerDto, ServerImportRequestDto, ServerImportResultDto, SimpleResultDto,
+    ServerDto, ServerImportRequestDto, ServerImportResultDto, SettingsResponseDto,
+    SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
 };
 use msc_infrastructure::console_buffer::ConsoleLine;
 use serde::Serialize;
@@ -78,6 +80,11 @@ pub enum Command {
         #[command(subcommand)]
         command: ConsoleCommand,
     },
+    /// Read or change the active server's settings.
+    Settings {
+        #[command(subcommand)]
+        command: SettingsCommand,
+    },
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -128,6 +135,26 @@ pub enum ConsoleCommand {
         /// Number of lines to fetch.
         #[arg(short = 'n', long, default_value_t = 200)]
         lines: usize,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum SettingsCommand {
+    /// Show the active server's current settings.
+    Get {
+        /// Select a server by id or display name before reading settings.
+        #[arg(long)]
+        server: Option<String>,
+    },
+    /// Apply one or more `key=value` changes to the active server's settings.
+    Set {
+        /// Select a server by id or display name before applying changes.
+        #[arg(long)]
+        server: Option<String>,
+
+        /// One or more `key=value` pairs, for example `max-players=42`.
+        #[arg(required = true)]
+        changes: Vec<String>,
     },
 }
 
@@ -212,6 +239,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Server { command } => run_server(common, command).await,
         Command::Send(args) => run_command(common, args).await,
         Command::Console { command } => run_console(common, command).await,
+        Command::Settings { command } => run_settings(common, command).await,
     }
 }
 
@@ -359,6 +387,50 @@ async fn run_console(common: CommonArgs, command: ConsoleCommand) -> Result<(), 
                 for line in &tail {
                     println!("[{}] {} {}", line.ts, line.source, line.text);
                 }
+            }
+            Ok(())
+        }
+    }
+}
+
+async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        SettingsCommand::Get { server } => {
+            if server.is_some() {
+                ensure_active_server(&client, server.as_deref()).await?;
+            }
+            let settings: SettingsResponseDto = client.get_json("/v1/settings").await?;
+            if common.json {
+                print_json(&settings)?;
+            } else {
+                print_settings(&settings);
+            }
+            Ok(())
+        }
+        SettingsCommand::Set { server, changes } => {
+            if server.is_some() {
+                ensure_active_server(&client, server.as_deref()).await?;
+            }
+            let mut parsed = HashMap::new();
+            for change in &changes {
+                let (key, value) = change.split_once('=').ok_or_else(|| {
+                    CliError::usage(format!("invalid change {change:?}; expected key=value"))
+                })?;
+                let key = key.trim();
+                if key.is_empty() {
+                    return Err(CliError::usage(format!(
+                        "invalid change {change:?}; key cannot be empty"
+                    )));
+                }
+                parsed.insert(key.to_string(), value.trim().to_string());
+            }
+            let body = SettingsUpdateRequestDto { changes: parsed };
+            let result: SettingsUpdateResultDto = client.post_json("/v1/settings", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                print_settings_update(&result);
             }
             Ok(())
         }
@@ -567,6 +639,32 @@ fn print_simple_result(prefix: &str, result: &SimpleResultDto) {
     }
     if let Some(operation_id) = &result.operation_id {
         println!("operation id: {operation_id}");
+    }
+}
+
+fn print_settings(settings: &SettingsResponseDto) {
+    println!("server: {}", settings.server_name);
+    println!("editable: {}", settings.editable);
+    if let Some(note) = &settings.note {
+        println!("note: {note}");
+    }
+    for section in &settings.sections {
+        println!("[{}]", section.title);
+        for field in &section.fields {
+            println!("  {} = {}", field.key, field.value);
+        }
+    }
+}
+
+fn print_settings_update(result: &SettingsUpdateResultDto) {
+    println!("{}", result.message);
+    if !result.applied_keys.is_empty() {
+        println!("applied: {}", result.applied_keys.join(", "));
+    }
+    if let Some(rejected) = &result.rejected {
+        for rejection in rejected {
+            println!("rejected {}: {}", rejection.key, rejection.reason);
+        }
     }
 }
 

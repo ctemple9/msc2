@@ -1,0 +1,30 @@
+{
+  "domain": "raw-server-import",
+  "case": "missing-jar-and-binary-still-classified-java",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory + detectJavaFlavor (no jar, no bedrock binary at all)",
+    "line": 246
+  },
+  "input": {
+    "serverDir": "/srv/empty-server",
+    "entries": [
+      { "path": "server.properties", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "level-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "paper",
+    "detectedMCVersion": null,
+    "detectedLoaderVersion": null
+  },
+  "notes": "scanServerDirectory never rejects or errors on a directory with no launch artifact at all: hasJar and hasBedrock are both false, so `(hasBedrock && !hasJar)` is false and .java is selected by default (line 246); detectJavaFlavor then falls through every signature to the Paper case with `jars` empty, giving javaFlavor \"paper\" with a null jar/version rather than an unknown/error state. This contradicts fixtures/paper-import/rejects-directory-without-java-jar.json (Phase 4), whose expected `errorContains: \"no Java server JAR found\"` does not match any string in current MSC 1 source (grepped the whole tree — no match) or this function's actual non-throwing signature. Flagged here and in this step's response; not fixed in this step since fixtures/paper-import/ is outside P5.18's Files list."
+}

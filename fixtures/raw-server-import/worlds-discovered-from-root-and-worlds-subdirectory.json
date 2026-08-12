@@ -1,0 +1,38 @@
+{
+  "domain": "raw-server-import",
+  "case": "worlds-discovered-from-root-and-worlds-subdirectory",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (world folders found in root and worlds/, and unioned)",
+    "line": 265
+  },
+  "input": {
+    "serverDir": "/srv/two-search-roots",
+    "entries": [
+      { "path": "paper-1.21.1-131.jar", "kind": "file" },
+      { "path": "creative", "kind": "directory" },
+      { "path": "creative/level.dat", "kind": "file", "sizeBytes": 2048 },
+      { "path": "worlds", "kind": "directory" },
+      { "path": "worlds/survival", "kind": "directory" },
+      { "path": "worlds/survival/level.dat", "kind": "file", "sizeBytes": 3072 }
+    ],
+    "files": {
+      "server.properties": "level-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [
+      { "name": "creative", "folderPath": "creative", "sizeBytes": 2048, "hasNether": false, "hasEnd": false },
+      { "name": "survival", "folderPath": "worlds/survival", "sizeBytes": 3072, "hasNether": false, "hasEnd": false }
+    ],
+    "defaultWorldName": "creative",
+    "javaFlavor": "paper",
+    "detectedMCVersion": "1.21.1",
+    "detectedLoaderVersion": null
+  },
+  "notes": "searchRoots (line 266-269) checks both <serverDir>/worlds/ and <serverDir> itself, each subject to the same level.dat / skipDirs / seenNames rules, and unions the results — a world folder living directly in the server root and another living inside worlds/ are both discovered in one scan. Neither name matches the configured level-name (\"world\"), so the fallback alphabetical sort applies (line 348) and \"creative\" sorts before \"survival\"."
+}

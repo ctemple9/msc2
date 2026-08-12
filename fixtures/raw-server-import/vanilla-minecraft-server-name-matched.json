@@ -1,0 +1,30 @@
+{
+  "domain": "raw-server-import",
+  "case": "vanilla-minecraft-server-name-matched",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "detectJavaFlavor (vanilla minecraft_server* jar-name match)",
+    "line": 425
+  },
+  "input": {
+    "serverDir": "/srv/vanilla-server",
+    "entries": [
+      { "path": "minecraft_server-1.20.6.jar", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "server-port=25565\nmax-players=20\nlevel-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "vanilla",
+    "detectedMCVersion": "1.20.6",
+    "detectedLoaderVersion": null
+  },
+  "notes": "Matched by filename prefix \"minecraft_server\" (line 425), checked after Purpur and before the final Paper fallback."
+}

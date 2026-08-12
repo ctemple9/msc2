@@ -1,0 +1,31 @@
+{
+  "domain": "raw-server-import",
+  "case": "java-properties-port-maxplayers-levelname",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (Java server.properties: port, max-players, level-name)",
+    "line": 249
+  },
+  "input": {
+    "serverDir": "/srv/java-props",
+    "entries": [
+      { "path": "paper-1.21.4-52.jar", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "server-port=25577\nmax-players=32\nlevel-name=survival_world\nmotd=Hello\n",
+      "eula.txt": "eula=true\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25577,
+    "maxPlayers": 32,
+    "eulaAccepted": true,
+    "worlds": [],
+    "defaultWorldName": "survival_world",
+    "javaFlavor": "paper",
+    "detectedMCVersion": "1.21.4",
+    "detectedLoaderVersion": null
+  },
+  "notes": "Straight read of server-port/max-players/level-name off ServerPropertiesManager.readProperties' raw dictionary (line 237, 249-250, 259); no world folder exists here so defaultWorldName falls back to the configured level-name (line 359)."
+}

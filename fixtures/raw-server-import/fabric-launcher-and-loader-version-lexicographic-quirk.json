@@ -1,0 +1,32 @@
+{
+  "domain": "raw-server-import",
+  "case": "fabric-launcher-and-loader-version-lexicographic-quirk",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "detectFabricLoaderVersion (lexicographic, not semantic, sort)",
+    "line": 449
+  },
+  "input": {
+    "serverDir": "/srv/fabric-server",
+    "entries": [
+      { "path": "fabric-server-launch-1.21.5.jar", "kind": "file" },
+      { "path": ".fabric/server/libraries/net/fabricmc/fabric-loader/0.15.9", "kind": "directory" },
+      { "path": ".fabric/server/libraries/net/fabricmc/fabric-loader/0.9.0", "kind": "directory" }
+    ],
+    "files": {
+      "server.properties": "server-port=25565\nmax-players=20\nlevel-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "fabric",
+    "detectedMCVersion": "1.21.5",
+    "detectedLoaderVersion": "0.9.0"
+  },
+  "notes": "detectFabricLoaderVersion (line 450-456) sorts the loader-version directory names as plain strings and takes .last — not a semantic-version comparison. \"0.15.9\" sorts before \"0.9.0\" lexicographically ('1' < '9' at the second character), so .last picks \"0.9.0\" even though 0.15.9 is the newer loader release. This is a genuine MSC 1 quirk, preserved as-is per CLAUDE.md's port-not-rewrite rule — not a bug this port should silently correct."
+}

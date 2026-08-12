@@ -1,0 +1,37 @@
+{
+  "domain": "raw-server-import",
+  "case": "zip-single-root-folder-unwrapped-before-scan",
+  "source": {
+    "file": "AddServerWizardView.swift",
+    "test": "performScan (single-root zip unwrap before scanServerDirectory)",
+    "line": 2179
+  },
+  "input": {
+    "archiveName": "family-paper-backup.zip",
+    "extractedEntries": [
+      { "path": "family_paper", "kind": "directory" },
+      { "path": "family_paper/paper-1.21.1-131.jar", "kind": "file" },
+      { "path": "family_paper/world", "kind": "directory" },
+      { "path": "family_paper/world/level.dat", "kind": "file", "sizeBytes": 4096 }
+    ],
+    "extractedFiles": {
+      "family_paper/server.properties": "server-port=25565\nmax-players=20\nlevel-name=world\n",
+      "family_paper/eula.txt": "eula=true\n"
+    }
+  },
+  "expected": {
+    "unwrappedRootPath": "family_paper",
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": true,
+    "worlds": [
+      { "name": "world", "folderPath": "family_paper/world", "sizeBytes": 4096, "hasNether": false, "hasEnd": false }
+    ],
+    "defaultWorldName": "world",
+    "javaFlavor": "paper",
+    "detectedMCVersion": "1.21.1",
+    "detectedLoaderVersion": null
+  },
+  "notes": "The zip is extracted to a disposable temp directory, then unwrapped exactly once if it produced one subdirectory and zero loose top-level files (`subdirs.count == 1 && files.isEmpty`) before scanServerDirectory ever runs — this specific unwrap-and-scan sequence lives in AddServerWizardView.performScan (line 2179-2196), not in AppViewModel+ServerImport.swift. An almost identical private helper, resolvedImportDir (AppViewModel+ServerImport.swift:478-494), duplicates the same `subdirs.count == 1 && files.isEmpty` check for the mutating import path instead. P5.19's read-only scanner should port performScan's version of this rule, since P5.18 characterizes the read-only half; P5.20 (the mutating importer) is where resolvedImportDir's copy is the relevant oracle. If the zip had produced more than one top-level entry, no unwrap happens and the scan runs at the archive root as-is — not separately fixtured, since the rule itself is the one-line condition at the cited source line."
+}

@@ -1,0 +1,31 @@
+{
+  "domain": "raw-server-import",
+  "case": "neoforge-detected-via-unix-args-signature",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "detectJavaFlavor (NeoForge unix_args.txt signature)",
+    "line": 373
+  },
+  "input": {
+    "serverDir": "/srv/neoforge-modded",
+    "entries": [
+      { "path": "libraries/net/neoforged/neoforge/21.1.72", "kind": "directory" },
+      { "path": "libraries/net/neoforged/neoforge/21.1.72/unix_args.txt", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "server-port=25565\nmax-players=20\nlevel-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "neoforge",
+    "detectedMCVersion": "1.21.1",
+    "detectedLoaderVersion": "21.1.72"
+  },
+  "notes": "NeoForge detection runs first (step 1) and never inspects root jars at all — a NeoForge server is identified purely by libraries/net/neoforged/neoforge/<version>/unix_args.txt existing. mcVersion comes from minecraftVersion(forNeoForge:) (line 224-231): major=21 < 26, minor=1 != 0, giving \"1.21.1\"."
+}

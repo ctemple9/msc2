@@ -1,0 +1,31 @@
+{
+  "domain": "raw-server-import",
+  "case": "bedrock-selected-when-only-binary-present",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (server-type selection: bedrock binary present, no jar)",
+    "line": 246
+  },
+  "input": {
+    "serverDir": "/srv/bedrock-only",
+    "entries": [
+      { "path": "bedrock_server", "kind": "file" },
+      { "path": "server.properties", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "server-port=19133\nmax-players=15\nlevel-name=BedrockWorld\n"
+    }
+  },
+  "expected": {
+    "serverType": "bedrock",
+    "port": 19133,
+    "maxPlayers": 15,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "BedrockWorld",
+    "javaFlavor": null,
+    "detectedMCVersion": null,
+    "detectedLoaderVersion": null
+  },
+  "notes": "hasJar is false and the bedrock_server binary is present, so `(hasBedrock && !hasJar)` selects .bedrock (line 246). No eula.txt exists — Bedrock servers don't ship one — so eulaAccepted coerces to false via the empty-string fallback (line 253-256), not null."
+}

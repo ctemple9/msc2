@@ -1,0 +1,38 @@
+{
+  "domain": "raw-server-import",
+  "case": "nether-and-end-companions-grouped-with-summed-size",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (dimension-companion folders grouped into one world, size summed)",
+    "line": 311
+  },
+  "input": {
+    "serverDir": "/srv/dimension-companions",
+    "entries": [
+      { "path": "paper-1.21.1-131.jar", "kind": "file" },
+      { "path": "project_jc", "kind": "directory" },
+      { "path": "project_jc/level.dat", "kind": "file", "sizeBytes": 100000 },
+      { "path": "project_jc_nether", "kind": "directory" },
+      { "path": "project_jc_nether/level.dat", "kind": "file", "sizeBytes": 20000 },
+      { "path": "project_jc_the_end", "kind": "directory" },
+      { "path": "project_jc_the_end/level.dat", "kind": "file", "sizeBytes": 10000 }
+    ],
+    "files": {
+      "server.properties": "level-name=project_jc\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [
+      { "name": "project_jc", "folderPath": "project_jc", "sizeBytes": 130000, "hasNether": true, "hasEnd": true }
+    ],
+    "defaultWorldName": "project_jc",
+    "javaFlavor": "paper",
+    "detectedMCVersion": "1.21.1",
+    "detectedLoaderVersion": null
+  },
+  "notes": "All three folders are found as raw candidates, but project_jc_nether/project_jc_the_end are skipped as companions of project_jc (isNetherOf/isEndOf, line 311-313) rather than emitted as separate worlds. The root entry's sizeBytes sums directorySizeBytes across all three physical folders (line 331-333): 100000+20000+10000 = 130000. hasNether/hasEnd are set from the companion folders' existence, independent of the inline DIM-1/DIM1 check (line 322-328), which isn't exercised by this fixture."
+}

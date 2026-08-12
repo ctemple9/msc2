@@ -1,0 +1,31 @@
+{
+  "domain": "raw-server-import",
+  "case": "forge-detected-via-unix-args-signature",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "detectJavaFlavor (Forge unix_args.txt signature)",
+    "line": 387
+  },
+  "input": {
+    "serverDir": "/srv/forge-modded",
+    "entries": [
+      { "path": "libraries/net/minecraftforge/forge/1.20.6-50.1.0", "kind": "directory" },
+      { "path": "libraries/net/minecraftforge/forge/1.20.6-50.1.0/unix_args.txt", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "server-port=25565\nmax-players=20\nlevel-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "forge",
+    "detectedMCVersion": "1.20.6",
+    "detectedLoaderVersion": "50.1.0"
+  },
+  "notes": "Forge's version directory name is `{mcVersion}-{forgeVersion}`, split on the first '-' (maxSplits: 1, line 392-394): \"1.20.6-50.1.0\" -> mcVersion \"1.20.6\", loaderVersion \"50.1.0\". Checked after NeoForge (step 2), so a NeoForge-only tree never falls through to this branch."
+}

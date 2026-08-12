@@ -1,0 +1,32 @@
+{
+  "domain": "raw-server-import",
+  "case": "java-selected-when-jar-and-bedrock-binary-both-present",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (server-type selection: jar and bedrock binary both present)",
+    "line": 246
+  },
+  "input": {
+    "serverDir": "/srv/mixed-binaries",
+    "entries": [
+      { "path": "paper-1.21.1-131.jar", "kind": "file" },
+      { "path": "bedrock_server", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "server-port=25577\nmax-players=10\nlevel-name=world\n",
+      "eula.txt": "eula=true\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25577,
+    "maxPlayers": 10,
+    "eulaAccepted": true,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "paper",
+    "detectedMCVersion": "1.21.1",
+    "detectedLoaderVersion": null
+  },
+  "notes": "hasJar and hasBedrock are both true here, so `(hasBedrock && !hasJar)` is false and Java wins the selection (line 246) even though a bedrock_server binary is also sitting in the folder — MSC 1 never treats this as ambiguous or errors."
+}

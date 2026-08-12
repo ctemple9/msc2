@@ -1,0 +1,30 @@
+{
+  "domain": "raw-server-import",
+  "case": "eula-missing-file-defaults-to-false-not-null",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (eula.txt absent -> false, not null)",
+    "line": 253
+  },
+  "input": {
+    "serverDir": "/srv/no-eula-yet",
+    "entries": [
+      { "path": "paper-1.21.1-131.jar", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "level-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "paper",
+    "detectedMCVersion": "1.21.1",
+    "detectedLoaderVersion": null
+  },
+  "notes": "scanServerDirectory reads eula.txt with its own inline check — eulaContent.contains(\"eula=true\") against a `try? ... ?? \"\"` fallback (line 253-256) — rather than calling EULAManager.readEULA, which is the tri-state (true/false/nil) reader Phase 4's paper-import scan used (see fixtures/paper-import/missing-properties-use-minecraft-defaults.json, where a missing eula.txt yields eulaAccepted: null). Here a missing file coerces straight to false: an MSC 1 default, not genuinely-undetermined data. The substring check is also naive — any eula.txt whose content happens to contain the literal text \"eula=true\" anywhere (even mid-comment) reads as accepted, unlike EULAManager's per-line eula= prefix parse."
+}

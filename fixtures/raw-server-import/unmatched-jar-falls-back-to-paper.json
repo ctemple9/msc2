@@ -1,0 +1,31 @@
+{
+  "domain": "raw-server-import",
+  "case": "unmatched-jar-falls-back-to-paper",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "detectJavaFlavor (unmatched jar name falls back to Paper)",
+    "line": 432
+  },
+  "input": {
+    "serverDir": "/srv/mystery-jar",
+    "entries": [
+      { "path": "server-runner.jar", "kind": "file" },
+      { "path": "README.txt", "kind": "file" }
+    ],
+    "files": {
+      "server.properties": "server-port=25565\nmax-players=20\nlevel-name=world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": "paper",
+    "detectedMCVersion": null,
+    "detectedLoaderVersion": null
+  },
+  "notes": "None of the NeoForge/Forge/Fabric/Purpur/vanilla signatures match, so step 6 falls back to `jars.first(where: hasPrefix \"paper\") ?? jars.first` (line 432) — since no jar's filename starts with \"paper\" either, the sole jar (\"server-runner.jar\") is picked by the `?? jars.first` fallback and labelled .paper anyway. parseJarMCVersion then requires an exact \"paper-\" prefix on the stem, which \"server-runner\" doesn't have, so detectedMCVersion is null — an observed absence, not a default."
+}

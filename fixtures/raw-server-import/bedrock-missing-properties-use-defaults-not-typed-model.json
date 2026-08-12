@@ -1,0 +1,28 @@
+{
+  "domain": "raw-server-import",
+  "case": "bedrock-missing-properties-use-defaults-not-typed-model",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (Bedrock server.properties missing -> raw defaults, not BedrockPropertiesModel)",
+    "line": 250
+  },
+  "input": {
+    "serverDir": "/srv/bedrock-defaults",
+    "entries": [
+      { "path": "bedrock_server", "kind": "file" }
+    ],
+    "files": {}
+  },
+  "expected": {
+    "serverType": "bedrock",
+    "port": 19132,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [],
+    "defaultWorldName": "world",
+    "javaFlavor": null,
+    "detectedMCVersion": null,
+    "detectedLoaderVersion": null
+  },
+  "notes": "With no server.properties at all, rawProps is empty and scanServerDirectory falls back to its own inline defaults: port 19132 (line 249) and maxPlayers 20 (line 250) — the same 20 used for Java. This diverges from BedrockPropertiesManager's typed BedrockPropertiesModel.maxPlayers default of 10 (BedrockPropertiesManager.swift:25), which scanServerDirectory never consults — it calls BedrockPropertiesManager.readRawProperties directly, not readModel. Port the 20 default, not 10, for this scan path."
+}

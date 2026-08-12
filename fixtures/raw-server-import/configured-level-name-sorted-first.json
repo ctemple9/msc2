@@ -1,0 +1,40 @@
+{
+  "domain": "raw-server-import",
+  "case": "configured-level-name-sorted-first",
+  "source": {
+    "file": "AppViewModel+ServerImport.swift",
+    "test": "scanServerDirectory (worlds sorted with configured level-name first, remainder alphabetical)",
+    "line": 345
+  },
+  "input": {
+    "serverDir": "/srv/level-name-ordering",
+    "entries": [
+      { "path": "paper-1.21.1-131.jar", "kind": "file" },
+      { "path": "alpha_world", "kind": "directory" },
+      { "path": "alpha_world/level.dat", "kind": "file", "sizeBytes": 1000 },
+      { "path": "beta_world", "kind": "directory" },
+      { "path": "beta_world/level.dat", "kind": "file", "sizeBytes": 1000 },
+      { "path": "gamma_world", "kind": "directory" },
+      { "path": "gamma_world/level.dat", "kind": "file", "sizeBytes": 1000 }
+    ],
+    "files": {
+      "server.properties": "level-name=beta_world\n"
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "port": 25565,
+    "maxPlayers": 20,
+    "eulaAccepted": false,
+    "worlds": [
+      { "name": "beta_world", "folderPath": "beta_world", "sizeBytes": 1000, "hasNether": false, "hasEnd": false },
+      { "name": "alpha_world", "folderPath": "alpha_world", "sizeBytes": 1000, "hasNether": false, "hasEnd": false },
+      { "name": "gamma_world", "folderPath": "gamma_world", "sizeBytes": 1000, "hasNether": false, "hasEnd": false }
+    ],
+    "defaultWorldName": "beta_world",
+    "javaFlavor": "paper",
+    "detectedMCVersion": "1.21.1",
+    "detectedLoaderVersion": null
+  },
+  "notes": "The sort comparator (line 345-349) puts the world matching configuredLevelName first unconditionally, then falls back to plain a.name < b.name for the rest — so \"beta_world\" (the configured level-name) leads even though it's alphabetically between \"alpha_world\" and \"gamma_world\", which stay in their natural alphabetical order after it."
+}

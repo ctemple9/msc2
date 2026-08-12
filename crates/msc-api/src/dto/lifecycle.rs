@@ -60,10 +60,27 @@ pub struct ServerImportScanResponseDto {
     pub max_players: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub eula_accepted: Option<bool>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub worlds: Vec<ServerImportWorldDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub default_world_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub java_flavor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detected_mc_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detected_loader_version: Option<String>,
+}
+
+/// `ServerImportWorldDTO`'s frozen shape — `id` mirrors MSC 1's own
+/// `DetectedWorld: Identifiable`, whose `id` is just its `name`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerImportWorldDto {
+    pub id: String,
+    pub name: String,
+    pub size_bytes: i64,
+    pub dimensions_label: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

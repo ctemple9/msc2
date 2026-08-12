@@ -13,10 +13,13 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
     PermissionCategoryDto, ServerDto, ServerImportRequestDto, ServerImportResultDto,
-    ServerImportScanResponseDto,
+    ServerImportScanResponseDto, ServerImportWorldDto,
 };
 use msc_application::import::{
-    PaperImportError, PaperImportRequest, StdPaperImportFileSystem, import_existing_paper_server,
+    DetectedWorld, PaperImportError, PaperImportRequest, RawImportError, RawImportOverrides,
+    RawImportRequest, RawImportSource, ScannedServerInfo, StdPaperImportFileSystem,
+    StdRawImportFileSystem, import_existing_paper_server, import_raw_server, scan_server_directory,
+    scan_zip_source,
 };
 use msc_application::transfer::{
     TransferApplyRequest, TransferApplyResult, TransferExportRequest, TransferExportServerInput,
@@ -45,7 +48,7 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
         })
         .collect();
     servers.extend(
-        TransferServerStore::global()
+        ConfigServerStore::global()
             .snapshot()
             .iter()
             .map(config_server_to_dto),
@@ -78,19 +81,7 @@ pub async fn import(
     };
 
     if action == "scan" {
-        return Json(ServerImportScanResponseDto {
-            success: true,
-            message: "Paper server directory scan completed.".to_string(),
-            source_path: Some(source_path),
-            is_zip: Some(false),
-            server_type: Some("java".to_string()),
-            port: None,
-            max_players: None,
-            eula_accepted: None,
-            default_world_name: None,
-            java_flavor: Some("paper".to_string()),
-        })
-        .into_response();
+        return perform_raw_scan(&source_path, body.import_kind.as_deref());
     }
 
     // Transfer matching is evaluated only for non-scan requests (the scan
@@ -112,17 +103,42 @@ pub async fn import(
         );
     }
 
+    // `serverType` is a raw-import-only field (the Paper-only path below
+    // predates it and has no use for it): its presence is this route's own
+    // signal that the caller means the broader P5.20 raw importer, not the
+    // narrower Phase 4 Paper-registration path every existing caller of
+    // this route (this repo's own `--settings` CLI smoke among them) still
+    // relies on. A client that scanned first naturally has a `serverType`
+    // to send back. See `import_raw`'s own doc comment for why this route
+    // keeps both paths rather than replacing the Paper-only one outright.
+    if body.server_type.is_some() {
+        return import_raw(&state, &source_path, &body).await;
+    }
+
+    import_paper_only(&state, &source_path, &body).await
+}
+
+/// The Phase 4 stand-in `importExisting` path predating P5.19/P5.20:
+/// registers one already-existing Paper directory in place, no copying —
+/// see `import.rs`'s own module header for why this exists at all. Still
+/// this route's target whenever a request carries no `serverType`.
+async fn import_paper_only(
+    state: &LifecycleRoutesState,
+    source_path: &str,
+    body: &ServerImportRequestDto,
+) -> Response {
     let display_name = body
         .display_name
+        .clone()
         .filter(|value| !value.trim().is_empty())
-        .unwrap_or_else(|| default_display_name(&source_path));
-    let operation_id = match state.begin_import_operation(&source_path) {
+        .unwrap_or_else(|| paper_only_default_display_name(source_path));
+    let operation_id = match state.begin_import_operation(source_path) {
         Ok(operation_id) => operation_id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
-    let request = PaperImportRequest::new(display_name, PathBuf::from(&source_path));
+    let request = PaperImportRequest::new(display_name, PathBuf::from(source_path));
     let fs = StdPaperImportFileSystem;
-    let mut registry = RouteRegistry { state: &state };
+    let mut registry = PaperRouteRegistry { state };
 
     match import_existing_paper_server(&fs, &mut registry, &request) {
         Ok(server) => {
@@ -144,16 +160,16 @@ pub async fn import(
         Err(error) => {
             let _ =
                 state.finish_operation_failure(&operation_id, "import_error", error.to_string());
-            import_error_response(error)
+            paper_only_import_error_response(error)
         }
     }
 }
 
-struct RouteRegistry<'state> {
+struct PaperRouteRegistry<'state> {
     state: &'state LifecycleRoutesState,
 }
 
-impl msc_application::import::PaperServerRegistry for RouteRegistry<'_> {
+impl msc_application::import::PaperServerRegistry for PaperRouteRegistry<'_> {
     fn register(
         &mut self,
         server: msc_application::import::ImportedPaperServer,
@@ -163,7 +179,7 @@ impl msc_application::import::PaperServerRegistry for RouteRegistry<'_> {
     }
 }
 
-fn import_error_response(error: PaperImportError) -> Response {
+fn paper_only_import_error_response(error: PaperImportError) -> Response {
     match error {
         PaperImportError::EmptyDisplayName => {
             invalid_body("invalid_body", "displayName cannot be empty.")
@@ -181,13 +197,264 @@ fn import_error_response(error: PaperImportError) -> Response {
     }
 }
 
-fn default_display_name(source_path: &str) -> String {
+fn paper_only_default_display_name(source_path: &str) -> String {
     PathBuf::from(source_path)
         .file_name()
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty())
         .unwrap_or("Imported Paper Server")
         .to_string()
+}
+
+// ---------- Raw folder/ZIP scan and import (P5.19-P5.21) ----------
+//
+// Wires P5.19's read-only scanner and P5.20's mutating importer to the
+// route — the broad `folder|zip|auto` half MSC 1 actually ships, replacing
+// this route's earlier Paper-only stand-in (`import_existing_paper_server`,
+// still ported and unit-tested in `msc-application` for Phase 4's own
+// lifecycle slice, just no longer this route's `importExisting` target).
+
+/// `folder`/`zip`/`auto` (or an absent `importKind`) resolve to `false`
+/// (folder) or a `.zip`-extension check — mirroring `handleImportDrop`'s
+/// own `ext == "zip"` inference (`AddServerWizardView.swift:2231-2246`),
+/// the only place MSC 1 itself decides "is this a zip".
+fn resolve_is_zip(import_kind: Option<&str>, source_path: &str) -> bool {
+    match import_kind {
+        Some("zip") => true,
+        Some("folder") => false,
+        _ => source_path.to_ascii_lowercase().ends_with(".zip"),
+    }
+}
+
+/// Route-level boundary validation, not a port of `scanServerDirectory`
+/// itself (which never rejects a missing path — P5.19's own doc comment).
+/// MSC 1 only ever scans a path an `NSOpenPanel` guaranteed exists; this
+/// route accepts a raw string over HTTP, so it checks existence itself
+/// rather than silently returning a defaulted, low-information scan
+/// result for a typo'd path. Reuses this endpoint's own documented 404
+/// `source_not_found` code (`openapi.json`), previously unwired for scan.
+fn perform_raw_scan(source_path: &str, import_kind: Option<&str>) -> Response {
+    let is_zip = resolve_is_zip(import_kind, source_path);
+    let path = Path::new(source_path);
+
+    if is_zip {
+        if !path.is_file() {
+            return source_not_found_response(source_path);
+        }
+        match scan_zip_source(path) {
+            Ok(info) => Json(scan_response_dto(source_path, true, &info)).into_response(),
+            Err(error) => raw_import_error_response(error),
+        }
+    } else {
+        if !path.is_dir() {
+            return source_not_found_response(source_path);
+        }
+        let info = scan_server_directory(&StdRawImportFileSystem, path);
+        Json(scan_response_dto(source_path, false, &info)).into_response()
+    }
+}
+
+fn source_not_found_response(source_path: &str) -> Response {
+    error_response(
+        StatusCode::NOT_FOUND,
+        "not_found",
+        &format!("import source not found: {source_path}"),
+    )
+}
+
+fn scan_response_dto(
+    source_path: &str,
+    is_zip: bool,
+    info: &ScannedServerInfo,
+) -> ServerImportScanResponseDto {
+    ServerImportScanResponseDto {
+        success: true,
+        message: "Server directory scan completed.".to_string(),
+        source_path: Some(source_path.to_string()),
+        is_zip: Some(is_zip),
+        server_type: Some(info.server_type.raw_value().to_string()),
+        port: Some(info.port),
+        max_players: Some(info.max_players),
+        eula_accepted: Some(info.eula_accepted),
+        worlds: info.worlds.iter().map(world_to_dto).collect(),
+        default_world_name: Some(info.default_world_name.clone()),
+        java_flavor: info
+            .java_flavor
+            .map(|flavor| flavor.raw_value().to_string()),
+        detected_mc_version: info.detected_mc_version.clone(),
+        detected_loader_version: info.detected_loader_version.clone(),
+    }
+}
+
+/// `id` mirrors MSC 1's own `DetectedWorld: Identifiable` (`var id: String
+/// { name }`); `dimensionsLabel` mirrors its computed property exactly
+/// (`AppViewModel+ServerImport.swift:36-49`).
+fn world_to_dto(world: &DetectedWorld) -> ServerImportWorldDto {
+    let mut dims = vec!["Overworld"];
+    if world.has_nether {
+        dims.push("Nether");
+    }
+    if world.has_end {
+        dims.push("End");
+    }
+    ServerImportWorldDto {
+        id: world.name.clone(),
+        name: world.name.clone(),
+        size_bytes: world.size_bytes as i64,
+        dimensions_label: dims.join(" + "),
+    }
+}
+
+/// Ports `importExistingServer`'s registration step for this route: builds
+/// the copied/extracted server via P5.20's `import_raw_server`, then
+/// registers the result the same way `import_transfer`'s own
+/// `perform_transfer_import` does — into [`ConfigServerStore`], not
+/// `LifecycleRoutesState`'s Paper-only `AgentServerRegistry` (see that
+/// store's own header comment: this route has no unified `AppConfig` to
+/// register into either way). A raw-imported server is therefore listed
+/// by `GET /v1/servers` immediately but, like a transfer-imported one
+/// today, isn't yet selectable as the active server for start/stop/settings
+/// — that's Phase 6 lifecycle-unification territory, not this step's.
+///
+/// This route keeps [`import_paper_only`] reachable alongside this
+/// function rather than replacing it outright: MSC 1 itself has no
+/// "narrow, registration-only" import concept for `import` to preserve —
+/// that path is a Rust-side Phase 4 stand-in (see `import.rs`'s module
+/// header) — but this repo's own `--settings` CLI smoke already depends on
+/// it registering into `AgentServerRegistry`, which is the only registry
+/// wired to start/stop/settings today. Switching every `importExisting`
+/// call unconditionally to this function would silently strand that
+/// existing, working flow with no lifecycle-capable server to operate on,
+/// so the route dispatches on `serverType`'s presence instead (see the
+/// call site in `import` above). Flagged for Cameron in P5.21's own
+/// rolling-plan write-up, not fixed quietly.
+async fn import_raw(
+    state: &LifecycleRoutesState,
+    source_path: &str,
+    body: &ServerImportRequestDto,
+) -> Response {
+    let display_name = body
+        .display_name
+        .clone()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| default_display_name(source_path));
+    let server_type = body
+        .server_type
+        .as_deref()
+        .and_then(ServerType::from_raw_value)
+        .unwrap_or(ServerType::Java);
+    let source = if resolve_is_zip(body.import_kind.as_deref(), source_path) {
+        RawImportSource::Zip(PathBuf::from(source_path))
+    } else {
+        RawImportSource::Folder(PathBuf::from(source_path))
+    };
+    let request = RawImportRequest {
+        display_name,
+        server_type,
+        source,
+        servers_root: agent_servers_root(),
+        overrides: RawImportOverrides {
+            port: body.port,
+            max_players: body.max_players,
+            active_world_name: body.active_world_name.clone(),
+            eula_accepted: body.accept_eula,
+        },
+    };
+
+    let operation_id = match state.begin_import_operation(source_path) {
+        Ok(operation_id) => operation_id,
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
+
+    match import_raw_server(&request, &agent_home_dir()) {
+        Ok(imported) => {
+            let config = imported.config;
+            let message = format!("Imported {} server.", server_type.raw_value());
+            let mut result = BTreeMap::new();
+            result.insert("serverId".to_string(), config.id.clone());
+            let _ = state.finish_operation_success(&operation_id, &message, result);
+            let response = ServerImportResultDto {
+                success: true,
+                message,
+                operation_id: Some(operation_id.as_str().to_string()),
+                server_id: Some(config.id.clone()),
+                server_name: Some(config.display_name.clone()),
+                imported: Some(1),
+                skipped: Some(0),
+                replaced: Some(false),
+            };
+            ConfigServerStore::global().merge(vec![config]);
+            Json(response).into_response()
+        }
+        Err(error) => {
+            let _ = state.finish_operation_failure(
+                &operation_id,
+                raw_import_error_code(&error),
+                error.to_string(),
+            );
+            raw_import_error_response(error)
+        }
+    }
+}
+
+fn raw_import_error_code(error: &RawImportError) -> &'static str {
+    match error {
+        RawImportError::EmptyDisplayName => "display_name_required",
+        RawImportError::EmptyDestinationName => "invalid_display_name",
+        RawImportError::PathSafety(_) => "invalid_path",
+        RawImportError::DestinationExists { .. } => "conflict",
+        RawImportError::SourceNotFound { .. } => "not_found",
+        RawImportError::OpenZip(_) => "invalid_path",
+        RawImportError::UnsafeZipEntry { .. } => "invalid_path",
+        RawImportError::UnsafeSymlink { .. } => "invalid_path",
+        RawImportError::Io(_) => "internal_error",
+    }
+}
+
+fn raw_import_error_response(error: RawImportError) -> Response {
+    let code = raw_import_error_code(&error);
+    let message = error.to_string();
+    match &error {
+        RawImportError::EmptyDisplayName
+        | RawImportError::EmptyDestinationName
+        | RawImportError::PathSafety(_)
+        | RawImportError::OpenZip(_)
+        | RawImportError::UnsafeZipEntry { .. }
+        | RawImportError::UnsafeSymlink { .. } => invalid_body(code, &message),
+        RawImportError::DestinationExists { .. } => {
+            error_response(StatusCode::CONFLICT, code, &message)
+        }
+        RawImportError::SourceNotFound { .. } => {
+            error_response(StatusCode::NOT_FOUND, code, &message)
+        }
+        RawImportError::Io(_) => error_response(StatusCode::INTERNAL_SERVER_ERROR, code, &message),
+    }
+}
+
+fn default_display_name(source_path: &str) -> String {
+    PathBuf::from(source_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .unwrap_or("Imported Server")
+        .to_string()
+}
+
+fn agent_servers_root() -> PathBuf {
+    std::env::var_os("MSC2_AGENT_SERVERS_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("msc2-agent-servers"))
+}
+
+/// `safe_path`'s own required `home_dir` parameter (used only for its
+/// `ForbiddenRoot` check — see `import.rs`'s own note on `import_raw_server`
+/// calling it "defense-in-depth... rather than load-bearing" here). No
+/// shared HOME resolver exists elsewhere in this crate yet.
+fn agent_home_dir() -> PathBuf {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
 }
 
 // ---------- Transfer-package import (P5.16/P5.17) ----------
@@ -197,36 +464,37 @@ fn default_display_name(source_path: &str) -> String {
 // only tracks Paper-folder imports, and neither this step nor P5.16 lists
 // that file). Rather than extend that Phase 4 registry — which Cameron
 // confirmed staying out of during P5.16/17's Read move — this keeps a
-// second, independent list of transfer-imported servers, scoped entirely
-// to this file. **Known, flagged gap:** a `replaceAll` transfer import
-// therefore only backs up and replaces *this* list, never a
-// Paper-folder-imported server. MSC 1's own `replaceAll` backs up and
-// wipes every configured server, with no such split. See
+// second, independent list of transfer- and (P5.21) raw-imported servers,
+// scoped entirely to this file. **Known, flagged gap:** `AgentServerRegistry`
+// (Paper-folder imports) still isn't part of this list, so a `replaceAll`
+// transfer import backs up and replaces only *this* list. MSC 1's own
+// `replaceAll` backs up and wipes every configured server — including a
+// raw-imported one, now correctly covered here — with no such split. See
 // `docs/msc2/config-migration/phase5-scope.md` "Transfer behavior" for the
 // note this step adds documenting the gap, and P5.16/17's own rolling-plan
 // entries for the question raised about unifying the two registries later.
 
-/// The transfer-imported server list this route owns. A bare `'static`
-/// (rather than a `LifecycleRoutesState` field) for the same reason
-/// `AgentServerRegistry` itself is `Box::leak`'d in `lifecycle.rs`: it
-/// needs to outlive and be shared across every request handled by this
+/// The transfer- and raw-imported server list this route owns. A bare
+/// `'static` (rather than a `LifecycleRoutesState` field) for the same
+/// reason `AgentServerRegistry` itself is `Box::leak`'d in `lifecycle.rs`:
+/// it needs to outlive and be shared across every request handled by this
 /// process, and this module can't add a field to `LifecycleRoutesState`
 /// without editing `lifecycle.rs`. `cargo nextest run` gives every test
 /// its own process, so this doesn't leak state between tests.
-struct TransferServerStore {
+struct ConfigServerStore {
     servers: Mutex<Vec<ConfigServer>>,
 }
 
-impl TransferServerStore {
+impl ConfigServerStore {
     fn new() -> Self {
-        TransferServerStore {
+        ConfigServerStore {
             servers: Mutex::new(Vec::new()),
         }
     }
 
-    fn global() -> &'static TransferServerStore {
-        static STORE: OnceLock<TransferServerStore> = OnceLock::new();
-        STORE.get_or_init(TransferServerStore::new)
+    fn global() -> &'static ConfigServerStore {
+        static STORE: OnceLock<ConfigServerStore> = OnceLock::new();
+        STORE.get_or_init(ConfigServerStore::new)
     }
 
     fn snapshot(&self) -> Vec<ConfigServer> {
@@ -439,7 +707,7 @@ enum TransferImportRouteError {
 /// wholesale).
 fn perform_transfer_import(
     ports: &dyn TransferImportPorts,
-    store: &TransferServerStore,
+    store: &ConfigServerStore,
     servers_root: &Path,
     staging_root: &Path,
     plan: &TransferImportPlan,
@@ -505,7 +773,7 @@ async fn import_transfer(
     let staging_root = transfer_staging_root();
     let result = perform_transfer_import(
         &RealTransferImportPorts,
-        TransferServerStore::global(),
+        ConfigServerStore::global(),
         &transfer_servers_root(),
         &staging_root,
         &plan,
@@ -755,7 +1023,7 @@ mod tests {
     #[test]
     fn transfer_replace_all_missing_backup_path_rejects_before_any_port_call() {
         let ports = RecordingPorts::default();
-        let store = TransferServerStore::new();
+        let store = ConfigServerStore::new();
         let plan = plan(TransferMode::ReplaceAll, None);
 
         let result = perform_transfer_import(
@@ -775,7 +1043,7 @@ mod tests {
     fn transfer_replace_all_backup_failure_stops_before_inspect_and_apply() {
         let ports = RecordingPorts::default();
         *ports.backup_result.lock().unwrap() = Some(Err("disk full".to_string()));
-        let store = TransferServerStore::new();
+        let store = ConfigServerStore::new();
         let plan = plan(TransferMode::ReplaceAll, Some("/tmp/backup.msctransfer"));
 
         let result = perform_transfer_import(
@@ -805,7 +1073,7 @@ mod tests {
             imported: 1,
             skipped: 0,
         });
-        let store = TransferServerStore::new();
+        let store = ConfigServerStore::new();
         store.replace_all(vec![sample_config_server("OLD-1")]);
         let plan = plan(TransferMode::ReplaceAll, Some("/tmp/backup.msctransfer"));
 
@@ -836,7 +1104,7 @@ mod tests {
             imported: 1,
             skipped: 0,
         });
-        let store = TransferServerStore::new();
+        let store = ConfigServerStore::new();
         store.merge(vec![sample_config_server("OLD-1")]);
         let plan = plan(TransferMode::Merge, None);
 
@@ -979,7 +1247,7 @@ mod tests {
         assert_eq!(status_two, StatusCode::OK);
         assert_eq!(result_two.imported, Some(1));
 
-        let ids: Vec<String> = TransferServerStore::global()
+        let ids: Vec<String> = ConfigServerStore::global()
             .snapshot()
             .iter()
             .map(|s| s.display_name.clone())
@@ -1036,11 +1304,266 @@ mod tests {
             "backup file was not written before replaceAll"
         );
 
-        let names: Vec<String> = TransferServerStore::global()
+        let names: Vec<String> = ConfigServerStore::global()
             .snapshot()
             .iter()
             .map(|s| s.display_name.clone())
             .collect();
         assert_eq!(names, vec!["Route Test ROUTE-E".to_string()]);
+    }
+
+    // ---------- P5.21: raw folder/ZIP scan and import route wiring ----------
+    //
+    // ZIP-source coverage (extraction, single-root unwrap, traversal-entry
+    // rejection) lives in `msc-application`'s own `raw_server_import.rs`/
+    // `raw_server_scan.rs` (P5.19/P5.20) and in `tools/phase5/cli-smoke.sh
+    // --raw` end to end; `msc-agent` carries no `zip`-writing dependency of
+    // its own, so these route tests cover folder sources only — proving
+    // request/response wiring, override persistence, error-code mapping,
+    // and (critically) that `importExisting` without `serverType` still
+    // reaches the pre-existing Paper-only path, not P5.20's importer.
+
+    use msc_domain::identity::JavaServerFlavor;
+
+    fn raw_import_request(
+        action: &str,
+        source_path: &Path,
+        import_kind: Option<&str>,
+        server_type: Option<&str>,
+    ) -> ServerImportRequestDto {
+        ServerImportRequestDto {
+            action: Some(action.to_string()),
+            source_path: Some(source_path.to_string_lossy().into_owned()),
+            import_kind: import_kind.map(str::to_string),
+            display_name: None,
+            server_type: server_type.map(str::to_string),
+            active_world_name: None,
+            port: None,
+            max_players: None,
+            accept_eula: None,
+            enable_playit: None,
+            transfer_mode: None,
+            backup_path: None,
+            java_port_overrides: HashMap::new(),
+            bedrock_port_overrides: HashMap::new(),
+        }
+    }
+
+    fn write_paper_source(dir: &Path) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join("paper-1.21.1-131.jar"), "").unwrap();
+        std::fs::write(
+            dir.join("server.properties"),
+            "server-port=25565\nmax-players=20\nlevel-name=world\n",
+        )
+        .unwrap();
+        std::fs::write(dir.join("eula.txt"), "eula=true\n").unwrap();
+    }
+
+    fn write_bedrock_source(dir: &Path) {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join("bedrock_server"), "").unwrap();
+        std::fs::write(
+            dir.join("server.properties"),
+            "server-port=19132\nmax-players=10\n",
+        )
+        .unwrap();
+    }
+
+    /// Points `agent_servers_root()` at a fresh, unique temp directory for
+    /// the current test process — needed because `import_raw_server`
+    /// refuses (rather than de-duplicates) an existing destination, so
+    /// reusing the bare default temp path across repeated `cargo nextest
+    /// run` invocations would spuriously collide.
+    fn set_unique_agent_servers_root(tag: &str) {
+        let root = temp_dir(&format!("agent-servers-root-{tag}"));
+        unsafe { std::env::set_var("MSC2_AGENT_SERVERS_ROOT", &root) };
+    }
+
+    #[tokio::test]
+    async fn raw_import_route_scans_java_folder() {
+        let state = route_state();
+        let source = temp_dir("scan-java-folder");
+        write_paper_source(&source);
+
+        let (status, result): (StatusCode, ServerImportScanResponseDto) = response_json(
+            call_import(
+                &state,
+                raw_import_request("scan", &source, Some("folder"), None),
+            )
+            .await,
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(result.success);
+        assert_eq!(result.is_zip, Some(false));
+        assert_eq!(result.server_type.as_deref(), Some("java"));
+        assert_eq!(result.java_flavor.as_deref(), Some("paper"));
+        assert_eq!(result.port, Some(25565));
+        assert_eq!(result.max_players, Some(20));
+        assert_eq!(result.eula_accepted, Some(true));
+    }
+
+    #[tokio::test]
+    async fn raw_import_route_scans_bedrock_folder() {
+        let state = route_state();
+        let source = temp_dir("scan-bedrock-folder");
+        write_bedrock_source(&source);
+
+        let (status, result): (StatusCode, ServerImportScanResponseDto) = response_json(
+            call_import(
+                &state,
+                raw_import_request("scan", &source, Some("folder"), None),
+            )
+            .await,
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(result.server_type.as_deref(), Some("bedrock"));
+        assert_eq!(result.java_flavor, None);
+        assert_eq!(result.port, Some(19132));
+        assert_eq!(result.max_players, Some(10));
+    }
+
+    #[tokio::test]
+    async fn raw_import_route_scan_of_missing_source_is_not_found() {
+        let state = route_state();
+        let missing = temp_dir("scan-missing-parent").join("does-not-exist");
+
+        let response = call_import(
+            &state,
+            raw_import_request("scan", &missing, Some("folder"), None),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn raw_import_route_imports_java_folder_with_overrides_and_registers_server() {
+        set_unique_agent_servers_root("import-java-folder");
+        let state = route_state();
+        let source = temp_dir("import-java-folder-source");
+        write_paper_source(&source);
+
+        let mut request =
+            raw_import_request("importExisting", &source, Some("folder"), Some("java"));
+        request.display_name = Some("Raw Route Java".to_string());
+        request.port = Some(25599);
+        request.max_players = Some(7);
+        request.active_world_name = Some("survival".to_string());
+        request.accept_eula = Some(true);
+
+        let (status, result): (StatusCode, ServerImportResultDto) =
+            response_json(call_import(&state, request).await).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(result.success);
+        assert_eq!(result.server_name.as_deref(), Some("Raw Route Java"));
+        let server_id = result.server_id.expect("expected a server id");
+
+        let snapshot = ConfigServerStore::global().snapshot();
+        let registered = snapshot
+            .iter()
+            .find(|s| s.id == server_id)
+            .expect("imported server should be registered");
+        assert_eq!(registered.server_type, ServerType::Java);
+        assert_eq!(registered.java_flavor, JavaServerFlavor::Paper);
+
+        let properties =
+            std::fs::read_to_string(Path::new(&registered.server_dir).join("server.properties"))
+                .unwrap();
+        assert!(properties.contains("server-port=25599"));
+        assert!(properties.contains("max-players=7"));
+        assert!(properties.contains("level-name=survival"));
+
+        // The imported server is copied, not moved: the original source is
+        // untouched.
+        assert!(source.join("paper-1.21.1-131.jar").is_file());
+    }
+
+    #[tokio::test]
+    async fn raw_import_route_imports_bedrock_folder() {
+        set_unique_agent_servers_root("import-bedrock-folder");
+        let state = route_state();
+        let source = temp_dir("import-bedrock-folder-source");
+        write_bedrock_source(&source);
+
+        let mut request =
+            raw_import_request("importExisting", &source, Some("folder"), Some("bedrock"));
+        request.display_name = Some("Raw Route Bedrock".to_string());
+        request.port = Some(19199);
+
+        let (status, result): (StatusCode, ServerImportResultDto) =
+            response_json(call_import(&state, request).await).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(result.success);
+        let server_id = result.server_id.expect("expected a server id");
+
+        let snapshot = ConfigServerStore::global().snapshot();
+        let registered = snapshot
+            .iter()
+            .find(|s| s.id == server_id)
+            .expect("imported server should be registered");
+        assert_eq!(registered.server_type, ServerType::Bedrock);
+    }
+
+    #[tokio::test]
+    async fn raw_import_route_refuses_existing_destination_as_conflict() {
+        set_unique_agent_servers_root("import-conflict");
+        let state = route_state();
+        let source = temp_dir("import-conflict-source");
+        write_paper_source(&source);
+
+        let mut request =
+            raw_import_request("importExisting", &source, Some("folder"), Some("java"));
+        request.display_name = Some("Conflict Server".to_string());
+
+        let first = call_import(&state, request.clone()).await;
+        assert_eq!(first.status(), StatusCode::OK);
+
+        let second = call_import(&state, request).await;
+        assert_eq!(second.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn raw_import_route_without_server_type_still_uses_the_legacy_paper_only_path() {
+        // Regression guard: this repo's own `--settings` CLI smoke imports
+        // via `importExisting`/`folder` with no `serverType`, and depends
+        // on landing in `AgentServerRegistry` (selectable as the active
+        // server), not `ConfigServerStore`. See `import_raw`'s own doc
+        // comment for why this route keeps both paths.
+        let state = route_state();
+        let source = temp_dir("legacy-paper-path-source");
+        write_paper_source(&source);
+
+        let request = raw_import_request("importExisting", &source, Some("folder"), None);
+        let (status, result): (StatusCode, ServerImportResultDto) =
+            response_json(call_import(&state, request).await).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(result.success);
+        let server_id = result.server_id.expect("expected a server id");
+
+        assert!(
+            state.servers().iter().any(|s| s.id == server_id),
+            "expected the legacy path to register into AgentServerRegistry"
+        );
+        assert!(
+            !ConfigServerStore::global()
+                .snapshot()
+                .iter()
+                .any(|s| s.id == server_id),
+            "the legacy path must not land in ConfigServerStore"
+        );
+
+        // The legacy path registers in place — no copy.
+        assert_eq!(
+            state.servers()[0].directory,
+            source.to_string_lossy().into_owned()
+        );
     }
 }

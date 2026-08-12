@@ -13,9 +13,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 RUN_SETTINGS=0
 RUN_TRANSFER=0
+RUN_RAW=0
 if [[ $# -eq 0 ]]; then
   RUN_SETTINGS=1
   RUN_TRANSFER=1
+  RUN_RAW=1
 else
   for arg in "$@"; do
     case "$arg" in
@@ -25,9 +27,12 @@ else
       --transfer)
         RUN_TRANSFER=1
         ;;
+      --raw)
+        RUN_RAW=1
+        ;;
       *)
         echo "unknown flag: ${arg}" >&2
-        echo "usage: $0 [--settings] [--transfer]" >&2
+        echo "usage: $0 [--settings] [--transfer] [--raw]" >&2
         exit 2
         ;;
     esac
@@ -75,7 +80,9 @@ require_tool python3
 export MSC2_TEST_BOOTSTRAP_TOKEN="${TOKEN}"
 export MSC2_OPERATION_JOURNAL_DIR="${TMP_DIR}/journal"
 export MSC2_CREDENTIAL_REGISTRY_PATH="${TMP_DIR}/credential-registry.json"
-export MSC2_TRANSFER_SERVERS_ROOT="${TMP_DIR}/transfer-servers"
+# Shared by both the transfer (P5.16/17) and raw (P5.20/21) import routes —
+# `servers.rs`'s own `ConfigServerStore` backs both.
+export MSC2_AGENT_SERVERS_ROOT="${TMP_DIR}/agent-servers"
 mkdir -p "${MSC2_OPERATION_JOURNAL_DIR}"
 
 "${MSC_BIN}" serve --bind "127.0.0.1:${PORT}" >"${TMP_DIR}/agent.log" 2>&1 &
@@ -348,10 +355,195 @@ PY
   echo "transfer cli smoke passed"
 }
 
+build_raw_java_folder() {
+  local dir="$1" port="$2"
+  mkdir -p "${dir}"
+  : > "${dir}/paper-1.21.1-131.jar"
+  cat > "${dir}/server.properties" <<EOF
+server-port=${port}
+max-players=20
+level-name=world
+EOF
+  echo "eula=true" > "${dir}/eula.txt"
+}
+
+build_raw_bedrock_folder() {
+  local dir="$1" port="$2"
+  mkdir -p "${dir}"
+  : > "${dir}/bedrock_server"
+  cat > "${dir}/server.properties" <<EOF
+server-port=${port}
+max-players=10
+EOF
+}
+
+build_raw_java_zip() {
+  local zip_path="$1" port="$2"
+  python3 - "${zip_path}" "${port}" <<'PY'
+import sys
+import zipfile
+
+zip_path, port = sys.argv[1], int(sys.argv[2])
+with zipfile.ZipFile(zip_path, "w") as zf:
+    zf.writestr("paper-1.21.1-131.jar", b"")
+    zf.writestr(
+        "server.properties",
+        f"server-port={port}\nmax-players=20\nlevel-name=world\n",
+    )
+    zf.writestr("eula.txt", "eula=true\n")
+PY
+}
+
+build_traversal_zip() {
+  local zip_path="$1"
+  python3 - "${zip_path}" <<'PY'
+import sys
+import zipfile
+
+zip_path = sys.argv[1]
+with zipfile.ZipFile(zip_path, "w") as zf:
+    zf.writestr("paper-1.21.1-131.jar", b"")
+    zf.writestr("../evil.txt", b"escaped")
+PY
+}
+
+run_raw_smoke() {
+  local java_folder="${TMP_DIR}/raw-java-folder"
+  local java_zip="${TMP_DIR}/raw-java.zip"
+  local bedrock_folder="${TMP_DIR}/raw-bedrock-folder"
+  local traversal_zip="${TMP_DIR}/raw-traversal.zip"
+
+  build_raw_java_folder "${java_folder}" 25610
+  build_raw_java_zip "${java_zip}" 25611
+  build_raw_bedrock_folder "${bedrock_folder}" 19140
+  build_traversal_zip "${traversal_zip}"
+
+  # Scan all three: prove the scan response is labelled correctly and
+  # never mutates anything (no destination should exist yet).
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" "${java_folder}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token, path = sys.argv[1:5]
+output = subprocess.check_output(
+    [msc, "--base-url", base_url, "--token", token, "--json",
+     "server", "import", path, "--scan", "--kind", "folder"],
+    text=True,
+)
+result = json.loads(output)
+if not result["success"] or result["serverType"] != "java" or result["javaFlavor"] != "paper":
+    raise SystemExit(f"expected a paper java scan, got {result!r}")
+if result["port"] != 25610 or result["maxPlayers"] != 20 or not result["eulaAccepted"]:
+    raise SystemExit(f"unexpected scanned properties: {result!r}")
+PY
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" "${java_zip}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token, path = sys.argv[1:5]
+output = subprocess.check_output(
+    [msc, "--base-url", base_url, "--token", token, "--json",
+     "server", "import", path, "--scan"],
+    text=True,
+)
+result = json.loads(output)
+if not result["success"] or not result["isZip"] or result["serverType"] != "java":
+    raise SystemExit(f"expected a zip java scan, got {result!r}")
+if result["port"] != 25611:
+    raise SystemExit(f"unexpected scanned port: {result!r}")
+PY
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" "${bedrock_folder}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token, path = sys.argv[1:5]
+output = subprocess.check_output(
+    [msc, "--base-url", base_url, "--token", token, "--json",
+     "server", "import", path, "--scan", "--kind", "folder"],
+    text=True,
+)
+result = json.loads(output)
+if not result["success"] or result["serverType"] != "bedrock" or result.get("javaFlavor"):
+    raise SystemExit(f"expected a bedrock scan, got {result!r}")
+if result["port"] != 19140:
+    raise SystemExit(f"unexpected scanned port: {result!r}")
+PY
+
+  # Import all three, each with an override, and verify the copied
+  # destination on disk carries it.
+  local java_dest="${MSC2_AGENT_SERVERS_ROOT}/java/raw_smoke_java_folder"
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" --json \
+    server import "${java_folder}" --kind folder --type java \
+    --name "Raw Smoke Java Folder" --game-port 25620 --max-players 9 >/dev/null
+  if ! grep -q '^server-port=25620$' "${java_dest}/server.properties"; then
+    echo "expected the copied java folder's server.properties to carry the port override" >&2
+    exit 1
+  fi
+  if ! grep -q '^max-players=9$' "${java_dest}/server.properties"; then
+    echo "expected the copied java folder's server.properties to carry the max-players override" >&2
+    exit 1
+  fi
+  if [[ ! -f "${java_folder}/paper-1.21.1-131.jar" ]]; then
+    echo "expected the original java folder source to remain untouched (a copy, not a move)" >&2
+    exit 1
+  fi
+
+  local zip_dest="${MSC2_AGENT_SERVERS_ROOT}/java/raw_smoke_java_zip"
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" --json \
+    server import "${java_zip}" --type java --name "Raw Smoke Java Zip" --game-port 25621 >/dev/null
+  if [[ ! -f "${zip_dest}/paper-1.21.1-131.jar" ]]; then
+    echo "expected the zip source to have been extracted to ${zip_dest}" >&2
+    exit 1
+  fi
+  if ! grep -q '^server-port=25621$' "${zip_dest}/server.properties"; then
+    echo "expected the extracted zip's server.properties to carry the port override" >&2
+    exit 1
+  fi
+
+  local bedrock_dest="${MSC2_AGENT_SERVERS_ROOT}/bedrock/raw_smoke_bedrock_folder"
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" --json \
+    server import "${bedrock_folder}" --kind folder --type bedrock \
+    --name "Raw Smoke Bedrock Folder" --game-port 19150 >/dev/null
+  if [[ ! -f "${bedrock_dest}/bedrock_server" ]]; then
+    echo "expected the copied bedrock folder at ${bedrock_dest}" >&2
+    exit 1
+  fi
+
+  assert_servers_present "${BASE_URL}" "${TOKEN_FROM_CLI}" \
+    "Raw Smoke Java Folder" "Raw Smoke Java Zip" "Raw Smoke Bedrock Folder"
+
+  # A traversal zip is rejected, and leaves no destination behind.
+  local traversal_dest="${MSC2_AGENT_SERVERS_ROOT}/java/raw_smoke_traversal"
+  set +e
+  traversal_output=$("${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" --json \
+    server import "${traversal_zip}" --type java --name "Raw Smoke Traversal" 2>&1)
+  traversal_exit=$?
+  set -e
+  if [[ "${traversal_exit}" -eq 0 ]]; then
+    echo "expected a traversal zip import to fail, got: ${traversal_output}" >&2
+    exit 1
+  fi
+  if [[ -e "${traversal_dest}" ]]; then
+    echo "expected no destination left behind after a rejected traversal zip import" >&2
+    exit 1
+  fi
+
+  echo "raw cli smoke passed"
+}
+
 if [[ "${RUN_SETTINGS}" -eq 1 ]]; then
   run_settings_smoke
 fi
 
 if [[ "${RUN_TRANSFER}" -eq 1 ]]; then
   run_transfer_smoke
+fi
+
+if [[ "${RUN_RAW}" -eq 1 ]]; then
+  run_raw_smoke
 fi

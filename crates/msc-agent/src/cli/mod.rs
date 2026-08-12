@@ -10,8 +10,8 @@ use axum::http::{Method, StatusCode, Uri};
 use clap::{Args, Subcommand};
 use msc_api::dto::{
     ActiveServerRequestDto, CommandRequestDto, CommandResultDto, ErrorDto, RemoteApiStatus,
-    ServerDto, ServerImportRequestDto, ServerImportResultDto, SettingsResponseDto,
-    SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
+    ServerDto, ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
+    SettingsResponseDto, SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
 };
 use msc_infrastructure::console_buffer::ConsoleLine;
 use serde::Serialize;
@@ -98,17 +98,47 @@ pub enum TokenCommand {
     },
 }
 
+// `Import` is far larger than `Start`/`Stop`/`Restart` because it alone
+// carries every raw-import override and transfer flag — clippy would have
+// us box fields to shrink the enum, but this is a CLI arg enum matched
+// once per invocation, not a hot path; the added indirection wouldn't pay
+// for itself.
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, Subcommand)]
 pub enum ServerCommand {
-    /// Import an existing Paper directory, or an MSC 1 `.msctransfer` package.
+    /// Import an existing server directory/ZIP, or an MSC 1
+    /// `.msctransfer` package. Pass `--scan` first to preview what a raw
+    /// folder/ZIP contains before importing it.
     Import {
         path: String,
         #[arg(long)]
         name: Option<String>,
         /// `folder|zip|transfer|auto`. Defaults to `transfer` when `path`
-        /// ends in `.msctransfer`, otherwise `folder`.
+        /// ends in `.msctransfer`, `zip` when it ends in `.zip`, otherwise
+        /// `folder`.
         #[arg(long)]
         kind: Option<String>,
+        /// Preview a raw folder/ZIP's contents instead of importing it.
+        #[arg(long)]
+        scan: bool,
+        /// `java` or `bedrock`. Required to import (not scan) a raw
+        /// folder/ZIP — read it off a prior `--scan`'s output.
+        #[arg(long = "type")]
+        server_type: Option<String>,
+        /// Override the imported server's game port.
+        #[arg(long = "game-port")]
+        game_port: Option<i64>,
+        /// Override the imported server's max player count.
+        #[arg(long = "max-players")]
+        max_players: Option<i64>,
+        /// Override the imported server's active/default world name
+        /// (Java only).
+        #[arg(long = "world-name")]
+        world_name: Option<String>,
+        /// Accept the EULA on import by writing `eula.txt` (Java only).
+        /// Omitting this flag leaves any existing `eula.txt` untouched.
+        #[arg(long)]
+        eula: bool,
         /// `merge` (default) or `replaceAll`, for a transfer import.
         #[arg(long = "transfer-mode")]
         transfer_mode: Option<String>,
@@ -290,42 +320,96 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
             path,
             name,
             kind,
+            scan,
+            server_type,
+            game_port,
+            max_players,
+            world_name,
+            eula,
             transfer_mode,
             backup_path,
             java_port_overrides,
             bedrock_port_overrides,
         } => {
             let resolved_kind = kind.clone().unwrap_or_else(|| {
-                if path.to_ascii_lowercase().ends_with(".msctransfer") {
+                let lower = path.to_ascii_lowercase();
+                if lower.ends_with(".msctransfer") {
                     "transfer".to_string()
+                } else if lower.ends_with(".zip") {
+                    "zip".to_string()
                 } else {
                     "folder".to_string()
                 }
             });
             let is_transfer = resolved_kind == "transfer";
+            let action = if scan {
+                "scan"
+            } else if is_transfer {
+                "importTransfer"
+            } else {
+                "importExisting"
+            };
             let body = ServerImportRequestDto {
-                action: Some(
-                    if is_transfer {
-                        "importTransfer"
-                    } else {
-                        "importExisting"
-                    }
-                    .to_string(),
-                ),
+                action: Some(action.to_string()),
                 source_path: Some(path.clone()),
                 import_kind: Some(resolved_kind),
                 display_name: name.clone(),
-                server_type: None,
-                active_world_name: None,
-                port: None,
-                max_players: None,
-                accept_eula: None,
+                server_type: server_type.clone(),
+                active_world_name: world_name.clone(),
+                port: game_port,
+                max_players,
+                accept_eula: eula.then_some(true),
                 enable_playit: None,
                 transfer_mode: transfer_mode.clone(),
                 backup_path: backup_path.clone(),
                 java_port_overrides: parse_port_overrides(&java_port_overrides)?,
                 bedrock_port_overrides: parse_port_overrides(&bedrock_port_overrides)?,
             };
+
+            if scan {
+                let result: ServerImportScanResponseDto =
+                    client.post_json("/v1/servers/import", &body).await?;
+                if common.json {
+                    print_json(&result)?;
+                } else {
+                    println!("{}", result.message);
+                    if let Some(server_type) = &result.server_type {
+                        println!("type: {server_type}");
+                    }
+                    if let Some(is_zip) = result.is_zip {
+                        println!("zip: {is_zip}");
+                    }
+                    if let Some(flavor) = &result.java_flavor {
+                        println!("java flavor: {flavor}");
+                    }
+                    if let Some(mc_version) = &result.detected_mc_version {
+                        println!("minecraft version: {mc_version}");
+                    }
+                    if let Some(loader_version) = &result.detected_loader_version {
+                        println!("loader version: {loader_version}");
+                    }
+                    if let Some(port) = result.port {
+                        println!("port: {port}");
+                    }
+                    if let Some(max_players) = result.max_players {
+                        println!("max players: {max_players}");
+                    }
+                    if let Some(eula_accepted) = result.eula_accepted {
+                        println!("eula accepted: {eula_accepted}");
+                    }
+                    if let Some(default_world) = &result.default_world_name {
+                        println!("default world: {default_world}");
+                    }
+                    for world in &result.worlds {
+                        println!(
+                            "world: {} ({}, {} bytes)",
+                            world.name, world.dimensions_label, world.size_bytes
+                        );
+                    }
+                }
+                return Ok(());
+            }
+
             let result: ServerImportResultDto =
                 client.post_json("/v1/servers/import", &body).await?;
             if common.json {

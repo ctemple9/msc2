@@ -1244,3 +1244,132 @@ fn write_properties_file(path: &Path, props: &HashMap<String, String>) {
     }
     let _ = fs::write(path, out);
 }
+
+// =====================================================================
+// P5.22 — port rescanAndImportServers
+//
+// Ports `rescanAndImportServers`
+// (`AppViewModel+ConfigRecovery.swift:103-183`) — a *recovery* pass,
+// distinct from P5.20's importer: it inspects the servers root (plus its
+// `java/`/`bedrock/` children, one level deep) for directories not
+// already tracked, and registers any that look like a server **at their
+// existing path** — never copying, extracting, or writing anything.
+// =====================================================================
+
+/// One rescan pass's outcome: `added` mirrors source's `RescanResult`
+/// (`added`/`skipped` counts), returning the built [`ConfigServer`]s
+/// themselves rather than just a count — this crate has no persisted
+/// `AppConfig` of its own to append to (same reasoning as
+/// [`ImportedRawServer`]), so the caller registers them.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct RescanResult {
+    pub added: Vec<ConfigServer>,
+    pub skipped: usize,
+}
+
+/// Port of `rescanAndImportServers`. `existing_server_dirs` mirrors
+/// source's `configManager.config.servers.map(\.serverDir)` — the
+/// caller's own already-tracked set, read once up front exactly like
+/// source's `existingPaths`.
+pub fn rescan_and_import_servers(
+    fs: &dyn RawImportFileSystem,
+    servers_root: &Path,
+    existing_server_dirs: &[String],
+) -> RescanResult {
+    let existing: HashSet<String> = existing_server_dirs
+        .iter()
+        .map(|dir| normalized_path_string(Path::new(dir)))
+        .collect();
+
+    // Source line 112-116: the root itself, plus its `java`/`bedrock`
+    // typed subdirectories if they exist.
+    let mut search_dirs = vec![servers_root.to_path_buf()];
+    for sub in ["java", "bedrock"] {
+        let dir = servers_root.join(sub);
+        if fs.is_dir(&dir) {
+            search_dirs.push(dir);
+        }
+    }
+
+    // Source line 118-135: one level of subdirectories per search root,
+    // skipping dotfiles/dot-directories, already-tracked paths, and
+    // duplicate candidate paths across search roots (e.g. `java`/`bedrock`
+    // themselves surface as candidates from the root-level listing too —
+    // they get filtered out below for lacking a jar/binary, not here).
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    let mut seen: HashSet<String> = HashSet::new();
+    for dir in &search_dirs {
+        for entry in fs.list_dir(dir) {
+            if entry.is_file || entry.name.starts_with('.') {
+                continue;
+            }
+            let candidate = dir.join(&entry.name);
+            let normalized = normalized_path_string(&candidate);
+            if existing.contains(&normalized) || !seen.insert(normalized) {
+                continue;
+            }
+            candidates.push(candidate);
+        }
+    }
+
+    let mut added = Vec::new();
+    let mut skipped = 0usize;
+    for dir in candidates {
+        // Source line 141-146: a fresh, unfiltered listing of the
+        // candidate's own contents — an unreadable directory yields an
+        // empty listing here (see `RawImportFileSystem::list_dir`'s own
+        // contract), which falls through to the same `skipped += 1`
+        // source's `try?`-failure branch reaches, just via a different
+        // code path.
+        let contents = fs.list_dir(&dir);
+        let has_jar = contents
+            .iter()
+            .any(|e| e.name.to_lowercase().ends_with(".jar"));
+        let has_bedrock = contents
+            .iter()
+            .any(|e| e.name == "bedrock_server" || e.name == "bedrock_server.exe");
+        if !has_jar && !has_bedrock {
+            skipped += 1;
+            continue;
+        }
+        let server_type = if has_bedrock && !has_jar {
+            ServerType::Bedrock
+        } else {
+            ServerType::Java
+        };
+
+        // Source line 150-151: the folder's own name, with underscores
+        // turned back into spaces, as the display name.
+        let raw_name = dir
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let display_name = raw_name.replace('_', " ");
+
+        let mut config = ConfigServer::new(
+            Uuid::new_v4().to_string().to_uppercase(),
+            display_name,
+            dir.to_string_lossy().into_owned(),
+            "",
+            2.0,
+            4.0,
+        );
+        config.server_type = server_type;
+        // Source line 163: rescanned servers are marked as having already
+        // started, unlike a fresh P5.20 import — recovery is finding a
+        // server that was already running before the config was lost.
+        config.has_ever_started = true;
+
+        if server_type == ServerType::Java {
+            let flavor = detect_java_flavor(fs, &dir);
+            config.java_flavor = flavor.flavor;
+            config.paper_jar_path = flavor.primary_jar_path.unwrap_or_default();
+            config.minecraft_version = flavor.mc_version;
+            config.loader_version = flavor.loader_version;
+        }
+
+        added.push(config);
+    }
+
+    RescanResult { added, skipped }
+}

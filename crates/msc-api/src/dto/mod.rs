@@ -16,6 +16,7 @@ pub mod error;
 pub mod health;
 pub mod lifecycle;
 pub mod operation;
+pub mod settings;
 pub mod status;
 
 pub use capabilities::*;
@@ -23,4 +24,5 @@ pub use error::*;
 pub use health::*;
 pub use lifecycle::*;
 pub use operation::*;
+pub use settings::*;
 pub use status::*;

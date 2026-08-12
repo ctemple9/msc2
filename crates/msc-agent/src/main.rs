@@ -94,6 +94,10 @@ pub(crate) fn build_app() -> Router {
         .route("/command", post(routes::commands::command))
         .route("/status", get(routes::status::status))
         .route("/performance", get(routes::performance::performance))
+        .route(
+            "/settings",
+            get(routes::settings::get_settings).post(routes::settings::update_settings),
+        )
         .with_state(lifecycle_state);
 
     // Every other route this phase wires runs behind the SecretStore-backed

@@ -7,4 +7,5 @@ pub mod lifecycle;
 pub mod operations;
 pub mod performance;
 pub mod servers;
+pub mod settings;
 pub mod status;

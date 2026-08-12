@@ -1956,7 +1956,7 @@ Two scope points raised with Cameron before writing code, both confirmed via `As
 **Status:** not started
 **Files:** none (verification only unless a gate bug is found)
 **What:** Run the complete working gate from this phase's header: formatting; native and cross-target clippy; all workspace and corpus-dimension tests; the self-contained settings/transfer/raw CLI smoke; and the mandatory real config and transfer corpus. Then inspect the actual GitHub Actions run for this commit and require green macOS, Linux, and Windows jobs. If any leg fails, stop and amend only the failing gate item; do not advance to Phase 6.
-**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/fixture-runner/run.py --validate-dir fixtures/config-corpus-dimensions --expect 8 && tools/phase5/cli-smoke.sh --all && python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 2 --require-transfer && run_id=$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/fixture-runner/run.py --validate-dir fixtures/config-corpus-dimensions --expect 8 && tools/phase5/cli-smoke.sh --all && python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 1 --require-transfer && run_id=$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P5.26: run the Phase 5 exit gate check`
 **Batch:** stop-after
 
@@ -1965,6 +1965,16 @@ Two scope points raised with Cameron before writing code, both confirmed via `As
 ## Amendments log
 
 When a review amends an earlier phase or a decision, record it here so the change isn't silent.
+
+### 2026-08-12 — P5.25/P5.26 Verify lines corrected from --require-configs 2 to 1
+
+P5.25's execution found both steps' Verify lines still passed `--require-configs 2` to
+`real-corpus-check.py --exercise`, left over from before P5.3 discovered no second real config era
+survives anywhere on Cameron's machines and got his approval to relax the evidence bar to one
+(recorded in `phase5-scope.md` and already reflected in the checker's own inventory-mode default).
+Run literally, `--require-configs 2` fails on evidence count alone, before ever reaching the real
+Rust readers. Cameron confirmed the fix directly; both Verify lines now read `--require-configs 1`,
+matching the bar already approved in P5.3. No evidence, code, or test behavior changed — text only.
 
 ### 2026-08-11 — Phase 5 replanned after Codex's second cross-check
 

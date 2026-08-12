@@ -1,0 +1,40 @@
+{
+  "domain": "transfer-package",
+  "case": "no-bundled-paper-jar",
+  "source": {
+    "file": "AppViewModel+ServerTransfer.swift",
+    "test": "exportServerTransfer(to:) + applyTransferImport(...) — paper.jar missing on disk",
+    "line": 156
+  },
+  "input": {
+    "server": {
+      "id": "srv-java-2",
+      "display_name": "Lite Server",
+      "server_dir": "/servers/java/lite-server",
+      "paper_jar_path": "/servers/java/lite-server/paper.jar",
+      "min_ram_gb": 2.0,
+      "max_ram_gb": 2.0,
+      "server_type": "java",
+      "java_flavor": "paper"
+    },
+    "server_dir_contents": {
+      "paper.jar": "absent",
+      "world_slots/": "dir",
+      "server.properties": "file"
+    },
+    "server_properties": { "server-port": "25577", "level-name": "world" }
+  },
+  "expected": {
+    "bundled_top_level_entries": ["world_slots/", "configs/server.properties"],
+    "not_bundled": ["paper.jar"],
+    "manifest_server_entry": {
+      "bundledPaperJar": false
+    },
+    "no_log_message_for_missing_jar": "fm.fileExists(atPath: jarURL.path) guards the copy attempt (source line 158); when it's false the whole `do`/`catch` block is skipped, so no [Transfer] log line is emitted -- the failure log at line 163 only fires if fileExists is true but copyItem itself throws.",
+    "apply_time_paper_jar_path": {
+      "result": "",
+      "reasoning": "applyTransferImport only looks for a package's paper.jar when entry.bundledPaperJar is true (source line 440's `if entry.server.isJava && entry.bundledPaperJar`); since export recorded bundledPaperJar: false, apply never checks the staging dir for a jar at all, and cfgServer.paperJarPath stays the empty string set at line 439 -- even if a paper.jar happened to be dropped into the package's server folder by hand after export, apply would not pick it up."
+    }
+  },
+  "notes": "Distinguishes 'jar legitimately doesn't apply to this flavor' (forge-libraries-bundled.json) from 'jar was expected but is absent' -- same bundledPaperJar: false wire value, but reached by a different branch, and this fixture also pins the apply-side symmetry (bundledPaperJar gates the *read*, not just the export)."
+}

@@ -1,0 +1,38 @@
+{
+  "domain": "transfer-package",
+  "case": "live-world-plus-slot-layout",
+  "source": {
+    "file": "AppViewModel+ServerTransfer.swift",
+    "test": "applyTransferImport(...) — live world folders present alongside world_slots/",
+    "line": 465
+  },
+  "input": {
+    "package_server_entry": {
+      "folderName": "smp",
+      "server": {
+        "id": "srv-old-smp",
+        "display_name": "SMP",
+        "server_type": "java",
+        "java_flavor": "paper"
+      },
+      "bundledPaperJar": true
+    },
+    "staged_folder_contents": {
+      "paper.jar": "file",
+      "world_slots/slot-a/": "dir",
+      "world_slots/slot-b/": "dir",
+      "world_slots/active_slot_id.txt": "slot-a",
+      "world/": "dir",
+      "world_nether/": "dir",
+      "world_the_end/": "dir",
+      "configs/server.properties": "level-name=world"
+    }
+  },
+  "expected": {
+    "restored_live_world": true,
+    "restored_folders": ["world", "world_nether", "world_the_end"],
+    "slot_activation_invoked": false,
+    "reasoning": "level-name is read from the just-copied destURL/server.properties (source line 470-473, defaulting to \"world\" if blank), giving candidates [levelName, levelName_nether, levelName_the_end]. Each that exists in the package is copied and sets restoredLiveWorld = true (line 465-484). The `if !restoredLiveWorld` guard at line 497 then short-circuits, so WorldSlotManager.activeSlot(forServerDir:)/activateSlot is never called even though world_slots/active_slot_id.txt names slot-a as active -- live folders always take precedence over the slot marker when both are present."
+  },
+  "notes": "TransferManifest carries no field that says 'prefer live worlds' or 'prefer the active slot' -- the choice is made purely by testing which folders exist in the already-copied destination directory (source lines 469-497), not by anything recorded in manifest.json at export time. This fixture and older-package-no-live-worlds.json exercise the two branches of that same `if`; read them together, not in isolation."
+}

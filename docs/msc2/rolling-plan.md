@@ -1781,7 +1781,7 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 **Batch:** safe
 
 ### P5.11 — Add settings CLI commands and a self-contained smoke check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `tools/phase5/cli-smoke.sh`
 **What:** Add `msc settings get` and `msc settings set <key>=<value>`. Create the Phase 5 CLI smoke harness here: it owns a temporary application root, creates a minimal Paper directory, starts `cargo run -p msc-agent --bin msc -- serve` on a free loopback port with a known Phase 4 bootstrap token, imports and selects the server, runs settings get/set through HTTP, checks JSON structurally and checks the persisted `server.properties`, then stops its agent in a trap. Later transfer/raw route steps extend this same script rather than relying on a separately-running agent or an installed `msc` binary. Include a `--settings` selector so this step can run only the portion it owns.
 
@@ -1795,9 +1795,10 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 ### MSC 1 transfer-package import and its export safety-net
 
 ### P5.12 — Characterize the transfer-package manifest and layout
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/transfer-package/`, `docs/msc2/config-migration/transfer-package-format.md`
 **What:** With no MSC 1 tests, characterize `AppViewModel+ServerTransfer.swift` before translation. Pin the exact v2 manifest fields, server-entry fields, directory layout, sanitization, config-extension allowlist, supported-version rejection, port-conflict messages, and apply-time world precedence. Record two easily-confused facts explicitly: the manifest has no world-precedence marker, and `excludedTopLevelDirs` is an unused stale constant contradicted by the later live-world export loop. Preserve observable output: export every configured live world folder whenever it exists, regardless of timestamps, alongside `world_slots`; do not turn the dead constant into new exclusion policy. Fixtures cover Java/Paper, Forge libraries, Bedrock worlds, no bundled jar, live-world-plus-slot layout, older package without live worlds, and newer unsupported format.
+**Actual result:** Confirmed by whole-tree grep that no `*Tests*.swift` file references `ServerTransfer`/`TransferManifest`/`exportServerTransfer`/`inspectTransferPackage`/`applyTransferImport` — all 7 fixtures characterized straight from `AppViewModel+ServerTransfer.swift` (603 lines), `source.test` naming the function/behavior rather than a test, same precedent P5.7/P5.8 set. Read `WorldSlotManager.swift`'s `worldFolderNames`/`activeSlot`/`activeSlotIDURL` directly to pin the apply-time precedence fixtures accurately, and cross-referenced `phase5-scope.md`'s existing "Transfer behavior" pins (`excludedTopLevelDirs` is stale, HTTP handler owns the replace-all backup, merge skips it) rather than re-deriving them. One casing fact worth flagging since it's easy to port wrong: `TransferManifest`/`TransferServerEntry`/`TransferPluginLink` have no `CodingKeys` override and encode as literal camelCase, while the nested `server` object inherits `ConfigServer`'s own snake_case `CodingKeys` — the manifest wrapper and the embedded server use two different casing conventions in the same file, documented in `transfer-package-format.md`'s "Manifest fields" section. `python3 tools/fixture-runner/run.py --validate-dir fixtures/transfer-package --expect 7` passes (`ok 7`).
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/transfer-package --expect 7`
 **Commit:** `P5.12: characterize the transfer-package manifest and layout`
 **Batch:** solo

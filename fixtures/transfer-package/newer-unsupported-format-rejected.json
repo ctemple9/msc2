@@ -1,0 +1,25 @@
+{
+  "domain": "transfer-package",
+  "case": "newer-unsupported-format-rejected",
+  "source": {
+    "file": "AppViewModel+ServerTransfer.swift",
+    "test": "inspectTransferPackage(at:) — formatVersion newer than this build supports",
+    "line": 324
+  },
+  "input": {
+    "manifest": {
+      "formatVersion": 3,
+      "appConfigVersion": 1,
+      "createdAt": "2027-01-01T00:00:00Z",
+      "sourceMachineName": "Future Mac",
+      "servers": []
+    }
+  },
+  "expected": {
+    "inspect_result": "failure",
+    "error_message": "This transfer file was created by a newer version of MSC. Update the app and try again.",
+    "staging_removed": true,
+    "rejection_rule": "manifest.formatVersion <= ServerTransfer.formatVersion (currently 2) is required (source line 324). Strictly greater is rejected; equal is accepted. A manifest with formatVersion: 1 (an older but still-parseable version, since TransferManifest's fields have not changed since v1->v2 beyond what the app-level bundling comment describes) is NOT rejected by this rule -- 'older' and 'unsupported' are not the same thing here."
+  },
+  "notes": "The whole-manifest-newer check runs strictly before any per-server processing (manifest.servers is empty in this fixture on purpose, to show the rejection doesn't depend on server content at all) and before port-conflict detection -- inspectTransferPackage returns .failure immediately after the formatVersion check at line 324-327, removing staging first (line 325) exactly like the missing-manifest.json failure path above it (line 314-317) and the decode-failure catch block (line 349-352) do. All three inspect-time failure paths share that same 'remove staging, then return .failure' shape; only the message text differs."
+}

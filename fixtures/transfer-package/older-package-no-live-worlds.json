@@ -1,0 +1,39 @@
+{
+  "domain": "transfer-package",
+  "case": "older-package-no-live-worlds",
+  "source": {
+    "file": "AppViewModel+ServerTransfer.swift",
+    "test": "applyTransferImport(...) — no live world folders, falls back to the active slot",
+    "line": 497
+  },
+  "input": {
+    "package_server_entry": {
+      "folderName": "smp-legacy",
+      "server": {
+        "id": "srv-legacy-smp",
+        "display_name": "Legacy SMP",
+        "server_type": "java",
+        "java_flavor": "paper"
+      },
+      "bundledPaperJar": true
+    },
+    "staged_folder_contents": {
+      "paper.jar": "file",
+      "world_slots/slot-a/": "dir",
+      "world_slots/slot-b/": "dir",
+      "world_slots/active_slot_id.txt": "slot-b",
+      "configs/server.properties": "level-name=world"
+    }
+  },
+  "expected": {
+    "restored_live_world": false,
+    "restored_folders": [],
+    "slot_activation_invoked": true,
+    "activated_slot_source": "WorldSlotManager.activeSlot(forServerDir: destURL.path), resolved against the just-copied world_slots/ + active_slot_id.txt (source line 497) -- slot-b here.",
+    "activate_call_params": {
+      "backupCurrent": false,
+      "backupWorld_closure": "always returns true"
+    }
+  },
+  "notes": "Despite the case name, this is not a different manifest.formatVersion -- v2 export bundles live world folders 'whenever it exists' (rolling-plan.md P5.12), so a v2 package can still lack them if the source machine's server had none on disk (e.g. never started, or only ever played through slots) at export time. formatVersion alone cannot distinguish this case from live-world-plus-slot-layout.json; both are formatVersion 2. This fixture is also where P5.15's documented Phase-6 boundary applies (docs/msc2/config-migration/phase5-scope.md \"Deferred and homeless\"): MSC 1's real mechanism is WorldSlotManager.activeSlot/activateSlot against a full slot model, which Rust does not have yet in Phase 5 -- P5.15 is expected to use a narrow read-only compatibility adapter over the active_slot_id.txt marker and the named slot's archive, not the formal slot model. That adapter is P5.15's implementation concern; this fixture only pins the MSC 1 branch condition and outcome it must reproduce."
+}

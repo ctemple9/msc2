@@ -1,0 +1,96 @@
+{
+  "domain": "transfer-package",
+  "case": "java-paper-full-export",
+  "source": {
+    "file": "AppViewModel+ServerTransfer.swift",
+    "test": "exportServerTransfer(to:) — Java/Paper full bundle",
+    "line": 122
+  },
+  "input": {
+    "server": {
+      "id": "srv-java-1",
+      "display_name": "Main SMP",
+      "server_dir": "/servers/java/main-smp",
+      "paper_jar_path": "/servers/java/main-smp/paper.jar",
+      "min_ram_gb": 4.0,
+      "max_ram_gb": 8.0,
+      "server_type": "java",
+      "java_flavor": "paper",
+      "bedrock_port": null,
+      "xbox_broadcast_config_path": "/servers/java/main-smp/mcxbox/config",
+      "xbox_broadcast_alt_email": "alt@example.com",
+      "xbox_broadcast_alt_gamertag": "AltGamer",
+      "xbox_broadcast_alt_avatar_path": "/servers/java/main-smp/mcxbox/avatar.png",
+      "plugin_sources": {
+        "EssentialsX": { "url": "https://example.com/essentialsx.jar", "type": "modrinth" }
+      }
+    },
+    "server_dir_contents": {
+      "paper.jar": "file",
+      "world_slots/": "dir",
+      "backups/": "dir",
+      "plugins/": "dir",
+      "resource-packs/": "dir",
+      "mods/": "absent",
+      "libraries/": "absent",
+      "world/": "dir",
+      "world_nether/": "dir",
+      "world_the_end/": "dir",
+      "server.properties": "file",
+      "eula.txt": "file",
+      "spigot.yml": "file",
+      "banned-players.json": "file",
+      "logs/": "dir",
+      "cache/": "dir",
+      ".git/": "dir"
+    },
+    "server_properties": { "server-port": "25565", "level-name": "world" },
+    "paper_version_sidecar": { "mc_version": "1.21.4", "build": 130 }
+  },
+  "expected": {
+    "bundled_top_level_entries": [
+      "paper.jar",
+      "world_slots/",
+      "backups/",
+      "plugins/",
+      "resource-packs/",
+      "world/",
+      "world_nether/",
+      "world_the_end/",
+      "configs/server.properties",
+      "configs/eula.txt",
+      "configs/spigot.yml",
+      "configs/banned-players.json"
+    ],
+    "not_bundled": ["mods/", "libraries/", "logs/", "cache/", ".git/"],
+    "manifest_top_level_fields": {
+      "formatVersion": 2,
+      "appConfigVersion": 1,
+      "createdAt": "ISO8601, generated at export time",
+      "sourceMachineName": "Host.current().localizedName, falls back to \"Unknown Mac\"",
+      "servers": ["see manifest_server_entry"]
+    },
+    "manifest_server_entry": {
+      "server": "sanitized ConfigServer, snake_case keys — see sanitized_fields_blanked",
+      "folderName": "main_smp",
+      "javaPort": 25565,
+      "paperMCVersion": "1.21.4",
+      "paperBuild": 130,
+      "bundledPaperJar": true,
+      "pluginLinks": [
+        { "filename": "EssentialsX", "url": "https://example.com/essentialsx.jar", "type": "modrinth" }
+      ]
+    },
+    "sanitized_fields_blanked": {
+      "server_dir": "",
+      "paper_jar_path": "",
+      "xbox_broadcast_config_path": null,
+      "xbox_broadcast_alt_email": null,
+      "xbox_broadcast_alt_gamertag": null,
+      "xbox_broadcast_alt_password": null,
+      "xbox_broadcast_alt_avatar_path": null
+    },
+    "excluded_top_level_dirs_constant_has_no_effect": true
+  },
+  "notes": "Baseline v2 export layout, pinning both manifest shapes at once. The wrapper fields (formatVersion/appConfigVersion/createdAt/sourceMachineName/servers, and per-entry folderName/javaPort/paperMCVersion/paperBuild/bundledPaperJar/pluginLinks) are plain Swift Codable with no CodingKeys override, so they serialize as literal camelCase on disk -- unlike the embedded `server` object, which inherits ConfigServer's own snake_case CodingKeys (AppConfig.swift:267-299). world/world_nether/world_the_end are bundled as live folders (source lines 192-204, via WorldSlotManager.worldFolderNames) even though ServerTransfer.excludedTopLevelDirs (lines 41-45) lists those exact three names -- confirmed by a whole-tree grep that the constant is declared once and referenced nowhere else, so it has zero effect on export; do not port it as exclusion policy. logs/cache/.git are simply never named in any copy list (jar, wholesale subs, libraries, live worlds, or the configFileExtensions-filtered configs/ pass), not filtered by the dead constant either. configFileExtensions (line 47-49) is exactly {properties, yml, yaml, json, txt, toml, conf}, case-insensitive on the extension; only top-level files (not subdirectories) in server_dir are scanned for configs/ (line 209-220)."
+}

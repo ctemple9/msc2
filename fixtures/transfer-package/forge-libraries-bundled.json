@@ -1,0 +1,45 @@
+{
+  "domain": "transfer-package",
+  "case": "forge-libraries-bundled",
+  "source": {
+    "file": "AppViewModel+ServerTransfer.swift",
+    "test": "exportServerTransfer(to:) — NeoForge/Forge libraries/ bundling",
+    "line": 180
+  },
+  "input": {
+    "server": {
+      "id": "srv-forge-1",
+      "display_name": "Modded Base",
+      "server_dir": "/servers/java/modded-base",
+      "paper_jar_path": "/servers/java/modded-base/paper.jar",
+      "min_ram_gb": 6.0,
+      "max_ram_gb": 10.0,
+      "server_type": "java",
+      "java_flavor": "neoforge"
+    },
+    "server_dir_contents": {
+      "paper.jar": "absent",
+      "libraries/": "dir",
+      "world_slots/": "dir",
+      "backups/": "absent",
+      "plugins/": "absent",
+      "mods/": "dir",
+      "resource-packs/": "absent",
+      "world/": "dir",
+      "server.properties": "file"
+    },
+    "server_properties": { "server-port": "25566", "level-name": "world" }
+  },
+  "expected": {
+    "bundled_top_level_entries": ["world_slots/", "mods/", "libraries/", "world/", "configs/server.properties"],
+    "not_bundled": ["paper.jar", "backups/", "plugins/", "resource-packs/"],
+    "manifest_server_entry": {
+      "bundledPaperJar": false,
+      "javaPort": 25566,
+      "paperMCVersion": null,
+      "paperBuild": null
+    },
+    "libraries_bundling_condition": "server.javaFlavor == .neoforge || server.javaFlavor == .forge (source line 181). A vanilla/fabric/purpur server never bundles libraries/ even when the directory exists on disk -- that check is a flavor gate, not an existence check."
+  },
+  "notes": "NeoForge/Forge servers launch via @unix_args.txt rather than a bundled paper.jar (apply-side comment at source line 438), so bundledPaperJar is naturally false here even though the flavor gate for jar-bundling (isJava, line 156) would otherwise apply -- this fixture's jar is simply never on disk to begin with, which is the common case for this flavor. Contrast fixtures/transfer-package/no-bundled-paper-jar.json, where a Paper server's jar is *expected* but happens to be missing -- same observable manifest field (bundledPaperJar: false), different real-world cause. mods/ here bundles via the same wholesale sub-list as plugins/ (source line 169, [\"world_slots\", \"backups\", \"plugins\", \"mods\", \"resource-packs\"]) -- it is not Forge-specific, a Paper server with a mods/ directory would bundle it too."
+}

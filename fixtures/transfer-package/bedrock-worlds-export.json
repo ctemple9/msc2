@@ -1,0 +1,46 @@
+{
+  "domain": "transfer-package",
+  "case": "bedrock-worlds-export",
+  "source": {
+    "file": "AppViewModel+ServerTransfer.swift",
+    "test": "exportServerTransfer(to:) + inspectTransferPackage(at:) — Bedrock worlds/ bundling and port conflict",
+    "line": 195
+  },
+  "input": {
+    "server": {
+      "id": "srv-bedrock-1",
+      "display_name": "Bedrock Realm",
+      "server_dir": "/servers/bedrock/realm",
+      "paper_jar_path": "",
+      "min_ram_gb": 2.0,
+      "max_ram_gb": 4.0,
+      "server_type": "bedrock",
+      "bedrock_port": 19133,
+      "bedrock_enabled": true
+    },
+    "server_dir_contents": {
+      "worlds/": "dir",
+      "world_slots/": "dir",
+      "backups/": "dir",
+      "server.properties": "absent"
+    },
+    "inspect_context": {
+      "existing_java_ports": [],
+      "existing_bedrock_ports": [19133]
+    }
+  },
+  "expected": {
+    "bundled_top_level_entries": ["worlds/", "world_slots/", "backups/"],
+    "manifest_server_entry": {
+      "javaPort": null,
+      "bundledPaperJar": false
+    },
+    "java_port_read_skipped": "server.isJava is false, so exportServerTransfer never calls ServerPropertiesManager.readProperties for this entry at all (source line 224's `if server.isJava` guard) -- javaPort is nil, not a failed-parse nil.",
+    "worlds_folder_source": "WorldSlotManager.worldFolderNames(for:) returns [\"worlds\"] for a Bedrock server when that directory exists, [] otherwise (source: WorldSlotManager.swift, switch on .bedrock case) -- bundled through the same live-world loop Java's world/world_nether/world_the_end use (line 195-204), not the wholesale sub-list.",
+    "inspect_port_conflict": {
+      "conflict": true,
+      "detail": "Bedrock port 19133 is already in use — edit below."
+    }
+  },
+  "notes": "Port-conflict detection at inspect time compares entry.server.bedrockPort against existingBedrockPorts, collected up front from configManager.config.servers where isBedrock (source line 306, 335-337) -- Java-port conflicts (line 332-334, message \"Java port \\(p) is already in use — edit below.\") use the exact same shape with the word swapped; both strings must be reproduced byte-for-byte since they render directly in ManageServersView's conflict-detail UI copy."
+}

@@ -2,8 +2,9 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+#[cfg(test)]
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Mutex, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::Json;
@@ -34,7 +35,7 @@ use crate::routes::lifecycle::{
 };
 
 pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerDto>> {
-    let mut servers: Vec<ServerDto> = state
+    let servers: Vec<ServerDto> = state
         .servers()
         .into_iter()
         .map(|server| ServerDto {
@@ -47,12 +48,6 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
             host_address: None,
         })
         .collect();
-    servers.extend(
-        ConfigServerStore::global()
-            .snapshot()
-            .iter()
-            .map(config_server_to_dto),
-    );
     Json(servers)
 }
 
@@ -174,8 +169,9 @@ impl msc_application::import::PaperServerRegistry for PaperRouteRegistry<'_> {
         &mut self,
         server: msc_application::import::ImportedPaperServer,
     ) -> Result<(), PaperImportError> {
-        self.state.register_imported_paper(server);
-        Ok(())
+        self.state
+            .register_imported_paper(server)
+            .map_err(|error| PaperImportError::Registry(error.to_string()))
     }
 }
 
@@ -352,7 +348,7 @@ async fn import_raw(
         display_name,
         server_type,
         source,
-        servers_root: agent_servers_root(),
+        servers_root: state.servers_root(),
         overrides: RawImportOverrides {
             port: body.port,
             max_players: body.max_players,
@@ -372,7 +368,6 @@ async fn import_raw(
             let message = format!("Imported {} server.", server_type.raw_value());
             let mut result = BTreeMap::new();
             result.insert("serverId".to_string(), config.id.clone());
-            let _ = state.finish_operation_success(&operation_id, &message, result);
             let response = ServerImportResultDto {
                 success: true,
                 message,
@@ -383,8 +378,25 @@ async fn import_raw(
                 skipped: Some(0),
                 replaced: Some(false),
             };
-            ConfigServerStore::global().merge(vec![config]);
-            Json(response).into_response()
+            match state.merge_config_servers(vec![config]) {
+                Ok(()) => {
+                    let _ =
+                        state.finish_operation_success(&operation_id, &response.message, result);
+                    Json(response).into_response()
+                }
+                Err(error) => {
+                    let _ = state.finish_operation_failure(
+                        &operation_id,
+                        "internal_error",
+                        error.to_string(),
+                    );
+                    error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "internal_error",
+                        &error.to_string(),
+                    )
+                }
+            }
         }
         Err(error) => {
             let _ = state.finish_operation_failure(
@@ -440,12 +452,6 @@ fn default_display_name(source_path: &str) -> String {
         .to_string()
 }
 
-fn agent_servers_root() -> PathBuf {
-    std::env::var_os("MSC2_AGENT_SERVERS_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("msc2-agent-servers"))
-}
-
 /// `safe_path`'s own required `home_dir` parameter (used only for its
 /// `ForbiddenRoot` check — see `import.rs`'s own note on `import_raw_server`
 /// calling it "defense-in-depth... rather than load-bearing" here). No
@@ -458,33 +464,45 @@ fn agent_home_dir() -> PathBuf {
 }
 
 // ---------- Transfer-package import (P5.16/P5.17) ----------
-//
-// `msc-agent` has no unified, persisted `AppConfig`/`ConfigServer` list yet
-// (Phase 4's `AgentServerRegistry` in `crates/msc-agent/src/routes/lifecycle.rs`
-// only tracks Paper-folder imports, and neither this step nor P5.16 lists
-// that file). Rather than extend that Phase 4 registry — which Cameron
-// confirmed staying out of during P5.16/17's Read move — this keeps a
-// second, independent list of transfer- and (P5.21) raw-imported servers,
-// scoped entirely to this file. **Known, flagged gap:** `AgentServerRegistry`
-// (Paper-folder imports) still isn't part of this list, so a `replaceAll`
-// transfer import backs up and replaces only *this* list. MSC 1's own
-// `replaceAll` backs up and wipes every configured server — including a
-// raw-imported one, now correctly covered here — with no such split. See
-// `docs/msc2/config-migration/phase5-scope.md` "Transfer behavior" for the
-// note this step adds documenting the gap, and P5.16/17's own rolling-plan
-// entries for the question raised about unifying the two registries later.
 
-/// The transfer- and raw-imported server list this route owns. A bare
-/// `'static` (rather than a `LifecycleRoutesState` field) for the same
-/// reason `AgentServerRegistry` itself is `Box::leak`'d in `lifecycle.rs`:
-/// it needs to outlive and be shared across every request handled by this
-/// process, and this module can't add a field to `LifecycleRoutesState`
-/// without editing `lifecycle.rs`. `cargo nextest run` gives every test
-/// its own process, so this doesn't leak state between tests.
+trait ConfiguredServerStore {
+    fn export_inputs(&self) -> Vec<TransferExportServerInput>;
+    fn existing_java_ports(&self) -> Vec<i64>;
+    fn existing_bedrock_ports(&self) -> Vec<i64>;
+    fn merge(&self, new_servers: Vec<ConfigServer>) -> Result<(), String>;
+    fn replace_all(&self, new_servers: Vec<ConfigServer>) -> Result<(), String>;
+}
+
+impl ConfiguredServerStore for LifecycleRoutesState {
+    fn export_inputs(&self) -> Vec<TransferExportServerInput> {
+        self.export_inputs()
+    }
+
+    fn existing_java_ports(&self) -> Vec<i64> {
+        self.existing_java_ports()
+    }
+
+    fn existing_bedrock_ports(&self) -> Vec<i64> {
+        self.existing_bedrock_ports()
+    }
+
+    fn merge(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
+        self.merge_config_servers(new_servers)
+            .map_err(|error| error.to_string())
+    }
+
+    fn replace_all(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
+        self.replace_config_servers(new_servers)
+            .map_err(|error| error.to_string())
+    }
+}
+
+#[cfg(test)]
 struct ConfigServerStore {
     servers: Mutex<Vec<ConfigServer>>,
 }
 
+#[cfg(test)]
 impl ConfigServerStore {
     fn new() -> Self {
         ConfigServerStore {
@@ -492,28 +510,29 @@ impl ConfigServerStore {
         }
     }
 
-    fn global() -> &'static ConfigServerStore {
-        static STORE: OnceLock<ConfigServerStore> = OnceLock::new();
-        STORE.get_or_init(ConfigServerStore::new)
-    }
-
     fn snapshot(&self) -> Vec<ConfigServer> {
         self.servers.lock().unwrap().clone()
     }
+}
 
-    fn merge(&self, new_servers: Vec<ConfigServer>) {
-        self.servers.lock().unwrap().extend(new_servers);
-    }
-
-    fn replace_all(&self, new_servers: Vec<ConfigServer>) {
-        *self.servers.lock().unwrap() = new_servers;
+#[cfg(test)]
+impl ConfiguredServerStore for ConfigServerStore {
+    fn export_inputs(&self) -> Vec<TransferExportServerInput> {
+        self.snapshot()
+            .into_iter()
+            .map(|server| TransferExportServerInput {
+                server,
+                paper_mc_version: None,
+                paper_build: None,
+            })
+            .collect()
     }
 
     fn existing_java_ports(&self) -> Vec<i64> {
         self.snapshot()
             .iter()
             .filter(|server| server.server_type == ServerType::Java)
-            .filter_map(java_server_port)
+            .filter_map(test_java_server_port)
             .collect()
     }
 
@@ -525,18 +544,14 @@ impl ConfigServerStore {
             .collect()
     }
 
-    fn export_inputs(&self) -> Vec<TransferExportServerInput> {
-        self.snapshot()
-            .into_iter()
-            .map(|server| TransferExportServerInput {
-                server,
-                // `PaperVersionSidecarManager` isn't ported (Phase 7
-                // territory, per `transfer.rs`'s own doc comment) — this
-                // route has no sidecar to read these from either.
-                paper_mc_version: None,
-                paper_build: None,
-            })
-            .collect()
+    fn merge(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
+        self.servers.lock().unwrap().extend(new_servers);
+        Ok(())
+    }
+
+    fn replace_all(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
+        *self.servers.lock().unwrap() = new_servers;
+        Ok(())
     }
 }
 
@@ -544,30 +559,14 @@ impl ConfigServerStore {
 /// `ConfigServer` itself carries no port field for Java (only
 /// `bedrock_port` for Bedrock); the transfer format tracks it out-of-band
 /// on `TransferServerEntry.java_port` for the same reason.
-fn java_server_port(server: &ConfigServer) -> Option<i64> {
+#[cfg(test)]
+fn test_java_server_port(server: &ConfigServer) -> Option<i64> {
     let contents =
         std::fs::read_to_string(Path::new(&server.server_dir).join("server.properties")).ok()?;
     contents
         .lines()
         .find_map(|line| line.strip_prefix("server-port="))
         .and_then(|value| value.trim().parse::<i64>().ok())
-}
-
-fn config_server_to_dto(server: &ConfigServer) -> ServerDto {
-    let is_java = server.server_type == ServerType::Java;
-    ServerDto {
-        id: server.id.clone(),
-        name: server.display_name.clone(),
-        directory: server.server_dir.clone(),
-        server_type: server.server_type.raw_value().to_string(),
-        java_flavor: is_java.then(|| server.java_flavor.raw_value().to_string()),
-        game_port: if is_java {
-            java_server_port(server)
-        } else {
-            server.bedrock_port
-        },
-        host_address: None,
-    }
 }
 
 /// The seam the plan's "event-recording fakes" hang off — everything
@@ -696,6 +695,7 @@ enum TransferImportRouteError {
     BackupPathRequired,
     BackupFailed(String),
     InvalidPackage(String),
+    SaveFailed(String),
 }
 
 /// Ports `serverImportProvider`'s orchestration (`phase5-scope.md`
@@ -707,7 +707,7 @@ enum TransferImportRouteError {
 /// wholesale).
 fn perform_transfer_import(
     ports: &dyn TransferImportPorts,
-    store: &ConfigServerStore,
+    store: &dyn ConfiguredServerStore,
     servers_root: &Path,
     staging_root: &Path,
     plan: &TransferImportPlan,
@@ -742,9 +742,13 @@ fn perform_transfer_import(
 
     if plan.mode == TransferMode::ReplaceAll {
         ports.wipe_all_secrets();
-        store.replace_all(result.servers.clone());
+        store
+            .replace_all(result.servers.clone())
+            .map_err(TransferImportRouteError::SaveFailed)?;
     } else {
-        store.merge(result.servers.clone());
+        store
+            .merge(result.servers.clone())
+            .map_err(TransferImportRouteError::SaveFailed)?;
     }
 
     let _ = std::fs::remove_dir_all(staging_root);
@@ -773,8 +777,8 @@ async fn import_transfer(
     let staging_root = transfer_staging_root();
     let result = perform_transfer_import(
         &RealTransferImportPorts,
-        ConfigServerStore::global(),
-        &transfer_servers_root(),
+        state,
+        &state.servers_root(),
         &staging_root,
         &plan,
     );
@@ -825,6 +829,7 @@ fn transfer_error_code(error: &TransferImportRouteError) -> &'static str {
         TransferImportRouteError::BackupPathRequired => "backup_path_required",
         TransferImportRouteError::BackupFailed(_) => "backup_failed",
         TransferImportRouteError::InvalidPackage(_) => "invalid_transfer_package",
+        TransferImportRouteError::SaveFailed(_) => "internal_error",
     }
 }
 
@@ -835,6 +840,7 @@ fn transfer_error_message(error: &TransferImportRouteError) -> String {
         }
         TransferImportRouteError::BackupFailed(message) => format!("backup_failed: {message}"),
         TransferImportRouteError::InvalidPackage(message) => message.clone(),
+        TransferImportRouteError::SaveFailed(message) => message.clone(),
     }
 }
 
@@ -844,6 +850,11 @@ fn transfer_import_error_response(error: TransferImportRouteError) -> Response {
             invalid_body(transfer_error_code(&error), &transfer_error_message(&error))
         }
         TransferImportRouteError::BackupFailed(_) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            transfer_error_code(&error),
+            &transfer_error_message(&error),
+        ),
+        TransferImportRouteError::SaveFailed(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             transfer_error_code(&error),
             &transfer_error_message(&error),
@@ -861,12 +872,6 @@ fn transfer_import_error_response(error: TransferImportRouteError) -> Response {
 /// path: an env var override, falling back to the OS temp dir. Not
 /// durable-by-default; flagged for Cameron alongside the registry-split
 /// gap above.
-fn transfer_servers_root() -> PathBuf {
-    std::env::var_os("MSC2_TRANSFER_SERVERS_ROOT")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("msc2-transfer-servers"))
-}
-
 fn transfer_staging_root() -> PathBuf {
     std::env::temp_dir().join(format!("msc2-transfer-staging-{}", unique_suffix()))
 }
@@ -1074,7 +1079,9 @@ mod tests {
             skipped: 0,
         });
         let store = ConfigServerStore::new();
-        store.replace_all(vec![sample_config_server("OLD-1")]);
+        store
+            .replace_all(vec![sample_config_server("OLD-1")])
+            .unwrap();
         let plan = plan(TransferMode::ReplaceAll, Some("/tmp/backup.msctransfer"));
 
         let result = perform_transfer_import(
@@ -1105,7 +1112,7 @@ mod tests {
             skipped: 0,
         });
         let store = ConfigServerStore::new();
-        store.merge(vec![sample_config_server("OLD-1")]);
+        store.merge(vec![sample_config_server("OLD-1")]).unwrap();
         let plan = plan(TransferMode::Merge, None);
 
         let result = perform_transfer_import(
@@ -1247,8 +1254,8 @@ mod tests {
         assert_eq!(status_two, StatusCode::OK);
         assert_eq!(result_two.imported, Some(1));
 
-        let ids: Vec<String> = ConfigServerStore::global()
-            .snapshot()
+        let ids: Vec<String> = state
+            .config_servers()
             .iter()
             .map(|s| s.display_name.clone())
             .collect();
@@ -1304,8 +1311,8 @@ mod tests {
             "backup file was not written before replaceAll"
         );
 
-        let names: Vec<String> = ConfigServerStore::global()
-            .snapshot()
+        let names: Vec<String> = state
+            .config_servers()
             .iter()
             .map(|s| s.display_name.clone())
             .collect();
@@ -1368,16 +1375,6 @@ mod tests {
             "server-port=19132\nmax-players=10\n",
         )
         .unwrap();
-    }
-
-    /// Points `agent_servers_root()` at a fresh, unique temp directory for
-    /// the current test process — needed because `import_raw_server`
-    /// refuses (rather than de-duplicates) an existing destination, so
-    /// reusing the bare default temp path across repeated `cargo nextest
-    /// run` invocations would spuriously collide.
-    fn set_unique_agent_servers_root(tag: &str) {
-        let root = temp_dir(&format!("agent-servers-root-{tag}"));
-        unsafe { std::env::set_var("MSC2_AGENT_SERVERS_ROOT", &root) };
     }
 
     #[tokio::test]
@@ -1443,7 +1440,6 @@ mod tests {
 
     #[tokio::test]
     async fn raw_import_route_imports_java_folder_with_overrides_and_registers_server() {
-        set_unique_agent_servers_root("import-java-folder");
         let state = route_state();
         let source = temp_dir("import-java-folder-source");
         write_paper_source(&source);
@@ -1464,7 +1460,7 @@ mod tests {
         assert_eq!(result.server_name.as_deref(), Some("Raw Route Java"));
         let server_id = result.server_id.expect("expected a server id");
 
-        let snapshot = ConfigServerStore::global().snapshot();
+        let snapshot = state.config_servers();
         let registered = snapshot
             .iter()
             .find(|s| s.id == server_id)
@@ -1486,7 +1482,6 @@ mod tests {
 
     #[tokio::test]
     async fn raw_import_route_imports_bedrock_folder() {
-        set_unique_agent_servers_root("import-bedrock-folder");
         let state = route_state();
         let source = temp_dir("import-bedrock-folder-source");
         write_bedrock_source(&source);
@@ -1503,7 +1498,7 @@ mod tests {
         assert!(result.success);
         let server_id = result.server_id.expect("expected a server id");
 
-        let snapshot = ConfigServerStore::global().snapshot();
+        let snapshot = state.config_servers();
         let registered = snapshot
             .iter()
             .find(|s| s.id == server_id)
@@ -1513,7 +1508,6 @@ mod tests {
 
     #[tokio::test]
     async fn raw_import_route_refuses_existing_destination_as_conflict() {
-        set_unique_agent_servers_root("import-conflict");
         let state = route_state();
         let source = temp_dir("import-conflict-source");
         write_paper_source(&source);
@@ -1553,11 +1547,8 @@ mod tests {
             "expected the legacy path to register into AgentServerRegistry"
         );
         assert!(
-            !ConfigServerStore::global()
-                .snapshot()
-                .iter()
-                .any(|s| s.id == server_id),
-            "the legacy path must not land in ConfigServerStore"
+            state.config_servers().iter().any(|s| s.id == server_id),
+            "the legacy path must now persist into AppConfig"
         );
 
         // The legacy path registers in place — no copy.

@@ -1,6 +1,7 @@
 //! Shared state and handlers for Phase 4 lifecycle routes.
 
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -19,8 +20,16 @@ use msc_application::lifecycle::{
     ServerId,
 };
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
+use msc_application::transfer::TransferExportServerInput;
+use msc_domain::app_config_schema::{AppConfig, ConfigServer};
+use msc_domain::identity::{JavaServerFlavor, ServerType};
 use msc_domain::operation::OperationId;
+use msc_infrastructure::config_repository::{
+    AppConfigLoadError, ConfigSaveError, default_app_config_path, default_servers_root,
+    load_app_config, save_app_config,
+};
 use msc_infrastructure::console_buffer::ConsoleLine;
+use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::metrics::PsProcessMetricsProvider;
 use msc_infrastructure::process::{
     OutputLineFramer, OutputStream, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
@@ -38,6 +47,7 @@ pub struct LifecycleRoutesState {
 
 struct LifecycleRoutesInner {
     registry: &'static AgentServerRegistry,
+    app_config: &'static AgentAppConfigStore,
     process: &'static (dyn ProcessSupervisor + Send + Sync),
     console: &'static AgentConsoleSink,
     metrics: PsProcessMetricsProvider,
@@ -47,14 +57,20 @@ struct LifecycleRoutesInner {
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
 }
 
-#[derive(Debug, Default)]
 pub struct AgentServerRegistry {
-    servers: Mutex<BTreeMap<String, RegisteredPaperServer>>,
+    app_config: &'static AgentAppConfigStore,
 }
 
-#[derive(Debug, Clone)]
-struct RegisteredPaperServer {
-    imported: ImportedPaperServer,
+pub struct AgentAppConfigStore {
+    fs: &'static dyn FileSystem,
+    path: PathBuf,
+    config: Mutex<AppConfig>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AgentAppConfigError {
+    Load(String),
+    Save(String),
 }
 
 pub struct AgentConsoleSink {
@@ -63,16 +79,38 @@ pub struct AgentConsoleSink {
 
 impl LifecycleRoutesState {
     pub fn new(console_state: ConsoleState, operations: OperationsState) -> Self {
-        let registry = Box::leak(Box::new(AgentServerRegistry::default()));
-        let process = Box::leak(default_process_supervisor());
+        let app_config = Box::leak(Box::new(
+            AgentAppConfigStore::production()
+                .expect("failed to load durable MSC 2 application config"),
+        ));
+        Self::with_dependencies(
+            console_state,
+            operations,
+            app_config,
+            default_process_supervisor(),
+        )
+    }
+
+    fn with_dependencies(
+        console_state: ConsoleState,
+        operations: OperationsState,
+        app_config: &'static AgentAppConfigStore,
+        process: Box<dyn ProcessSupervisor + Send + Sync>,
+    ) -> Self {
+        let registry = Box::leak(Box::new(AgentServerRegistry::new(app_config)));
+        let process = Box::leak(process);
         let console = Box::leak(Box::new(AgentConsoleSink {
             console: console_state,
         }));
-        let lifecycle = LifecycleService::new(registry, process, console);
+        let mut lifecycle = LifecycleService::new(registry, process, console);
+        if let Some(active) = app_config.active_server_id() {
+            let _ = lifecycle.select_active_server(ServerId::new(active));
+        }
 
         Self {
             inner: Arc::new(LifecycleRoutesInner {
                 registry,
+                app_config,
                 process,
                 console,
                 metrics: PsProcessMetricsProvider::default(),
@@ -86,31 +124,43 @@ impl LifecycleRoutesState {
 
     #[cfg(test)]
     pub fn with_fake_process(console_state: ConsoleState, operations: OperationsState) -> Self {
-        let registry = Box::leak(Box::new(AgentServerRegistry::default()));
-        let process = Box::leak(Box::new(
-            msc_infrastructure::process::FakeProcessSupervisor::new(),
+        let test_root = std::env::temp_dir().join(format!(
+            "msc2-agent-test-state-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
         ));
-        let console = Box::leak(Box::new(AgentConsoleSink {
-            console: console_state,
-        }));
-        let lifecycle = LifecycleService::new(registry, process, console);
-
-        Self {
-            inner: Arc::new(LifecycleRoutesInner {
-                registry,
-                process,
-                console,
-                metrics: PsProcessMetricsProvider::default(),
-                lifecycle: Mutex::new(lifecycle),
-                operations,
-                active_lifecycle_operation: Mutex::new(None),
-                pump_tasks: Mutex::new(Vec::new()),
-            }),
-        }
+        let config_parent = test_root.join("data");
+        let config_path = config_parent.join("server_config_swift.json");
+        let servers_root = test_root.join("servers");
+        let fs = Box::leak(Box::new(
+            msc_infrastructure::fs::FakeFileSystem::new()
+                .with_dir(config_parent.clone())
+                .with_dir(servers_root.clone()),
+        ));
+        let app_config = Box::leak(Box::new(
+            AgentAppConfigStore::load(fs, config_path, servers_root).unwrap(),
+        ));
+        Self::with_fake_process_and_app_config(console_state, operations, app_config)
     }
 
-    pub fn register_imported_paper(&self, server: ImportedPaperServer) {
-        self.inner.registry.insert(server);
+    #[cfg(test)]
+    pub fn with_fake_process_and_app_config(
+        console_state: ConsoleState,
+        operations: OperationsState,
+        app_config: &'static AgentAppConfigStore,
+    ) -> Self {
+        let process = Box::new(msc_infrastructure::process::FakeProcessSupervisor::new());
+        Self::with_dependencies(console_state, operations, app_config, process)
+    }
+
+    pub fn register_imported_paper(
+        &self,
+        server: ImportedPaperServer,
+    ) -> Result<(), AgentAppConfigError> {
+        self.inner.registry.insert(server)
     }
 
     pub fn begin_import_operation(
@@ -148,6 +198,41 @@ impl LifecycleRoutesState {
         self.inner.registry.list()
     }
 
+    #[cfg(test)]
+    pub fn config_servers(&self) -> Vec<ConfigServer> {
+        self.inner.app_config.servers()
+    }
+
+    pub fn servers_root(&self) -> PathBuf {
+        self.inner.app_config.servers_root()
+    }
+
+    pub fn merge_config_servers(
+        &self,
+        new_servers: Vec<ConfigServer>,
+    ) -> Result<(), AgentAppConfigError> {
+        self.inner.app_config.merge_servers(new_servers)
+    }
+
+    pub fn replace_config_servers(
+        &self,
+        new_servers: Vec<ConfigServer>,
+    ) -> Result<(), AgentAppConfigError> {
+        self.inner.app_config.replace_servers(new_servers)
+    }
+
+    pub fn existing_java_ports(&self) -> Vec<i64> {
+        self.inner.app_config.existing_java_ports()
+    }
+
+    pub fn existing_bedrock_ports(&self) -> Vec<i64> {
+        self.inner.app_config.existing_bedrock_ports()
+    }
+
+    pub fn export_inputs(&self) -> Vec<TransferExportServerInput> {
+        self.inner.app_config.export_inputs()
+    }
+
     pub fn active_server_id(&self) -> Option<String> {
         self.inner
             .lifecycle
@@ -165,6 +250,10 @@ impl LifecycleRoutesState {
             .lock()
             .unwrap()
             .select_active_server(id)?;
+        self.inner
+            .app_config
+            .set_active_server_id(Some(active.clone()))
+            .map_err(|error| LifecycleError::Repository(error.to_string()))?;
         Ok(active)
     }
 
@@ -464,33 +553,189 @@ pub async fn active_server(
     }
 }
 
-impl AgentServerRegistry {
-    fn insert(&self, server: ImportedPaperServer) {
-        self.servers.lock().unwrap().insert(
-            server.id.as_str().to_string(),
-            RegisteredPaperServer { imported: server },
-        );
+impl AgentAppConfigStore {
+    pub fn production() -> Result<Self, AgentAppConfigError> {
+        let path = default_app_config_path();
+        let servers_root = default_servers_root();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| {
+                AgentAppConfigError::Load(format!(
+                    "failed to create app config directory {}: {error}",
+                    parent.display()
+                ))
+            })?;
+        }
+        std::fs::create_dir_all(&servers_root).map_err(|error| {
+            AgentAppConfigError::Load(format!(
+                "failed to create servers root {}: {error}",
+                servers_root.display()
+            ))
+        })?;
+        Self::load(Box::leak(Box::new(StdFileSystem)), path, servers_root)
     }
 
-    fn get(&self, id: &ServerId) -> Option<RegisteredPaperServer> {
-        self.servers.lock().unwrap().get(id.as_str()).cloned()
+    pub fn load(
+        fs: &'static dyn FileSystem,
+        path: PathBuf,
+        servers_root: PathBuf,
+    ) -> Result<Self, AgentAppConfigError> {
+        let defaults = AppConfig::default_config(servers_root.to_string_lossy().into_owned());
+        let outcome = load_app_config(fs, &path, &defaults, SystemTime::now())
+            .map_err(AgentAppConfigError::from)?;
+        Ok(Self {
+            fs,
+            path,
+            config: Mutex::new(outcome.config),
+        })
+    }
+
+    pub fn snapshot(&self) -> AppConfig {
+        self.config.lock().unwrap().clone()
+    }
+
+    pub fn servers(&self) -> Vec<ConfigServer> {
+        self.snapshot().servers
+    }
+
+    pub fn servers_root(&self) -> PathBuf {
+        PathBuf::from(self.config.lock().unwrap().servers_root.clone())
+    }
+
+    pub fn active_server_id(&self) -> Option<String> {
+        self.config.lock().unwrap().active_server_id.clone()
+    }
+
+    pub fn upsert_server(&self, server: ConfigServer) -> Result<(), AgentAppConfigError> {
+        self.mutate(|config| {
+            if let Some(existing) = config.servers.iter_mut().find(|item| item.id == server.id) {
+                *existing = server;
+            } else {
+                config.servers.push(server);
+            }
+        })
+    }
+
+    pub fn merge_servers(&self, new_servers: Vec<ConfigServer>) -> Result<(), AgentAppConfigError> {
+        self.mutate(|config| {
+            config.servers.extend(new_servers);
+        })
+    }
+
+    pub fn replace_servers(
+        &self,
+        new_servers: Vec<ConfigServer>,
+    ) -> Result<(), AgentAppConfigError> {
+        self.mutate(|config| {
+            config.servers = new_servers;
+            config.active_server_id = config.servers.first().map(|server| server.id.clone());
+        })
+    }
+
+    pub fn set_active_server_id(
+        &self,
+        server_id: Option<String>,
+    ) -> Result<(), AgentAppConfigError> {
+        self.mutate(|config| {
+            config.active_server_id = server_id;
+        })
+    }
+
+    pub fn existing_java_ports(&self) -> Vec<i64> {
+        self.servers()
+            .iter()
+            .filter(|server| server.server_type == ServerType::Java)
+            .filter_map(|server| java_server_port(Path::new(&server.server_dir)))
+            .collect()
+    }
+
+    pub fn existing_bedrock_ports(&self) -> Vec<i64> {
+        self.servers()
+            .iter()
+            .filter(|server| server.server_type == ServerType::Bedrock)
+            .filter_map(|server| server.bedrock_port)
+            .collect()
+    }
+
+    pub fn export_inputs(&self) -> Vec<TransferExportServerInput> {
+        self.servers()
+            .into_iter()
+            .map(|server| TransferExportServerInput {
+                server,
+                paper_mc_version: None,
+                paper_build: None,
+            })
+            .collect()
+    }
+
+    fn mutate(&self, update: impl FnOnce(&mut AppConfig)) -> Result<(), AgentAppConfigError> {
+        let mut guard = self.config.lock().unwrap();
+        let previous = guard.clone();
+        update(&mut guard);
+        if let Err(error) = save_app_config(self.fs, &self.path, &guard) {
+            *guard = previous;
+            return Err(AgentAppConfigError::from(error));
+        }
+        Ok(())
+    }
+}
+
+impl From<AppConfigLoadError> for AgentAppConfigError {
+    fn from(value: AppConfigLoadError) -> Self {
+        Self::Load(value.to_string())
+    }
+}
+
+impl From<ConfigSaveError> for AgentAppConfigError {
+    fn from(value: ConfigSaveError) -> Self {
+        Self::Save(value.to_string())
+    }
+}
+
+impl std::fmt::Display for AgentAppConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AgentAppConfigError::Load(message) | AgentAppConfigError::Save(message) => {
+                write!(f, "{message}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for AgentAppConfigError {}
+
+impl AgentServerRegistry {
+    fn new(app_config: &'static AgentAppConfigStore) -> Self {
+        Self { app_config }
+    }
+
+    fn insert(&self, server: ImportedPaperServer) -> Result<(), AgentAppConfigError> {
+        self.app_config
+            .upsert_server(config_server_from_paper(server))
+    }
+
+    fn get(&self, id: &ServerId) -> Option<ConfigServer> {
+        self.app_config
+            .servers()
+            .into_iter()
+            .find(|server| server.id == id.as_str())
     }
 
     fn list(&self) -> Vec<RegisteredServerDtoParts> {
-        self.servers
-            .lock()
-            .unwrap()
-            .values()
-            .map(|server| {
-                let imported = &server.imported;
-                RegisteredServerDtoParts {
-                    id: imported.id.as_str().to_string(),
-                    name: imported.display_name.clone(),
-                    directory: imported.server_dir.display().to_string(),
-                    server_type: "java".to_string(),
-                    java_flavor: Some("paper".to_string()),
-                    game_port: Some(imported.game_port),
-                }
+        self.app_config
+            .servers()
+            .into_iter()
+            .map(|server| RegisteredServerDtoParts {
+                id: server.id.clone(),
+                name: server.display_name.clone(),
+                directory: server.server_dir.clone(),
+                server_type: server.server_type.raw_value().to_string(),
+                java_flavor: (server.server_type == ServerType::Java)
+                    .then(|| server.java_flavor.raw_value().to_string()),
+                game_port: if server.server_type == ServerType::Java {
+                    java_server_port(Path::new(&server.server_dir))
+                } else {
+                    server.bedrock_port
+                },
             })
             .collect()
     }
@@ -498,9 +743,7 @@ impl AgentServerRegistry {
 
 impl JavaServerRepository for AgentServerRegistry {
     fn load(&self, id: &ServerId) -> Result<Option<ImportedJavaServer>, LifecycleError> {
-        Ok(self
-            .get(id)
-            .map(|server| server.imported.lifecycle_server()))
+        Ok(self.get(id).and_then(config_server_to_lifecycle_server))
     }
 }
 
@@ -580,17 +823,14 @@ pub fn error_response(status: StatusCode, code: &str, message: &str) -> Response
         .into_response()
 }
 
-fn build_launch_request(
-    registered: &RegisteredPaperServer,
-) -> Result<ProcessSpawnRequest, LifecycleError> {
-    let imported = &registered.imported;
+fn build_launch_request(registered: &ConfigServer) -> Result<ProcessSpawnRequest, LifecycleError> {
     let java_path = std::env::var("MSC2_JAVA_PATH").unwrap_or_else(|_| "java".to_string());
     let request = PaperLaunchRequest::new(
         ValidatedJavaLaunch::new(java_path, Vec::<String>::new()),
-        &imported.server_dir,
-        &imported.paper_jar_path,
-        1.0,
-        2.0,
+        PathBuf::from(&registered.server_dir),
+        PathBuf::from(&registered.paper_jar_path),
+        registered.min_ram_gb,
+        registered.max_ram_gb,
         "",
     );
     let command = build_paper_launch_command(&StdJavaLaunchFileSystem, &request)
@@ -601,6 +841,40 @@ fn build_launch_request(
         working_directory: command.working_directory,
         environment: Vec::new(),
     })
+}
+
+fn config_server_from_paper(server: ImportedPaperServer) -> ConfigServer {
+    let mut config = ConfigServer::new(
+        server.id.as_str().to_string(),
+        server.display_name,
+        server.server_dir.to_string_lossy().into_owned(),
+        server.paper_jar_path.to_string_lossy().into_owned(),
+        1.0,
+        2.0,
+    );
+    config.server_type = ServerType::Java;
+    config.java_flavor = JavaServerFlavor::Paper;
+    config
+}
+
+fn config_server_to_lifecycle_server(server: ConfigServer) -> Option<ImportedJavaServer> {
+    if server.server_type != ServerType::Java {
+        return None;
+    }
+    Some(ImportedJavaServer {
+        id: ServerId::new(server.id),
+        name: server.display_name,
+        directory: PathBuf::from(server.server_dir),
+        flavor: server.java_flavor,
+    })
+}
+
+fn java_server_port(server_dir: &Path) -> Option<i64> {
+    let contents = std::fs::read_to_string(server_dir.join("server.properties")).ok()?;
+    contents
+        .lines()
+        .find_map(|line| line.strip_prefix("server-port="))
+        .and_then(|value| value.trim().parse::<i64>().ok())
 }
 
 fn stopped_status() -> LifecycleStatusSnapshot {
@@ -660,7 +934,12 @@ mod tests {
     use msc_api::dto::PermissionCategoryDto;
     use msc_application::import::ImportedPaperServer;
     use msc_domain::properties::ServerPropertiesModel;
+    use msc_infrastructure::config_repository::{
+        default_app_config_path_from_env, default_servers_root_from_env,
+    };
+    use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
     use std::collections::HashMap;
+    use std::ffi::OsString;
 
     fn imported_server(server_dir: std::path::PathBuf) -> ImportedPaperServer {
         ImportedPaperServer {
@@ -674,6 +953,35 @@ mod tests {
             world_name: "world".to_string(),
             properties: ServerPropertiesModel::from_dict(&HashMap::new(), None),
         }
+    }
+
+    fn app_config_store(
+        fs: &'static FakeFileSystem,
+        config_path: std::path::PathBuf,
+        servers_root: std::path::PathBuf,
+    ) -> &'static AgentAppConfigStore {
+        Box::leak(Box::new(
+            AgentAppConfigStore::load(fs, config_path, servers_root).unwrap(),
+        ))
+    }
+
+    fn temp_server_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "msc2-durable-server-state-{tag}-{}-{}",
+            std::process::id(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("paper.jar"), b"fake jar").unwrap();
+        std::fs::write(
+            dir.join("server.properties"),
+            b"server-port=25565\nmax-players=20\nlevel-name=world\n",
+        )
+        .unwrap();
+        dir
     }
 
     #[tokio::test]
@@ -691,7 +999,7 @@ mod tests {
         let server = imported_server(server_dir.clone());
         std::fs::write(&server.paper_jar_path, b"fake jar").unwrap();
 
-        state.register_imported_paper(server);
+        state.register_imported_paper(server).unwrap();
         assert_eq!(state.servers().len(), 1);
         assert_eq!(
             state.select_active_server("paper-1".to_string()).unwrap(),
@@ -710,6 +1018,65 @@ mod tests {
         assert_eq!(active.as_deref(), Some("paper-1"));
 
         std::fs::remove_dir_all(server_dir).unwrap();
+    }
+
+    #[tokio::test]
+    async fn durable_server_state_persists_import_and_active_selection_across_state_rebuild() {
+        let fs = Box::leak(Box::new(
+            FakeFileSystem::new()
+                .with_dir("/srv/msc2")
+                .with_dir("/srv/msc2/servers"),
+        ));
+        let config_path = std::path::PathBuf::from("/srv/msc2/server_config_swift.json");
+        let servers_root = std::path::PathBuf::from("/srv/msc2/servers");
+        let first_store = app_config_store(fs, config_path.clone(), servers_root.clone());
+        let first = LifecycleRoutesState::with_fake_process_and_app_config(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+            first_store,
+        );
+        let server_dir = temp_server_dir("restart");
+
+        first
+            .register_imported_paper(imported_server(server_dir.clone()))
+            .unwrap();
+        first.select_active_server("paper-1".to_string()).unwrap();
+
+        let on_disk = String::from_utf8(fs.read(&config_path).unwrap()).unwrap();
+        assert!(on_disk.contains("\"servers\""));
+        assert!(on_disk.contains("\"active_server_id\""));
+        assert!(on_disk.contains("paper-1"));
+
+        let second_store = app_config_store(fs, config_path, servers_root);
+        let second = LifecycleRoutesState::with_fake_process_and_app_config(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+            second_store,
+        );
+
+        assert_eq!(second.servers().len(), 1);
+        assert_eq!(second.active_server_id().as_deref(), Some("paper-1"));
+        let active = second.start_active_server().unwrap();
+        assert_eq!(active.active_server_id.as_deref(), Some("paper-1"));
+
+        std::fs::remove_dir_all(server_dir).unwrap();
+    }
+
+    #[test]
+    fn durable_server_state_default_paths_are_app_data_not_temp() {
+        let app_config_path = default_app_config_path_from_env(|key| match key {
+            "HOME" => Some(OsString::from("/Users/cameron")),
+            _ => None,
+        });
+        let servers_root = default_servers_root_from_env(|key| match key {
+            "HOME" => Some(OsString::from("/Users/cameron")),
+            _ => None,
+        });
+
+        assert!(!app_config_path.starts_with(std::env::temp_dir()));
+        assert!(!servers_root.starts_with(std::env::temp_dir()));
+        assert!(app_config_path.ends_with("server_config_swift.json"));
+        assert!(servers_root.ends_with("servers"));
     }
 
     #[test]

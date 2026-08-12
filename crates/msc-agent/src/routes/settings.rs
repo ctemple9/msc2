@@ -570,7 +570,7 @@ mod tests {
         );
         let server = imported_server(server_dir.clone());
         std::fs::write(&server.paper_jar_path, b"fake jar").unwrap();
-        state.register_imported_paper(server);
+        state.register_imported_paper(server).unwrap();
         state.select_active_server("paper-1".to_string()).unwrap();
         state
     }

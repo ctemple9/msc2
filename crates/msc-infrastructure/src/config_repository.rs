@@ -47,6 +47,7 @@ use crate::secret_store::{SecretStore, SecretStoreError};
 use msc_domain::app_config_schema::{AppConfig, DecodeError};
 use serde_json::Value;
 use std::collections::HashSet;
+use std::ffi::OsString;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -307,6 +308,92 @@ pub fn save_app_config(
 ) -> Result<(), ConfigSaveError> {
     let value = stamp_schema_version(config.encode(), config.config_version);
     save_config(fs, path, &value)
+}
+
+/// Durable application-data root for production agent state. Tests may
+/// inject their own paths, but the service default must never be the OS
+/// temporary directory because server/config state is intended to survive
+/// process and machine restarts.
+pub fn default_app_data_dir() -> PathBuf {
+    default_app_data_dir_from_env(|key| std::env::var_os(key))
+}
+
+pub fn default_app_data_dir_from_env(mut var: impl FnMut(&str) -> Option<OsString>) -> PathBuf {
+    if let Some(path) = var("MSC2_DATA_DIR")
+        && !path.is_empty()
+    {
+        return PathBuf::from(path);
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let home = var("HOME").unwrap_or_else(|| OsString::from("/Library/Application Support"));
+        PathBuf::from(home)
+            .join("Library")
+            .join("Application Support")
+            .join("MSC2")
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(local_app_data) = var("LOCALAPPDATA")
+            && !local_app_data.is_empty()
+        {
+            return PathBuf::from(local_app_data).join("MSC2");
+        }
+        if let Some(app_data) = var("APPDATA")
+            && !app_data.is_empty()
+        {
+            return PathBuf::from(app_data).join("MSC2");
+        }
+        let profile = var("USERPROFILE").unwrap_or_else(|| OsString::from(r"C:\MSC2"));
+        PathBuf::from(profile)
+            .join("AppData")
+            .join("Local")
+            .join("MSC2")
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        if let Some(xdg) = var("XDG_DATA_HOME")
+            && !xdg.is_empty()
+        {
+            return PathBuf::from(xdg).join("msc2");
+        }
+        let home = var("HOME").unwrap_or_else(|| OsString::from("/var/lib/msc2"));
+        PathBuf::from(home)
+            .join(".local")
+            .join("share")
+            .join("msc2")
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        var("HOME")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(".msc2")
+    }
+}
+
+pub fn default_app_config_path() -> PathBuf {
+    default_app_config_path_from_env(|key| std::env::var_os(key))
+}
+
+pub fn default_app_config_path_from_env(mut var: impl FnMut(&str) -> Option<OsString>) -> PathBuf {
+    var("MSC2_APP_CONFIG_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| default_app_data_dir_from_env(var).join("server_config_swift.json"))
+}
+
+pub fn default_servers_root() -> PathBuf {
+    default_servers_root_from_env(|key| std::env::var_os(key))
+}
+
+pub fn default_servers_root_from_env(mut var: impl FnMut(&str) -> Option<OsString>) -> PathBuf {
+    var("MSC2_AGENT_SERVERS_ROOT")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| default_app_data_dir_from_env(var).join("servers"))
 }
 
 /// Every `.corrupt-<nanos>` backup sibling of `config_path`, newest first —

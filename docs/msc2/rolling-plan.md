@@ -2058,12 +2058,28 @@ and Windows-target clippy.
 ### Phase 5 gate corrections
 
 ### P5.27 — Replace split registries with one durable application state
-**Status:** not started
-**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/durable_server_state.rs`
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/settings.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/durable_server_state.rs`
 **What:** Make one atomically persisted `AppConfig` repository the authority for server records, active-server selection, and the configured MSC-owned server root. Both lifecycle routes and configuration/import routes must receive the same state object; remove the second process-local `ConfigServerStore`. Reconstruct lifecycle-capable runtime entries from persisted `ConfigServer` records when a fresh agent process starts. The default production root must be a durable platform application-data location, never the OS temporary directory; tests may inject temporary roots explicitly.
 **Verify:** `cargo nextest run -p msc-agent durable_server_state`
 **Commit:** `P5.27: unify server state in durable AppConfig`
 **Batch:** solo
+
+**Actual result:** `LifecycleRoutesState` now owns one `AgentAppConfigStore`
+backed by `load_app_config`/`save_app_config`; production resolves
+`server_config_swift.json` and the MSC-owned `servers/` root under the durable
+app-data directory (`MSC2_DATA_DIR`/`MSC2_APP_CONFIG_PATH`/
+`MSC2_AGENT_SERVERS_ROOT` overrideable), never the OS temp directory by
+default. The old production `ConfigServerStore::global()` split is gone:
+Paper-only imports, raw imports, transfer imports, listing, transfer backup
+inputs, port-conflict inputs, and active-server selection all flow through the
+same persisted `AppConfig`. A fresh route state reconstructs lifecycle-capable
+Java/Paper entries from saved `ConfigServer` records and reselects the saved
+active server before handling lifecycle calls. `settings.rs` is touched only to
+handle the shared import-registration method now returning a save result.
+Verified with `cargo nextest run -p msc-agent durable_server_state` (2/2
+passed), `cargo fmt --check`, `cargo clippy -p msc-agent --all-targets -- -D
+warnings`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.28 — Make every import path lifecycle-capable and durable
 **Status:** not started

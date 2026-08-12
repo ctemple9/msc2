@@ -53,7 +53,7 @@ async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
 }
 
 pub(crate) fn build_app() -> Router {
-    let auth_state = auth::AuthState::empty_service_store_with_test_bootstrap_env();
+    let auth_state = auth::AuthState::default_persistent_service_store();
 
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).

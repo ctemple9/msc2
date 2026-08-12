@@ -13,8 +13,9 @@
 //! a token can authenticate.
 
 use std::collections::{HashMap, VecDeque};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use axum::Json;
 use axum::extract::{Request, State};
@@ -24,10 +25,16 @@ use axum::response::{IntoResponse, Response};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use msc_api::dto::{ErrorDto, PermissionCategoryDto};
+use msc_infrastructure::config_repository::LEGACY_OWNER_TOKEN_SECRET_KEY;
+use msc_infrastructure::credential_repository::{
+    CredentialRegistryEntry, CredentialRepository, CredentialRepositoryError,
+};
+use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore, SecretStoreError};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha1::{Digest, Sha1};
 use subtle::ConstantTimeEq;
 
@@ -37,7 +44,8 @@ const HASH_ALGORITHM: &str = "sha1-salted-v1";
 const AUTH_FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const AUTH_FAILURE_LIMIT: usize = 10;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 #[cfg_attr(not(test), allow(dead_code))]
 pub enum CredentialRole {
     Admin,
@@ -86,6 +94,18 @@ struct AuthStateInner {
     registry: Mutex<HashMap<String, CredentialRecord>>,
     failures: Mutex<HashMap<String, VecDeque<Instant>>>,
     audit_events: Mutex<Vec<AuthAuditEvent>>,
+    /// Where the non-secret registry is durably persisted, if at all --
+    /// `None` for the in-memory-only constructors tests use.
+    credential_store: Option<CredentialRegistryStore>,
+}
+
+/// `fs` must outlive the process: `AuthState` is cloned into axum's
+/// `State` extractor, which requires `'static`, the same reason
+/// `routes::operations::OperationsState::default_journaled` leaks its
+/// `FileSystem` instead of borrowing one with a shorter lifetime.
+struct CredentialRegistryStore {
+    fs: &'static dyn FileSystem,
+    path: PathBuf,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -109,29 +129,105 @@ enum AuthError {
 }
 
 impl AuthState {
-    pub fn empty_service_store() -> Self {
-        Self::new(Arc::new(FakeSecretStore::new()))
+    #[cfg_attr(not(test), allow(dead_code))]
+    pub fn new(secret_store: Arc<dyn SecretStore + Send + Sync>) -> Self {
+        Self::with_registry_state(secret_store, HashMap::new(), None)
     }
 
-    pub fn empty_service_store_with_test_bootstrap_env() -> Self {
-        let state = Self::empty_service_store();
+    /// Builds an `AuthState` whose non-secret credential registry is
+    /// durable: `registry_path` is read via [`CredentialRepository`] to
+    /// reconstruct in-memory state (empty if the file doesn't exist yet --
+    /// a fresh install has nothing to reconstruct), and every later
+    /// registry mutation ([`Self::issue_credential`],
+    /// [`Self::migrate_owner_credential`], the test bootstrap path)
+    /// rewrites the same file atomically. Verifier records are not part of
+    /// this: they stay in `secret_store`, whatever that is.
+    pub fn with_persistent_registry(
+        secret_store: Arc<dyn SecretStore + Send + Sync>,
+        fs: &'static dyn FileSystem,
+        registry_path: impl Into<PathBuf>,
+    ) -> Result<Self, CredentialRepositoryError> {
+        let path = registry_path.into();
+        let entries = CredentialRepository::new(fs, path.clone()).load()?;
+        let registry = entries.into_iter().filter_map(entry_to_record).collect();
+        Ok(Self::with_registry_state(
+            secret_store,
+            registry,
+            Some(CredentialRegistryStore { fs, path }),
+        ))
+    }
+
+    /// The real construction path `main.rs` uses: a persistent registry at
+    /// [`default_registry_path`], the `MSC2_TEST_BOOTSTRAP_TOKEN` dev
+    /// convenience P2.12/P4.5 already relied on, and — the P5.9 addition —
+    /// migrating a P5.8 legacy owner token into the Phase 4 credential
+    /// model if one is still sitting at `LEGACY_OWNER_TOKEN_SECRET_KEY`.
+    /// Idempotent across restarts: migration deletes that legacy key once
+    /// it has moved it, so a second call finds nothing left to migrate.
+    pub fn default_persistent_service_store() -> Self {
+        let path = default_registry_path();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .unwrap_or_else(|error| panic!("failed to create {}: {error}", parent.display()));
+        }
+        let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
+        let state = Self::with_persistent_registry(Arc::new(FakeSecretStore::new()), fs, path)
+            .unwrap_or_else(|error| panic!("failed to load credential registry: {error}"));
+
         if let Ok(token) = std::env::var("MSC2_TEST_BOOTSTRAP_TOKEN") {
             state
                 .register_test_bootstrap_token(&token)
                 .expect("MSC2_TEST_BOOTSTRAP_TOKEN must have msc2_<id>_<secret> shape");
         }
+
+        if let Some(issued) = state
+            .migrate_owner_credential()
+            .unwrap_or_else(|error| panic!("failed to migrate legacy owner credential: {error}"))
+        {
+            println!(
+                "msc: migrated the legacy owner API token to credential {} -- new bearer token (shown once): {}",
+                issued.credential_id, issued.token
+            );
+        }
+
         state
     }
 
-    pub fn new(secret_store: Arc<dyn SecretStore + Send + Sync>) -> Self {
+    fn with_registry_state(
+        secret_store: Arc<dyn SecretStore + Send + Sync>,
+        registry: HashMap<String, CredentialRecord>,
+        credential_store: Option<CredentialRegistryStore>,
+    ) -> Self {
         Self {
             inner: Arc::new(AuthStateInner {
                 secret_store,
-                registry: Mutex::new(HashMap::new()),
+                registry: Mutex::new(registry),
                 failures: Mutex::new(HashMap::new()),
                 audit_events: Mutex::new(Vec::new()),
+                credential_store,
             }),
         }
+    }
+
+    /// Rewrites the whole persisted registry file from `registry`'s
+    /// current contents, or does nothing for an `AuthState` built without
+    /// [`Self::with_persistent_registry`]. Called with `registry`'s own
+    /// lock already held, so the file on disk and the in-memory map never
+    /// observably disagree between two calls.
+    fn persist_registry(
+        &self,
+        registry: &HashMap<String, CredentialRecord>,
+    ) -> Result<(), SecretStoreError> {
+        let Some(store) = &self.inner.credential_store else {
+            return Ok(());
+        };
+        let entries: Vec<CredentialRegistryEntry> = registry
+            .iter()
+            .map(|(id, record)| record_to_entry(id, record))
+            .collect();
+        CredentialRepository::new(store.fs, store.path.clone())
+            .save(&entries)
+            .map_err(|err| SecretStoreError(err.to_string()))
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -142,8 +238,68 @@ impl AuthState {
         permissions: Vec<PermissionCategoryDto>,
         expires_at: Option<SystemTime>,
     ) -> Result<IssuedCredential, SecretStoreError> {
+        let issued = self.issue_credential_with_secret(
+            label,
+            role,
+            permissions,
+            expires_at,
+            random_secret(),
+        )?;
+        self.record_audit("owner-admin", StatusCode::CREATED, "token_created");
+        Ok(issued)
+    }
+
+    /// Migrates a P5.8 legacy owner token into the Phase 4 credential
+    /// model: `None` if `LEGACY_OWNER_TOKEN_SECRET_KEY` is absent or blank
+    /// (nothing to migrate — including the common case where an earlier
+    /// call already migrated and deleted it, which is what makes rerunning
+    /// this idempotent). Otherwise mints one admin credential whose secret
+    /// component *is* the old token — so the value a returning owner
+    /// already knows keeps working, just wrapped in the `msc2_<id>_`
+    /// envelope every other credential uses — deletes the now-migrated
+    /// legacy key, and returns the replacement bearer once.
+    ///
+    /// `docs/msc2/lifecycle/pairing-phase4.md`'s "do not add a raw-token
+    /// parsing fallback" holds structurally: `try_authenticate` never reads
+    /// `LEGACY_OWNER_TOKEN_SECRET_KEY` — only the `msc2_<id>_<secret>`
+    /// shape authenticates, whether `<secret>` happens to be an old token
+    /// or a freshly random one.
+    pub fn migrate_owner_credential(&self) -> Result<Option<IssuedCredential>, SecretStoreError> {
+        let Some(old_token) = self.inner.secret_store.get(LEGACY_OWNER_TOKEN_SECRET_KEY)? else {
+            return Ok(None);
+        };
+        if old_token.trim().is_empty() {
+            return Ok(None);
+        }
+
+        let issued = self.issue_credential_with_secret(
+            "owner-admin",
+            CredentialRole::Admin,
+            all_permissions(),
+            None,
+            old_token,
+        )?;
+        self.inner
+            .secret_store
+            .delete(LEGACY_OWNER_TOKEN_SECRET_KEY)?;
+        self.record_audit("owner-admin", StatusCode::CREATED, "token_created");
+        Ok(Some(issued))
+    }
+
+    /// Shared by [`Self::issue_credential`] (fresh random `secret`) and
+    /// [`Self::migrate_owner_credential`] (the old legacy token reused as
+    /// `secret`): mints `credential_id`, stores its salted verifier hash in
+    /// `SecretStore`, records the non-secret registry entry, persists the
+    /// registry, and returns the bearer token once.
+    fn issue_credential_with_secret(
+        &self,
+        label: impl Into<String>,
+        role: CredentialRole,
+        permissions: Vec<PermissionCategoryDto>,
+        expires_at: Option<SystemTime>,
+        secret: String,
+    ) -> Result<IssuedCredential, SecretStoreError> {
         let credential_id = random_hex_id();
-        let secret = random_secret();
         let salt = random_secret_salt();
         let salt_bytes = verifier_salt_bytes(&salt).expect("generated salt is base64url");
         let verifier = TokenVerifierRecord {
@@ -157,18 +313,20 @@ impl AuthState {
             &serde_json::to_string(&verifier).expect("TokenVerifierRecord serializes"),
         )?;
 
-        self.inner.registry.lock().unwrap().insert(
-            credential_id.clone(),
-            CredentialRecord {
-                label: label.into(),
-                role,
-                permissions,
-                expires_at,
-                revoked: false,
-            },
-        );
-
-        self.record_audit("owner-admin", StatusCode::CREATED, "token_created");
+        {
+            let mut registry = self.inner.registry.lock().unwrap();
+            registry.insert(
+                credential_id.clone(),
+                CredentialRecord {
+                    label: label.into(),
+                    role,
+                    permissions,
+                    expires_at,
+                    revoked: false,
+                },
+            );
+            self.persist_registry(&registry)?;
+        }
 
         Ok(IssuedCredential {
             token: format!("{TOKEN_PREFIX}_{credential_id}_{secret}"),
@@ -192,16 +350,20 @@ impl AuthState {
             &secret_store_key(credential_id),
             &serde_json::to_string(&verifier).expect("TokenVerifierRecord serializes"),
         )?;
-        self.inner.registry.lock().unwrap().insert(
-            credential_id.to_string(),
-            CredentialRecord {
-                label: "phase4-live-check".to_string(),
-                role: CredentialRole::Admin,
-                permissions: all_permissions(),
-                expires_at: None,
-                revoked: false,
-            },
-        );
+        {
+            let mut registry = self.inner.registry.lock().unwrap();
+            registry.insert(
+                credential_id.to_string(),
+                CredentialRecord {
+                    label: "phase4-live-check".to_string(),
+                    role: CredentialRole::Admin,
+                    permissions: all_permissions(),
+                    expires_at: None,
+                    revoked: false,
+                },
+            );
+            self.persist_registry(&registry)?;
+        }
         Ok(())
     }
 
@@ -409,6 +571,93 @@ fn hex_lower(bytes: &[u8]) -> String {
         out.push(HEX[(byte & 0x0f) as usize] as char);
     }
     out
+}
+
+/// Where [`AuthState::default_persistent_service_store`] persists the
+/// non-secret credential registry, overridable for a real deployment that
+/// wants it somewhere other than the OS temp directory — the same
+/// `MSC2_..._DIR` env-var convention
+/// `routes::operations::operation_journal_dir` already established.
+fn default_registry_path() -> PathBuf {
+    std::env::var_os("MSC2_CREDENTIAL_REGISTRY_PATH")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("msc2-credential-registry.json"))
+}
+
+/// `record`'s persisted shape — `role`/`permissions` become plain strings
+/// since `msc-infrastructure` (where [`CredentialRegistryEntry`] lives)
+/// depends on neither `CredentialRole` nor `PermissionCategoryDto`.
+fn record_to_entry(credential_id: &str, record: &CredentialRecord) -> CredentialRegistryEntry {
+    CredentialRegistryEntry {
+        credential_id: credential_id.to_string(),
+        label: record.label.clone(),
+        role: role_to_string(record.role),
+        permissions: record
+            .permissions
+            .iter()
+            .map(|permission| permission_to_string(*permission))
+            .collect(),
+        expires_at: record.expires_at.map(system_time_to_unix_secs),
+        revoked: record.revoked,
+    }
+}
+
+/// The inverse of [`record_to_entry`]. `None` for a row whose `role` isn't
+/// one this build recognizes — matches
+/// `msc_infrastructure::credential_repository`'s own "skip rather than
+/// fail the whole load" handling for a malformed row. An unrecognized
+/// permission string is dropped from that credential's list instead of
+/// invalidating the whole row, since a stricter permission set is a safe
+/// direction to fail in.
+fn entry_to_record(entry: CredentialRegistryEntry) -> Option<(String, CredentialRecord)> {
+    let role = role_from_string(&entry.role)?;
+    let permissions = entry
+        .permissions
+        .into_iter()
+        .filter_map(|permission| permission_from_string(&permission))
+        .collect();
+    Some((
+        entry.credential_id,
+        CredentialRecord {
+            label: entry.label,
+            role,
+            permissions,
+            expires_at: entry.expires_at.map(unix_secs_to_system_time),
+            revoked: entry.revoked,
+        },
+    ))
+}
+
+fn role_to_string(role: CredentialRole) -> String {
+    serde_json::to_value(role)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_string))
+        .expect("CredentialRole always serializes to a string")
+}
+
+fn role_from_string(value: &str) -> Option<CredentialRole> {
+    serde_json::from_value(Value::String(value.to_string())).ok()
+}
+
+fn permission_to_string(permission: PermissionCategoryDto) -> String {
+    serde_json::to_value(permission)
+        .ok()
+        .and_then(|value| value.as_str().map(str::to_string))
+        .expect("PermissionCategoryDto always serializes to a string")
+}
+
+fn permission_from_string(value: &str) -> Option<PermissionCategoryDto> {
+    serde_json::from_value(Value::String(value.to_string())).ok()
+}
+
+fn system_time_to_unix_secs(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn unix_secs_to_system_time(secs: u64) -> SystemTime {
+    UNIX_EPOCH + Duration::from_secs(secs)
 }
 
 fn unauthorized() -> Response {
@@ -635,6 +884,74 @@ mod tests {
                 .unwrap()
                 .role,
             CredentialRole::Named
+        );
+    }
+
+    #[test]
+    fn migrate_owner_credential_is_none_when_nothing_was_extracted() {
+        let state = test_state();
+        assert_eq!(state.migrate_owner_credential().unwrap(), None);
+    }
+
+    /// The P5.9 gate: a P5.8-style legacy owner token, sitting in
+    /// `SecretStore` at `LEGACY_OWNER_TOKEN_SECRET_KEY`, survives being
+    /// migrated into the Phase 4 credential model across a simulated agent
+    /// restart, and migrating twice does not mint a second credential.
+    #[test]
+    fn migrated_owner_credential_survives_restart() {
+        use msc_infrastructure::fs::FakeFileSystem;
+
+        let secret_store: Arc<dyn SecretStore + Send + Sync> = Arc::new(FakeSecretStore::new());
+        secret_store
+            .set(LEGACY_OWNER_TOKEN_SECRET_KEY, "legacy-owner-secret-xyz")
+            .unwrap();
+        let fs: &'static dyn FileSystem =
+            Box::leak(Box::new(FakeFileSystem::new().with_dir("/srv/agent")));
+        let registry_path = "/srv/agent/credentials.json";
+
+        // "Before restart": migrate the legacy token into a real credential.
+        let state =
+            AuthState::with_persistent_registry(secret_store.clone(), fs, registry_path).unwrap();
+        let issued = state
+            .migrate_owner_credential()
+            .unwrap()
+            .expect("a legacy owner token was present to migrate");
+        assert_eq!(
+            issued.token,
+            "msc2_".to_string() + &issued.credential_id + "_legacy-owner-secret-xyz"
+        );
+        assert!(
+            secret_store
+                .get(LEGACY_OWNER_TOKEN_SECRET_KEY)
+                .unwrap()
+                .is_none(),
+            "the legacy plaintext key must be gone once migrated"
+        );
+
+        let credential = state
+            .authenticate_headers(&headers_with_bearer(&issued.token), "cli-client")
+            .expect("replacement bearer authenticates before restart");
+        assert_eq!(credential.role, CredentialRole::Admin);
+
+        // "After restart": a fresh `AuthState` reconstructed from the same
+        // registry file and the same `SecretStore`.
+        let restarted =
+            AuthState::with_persistent_registry(secret_store.clone(), fs, registry_path).unwrap();
+        let credential = restarted
+            .authenticate_headers(&headers_with_bearer(&issued.token), "cli-client")
+            .expect("replacement bearer authenticates after restart");
+        assert_eq!(credential.credential_id, issued.credential_id);
+        assert_eq!(credential.role, CredentialRole::Admin);
+        assert_eq!(credential.permissions, all_permissions());
+
+        // Rerunning migration after restart must be a no-op: the legacy
+        // key is already gone, so nothing new is minted.
+        assert_eq!(restarted.migrate_owner_credential().unwrap(), None);
+        let entries = CredentialRepository::new(fs, registry_path).load().unwrap();
+        assert_eq!(
+            entries.len(),
+            1,
+            "rerunning migration must not duplicate the credential"
         );
     }
 }

@@ -2,6 +2,7 @@ pub mod atomic_write;
 pub mod audit_log;
 pub mod config_repository;
 pub mod console_buffer;
+pub mod credential_repository;
 pub mod download_staging;
 pub mod fs;
 pub mod java_runtime_detection;

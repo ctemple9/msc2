@@ -71,7 +71,8 @@ async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
 }
 
 pub(crate) fn build_app() -> Router {
-    let auth_state = auth::AuthState::default_persistent_service_store();
+    let secret_store = auth::production_secret_store()
+        .unwrap_or_else(|error| panic!("failed to initialize production secret store: {error}"));
 
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
@@ -93,10 +94,13 @@ pub(crate) fn build_app() -> Router {
         .with_state(operations_state.clone());
 
     let console_state = ws::console::ConsoleState::default();
-    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::new(
+    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::new_migrating_legacy_secrets(
         console_state.clone(),
         operations_state.clone(),
+        secret_store.as_ref(),
     );
+    let auth_state =
+        auth::AuthState::persistent_service_store_with_secret_store(secret_store.clone());
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))

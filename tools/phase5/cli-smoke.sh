@@ -16,12 +16,14 @@ RUN_TRANSFER=0
 RUN_RAW=0
 RUN_IMPORT_LIFECYCLE=0
 RUN_RESCAN=0
+RUN_MIGRATION_RESTART=0
 if [[ $# -eq 0 ]]; then
   RUN_SETTINGS=1
   RUN_TRANSFER=1
   RUN_RAW=1
   RUN_IMPORT_LIFECYCLE=1
   RUN_RESCAN=1
+  RUN_MIGRATION_RESTART=1
 else
   for arg in "$@"; do
     case "$arg" in
@@ -40,9 +42,12 @@ else
       --rescan)
         RUN_RESCAN=1
         ;;
+      --migration-restart)
+        RUN_MIGRATION_RESTART=1
+        ;;
       *)
         echo "unknown flag: ${arg}" >&2
-        echo "usage: $0 [--settings] [--transfer] [--raw] [--import-lifecycle] [--rescan]" >&2
+        echo "usage: $0 [--settings] [--transfer] [--raw] [--import-lifecycle] [--rescan] [--migration-restart]" >&2
         exit 2
         ;;
     esac
@@ -63,6 +68,7 @@ TOKEN="msc2_phase5_cli_smoke_bootstrap_secret"
 MSC_BIN="${ROOT}/target/debug/msc"
 AGENT_PID=""
 KEYCHAIN_SERVICE="com.msc2.phase5.cli-smoke.$(date +%Y%m%d%H%M%S).$$"
+MIGRATED_CREDENTIAL_ID=""
 
 cleanup() {
   if [[ -n "${AGENT_PID}" ]] && kill -0 "${AGENT_PID}" 2>/dev/null; then
@@ -73,6 +79,17 @@ cleanup() {
     /usr/bin/security delete-generic-password \
       -s "${KEYCHAIN_SERVICE}" \
       -a "remote-api.token.phase5" >/dev/null 2>&1 || true
+    /usr/bin/security delete-generic-password \
+      -s "${KEYCHAIN_SERVICE}" \
+      -a "remote-api.owner-token" >/dev/null 2>&1 || true
+    /usr/bin/security delete-generic-password \
+      -s "${KEYCHAIN_SERVICE}" \
+      -a "xbox-broadcast.alt-password.11111111-1111-1111-1111-111111111111" >/dev/null 2>&1 || true
+    if [[ -n "${MIGRATED_CREDENTIAL_ID}" ]]; then
+      /usr/bin/security delete-generic-password \
+        -s "${KEYCHAIN_SERVICE}" \
+        -a "remote-api.token.${MIGRATED_CREDENTIAL_ID}" >/dev/null 2>&1 || true
+    fi
   fi
   rm -rf "${TMP_DIR}"
 }
@@ -120,6 +137,30 @@ fi
 # Shared by transfer, raw, and no-serverType importExisting routes.
 export MSC2_AGENT_SERVERS_ROOT="${TMP_DIR}/agent-servers"
 mkdir -p "${MSC2_OPERATION_JOURNAL_DIR}" "${MSC2_DATA_DIR}"
+
+if [[ "${RUN_MIGRATION_RESTART}" -eq 1 ]]; then
+  mkdir -p "${MSC2_AGENT_SERVERS_ROOT}/java/legacy_migration"
+  : > "${MSC2_AGENT_SERVERS_ROOT}/java/legacy_migration/paper.jar"
+  cat > "${MSC2_APP_CONFIG_PATH}" <<EOF
+{
+  "config_version": 1,
+  "servers_root": "${MSC2_AGENT_SERVERS_ROOT}",
+  "remote_api_token": "legacy-owner-secret-xyz",
+  "servers": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "display_name": "Legacy Migration",
+      "server_dir": "${MSC2_AGENT_SERVERS_ROOT}/java/legacy_migration",
+      "paper_jar_path": "${MSC2_AGENT_SERVERS_ROOT}/java/legacy_migration/paper.jar",
+      "min_ram_gb": 2,
+      "max_ram_gb": 4,
+      "server_type": "java",
+      "xbox_broadcast_alt_password": "legacy-alt-password"
+    }
+  ]
+}
+EOF
+fi
 
 "${MSC_BIN}" serve --bind "127.0.0.1:${PORT}" >"${TMP_DIR}/agent.log" 2>&1 &
 AGENT_PID="$!"
@@ -717,6 +758,55 @@ PY
 
   echo "rescan cli smoke passed"
 }
+
+run_migration_restart_smoke() {
+  local migrated_token
+  migrated_token="$(python3 - "${TMP_DIR}/agent.log" <<'PY'
+import pathlib
+import sys
+import time
+
+path = pathlib.Path(sys.argv[1])
+marker = "new bearer token (shown once): "
+deadline = time.time() + 20
+while time.time() < deadline:
+    text = path.read_text(errors="replace") if path.exists() else ""
+    start = text.find(marker)
+    if start != -1:
+        token = text[start + len(marker):].splitlines()[0].strip()
+        if token.startswith("msc2_"):
+            print(token)
+            raise SystemExit(0)
+    time.sleep(0.1)
+raise SystemExit("agent did not print migrated bearer token")
+PY
+)"
+  local token_tail="${migrated_token#msc2_}"
+  MIGRATED_CREDENTIAL_ID="${token_tail%%_*}"
+
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${migrated_token}" --json status >/dev/null
+
+  if grep -q 'remote_api_token\|xbox_broadcast_alt_password' "${MSC2_APP_CONFIG_PATH}"; then
+    echo "legacy plaintext secrets remained in ${MSC2_APP_CONFIG_PATH}" >&2
+    cat "${MSC2_APP_CONFIG_PATH}" >&2
+    exit 1
+  fi
+
+  kill "${AGENT_PID}"
+  wait "${AGENT_PID}" 2>/dev/null || true
+  AGENT_PID=""
+  "${MSC_BIN}" serve --bind "127.0.0.1:${PORT}" >"${TMP_DIR}/agent-migration-restarted.log" 2>&1 &
+  AGENT_PID="$!"
+  wait_for_agent_healthy
+
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${migrated_token}" --json status >/dev/null
+
+  echo "migration restart cli smoke passed"
+}
+
+if [[ "${RUN_MIGRATION_RESTART}" -eq 1 ]]; then
+  run_migration_restart_smoke
+fi
 
 if [[ "${RUN_SETTINGS}" -eq 1 ]]; then
   run_settings_smoke

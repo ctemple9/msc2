@@ -167,16 +167,23 @@ impl AuthState {
     /// model if one is still sitting at `LEGACY_OWNER_TOKEN_SECRET_KEY`.
     /// Idempotent across restarts: migration deletes that legacy key once
     /// it has moved it, so a second call finds nothing left to migrate.
+    #[allow(dead_code)]
     pub fn default_persistent_service_store() -> Self {
+        let secret_store = production_secret_store().unwrap_or_else(|error| {
+            panic!("failed to initialize production secret store: {error}")
+        });
+        Self::persistent_service_store_with_secret_store(secret_store)
+    }
+
+    pub fn persistent_service_store_with_secret_store(
+        secret_store: Arc<dyn SecretStore + Send + Sync>,
+    ) -> Self {
         let path = default_registry_path();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .unwrap_or_else(|error| panic!("failed to create {}: {error}", parent.display()));
         }
         let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
-        let secret_store = production_secret_store().unwrap_or_else(|error| {
-            panic!("failed to initialize production secret store: {error}")
-        });
         let state = Self::with_persistent_registry(secret_store, fs, path)
             .unwrap_or_else(|error| panic!("failed to load credential registry: {error}"));
 
@@ -590,7 +597,8 @@ enum ProductionSecretStoreKind {
     LinuxCredentialHelper,
 }
 
-fn production_secret_store() -> Result<Arc<dyn SecretStore + Send + Sync>, SecretStoreError> {
+pub(crate) fn production_secret_store()
+-> Result<Arc<dyn SecretStore + Send + Sync>, SecretStoreError> {
     #[cfg(target_os = "macos")]
     {
         if let Ok(service) = std::env::var("MSC2_MACOS_USER_KEYCHAIN_SERVICE")

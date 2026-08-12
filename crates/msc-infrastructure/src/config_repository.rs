@@ -195,6 +195,7 @@ pub struct AppConfigLoadOutcome {
 pub enum AppConfigLoadError {
     Load(ConfigLoadError),
     Decode(DecodeError),
+    SecretMigration(SecretStoreError),
 }
 
 impl fmt::Display for AppConfigLoadError {
@@ -202,6 +203,7 @@ impl fmt::Display for AppConfigLoadError {
         match self {
             AppConfigLoadError::Load(err) => write!(f, "{err}"),
             AppConfigLoadError::Decode(err) => write!(f, "{err}"),
+            AppConfigLoadError::SecretMigration(err) => write!(f, "{err}"),
         }
     }
 }
@@ -210,6 +212,7 @@ impl std::error::Error for AppConfigLoadError {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             AppConfigLoadError::Load(err) => Some(err),
+            AppConfigLoadError::SecretMigration(err) => Some(err),
             // `DecodeError` (msc-domain) doesn't implement `std::error::Error`
             // yet -- nothing to chain to.
             AppConfigLoadError::Decode(_) => None,
@@ -294,6 +297,65 @@ pub fn load_app_config(
     }
     Ok(AppConfigLoadOutcome {
         config,
+        corrupt_backup_path: outcome.corrupt_backup_path,
+    })
+}
+
+/// Loads an `AppConfig` and runs MSC 1's legacy plaintext-secret migration
+/// before typed decode. This is the production service startup path: the
+/// raw `remote_api_token` and per-server `xbox_broadcast_alt_password`
+/// values are moved into the caller-selected [`SecretStore`], the returned
+/// config is decoded from the scrubbed JSON, and any migrated config is
+/// immediately re-saved via [`save_app_config`] so the plaintext does not
+/// survive a successful startup.
+pub fn load_app_config_migrating_legacy_secrets(
+    fs: &dyn FileSystem,
+    path: &Path,
+    defaults: &AppConfig,
+    now: SystemTime,
+    secrets: &dyn SecretStore,
+) -> Result<AppConfigLoadOutcome, AppConfigLoadError> {
+    let defaults_value = stamp_schema_version(defaults.encode(), defaults.config_version);
+    let outcome = load_config(fs, path, &defaults_value, now).map_err(AppConfigLoadError::Load)?;
+    let original_config = outcome.config.clone();
+    let (migrated_value, migration) = migrate_legacy_secrets(secrets, &outcome.config)
+        .map_err(AppConfigLoadError::SecretMigration)?;
+
+    let mut decoded = match AppConfig::decode(&migrated_value, defaults) {
+        Ok(config) => config,
+        Err(decode_err) => {
+            let raw = fs
+                .read(path)
+                .map_err(|e| AppConfigLoadError::Load(ConfigLoadError::Io(e)))?;
+            let backup_path = corrupt_backup_path(path, now);
+            fs.write(&backup_path, &raw)
+                .map_err(|e| AppConfigLoadError::Load(ConfigLoadError::Io(e)))?;
+            save_config(fs, path, &defaults_value)
+                .map_err(|e| AppConfigLoadError::Load(ConfigLoadError::Save(e)))?;
+            return match AppConfig::decode(&defaults_value, defaults) {
+                Ok(config) => Ok(AppConfigLoadOutcome {
+                    config,
+                    corrupt_backup_path: Some(backup_path),
+                }),
+                Err(_) => Err(AppConfigLoadError::Decode(decode_err)),
+            };
+        }
+    };
+
+    if !(1..=65535).contains(&decoded.remote_api_port) {
+        decoded.remote_api_port = AppConfig::DEFAULT_REMOTE_API_PORT;
+    }
+
+    if migrated_value != original_config
+        || migration.owner_token_migrated
+        || !migration.server_passwords_migrated.is_empty()
+    {
+        save_app_config(fs, path, &decoded)
+            .map_err(|e| AppConfigLoadError::Load(ConfigLoadError::Save(e)))?;
+    }
+
+    Ok(AppConfigLoadOutcome {
+        config: decoded,
         corrupt_backup_path: outcome.corrupt_backup_path,
     })
 }

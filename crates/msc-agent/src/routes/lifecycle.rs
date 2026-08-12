@@ -29,7 +29,7 @@ use msc_domain::identity::ServerType;
 use msc_domain::operation::OperationId;
 use msc_infrastructure::config_repository::{
     AppConfigLoadError, ConfigSaveError, default_app_config_path, default_servers_root,
-    load_app_config, save_app_config,
+    load_app_config, load_app_config_migrating_legacy_secrets, save_app_config,
 };
 use msc_infrastructure::console_buffer::ConsoleLine;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
@@ -37,6 +37,7 @@ use msc_infrastructure::metrics::PsProcessMetricsProvider;
 use msc_infrastructure::process::{
     OutputLineFramer, OutputStream, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
 };
+use msc_infrastructure::secret_store::SecretStore;
 use tokio::task::JoinHandle;
 
 use crate::auth::AuthenticatedCredential;
@@ -81,9 +82,27 @@ pub struct AgentConsoleSink {
 }
 
 impl LifecycleRoutesState {
+    #[allow(dead_code)]
     pub fn new(console_state: ConsoleState, operations: OperationsState) -> Self {
         let app_config = Box::leak(Box::new(
             AgentAppConfigStore::production()
+                .expect("failed to load durable MSC 2 application config"),
+        ));
+        Self::with_dependencies(
+            console_state,
+            operations,
+            app_config,
+            default_process_supervisor(),
+        )
+    }
+
+    pub fn new_migrating_legacy_secrets(
+        console_state: ConsoleState,
+        operations: OperationsState,
+        secrets: &dyn SecretStore,
+    ) -> Self {
+        let app_config = Box::leak(Box::new(
+            AgentAppConfigStore::production_migrating_legacy_secrets(secrets)
                 .expect("failed to load durable MSC 2 application config"),
         ));
         Self::with_dependencies(
@@ -558,6 +577,7 @@ pub async fn active_server(
 }
 
 impl AgentAppConfigStore {
+    #[allow(dead_code)]
     pub fn production() -> Result<Self, AgentAppConfigError> {
         let path = default_app_config_path();
         let servers_root = default_servers_root();
@@ -578,6 +598,34 @@ impl AgentAppConfigStore {
         Self::load(Box::leak(Box::new(StdFileSystem)), path, servers_root)
     }
 
+    pub fn production_migrating_legacy_secrets(
+        secrets: &dyn SecretStore,
+    ) -> Result<Self, AgentAppConfigError> {
+        let path = default_app_config_path();
+        let servers_root = default_servers_root();
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|error| {
+                AgentAppConfigError::Load(format!(
+                    "failed to create app config directory {}: {error}",
+                    parent.display()
+                ))
+            })?;
+        }
+        std::fs::create_dir_all(&servers_root).map_err(|error| {
+            AgentAppConfigError::Load(format!(
+                "failed to create servers root {}: {error}",
+                servers_root.display()
+            ))
+        })?;
+        Self::load_migrating_legacy_secrets(
+            Box::leak(Box::new(StdFileSystem)),
+            path,
+            servers_root,
+            secrets,
+        )
+    }
+
+    #[allow(dead_code)]
     pub fn load(
         fs: &'static dyn FileSystem,
         path: PathBuf,
@@ -586,6 +634,28 @@ impl AgentAppConfigStore {
         let defaults = AppConfig::default_config(servers_root.to_string_lossy().into_owned());
         let outcome = load_app_config(fs, &path, &defaults, SystemTime::now())
             .map_err(AgentAppConfigError::from)?;
+        Ok(Self {
+            fs,
+            path,
+            config: Mutex::new(outcome.config),
+        })
+    }
+
+    pub fn load_migrating_legacy_secrets(
+        fs: &'static dyn FileSystem,
+        path: PathBuf,
+        servers_root: PathBuf,
+        secrets: &dyn SecretStore,
+    ) -> Result<Self, AgentAppConfigError> {
+        let defaults = AppConfig::default_config(servers_root.to_string_lossy().into_owned());
+        let outcome = load_app_config_migrating_legacy_secrets(
+            fs,
+            &path,
+            &defaults,
+            SystemTime::now(),
+            secrets,
+        )
+        .map_err(AgentAppConfigError::from)?;
         Ok(Self {
             fs,
             path,
@@ -949,6 +1019,7 @@ mod tests {
         default_app_config_path_from_env, default_servers_root_from_env,
     };
     use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
+    use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
     use std::collections::HashMap;
     use std::ffi::OsString;
 
@@ -993,6 +1064,64 @@ mod tests {
         )
         .unwrap();
         dir
+    }
+
+    #[test]
+    fn startup_secret_migration_loader_moves_xbox_password_and_scrubs_config() {
+        let fs = Box::leak(Box::new(
+            FakeFileSystem::new()
+                .with_dir("/cfg")
+                .with_dir("/servers")
+                .with_dir("/servers/legacy_java"),
+        ));
+        let config_path = std::path::PathBuf::from("/cfg/server_config_swift.json");
+        let servers_root = std::path::PathBuf::from("/servers");
+        fs.write(
+            &config_path,
+            br#"{
+  "config_version": 1,
+  "servers_root": "/servers",
+  "remote_api_token": "legacy-owner-secret-xyz",
+  "servers": [
+    {
+      "id": "11111111-1111-1111-1111-111111111111",
+      "display_name": "Legacy Java",
+      "server_dir": "/servers/legacy_java",
+      "paper_jar_path": "/servers/legacy_java/paper.jar",
+      "min_ram_gb": 2,
+      "max_ram_gb": 4,
+      "server_type": "java",
+      "xbox_broadcast_alt_password": "legacy-alt-password"
+    }
+  ]
+}"#,
+        )
+        .unwrap();
+        let secrets = FakeSecretStore::new();
+
+        let store = AgentAppConfigStore::load_migrating_legacy_secrets(
+            fs,
+            config_path.clone(),
+            servers_root,
+            &secrets,
+        )
+        .unwrap();
+
+        assert_eq!(store.servers().len(), 1);
+        assert_eq!(
+            secrets.get("remote-api.owner-token").unwrap().as_deref(),
+            Some("legacy-owner-secret-xyz")
+        );
+        assert_eq!(
+            secrets
+                .get("xbox-broadcast.alt-password.11111111-1111-1111-1111-111111111111")
+                .unwrap()
+                .as_deref(),
+            Some("legacy-alt-password")
+        );
+        let saved = String::from_utf8(fs.read(&config_path).unwrap()).unwrap();
+        assert!(!saved.contains("remote_api_token"));
+        assert!(!saved.contains("xbox_broadcast_alt_password"));
     }
 
     #[tokio::test]

@@ -2142,12 +2142,35 @@ IDs), `tools/phase5/cli-smoke.sh --rescan` (`rescan cli smoke passed`), `cargo
 fmt --check`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.30 — Run legacy-secret migration during real service startup
-**Status:** not started
-**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/startup_secret_migration.rs`, `tools/phase5/cli-smoke.sh`
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/startup_secret_migration.rs`, `tools/phase5/cli-smoke.sh`
 **What:** Call `migrate_legacy_secrets` from the real configuration-load path before the service starts accepting requests. Move only MSC 1's plaintext owner token and per-server Xbox passwords into P4.42's production-selected store, mint or register the owner credential in the exact form the bearer verifier consumes, atomically save the scrubbed `AppConfig`, and make retries idempotent. A subprocess test must start the agent against a legacy config, authenticate with the migrated owner token, stop the process, start a new process from the same data root, authenticate again, and confirm plaintext is absent from saved config; reusing one in-memory `Arc` is not restart evidence.
 **Verify:** `cargo nextest run -p msc-agent startup_secret_migration && tools/phase5/cli-smoke.sh --migration-restart`
 **Commit:** `P5.30: wire legacy secrets into startup migration`
 **Batch:** stop-after
+
+**Actual result:** Production service startup now constructs one
+platform-selected `SecretStore`, loads `AppConfig` through a migration-aware
+path using that same store, and only then builds bearer auth from the same
+store. `load_app_config_migrating_legacy_secrets` runs P5.8's
+`migrate_legacy_secrets` on the raw JSON before typed decode, moves
+`remote_api_token` and per-server `xbox_broadcast_alt_password` values into
+`SecretStore`, decodes/clamps the scrubbed config, and immediately saves the
+typed `AppConfig` atomically when migration changed the raw file. Auth then
+runs the existing P5.9 owner-token migration, minting the real
+`msc2_<credential-id>_<legacy-secret>` bearer and deleting the holding
+`remote-api.owner-token` key. Regressions cover the loader moving the Xbox
+password and scrubbing plaintext, plus a macOS real-subprocess startup test:
+seed a legacy config, start `msc serve` with an isolated durable data root and
+temporary user-keychain namespace, parse the printed replacement bearer,
+authenticate `/v1/status`, stop the process, restart from the same roots, and
+authenticate again with the same bearer while confirming the saved config no
+longer contains the plaintext keys. `tools/phase5/cli-smoke.sh
+--migration-restart` performs the same public-path restart check for the
+foreground macOS smoke harness. Verified with `cargo nextest run -p msc-agent
+startup_secret_migration` (2/2 passed), `tools/phase5/cli-smoke.sh
+--migration-restart` (`migration restart cli smoke passed`), `cargo fmt
+--check`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.31 — Make replace-all operate on the complete state and real secrets
 **Status:** not started

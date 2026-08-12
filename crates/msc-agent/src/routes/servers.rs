@@ -18,8 +18,8 @@ use msc_api::dto::{
 };
 use msc_application::import::{
     DetectedWorld, RawImportError, RawImportOverrides, RawImportRequest, RawImportSource,
-    ScannedServerInfo, StdRawImportFileSystem, import_raw_server, scan_server_directory,
-    scan_zip_source,
+    ScannedServerInfo, StdRawImportFileSystem, import_raw_server, rescan_and_import_servers,
+    scan_server_directory, scan_zip_source,
 };
 use msc_application::transfer::{
     TransferApplyRequest, TransferApplyResult, TransferExportRequest, TransferExportServerInput,
@@ -66,6 +66,11 @@ pub async fn import(
     let Some(action) = body.action.clone().filter(|value| !value.trim().is_empty()) else {
         return invalid_body("missing_action", "action is required.");
     };
+
+    if action == "rescan" {
+        return rescan_import(&state);
+    }
+
     let Some(source_path) = body
         .source_path
         .clone()
@@ -93,11 +98,73 @@ pub async fn import(
     if action != "importExisting" {
         return invalid_body(
             "invalid_action",
-            "action must be scan, importExisting, or importTransfer.",
+            "action must be scan, importExisting, importTransfer, or rescan.",
         );
     }
 
     import_raw(&state, &source_path, &body).await
+}
+
+fn rescan_import(state: &LifecycleRoutesState) -> Response {
+    let servers_root = state.servers_root();
+    let operation_id = match state.begin_import_operation(&servers_root.to_string_lossy()) {
+        Ok(operation_id) => operation_id,
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
+    let existing_server_dirs: Vec<String> = state
+        .export_inputs()
+        .into_iter()
+        .map(|input| input.server.server_dir)
+        .collect();
+    let result = rescan_and_import_servers(
+        &StdRawImportFileSystem,
+        &servers_root,
+        &existing_server_dirs,
+    );
+    let first_java_server_id = result
+        .added
+        .iter()
+        .find(|server| server.server_type == ServerType::Java)
+        .map(|server| server.id.clone());
+    let first_added = result.added.first().cloned();
+    let imported = result.added.len() as i64;
+    let skipped = result.skipped as i64;
+
+    match state.merge_config_servers(result.added) {
+        Ok(()) => {
+            if let Some(server_id) = first_java_server_id {
+                let _ = state.select_active_server(server_id);
+            }
+            let message = format!("Recovery rescan complete: {imported} added, {skipped} skipped.");
+            let mut result_map = BTreeMap::new();
+            result_map.insert("imported".to_string(), imported.to_string());
+            result_map.insert("skipped".to_string(), skipped.to_string());
+            let _ = state.finish_operation_success(&operation_id, &message, result_map);
+            Json(ServerImportResultDto {
+                success: true,
+                message,
+                operation_id: Some(operation_id.as_str().to_string()),
+                server_id: first_added.as_ref().map(|server| server.id.clone()),
+                server_name: first_added.map(|server| server.display_name),
+                imported: Some(imported),
+                skipped: Some(skipped),
+                replaced: Some(false),
+            })
+            .into_response()
+        }
+        Err(error) => {
+            let _ = state.finish_operation_failure(
+                &operation_id,
+                "rescan_save_failed",
+                error.to_string(),
+            );
+            error_response(
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &error.to_string(),
+            )
+        }
+    }
 }
 
 // ---------- Raw folder/ZIP scan and import (P5.19-P5.21) ----------
@@ -847,9 +914,11 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 mod tests {
     use super::*;
     use crate::auth::CredentialRole;
+    use crate::routes::lifecycle::AgentAppConfigStore;
     use crate::routes::operations::OperationsState;
     use crate::ws::console::ConsoleState;
     use msc_application::transfer::{TransferManifest, TransferServerConflict};
+    use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 
     // ---------- P5.16: replace-all backup ordering ----------
 
@@ -1071,6 +1140,19 @@ mod tests {
         )
     }
 
+    fn persistent_route_state(config_path: &Path, servers_root: &Path) -> LifecycleRoutesState {
+        let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
+        let app_config = Box::leak(Box::new(
+            AgentAppConfigStore::load(fs, config_path.to_path_buf(), servers_root.to_path_buf())
+                .unwrap(),
+        ));
+        LifecycleRoutesState::with_fake_process_and_app_config(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+            app_config,
+        )
+    }
+
     fn temp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "msc2-transfer-import-route-{tag}-{}-{}",
@@ -1265,6 +1347,25 @@ mod tests {
             import_kind: import_kind.map(str::to_string),
             display_name: None,
             server_type: server_type.map(str::to_string),
+            active_world_name: None,
+            port: None,
+            max_players: None,
+            accept_eula: None,
+            enable_playit: None,
+            transfer_mode: None,
+            backup_path: None,
+            java_port_overrides: HashMap::new(),
+            bedrock_port_overrides: HashMap::new(),
+        }
+    }
+
+    fn rescan_request() -> ServerImportRequestDto {
+        ServerImportRequestDto {
+            action: Some("rescan".to_string()),
+            source_path: None,
+            import_kind: None,
+            display_name: None,
+            server_type: None,
             active_world_name: None,
             port: None,
             max_players: None,
@@ -1481,5 +1582,74 @@ mod tests {
             source.to_string_lossy(),
             "importExisting should now copy into the configured servers root"
         );
+    }
+
+    #[tokio::test]
+    async fn rescan_route_requires_fleet_permission() {
+        let state = route_state();
+        let credential = AuthenticatedCredential {
+            credential_id: "guest".to_string(),
+            label: "guest".to_string(),
+            role: CredentialRole::Guest,
+            permissions: vec![],
+        };
+
+        let response = import(
+            State(state),
+            Extension(credential),
+            Ok(Json(rescan_request())),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn rescan_route_registers_untracked_servers_and_survives_state_rebuild() {
+        let root = temp_dir("rescan-root");
+        let config_dir = temp_dir("rescan-config");
+        let config_path = config_dir.join("server_config_swift.json");
+        let source = root.join("java").join("rescan_smoke_java");
+        write_paper_source(&source);
+
+        let state = persistent_route_state(&config_path, &root);
+        let (status, result): (StatusCode, ServerImportResultDto) =
+            response_json(call_import(&state, rescan_request()).await).await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert!(result.success);
+        assert_eq!(result.imported, Some(1));
+        let server_id = result.server_id.expect("expected rescanned server id");
+        assert_eq!(result.server_name.as_deref(), Some("rescan smoke java"));
+        assert_eq!(
+            state.active_server_id().as_deref(),
+            Some(server_id.as_str())
+        );
+
+        let saved = state.config_servers();
+        assert_eq!(saved.len(), 1);
+        assert_eq!(saved[0].id, server_id);
+        assert_eq!(saved[0].server_dir, source.to_string_lossy());
+        assert_eq!(saved[0].server_type, ServerType::Java);
+        assert_eq!(saved[0].java_flavor, JavaServerFlavor::Paper);
+        assert!(saved[0].has_ever_started);
+
+        let restarted = persistent_route_state(&config_path, &root);
+        assert_eq!(
+            restarted.active_server_id().as_deref(),
+            Some(server_id.as_str())
+        );
+        assert!(
+            restarted
+                .servers()
+                .iter()
+                .any(|server| server.id == server_id),
+            "restarted route state should reconstruct lifecycle registry from saved config"
+        );
+
+        let (status, second): (StatusCode, ServerImportResultDto) =
+            response_json(call_import(&restarted, rescan_request()).await).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(second.imported, Some(0));
     }
 }

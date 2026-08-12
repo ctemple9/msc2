@@ -2111,12 +2111,35 @@ msc-agent import_lifecycle` (1/1 passed), `tools/phase5/cli-smoke.sh
 --check`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.29 — Expose recovery rescan through the public contract
-**Status:** not started
-**Files:** `docs/msc2/api-contract/openapi.json`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/rescan_route.rs`, `tools/phase5/cli-smoke.sh`
+**Status:** awaiting verification
+**Files:** `docs/msc2/api-contract/openapi.json`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/cli_lifecycle.rs`, `tools/api-contract-check.py`, `tools/phase5/cli-smoke.sh`
 **What:** Give P5.22's recovery operation a production caller through the existing versioned server-import surface, using an explicit `rescan` action and a matching `msc server rescan` command. The route scans the configured durable root, registers qualifying untracked folders in place through P5.27's state, persists them atomically, returns added/skipped results, and performs no copy or ZIP extraction. Update the frozen schema additively and test permission/error behavior as well as a restart after rescan.
 **Verify:** `cargo nextest run -p msc-agent rescan_route && python3 tools/api-contract-check.py && tools/phase5/cli-smoke.sh --rescan`
 **Commit:** `P5.29: expose durable recovery rescan`
 **Batch:** stop-after
+
+**Actual result:** `action=rescan` is now accepted on `POST
+/v1/servers/import` without `sourcePath`; scan/import actions still require
+`sourcePath`, and invalid actions now name the four valid values. The route
+calls P5.22's `rescan_and_import_servers` against the configured durable
+servers root, passes the current persisted server directories as the tracked
+set, merges added records through the single P5.27 `AppConfig` store, selects
+the first rescanned Java server as active, records imported/skipped counts in
+the operation journal, and returns `ServerImportResultDTO`. `msc server rescan`
+posts that same action, and the server help now lists it. The OpenAPI contract
+now includes `rescan` in the action enum and documents that `sourcePath` is
+omitted for rescan; `tools/api-contract-check.py` now runs its existing
+`--v1-summary` check by default so this step's Verify line works literally.
+Route regressions cover Fleet permission enforcement, in-place registration,
+Java active selection, duplicate avoidance after a fresh route-state rebuild,
+and persisted lifecycle reconstruction. The CLI smoke creates an untracked
+managed Paper folder, rescans it, reads its settings, restarts the foreground
+agent from the same durable roots/keychain namespace, verifies the server is
+still listed, and proves a second rescan imports zero duplicates. Verified with
+`cargo nextest run -p msc-agent rescan_route` (2/2 passed), `python3
+tools/api-contract-check.py` (`routes: 93`, no missing categories/ErrorDTO/help
+IDs), `tools/phase5/cli-smoke.sh --rescan` (`rescan cli smoke passed`), `cargo
+fmt --check`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.30 — Run legacy-secret migration during real service startup
 **Status:** not started

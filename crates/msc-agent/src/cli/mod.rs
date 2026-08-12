@@ -182,6 +182,8 @@ pub enum ServerCommand {
         #[arg(long = "bedrock-port-override")]
         bedrock_port_overrides: Vec<String>,
     },
+    /// Rescan the managed servers root and register untracked servers in place.
+    Rescan,
     /// Start the selected server, or the current active server if omitted.
     Start { server: Option<String> },
     /// Stop the selected server, or the current active server if omitted.
@@ -456,6 +458,38 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 }
                 if let Some(operation_id) = &result.operation_id {
                     println!("operation id: {operation_id}");
+                }
+            }
+            Ok(())
+        }
+        ServerCommand::Rescan => {
+            let body = ServerImportRequestDto {
+                action: Some("rescan".to_string()),
+                source_path: None,
+                import_kind: None,
+                display_name: None,
+                server_type: None,
+                active_world_name: None,
+                port: None,
+                max_players: None,
+                accept_eula: None,
+                enable_playit: None,
+                transfer_mode: None,
+                backup_path: None,
+                java_port_overrides: HashMap::new(),
+                bedrock_port_overrides: HashMap::new(),
+            };
+            let result: ServerImportResultDto =
+                client.post_json("/v1/servers/import", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+                if let Some(imported) = result.imported {
+                    println!("imported: {imported}");
+                }
+                if let Some(skipped) = result.skipped {
+                    println!("skipped: {skipped}");
                 }
             }
             Ok(())

@@ -70,7 +70,7 @@
     },
     "/v1/servers/import": {
       "post": {
-        "summary": "Scan or import an existing server directory/zip/transfer",
+        "summary": "Scan, import, or rescan existing servers",
         "requestBody": {
           "required": true,
           "content": {
@@ -83,7 +83,7 @@
         },
         "responses": {
           "200": {
-            "description": "action=scan returns ServerImportScanResponseDTO; any other action (importExisting/importTransfer) returns ServerImportResultDTO \u2014 same status code, different body shape, dispatched on the request's own 'action' field.",
+            "description": "action=scan returns ServerImportScanResponseDTO; importExisting/importTransfer/rescan return ServerImportResultDTO \u2014 same status code, different body shape, dispatched on the request's own 'action' field.",
             "content": {
               "application/json": {
                 "schema": {
@@ -100,7 +100,7 @@
             }
           },
           "400": {
-            "description": "missing_body / invalid_json / invalid_action / missing_source_path / invalid_path / display_name_required / backup_path_required (typed for every cause except missing_body/invalid_json (still Error))",
+            "description": "missing_body / invalid_json / invalid_action / missing_source_path / invalid_path / display_name_required / backup_path_required (typed for every cause except missing_body/invalid_json (still Error)); sourcePath is not required for action=rescan",
             "content": {
               "application/json": {
                 "schema": {
@@ -3705,10 +3705,17 @@
         "type": "object",
         "properties": {
           "action": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "scan",
+              "importExisting",
+              "importTransfer",
+              "rescan"
+            ]
           },
           "sourcePath": {
-            "type": "string"
+            "type": "string",
+            "description": "Required for scan/importExisting/importTransfer; omitted for rescan, which scans the configured servers root."
           },
           "importKind": {
             "type": "string"
@@ -3754,8 +3761,7 @@
           }
         },
         "required": [
-          "action",
-          "sourcePath"
+          "action"
         ]
       },
       "ServerImportWorldDTO": {

@@ -203,7 +203,7 @@ def main():
             print(line)
         sys.exit(code)
 
-    if args.v1_summary:
+    if args.v1_summary or not any((args.v1_summary, args.selftest)):
         code, lines = v1_summary()
         out = sys.stdout if code == 0 else sys.stderr
         for line in lines:

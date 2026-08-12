@@ -21,6 +21,7 @@ fn cli_lifecycle_server_help_lists_vertical_slice_subcommands() {
     assert!(output.status.success(), "stderr: {}", stderr(&output));
     let stdout = stdout(&output);
     assert!(stdout.contains("import"));
+    assert!(stdout.contains("rescan"));
     assert!(stdout.contains("start"));
     assert!(stdout.contains("stop"));
     assert!(stdout.contains("restart"));

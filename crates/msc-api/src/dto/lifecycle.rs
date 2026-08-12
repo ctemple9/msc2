@@ -5,8 +5,10 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 /// `ServerImportRequestDTO`'s frozen shape (`docs/msc2/api-contract/openapi.json`).
-/// `action` preserves the real values `scan|importExisting|importTransfer`;
-/// `importKind` preserves `folder|zip|transfer|auto` (P5.17).
+/// `action` preserves the real values
+/// `scan|importExisting|importTransfer|rescan`; `importKind` preserves
+/// `folder|zip|transfer|auto` (P5.17). `sourcePath` is required for scan
+/// and import actions, but intentionally absent for the recovery rescan.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerImportRequestDto {

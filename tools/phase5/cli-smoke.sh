@@ -15,11 +15,13 @@ RUN_SETTINGS=0
 RUN_TRANSFER=0
 RUN_RAW=0
 RUN_IMPORT_LIFECYCLE=0
+RUN_RESCAN=0
 if [[ $# -eq 0 ]]; then
   RUN_SETTINGS=1
   RUN_TRANSFER=1
   RUN_RAW=1
   RUN_IMPORT_LIFECYCLE=1
+  RUN_RESCAN=1
 else
   for arg in "$@"; do
     case "$arg" in
@@ -35,9 +37,12 @@ else
       --import-lifecycle)
         RUN_IMPORT_LIFECYCLE=1
         ;;
+      --rescan)
+        RUN_RESCAN=1
+        ;;
       *)
         echo "unknown flag: ${arg}" >&2
-        echo "usage: $0 [--settings] [--transfer] [--raw] [--import-lifecycle]" >&2
+        echo "usage: $0 [--settings] [--transfer] [--raw] [--import-lifecycle] [--rescan]" >&2
         exit 2
         ;;
     esac
@@ -119,7 +124,8 @@ mkdir -p "${MSC2_OPERATION_JOURNAL_DIR}" "${MSC2_DATA_DIR}"
 "${MSC_BIN}" serve --bind "127.0.0.1:${PORT}" >"${TMP_DIR}/agent.log" 2>&1 &
 AGENT_PID="$!"
 
-python3 - "${BASE_URL}" <<'PY'
+wait_for_agent_healthy() {
+  python3 - "${BASE_URL}" <<'PY'
 import sys
 import time
 import urllib.error
@@ -136,6 +142,9 @@ while time.time() < deadline:
         time.sleep(0.25)
 raise SystemExit("agent did not become healthy")
 PY
+}
+
+wait_for_agent_healthy
 
 TOKEN_FROM_CLI="$("${MSC_BIN}" token print --test)"
 
@@ -643,6 +652,72 @@ PY
   echo "import lifecycle cli smoke passed"
 }
 
+run_rescan_smoke() {
+  local source="${MSC2_AGENT_SERVERS_ROOT}/java/rescan_smoke_java"
+  build_raw_java_folder "${source}" 25640
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token = sys.argv[1:4]
+output = subprocess.check_output(
+    [msc, "--base-url", base_url, "--token", token, "--json", "server", "rescan"],
+    text=True,
+)
+result = json.loads(output)
+if not result["success"] or result.get("imported") != 1:
+    raise SystemExit(f"expected rescan to import one untracked managed server, got {result!r}")
+if result.get("serverName") != "rescan smoke java":
+    raise SystemExit(f"expected display name from folder name, got {result!r}")
+PY
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token = sys.argv[1:4]
+output = subprocess.check_output(
+    [
+        msc, "--base-url", base_url, "--token", token, "--json",
+        "settings", "get", "--server", "rescan smoke java",
+    ],
+    text=True,
+)
+settings = json.loads(output)
+if not settings["editable"] or settings["serverName"] != "rescan smoke java":
+    raise SystemExit(f"expected rescanned Java server to be settings-capable, got {settings!r}")
+PY
+
+  kill "${AGENT_PID}"
+  wait "${AGENT_PID}" 2>/dev/null || true
+  AGENT_PID=""
+  "${MSC_BIN}" serve --bind "127.0.0.1:${PORT}" >"${TMP_DIR}/agent-restarted.log" 2>&1 &
+  AGENT_PID="$!"
+  wait_for_agent_healthy
+
+  assert_servers_present "${BASE_URL}" "${TOKEN_FROM_CLI}" "rescan smoke java"
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token = sys.argv[1:4]
+output = subprocess.check_output(
+    [msc, "--base-url", base_url, "--token", token, "--json", "server", "rescan"],
+    text=True,
+)
+result = json.loads(output)
+if result.get("imported") != 0:
+    raise SystemExit(f"expected second rescan after restart to avoid duplicates, got {result!r}")
+PY
+
+  echo "rescan cli smoke passed"
+}
+
 if [[ "${RUN_SETTINGS}" -eq 1 ]]; then
   run_settings_smoke
 fi
@@ -657,4 +732,8 @@ fi
 
 if [[ "${RUN_IMPORT_LIFECYCLE}" -eq 1 ]]; then
   run_import_lifecycle_smoke
+fi
+
+if [[ "${RUN_RESCAN}" -eq 1 ]]; then
+  run_rescan_smoke
 fi

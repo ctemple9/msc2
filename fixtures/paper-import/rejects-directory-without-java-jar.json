@@ -3,7 +3,7 @@
   "case": "rejects-directory-without-java-jar",
   "source": {
     "file": "AppViewModel+ServerImport.swift",
-    "test": "scanServerDirectory",
+    "test": "no MSC 1 equivalent — import_existing_paper_server's own added validation",
     "line": 240
   },
   "input": {
@@ -20,5 +20,5 @@
   "expected": {
     "errorContains": "no Java server JAR found"
   },
-  "notes": "The Phase 4 import path is only for an existing Paper Java server directory; a folder with no root JAR is refused rather than registered as an unusable lifecycle target."
+  "notes": "MSC 1's actual scanServerDirectory (AppViewModel+ServerImport.swift:235-364) never rejects a jar-less directory — it falls through to an empty Paper result with a nil jar/version instead (confirmed by a whole-tree grep: the string \"no Java server JAR found\" does not appear anywhere in MSC 1). This fixture instead characterizes import_existing_paper_server (crates/msc-application/src/import.rs), Phase 4's own narrower, registration-only Rust function — deliberately scoped to reject rather than register an unusable lifecycle target (see the module's own doc comment: it intentionally does not copy/unzip/scan worlds the way MSC 1's scan does). expected.errorContains is real, tested behavior (crates/msc-application/tests/paper_import.rs:213) and must not change; only this source pointer was corrected — it previously mis-attributed a Phase-4-invented validation to MSC 1 as if it were ported oracle behavior. See docs/msc2/config-migration/raw-import-behavior.md's own note on this for the contrast with the read-only raw-import scan path, which does port scanServerDirectory's real no-rejection behavior."
 }

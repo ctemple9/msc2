@@ -209,22 +209,34 @@ else. `defaultWorldName` is `worlds.first?.name ?? configuredLevelName` —
 the configured level-name only if no world folders were found at all. See
 `configured-level-name-sorted-first.json`.
 
-## A stale fixture in `fixtures/paper-import/`, noted not fixed
+## Two different functions, not a contradiction: `import_existing_paper_server` vs. `scanServerDirectory`
 
 `fixtures/paper-import/rejects-directory-without-java-jar.json` (Phase 4)
-asserts `scanServerDirectory` throws with
-`errorContains: "no Java server JAR found"` for a directory with no jar.
-Current MSC 1 source contradicts this on two counts: `scanServerDirectory`
-returns `ScannedServerInfo` non-throwing (it cannot produce an
-`errorContains` shape at all), and the string `"no Java server JAR found"`
-does not appear anywhere in the MSC 1 tree (whole-tree grep, no match).
-The actual current behavior — no rejection, fall through to Paper with a
-`nil` jar — is what
-`missing-jar-and-binary-still-classified-java.json` in this directory
-pins instead. This is flagged here and in P5.18's own step response;
-fixing the Phase 4 fixture is outside this step's Files list
-(`fixtures/raw-server-import/`, `docs/msc2/config-migration/raw-import-behavior.md`)
-and is left for Cameron to decide how to handle.
+asserts a jar-less directory is rejected with
+`errorContains: "no Java server JAR found"`. At first read this looks
+like it contradicts `missing-jar-and-binary-still-classified-java.json`
+in this directory, which pins `scanServerDirectory` falling through to an
+empty Paper result instead of rejecting. It doesn't actually contradict —
+the two fixtures characterize two different functions:
+
+- `scanServerDirectory` (MSC 1, ported by P5.19) never rejects; the
+  string `"no Java server JAR found"` does not appear anywhere in the MSC
+  1 tree (whole-tree grep, no match), and the function is non-throwing.
+- `import_existing_paper_server` (`crates/msc-application/src/import.rs`)
+  is Phase 4's own narrower, registration-only Rust function — its own
+  doc comment says it "intentionally does not copy, unzip, create world
+  slots, or write `server.properties`," unlike MSC 1's real import flow.
+  Its `NoJavaServerJar` rejection (line 79, 94-96, 164-168) is a
+  deliberate Rust-side scope decision, not a port of any MSC 1 behavior,
+  and it's live, tested behavior —
+  `crates/msc-application/tests/paper_import.rs:213` exercises exactly
+  this fixture against real code.
+
+The only actual defect was that fixture's `source` field, which
+mis-attributed the deliberate Rust-only validation to MSC 1's
+`scanServerDirectory` as if it were ported oracle behavior. Corrected
+directly in that fixture (source/notes only — `expected` is real, tested
+behavior and wasn't touched).
 
 ## Where this connects downstream
 

@@ -1930,7 +1930,7 @@ Two scope points raised with Cameron before writing code, both confirmed via `As
 **Batch:** solo
 
 ### P5.24 — Wire the Rust readers into the real-corpus checker
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase5/real-corpus-check.py`, `crates/msc-infrastructure/tests/historical_config_corpus.rs`, `crates/msc-application/tests/real_transfer_corpus.rs`, `tools/phase5/fixtures/exercise-pass/`
 **What:** Extend P5.2's already-self-tested inventory checker with exercise mode. Run every manifest-listed historical config through the real typed repository load, normalization, save, and reload path in an isolated temporary directory and report each file independently. Run the real MSC 1-generated transfer package through inspection and a merge apply into a temporary owned root, checking that at least one server and its manifest-declared world/config payload arrive. Never mutate corpus inputs. Exercise mode retains P5.2's hard failure for empty, one-file, duplicate, malformed, unmanifested, or missing-transfer evidence.
 
@@ -1942,10 +1942,13 @@ Two scope points raised with Cameron before writing code, both confirmed via `As
 **Batch:** solo
 
 ### P5.25 — Run the required real MSC 1 corpus
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `corpus/configs/README.md`
 **What:** Run P5.24's Rust-backed exercise mode against the real evidence collected in P5.3 and record the per-file and transfer-package results in the corpus README. Recheck the local package hash before and after to prove the checker did not mutate it. If any config fails load/save/reload, if the package fails inspect/apply, or if the evidence is missing, stop: fixtures cannot substitute for the port plan's historical-corpus and MSC 1-package deliverables.
-**Verify:** `python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 2 --require-transfer`
+
+**Actual result:** Ran with `$MSC2_PHASE5_TRANSFER_PACKAGE` pointed at Cameron's real `.msctransfer` package on his Desktop (the one recorded in P5.3's corpus README: format v2, 629,955,199 bytes, SHA-256 `ea6dfe75…`). Both real readers passed against real evidence: `server-config-2026-08-11.json` round-trips through `load_app_config` → `save_app_config` → `load_app_config` with equal decodes and unchanged source bytes; the real transfer package inspects and applies into a fresh temporary root with both bundled servers (`campack`, `Paper`) arriving non-empty, and its SHA-256 is identical before and after. Full per-file/per-package results recorded in `corpus/configs/README.md`'s new "P5.25 — real corpus exercise results" section, including a hash comparison table. **Verify-line discrepancy, not silently worked around:** this step's own Verify line (and P5.26's, which repeats it) passes `--require-configs 2`, which fails immediately (`found 1 config file(s), need at least 2`) without ever reaching the Rust readers — a leftover from before P5.3 discovered no second config era survives anywhere and got Cameron's approval to relax the bar to one (recorded in `phase5-scope.md` and mirrored in the checker's own inventory-mode default, which is already `1`). Ran the substance of this step with `--require-configs 1` instead, matching the already-approved evidence bar, and recorded the mismatch in the corpus README for Cameron to resolve in the plan text — not fixed here since editing another step's (P5.26's) Verify line is outside this step's own scope. See "the exact Verify command to run" below for the corrected invocation.
+
+**Verify:** `MSC2_PHASE5_TRANSFER_PACKAGE=/path/to/your.msctransfer python3 tools/phase5/real-corpus-check.py --exercise --configs-dir corpus/configs --transfer-package "$MSC2_PHASE5_TRANSFER_PACKAGE" --require-configs 1 --require-transfer` (the plan's original `--require-configs 2` fails on evidence-count alone — see "Actual result")
 **Commit:** `P5.25: validate the real MSC 1 migration corpus`
 **Batch:** stop-after
 

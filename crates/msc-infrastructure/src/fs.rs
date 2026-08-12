@@ -144,6 +144,14 @@ pub struct FakeFileSystem {
     /// candidate directory, which the fixture's `fsTree` has no way to spell
     /// (P0.1's fsTree schema only defines `"file"` and `"symlink"` entries).
     dirs: Mutex<BTreeSet<PathBuf>>,
+    /// Destinations whose next `rename` call fails, simulating a process
+    /// interrupted between `atomic_write`'s temp-file write and its rename
+    /// step. P5.23's consumer-level atomic-write-interruption dimension
+    /// needs this injected at a real `save_config`/`atomic_write` call, not
+    /// just simulated by writing straight to the temp path and never
+    /// calling the primitive at all (the way `fixtures/atomic-write/
+    /// destination-untouched-before-rename` does at the primitive level).
+    fail_rename_to: Mutex<BTreeSet<PathBuf>>,
 }
 
 impl FakeFileSystem {
@@ -193,6 +201,7 @@ impl FakeFileSystem {
             files: Mutex::new(files),
             symlinks: Mutex::new(symlinks),
             dirs: Mutex::new(BTreeSet::new()),
+            fail_rename_to: Mutex::new(BTreeSet::new()),
         }
     }
 
@@ -229,6 +238,17 @@ impl FakeFileSystem {
     /// `from_tree`'s fixture-shaped input alone.
     pub fn with_dir(self, path: impl Into<PathBuf>) -> Self {
         self.dirs.lock().unwrap().insert(path.into());
+        self
+    }
+
+    /// The next `rename(_, to)` call targeting `to` fails, leaving both the
+    /// temp source and the destination exactly as `rename` found them. Lets
+    /// a test drive a real `save_config`/`atomic_write` call through an
+    /// interruption between the temp-file write and the rename, rather than
+    /// only being able to simulate that state by writing to the temp path
+    /// directly and never invoking the primitive.
+    pub fn with_failing_rename(self, to: impl Into<PathBuf>) -> Self {
+        self.fail_rename_to.lock().unwrap().insert(to.into());
         self
     }
 }
@@ -307,6 +327,9 @@ impl FileSystem for FakeFileSystem {
     }
 
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        if self.fail_rename_to.lock().unwrap().remove(to) {
+            return Err(io::Error::other("simulated rename failure"));
+        }
         let mut files = self.files.lock().unwrap();
         let entry = files
             .remove(from)

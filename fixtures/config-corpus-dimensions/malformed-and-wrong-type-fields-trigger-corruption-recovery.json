@@ -1,0 +1,29 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "malformed-and-wrong-type-fields-trigger-corruption-recovery",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "ConfigManager.init",
+    "line": 86
+  },
+  "input": {
+    "portPlanDimension": "missing, renamed, malformed, and unknown fields (msc2-port-plan.md line 187, first sub-item)",
+    "subCases": [
+      {
+        "name": "malformed JSON syntax",
+        "example": "this is not json {{{ :::",
+        "alreadyCoveredBy": "crates/msc-infrastructure/tests/app_config_repository.rs::app_config_repository_malformed_json_backs_up_then_replaces_original_with_defaults"
+      },
+      {
+        "name": "well-formed JSON, wrong-typed field",
+        "example": "{ \"schemaVersion\": 1, \"config_version\": 1, \"initial_setup_done\": \"yes\" }",
+        "newlyCoveredBy": "crates/msc-infrastructure/tests/app_config_repository.rs::config_corpus_dimensions_wrong_type_field_triggers_corruption_recovery"
+      }
+    ]
+  },
+  "expected": {
+    "claim": "Both sub-cases reach the identical R3 recovery: the on-disk bytes are preserved byte-for-byte at a .corrupt-<timestamp> sibling, then `path` is overwritten with defaults.",
+    "whyTheyAreOneDimension": "ConfigManager.init wraps `decoder.decode(AppConfig.self, from: data)` in the *same* do/catch as the JSON parse itself (source lines 86-142) -- Swift's JSONDecoder throws a DecodingError for a present-but-wrong-typed field exactly the way it throws for unparseable bytes, and both land in the one catch block. There is no second, different recovery path for a type mismatch."
+  },
+  "notes": "This sub-case was found missing, not just unfixtured: the pre-P5.23 Rust `load_app_config` returned a bare `Err(AppConfigLoadError::Decode(_))` for a wrong-typed field with no backup/defaults recovery at all -- a real fidelity gap against the Swift source above, only visible by reading ConfigManager.init directly rather than trusting the JSON-syntax-only fixture P5.6 already had. Closed in this same step in crates/msc-infrastructure/src/config_repository.rs (load_app_config's new decode-error branch), since a dimension this step is explicitly asked to characterize with an executable case can't be characterized against behavior that doesn't yet exist. See that function's own doc comment."
+}

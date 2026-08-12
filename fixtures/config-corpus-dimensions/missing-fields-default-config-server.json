@@ -1,0 +1,21 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "missing-fields-default-config-server",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "ConfigServer.init(from:)",
+    "line": 336
+  },
+  "input": {
+    "portPlanDimension": "missing, renamed, malformed, and unknown fields (msc2-port-plan.md line 187, first sub-item)",
+    "description": "A single per-server entry inside servers[] carrying only the handful of keys an early MSC 1 release wrote for a server: id, displayName, serverDir, paperJarPath, and RAM -- none of xboxBroadcastEnabled, autoBackup*, notificationPrefs, playit*, etc."
+  },
+  "expected": {
+    "coveredBy": {
+      "fixture": "fixtures/config-roundtrip/config-server-missing-optional-fields-get-defaults.json",
+      "rustTest": "crates/msc-domain/tests/app_config_schema.rs::app_config_schema_config_server_missing_optional_fields_get_defaults"
+    },
+    "claim": "Every ConfigServer field absent from a server's JSON decodes to its own static default (not one derived from AppConfig's top-level defaults, unlike the app-config-level dimension above) rather than failing decode."
+  },
+  "notes": "Kept as its own matrix entry rather than folded into missing-fields-default-app-config: ConfigServer.init(from:) (source lines 336-398) is a separate decoder from AppConfig.init(from:), with its own defaulting, and P5.4 already ported it as a separate fixture/test -- splitting here preserves that same one-decoder-one-case granularity instead of inventing a merged dimension the port's own tests don't share."
+}

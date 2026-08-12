@@ -1,0 +1,35 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "duplicate-and-conflicting-server-identity-preserved-by-decode",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 744
+  },
+  "input": {
+    "portPlanDimension": "duplicate or conflicting server IDs and paths (msc2-port-plan.md line 187, second sub-item)",
+    "subCases": [
+      {
+        "name": "duplicate server ids",
+        "coveredBy": "fixtures/app-config-normalization/duplicate-server-ids-preserved.json"
+      },
+      {
+        "name": "duplicate standardized server paths",
+        "coveredBy": "fixtures/app-config-normalization/duplicate-server-standardized-paths-preserved.json"
+      },
+      {
+        "name": "an id/path cross-conflict (one server's id equals another's standardized path, or vice versa, in the raw sense the fixture defines)",
+        "coveredBy": "fixtures/app-config-normalization/server-id-path-conflict-preserved.json"
+      }
+    ],
+    "rustTests": [
+      "crates/msc-domain/tests/app_config_normalization.rs::duplicate_server_ids_preserved",
+      "crates/msc-domain/tests/app_config_normalization.rs::duplicate_server_standardized_paths_preserved",
+      "crates/msc-domain/tests/app_config_normalization.rs::server_id_path_conflict_preserved"
+    ]
+  },
+  "expected": {
+    "claim": "All three inputs decode with every server entry intact and unmodified -- AppConfig.init(from:) decodes `servers` as a plain [ConfigServer].self array (source lines 744-746) with no id/path-uniqueness pass of any kind, unlike remoteAPISharedAccess a few lines below it in the same initializer, which does dedupe by token."
+  },
+  "notes": "Grouped as one matrix dimension, three already-executable fixtures: all three inputs exercise the identical code path (the plain array decode at line 744) and pin the identical negative claim (no merge, no rejection, no uniqueness enforcement) -- collapsing them here avoids implying decode treats duplicate-id, duplicate-path, and id/path-conflict as three different behaviors when the source treats them as none at all. Reconciling actual duplicates/conflicts is a live-config-vs-backup-restore concern, not a decode concern -- see recovery-merge-skips-conflicts-against-live-set."
+}

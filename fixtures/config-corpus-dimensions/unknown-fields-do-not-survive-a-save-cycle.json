@@ -1,0 +1,23 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "unknown-fields-do-not-survive-a-save-cycle",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.CodingKeys",
+    "line": 614
+  },
+  "input": {
+    "portPlanDimension": "missing, renamed, malformed, and unknown fields (msc2-port-plan.md line 187, first sub-item)",
+    "description": "A config on disk carries a top-level key AppConfig.CodingKeys has never named -- e.g. written by a newer MSC 1 release, or a hand edit. AppConfig's init(from:)/encode(to:) are both hand-written against one fixed CodingKeys enum (source lines 614-868), not a catch-all [String: Any] dictionary."
+  },
+  "expected": {
+    "newlyCoveredBy": "crates/msc-infrastructure/tests/app_config_repository.rs::config_corpus_dimensions_unknown_top_level_field_does_not_survive_a_save_cycle",
+    "claim": "The unrecognized field is silently absent from the file once it has round-tripped through one load_app_config -> save_app_config cycle; a sibling known field in the same object still decodes correctly.",
+    "contrastWith": {
+      "fixture": "fixtures/config-lifecycle/unknown-fields-survive-read-modify-write.json",
+      "rustTest": "crates/msc-infrastructure/tests/config_lifecycle.rs::config_lifecycle_unknown_fields_survive_read_modify_write",
+      "opposingClaim": "The *untyped* load_config/save_config primitive (operating on a bare serde_json::Value, not AppConfig) preserves a field it doesn't recognize across the same kind of round trip -- documented as a deliberate divergence in config_repository.rs's own module doc comment."
+    }
+  },
+  "notes": "Had no executable case anywhere before this step: config_lifecycle.rs's existing test proves the primitive's behavior, but nothing pinned what happens once that same JSON passes through the typed AppConfig schema P5.4-P5.6 built on top of it -- the two layers behave oppositely on purpose, and only the typed layer matches what a real MSC 1 install would observe, since ConfigManager.init always decodes into the AppConfig struct before ever calling save()."
+}

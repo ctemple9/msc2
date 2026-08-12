@@ -1,0 +1,28 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "recovery-merge-skips-conflicts-against-live-set",
+  "source": {
+    "file": "AppViewModel+ConfigRecovery.swift",
+    "test": "restoreServersFromBackup(at:)",
+    "line": 68
+  },
+  "input": {
+    "portPlanDimension": "atomic-write interruption's sibling recovery path (msc2-port-plan.md's Configuration corpus, and this step's own \"recovery merge skips conflicts against the initial live set\" clause) -- what happens once a duplicate/conflicting-identity config (see the dimension above) meets an existing live config during a corrupt-backup restore",
+    "subCases": [
+      { "name": "pure restore, no collisions", "coveredBy": "fixtures/config-recovery/pure-restore.json" },
+      { "name": "backup entry's path collides with a live entry", "coveredBy": "fixtures/config-recovery/live-path-collision.json" },
+      { "name": "backup entry's id collides with a live entry", "coveredBy": "fixtures/config-recovery/live-id-collision.json" },
+      { "name": "two backup entries duplicate each other but collide with nothing live", "coveredBy": "fixtures/config-recovery/duplicate-entries-in-backup.json" }
+    ],
+    "rustTests": [
+      "crates/msc-infrastructure/tests/config_recovery.rs::pure_restore",
+      "crates/msc-infrastructure/tests/config_recovery.rs::live_path_collision",
+      "crates/msc-infrastructure/tests/config_recovery.rs::live_id_collision",
+      "crates/msc-infrastructure/tests/config_recovery.rs::duplicate_entries_in_backup"
+    ]
+  },
+  "expected": {
+    "claim": "A backup entry is skipped when its standardized server_dir or its id was already present in the *live* config -- and that live-id/live-path set is captured once, before the merge loop runs, and never updated as entries get merged in. Two backup entries that duplicate each other, but collide with nothing already live, therefore both restore rather than the second being treated as a duplicate of the first."
+  },
+  "notes": "existingPaths/existingIDs (source lines 68-70) are plain `let` constants computed once before the `for server in decoded.servers` loop (line 74) and never reassigned inside it -- restore_servers_from_backup (crates/msc-infrastructure/src/config_repository.rs) mirrors this exactly with two HashSets built before its own loop. All 4 sub-cases already have real executable coverage from P5.7; grouped here as one matrix entry since they're one behavior (a fixed-snapshot merge) exercised at four different collision shapes, not four separate behaviors."
+}

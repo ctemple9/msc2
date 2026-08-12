@@ -25,6 +25,11 @@
 //! [`save_config`]. `AppConfig::decode` ignores unrecognized keys, so the
 //! extra field is inert on read; it exists only to satisfy this
 //! primitive's own invariant, not because MSC 1 ever wrote such a key.
+//! [`load_app_config`] also gives a present-but-wrong-typed field (JSON
+//! parses fine, `AppConfig::decode` doesn't) the same R3 backup-then-
+//! defaults recovery as a syntax failure — found missing and closed by
+//! P5.23, matching `ConfigManager.init`'s one `do`/`catch` covering both
+//! the JSON parse and the struct decode.
 //!
 //! [`find_corrupt_backups`]/[`server_count_in_backup`]/
 //! [`restore_servers_from_backup`] (P5.7) port
@@ -243,8 +248,46 @@ pub fn load_app_config(
 ) -> Result<AppConfigLoadOutcome, AppConfigLoadError> {
     let defaults_value = stamp_schema_version(defaults.encode(), defaults.config_version);
     let outcome = load_config(fs, path, &defaults_value, now).map_err(AppConfigLoadError::Load)?;
-    let mut config =
-        AppConfig::decode(&outcome.config, defaults).map_err(AppConfigLoadError::Decode)?;
+
+    let mut config = match AppConfig::decode(&outcome.config, defaults) {
+        Ok(config) => config,
+        // `load_config` already parsed this as JSON successfully -- a
+        // present field just has the wrong type (e.g. a string where
+        // `AppConfig` needs a bool). MSC 1's `ConfigManager.init` has no
+        // equivalent split: `decoder.decode(AppConfig.self, from: data)`
+        // sits inside the *same* `do`/`catch` as the JSON parse itself
+        // (`ConfigManager.swift` lines 86-142), so a struct-decode failure
+        // gets the identical R3 recovery a syntax failure does. Composing
+        // that here means reaching for the same backup-then-defaults
+        // sequence `load_config` already performs for a parse failure,
+        // rather than letting a decode error escape as a bare `Err` no
+        // caller asked to handle -- `outcome.corrupt_backup_path` is
+        // guaranteed `None` on this branch (a parse failure never reaches
+        // `AppConfig::decode` at all), so this can't double-back-up.
+        Err(decode_err) => {
+            let raw = fs
+                .read(path)
+                .map_err(|e| AppConfigLoadError::Load(ConfigLoadError::Io(e)))?;
+            let backup_path = corrupt_backup_path(path, now);
+            fs.write(&backup_path, &raw)
+                .map_err(|e| AppConfigLoadError::Load(ConfigLoadError::Io(e)))?;
+            save_config(fs, path, &defaults_value)
+                .map_err(|e| AppConfigLoadError::Load(ConfigLoadError::Save(e)))?;
+            match AppConfig::decode(&defaults_value, defaults) {
+                Ok(config) => {
+                    return Ok(AppConfigLoadOutcome {
+                        config,
+                        corrupt_backup_path: Some(backup_path),
+                    });
+                }
+                // Defaults always decode; this only exists so a future
+                // change to `default_config` that broke that invariant
+                // fails loudly instead of silently swallowing the original
+                // `decode_err`.
+                Err(_) => return Err(AppConfigLoadError::Decode(decode_err)),
+            }
+        }
+    };
     if !(1..=65535).contains(&config.remote_api_port) {
         config.remote_api_port = AppConfig::DEFAULT_REMOTE_API_PORT;
     }

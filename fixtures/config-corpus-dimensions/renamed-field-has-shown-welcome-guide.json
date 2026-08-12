@@ -1,0 +1,21 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "renamed-field-has-shown-welcome-guide",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.CodingKeys.hasShownHandbook",
+    "line": 636
+  },
+  "input": {
+    "portPlanDimension": "missing, renamed, malformed, and unknown fields (msc2-port-plan.md line 187, first sub-item) -- the one concrete renamed-field case MSC 1 actually has",
+    "description": "An old config on disk still carries the wire key \"has_shown_welcome_guide\" -- the property itself was renamed to hasShownHandbook in Swift, but `case hasShownHandbook = \"has_shown_welcome_guide\"` keeps decoding the old wire name so existing installs don't lose the flag."
+  },
+  "expected": {
+    "coveredBy": {
+      "fixture": "fixtures/app-config-normalization/has-shown-welcome-guide-renames-to-has-shown-handbook.json",
+      "rustTest": "crates/msc-domain/tests/app_config_normalization.rs::has_shown_welcome_guide_renames_to_has_shown_handbook"
+    },
+    "claim": "\"has_shown_welcome_guide\": true decodes into AppConfig.has_shown_handbook == true; this is one concrete CodingKeys rename, not a generic old-key-migration mechanism -- a made-up \"has_shown_handbook\" wire key is not also recognized (the fixture's second sub-case pins that)."
+  },
+  "notes": "Already has a real executable case from P5.5 -- cross-referenced, not duplicated. Rust ports this as an explicit opt_bool(v, \"has_shown_welcome_guide\", ...) call (app_config_schema.rs:844-845) rather than a CodingKeys-style declarative rename, since Rust has no synthesized Codable equivalent to hang the rename off of."
+}

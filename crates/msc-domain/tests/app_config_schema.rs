@@ -10,6 +10,12 @@
 //! initializer and asserts on the decoded struct's Swift properties, not
 //! raw wire JSON. Each test below sets the equivalent Rust (snake_case)
 //! field directly rather than constructing wire JSON by hand.
+//!
+//! The two `*_missing_optional_fields_get_defaults` tests below are two of
+//! P5.23's `fixtures/config-corpus-dimensions/` matrix entries
+//! (`missing-fields-default-app-config`, `missing-fields-default-config-
+//! server`) — that directory cross-references every configuration
+//! dimension the port plan names, this file's coverage included.
 
 mod support;
 

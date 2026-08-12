@@ -1,0 +1,21 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "missing-fields-default-app-config",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "AppConfig.init(from:)",
+    "line": 719
+  },
+  "input": {
+    "portPlanDimension": "missing, renamed, malformed, and unknown fields (msc2-port-plan.md line 187, first sub-item)",
+    "description": "A minimal, old-schema server_config_swift.json carrying only the fields that existed in an early MSC 1 release: no remote-API sharing, no Playit fields, no banner colors, none of the top-level fields added by later releases."
+  },
+  "expected": {
+    "coveredBy": {
+      "fixture": "fixtures/config-roundtrip/app-config-missing-optional-fields-get-defaults.json",
+      "rustTest": "crates/msc-domain/tests/app_config_schema.rs::app_config_schema_app_config_missing_optional_fields_get_defaults"
+    },
+    "claim": "Every AppConfig field absent from the JSON decodes to defaults' value (or, for servers_root-derived paths, a value recomputed from whatever servers_root the file did carry) rather than failing decode."
+  },
+  "notes": "Already has a real executable case from P5.4 -- this matrix entry cross-references it rather than duplicating it, per this step's own instruction to add a new case only where prose alone existed. AppConfig.init(from:) decodes every top-level field via decodeIfPresent(...) ?? <default>, one field at a time (source lines 721-841); nothing about a missing key is a decode failure."
+}

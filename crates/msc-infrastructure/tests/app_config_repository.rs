@@ -5,6 +5,19 @@
 //! replaced with defaults), and the port-range clamp `ConfigManager.init`
 //! applies after decode (source lines 101-104).
 //!
+//! The three `config_corpus_dimensions_*` tests at the bottom of this file
+//! are P5.23's matrix entries for dimensions that had no executable case
+//! anywhere before this step: a present-but-wrong-typed field reaching the
+//! same R3 recovery a syntax failure does, an unrecognized top-level field
+//! not surviving a load_app_config/save_app_config cycle (the typed-schema
+//! counterpart to `config_lifecycle.rs`'s
+//! `unknown_fields_survive_read_modify_write`, which pins the *opposite*
+//! behavior for the untyped `load_config`/`save_config` primitive), and a
+//! rename-step interruption exercised through a real `save_app_config`
+//! call rather than simulated below the primitive. See
+//! `fixtures/config-corpus-dimensions/` for the full matrix, including the
+//! dimensions this file's other tests already cover.
+//!
 //! The last two tests port the two *portable* fixtures P5.4 left in
 //! `fixtures/config-roundtrip/` for this step (`r3-corrupt-file-algorithm`,
 //! `r3-corrupt-file-does-not-wipe-original`) — both originally hand-simulated
@@ -20,8 +33,9 @@
 //! Deliberately not ported here for that reason.
 
 use msc_domain::app_config_schema::AppConfig;
+use msc_infrastructure::atomic_write::temp_path_for;
 use msc_infrastructure::config_repository::{
-    corrupt_backup_path, load_app_config, save_app_config,
+    ConfigSaveError, corrupt_backup_path, load_app_config, save_app_config,
 };
 use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
 use serde_json::Value;
@@ -231,5 +245,121 @@ fn app_config_repository_r3_corrupt_file_does_not_wipe_original() {
         fs.read(&backup_path).unwrap(),
         garbage,
         "the backup must be an unmodified copy of the original bytes"
+    );
+}
+
+#[test]
+fn config_corpus_dimensions_wrong_type_field_triggers_corruption_recovery() {
+    let path = PathBuf::from("/srv/msc2/server_config_swift.json");
+    // Valid JSON syntax -- `serde_json::from_slice` succeeds -- but
+    // `initial_setup_done` is a string where `AppConfig::decode` needs a
+    // bool, so the *struct* decode fails. MSC 1's `ConfigManager.init`
+    // catches this the same way it catches a JSON syntax error (the whole
+    // `decoder.decode(AppConfig.self, from: data)` call sits inside its one
+    // `do`/`catch`), so this must reach the same R3 recovery a garbled file
+    // does, not bubble up as a bare decode error.
+    let raw = br#"{
+        "schemaVersion": 1,
+        "config_version": 1,
+        "java_path": "/usr/bin/java",
+        "initial_setup_done": "yes"
+    }"#
+    .to_vec();
+    let fs = FakeFileSystem::new().with_file(path.clone(), raw.clone(), false);
+    let defaults = AppConfig::default_config("/srv/msc2/servers");
+    let now = fixed_now();
+
+    let outcome = load_app_config(&fs, &path, &defaults, now)
+        .unwrap_or_else(|e| panic!("wrong-type field must recover, not error: {e}"));
+
+    let expected_backup = corrupt_backup_path(&path, now);
+    assert_eq!(outcome.corrupt_backup_path, Some(expected_backup.clone()));
+    assert_eq!(
+        fs.read(&expected_backup).unwrap(),
+        raw,
+        "the backup must preserve the original bytes byte-for-byte"
+    );
+    assert_eq!(
+        outcome.config, defaults,
+        "a struct-decode failure falls back to defaults, same as a syntax failure"
+    );
+}
+
+#[test]
+fn config_corpus_dimensions_unknown_top_level_field_does_not_survive_a_save_cycle() {
+    // Contrast with `config_lifecycle.rs`'s
+    // `config_lifecycle_unknown_fields_survive_read_modify_write`: that
+    // test proves the *untyped* `load_config`/`save_config` primitive
+    // preserves a field it doesn't recognize (it operates on a bare
+    // `serde_json::Value`). Once the same JSON passes through the *typed*
+    // `AppConfig` schema, the field is gone after one round trip --
+    // `AppConfig::decode` never reads it and `AppConfig::encode` never
+    // re-emits it, matching MSC 1's manually-implemented `Codable`
+    // (`init(from:)`/`encode(to:)`, `AppConfig.swift` lines 614-868): only
+    // the keys named in `CodingKeys` are ever read or written, so a key
+    // outside that set is silently dropped, not preserved the way a
+    // catch-all `[String: Any]` dictionary would.
+    let path = PathBuf::from("/srv/msc2/server_config_swift.json");
+    let raw = br#"{
+        "schemaVersion": 1,
+        "config_version": 1,
+        "java_path": "/usr/bin/java",
+        "a_future_field_this_port_does_not_know_about": "should not survive"
+    }"#
+    .to_vec();
+    let fs = FakeFileSystem::new().with_file(path.clone(), raw, false);
+    let defaults = AppConfig::default_config("/srv/msc2/servers");
+    let now = fixed_now();
+
+    let outcome = load_app_config(&fs, &path, &defaults, now)
+        .unwrap_or_else(|e| panic!("load_app_config failed: {e}"));
+    assert!(outcome.corrupt_backup_path.is_none());
+    assert_eq!(
+        outcome.config.java_path, "/usr/bin/java",
+        "a known field alongside the unknown one must still decode"
+    );
+
+    save_app_config(&fs, &path, &outcome.config)
+        .unwrap_or_else(|e| panic!("save_app_config failed: {e}"));
+
+    let on_disk: Value = serde_json::from_slice(&fs.read(&path).unwrap()).unwrap();
+    assert!(
+        on_disk
+            .get("a_future_field_this_port_does_not_know_about")
+            .is_none(),
+        "an unrecognized field must not survive a decode-then-encode cycle"
+    );
+}
+
+#[test]
+fn config_corpus_dimensions_atomic_write_interruption_leaves_previous_config_intact() {
+    // The primitive-level `fixtures/atomic-write/destination-untouched-
+    // before-rename` case never calls `atomic_write` at all -- it writes
+    // straight to the temp path to simulate a crash between the two steps.
+    // That's not evidence the real consumer (`save_config`, and above it
+    // `save_app_config`) still behaves that way if either changed how it
+    // calls the primitive. This test drives the actual composed
+    // `save_app_config` call and injects the rename failure inside it.
+    let path = PathBuf::from("/srv/msc2/server_config_swift.json");
+    let previous = br#"{"schemaVersion":1,"config_version":1,"java_path":"/usr/bin/java"}"#;
+    let fs = FakeFileSystem::new()
+        .with_file(path.clone(), previous.to_vec(), false)
+        .with_failing_rename(path.clone());
+    let defaults = AppConfig::default_config("/srv/msc2/servers");
+    let mut config = defaults.clone();
+    config.java_path = "/opt/java21/bin/java".to_string();
+
+    let err = save_app_config(&fs, &path, &config)
+        .expect_err("an injected rename failure must surface, not silently succeed");
+    assert!(matches!(err, ConfigSaveError::Write(_)));
+
+    assert_eq!(
+        fs.read(&path).unwrap(),
+        previous,
+        "the previous config at `path` must be exactly what it was before this call"
+    );
+    assert!(
+        fs.read(&temp_path_for(&path)).is_err(),
+        "atomic_write cleans up its temp file even when the rename fails"
     );
 }

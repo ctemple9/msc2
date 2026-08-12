@@ -1,0 +1,18 @@
+{
+  "domain": "config-corpus-dimensions",
+  "case": "atomic-write-interruption-at-the-consumer-level",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "ConfigManager.save",
+    "line": 215
+  },
+  "input": {
+    "portPlanDimension": "atomic-write interruption (msc2-port-plan.md line 187, fourth sub-item)",
+    "description": "ConfigManager.save() writes the encoded config via `data.write(to: configURL, options: [.atomic])` -- Foundation's own temp-write-then-rename primitive. A process interrupted between the temp write and the rename must leave the previous server_config_swift.json exactly as it was; the new content must never appear half-written."
+  },
+  "expected": {
+    "newlyCoveredBy": "crates/msc-infrastructure/tests/app_config_repository.rs::config_corpus_dimensions_atomic_write_interruption_leaves_previous_config_intact",
+    "claim": "A rename failure injected inside a real save_app_config call surfaces as ConfigSaveError::Write and leaves `path` holding exactly its previous bytes, with no partial temp file left behind either."
+  },
+  "notes": "The existing fixtures/atomic-write/destination-untouched-before-rename.json + its Rust test only exercise atomic_write's own primitive-level contract, and do so by writing straight to the temp path and never calling atomic_write (or anything above it) at all -- proof the primitive is safe, not proof any real consumer (save_config, and above it save_app_config) still calls it the way that safety depends on. This step's own text calls that out explicitly (\"symbol presence or a generic primitive test alone is not evidence that the consumer still uses it\"), so the new test here drives save_app_config itself; doing that required a small addition to FakeFileSystem (crates/msc-infrastructure/src/fs.rs's new with_failing_rename) since nothing in the fake filesystem could previously fail a rename call on demand."
+}

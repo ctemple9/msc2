@@ -1,0 +1,34 @@
+{
+  "config_version": 1,
+  "java_path": "/usr/bin/java",
+  "extra_flags": "-Xss1m",
+  "servers_root": "/tmp/msc2-exercise-selftest/servers",
+  "has_shown_welcome_guide": true,
+  "remote_api_shared_access": [
+    {
+      "id": "EXERCISE-SELFTEST-TOKEN-1",
+      "label": "Selftest Client",
+      "token": "selftest-token-value"
+    }
+  ],
+  "servers": [
+    {
+      "id": "EXERCISE-SELFTEST-SERVER-B1",
+      "display_name": "Exercise Selftest Server B1",
+      "server_dir": "/tmp/msc2-exercise-selftest/servers/java/exercise-b1",
+      "paper_jar_path": "/tmp/msc2-exercise-selftest/servers/java/exercise-b1/paper.jar",
+      "min_ram_gb": 2,
+      "max_ram_gb": 6
+    },
+    {
+      "id": "EXERCISE-SELFTEST-SERVER-B2",
+      "display_name": "Exercise Selftest Server B2",
+      "server_dir": "/tmp/msc2-exercise-selftest/servers/java/exercise-b2",
+      "paper_jar_path": "/tmp/msc2-exercise-selftest/servers/java/exercise-b2/paper.jar",
+      "min_ram_gb": 1,
+      "max_ram_gb": 2
+    }
+  ],
+  "initial_setup_done": true,
+  "remote_api_port": 48401
+}

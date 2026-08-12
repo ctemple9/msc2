@@ -1,0 +1,18 @@
+{
+  "config_version": 1,
+  "java_path": "java",
+  "extra_flags": "",
+  "servers_root": "/tmp/msc2-exercise-selftest/servers",
+  "servers": [
+    {
+      "id": "EXERCISE-SELFTEST-SERVER-A",
+      "display_name": "Exercise Selftest Server A",
+      "server_dir": "/tmp/msc2-exercise-selftest/servers/java/exercise-a",
+      "paper_jar_path": "/tmp/msc2-exercise-selftest/servers/java/exercise-a/paper.jar",
+      "min_ram_gb": 2,
+      "max_ram_gb": 4
+    }
+  ],
+  "initial_setup_done": true,
+  "remote_api_port": 48400
+}

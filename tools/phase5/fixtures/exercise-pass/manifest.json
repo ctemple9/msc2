@@ -1,0 +1,14 @@
+{
+  "files": [
+    {
+      "file": "config-a.json",
+      "era": "selftest: minimal schema, one server",
+      "sanitized": "invented selftest content, not real MSC 1 evidence"
+    },
+    {
+      "file": "config-b.json",
+      "era": "selftest: later schema, two servers",
+      "sanitized": "invented selftest content, not real MSC 1 evidence"
+    }
+  ]
+}

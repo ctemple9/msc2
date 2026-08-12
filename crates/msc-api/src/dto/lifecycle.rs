@@ -1,7 +1,12 @@
-//! Phase 4 lifecycle route DTOs from `openapi.json`.
+//! Phase 4/5 lifecycle route DTOs from `openapi.json`.
+
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+/// `ServerImportRequestDTO`'s frozen shape (`docs/msc2/api-contract/openapi.json`).
+/// `action` preserves the real values `scan|importExisting|importTransfer`;
+/// `importKind` preserves `folder|zip|transfer|auto` (P5.17).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerImportRequestDto {
@@ -13,6 +18,29 @@ pub struct ServerImportRequestDto {
     pub display_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_world_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_players: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accept_eula: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_playit: Option<bool>,
+    /// `merge` (default, including absent/unrecognized) or `replaceAll` —
+    /// see `phase5-scope.md`'s "Transfer behavior".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transfer_mode: Option<String>,
+    /// Required, non-blank, when `transfer_mode == "replaceAll"`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backup_path: Option<String>,
+    /// Keyed by the *source* server's id, as recorded in the transfer
+    /// manifest.
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub java_port_overrides: HashMap<String, i64>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub bedrock_port_overrides: HashMap<String, i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

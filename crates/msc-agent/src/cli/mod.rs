@@ -100,11 +100,29 @@ pub enum TokenCommand {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum ServerCommand {
-    /// Import an existing Paper directory.
+    /// Import an existing Paper directory, or an MSC 1 `.msctransfer` package.
     Import {
         path: String,
         #[arg(long)]
         name: Option<String>,
+        /// `folder|zip|transfer|auto`. Defaults to `transfer` when `path`
+        /// ends in `.msctransfer`, otherwise `folder`.
+        #[arg(long)]
+        kind: Option<String>,
+        /// `merge` (default) or `replaceAll`, for a transfer import.
+        #[arg(long = "transfer-mode")]
+        transfer_mode: Option<String>,
+        /// Where to back up the current server set before a `replaceAll`
+        /// transfer import. Required when `--transfer-mode replaceAll` is
+        /// given.
+        #[arg(long = "backup-path")]
+        backup_path: Option<String>,
+        /// Override a transferred Java server's port: `<source-server-id>=<port>`.
+        #[arg(long = "java-port-override")]
+        java_port_overrides: Vec<String>,
+        /// Override a transferred Bedrock server's port: `<source-server-id>=<port>`.
+        #[arg(long = "bedrock-port-override")]
+        bedrock_port_overrides: Vec<String>,
     },
     /// Start the selected server, or the current active server if omitted.
     Start { server: Option<String> },
@@ -268,13 +286,45 @@ fn run_token(common: CommonArgs, command: TokenCommand) -> Result<(), CliError> 
 async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), CliError> {
     let client = RemoteClient::from_common(&common)?;
     match command {
-        ServerCommand::Import { path, name } => {
+        ServerCommand::Import {
+            path,
+            name,
+            kind,
+            transfer_mode,
+            backup_path,
+            java_port_overrides,
+            bedrock_port_overrides,
+        } => {
+            let resolved_kind = kind.clone().unwrap_or_else(|| {
+                if path.to_ascii_lowercase().ends_with(".msctransfer") {
+                    "transfer".to_string()
+                } else {
+                    "folder".to_string()
+                }
+            });
+            let is_transfer = resolved_kind == "transfer";
             let body = ServerImportRequestDto {
-                action: Some("importPaper".to_string()),
+                action: Some(
+                    if is_transfer {
+                        "importTransfer"
+                    } else {
+                        "importExisting"
+                    }
+                    .to_string(),
+                ),
                 source_path: Some(path.clone()),
-                import_kind: None,
+                import_kind: Some(resolved_kind),
                 display_name: name.clone(),
                 server_type: None,
+                active_world_name: None,
+                port: None,
+                max_players: None,
+                accept_eula: None,
+                enable_playit: None,
+                transfer_mode: transfer_mode.clone(),
+                backup_path: backup_path.clone(),
+                java_port_overrides: parse_port_overrides(&java_port_overrides)?,
+                bedrock_port_overrides: parse_port_overrides(&bedrock_port_overrides)?,
             };
             let result: ServerImportResultDto =
                 client.post_json("/v1/servers/import", &body).await?;
@@ -347,6 +397,30 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
             Ok(())
         }
     }
+}
+
+/// Parses `<source-server-id>=<port>` pairs, matching `settings set`'s
+/// `key=value` parsing convention.
+fn parse_port_overrides(pairs: &[String]) -> Result<HashMap<String, i64>, CliError> {
+    let mut parsed = HashMap::new();
+    for pair in pairs {
+        let (id, port) = pair.split_once('=').ok_or_else(|| {
+            CliError::usage(format!("invalid port override {pair:?}; expected id=port"))
+        })?;
+        let id = id.trim();
+        if id.is_empty() {
+            return Err(CliError::usage(format!(
+                "invalid port override {pair:?}; id cannot be empty"
+            )));
+        }
+        let port = port.trim().parse::<i64>().map_err(|_| {
+            CliError::usage(format!(
+                "invalid port override {pair:?}; port must be an integer"
+            ))
+        })?;
+        parsed.insert(id.to_string(), port);
+    }
+    Ok(parsed)
 }
 
 async fn run_command(common: CommonArgs, args: CommandArgs) -> Result<(), CliError> {

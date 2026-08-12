@@ -1,7 +1,17 @@
 //! Port of `AppViewModel+ServerTransfer.swift`'s `exportServerTransfer`
-//! (P5.13) and `inspectTransferPackage` (P5.14). `applyTransferImport`
-//! (P5.15) and the replace-all backup orchestration (P5.16) build on this
-//! module's types but are not implemented yet.
+//! (P5.13), `inspectTransferPackage` (P5.14), and the build-stage half of
+//! `applyTransferImport` (P5.15) — the per-server filesystem restoration
+//! that source's `Task.detached` closure performs, returning the
+//! equivalent of its `(newServers, imported, skipped)` tuple. Source's
+//! `MainActor.run` commit stage — merging/replacing `configManager.config`,
+//! choosing `activeServerId`, calling `KeychainManager.deleteAllMSCSecrets`,
+//! and saving config — is deliberately not ported here: this crate has no
+//! loaded `AppConfig` or credential store to act on (this module has no
+//! dependency beyond `msc-domain`'s types plus `zip`/`serde_json`), and the
+//! replace-all backup orchestration (P5.16, in `msc-agent`) is what owns
+//! calling this function only after a safety backup succeeds. P5.16's
+//! files list (`msc-api`/`msc-agent`, not this module) is where that
+//! commit-stage work — and the transfer mode itself — belongs.
 //!
 //! Format pinned in `docs/msc2/config-migration/transfer-package-format.md`
 //! from the 7 fixtures in `fixtures/transfer-package/` (P5.12): no MSC 1
@@ -27,6 +37,7 @@ use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use uuid::Uuid;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
@@ -787,6 +798,318 @@ fn inspect_transfer_package_inner(
         manifest,
         conflicts,
     })
+}
+
+// ---------- Apply ----------
+
+/// Inputs to [`apply_transfer_import`] beyond the already-inspected
+/// [`TransferInspection`]. Deliberately has no `mode`/`backupPath` field —
+/// those are P5.16's concern (transfer mode is a DTO-level input to the
+/// HTTP import route, not a build-stage restoration input); see this
+/// module's header comment.
+#[derive(Debug, Clone, Default)]
+pub struct TransferApplyRequest {
+    /// `configManager.serversRootURL` on the target machine — the parent
+    /// under which `java/`/`bedrock/` type directories live (source line
+    /// 371, 386-387).
+    pub servers_root: PathBuf,
+    /// Keyed by the *source* server's `ConfigServer.id` — i.e. the id an
+    /// entry carried in the manifest, before this function replaces it
+    /// with a freshly generated one (source line 364-365, 450, 461).
+    pub java_port_overrides: HashMap<String, i64>,
+    pub bedrock_port_overrides: HashMap<String, i64>,
+}
+
+/// The build-stage result: source's `(newServers, imported, skipped)`
+/// tuple (source line 517).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransferApplyResult {
+    pub servers: Vec<ConfigServer>,
+    pub imported: usize,
+    pub skipped: usize,
+}
+
+/// Ports the build-stage half of `applyTransferImport` — see this module's
+/// header comment for what's deliberately not ported. From
+/// `inspection.staging_root`, for every manifest entry: choose a
+/// noncolliding destination under `request.servers_root`, restore configs,
+/// the wholesale subdirectories, Forge/NeoForge libraries, an optional
+/// bundled `paper.jar`, and world data (preferring live Java/Bedrock world
+/// folders bundled in the package; falling back to
+/// [`restore_active_slot_world`] only when none exist), apply the caller's
+/// port overrides, and produce a re-rooted, re-identified `ConfigServer`.
+///
+/// A per-entry failure — its `java`/`bedrock` type directory or its own
+/// destination directory can't be created, or a wholesale subdirectory
+/// fails to copy (the one copy in source's loop that isn't `try?`, source
+/// line 423-428) — counts as skipped and removes any partial destination
+/// (source line 510-514). Every other per-entry step (configs, libraries,
+/// paper.jar, port rewrite, live-world/slot restoration) is best-effort in
+/// source too (`try?`, or an inner do/catch that only logs) and never
+/// fails the entry.
+pub fn apply_transfer_import(
+    inspection: &TransferInspection,
+    request: &TransferApplyRequest,
+) -> TransferApplyResult {
+    let pkg_root = inspection.staging_root.join("servers");
+    let mut servers = Vec::with_capacity(inspection.manifest.servers.len());
+    let mut imported = 0usize;
+    let mut skipped = 0usize;
+
+    for entry in &inspection.manifest.servers {
+        match apply_one_server(&pkg_root, entry, request) {
+            Some(server) => {
+                servers.push(server);
+                imported += 1;
+            }
+            None => skipped += 1,
+        }
+    }
+
+    TransferApplyResult {
+        servers,
+        imported,
+        skipped,
+    }
+}
+
+fn apply_one_server(
+    pkg_root: &Path,
+    entry: &TransferServerEntry,
+    request: &TransferApplyRequest,
+) -> Option<ConfigServer> {
+    let is_java = entry.server.server_type == ServerType::Java;
+    let type_root = request
+        .servers_root
+        .join(if is_java { "java" } else { "bedrock" });
+    fs::create_dir_all(&type_root).ok()?;
+
+    let dest = unique_destination(&type_root, &entry.folder_name);
+    fs::create_dir_all(&dest).ok()?;
+    let pkg_dir = pkg_root.join(&entry.folder_name);
+
+    // configs/ -> dest top level, one file at a time, best-effort (source
+    // line 413-420 uses `try?` per file).
+    if let Ok(read_dir) = fs::read_dir(pkg_dir.join("configs")) {
+        for item in read_dir.flatten() {
+            if item.file_type().is_ok_and(|t| t.is_file()) {
+                let _ = fs::copy(item.path(), dest.join(item.file_name()));
+            }
+        }
+    }
+
+    // world_slots/, backups/, plugins/, mods/, resource-packs/ — the one
+    // copy in source's loop that is a hard failure, not `try?` (line
+    // 423-428): a failure here removes the destination and skips the
+    // whole entry.
+    for sub in WHOLESALE_SUBDIRS {
+        let src = pkg_dir.join(sub);
+        if src.is_dir() && copy_dir_all(&src, &dest.join(sub)).is_err() {
+            let _ = fs::remove_dir_all(&dest);
+            return None;
+        }
+    }
+
+    if matches!(
+        entry.server.java_flavor,
+        JavaServerFlavor::NeoForge | JavaServerFlavor::Forge
+    ) {
+        let src = pkg_dir.join("libraries");
+        if src.is_dir() {
+            let _ = copy_dir_all(&src, &dest.join("libraries"));
+        }
+    }
+
+    let mut paper_jar_path = String::new();
+    if is_java && entry.bundled_paper_jar {
+        let jar = pkg_dir.join("paper.jar");
+        let dest_jar = dest.join("paper.jar");
+        if jar.is_file() && fs::copy(&jar, &dest_jar).is_ok() {
+            paper_jar_path = dest_jar.to_string_lossy().into_owned();
+        }
+    }
+
+    if is_java && let Some(port) = request.java_port_overrides.get(&entry.server.id) {
+        rewrite_properties_line(&dest.join("server.properties"), "server-port=", *port);
+    }
+
+    let mut cfg_server = entry.server.clone();
+    cfg_server.id = Uuid::new_v4().to_string().to_uppercase();
+    cfg_server.server_dir = dest.to_string_lossy().into_owned();
+    cfg_server.paper_jar_path = paper_jar_path;
+    cfg_server.xbox_broadcast_config_path = None;
+    if !is_java && let Some(port) = request.bedrock_port_overrides.get(&entry.server.id) {
+        cfg_server.bedrock_port = Some(*port);
+    }
+
+    // Restore world data. Prefer live world folders bundled in the package
+    // (source line 465-495) — the exact state the server was left in.
+    let mut restored_live_world = false;
+    if is_java {
+        let props = read_properties_map(&dest.join("server.properties"));
+        let raw = props
+            .get("level-name")
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+        let level = if raw.is_empty() {
+            "world".to_string()
+        } else {
+            raw
+        };
+        for candidate in [
+            level.clone(),
+            format!("{level}_nether"),
+            format!("{level}_the_end"),
+        ] {
+            let src = pkg_dir.join(&candidate);
+            if src.is_dir() && copy_dir_all(&src, &dest.join(&candidate)).is_ok() {
+                restored_live_world = true;
+            }
+        }
+    } else {
+        let src = pkg_dir.join("worlds");
+        if src.is_dir() && copy_dir_all(&src, &dest.join("worlds")).is_ok() {
+            restored_live_world = true;
+        }
+    }
+
+    // Fall back only for an older package with no live world folders
+    // (source line 497) — see `restore_active_slot_world`'s own doc for
+    // the narrow compatibility adapter this substitutes for the real
+    // `WorldSlotManager.activeSlot`/`activateSlot` (Phase 6 territory).
+    if !restored_live_world {
+        restore_active_slot_world(&dest);
+    }
+
+    Some(cfg_server)
+}
+
+/// Picks the same noncolliding destination folder source does (line
+/// 395-403): try `folderName`, then `folderName-2`, `folderName-3`, …
+fn unique_destination(type_root: &Path, folder_name: &str) -> PathBuf {
+    let mut candidate = type_root.join(folder_name);
+    let mut counter = 2;
+    while candidate.exists() {
+        candidate = type_root.join(format!("{folder_name}-{counter}"));
+        counter += 1;
+    }
+    candidate
+}
+
+fn copy_dir_all(src: &Path, dst: &Path) -> io::Result<()> {
+    fs::create_dir_all(dst)?;
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let target = dst.join(entry.file_name());
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            copy_dir_all(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
+}
+
+/// `ServerTransfer.updateServerPropertiesPort` (source line 569-577),
+/// generalized to any `key=`-prefixed line: replaces an existing matching
+/// line in place; does **not** add the key if absent, matching source
+/// exactly. Best-effort — a read failure is silently a no-op, same as
+/// source's `guard var content = try? ...`.
+fn rewrite_properties_line(path: &Path, key_prefix: &str, value: i64) {
+    let Ok(content) = fs::read_to_string(path) else {
+        return;
+    };
+    let rewritten = content
+        .split('\n')
+        .map(|line| {
+            if line.starts_with(key_prefix) {
+                format!("{key_prefix}{value}")
+            } else {
+                line.to_string()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let _ = fs::write(path, rewritten);
+}
+
+/// Substitutes for MSC 1's `WorldSlotManager.activeSlot(forServerDir:)` /
+/// `activateSlot(...)` (source line 497-505) without the formal slot model
+/// — that stays Phase 6 (`phase5-scope.md` "Deferred and homeless"; see
+/// also the format doc's "Apply-time world precedence"). Narrow and
+/// read-only with respect to slot bookkeeping: it resolves
+/// `world_slots/active_slot_id.txt` (already restored into `dest` by the
+/// wholesale copy above — resolved against the package's *own* copied
+/// `world_slots/`, not the source machine's, matching source) to a slot
+/// id, and if that slot has a `world.zip`, extracts it directly into
+/// `dest`. It never rewrites `active_slot_id.txt`, never updates
+/// `slot.json`'s `lastPlayedAt`, and never infers a level name — source's
+/// zip is created by zipping the live world folder(s) by name relative to
+/// `serverDir` (`WorldSlotManager.createSlot`), so extracting it directly
+/// into `dest` reproduces the same `<levelName>[_nether|_the_end]`/`worlds`
+/// layout a live-world restore would have, with no extra bookkeeping
+/// needed for a first-time import.
+fn restore_active_slot_world(dest: &Path) {
+    let marker = dest.join("world_slots").join("active_slot_id.txt");
+    let Ok(raw) = fs::read_to_string(&marker) else {
+        return;
+    };
+    let slot_id = raw.trim();
+    if slot_id.is_empty() {
+        return;
+    }
+    let zip_path = dest.join("world_slots").join(slot_id).join("world.zip");
+    if !zip_path.is_file() {
+        return;
+    }
+    extract_zip_into(&zip_path, dest);
+}
+
+/// Extracts every entry of the zip at `zip_path` into `dest_root`, reusing
+/// [`is_unsafe_raw_entry_name`]/[`is_symlink_mode`] — `world.zip` is
+/// data that arrived nested inside an already-hardened outer package, but
+/// its own entries were never individually checked when the outer package
+/// was extracted, and this extracts straight into an owned server
+/// directory rather than disposable staging, so the same hardening applies
+/// here, not less. Best-effort: any unsafe entry or I/O failure stops
+/// extraction for this slot without touching anything else in `dest`
+/// (whatever already extracted stays, matching source's `unzip -o`
+/// failure just being logged, not rolled back).
+fn extract_zip_into(zip_path: &Path, dest_root: &Path) {
+    let Ok(file) = fs::File::open(zip_path) else {
+        return;
+    };
+    let Ok(mut archive) = ZipArchive::new(file) else {
+        return;
+    };
+    for i in 0..archive.len() {
+        let Ok(mut entry) = archive.by_index(i) else {
+            return;
+        };
+        let raw_name = entry.name().to_string();
+        if is_unsafe_raw_entry_name(&raw_name) || is_symlink_mode(entry.unix_mode()) {
+            return;
+        }
+        let Some(enclosed) = entry.enclosed_name() else {
+            return;
+        };
+        let dest = dest_root.join(&enclosed);
+        if entry.is_dir() {
+            let _ = fs::create_dir_all(&dest);
+            continue;
+        }
+        if let Some(parent) = dest.parent() {
+            let _ = fs::create_dir_all(parent);
+        }
+        let mut bytes = Vec::new();
+        if entry.read_to_end(&mut bytes).is_err() {
+            return;
+        }
+        if fs::write(&dest, &bytes).is_err() {
+            return;
+        }
+    }
 }
 
 /// `enclosed_name()` alone isn't enough: the `zip` crate *relativizes* an

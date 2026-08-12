@@ -7,4 +7,5 @@ edition = "2024"
 msc-domain = { path = "../msc-domain" }
 msc-infrastructure = { path = "../msc-infrastructure" }
 serde_json = "1"
+uuid = { version = "1.24.0", features = ["v4"] }
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }

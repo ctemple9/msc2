@@ -658,6 +658,7 @@ dependencies = [
  "msc-domain",
  "msc-infrastructure",
  "serde_json",
+ "uuid",
  "zip",
 ]
 

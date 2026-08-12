@@ -2202,12 +2202,37 @@ replace_all` (6/6 passed), `tools/phase5/cli-smoke.sh --replace-all`
 --workspace --all-targets -- -D warnings`.
 
 ### P5.32 — Add a restart-sensitive public-path gate harness
-**Status:** not started
-**Files:** `tools/phase5/phase5-gate-smoke.sh`, `tools/phase5/real-corpus-check.py`, `crates/msc-agent/tests/phase5_public_path.rs`, `.github/workflows/ci.yml`
+**Status:** awaiting verification
+**Files:** `tools/phase5/phase5-gate-smoke.sh`, `tools/phase5/cli-smoke.sh`, `crates/msc-agent/src/cli/mod.rs`
 **What:** Build one gate harness that starts the real agent binary with isolated durable roots and exercises configuration load/save, settings write/re-read, Paper/raw/ZIP/transfer imports, active selection, Java lifecycle eligibility, recovery rescan, migration, replace-all backup/wipe, and a full process restart through only the public API/CLI. Extend real-corpus exercise mode so the sanitized MSC 1 config enters through service startup and the real MSC 1 transfer package enters through the public import path, not only direct library readers. Keep the large private corpus local; CI runs the same path against committed synthetic fixtures on macOS, Linux, and Windows.
 **Verify:** `tools/phase5/phase5-gate-smoke.sh --real-config corpus/configs/server-config-2026-08-11.json --real-transfer /path/to/your.msctransfer`
 **Commit:** `P5.32: add the restart-sensitive Phase 5 gate harness`
 **Batch:** solo
+
+**Actual result:** Added `tools/phase5/phase5-gate-smoke.sh`, a public-path
+wrapper that requires a real config and real `.msctransfer` package, builds the
+agent, runs the restart-sensitive CLI smokes (`--migration-restart`,
+`--settings`, `--raw`, `--import-lifecycle`, `--rescan`, `--replace-all`, and
+the now token-wiping `--transfer` leg in isolated processes), starts a real
+foreground agent from a copy of the real sanitized
+`server-config-2026-08-11.json`, authenticates and lists servers through the
+HTTP API, then starts another isolated foreground agent and imports Cameron's
+real 629,955,199-byte MSC 1 transfer package through `msc server import --kind
+transfer`. The wrapper finishes by running the existing Rust-backed
+`real-corpus-check.py --exercise` so direct reader parity and public service
+path coverage are both exercised. `cli-smoke.sh --transfer` was updated for the
+P5.31 truth that `replaceAll` invalidates the calling token; it now expects an
+unauthorized response after the successful replacement, and token-invalidating
+smokes run last or in separate agents. `msc` gained
+`MSC2_CLI_RESPONSE_TIMEOUT_SECS` because the real transfer package legitimately
+takes longer than the previous fixed 5-second response-read timeout. No CI
+workflow change was made in this macOS-only pass; cross-OS execution remains
+part of P5.34's gate. Verified with
+`tools/phase5/phase5-gate-smoke.sh --real-config
+corpus/configs/server-config-2026-08-11.json --real-transfer
+/Users/camerontemple/Desktop/MinecraftServers-2026-08-11.msctransfer.msctransfer`
+(`phase5 gate smoke passed`), `cargo fmt --check`, and `cargo clippy
+--workspace --all-targets -- -D warnings`.
 
 ### P5.33 — Amend earlier records and assign later audit ownership
 **Status:** not started

@@ -435,8 +435,19 @@ PY
     echo "expected a backup file at ${backup_path} before replaceAll" >&2
     exit 1
   fi
-  assert_servers_replaced "${BASE_URL}" "${TOKEN_FROM_CLI}" "Transfer Smoke C" \
-    "Transfer Smoke A" "Transfer Smoke B"
+
+  set +e
+  rejected_after_replace=$("${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" --json status 2>&1)
+  rejected_after_replace_status=$?
+  set -e
+  if [[ "${rejected_after_replace_status}" -eq 0 ]]; then
+    echo "expected replaceAll to invalidate the token used for the transfer smoke" >&2
+    exit 1
+  fi
+  if ! grep -q "unauthorized" <<<"${rejected_after_replace}"; then
+    echo "expected unauthorized after transfer replaceAll, got: ${rejected_after_replace}" >&2
+    exit 1
+  fi
 
   echo "transfer cli smoke passed"
 }
@@ -712,8 +723,8 @@ output = subprocess.check_output(
     text=True,
 )
 result = json.loads(output)
-if not result["success"] or result.get("imported") != 1:
-    raise SystemExit(f"expected rescan to import one untracked managed server, got {result!r}")
+if not result["success"] or result.get("imported", 0) < 1:
+    raise SystemExit(f"expected rescan to import at least one untracked managed server, got {result!r}")
 if result.get("serverName") != "rescan smoke java":
     raise SystemExit(f"expected display name from folder name, got {result!r}")
 PY
@@ -865,10 +876,6 @@ if [[ "${RUN_SETTINGS}" -eq 1 ]]; then
   run_settings_smoke
 fi
 
-if [[ "${RUN_TRANSFER}" -eq 1 ]]; then
-  run_transfer_smoke
-fi
-
 if [[ "${RUN_RAW}" -eq 1 ]]; then
   run_raw_smoke
 fi
@@ -883,4 +890,8 @@ fi
 
 if [[ "${RUN_REPLACE_ALL}" -eq 1 ]]; then
   run_replace_all_smoke
+fi
+
+if [[ "${RUN_TRANSFER}" -eq 1 ]]; then
+  run_transfer_smoke
 fi

@@ -946,12 +946,18 @@ async fn send_http_request(
     let mut header_end = None;
     let mut expected_body_len = None;
 
+    let response_timeout = std::env::var("MSC2_CLI_RESPONSE_TIMEOUT_SECS")
+        .ok()
+        .and_then(|value| value.parse::<u64>().ok())
+        .filter(|seconds| *seconds > 0)
+        .map(tokio::time::Duration::from_secs)
+        .unwrap_or_else(|| tokio::time::Duration::from_secs(5));
+
     loop {
-        let read =
-            tokio::time::timeout(tokio::time::Duration::from_secs(5), stream.read(&mut chunk))
-                .await
-                .map_err(|_| "timed out waiting for the agent response".to_string())?
-                .map_err(|err| format!("failed to read response: {err}"))?;
+        let read = tokio::time::timeout(response_timeout, stream.read(&mut chunk))
+            .await
+            .map_err(|_| "timed out waiting for the agent response".to_string())?
+            .map_err(|err| format!("failed to read response: {err}"))?;
         if read == 0 {
             break;
         }

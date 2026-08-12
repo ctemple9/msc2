@@ -14,10 +14,12 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 RUN_SETTINGS=0
 RUN_TRANSFER=0
 RUN_RAW=0
+RUN_IMPORT_LIFECYCLE=0
 if [[ $# -eq 0 ]]; then
   RUN_SETTINGS=1
   RUN_TRANSFER=1
   RUN_RAW=1
+  RUN_IMPORT_LIFECYCLE=1
 else
   for arg in "$@"; do
     case "$arg" in
@@ -30,9 +32,12 @@ else
       --raw)
         RUN_RAW=1
         ;;
+      --import-lifecycle)
+        RUN_IMPORT_LIFECYCLE=1
+        ;;
       *)
         echo "unknown flag: ${arg}" >&2
-        echo "usage: $0 [--settings] [--transfer] [--raw]" >&2
+        echo "usage: $0 [--settings] [--transfer] [--raw] [--import-lifecycle]" >&2
         exit 2
         ;;
     esac
@@ -52,11 +57,17 @@ BASE_URL="http://127.0.0.1:${PORT}"
 TOKEN="msc2_phase5_cli_smoke_bootstrap_secret"
 MSC_BIN="${ROOT}/target/debug/msc"
 AGENT_PID=""
+KEYCHAIN_SERVICE="com.msc2.phase5.cli-smoke.$(date +%Y%m%d%H%M%S).$$"
 
 cleanup() {
   if [[ -n "${AGENT_PID}" ]] && kill -0 "${AGENT_PID}" 2>/dev/null; then
     kill "${AGENT_PID}" 2>/dev/null || true
     wait "${AGENT_PID}" 2>/dev/null || true
+  fi
+  if [[ "$(uname -s)" == "Darwin" ]]; then
+    /usr/bin/security delete-generic-password \
+      -s "${KEYCHAIN_SERVICE}" \
+      -a "remote-api.token.phase5" >/dev/null 2>&1 || true
   fi
   rm -rf "${TMP_DIR}"
 }
@@ -72,6 +83,22 @@ require_tool() {
 require_tool cargo
 require_tool python3
 
+export MSC2_JAVA_PATH="${TMP_DIR}/fake-java"
+cat > "${MSC2_JAVA_PATH}" <<'EOF'
+#!/usr/bin/env bash
+echo "Booting fake Paper"
+sleep 1
+echo 'Done (0.001s)! For help, type "help"'
+while IFS= read -r line; do
+  echo "COMMAND:${line}"
+  if [[ "${line}" == "stop" ]]; then
+    echo "Stopping fake Paper"
+    exit 0
+  fi
+done
+EOF
+chmod 755 "${MSC2_JAVA_PATH}"
+
 (
   cd "${ROOT}"
   cargo build -p msc-agent >/dev/null
@@ -80,10 +107,14 @@ require_tool python3
 export MSC2_TEST_BOOTSTRAP_TOKEN="${TOKEN}"
 export MSC2_OPERATION_JOURNAL_DIR="${TMP_DIR}/journal"
 export MSC2_CREDENTIAL_REGISTRY_PATH="${TMP_DIR}/credential-registry.json"
-# Shared by both the transfer (P5.16/17) and raw (P5.20/21) import routes —
-# `servers.rs`'s own `ConfigServerStore` backs both.
+export MSC2_DATA_DIR="${TMP_DIR}/data"
+export MSC2_APP_CONFIG_PATH="${MSC2_DATA_DIR}/server_config_swift.json"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+  export MSC2_MACOS_USER_KEYCHAIN_SERVICE="${KEYCHAIN_SERVICE}"
+fi
+# Shared by transfer, raw, and no-serverType importExisting routes.
 export MSC2_AGENT_SERVERS_ROOT="${TMP_DIR}/agent-servers"
-mkdir -p "${MSC2_OPERATION_JOURNAL_DIR}"
+mkdir -p "${MSC2_OPERATION_JOURNAL_DIR}" "${MSC2_DATA_DIR}"
 
 "${MSC_BIN}" serve --bind "127.0.0.1:${PORT}" >"${TMP_DIR}/agent.log" 2>&1 &
 AGENT_PID="$!"
@@ -122,6 +153,7 @@ EOF
 
   "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" \
     server import "${server_dir}" --name "Settings Smoke" >/dev/null
+  properties_file="${MSC2_AGENT_SERVERS_ROOT}/java/settings_smoke/server.properties"
 
   python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" <<'PY'
 import json
@@ -536,6 +568,81 @@ PY
   echo "raw cli smoke passed"
 }
 
+run_import_lifecycle_smoke() {
+  local source="${TMP_DIR}/import-lifecycle-java-source"
+  local managed="${MSC2_AGENT_SERVERS_ROOT}/java/import_lifecycle_java"
+  build_raw_java_folder "${source}" 25630
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" "${source}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token, path = sys.argv[1:5]
+output = subprocess.check_output(
+    [
+        msc, "--base-url", base_url, "--token", token, "--json",
+        "server", "import", path, "--name", "Import Lifecycle Java",
+    ],
+    text=True,
+)
+result = json.loads(output)
+if not result["success"] or result.get("serverId") is None:
+    raise SystemExit(f"expected no-type importExisting to infer and import a Java server, got {result!r}")
+PY
+
+  if [[ ! -f "${managed}/paper-1.21.1-131.jar" ]]; then
+    echo "expected no-type importExisting to copy the Paper server into ${managed}" >&2
+    exit 1
+  fi
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token = sys.argv[1:4]
+output = subprocess.check_output(
+    [
+        msc, "--base-url", base_url, "--token", token, "--json",
+        "settings", "get", "--server", "Import Lifecycle Java",
+    ],
+    text=True,
+)
+settings = json.loads(output)
+if not settings["editable"] or settings["serverName"] != "Import Lifecycle Java":
+    raise SystemExit(f"expected imported Java server to be settings-capable, got {settings!r}")
+PY
+
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" \
+    server start "Import Lifecycle Java" >/dev/null
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" <<'PY'
+import json
+import subprocess
+import sys
+import time
+
+msc, base_url, token = sys.argv[1:4]
+deadline = time.time() + 30
+while time.time() < deadline:
+    output = subprocess.check_output(
+        [msc, "--base-url", base_url, "--token", token, "--json", "status"],
+        text=True,
+    )
+    status = json.loads(output)
+    if status["running"] and status.get("activeServerId"):
+        raise SystemExit(0)
+    time.sleep(0.25)
+raise SystemExit("imported Java server never reached running state")
+PY
+
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" \
+    server stop "Import Lifecycle Java" >/dev/null
+
+  echo "import lifecycle cli smoke passed"
+}
+
 if [[ "${RUN_SETTINGS}" -eq 1 ]]; then
   run_settings_smoke
 fi
@@ -546,4 +653,8 @@ fi
 
 if [[ "${RUN_RAW}" -eq 1 ]]; then
   run_raw_smoke
+fi
+
+if [[ "${RUN_IMPORT_LIFECYCLE}" -eq 1 ]]; then
+  run_import_lifecycle_smoke
 fi

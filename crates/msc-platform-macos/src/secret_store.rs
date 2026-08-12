@@ -2,8 +2,9 @@
 //! P4.40 amendment: privileged install/update work provisions one root
 //! key in the System keychain, while routine LaunchDaemon operation writes
 //! a mutable agent-owned encrypted file store under the durable data root.
-//! Direct per-secret Keychain writes stay available for tests against the
-//! user's default keychain, not for production service auth.
+//! Direct per-secret Keychain writes stay available for tests and foreground
+//! local smoke harnesses against the user's default keychain, not for
+//! production LaunchDaemon auth.
 
 use chacha20poly1305::aead::{Aead, AeadCore, KeyInit, OsRng};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
@@ -80,6 +81,21 @@ impl MacosSecretStore {
                 service: SERVICE.to_string(),
             },
         }
+    }
+
+    /// Opens the logged-in user's default keychain under a caller-provided
+    /// service namespace. This is for foreground local smoke harnesses that
+    /// run `msc serve` directly, outside LaunchDaemon's System-keychain
+    /// provisioning window. Installed service auth still uses [`Self::system`].
+    pub fn default_keychain_for_service(service: impl Into<String>) -> Result<Self> {
+        let keychain = SecKeychain::default()
+            .map_err(|e| SecretStoreError(format!("opening default keychain: {e}")))?;
+        Ok(Self {
+            backend: MacosSecretStoreBackend::DirectKeychain {
+                keychain,
+                service: service.into(),
+            },
+        })
     }
 
     #[cfg(test)]

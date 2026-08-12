@@ -2082,12 +2082,33 @@ passed), `cargo fmt --check`, `cargo clippy -p msc-agent --all-targets -- -D
 warnings`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.28 — Make every import path lifecycle-capable and durable
-**Status:** not started
-**Files:** `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-application/src/import.rs`, `crates/msc-application/src/transfer.rs`, `crates/msc-agent/tests/import_lifecycle.rs`, `tools/phase5/cli-smoke.sh`
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-platform-macos/src/secret_store.rs`, `tools/phase5/cli-smoke.sh`
 **What:** Route Phase 4 Paper import, raw folder/ZIP import, and transfer-package import through P5.27's single state. Remove P5.21's `serverType`-presence fork: a valid `importExisting` request without the optional field must infer the source exactly as MSC 1 does instead of silently falling back to the Paper-only stand-in. After import, each Java server must list, select, expose settings, and enter the same start/stop lifecycle path; Bedrock remains lifecycle-deferred to Phase 10 but persists in the same config. Prove the records and active selection survive a fresh agent process and that imported files live under the configured durable root.
 **Verify:** `cargo nextest run -p msc-agent import_lifecycle && tools/phase5/cli-smoke.sh --import-lifecycle`
 **Commit:** `P5.28: make all imports lifecycle-capable`
 **Batch:** stop-after
+
+**Actual result:** `POST /v1/servers/import` no longer has the Paper-only
+fallback for `importExisting` requests that omit `serverType`. Folder and ZIP
+sources are scanned first, invalid explicit types still return
+`invalid_server_type`, and inferred Java imports copy into the configured
+MSC-owned servers root, persist through the single P5.27 `AppConfig` store, and
+select the imported Java server as active. Transfer imports now also select the
+first imported Java server after saving the applied config; `replaceAll` keeps
+active selection on Java rather than accidentally selecting a Bedrock-only
+record. The CLI help now documents that `--type` can be omitted because the
+agent infers it. `tools/phase5/cli-smoke.sh --import-lifecycle` now starts a
+foreground macOS agent with a unique user-keychain service namespace (real
+Keychain Services, not `FakeSecretStore`) because P4.42 correctly made the
+default macOS production path require an install-time-provisioned System
+keychain root. The smoke imports a Paper folder without `--type`, confirms it
+was copied into the managed durable root, reads settings for that imported
+server, starts it with the fake Java executable, observes running status with
+an active server id, and stops it. Verified with `cargo nextest run -p
+msc-agent import_lifecycle` (1/1 passed), `tools/phase5/cli-smoke.sh
+--import-lifecycle` (`import lifecycle cli smoke passed`), `cargo fmt
+--check`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.29 — Expose recovery rescan through the public contract
 **Status:** not started

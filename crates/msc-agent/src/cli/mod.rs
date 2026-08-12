@@ -149,8 +149,8 @@ pub enum ServerCommand {
         /// Preview a raw folder/ZIP's contents instead of importing it.
         #[arg(long)]
         scan: bool,
-        /// `java` or `bedrock`. Required to import (not scan) a raw
-        /// folder/ZIP — read it off a prior `--scan`'s output.
+        /// `java` or `bedrock`. When omitted for a folder/ZIP import, the
+        /// agent scans the source and infers the type.
         #[arg(long = "type")]
         server_type: Option<String>,
         /// Override the imported server's game port.

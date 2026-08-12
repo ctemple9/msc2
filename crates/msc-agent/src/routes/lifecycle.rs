@@ -11,6 +11,7 @@ use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{ActiveServerRequestDto, ErrorDto, PermissionCategoryDto, SimpleResultDto};
+#[cfg(test)]
 use msc_application::import::ImportedPaperServer;
 use msc_application::java_launch::{
     PaperLaunchRequest, StdJavaLaunchFileSystem, ValidatedJavaLaunch, build_paper_launch_command,
@@ -22,7 +23,9 @@ use msc_application::lifecycle::{
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 use msc_application::transfer::TransferExportServerInput;
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
-use msc_domain::identity::{JavaServerFlavor, ServerType};
+#[cfg(test)]
+use msc_domain::identity::JavaServerFlavor;
+use msc_domain::identity::ServerType;
 use msc_domain::operation::OperationId;
 use msc_infrastructure::config_repository::{
     AppConfigLoadError, ConfigSaveError, default_app_config_path, default_servers_root,
@@ -156,6 +159,7 @@ impl LifecycleRoutesState {
         Self::with_dependencies(console_state, operations, app_config, process)
     }
 
+    #[cfg(test)]
     pub fn register_imported_paper(
         &self,
         server: ImportedPaperServer,
@@ -605,6 +609,7 @@ impl AgentAppConfigStore {
         self.config.lock().unwrap().active_server_id.clone()
     }
 
+    #[cfg(test)]
     pub fn upsert_server(&self, server: ConfigServer) -> Result<(), AgentAppConfigError> {
         self.mutate(|config| {
             if let Some(existing) = config.servers.iter_mut().find(|item| item.id == server.id) {
@@ -627,7 +632,11 @@ impl AgentAppConfigStore {
     ) -> Result<(), AgentAppConfigError> {
         self.mutate(|config| {
             config.servers = new_servers;
-            config.active_server_id = config.servers.first().map(|server| server.id.clone());
+            config.active_server_id = config
+                .servers
+                .iter()
+                .find(|server| server.server_type == ServerType::Java)
+                .map(|server| server.id.clone());
         })
     }
 
@@ -708,6 +717,7 @@ impl AgentServerRegistry {
         Self { app_config }
     }
 
+    #[cfg(test)]
     fn insert(&self, server: ImportedPaperServer) -> Result<(), AgentAppConfigError> {
         self.app_config
             .upsert_server(config_server_from_paper(server))
@@ -843,6 +853,7 @@ fn build_launch_request(registered: &ConfigServer) -> Result<ProcessSpawnRequest
     })
 }
 
+#[cfg(test)]
 fn config_server_from_paper(server: ImportedPaperServer) -> ConfigServer {
     let mut config = ConfigServer::new(
         server.id.as_str().to_string(),

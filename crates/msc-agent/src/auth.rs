@@ -593,6 +593,15 @@ enum ProductionSecretStoreKind {
 fn production_secret_store() -> Result<Arc<dyn SecretStore + Send + Sync>, SecretStoreError> {
     #[cfg(target_os = "macos")]
     {
+        if let Ok(service) = std::env::var("MSC2_MACOS_USER_KEYCHAIN_SERVICE")
+            && !service.is_empty()
+        {
+            return Ok(Arc::new(
+                msc_platform_macos::secret_store::MacosSecretStore::default_keychain_for_service(
+                    service,
+                )?,
+            ));
+        }
         Ok(Arc::new(
             msc_platform_macos::secret_store::MacosSecretStore::system()?,
         ))

@@ -16,8 +16,11 @@
 //! lines this step read directly instead.
 
 use crate::lifecycle::{ImportedJavaServer, ServerId};
+use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::{JavaServerFlavor, ServerType};
 use msc_domain::properties::ServerPropertiesModel;
+use msc_infrastructure::fs::StdFileSystem;
+use msc_infrastructure::path_safety::safe_path;
 use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs;
@@ -977,4 +980,267 @@ pub fn scan_zip_source(zip_path: &Path) -> Result<ScannedServerInfo, RawImportEr
 
     let _ = fs::remove_dir_all(&staging);
     result
+}
+
+// =====================================================================
+// P5.20 — mutating raw folder/ZIP import into the owned servers root
+//
+// Ports `importExistingServer` (`AppViewModel+ServerImport.swift:72-228`),
+// scoped per this step's own plan text: no world-slot creation (Phase 6),
+// no Playit wiring (out of Phase 5 scope). P5.18 scoped its fixtures to
+// the read-only half only, so this half has no fixture oracle — every
+// line-numbered claim in the comments below was re-confirmed by reading
+// MSC 1 source directly while writing this, not inferred from the P5.18
+// write-up.
+// =====================================================================
+
+/// Where P5.20 copies/extracts from. A plain folder is copied with
+/// [`copy_dir_recursive`]; a zip is extracted with
+/// [`extract_zip_traversal_safe`] (the same primitive P5.19's
+/// `scan_zip_source` uses for disposable staging, reused here for the
+/// permanent destination).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RawImportSource {
+    Folder(PathBuf),
+    Zip(PathBuf),
+}
+
+/// Source line 78-81, 161-172: caller overrides applied directly to the
+/// copied `server.properties`/`eula.txt`, not through a typed properties
+/// model — MSC 1 doesn't have a Bedrock one, and Java's own
+/// `ServerPropertiesModel` round-trips through named fields that would
+/// silently drop unknown keys on write, unlike source's raw dictionary
+/// merge.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct RawImportOverrides {
+    pub port: Option<i64>,
+    pub max_players: Option<i64>,
+    /// Java only (source line 163) — Bedrock's override block (line
+    /// 167-171) never touches `level-name`.
+    pub active_world_name: Option<String>,
+    /// Only `Some(true)` writes `eula.txt` (source line 175: `if let eula
+    /// = eulaOverride, eula`); `None`/`Some(false)` leave the copied
+    /// source's `eula.txt`, if any, untouched.
+    pub eula_accepted: Option<bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawImportRequest {
+    pub display_name: String,
+    pub server_type: ServerType,
+    pub source: RawImportSource,
+    /// `configManager.serversRootURL` on the target machine (source line
+    /// 96) — the parent under which `java/`/`bedrock/` type directories
+    /// live.
+    pub servers_root: PathBuf,
+    pub overrides: RawImportOverrides,
+}
+
+/// The built server, ready for the caller to persist. Mirrors
+/// `apply_transfer_import`'s pattern (`transfer.rs`): this function
+/// builds and returns a `ConfigServer` but doesn't itself load or save
+/// `AppConfig` — there is none held here. The caller registers it and
+/// makes it active, matching source's unconditional `upsertServer` +
+/// `setActiveServer` after every successful import (source line
+/// 224-225); actual config persistence is P5.21's route-wiring job.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ImportedRawServer {
+    pub config: ConfigServer,
+}
+
+/// Port of `importExistingServer` — see this section's header comment for
+/// exact scope. `home_dir` is threaded explicitly, matching
+/// [`safe_path`]'s own design: this function never looks it up itself.
+pub fn import_raw_server(
+    request: &RawImportRequest,
+    home_dir: &Path,
+) -> Result<ImportedRawServer, RawImportError> {
+    let display_name = request.display_name.trim();
+    if display_name.is_empty() {
+        return Err(RawImportError::EmptyDisplayName);
+    }
+
+    let sanitized = sanitize_destination_name(display_name);
+    if sanitized.is_empty() {
+        return Err(RawImportError::EmptyDestinationName);
+    }
+
+    let type_subdir = if request.server_type == ServerType::Java {
+        "java"
+    } else {
+        "bedrock"
+    };
+    let type_root = request.servers_root.join(type_subdir);
+
+    // Phase 3's approved-root/escape primitive, reused here for a new
+    // *write* destination rather than its established read-a-file call
+    // sites: refuses a `servers_root` that resolves to `/` or the home
+    // directory, and refuses a `sanitized` name that would (via a
+    // symlinked servers root) resolve outside `type_root`.
+    let dest = safe_path(&StdFileSystem, &type_root, Some(&sanitized), home_dir)
+        .map_err(|e| RawImportError::PathSafety(e.to_string()))?;
+
+    // Source line 108-110: refuse an existing destination outright — no
+    // numbered-suffix fallback like `apply_transfer_import`'s
+    // `unique_destination` (a different oracle function's own behavior).
+    if dest.exists() {
+        return Err(RawImportError::DestinationExists { path: dest });
+    }
+
+    fs::create_dir_all(&type_root).map_err(|e| RawImportError::Io(e.to_string()))?;
+
+    let copy_result: Result<(), RawImportError> = match &request.source {
+        RawImportSource::Folder(src) => {
+            if !src.is_dir() {
+                Err(RawImportError::SourceNotFound { path: src.clone() })
+            } else {
+                copy_dir_recursive(src, &dest)
+            }
+        }
+        RawImportSource::Zip(src) => {
+            if !src.is_file() {
+                Err(RawImportError::SourceNotFound { path: src.clone() })
+            } else {
+                fs::create_dir_all(&dest)
+                    .map_err(|e| RawImportError::Io(e.to_string()))
+                    .and_then(|()| extract_zip_traversal_safe(src, &dest))
+            }
+        }
+    };
+
+    if let Err(err) = copy_result {
+        let _ = fs::remove_dir_all(&dest);
+        return Err(err);
+    }
+
+    // Source line 136: `resolvedImportDir` — the *mutating* path's own
+    // copy of the single-root-unwrap rule `resolve_unwrap_root` already
+    // ports for P5.19's scan path (source line 478-494 vs. 2185-2193 —
+    // two copies of one condition, per the P5.18 write-up).
+    let effective_dir = resolve_unwrap_root(&StdRawImportFileSystem, &dest);
+
+    let props_path = effective_dir.join("server.properties");
+    let mut raw_props = read_raw_properties(&StdRawImportFileSystem, &props_path);
+
+    // Source line 150-158 vs. 160-172: the port later stamped onto
+    // `cfgServer.bedrockPort` (line 192) is read *before* overrides are
+    // applied to the file below — a Bedrock import with a port override
+    // writes the new port into `server.properties` but the registered
+    // `ConfigServer.bedrockPort` keeps the pre-override scanned value.
+    // A genuine MSC 1 quirk, preserved as-is per CLAUDE.md, not fixed.
+    let pre_override_port = raw_props
+        .get("server-port")
+        .and_then(|v| v.parse::<i64>().ok())
+        .unwrap_or(if request.server_type == ServerType::Java {
+            25565
+        } else {
+            19132
+        });
+
+    if request.server_type == ServerType::Java
+        && let Some(world_name) = &request.overrides.active_world_name
+    {
+        raw_props.insert("level-name".to_string(), world_name.clone());
+    }
+    if let Some(port) = request.overrides.port {
+        raw_props.insert("server-port".to_string(), port.to_string());
+    }
+    if let Some(max_players) = request.overrides.max_players {
+        raw_props.insert("max-players".to_string(), max_players.to_string());
+    }
+    write_properties_file(&props_path, &raw_props);
+
+    if request.overrides.eula_accepted == Some(true) {
+        let _ = fs::write(effective_dir.join("eula.txt"), "eula=true\n");
+    }
+
+    let (java_flavor, mc_version, loader_version, primary_jar_relative) =
+        if request.server_type == ServerType::Java {
+            let flavor = detect_java_flavor(&StdRawImportFileSystem, &effective_dir);
+            (
+                Some(flavor.flavor),
+                flavor.mc_version,
+                flavor.loader_version,
+                flavor.primary_jar_path,
+            )
+        } else {
+            (None, None, None, None)
+        };
+
+    let paper_jar_path = primary_jar_relative
+        .map(|name| effective_dir.join(name).to_string_lossy().into_owned())
+        .unwrap_or_default();
+
+    let mut config = ConfigServer::new(
+        Uuid::new_v4().to_string().to_uppercase(),
+        display_name,
+        effective_dir.to_string_lossy().into_owned(),
+        paper_jar_path,
+        2.0,
+        4.0,
+    );
+    config.server_type = request.server_type;
+    if request.server_type == ServerType::Bedrock {
+        config.bedrock_port = Some(pre_override_port);
+    }
+    if let Some(flavor) = java_flavor {
+        config.java_flavor = flavor;
+        config.minecraft_version = mc_version;
+        config.loader_version = loader_version;
+    }
+
+    Ok(ImportedRawServer { config })
+}
+
+/// Source line 89-94: lowercase, spaces -> underscores, keep only
+/// letters/digits/`_`/`-`, cap at 40 characters.
+fn sanitize_destination_name(display_name: &str) -> String {
+    let lower = display_name.to_lowercase().replace(' ', "_");
+    lower
+        .chars()
+        .filter(|c| c.is_alphanumeric() || *c == '_' || *c == '-')
+        .take(40)
+        .collect()
+}
+
+/// Recursively copies `src` into `dst`, rejecting (not silently skipping)
+/// any symlink encountered — source's plain `FileManager.copyItem` has no
+/// such check, but this step's own plan text calls for symlink-escape
+/// rejection on the folder-copy path too, not just the zip path.
+fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<(), RawImportError> {
+    fs::create_dir_all(dst).map_err(|e| RawImportError::Io(e.to_string()))?;
+    for entry in fs::read_dir(src).map_err(|e| RawImportError::Io(e.to_string()))? {
+        let entry = entry.map_err(|e| RawImportError::Io(e.to_string()))?;
+        let file_type = entry
+            .file_type()
+            .map_err(|e| RawImportError::Io(e.to_string()))?;
+        let target = dst.join(entry.file_name());
+        if file_type.is_symlink() {
+            return Err(RawImportError::UnsafeSymlink { path: entry.path() });
+        } else if file_type.is_dir() {
+            copy_dir_recursive(&entry.path(), &target)?;
+        } else if file_type.is_file() {
+            fs::copy(entry.path(), &target).map_err(|e| RawImportError::Io(e.to_string()))?;
+        }
+    }
+    Ok(())
+}
+
+/// Port of `ServerPropertiesManager.writeProperties`/
+/// `BedrockPropertiesManager.writeRawProperties` (both: a header comment
+/// plus one `key=value` line per entry, a full rewrite — comments and
+/// blank lines from the original file don't survive, matching both
+/// source functions exactly). Sorted by key for deterministic output;
+/// source's own dictionary order was never meaningful (both are read back
+/// by key, and `writeRawProperties` already sorts for the same
+/// "easier to diff" reason its own comment gives). Best-effort, matching
+/// source's `try?`: a write failure here is silently a no-op.
+fn write_properties_file(path: &Path, props: &HashMap<String, String>) {
+    let mut out = String::from("# Modified via MSC 2\n");
+    let mut keys: Vec<&String> = props.keys().collect();
+    keys.sort();
+    for key in keys {
+        out.push_str(&format!("{key}={}\n", props[key]));
+    }
+    let _ = fs::write(path, out);
 }

@@ -1741,7 +1741,7 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 **Batch:** stop-after
 
 ### P5.7 — Port corrupt-backup discovery and the config-recovery merge
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/config-recovery/`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-infrastructure/src/path_safety.rs`, `crates/msc-infrastructure/tests/config_recovery.rs`
 **What:** Characterize and port `findCorruptBackups` (matching `.corrupt-*` siblings, newest creation date first), `serverCountInBackup` (cheap JSON server-array count), and `restoreServersFromBackup`. The merge compares every backup entry with the IDs and standardized paths that were present in the live config when the restore began; matching entries are skipped and nonmatching entries are appended. Fixtures cover pure restore, live-path collision, live-ID collision, two mutually duplicated entries inside one backup (pinning MSC 1's actual initial-set behavior), unreadable backup returning an error without mutation, and discovery ordering. P5.22 owns the separate in-place rescan path.
 
@@ -1751,7 +1751,7 @@ Platform service-ownership proof for this gate check is the already-recorded evi
 **Batch:** solo
 
 ### P5.8 — Port the plaintext-to-`SecretStore` secret migration
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/config-migration/legacy-secret-transition.md`, `fixtures/secret-migration/`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-infrastructure/tests/secret_migration.rs`
 **What:** Document and port the source-parity half of the transition as an adapter over explicitly supplied bytes; it never discovers or opens MSC 1's application-support path. Extract exactly the plaintext keys MSC 1's `ConfigManager` handles: global `remote_api_token` and per-server `xbox_broadcast_alt_password`. Store them through `SecretStore` as `remote-api.owner-token` and `xbox-broadcast.alt-password.<server-id>`, then rewrite the config without either plaintext key. Do not invent a guest-token input. Blank values are ignored, passwords migrate independently, and rerunning cleaned input is a no-op. The note records the P5.9 replacement-bearer shape so the raw legacy owner token is never accepted directly by Phase 4 middleware.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/secret-migration --expect 5 && cargo nextest run -p msc-infrastructure secret_migration`

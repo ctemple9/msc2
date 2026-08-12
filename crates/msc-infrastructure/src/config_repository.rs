@@ -38,6 +38,7 @@
 use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::fs::FileSystem;
 use crate::path_safety::lexically_normalize;
+use crate::secret_store::{SecretStore, SecretStoreError};
 use msc_domain::app_config_schema::{AppConfig, DecodeError};
 use serde_json::Value;
 use std::collections::HashSet;
@@ -406,4 +407,104 @@ pub fn restore_servers_from_backup(
             error: None,
         },
     )
+}
+
+/// The `SecretStore` key MSC 1's legacy top-level `remote_api_token`
+/// plaintext migrates to — matches `docs/msc2/substrate/secret-storage.md`
+/// §9 and `KeychainManager.shared.writeRemoteAPIToken` (`ConfigManager
+/// .swift`'s `init`, lines 77-82).
+pub const LEGACY_OWNER_TOKEN_SECRET_KEY: &str = "remote-api.owner-token";
+
+/// Builds the `SecretStore` key a server's legacy
+/// `xbox_broadcast_alt_password` plaintext migrates to — matches
+/// `KeychainManager.shared.writeXboxBroadcastAltPassword(_:forServerId:)`
+/// (`ConfigManager.swift`'s `init`, lines 90-98).
+pub fn legacy_alt_password_secret_key(server_id: &str) -> String {
+    format!("xbox-broadcast.alt-password.{server_id}")
+}
+
+/// Which of [`migrate_legacy_secrets`]'s two legacy secrets, if any, were
+/// actually written to `SecretStore` — a blank value is left unmigrated
+/// (see that function's own doc comment), so this is not simply "which
+/// keys were present".
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SecretMigrationOutcome {
+    pub owner_token_migrated: bool,
+    /// Server ids (not the passwords themselves) whose
+    /// `xbox_broadcast_alt_password` was migrated.
+    pub server_passwords_migrated: Vec<String>,
+}
+
+/// Extracts MSC 1's two legacy plaintext secrets — the top-level
+/// `remote_api_token` and each server's `xbox_broadcast_alt_password` —
+/// out of `config`, writes any non-blank value to `secrets`, and returns
+/// `config` rewritten with both keys removed.
+///
+/// A pure adapter over `config`, per `docs/msc2/config-migration
+/// /legacy-secret-transition.md`: it never discovers or opens MSC 1's
+/// application-support path itself, and there is no guest-token
+/// counterpart to migrate — `remote_api_token` is the only credential MSC
+/// 1's Remote API ever authenticated with.
+///
+/// Matches `ConfigManager.init`'s one-time migration (`ConfigManager
+/// .swift` lines 73-99), with one deliberate difference: MSC 1 doesn't
+/// strip either key in this step at all — it lets the `AppConfig` decode
+/// immediately afterward do that, since `AppConfig`'s `CodingKeys` never
+/// included either field (P5.4/P5.5), and the `save()` that follows is
+/// what actually rewrites the file without them. This function runs
+/// before any typed decode exists, directly on the raw `Value`, so it
+/// strips both keys itself to reach that same on-disk end state.
+///
+/// A blank (empty-after-trim) value is left unmigrated — matches the
+/// source's `!oldToken.trimmingCharacters(...).isEmpty` guard on both the
+/// token (line 80) and each password (line 95) — but its key is removed
+/// from the output regardless, since `AppConfig` never carries either
+/// field whether or not it held a real secret. The value written to
+/// `secrets` is the raw, untrimmed string (source writes `oldToken`/
+/// `oldPassword` themselves, not their trimmed form). A server object
+/// missing `id` has its password key stripped but nothing migrated for
+/// it, since there's no id to key the secret under — mirroring source's
+/// `guard let serverId = ...` (line 93).
+///
+/// Running this again on its own output is a no-op: neither legacy key is
+/// present anymore, so nothing is read from `config` or written to
+/// `secrets`.
+pub fn migrate_legacy_secrets(
+    secrets: &dyn SecretStore,
+    config: &Value,
+) -> Result<(Value, SecretMigrationOutcome), SecretStoreError> {
+    let mut config = config.clone();
+    let mut outcome = SecretMigrationOutcome::default();
+
+    let Some(obj) = config.as_object_mut() else {
+        return Ok((config, outcome));
+    };
+
+    if let Some(Value::String(token)) = obj.remove("remote_api_token")
+        && !token.trim().is_empty()
+    {
+        secrets.set(LEGACY_OWNER_TOKEN_SECRET_KEY, &token)?;
+        outcome.owner_token_migrated = true;
+    }
+
+    if let Some(servers) = obj.get_mut("servers").and_then(Value::as_array_mut) {
+        for server in servers {
+            let Some(server_obj) = server.as_object_mut() else {
+                continue;
+            };
+            let server_id = server_obj
+                .get("id")
+                .and_then(Value::as_str)
+                .map(str::to_string);
+            if let Some(Value::String(password)) = server_obj.remove("xbox_broadcast_alt_password")
+                && !password.trim().is_empty()
+                && let Some(server_id) = server_id
+            {
+                secrets.set(&legacy_alt_password_secret_key(&server_id), &password)?;
+                outcome.server_passwords_migrated.push(server_id);
+            }
+        }
+    }
+
+    Ok((config, outcome))
 }

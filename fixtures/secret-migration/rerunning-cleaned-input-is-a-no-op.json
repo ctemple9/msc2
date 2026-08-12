@@ -1,0 +1,27 @@
+{
+  "domain": "secret-migration",
+  "case": "rerunning-cleaned-input-is-a-no-op",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "ConfigManager.init — one-time migration",
+    "line": 73
+  },
+  "input": {
+    "config": {
+      "config_version": 1,
+      "servers": [
+        { "id": "44444444-4444-4444-4444-444444444444", "display_name": "Already Migrated" }
+      ]
+    }
+  },
+  "expected": {
+    "config": {
+      "config_version": 1,
+      "servers": [
+        { "id": "44444444-4444-4444-4444-444444444444", "display_name": "Already Migrated" }
+      ]
+    },
+    "secretWrites": []
+  },
+  "notes": "Input already has neither legacy plaintext key -- e.g. this is what owner-token-and-server-password-migrate's own expected.config looks like fed back in. Source calls this a 'One-time migration' (comment at line 73); once the JSON no longer contains \"remote_api_token\" or any \"xbox_broadcast_alt_password\", there's nothing left to find, so a second run is inert: the config comes back byte-for-byte identical and SecretStore is never touched."
+}

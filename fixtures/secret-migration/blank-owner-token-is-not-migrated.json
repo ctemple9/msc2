@@ -1,0 +1,24 @@
+{
+  "domain": "secret-migration",
+  "case": "blank-owner-token-is-not-migrated",
+  "source": {
+    "file": "ConfigManager.swift",
+    "test": "ConfigManager.init — blank remote_api_token is not migrated",
+    "line": 80
+  },
+  "input": {
+    "config": {
+      "config_version": 1,
+      "remote_api_token": "   ",
+      "servers": []
+    }
+  },
+  "expected": {
+    "config": {
+      "config_version": 1,
+      "servers": []
+    },
+    "secretWrites": []
+  },
+  "notes": "A whitespace-only remote_api_token fails ConfigManager.init's own !oldToken.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty guard (source line 80), so nothing is written to SecretStore. The key is still stripped from the rewritten config either way -- AppConfig never carries it regardless of whether it held a real secret."
+}

@@ -279,6 +279,24 @@ fn credential_helper_units_render_expected_socket_permissions_and_execstart() {
     assert!(service_unit.contains("Group=root"));
     assert!(service_unit.contains("credential-helper serve --allowed-uid 501"));
     assert!(service_unit.contains("--store-dir '/var/lib/msc2/credentials'"));
+    assert!(!service_unit.contains("StandardInput=socket"));
+}
+
+#[test]
+fn credential_helper_rejects_binary_path_hidden_by_its_own_hardening() {
+    for hidden_path in [
+        "/tmp/msc2-run/bin/msc",
+        "/var/tmp/msc2-run/bin/msc",
+        "/home/cameron/.cargo/bin/msc",
+        "/root/.cargo/bin/msc",
+        "/run/user/1000/msc",
+    ] {
+        let install = CredentialHelperInstall::new(hidden_path, 501, "cameron", "staff");
+        let error = install
+            .render_service_unit()
+            .expect_err("binary path hidden by PrivateTmp=yes/ProtectHome=yes must be rejected");
+        assert!(error.contains(hidden_path), "unexpected error: {error}");
+    }
 }
 
 #[test]

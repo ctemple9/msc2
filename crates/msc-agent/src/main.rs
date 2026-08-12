@@ -28,6 +28,8 @@ async fn main() -> ExitCode {
     let App { common, command } = App::parse();
     let result = match command {
         cli::Command::Serve { bind } => run_service(bind).await,
+        #[cfg(target_os = "linux")]
+        cli::Command::CredentialHelper { command } => run_credential_helper(command),
         command => cli::run(common, command).await,
     };
 
@@ -37,6 +39,22 @@ async fn main() -> ExitCode {
             error.print();
             ExitCode::from(error.exit_code())
         }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn run_credential_helper(command: cli::CredentialHelperCommand) -> Result<(), cli::CliError> {
+    match command {
+        cli::CredentialHelperCommand::Serve {
+            allowed_uid,
+            store_dir,
+            socket_path,
+        } => msc_platform_linux::credential_helper::run_helper_service(
+            allowed_uid,
+            store_dir,
+            socket_path,
+        )
+        .map_err(cli::CliError::internal),
     }
 }
 

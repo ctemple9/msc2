@@ -5,6 +5,8 @@ pub mod service;
 
 use std::collections::HashMap;
 use std::fmt::Display;
+#[cfg(target_os = "linux")]
+use std::path::PathBuf;
 
 use axum::http::{Method, StatusCode, Uri};
 use clap::{Args, Subcommand};
@@ -55,6 +57,13 @@ pub enum Command {
         #[arg(long, default_value = "127.0.0.1:48400")]
         bind: std::net::SocketAddr,
     },
+    /// Hidden root-run helper used by the Linux service unit.
+    #[cfg(target_os = "linux")]
+    #[command(name = "credential-helper", hide = true)]
+    CredentialHelper {
+        #[command(subcommand)]
+        command: CredentialHelperCommand,
+    },
     /// Print a bearer token the CLI can already resolve.
     Token {
         #[command(subcommand)]
@@ -95,6 +104,25 @@ pub enum TokenCommand {
         /// `MSC2_TEST_BOOTSTRAP_TOKEN`.
         #[arg(long)]
         test: bool,
+    },
+}
+
+#[cfg(target_os = "linux")]
+#[derive(Debug, Clone, Subcommand)]
+pub enum CredentialHelperCommand {
+    /// Serve the Linux privileged credential helper protocol.
+    Serve {
+        /// The only unprivileged UID allowed to use the helper socket.
+        #[arg(long)]
+        allowed_uid: u32,
+
+        /// Root-owned directory where encrypted credential blobs are stored.
+        #[arg(long)]
+        store_dir: PathBuf,
+
+        /// Bind a socket directly instead of using systemd socket activation.
+        #[arg(long)]
+        socket_path: Option<PathBuf>,
     },
 }
 
@@ -272,6 +300,10 @@ impl CliError {
 pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
     match command {
         Command::Serve { .. } => Err(CliError::internal("serve is handled in main")),
+        #[cfg(target_os = "linux")]
+        Command::CredentialHelper { .. } => {
+            Err(CliError::internal("credential-helper is handled in main"))
+        }
         Command::Token { command } => run_token(common, command),
         Command::Status => {
             let client = RemoteClient::from_common(&common)?;

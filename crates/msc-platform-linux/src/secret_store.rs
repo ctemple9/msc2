@@ -49,6 +49,8 @@ use msc_infrastructure::secret_store::{Result, SecretStore, SecretStoreError};
 use chacha20poly1305::aead::{Aead, AeadCore, KeyInit, OsRng};
 use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 
+use crate::credential_helper::{DEFAULT_SOCKET_PATH, HelperClient};
+
 use std::fs;
 use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
@@ -59,6 +61,42 @@ const KEY_LEN: usize = 32;
 
 pub struct LinuxSecretStore {
     base_dir: PathBuf,
+}
+
+pub struct LinuxCredentialHelperSecretStore {
+    client: HelperClient,
+}
+
+impl LinuxCredentialHelperSecretStore {
+    pub fn new() -> Self {
+        Self::with_socket(DEFAULT_SOCKET_PATH)
+    }
+
+    pub fn with_socket(socket_path: impl Into<PathBuf>) -> Self {
+        Self {
+            client: HelperClient::new(socket_path),
+        }
+    }
+}
+
+impl Default for LinuxCredentialHelperSecretStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SecretStore for LinuxCredentialHelperSecretStore {
+    fn get(&self, key: &str) -> Result<Option<String>> {
+        self.client.get(key).map_err(SecretStoreError)
+    }
+
+    fn set(&self, key: &str, value: &str) -> Result<()> {
+        self.client.set(key, value).map_err(SecretStoreError)
+    }
+
+    fn delete(&self, key: &str) -> Result<()> {
+        self.client.delete(key).map_err(SecretStoreError)
+    }
 }
 
 impl LinuxSecretStore {

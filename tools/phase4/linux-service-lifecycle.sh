@@ -20,6 +20,14 @@ PORT=""
 BASE_URL=""
 TOKEN="msc2_phase4_systemd_secret"
 MSC_BIN="${RUN_DIR}/bin/msc"
+# The credential-helper unit hardens itself with PrivateTmp=yes and
+# ProtectHome=yes, so a binary staged under /tmp (like MSC_BIN above) or
+# under a user's home directory is invisible to that unit's own ExecStart.
+# credential_helper.rs's CredentialHelperInstall::validate() now rejects
+# that combination outright, so the helper's copy of the binary has to live
+# somewhere neither setting hides -- alongside its own store dir.
+HELPER_BIN_DIR="/var/lib/msc2/bin"
+HELPER_BIN="${HELPER_BIN_DIR}/msc"
 SERVER_NAME="Phase4 Paper"
 SERVER_PORT=""
 
@@ -204,6 +212,16 @@ if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
   chcon -t bin_t "${MSC_BIN}"
 fi
 
+mkdir -p "${HELPER_BIN_DIR}"
+chown root:root "${HELPER_BIN_DIR}"
+chmod 755 "${HELPER_BIN_DIR}"
+cp "${ROOT}/target/debug/msc" "${HELPER_BIN}"
+chown root:root "${HELPER_BIN}"
+chmod 755 "${HELPER_BIN}"
+if command -v selinuxenabled >/dev/null 2>&1 && selinuxenabled; then
+  chcon -t bin_t "${HELPER_BIN}"
+fi
+
 cat > "${AGENT_UNIT_PATH}" <<UNIT
 [Unit]
 Description=MSC 2 Phase 4 agent (${LABEL})
@@ -258,8 +276,7 @@ After=network.target
 Type=simple
 User=root
 Group=root
-ExecStart=${MSC_BIN} credential-helper serve --allowed-uid $(id -u "${TARGET_USER}") --store-dir ${HELPER_STORE_DIR}
-StandardInput=socket
+ExecStart=${HELPER_BIN} credential-helper serve --allowed-uid $(id -u "${TARGET_USER}") --store-dir ${HELPER_STORE_DIR}
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
@@ -419,6 +436,60 @@ if [ "$(stat -c %a "${HELPER_RUNTIME_SOCKET}")" != "600" ]; then
 fi
 if [ "$(stat -c %a "${HELPER_STORE_DIR}")" != "700" ]; then
   echo "credential-helper store dir mode is not 0700" >&2
+  exit 1
+fi
+
+sudo -u "${TARGET_USER}" python3 - "${HELPER_RUNTIME_SOCKET}" <<'PY'
+import json
+import socket
+import sys
+
+socket_path = sys.argv[1]
+
+def request(payload):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+        sock.connect(socket_path)
+        sock.sendall(json.dumps(payload, separators=(",", ":")).encode() + b"\n")
+        data = b""
+        while not data.endswith(b"\n"):
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+    return json.loads(data.decode())
+
+def check(actual, expected):
+    assert actual == expected, f"expected {expected!r}, got {actual!r}"
+
+check(request({"version": 1, "op": "ping"}), {"ok": True})
+check(request({"version": 1, "op": "set", "key": "remote-api.token.systemd-smoke", "value": "first"}), {"ok": True})
+check(request({"version": 1, "op": "get", "key": "remote-api.token.systemd-smoke"}), {"ok": True, "value": "first"})
+check(request({"version": 1, "op": "set", "key": "remote-api.token.systemd-smoke", "value": "second"}), {"ok": True})
+check(request({"version": 1, "op": "get", "key": "remote-api.token.systemd-smoke"}), {"ok": True, "value": "second"})
+check(request({"version": 1, "op": "delete", "key": "remote-api.token.systemd-smoke"}), {"ok": True})
+# The wire form omits `value` entirely for a None value (skip_serializing_if
+# on HelperResponse), so a get of a now-deleted key comes back as just
+# {"ok": true}, not {"ok": true, "value": null}.
+check(request({"version": 1, "op": "get", "key": "remote-api.token.systemd-smoke"}), {"ok": True})
+PY
+
+python3 - "${HELPER_RUNTIME_SOCKET}" <<'PY'
+import json
+import socket
+import sys
+
+with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+    sock.connect(sys.argv[1])
+    sock.sendall(b'{"version":1,"op":"ping"}\n')
+    data = sock.recv(4096)
+
+response = json.loads(data.decode())
+if response.get("ok") is not False or response.get("error", {}).get("code") != "forbidden_uid":
+    raise SystemExit(f"root peer was not rejected by credential helper: {response}")
+PY
+
+if [ -e "${HELPER_STORE_DIR}/remote-api.token.systemd-smoke.cred" ]; then
+  echo "credential-helper delete left a stored blob behind" >&2
   exit 1
 fi
 

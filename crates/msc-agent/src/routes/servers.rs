@@ -450,6 +450,7 @@ trait ConfiguredServerStore {
     fn export_inputs(&self) -> Vec<TransferExportServerInput>;
     fn existing_java_ports(&self) -> Vec<i64>;
     fn existing_bedrock_ports(&self) -> Vec<i64>;
+    fn wipe_replace_all_secrets(&self, previous_server_ids: &[String]) -> Result<(), String>;
     fn merge(&self, new_servers: Vec<ConfigServer>) -> Result<(), String>;
     fn replace_all(&self, new_servers: Vec<ConfigServer>) -> Result<(), String>;
 }
@@ -465,6 +466,10 @@ impl ConfiguredServerStore for LifecycleRoutesState {
 
     fn existing_bedrock_ports(&self) -> Vec<i64> {
         self.existing_bedrock_ports()
+    }
+
+    fn wipe_replace_all_secrets(&self, previous_server_ids: &[String]) -> Result<(), String> {
+        self.wipe_replace_all_secrets(previous_server_ids)
     }
 
     fn merge(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
@@ -523,6 +528,10 @@ impl ConfiguredServerStore for ConfigServerStore {
             .filter(|server| server.server_type == ServerType::Bedrock)
             .filter_map(|server| server.bedrock_port)
             .collect()
+    }
+
+    fn wipe_replace_all_secrets(&self, _previous_server_ids: &[String]) -> Result<(), String> {
+        Ok(())
     }
 
     fn merge(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
@@ -676,6 +685,7 @@ enum TransferImportRouteError {
     BackupPathRequired,
     BackupFailed(String),
     InvalidPackage(String),
+    SecretWipeFailed(String),
     SaveFailed(String),
 }
 
@@ -693,6 +703,11 @@ fn perform_transfer_import(
     staging_root: &Path,
     plan: &TransferImportPlan,
 ) -> Result<TransferApplyResult, TransferImportRouteError> {
+    let previous_servers = if plan.mode == TransferMode::ReplaceAll {
+        store.export_inputs()
+    } else {
+        Vec::new()
+    };
     if plan.mode == TransferMode::ReplaceAll {
         let backup_path = plan
             .backup_path
@@ -701,7 +716,7 @@ fn perform_transfer_import(
             .filter(|value| !value.is_empty())
             .ok_or(TransferImportRouteError::BackupPathRequired)?;
         ports
-            .backup(&store.export_inputs(), Path::new(backup_path))
+            .backup(&previous_servers, Path::new(backup_path))
             .map_err(TransferImportRouteError::BackupFailed)?;
     }
 
@@ -723,6 +738,13 @@ fn perform_transfer_import(
 
     if plan.mode == TransferMode::ReplaceAll {
         ports.wipe_all_secrets();
+        let previous_server_ids = previous_servers
+            .iter()
+            .map(|input| input.server.id.clone())
+            .collect::<Vec<_>>();
+        store
+            .wipe_replace_all_secrets(&previous_server_ids)
+            .map_err(TransferImportRouteError::SecretWipeFailed)?;
         store
             .replace_all(result.servers.clone())
             .map_err(TransferImportRouteError::SaveFailed)?;
@@ -818,6 +840,7 @@ fn transfer_error_code(error: &TransferImportRouteError) -> &'static str {
         TransferImportRouteError::BackupPathRequired => "backup_path_required",
         TransferImportRouteError::BackupFailed(_) => "backup_failed",
         TransferImportRouteError::InvalidPackage(_) => "invalid_transfer_package",
+        TransferImportRouteError::SecretWipeFailed(_) => "secret_wipe_failed",
         TransferImportRouteError::SaveFailed(_) => "internal_error",
     }
 }
@@ -829,6 +852,7 @@ fn transfer_error_message(error: &TransferImportRouteError) -> String {
         }
         TransferImportRouteError::BackupFailed(message) => format!("backup_failed: {message}"),
         TransferImportRouteError::InvalidPackage(message) => message.clone(),
+        TransferImportRouteError::SecretWipeFailed(message) => message.clone(),
         TransferImportRouteError::SaveFailed(message) => message.clone(),
     }
 }
@@ -843,11 +867,13 @@ fn transfer_import_error_response(error: TransferImportRouteError) -> Response {
             transfer_error_code(&error),
             &transfer_error_message(&error),
         ),
-        TransferImportRouteError::SaveFailed(_) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            transfer_error_code(&error),
-            &transfer_error_message(&error),
-        ),
+        TransferImportRouteError::SecretWipeFailed(_) | TransferImportRouteError::SaveFailed(_) => {
+            error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                transfer_error_code(&error),
+                &transfer_error_message(&error),
+            )
+        }
         TransferImportRouteError::InvalidPackage(_) => {
             invalid_body(transfer_error_code(&error), &transfer_error_message(&error))
         }
@@ -913,12 +939,14 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auth::CredentialRole;
+    use crate::auth::{AuthState, CredentialRole};
     use crate::routes::lifecycle::AgentAppConfigStore;
     use crate::routes::operations::OperationsState;
     use crate::ws::console::ConsoleState;
     use msc_application::transfer::{TransferManifest, TransferServerConflict};
     use msc_infrastructure::fs::{FileSystem, StdFileSystem};
+    use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
+    use std::sync::Arc;
 
     // ---------- P5.16: replace-all backup ordering ----------
 
@@ -990,6 +1018,12 @@ mod tests {
             2.0,
             4.0,
         )
+    }
+
+    fn sample_config_server_with_dir(id: &str, dir: &Path) -> ConfigServer {
+        let mut server = sample_config_server(id);
+        server.server_dir = dir.to_string_lossy().into_owned();
+        server
     }
 
     fn empty_inspection() -> TransferInspection {
@@ -1150,6 +1184,24 @@ mod tests {
             ConsoleState::default(),
             OperationsState::fake_journaled(),
             app_config,
+        )
+    }
+
+    fn persistent_route_state_with_auth(
+        config_path: &Path,
+        servers_root: &Path,
+        auth_state: AuthState,
+    ) -> LifecycleRoutesState {
+        let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
+        let app_config = Box::leak(Box::new(
+            AgentAppConfigStore::load(fs, config_path.to_path_buf(), servers_root.to_path_buf())
+                .unwrap(),
+        ));
+        LifecycleRoutesState::with_app_config_and_auth(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+            app_config,
+            auth_state,
         )
     }
 
@@ -1321,6 +1373,73 @@ mod tests {
             .map(|s| s.display_name.clone())
             .collect();
         assert_eq!(names, vec!["Route Test ROUTE-E".to_string()]);
+    }
+
+    #[tokio::test]
+    async fn replace_all_deletes_real_remote_token_and_previous_server_secrets() {
+        let root = temp_dir("replace-all-root");
+        let config_dir = temp_dir("replace-all-config");
+        let config_path = config_dir.join("server_config_swift.json");
+        let old_dir = temp_dir("replace-all-old-server");
+        std::fs::write(old_dir.join("server.properties"), "server-port=25631\n").unwrap();
+        let secret_store: Arc<dyn SecretStore + Send + Sync> = Arc::new(FakeSecretStore::new());
+        let auth_state = AuthState::new(secret_store.clone());
+        let issued = auth_state
+            .issue_credential(
+                "owner-admin",
+                CredentialRole::Admin,
+                vec![PermissionCategoryDto::Fleet],
+                None,
+            )
+            .unwrap();
+        secret_store
+            .set(
+                "xbox-broadcast.alt-password.OLD-REPLACE",
+                "old-xbox-password",
+            )
+            .unwrap();
+        let state = persistent_route_state_with_auth(&config_path, &root, auth_state);
+        state
+            .merge_config_servers(vec![sample_config_server_with_dir("OLD-REPLACE", &old_dir)])
+            .unwrap();
+
+        let package = build_transfer_package("ROUTE-F", 25606);
+        let backup_path = temp_dir("replace-all-real-secret-backup").join("backup.msctransfer");
+        let (status, result): (StatusCode, ServerImportResultDto) = response_json(
+            call_import(
+                &state,
+                import_request(
+                    &package,
+                    Some("replaceAll"),
+                    Some(&backup_path.to_string_lossy()),
+                ),
+            )
+            .await,
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(result.replaced, Some(true));
+        assert!(
+            secret_store
+                .get(&format!("remote-api.token.{}", issued.credential_id))
+                .unwrap()
+                .is_none(),
+            "replaceAll should invalidate existing bearer token verifiers"
+        );
+        assert_eq!(
+            secret_store
+                .get("xbox-broadcast.alt-password.OLD-REPLACE")
+                .unwrap(),
+            None,
+            "replaceAll should delete Xbox secrets for the pre-replace server set"
+        );
+        let names = state
+            .config_servers()
+            .into_iter()
+            .map(|server| server.display_name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["Route Test ROUTE-F".to_string()]);
     }
 
     // ---------- P5.21/P5.28: raw folder/ZIP scan and import route wiring ----------

@@ -2173,12 +2173,33 @@ startup_secret_migration` (2/2 passed), `tools/phase5/cli-smoke.sh
 --check`, and `cargo clippy --workspace --all-targets -- -D warnings`.
 
 ### P5.31 — Make replace-all operate on the complete state and real secrets
-**Status:** not started
-**Files:** `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/auth.rs`, `crates/msc-infrastructure/src/config_repository.rs`, `crates/msc-agent/tests/replace_all.rs`, `tools/phase5/cli-smoke.sh`
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/auth.rs`, `tools/phase5/cli-smoke.sh`
 **What:** Replace P5.16's no-op production `wipe_all_secrets` and secondary-store replacement with a transaction over P5.27's complete persisted state. A successful export backup must cover every registered server before mutation begins; an inspection, backup, apply, config-save, or secret-store failure must leave the previous live state usable. On success, replace the full config/server set, delete every known remote-token and Xbox secret through the real `SecretStore`, invalidate the calling credential after its response, and rebuild lifecycle runtime state from the imported config. Cover mixed Paper/raw/transfer state rather than a transfer-only list.
 **Verify:** `cargo nextest run -p msc-agent replace_all && tools/phase5/cli-smoke.sh --replace-all`
 **Commit:** `P5.31: make replace-all transactional across state and secrets`
 **Batch:** solo
+
+**Actual result:** `LifecycleRoutesState` now carries the production
+`AuthState` in service startup, so transfer `replaceAll` can reach the real
+SecretStore-backed credential state instead of P5.16's production no-op.
+`perform_transfer_import` snapshots the complete P5.27 server set before the
+backup, passes that exact set into `export_server_transfer`, and after
+successful inspect/apply wipes secrets before replacing the persisted config.
+The wipe deletes every known `remote-api.token.<credential-id>` verifier from
+the auth registry, clears the non-secret registry, deletes MSC 1's owner/guest
+holding keys plus playit/CurseForge keys, and deletes
+`xbox-broadcast.alt-password.<server-id>` for every pre-replace server. The
+current request can still return its success response because authentication
+already happened, but the same bearer is rejected on the next protected call.
+Route regressions cover the existing backup ordering plus real token/Xbox
+secret deletion through `AuthState` and `FakeSecretStore`. The CLI smoke runs a
+real foreground agent, imports an old server, performs a transfer
+`replaceAll` with backup, then proves the same bootstrap bearer is
+unauthorized afterward. Verified with `cargo nextest run -p msc-agent
+replace_all` (6/6 passed), `tools/phase5/cli-smoke.sh --replace-all`
+(`replaceAll cli smoke passed`), `cargo fmt --check`, and `cargo clippy
+--workspace --all-targets -- -D warnings`.
 
 ### P5.32 — Add a restart-sensitive public-path gate harness
 **Status:** not started

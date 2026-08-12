@@ -27,6 +27,7 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use msc_api::dto::{ErrorDto, PermissionCategoryDto};
 use msc_infrastructure::config_repository::LEGACY_OWNER_TOKEN_SECRET_KEY;
+use msc_infrastructure::config_repository::legacy_alt_password_secret_key;
 use msc_infrastructure::credential_repository::{
     CredentialRegistryEntry, CredentialRepository, CredentialRepositoryError,
 };
@@ -297,6 +298,44 @@ impl AuthState {
             .delete(LEGACY_OWNER_TOKEN_SECRET_KEY)?;
         self.record_audit("owner-admin", StatusCode::CREATED, "token_created");
         Ok(Some(issued))
+    }
+
+    pub fn wipe_replace_all_secrets(
+        &self,
+        previous_server_ids: &[String],
+    ) -> Result<(), SecretStoreError> {
+        let credential_ids: Vec<String> = self
+            .inner
+            .registry
+            .lock()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        for credential_id in credential_ids {
+            self.inner
+                .secret_store
+                .delete(&secret_store_key(&credential_id))?;
+        }
+        for key in [
+            LEGACY_OWNER_TOKEN_SECRET_KEY,
+            "remote-api.guest-token",
+            "playit.secret-key",
+            "curseforge.api-key",
+        ] {
+            self.inner.secret_store.delete(key)?;
+        }
+        for server_id in previous_server_ids {
+            self.inner
+                .secret_store
+                .delete(&legacy_alt_password_secret_key(server_id))?;
+        }
+        {
+            let mut registry = self.inner.registry.lock().unwrap();
+            registry.clear();
+            self.persist_registry(&registry)?;
+        }
+        Ok(())
     }
 
     /// Shared by [`Self::issue_credential`] (fresh random `secret`) and

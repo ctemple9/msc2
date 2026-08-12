@@ -40,7 +40,7 @@ use msc_infrastructure::process::{
 use msc_infrastructure::secret_store::SecretStore;
 use tokio::task::JoinHandle;
 
-use crate::auth::AuthenticatedCredential;
+use crate::auth::{AuthState, AuthenticatedCredential};
 use crate::routes::operations::{OperationsState, operation_error_response};
 use crate::ws::console::ConsoleState;
 
@@ -59,6 +59,7 @@ struct LifecycleRoutesInner {
     operations: OperationsState,
     active_lifecycle_operation: Mutex<Option<OperationId>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
+    auth_state: Option<AuthState>,
 }
 
 pub struct AgentServerRegistry {
@@ -93,9 +94,11 @@ impl LifecycleRoutesState {
             operations,
             app_config,
             default_process_supervisor(),
+            None,
         )
     }
 
+    #[allow(dead_code)]
     pub fn new_migrating_legacy_secrets(
         console_state: ConsoleState,
         operations: OperationsState,
@@ -110,6 +113,22 @@ impl LifecycleRoutesState {
             operations,
             app_config,
             default_process_supervisor(),
+            None,
+        )
+    }
+
+    pub fn with_app_config_and_auth(
+        console_state: ConsoleState,
+        operations: OperationsState,
+        app_config: &'static AgentAppConfigStore,
+        auth_state: AuthState,
+    ) -> Self {
+        Self::with_dependencies(
+            console_state,
+            operations,
+            app_config,
+            default_process_supervisor(),
+            Some(auth_state),
         )
     }
 
@@ -118,6 +137,7 @@ impl LifecycleRoutesState {
         operations: OperationsState,
         app_config: &'static AgentAppConfigStore,
         process: Box<dyn ProcessSupervisor + Send + Sync>,
+        auth_state: Option<AuthState>,
     ) -> Self {
         let registry = Box::leak(Box::new(AgentServerRegistry::new(app_config)));
         let process = Box::leak(process);
@@ -140,6 +160,7 @@ impl LifecycleRoutesState {
                 operations,
                 active_lifecycle_operation: Mutex::new(None),
                 pump_tasks: Mutex::new(Vec::new()),
+                auth_state,
             }),
         }
     }
@@ -175,7 +196,7 @@ impl LifecycleRoutesState {
         app_config: &'static AgentAppConfigStore,
     ) -> Self {
         let process = Box::new(msc_infrastructure::process::FakeProcessSupervisor::new());
-        Self::with_dependencies(console_state, operations, app_config, process)
+        Self::with_dependencies(console_state, operations, app_config, process, None)
     }
 
     #[cfg(test)]
@@ -254,6 +275,15 @@ impl LifecycleRoutesState {
 
     pub fn export_inputs(&self) -> Vec<TransferExportServerInput> {
         self.inner.app_config.export_inputs()
+    }
+
+    pub fn wipe_replace_all_secrets(&self, previous_server_ids: &[String]) -> Result<(), String> {
+        if let Some(auth_state) = &self.inner.auth_state {
+            auth_state
+                .wipe_replace_all_secrets(previous_server_ids)
+                .map_err(|error| error.to_string())?;
+        }
+        Ok(())
     }
 
     pub fn active_server_id(&self) -> Option<String> {

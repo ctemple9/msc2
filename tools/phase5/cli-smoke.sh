@@ -17,6 +17,7 @@ RUN_RAW=0
 RUN_IMPORT_LIFECYCLE=0
 RUN_RESCAN=0
 RUN_MIGRATION_RESTART=0
+RUN_REPLACE_ALL=0
 if [[ $# -eq 0 ]]; then
   RUN_SETTINGS=1
   RUN_TRANSFER=1
@@ -45,9 +46,12 @@ else
       --migration-restart)
         RUN_MIGRATION_RESTART=1
         ;;
+      --replace-all)
+        RUN_REPLACE_ALL=1
+        ;;
       *)
         echo "unknown flag: ${arg}" >&2
-        echo "usage: $0 [--settings] [--transfer] [--raw] [--import-lifecycle] [--rescan] [--migration-restart]" >&2
+        echo "usage: $0 [--settings] [--transfer] [--raw] [--import-lifecycle] [--rescan] [--migration-restart] [--replace-all]" >&2
         exit 2
         ;;
     esac
@@ -804,6 +808,55 @@ PY
   echo "migration restart cli smoke passed"
 }
 
+run_replace_all_smoke() {
+  local old_source="${TMP_DIR}/replace-all-old-source"
+  local package="${TMP_DIR}/replace-all-new.msctransfer"
+  local backup_path="${TMP_DIR}/replace-all-backup.msctransfer"
+  build_raw_java_folder "${old_source}" 25650
+  "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" --json \
+    server import "${old_source}" --name "ReplaceAll Old" >/dev/null
+  build_transfer_package "${package}" "REPLACE-NEW" "ReplaceAll New" 25651
+
+  python3 - "${MSC_BIN}" "${BASE_URL}" "${TOKEN_FROM_CLI}" "${package}" "${backup_path}" <<'PY'
+import json
+import subprocess
+import sys
+
+msc, base_url, token, package, backup_path = sys.argv[1:6]
+output = subprocess.check_output(
+    [
+        msc, "--base-url", base_url, "--token", token, "--json",
+        "server", "import", package, "--transfer-mode", "replaceAll",
+        "--backup-path", backup_path,
+    ],
+    text=True,
+)
+result = json.loads(output)
+if not result["success"] or result.get("replaced") is not True:
+    raise SystemExit(f"expected replaceAll success, got {result!r}")
+PY
+
+  if [[ ! -f "${backup_path}" ]]; then
+    echo "expected replaceAll backup at ${backup_path}" >&2
+    exit 1
+  fi
+
+  set +e
+  rejected="$("${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN_FROM_CLI}" --json status 2>&1)"
+  rejected_status=$?
+  set -e
+  if [[ "${rejected_status}" -eq 0 ]]; then
+    echo "expected the calling token to be invalid after replaceAll" >&2
+    exit 1
+  fi
+  if ! grep -q "unauthorized" <<<"${rejected}"; then
+    echo "expected unauthorized after replaceAll token wipe, got: ${rejected}" >&2
+    exit 1
+  fi
+
+  echo "replaceAll cli smoke passed"
+}
+
 if [[ "${RUN_MIGRATION_RESTART}" -eq 1 ]]; then
   run_migration_restart_smoke
 fi
@@ -826,4 +879,8 @@ fi
 
 if [[ "${RUN_RESCAN}" -eq 1 ]]; then
   run_rescan_smoke
+fi
+
+if [[ "${RUN_REPLACE_ALL}" -eq 1 ]]; then
+  run_replace_all_smoke
 fi

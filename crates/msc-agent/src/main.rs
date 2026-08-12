@@ -93,14 +93,21 @@ pub(crate) fn build_app() -> Router {
         .route("/operations/:id/stream", get(ws::operations::upgrade))
         .with_state(operations_state.clone());
 
-    let console_state = ws::console::ConsoleState::default();
-    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::new_migrating_legacy_secrets(
-        console_state.clone(),
-        operations_state.clone(),
-        secret_store.as_ref(),
-    );
+    let app_config = Box::leak(Box::new(
+        routes::lifecycle::AgentAppConfigStore::production_migrating_legacy_secrets(
+            secret_store.as_ref(),
+        )
+        .expect("failed to load durable MSC 2 application config"),
+    ));
     let auth_state =
         auth::AuthState::persistent_service_store_with_secret_store(secret_store.clone());
+    let console_state = ws::console::ConsoleState::default();
+    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::with_app_config_and_auth(
+        console_state.clone(),
+        operations_state.clone(),
+        app_config,
+        auth_state.clone(),
+    );
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))

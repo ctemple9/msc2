@@ -118,6 +118,8 @@ start_agent() {
   export MSC2_OPERATION_JOURNAL_DIR="${data_dir}/journal"
   if [[ "$(uname -s)" == "Darwin" ]]; then
     export MSC2_MACOS_USER_KEYCHAIN_SERVICE="${KEYCHAIN_SERVICE}"
+  elif [[ "$(uname -s)" == "Linux" ]]; then
+    export MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR="${data_dir}/linux-secret-store"
   fi
   mkdir -p "${data_dir}" "${servers_root}" "${MSC2_OPERATION_JOURNAL_DIR}"
   "${MSC_BIN}" serve --bind "127.0.0.1:${port}" >"${log_path}" 2>&1 &

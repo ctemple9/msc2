@@ -137,6 +137,8 @@ export MSC2_DATA_DIR="${TMP_DIR}/data"
 export MSC2_APP_CONFIG_PATH="${MSC2_DATA_DIR}/server_config_swift.json"
 if [[ "$(uname -s)" == "Darwin" ]]; then
   export MSC2_MACOS_USER_KEYCHAIN_SERVICE="${KEYCHAIN_SERVICE}"
+elif [[ "$(uname -s)" == "Linux" ]]; then
+  export MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR="${TMP_DIR}/linux-secret-store"
 fi
 # Shared by transfer, raw, and no-serverType importExisting routes.
 export MSC2_AGENT_SERVERS_ROOT="${TMP_DIR}/agent-servers"

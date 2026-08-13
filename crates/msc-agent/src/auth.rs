@@ -634,6 +634,8 @@ enum ProductionSecretStoreKind {
     WindowsCredentialManager,
     #[cfg(target_os = "linux")]
     LinuxCredentialHelper,
+    #[cfg(target_os = "linux")]
+    LinuxForegroundFileStore,
 }
 
 pub(crate) fn production_secret_store()
@@ -661,6 +663,13 @@ pub(crate) fn production_secret_store()
     }
     #[cfg(target_os = "linux")]
     {
+        if let Ok(base_dir) = std::env::var("MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR")
+            && !base_dir.is_empty()
+        {
+            return Ok(Arc::new(
+                msc_platform_linux::secret_store::LinuxSecretStore::at(base_dir.into()),
+            ));
+        }
         Ok(Arc::new(
             msc_platform_linux::secret_store::LinuxCredentialHelperSecretStore::new(),
         ))
@@ -685,6 +694,17 @@ fn production_secret_store_kind() -> ProductionSecretStoreKind {
     }
     #[cfg(target_os = "linux")]
     {
+        ProductionSecretStoreKind::LinuxCredentialHelper
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+fn production_secret_store_kind_from_env(
+    get_env: impl Fn(&str) -> Option<OsString>,
+) -> ProductionSecretStoreKind {
+    if get_env("MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR").is_some_and(|value| !value.is_empty()) {
+        ProductionSecretStoreKind::LinuxForegroundFileStore
+    } else {
         ProductionSecretStoreKind::LinuxCredentialHelper
     }
 }
@@ -1182,6 +1202,22 @@ mod tests {
         assert_eq!(kind, ProductionSecretStoreKind::WindowsCredentialManager);
         #[cfg(target_os = "linux")]
         assert_eq!(kind, ProductionSecretStoreKind::LinuxCredentialHelper);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn auth_production_store_linux_foreground_override_is_explicit() {
+        assert_eq!(
+            production_secret_store_kind_from_env(|_| None),
+            ProductionSecretStoreKind::LinuxCredentialHelper
+        );
+        assert_eq!(
+            production_secret_store_kind_from_env(|key| {
+                (key == "MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR")
+                    .then(|| OsString::from("/tmp/msc2-foreground-secrets"))
+            }),
+            ProductionSecretStoreKind::LinuxForegroundFileStore
+        );
     }
 
     #[test]

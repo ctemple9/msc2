@@ -2265,6 +2265,22 @@ Linux/Windows evidence is complete.
 **Commit:** `P5.34: re-run the corrected Phase 5 gate`
 **Batch:** stop-after
 
+### P5.35 — Make Linux foreground Phase 5 smokes use an explicit local secret store
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/auth.rs`, `tools/phase5/cli-smoke.sh`, `tools/phase5/phase5-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
+**What:** Correct the Linux-only Phase 5 gate failure found by the Fedora run: P4.42 correctly made installed Linux production auth use the credential-helper socket, but Phase 5 foreground smoke scripts start `msc serve` directly and therefore have no `/run/msc2/credential-helper.sock`. Add an explicit Linux foreground/test override, analogous to the macOS keychain-service override, that selects the already-existing encrypted `LinuxSecretStore` at a per-run temporary directory only when `MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR` is set. Keep the default Linux production path on `LinuxCredentialHelperSecretStore`.
+**Verify:** `cargo nextest run -p msc-agent auth_production_store_linux_foreground_override_is_explicit && tools/phase5/cli-smoke.sh --migration-restart && tools/phase5/cli-smoke.sh --settings --raw --import-lifecycle && tools/phase5/cli-smoke.sh --rescan && tools/phase5/cli-smoke.sh --replace-all`
+**Commit:** `P5.35: make Linux foreground smokes use a local secret store`
+**Batch:** solo
+
+**Actual result:** Added an opt-in Linux foreground secret-store override,
+`MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR`, used only by the Phase 5 smoke
+scripts. The default Linux production factory still returns
+`LinuxCredentialHelperSecretStore`, so installed `systemd` services remain on
+the P4.41 helper path. The scripts now set the override to an isolated per-run
+directory when running on Linux, matching the macOS smoke-only override pattern
+without silently weakening production startup.
+
 ---
 
 ## Amendments log

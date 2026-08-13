@@ -2047,6 +2047,29 @@ msc-agent auth_production_store` (3/3 passed), `cargo fmt --check`, native
 `cargo clippy --workspace --all-targets -- -D warnings`, Linux-target clippy,
 and Windows-target clippy.
 
+### P4.43a — Add the real-service credential evidence harness and macOS proof
+**Status:** awaiting verification
+**Files:** `tools/phase4/macos-service-lifecycle.sh`, `tools/phase4/linux-service-lifecycle.sh`, `tools/phase4/windows-service-lifecycle.ps1`, `tools/phase4/credential-evidence-check.py`, `docs/msc2/lifecycle/credential-evidence/macos-20260813023717-6934.json`, `docs/msc2/rolling-plan.md`
+**What:** Add the missing P4.43 evidence checker and extend each real service lifecycle script with the credential-persistence proof P4.43 requires: authenticate a protected request after first startup, remove the bootstrap-token environment from the service definition, restart the actual service-manager-owned agent process before any Paper server is started, authenticate again with the same bearer token, verify the agent PID changed, and write sanitized evidence JSON only after that proof. Run the macOS LaunchDaemon proof now. This commit is the harness and macOS evidence only; Linux and Windows still have to run the same updated scripts before final P4.43 can close.
+**Verify:** `bash -n tools/phase4/macos-service-lifecycle.sh && bash -n tools/phase4/linux-service-lifecycle.sh && python3 -m py_compile tools/phase4/credential-evidence-check.py && python3 tools/phase4/credential-evidence-check.py --require macos`
+**Commit:** `P4.43a: add credential evidence harness and macOS proof`
+**Batch:** solo
+
+**Actual result:** Added the missing cross-platform credential evidence checker
+and extended the macOS, Linux, and Windows real service lifecycle scripts with
+the credential-persistence proof P4.43 requires. Each script now authenticates a
+protected request after first startup, removes the bootstrap-token environment
+from the service definition, restarts the actual service-manager-owned agent
+process before any Paper server is started, authenticates the same protected
+request again with the same bearer token, verifies the agent PID changed, and
+only then writes a sanitized platform evidence JSON under
+`docs/msc2/lifecycle/credential-evidence/`. Token material is never recorded.
+Cameron ran the updated macOS LaunchDaemon lifecycle check on 2026-08-13; the
+new macOS evidence records `beforeRestartPid=6991`, `afterRestartPid=7010`,
+`bootstrapTokenRemovedBeforeRestart=true`, and protected requests succeeding
+before and after the real LaunchDaemon restart. The full P4.43 checker still
+correctly fails until Linux and Windows evidence are produced.
+
 ### P4.43 — Prove credential persistence in real service processes on all three platforms
 **Status:** not started
 **Files:** `tools/phase4/macos-service-lifecycle.sh`, `tools/phase4/linux-service-lifecycle.sh`, `tools/phase4/windows-service-lifecycle.ps1`, `tools/phase4/credential-evidence-check.py`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/rolling-plan.md`

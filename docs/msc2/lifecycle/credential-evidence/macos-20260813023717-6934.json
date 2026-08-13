@@ -1,0 +1,22 @@
+{
+  "artifactDir": "/private/tmp/msc2-macos-service-lifecycle.20260813023717-6934",
+  "bootstrapTokenRemovedBeforeRestart": true,
+  "credentialPath": "test bootstrap token registered through production service startup",
+  "credentialStoredInProductionStore": true,
+  "platform": "macos",
+  "processEvidence": {
+    "afterRestartPid": "7010",
+    "beforeRestartPid": "6991"
+  },
+  "protectedRequestAfterRestart": true,
+  "protectedRequestBeforeRestart": true,
+  "recordedAt": "2026-08-13T06:37:20.492060+00:00",
+  "restartedActualServiceProcess": true,
+  "result": "passed",
+  "runId": "20260813023717-6934",
+  "schema": "msc2.phase4.credential-evidence.v1",
+  "script": "tools/phase4/macos-service-lifecycle.sh",
+  "serviceManager": "launchd",
+  "serviceName": "com.msc2.phase4.agent.20260813023717-6934",
+  "tokenMaterialRecorded": false
+}

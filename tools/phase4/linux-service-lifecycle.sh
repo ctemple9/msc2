@@ -30,6 +30,8 @@ HELPER_BIN_DIR="/var/lib/msc2/bin"
 HELPER_BIN="${HELPER_BIN_DIR}/msc"
 SERVER_NAME="Phase4 Paper"
 SERVER_PORT=""
+EVIDENCE_DIR="${ROOT}/docs/msc2/lifecycle/credential-evidence"
+EVIDENCE_FILE="${EVIDENCE_DIR}/linux-${RUN_ID}.json"
 
 usage() {
   cat <<USAGE
@@ -310,6 +312,87 @@ while time.time() < deadline:
         time.sleep(0.25)
 raise SystemExit("agent did not become healthy through systemd")
 PY
+
+curl --fail --silent --show-error -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/v1/status" >/dev/null
+AGENT_PID_BEFORE_RESTART="$(systemctl show "${LABEL}.service" --property MainPID --value)"
+if [ -z "${AGENT_PID_BEFORE_RESTART}" ] || [ "${AGENT_PID_BEFORE_RESTART}" = "0" ]; then
+  echo "could not determine systemd agent pid before credential restart proof" >&2
+  exit 1
+fi
+
+python3 - "${AGENT_UNIT_PATH}" <<'PY'
+import pathlib
+import sys
+
+path = pathlib.Path(sys.argv[1])
+lines = [
+    line for line in path.read_text().splitlines()
+    if not line.startswith("Environment=MSC2_TEST_BOOTSTRAP_TOKEN=")
+]
+path.write_text("\n".join(lines) + "\n")
+PY
+chmod 644 "${AGENT_UNIT_PATH}"
+systemctl daemon-reload
+systemctl restart "${LABEL}.service"
+
+python3 - "${BASE_URL}" <<'PY'
+import sys
+import time
+import urllib.error
+import urllib.request
+
+base_url = sys.argv[1]
+deadline = time.time() + 45
+while time.time() < deadline:
+    try:
+        with urllib.request.urlopen(base_url + "/v1/health", timeout=1) as resp:
+            if resp.status == 200:
+                raise SystemExit(0)
+    except (urllib.error.URLError, TimeoutError):
+        time.sleep(0.25)
+raise SystemExit("agent did not become healthy after systemd credential restart")
+PY
+curl --fail --silent --show-error -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/v1/status" >/dev/null
+AGENT_PID_AFTER_RESTART="$(systemctl show "${LABEL}.service" --property MainPID --value)"
+if [ -z "${AGENT_PID_AFTER_RESTART}" ] || [ "${AGENT_PID_AFTER_RESTART}" = "0" ] || [ "${AGENT_PID_AFTER_RESTART}" = "${AGENT_PID_BEFORE_RESTART}" ]; then
+  echo "systemd restart did not produce a new agent pid" >&2
+  exit 1
+fi
+
+mkdir -p "${EVIDENCE_DIR}"
+python3 - "${EVIDENCE_FILE}" "${RUN_DIR}" "${RUN_ID}" "${LABEL}" "${AGENT_PID_BEFORE_RESTART}" "${AGENT_PID_AFTER_RESTART}" <<'PY'
+import datetime
+import json
+import sys
+
+path, run_dir, run_id, label, before_pid, after_pid = sys.argv[1:7]
+record = {
+    "artifactDir": run_dir,
+    "bootstrapTokenRemovedBeforeRestart": True,
+    "credentialPath": "test bootstrap token registered through production service startup and Linux credential-helper-backed store",
+    "credentialStoredInProductionStore": True,
+    "platform": "linux",
+    "processEvidence": {
+        "beforeRestartPid": before_pid,
+        "afterRestartPid": after_pid,
+    },
+    "protectedRequestAfterRestart": True,
+    "protectedRequestBeforeRestart": True,
+    "recordedAt": datetime.datetime.now(datetime.UTC).isoformat(),
+    "restartedActualServiceProcess": True,
+    "result": "passed",
+    "runId": run_id,
+    "schema": "msc2.phase4.credential-evidence.v1",
+    "script": "tools/phase4/linux-service-lifecycle.sh",
+    "serviceManager": "systemd",
+    "serviceName": f"{label}.service",
+    "tokenMaterialRecorded": False,
+}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(record, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
+chown "${TARGET_USER}:${TARGET_GROUP}" "${EVIDENCE_FILE}" >/dev/null 2>&1 || true
 
 "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN}" server import "${SERVER_DIR}" --name "${SERVER_NAME}" >/dev/null
 "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN}" server start "${SERVER_NAME}" >/dev/null

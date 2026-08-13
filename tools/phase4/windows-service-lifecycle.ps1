@@ -91,6 +91,25 @@ function Wait-ConsoleContains([string]$Msc, [string]$BaseUrl, [string]$Token, [s
     throw "console tail never observed: $Needle"
 }
 
+function Get-AgentServePid([int]$Port) {
+    $needle = "serve --bind 127.0.0.1:$Port"
+    $process = Get-CimInstance Win32_Process |
+        Where-Object { $_.CommandLine -like "*$needle*" } |
+        Select-Object -First 1
+    if (-not $process) {
+        throw "could not find msc serve process for port $Port"
+    }
+    return [string]$process.ProcessId
+}
+
+function Test-ProtectedStatus([string]$BaseUrl, [string]$Token) {
+    $headers = @{ Authorization = "Bearer $Token" }
+    $response = Invoke-WebRequest -Uri "$BaseUrl/v1/status" -Headers $headers -UseBasicParsing -TimeoutSec 5
+    if ($response.StatusCode -ne 200) {
+        throw "protected status request failed with HTTP $($response.StatusCode)"
+    }
+}
+
 function New-ServiceHostScript([string]$Path) {
     $script = @'
 param(
@@ -155,7 +174,10 @@ public class MscAgentWindowsService : ServiceBase
             RedirectStandardError = true,
             WorkingDirectory = workingDirectory,
         };
-        startInfo.EnvironmentVariables["MSC2_TEST_BOOTSTRAP_TOKEN"] = token;
+        if (!String.IsNullOrWhiteSpace(token))
+        {
+            startInfo.EnvironmentVariables["MSC2_TEST_BOOTSTRAP_TOKEN"] = token;
+        }
         startInfo.EnvironmentVariables["MSC2_OPERATION_JOURNAL_DIR"] = journalDir;
 
         child = new Process();
@@ -342,6 +364,44 @@ try {
     New-Service -Name $serviceName -BinaryPathName $serviceCommand -Credential $credential -StartupType Automatic -DisplayName $serviceName | Out-Null
     Start-Service -Name $serviceName
     Wait-HttpReady -BaseUrl $baseUrl -TimeoutSeconds 45
+    Test-ProtectedStatus -BaseUrl $baseUrl -Token $token
+    $agentPidBeforeRestart = Get-AgentServePid -Port $port
+
+    $innerCommandNoBootstrap = "`"$serviceBinary`" -NoProfile -ExecutionPolicy Bypass -File `"$hostScript`" -ServiceName `"$serviceName`" -MscPath `"$msc`" -BindAddress `"127.0.0.1:$port`" -Token `"`" -JournalDir `"$journalDir`" -WorkingDirectory `"$stateDir`" -LogPath `"$serviceLog`""
+    $launcherContentNoBootstrap = "@echo off`r`n$innerCommandNoBootstrap > `"$rawOutputLog`" 2>&1`r`n"
+    Set-Content -Path $launcherPath -Value $launcherContentNoBootstrap -Encoding ASCII -NoNewline
+    Restart-Service -Name $serviceName -Force
+    Wait-HttpReady -BaseUrl $baseUrl -TimeoutSeconds 45
+    Test-ProtectedStatus -BaseUrl $baseUrl -Token $token
+    $agentPidAfterRestart = Get-AgentServePid -Port $port
+    if ($agentPidBeforeRestart -eq $agentPidAfterRestart) {
+        throw "Windows Service restart did not produce a new msc serve pid"
+    }
+
+    $evidenceDir = Join-Path $root "docs\msc2\lifecycle\credential-evidence"
+    New-Item -ItemType Directory -Path $evidenceDir -Force | Out-Null
+    [pscustomobject]@{
+        artifactDir = $runDir
+        bootstrapTokenRemovedBeforeRestart = $true
+        credentialPath = "test bootstrap token registered through production service startup and Windows Credential Manager"
+        credentialStoredInProductionStore = $true
+        platform = "windows"
+        processEvidence = [pscustomobject]@{
+            beforeRestartPid = $agentPidBeforeRestart
+            afterRestartPid = $agentPidAfterRestart
+        }
+        protectedRequestAfterRestart = $true
+        protectedRequestBeforeRestart = $true
+        recordedAt = (Get-Date).ToUniversalTime().ToString("o")
+        restartedActualServiceProcess = $true
+        result = "passed"
+        runId = $runId
+        schema = "msc2.phase4.credential-evidence.v1"
+        script = "tools/phase4/windows-service-lifecycle.ps1"
+        serviceManager = "Windows Service"
+        serviceName = $serviceName
+        tokenMaterialRecorded = $false
+    } | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $evidenceDir "windows-$runId.json") -Encoding UTF8
 
     & $msc --base-url $baseUrl --token $token server import $ServerDir --name $serverName | Out-Null
     if ($LASTEXITCODE -ne 0) {

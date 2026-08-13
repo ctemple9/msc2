@@ -20,6 +20,8 @@ MACOS_ROOT_SERVICE="com.msc2.agent.root.${RUN_ID}"
 MACOS_ROOT_ACCOUNT="credential-root-v1"
 MACOS_SECRET_STORE_DIR="${RUN_DIR}/state/secrets"
 MACOS_DATA_DIR="${RUN_DIR}/state/data"
+EVIDENCE_DIR="${ROOT}/docs/msc2/lifecycle/credential-evidence"
+EVIDENCE_FILE="${EVIDENCE_DIR}/macos-${RUN_ID}.json"
 
 usage() {
   cat <<USAGE
@@ -283,6 +285,102 @@ while time.time() < deadline:
         time.sleep(0.25)
 raise SystemExit("agent did not become healthy through LaunchDaemon")
 PY
+
+curl --fail --silent --show-error -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/v1/status" >/dev/null
+AGENT_PID_BEFORE_RESTART="$(/bin/launchctl print "system/${LABEL}" | /usr/bin/awk '/pid = / {print $3; exit}')"
+if [ -z "${AGENT_PID_BEFORE_RESTART}" ]; then
+  echo "could not determine LaunchDaemon agent pid before credential restart proof" >&2
+  exit 1
+fi
+
+python3 - "${PLIST_PATH}" <<'PY'
+import plistlib
+import sys
+
+path = sys.argv[1]
+with open(path, "rb") as handle:
+    plist = plistlib.load(handle)
+env = plist.get("EnvironmentVariables", {})
+env.pop("MSC2_TEST_BOOTSTRAP_TOKEN", None)
+plist["EnvironmentVariables"] = env
+with open(path, "wb") as handle:
+    plistlib.dump(plist, handle, sort_keys=False)
+PY
+/usr/sbin/chown root:wheel "${PLIST_PATH}"
+/bin/chmod 644 "${PLIST_PATH}"
+
+/bin/launchctl bootout system "${PLIST_PATH}"
+/bin/launchctl bootstrap system "${PLIST_PATH}"
+for attempt in $(seq 1 20); do
+  if /bin/launchctl print "system/${LABEL}" >/dev/null 2>&1; then
+    break
+  fi
+  if [ "${attempt}" -eq 20 ]; then
+    echo "LaunchDaemon ${LABEL} never became visible after credential restart bootstrap" >&2
+    exit 1
+  fi
+  /bin/sleep 0.25
+done
+/bin/launchctl start "${LABEL}"
+
+python3 - "${BASE_URL}" <<'PY'
+import sys
+import time
+import urllib.error
+import urllib.request
+
+base_url = sys.argv[1]
+deadline = time.time() + 45
+while time.time() < deadline:
+    try:
+        with urllib.request.urlopen(base_url + "/v1/health", timeout=1) as resp:
+            if resp.status == 200:
+                raise SystemExit(0)
+    except (urllib.error.URLError, TimeoutError):
+        time.sleep(0.25)
+raise SystemExit("agent did not become healthy after LaunchDaemon credential restart")
+PY
+curl --fail --silent --show-error -H "Authorization: Bearer ${TOKEN}" "${BASE_URL}/v1/status" >/dev/null
+AGENT_PID_AFTER_RESTART="$(/bin/launchctl print "system/${LABEL}" | /usr/bin/awk '/pid = / {print $3; exit}')"
+if [ -z "${AGENT_PID_AFTER_RESTART}" ] || [ "${AGENT_PID_AFTER_RESTART}" = "${AGENT_PID_BEFORE_RESTART}" ]; then
+  echo "LaunchDaemon restart did not produce a new agent pid" >&2
+  exit 1
+fi
+
+/bin/mkdir -p "${EVIDENCE_DIR}"
+python3 - "${EVIDENCE_FILE}" "${RUN_DIR}" "${RUN_ID}" "${LABEL}" "${AGENT_PID_BEFORE_RESTART}" "${AGENT_PID_AFTER_RESTART}" <<'PY'
+import datetime
+import json
+import sys
+
+path, run_dir, run_id, label, before_pid, after_pid = sys.argv[1:7]
+record = {
+    "artifactDir": run_dir,
+    "bootstrapTokenRemovedBeforeRestart": True,
+    "credentialPath": "test bootstrap token registered through production service startup",
+    "credentialStoredInProductionStore": True,
+    "platform": "macos",
+    "processEvidence": {
+        "beforeRestartPid": before_pid,
+        "afterRestartPid": after_pid,
+    },
+    "protectedRequestAfterRestart": True,
+    "protectedRequestBeforeRestart": True,
+    "recordedAt": datetime.datetime.now(datetime.UTC).isoformat(),
+    "restartedActualServiceProcess": True,
+    "result": "passed",
+    "runId": run_id,
+    "schema": "msc2.phase4.credential-evidence.v1",
+    "script": "tools/phase4/macos-service-lifecycle.sh",
+    "serviceManager": "launchd",
+    "serviceName": label,
+    "tokenMaterialRecorded": False,
+}
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(record, handle, indent=2, sort_keys=True)
+    handle.write("\n")
+PY
+/usr/sbin/chown "${TARGET_USER}" "${EVIDENCE_FILE}" >/dev/null 2>&1 || true
 
 "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN}" server import "${SERVER_DIR}" --name "${SERVER_NAME}" >/dev/null
 "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN}" server start "${SERVER_NAME}" >/dev/null

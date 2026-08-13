@@ -1,0 +1,22 @@
+{
+  "artifactDir": "/tmp/msc2-linux-service-lifecycle.20260813025020-13152",
+  "bootstrapTokenRemovedBeforeRestart": true,
+  "credentialPath": "test bootstrap token registered through production service startup and Linux credential-helper-backed store",
+  "credentialStoredInProductionStore": true,
+  "platform": "linux",
+  "processEvidence": {
+    "afterRestartPid": "13933",
+    "beforeRestartPid": "13720"
+  },
+  "protectedRequestAfterRestart": true,
+  "protectedRequestBeforeRestart": true,
+  "recordedAt": "2026-08-13T06:50:22.408461+00:00",
+  "restartedActualServiceProcess": true,
+  "result": "passed",
+  "runId": "20260813025020-13152",
+  "schema": "msc2.phase4.credential-evidence.v1",
+  "script": "tools/phase4/linux-service-lifecycle.sh",
+  "serviceManager": "systemd",
+  "serviceName": "msc2-phase4-agent-20260813025020-13152.service",
+  "tokenMaterialRecorded": false
+}

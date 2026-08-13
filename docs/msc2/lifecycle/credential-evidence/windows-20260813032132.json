@@ -1,0 +1,22 @@
+﻿{
+    "artifactDir":  "C:\\ProgramData\\MSC2\\phase4\\windows-service-lifecycle\\run-20260813032132",
+    "bootstrapTokenRemovedBeforeRestart":  true,
+    "credentialPath":  "test bootstrap token registered through production service startup and Windows Credential Manager",
+    "credentialStoredInProductionStore":  true,
+    "platform":  "windows",
+    "processEvidence":  {
+                            "beforeRestartPid":  "16756",
+                            "afterRestartPid":  "7252"
+                        },
+    "protectedRequestAfterRestart":  true,
+    "protectedRequestBeforeRestart":  true,
+    "recordedAt":  "2026-08-13T07:22:37.5076409Z",
+    "restartedActualServiceProcess":  true,
+    "result":  "passed",
+    "runId":  "20260813032132",
+    "schema":  "msc2.phase4.credential-evidence.v1",
+    "script":  "tools/phase4/windows-service-lifecycle.ps1",
+    "serviceManager":  "Windows Service",
+    "serviceName":  "msc2-phase4-agent-20260813032132",
+    "tokenMaterialRecorded":  false
+}

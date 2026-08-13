@@ -37,7 +37,7 @@ def load_records() -> list[tuple[Path, dict]]:
         return []
     records: list[tuple[Path, dict]] = []
     for path in sorted(EVIDENCE_DIR.glob("*.json")):
-        with path.open(encoding="utf-8") as handle:
+        with path.open(encoding="utf-8-sig") as handle:
             records.append((path, json.load(handle)))
     return records
 

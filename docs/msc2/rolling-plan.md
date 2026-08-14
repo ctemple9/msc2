@@ -2383,7 +2383,7 @@ without silently weakening production startup.
 **Batch:** solo
 
 ### P6.2 — Build the Phase 6 corpus and gate checker first
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase6/corpus-check.py`, `tools/phase6/fixtures/`, `corpus/worlds/README.md`, `corpus/backups/README.md`
 **What:** Build a dependency-free checker before evidence is collected. Inventory mode requires provenance, hashes, a Java multi-folder world, at least one real MSC 1 `world_slots` tree with metadata/active marker/archive, and at least one real backup ZIP plus any adjacent `.meta.json`; optional Bedrock evidence is reported separately and never fabricated. Exercise mode is added later by P6.26. Passing and deliberately failing self-tests prove missing provenance, duplicate hashes, malformed metadata, unsafe archive entries, and mutated inputs fail loudly.
 **Verify:** `python3 tools/phase6/corpus-check.py --selftest`
@@ -2391,11 +2391,13 @@ without silently weakening production startup.
 **Batch:** solo
 
 ### P6.3 — Collect real MSC 1 world and backup evidence
-**Status:** not started
+**Status:** in progress
 **Files:** `corpus/worlds/`, `corpus/backups/`, `corpus/worlds/README.md`, `corpus/backups/README.md`
 **What:** Inventory the real world-slot and backup material already present in Cameron's MSC 1 installation and the real `.msctransfer` package used in Phase 5. Commit only small sanitized structural evidence whose player/world data can be removed without changing layout, metadata keys, archive member names, or dimension relationships; keep large/private archives outside git behind environment paths. Record source, sanitization, byte size, and SHA-256. If the required Java slot/backup evidence is unavailable, stop instead of inventing it.
+
+**Actual result:** Searched Cameron's machine thoroughly (both MSC 1-managed Java servers, an older unmanaged copy of the same modpack, Desktop/Downloads, local Time Machine snapshots) rather than stopping at the first empty directory. Real `world_slots/` evidence exists (three trees, each with a valid active-slot marker and `slot.json`) and both real servers have a live Java `level.dat`, but three real gaps against P6.2's own checker requirements turned up, detailed in `corpus/worlds/README.md` and `corpus/backups/README.md`'s new "P6.3 investigation results" sections: (1) every real slot is archive-less — no `world.zip` has ever been written, since that only happens on an explicit save/duplicate-to-slot action neither real server has had triggered; (2) neither real world has a `<name>_nether`/`<name>_the_end` sibling directory — `campack` is Fabric, which structurally stores dimensions inside the main world folder (`DIM-1`/`DIM1`) and never produces sibling folders, and `paper` uses a newer nested `Paper/dimensions/minecraft/{overworld,the_nether,the_end}/` layout instead of the classic sibling-folder convention `WorldSlotManager.swift`'s multi-folder assumption was written against; (3) no real backup `.zip` exists anywhere searched — neither managed server has ever had a backup taken, so `<serverDir>/backups/` doesn't exist yet for either. Per this step's own "stop instead of inventing it" instruction, nothing was written to `corpus/worlds/` or `corpus/backups/` and `tools/phase6/corpus-check.py --inventory` still correctly fails (`corpus/worlds/manifest.json: missing provenance manifest`). This is a real decision point, not a step left half-done by oversight — see the QUESTION in this session's own report to Cameron for the concrete options (generate the missing evidence live, relax the checker's structural bar the way P5.3 relaxed its own config-era bar, or some mix).
 **Verify:** `python3 tools/phase6/corpus-check.py --inventory --worlds corpus/worlds --backups corpus/backups`
-**Commit:** `P6.3: collect the MSC 1 world and backup corpus`
+**Commit:** `P6.3: investigate real MSC 1 world/backup evidence and surface the gaps blocking collection`
 **Batch:** stop-after
 
 ---

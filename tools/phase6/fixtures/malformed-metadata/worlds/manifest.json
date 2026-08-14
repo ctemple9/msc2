@@ -1,0 +1,34 @@
+{
+  "files": [
+    {
+      "path": "java-world/world/level.dat",
+      "source": "synthetic fixture for corpus-check.py self-test (P6.2)",
+      "sanitized": "invented selftest content, not real MSC 1 evidence",
+      "sha256": "f97e19a69fa71035910dcf27f47db6ee5d9f0b78f57c7a7da4462204a9e7f782"
+    },
+    {
+      "path": "world_slots/active_slot_id.txt",
+      "source": "synthetic fixture for corpus-check.py self-test (P6.2)",
+      "sanitized": "invented selftest content, not real MSC 1 evidence",
+      "sha256": "e545b0f4b4d0a9763082201a5f0f8c33a289518cb8814c94c66a160d2c550048"
+    },
+    {
+      "path": "world_slots/slot-a/slot.json",
+      "source": "synthetic fixture for corpus-check.py self-test (P6.2)",
+      "sanitized": "invented selftest content, not real MSC 1 evidence",
+      "sha256": "e82ea6bc340af2f4f6a3342d393daf68a04e070c479f255f1658ba3a2245191b"
+    },
+    {
+      "path": "world_slots/slot-a/world.zip",
+      "source": "synthetic fixture for corpus-check.py self-test (P6.2)",
+      "sanitized": "invented selftest content, not real MSC 1 evidence",
+      "sha256": "c23c01a7559e238191b55fd95ea084d09c88462e7dc4bda4d05fc1e9bc235fa1"
+    },
+    {
+      "path": "world_slots/slot-b/slot.json",
+      "source": "synthetic fixture for corpus-check.py self-test (P6.2)",
+      "sanitized": "invented selftest content, not real MSC 1 evidence",
+      "sha256": "e9a6d01d6fd6c078d8e0cbdb4809e9822a8162a45db951aeebb369f0013e83ec"
+    }
+  ]
+}

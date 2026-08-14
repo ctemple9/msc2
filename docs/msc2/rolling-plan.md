@@ -2383,7 +2383,7 @@ without silently weakening production startup.
 **Batch:** solo
 
 ### P6.2 — Build the Phase 6 corpus and gate checker first
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase6/corpus-check.py`, `tools/phase6/fixtures/`, `corpus/worlds/README.md`, `corpus/backups/README.md`
 **What:** Build a dependency-free checker before evidence is collected. Inventory mode requires provenance, hashes, a Java multi-folder world, at least one real MSC 1 `world_slots` tree with metadata/active marker/archive, and at least one real backup ZIP plus any adjacent `.meta.json`; optional Bedrock evidence is reported separately and never fabricated. Exercise mode is added later by P6.26. Passing and deliberately failing self-tests prove missing provenance, duplicate hashes, malformed metadata, unsafe archive entries, and mutated inputs fail loudly.
 **Verify:** `python3 tools/phase6/corpus-check.py --selftest`

@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "activate-fresh-archive-less-slot-defers-world-generation",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) archive-less branch",
+    "line": 759
+  },
+  "input": {
+    "operation": "activate_slot",
+    "server_type": "java",
+    "current_live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "target_slot": { "id": "slot-fresh", "name": "Brand new map", "has_archive": false, "worldLevelName": "brand-new-map", "worldSeed": "998877" }
+  },
+  "expected": {
+    "current_folders_still_removed_first": true,
+    "unzip_invoked": false,
+    "server_properties_level_name_set_to": "brand-new-map",
+    "server_properties_level_seed_set_to": "998877",
+    "slot_marked_active": true,
+    "world_generates_on": "next server start, not during activation"
+  },
+  "notes": "hasArchivedZip is false and willGenerateFresh is true here (freshLevelName non-empty, line 667), so activateSlot skips the unzip branch entirely and instead calls applyWorldIdentity(applySeed: true) at line 761 -- but the current-folder removal at lines 685-702 is unconditional, running for every activation regardless of which branch follows. So switching to a fresh slot does delete the previous live world (backed up first, per the mandatory-backup fixture) even though nothing is extracted to replace it; the new world only exists once the server process itself generates it on next boot."
+}

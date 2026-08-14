@@ -1,0 +1,19 @@
+{
+  "domain": "world-archive-safety",
+  "case": "windows-backslash-traversal-rejected",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlotFromZIP(zipURL:name:for:logLine:) -- D-006 correction",
+    "line": 1008
+  },
+  "input": {
+    "extraction_context": "import ZIP as new slot, later activation",
+    "zip_entry_names": ["world\\level.dat", "world\\..\\..\\secrets.txt"]
+  },
+  "expected": {
+    "extraction_refused_entirely": true,
+    "files_written_outside_target_root": 0,
+    "error_category": "unsafe archive entry: backslash-separated traversal"
+  },
+  "notes": "D-006 correction, not oracle parity. The ZIP spec's own entry-name convention uses forward slashes, but archives built by Windows tooling sometimes store backslash-separated paths; a traversal check that only recognizes '../' would miss '..\\' entirely. Since Phase 6's world-mutation archives can be created or consumed on any of the three supported platforms (msc2-engineering.md), the extractor must normalize both separators before path-containment checking, on every platform -- not just when running on Windows -- so a backslash-traversal entry crafted on one platform can't slip past validation running on another."
+}

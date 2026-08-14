@@ -1,0 +1,19 @@
+{
+  "domain": "world-archive-safety",
+  "case": "absolute-path-entry-rejected",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) extraction call -- D-006 correction",
+    "line": 718
+  },
+  "input": {
+    "extraction_context": "slot activation",
+    "zip_entry_names": ["world/level.dat", "/etc/passwd"]
+  },
+  "expected": {
+    "extraction_refused_entirely": true,
+    "files_written_outside_target_root": 0,
+    "error_category": "unsafe archive entry: absolute path"
+  },
+  "notes": "D-006 correction, not oracle parity. An entry name that is itself an absolute path (leading '/') bypasses the target directory entirely once handed to a shell unzip's -d argument resolution the same way a ../ traversal does, just without needing any relative segments -- it's a distinct case from zip-slip-relative-traversal-rejected because a naive traversal-only check (rejecting only entries containing '..') would miss it. MSC 1's unzip -o call (line 718-719) has no defense against this. Phase 6's extractor must reject any entry whose path is not a plain relative path confined to the target root -- an absolute entry path is refused outright, same all-or-nothing archive-level refusal as the relative-traversal case."
+}

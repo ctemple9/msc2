@@ -1,0 +1,29 @@
+{
+  "domain": "world-archive-safety",
+  "case": "legitimate-nested-world-archive-extracts-normally",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) extraction call -- corrected extractor, positive control",
+    "line": 718
+  },
+  "input": {
+    "extraction_context": "slot activation",
+    "zip_entries": [
+      { "name": "world/level.dat", "type": "regular" },
+      { "name": "world/region/r.0.0.mca", "type": "regular" },
+      { "name": "world_nether/level.dat", "type": "regular" },
+      { "name": "world_nether/region/r.0.0.mca", "type": "regular" },
+      { "name": "world_the_end/level.dat", "type": "regular" }
+    ],
+    "declared_uncompressed_total_bytes": 41943040,
+    "declared_entry_count": 5
+  },
+  "notes_context": "control case",
+  "expected": {
+    "extraction_refused": false,
+    "all_entries_written_inside_target_root": true,
+    "path_shape": "ordinary relative paths matching Java's level-name/level-name_nether/level-name_the_end folder set, no traversal/absolute/symlink/oversized/overcounted entries",
+    "activation_proceeds_normally": true
+  },
+  "notes": "This is the control case for the whole world-archive-safety domain: every other fixture here proves the corrected extractor *rejects* a specific unsafe shape, but a validator that rejects everything would trivially pass all of them too. This fixture pins that a real, ordinarily-shaped world archive -- the same folder set create-slot-java-zips-main-nether-end produces, all plain relative paths under the three canonical folder names, well within any reasonable size/entry-count limit -- extracts successfully and unmodified. Without this case, none of the rejection fixtures actually demonstrate the safety checks are correctly scoped rather than a blanket refusal."
+}

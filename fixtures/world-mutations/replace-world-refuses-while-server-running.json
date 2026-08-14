@@ -1,0 +1,22 @@
+{
+  "domain": "world-mutations",
+  "case": "replace-world-refuses-while-server-running",
+  "source": {
+    "file": "AppViewModel+WorldManagement.swift",
+    "test": "replaceWorld(for:newLevelName:worldSource:backupFirst:) running-server guard",
+    "line": 55
+  },
+  "input": {
+    "operation": "replace_world",
+    "target_server_id": "srv-1",
+    "is_server_running": true,
+    "active_server_id": "srv-1"
+  },
+  "expected": {
+    "replace_attempted": false,
+    "any_files_touched": false,
+    "function_returns": false,
+    "log_message": "Refusing to replace world for {displayName} while server is running."
+  },
+  "notes": "Same guard shape as activateWorldSlot (activate-refused-while-server-running) and renameWorld (line 160-164): 'if isServerRunning, configManager.config.activeServerId == configServer.id' at line 55, checked first, before even validating the new world source. Three call sites, one repeated pattern -- Phase 6's application service should implement this once and share it across activate/rename/replace rather than re-deriving it per route, since MSC 1 itself already re-derives it three times with identical logic."
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "world-mutations",
+  "case": "delete-active-slot-refused",
+  "source": {
+    "file": "AppViewModel+WorldSlots.swift",
+    "test": "deleteWorldSlot(_:) active-slot guard",
+    "line": 301
+  },
+  "input": {
+    "operation": "delete_slot",
+    "target_slot_id": "slot-active",
+    "resolved_active_slot_id": "slot-active"
+  },
+  "expected": {
+    "deletion_performed": false,
+    "slot_directory_removed": false,
+    "error_shown": "Delete Blocked",
+    "error_message_names_the_slot": true
+  },
+  "notes": "deleteWorldSlot compares the target slot's id against WorldSlotManager.resolvedActiveSlotID (line 301) before calling the pure WorldSlotManager.deleteSlot at all -- the guard lives in the orchestration layer, not the file-system layer, matching the pattern every other destructive slot operation uses (running-server guards live in AppViewModel, not WorldSlotManager). The underlying WorldSlotManager.deleteSlot (line 795) has no awareness of 'active' and would happily remove any directory it's given; Phase 6's application service must reproduce this same active-slot refusal at the same layer, not rely on the repository to enforce it."
+}

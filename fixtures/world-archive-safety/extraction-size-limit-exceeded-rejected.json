@@ -1,0 +1,21 @@
+{
+  "domain": "world-archive-safety",
+  "case": "extraction-size-limit-exceeded-rejected",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) extraction call -- D-006 correction",
+    "line": 718
+  },
+  "input": {
+    "extraction_context": "slot activation",
+    "zip_declared_compressed_size_bytes": 2048,
+    "zip_declared_uncompressed_total_bytes": 107374182400,
+    "reason": "zip-bomb style declared ratio, e.g. a highly-compressible repeated-byte payload"
+  },
+  "expected": {
+    "extraction_refused_before_writing_any_bytes": true,
+    "check_performed_against": "central directory's declared uncompressed size per entry and in total, before decompressing",
+    "error_category": "extraction limit exceeded: total uncompressed size"
+  },
+  "notes": "D-006 correction, not oracle parity. MSC 1's unzip -o (line 718-719) has no size ceiling of any kind -- it will decompress whatever the archive claims, up to whatever fills the disk, and a slot archive is exactly the kind of file that can arrive via import-from-external-ZIP (createSlotFromZIP, line 1008) with no prior trust established. Phase 6 checks each entry's declared uncompressed size and the archive's total declared uncompressed size against a fixed limit using the zip's own central directory metadata -- before decompressing a single byte -- and refuses the whole extraction if either is exceeded, rather than decompressing partway and running out of disk mid-activation with the current world already removed (the same partial-state risk characterized in world-mutations' activate-extraction-failure-leaves-partial-state-for-safety-backup-recovery, but caused by an oversized archive instead of a corrupt one)."
+}

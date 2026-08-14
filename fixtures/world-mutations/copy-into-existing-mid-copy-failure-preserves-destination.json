@@ -1,0 +1,23 @@
+{
+  "domain": "world-mutations",
+  "case": "copy-into-existing-mid-copy-failure-preserves-destination",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "copySlotIntoExisting(_:into:for:logLine:) copy-to-temp failure branch",
+    "line": 908
+  },
+  "input": {
+    "operation": "copy_slot_into_existing",
+    "source_slot": { "id": "slot-src", "name": "Fresh build" },
+    "destination_slot": { "id": "slot-dst", "name": "Old base", "world_zip_present": true },
+    "injected_failure": "fm.copyItem(sourceZip -> world.replace.tmp.zip) throws (source zip vanished mid-copy)"
+  },
+  "expected": {
+    "destination_world_zip_untouched": true,
+    "destination_metadata_unchanged": true,
+    "temp_zip_removed": true,
+    "function_returns": false,
+    "error_message_includes_failure_reason": true
+  },
+  "notes": "copySlotIntoExisting (line 878) never touches destZip until after the source has already been copied into a scratch file, world.replace.tmp.zip, inside the destination's own slot directory (lines 906-913). Only once that copy succeeds does it remove the old destZip and moveItem the temp file over it (lines 915-919) -- an atomic replace on the same volume, same pattern as updateSlotFromCurrentWorld. Because this injected failure is the copyItem-to-temp step itself (line 913), destZip is never reached at all: the failure handler (lines 921-925) just removes the orphaned temp file and returns the error string, leaving the 'Old base' slot exactly as it was before the caller pressed replace. copySlotIntoExisting is explicitly marked destructive in its own doc comment (line 875) -- this fixture is what makes that safe."
+}

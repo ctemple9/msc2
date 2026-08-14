@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "update-active-slot-zip-failure-preserves-previous-archive",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "updateSlotFromCurrentWorld(_:for:logLine:) zip-process failure branch",
+    "line": 514
+  },
+  "input": {
+    "operation": "update_active_slot",
+    "server_type": "java",
+    "existing_archive_present": true,
+    "existing_archive_zip_size_bytes": 41943040,
+    "injected_failure": "zip process exits non-zero while writing world.update.tmp.zip"
+  },
+  "expected": {
+    "temp_zip_removed": true,
+    "existing_world_zip_untouched": true,
+    "existing_world_zip_size_bytes_unchanged": 41943040,
+    "slot_json_rewritten": false,
+    "function_returns": null
+  },
+  "notes": "updateSlotFromCurrentWorld writes the new archive to a scratch path, world.update.tmp.zip (line 486), never touching world.zip directly. Only after the zip process exits 0 does it remove the old world.zip and moveItem the temp file into place (lines 520-524) -- an atomic replace on the same volume. Because the zip failure is caught before that swap (line 514), the temp file is discarded (line 516) and the previous archive is never removed, so a failed 'Save Current World' can never leave the active slot's saved world corrupted or missing -- worst case it's simply not updated."
+}

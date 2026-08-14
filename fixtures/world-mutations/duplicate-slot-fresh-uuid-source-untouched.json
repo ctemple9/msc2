@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "duplicate-slot-fresh-uuid-source-untouched",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "duplicateSlot(_:newName:for:logLine:)",
+    "line": 805
+  },
+  "input": {
+    "operation": "duplicate_slot",
+    "source_slot": { "id": "slot-src", "name": "Base camp", "worldLevelName": "world", "worldSeed": "1234" },
+    "new_name": "Base camp (copy)"
+  },
+  "expected": {
+    "new_slot_id_equals_source_id": false,
+    "new_slot_id_is_fresh_uuid": true,
+    "new_slot_name": "Base camp (copy)",
+    "new_slot_world_level_name": "world",
+    "new_slot_world_seed": "1234",
+    "source_slot_zip_untouched": true,
+    "source_slot_metadata_untouched": true
+  },
+  "notes": "duplicateSlot never reuses the source id (comment at line 819: 'never reuse the source id') and only reads from the source zip via fm.copyItem (line 839) -- it never opens the source for writing. worldLevelName and worldSeed carry over to the new slot (line 822) since they describe the world content being copied, not the slot's identity."
+}

@@ -1,0 +1,25 @@
+{
+  "domain": "world-mutations",
+  "case": "activate-backup-failure-aborts-before-any-world-mutation",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) backup-failure branch",
+    "line": 677
+  },
+  "input": {
+    "operation": "activate_slot",
+    "server_type": "java",
+    "current_live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "target_slot": { "id": "slot-b", "name": "New adventure", "has_archive": true },
+    "backup_current_flag": true,
+    "backup_result": "failure"
+  },
+  "expected": {
+    "function_returns": false,
+    "current_folders_removed": false,
+    "target_archive_extracted": false,
+    "active_marker_changed": false,
+    "log_message": "Pre-activation backup failed; aborting activation so the current world stays untouched."
+  },
+  "notes": "The backupWorld closure's result gates everything downstream: 'guard ok else { ...; return false }' at lines 677-680 exits before the removeOk block (line 685) ever runs. This is the case that makes the mandatory-backup guarantee actually load-bearing rather than cosmetic -- if a failed backup were ignored, activation would proceed to delete the only copy of the current world with nothing to fall back to."
+}

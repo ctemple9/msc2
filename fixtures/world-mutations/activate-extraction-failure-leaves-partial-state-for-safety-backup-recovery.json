@@ -1,0 +1,27 @@
+{
+  "domain": "world-mutations",
+  "case": "activate-extraction-failure-leaves-partial-state-for-safety-backup-recovery",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) unzip-failure branch",
+    "line": 729
+  },
+  "input": {
+    "operation": "activate_slot",
+    "server_type": "java",
+    "current_live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "target_slot": { "id": "slot-b", "name": "New adventure", "has_archive": true },
+    "backup_current_flag": true,
+    "backup_result": "success",
+    "injected_failure": "unzip exits non-zero (corrupt world.zip) after current folders were already removed"
+  },
+  "expected": {
+    "function_returns": false,
+    "current_live_world_folders_present_after_call": [],
+    "target_slot_marked_active": false,
+    "server_has_no_world_at_all_right_now": true,
+    "recovery_path": "the pre-activation safety backup taken in step 1 is the only copy of the previous world; the caller's error message directs the operator to it",
+    "automatic_rollback_of_the_removal_performed": false
+  },
+  "notes": "This is the genuinely dangerous window in activateSlot: removeOk (lines 685-702) already deleted the live folders before the unzip call at line 716 runs, and MSC 1 does not re-create them if unzip fails (line 729 just logs and returns false -- no restore-from-backup call). AppViewModel.activateWorldSlot's failure message (lines 252-255) says exactly this: 'Could not activate slot... The original world was backed up. Check the console for details' -- recovery is manual, via the safety backup from step 1, not automatic. Phase 6's transactional activation (P6.13) exists specifically to close this window; this fixture pins the MSC 1 baseline behavior it must improve on, and P6.13's fixtures (not this step) characterize the corrected transactional version."
+}

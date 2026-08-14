@@ -1,0 +1,22 @@
+{
+  "domain": "world-mutations",
+  "case": "create-slot-zip-failure-cleans-up-slot-directory",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlot(name:for:worldSeed:logLine:) zip-process failure branch",
+    "line": 447
+  },
+  "input": {
+    "operation": "create_slot",
+    "server_type": "java",
+    "live_world_folders_on_disk": ["world", "world_nether", "world_the_end"],
+    "injected_failure": "zip process exits non-zero (disk full mid-archive)"
+  },
+  "expected": {
+    "slot_directory_removed": true,
+    "slot_json_written": false,
+    "function_returns": null,
+    "live_world_folders_untouched": true
+  },
+  "notes": "createSlot creates the empty slot directory first (line 425), then runs /usr/bin/zip into it. On a non-zero exit status (line 447), it removes the just-created slot directory (line 449) before returning nil -- no half-written slot.json or partial zip is left behind, and the live world folders it was archiving from were never modified in the first place (createSlot only ever reads them)."
+}

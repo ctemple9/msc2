@@ -1,0 +1,22 @@
+{
+  "domain": "world-mutations",
+  "case": "rename-slot-metadata-only-leaves-archive-untouched",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "renameSlot(_:newName:serverDir:)",
+    "line": 786
+  },
+  "input": {
+    "operation": "rename_slot",
+    "slot": { "id": "slot-abc", "name": "Old build", "worldLevelName": "world" },
+    "new_name": "Redstone farm v2"
+  },
+  "expected": {
+    "slot_json_name_field": "Redstone farm v2",
+    "slot_id_unchanged": "slot-abc",
+    "world_level_name_unchanged": "world",
+    "world_zip_bytes_untouched": true,
+    "slot_directory_path_unchanged": true
+  },
+  "notes": "renameSlot (WorldSlotManager.swift:786-791) is display-name-only: it copies the slot, overwrites .name, and calls saveMetadata -- no file is moved or renamed on disk (the slot's on-disk directory is keyed by its UUID, not its display name), and world.zip is never opened. This is the cheapest of the eight CRUD operations and the only one with no failure-rollback surface worth characterizing: saveMetadata's own atomic-write guarantee (used by every other slot mutation) already covers it."
+}

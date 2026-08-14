@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "activate-slot-mandatory-pre-activation-backup-runs-first",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) backup step",
+    "line": 674
+  },
+  "input": {
+    "operation": "activate_slot",
+    "server_type": "java",
+    "current_live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "target_slot": { "id": "slot-b", "name": "New adventure", "has_archive": true },
+    "backup_current_flag": true,
+    "backup_result": "success"
+  },
+  "expected": {
+    "backup_invoked_before_any_folder_removal": true,
+    "current_folders_removed_after_backup_succeeds": true,
+    "activation_proceeds_to_extraction": true,
+    "order": ["backupWorld", "remove current folders", "extract new archive", "update metadata", "persist active marker"]
+  },
+  "notes": "activateSlot's own doc comment (lines 643-648) numbers the steps: 1. auto-back-up the current world, 2. remove current folders, 3. unzip the new slot, 4. update lastPlayedAt. AppViewModel.activateWorldSlot (AppViewModel+WorldSlots.swift:231-234) always calls activateSlot with backupCurrent: true -- there is no UI path that skips the safety backup for an ordinary activation. The backup is not optional plumbing; it's the only recovery mechanism if extraction fails after the current folders are already gone (see activate-extraction-failure-leaves-partial-state-for-safety-backup-recovery)."
+}

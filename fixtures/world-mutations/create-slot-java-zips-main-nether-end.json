@@ -1,0 +1,26 @@
+{
+  "domain": "world-mutations",
+  "case": "create-slot-java-zips-main-nether-end",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlot(name:for:worldSeed:logLine:) via worldFolderNames(for:)",
+    "line": 391
+  },
+  "input": {
+    "operation": "create_slot",
+    "server_type": "java",
+    "level_name": "world",
+    "live_world_folders_on_disk": ["world", "world_nether", "world_the_end", "world_unrelated_leftover"],
+    "slot_name": "Before the Nether trip"
+  },
+  "expected": {
+    "world_folders_included_in_archive": ["world", "world_nether", "world_the_end"],
+    "reason_folder_excluded": "world_unrelated_leftover is not level-name, level-name_nether, or level-name_the_end so worldFolderNames(for:) never lists it",
+    "new_slot_created": true,
+    "new_slot_id_is_fresh_uuid": true,
+    "slot_json_written": true,
+    "zip_size_bytes_populated_from_disk_stat": true,
+    "live_world_folders_untouched": true
+  },
+  "notes": "worldFolderNames(for:) (WorldSlotManager.swift:244-270) derives the Java candidate set as [level-name, level-name_nether, level-name_the_end] from server.properties, then filters to only the ones that actually exist on disk (lines 264-268) -- an arbitrary same-prefix folder that isn't one of the three canonical suffixes is never a candidate, so it can't leak into the archive by accident. createSlot (line 391) never touches the live folders themselves, only zips them into a brand-new slot directory."
+}

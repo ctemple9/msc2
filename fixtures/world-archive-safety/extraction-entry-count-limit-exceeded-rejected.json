@@ -1,0 +1,20 @@
+{
+  "domain": "world-archive-safety",
+  "case": "extraction-entry-count-limit-exceeded-rejected",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlotFromZIP(zipURL:name:for:logLine:) -- D-006 correction",
+    "line": 1008
+  },
+  "input": {
+    "extraction_context": "import ZIP as new slot, later activation",
+    "zip_declared_entry_count": 5000000,
+    "reason": "a real Java world's region/entity/poi/data files number in the low thousands at most; millions of tiny entries is not a legitimate world shape"
+  },
+  "expected": {
+    "extraction_refused_before_writing_any_bytes": true,
+    "check_performed_against": "central directory's declared entry count, before iterating entries",
+    "error_category": "extraction limit exceeded: entry count"
+  },
+  "notes": "D-006 correction, not oracle parity. This is the companion zip-bomb vector to extraction-size-limit-exceeded-rejected: a huge number of near-empty entries can exhaust inodes, memory, or wall-clock time (one filesystem operation per entry) even when total declared bytes stay small, so a size-only limit is insufficient on its own. MSC 1's unzip -o has no entry-count awareness either. Phase 6 checks the declared entry count from the central directory against a fixed ceiling before any per-entry work begins, refusing the whole archive if exceeded -- consistent with every other archive-safety case in this domain refusing at the archive level, not the entry level, once a single entry proves the archive untrustworthy."
+}

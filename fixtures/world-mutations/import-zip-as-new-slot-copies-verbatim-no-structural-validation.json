@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "import-zip-as-new-slot-copies-verbatim-no-structural-validation",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlotFromZIP(zipURL:name:for:logLine:)",
+    "line": 1008
+  },
+  "input": {
+    "operation": "import_zip_as_new_slot",
+    "server_type": "java",
+    "source_zip_path": "/Users/cameron/Downloads/my-world.zip",
+    "slot_name": "Imported from friend"
+  },
+  "expected": {
+    "new_slot_created": true,
+    "zip_copied_verbatim_no_rezip": true,
+    "world_level_name_inferred_from_zip_listing": true,
+    "world_seed_inferred_from_level_dat_or_adjacent_meta_json": true,
+    "zip_member_paths_validated_at_this_step": false,
+    "activation_time_is_where_bad_content_would_surface": true
+  },
+  "notes": "createSlotFromZIP's own doc comment (lines 1002-1006) states plainly: 'no structural validation is enforced here -- if the ZIP is malformed the slot will be stored but activation will fail.' MSC 1 accepts any bytes at import time and defers all risk to whenever the slot is later activated (extracted via /usr/bin/unzip -o with no path checks -- see world-archive-safety's activation-time cases, which are where Phase 6 corrects this under D-006 rather than reproducing it: MSC 1's shell-based extraction has no defense against zip-slip, absolute paths, or symlink entries, and preserving that as baseline behavior would be preserving a security bug, not a contract). This fixture pins only the import-time behavior MSC 1 actually has today (verbatim copy, best-effort level-name/seed inference) -- the correction lives in the world-archive-safety fixtures, applied uniformly at every extraction point rather than duplicated here."
+}

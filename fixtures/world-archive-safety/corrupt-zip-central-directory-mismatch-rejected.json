@@ -1,0 +1,20 @@
+{
+  "domain": "world-archive-safety",
+  "case": "corrupt-zip-central-directory-mismatch-rejected",
+  "source": {
+    "file": "AppViewModel+WorldManagement.swift",
+    "test": "validateZipArchive(_:logPrefix:) -- D-006 correction",
+    "line": 261
+  },
+  "input": {
+    "extraction_context": "world replace from backup ZIP",
+    "zip_bytes": "truncated mid-entry; central directory records an entry the local file data does not fully contain"
+  },
+  "expected": {
+    "validation_result": "rejected",
+    "extraction_attempted": false,
+    "world_replace_aborted_before_folder_removal": true,
+    "error_category": "corrupt archive: central directory / local file mismatch"
+  },
+  "notes": "D-006 correction, not oracle parity. MSC 1's own pre-flight check, validateZipArchive (lines 253-274), already refuses to proceed on a bad archive -- but it does so by shelling out to '/usr/bin/unzip -t' (line 262) and trusting its exit status, a black box whose exact validation depth (checksum-only vs. full structural cross-check) is whatever that specific unzip build implements and isn't specified anywhere MSC 2 can pin against. Phase 6 replaces this with a real Rust zip-reading crate that parses the central directory and cross-checks it against local file headers directly, so the validation logic is auditable and consistent across all three platforms rather than depending on each OS's bundled unzip binary. The *behavior* being preserved (reject corrupt archives before touching any live world data) is baseline; the *mechanism* is the correction."
+}

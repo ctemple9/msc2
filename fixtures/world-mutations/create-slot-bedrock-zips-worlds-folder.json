@@ -1,0 +1,21 @@
+{
+  "domain": "world-mutations",
+  "case": "create-slot-bedrock-zips-worlds-folder",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "worldFolderNames(for:) Bedrock branch",
+    "line": 248
+  },
+  "input": {
+    "operation": "create_slot",
+    "server_type": "bedrock",
+    "worlds_directory_exists": true,
+    "slot_name": "Realm export"
+  },
+  "expected": {
+    "world_folders_included_in_archive": ["worlds"],
+    "single_fixed_folder_name": true,
+    "new_slot_created": true
+  },
+  "notes": "Bedrock has no level-name-derived folder set the way Java does -- worldFolderNames(for:)'s Bedrock branch (WorldSlotManager.swift:248-255) always returns the single fixed name \"worlds\" if that directory exists at the server root, and an empty list otherwise (exercised separately below by the no-world-folders case). Contrast with create-slot-java-zips-main-nether-end, which zips three level-name-derived folders instead of one fixed one -- this pair pins that the create path branches correctly on server_type."
+}

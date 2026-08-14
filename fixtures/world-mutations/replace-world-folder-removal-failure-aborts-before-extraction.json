@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "replace-world-folder-removal-failure-aborts-before-extraction",
+  "source": {
+    "file": "AppViewModel+WorldManagement.swift",
+    "test": "replaceWorld(for:newLevelName:worldSource:backupFirst:) removal-failure branch",
+    "line": 114
+  },
+  "input": {
+    "operation": "replace_world",
+    "server_type": "java",
+    "current_level_name": "world",
+    "world_source": "backupZip",
+    "injected_failure": "removing existing world/world_nether/world_the_end folders throws (one is locked by another process)"
+  },
+  "expected": {
+    "function_returns": false,
+    "new_source_extracted_or_copied": false,
+    "server_properties_touched": false,
+    "error_shown": "World Replace Failed",
+    "error_message": "Could not remove existing world folders."
+  },
+  "notes": "replaceWorld validates the new source first (ZIP openable, or folder exists -- lines 60-76) and takes the optional safety backup (lines 78-85) before ever touching the current world. The removal step (lines 101-112) is a separate, later gate: 'guard removed else { ...; return false }' at lines 114-118 exits before the switch that extracts/copies the replacement source (lines 120-137) ever runs. So an injected removal failure -- the 'delete' side of the rename/copy/delete/extract failure set -- leaves both the old world (removal never completed) and server.properties (never reached) untouched; nothing is left half-replaced."
+}

@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "rename-world-rollback-on-mid-sequence-move-failure",
+  "source": {
+    "file": "AppViewModel+WorldManagement.swift",
+    "test": "renameWorld(for:newLevelName:backupFirst:) rollbackMovedFolders()",
+    "line": 205
+  },
+  "input": {
+    "operation": "rename_world",
+    "server_type": "java",
+    "old_level_name": "world",
+    "new_level_name": "newname",
+    "move_sequence": ["world -> newname (succeeds)", "world_nether -> newname_nether (succeeds)", "world_the_end -> newname_the_end (fails: permission denied)"]
+  },
+  "expected": {
+    "final_folder_names_on_disk": ["world", "world_nether", "world_the_end (unchanged, never renamed)"],
+    "rollback_order": "reversed: newname_nether -> world_nether, then newname -> world",
+    "server_properties_level_name_unchanged": true,
+    "function_returns": false,
+    "error_shown": "World Rename Failed"
+  },
+  "notes": "renameWorld moves the three folders one at a time, appending each successful (oldURL, newURL) pair to movedPairs (line 225). On any failure it calls rollbackMovedFolders() (defined lines 205-216, invoked at line 229) which walks movedPairs in reverse and moves each one back -- so a failure on the third (last) folder correctly undoes the first two, restoring the pre-rename layout exactly, before server.properties is ever touched (that write happens after the whole move loop, line 236). The same rollbackMovedFolders() is also invoked if the later server.properties write itself fails (line 242), which is why the moves must be fully reversible independent of write order."
+}

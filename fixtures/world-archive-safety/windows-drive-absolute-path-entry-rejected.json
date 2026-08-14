@@ -1,0 +1,19 @@
+{
+  "domain": "world-archive-safety",
+  "case": "windows-drive-absolute-path-entry-rejected",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlotFromZIP(zipURL:name:for:logLine:) -- D-006 correction",
+    "line": 1008
+  },
+  "input": {
+    "extraction_context": "import ZIP as new slot, later activation",
+    "zip_entry_names": ["world/level.dat", "C:\\Windows\\System32\\evil.dll"]
+  },
+  "expected": {
+    "extraction_refused_entirely": true,
+    "files_written_outside_target_root": 0,
+    "error_category": "unsafe archive entry: Windows drive-absolute path"
+  },
+  "notes": "D-006 correction, not oracle parity. MSC 1 only ever ran on macOS, so its shell-based unzip never had to reason about Windows path forms; createSlotFromZIP's own doc comment admits 'no structural validation is enforced here' (lines 1002-1006) regardless of platform. MSC 2's agent runs on Windows too (msc2-engineering.md platform matrix), and imported world ZIPs are exactly the kind of external, untrusted input D-006's 'correction' category exists for: a drive-absolute entry (C:\\...) is a Windows-native escape from the target root that a Unix-only traversal/absolute-path check (looking only for a leading '/') would not catch. Phase 6's extractor rejects any entry that is drive-absolute or otherwise not a plain relative path, on every platform, regardless of which platform produced the archive."
+}

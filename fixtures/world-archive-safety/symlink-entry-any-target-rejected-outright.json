@@ -1,0 +1,23 @@
+{
+  "domain": "world-archive-safety",
+  "case": "symlink-entry-any-target-rejected-outright",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlotFromZIP(zipURL:name:for:logLine:) -- D-006 correction",
+    "line": 1008
+  },
+  "input": {
+    "extraction_context": "import ZIP as new slot, later activation",
+    "zip_entries": [
+      { "name": "world/level.dat", "type": "regular" },
+      { "name": "world/region/r.0.0.mca", "type": "symlink", "unix_mode_bits_mark_symlink": true, "target": "region/r.0.0.mca.real" }
+    ]
+  },
+  "expected": {
+    "extraction_refused_entirely": true,
+    "symlink_created_on_disk": false,
+    "error_category": "unsafe archive entry: symlink (target irrelevant)",
+    "target_containment_checked": false
+  },
+  "notes": "D-006 correction, not oracle parity. Unlike symlink-entry-pointing-outside-root-rejected (target escapes the root), this entry's symlink target -- if it were resolved -- would actually stay inside the extracted world folder. The correction is still to reject it outright rather than special-case in-root symlink targets as permitted: a world folder produced by a real Minecraft server or by MSC 1's own zip step never legitimately contains symlink entries (regular files only), so any symlink entry in a world archive is itself evidence of a hand-crafted or corrupted input, not a legitimate authoring pattern worth accommodating. Rejecting the whole class is simpler and strictly safer than trying to prove every symlink target is safe, and keeps this domain's rule uniform with the pointing-outside-root case rather than forking behavior on target analysis."
+}

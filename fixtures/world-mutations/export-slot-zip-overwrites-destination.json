@@ -1,0 +1,21 @@
+{
+  "domain": "world-mutations",
+  "case": "export-slot-zip-overwrites-destination",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "exportSlotZIP(_:from:to:logLine:)",
+    "line": 960
+  },
+  "input": {
+    "operation": "export_slot",
+    "slot": { "id": "slot-src", "name": "Export me", "world_zip_present": true },
+    "destination_path_already_has_a_file": true
+  },
+  "expected": {
+    "existing_destination_file_removed_first": true,
+    "source_zip_copied_to_destination": true,
+    "source_slot_untouched": true,
+    "function_returns": true
+  },
+  "notes": "exportSlotZIP (line 960) is read-only on the slot side -- it only fm.copyItem's the slot's world.zip outward. If a file already exists at destinationURL, it's removed first (lines 979-981) so copyItem doesn't fail with 'file already exists'; this means export is a deliberate overwrite-at-destination, same semantics as a Save-As-replace, not an append-or-fail."
+}

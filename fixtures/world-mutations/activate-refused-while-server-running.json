@@ -1,0 +1,22 @@
+{
+  "domain": "world-mutations",
+  "case": "activate-refused-while-server-running",
+  "source": {
+    "file": "AppViewModel+WorldSlots.swift",
+    "test": "activateWorldSlot(_:) running-server guard",
+    "line": 220
+  },
+  "input": {
+    "operation": "activate_slot",
+    "target_server_id": "srv-1",
+    "is_server_running": true,
+    "active_server_id": "srv-1"
+  },
+  "expected": {
+    "activation_attempted": false,
+    "error_shown": "Server Is Running",
+    "error_message_names_the_server": true,
+    "world_slot_manager_never_invoked": true
+  },
+  "notes": "The guard (line 220: 'if isServerRunning, configManager.config.activeServerId == cfgServer.id') lives in the orchestration layer, before WorldSlotManager.activateSlot is ever called -- WorldSlotManager itself has no concept of 'running' and enforces nothing (see the file header comment at WorldSlotManager.swift:19-20: 'The server MUST be stopped before any slot operation that touches world data. WorldSlotManager enforces nothing here -- the caller (AppViewModel) is responsible.'). The identical shape of guard (isServerRunning && activeServerId == this server) also gates renameWorld (AppViewModel+WorldManagement.swift:160-164) and replaceWorld (line 55-58) -- see replace-world-refuses-while-server-running for that call site's version. Phase 6's application service must own this check itself, since the pure world-slot repository (P6.10) is deliberately as ignorant of server-running-state as WorldSlotManager is."
+}

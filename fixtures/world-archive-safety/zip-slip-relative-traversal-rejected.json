@@ -1,0 +1,20 @@
+{
+  "domain": "world-archive-safety",
+  "case": "zip-slip-relative-traversal-rejected",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) extraction call -- D-006 correction",
+    "line": 718
+  },
+  "input": {
+    "extraction_context": "slot activation",
+    "zip_entry_names": ["world/level.dat", "world/../../../../etc/cron.d/evil"]
+  },
+  "expected": {
+    "extraction_refused_entirely": true,
+    "files_written_outside_target_root": 0,
+    "files_written_inside_target_root": 0,
+    "error_category": "unsafe archive entry: path traversal"
+  },
+  "notes": "D-006 correction, not oracle parity. MSC 1's activateSlot shells out to '/usr/bin/unzip -o \\(zipPath) -d \\(serverDirURL)' (line 718-719) with no entry-path inspection at all -- whatever paths are inside the zip, including ../ segments, are handed straight to the unzip binary, which resolves them relative to -d. A crafted or corrupted slot archive containing a traversal entry could write anywhere the agent process can reach. D-006 (msc2-decisions.md) explicitly allows documented security weaknesses to be corrected rather than preserved as baseline behavior; this is that correction. Phase 6's Rust extractor must validate every entry's normalized relative path stays inside the target root before writing anything, and refuse the whole archive (not just the one bad entry) on the first violation -- matching the all-or-nothing precedent already set by fixtures/path-safety's escape-detection fixtures for the content/file-browsing domain."
+}

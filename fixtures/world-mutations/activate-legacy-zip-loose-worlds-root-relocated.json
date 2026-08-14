@@ -1,0 +1,23 @@
+{
+  "domain": "world-mutations",
+  "case": "activate-legacy-zip-loose-worlds-root-relocated",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:backupCurrent:logLine:backupWorld:) legacy-layout relocation branch",
+    "line": 734
+  },
+  "input": {
+    "operation": "activate_slot",
+    "server_type": "bedrock",
+    "target_slot": { "id": "slot-old", "name": "Old Bedrock export", "has_archive": true, "worldLevelName": "MyWorld" },
+    "zip_contents_land_at": "worlds/db, worlds/level.dat, worlds/levelname.txt (loose at worlds/ root, no worlds/MyWorld/ subfolder)"
+  },
+  "expected": {
+    "expected_dir_worlds_MyWorld_created": true,
+    "loose_entries_moved_into_worlds_MyWorld": true,
+    "relocation_trigger": "expectedDir (worlds/MyWorld/) absent AND looseDbDir (worlds/db/) present",
+    "relocation_failure_is_non_fatal": true,
+    "activation_still_reports_success_if_relocation_fails": true
+  },
+  "notes": "Old zips (comment at lines 734-736) were created before worlds were reorganised into a named subfolder, so unzipping them lands files at worlds/ directly instead of worlds/<level-name>/. Lines 737-758 detect this specific shape (worlds/db present but worlds/<levelName>/ absent, line 743) and move every sibling entry except the level-name folder itself into the expected location. A failure here only logs a warning (line 755) -- it does not fail the activation -- because by this point the new archive has already been fully extracted; the relocation is a layout normalization, not a safety-critical step."
+}

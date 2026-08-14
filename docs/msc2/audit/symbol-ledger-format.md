@@ -11,7 +11,7 @@ in that same section — not a file-level bucket like the two audit CSVs.
 
 | Column | Meaning |
 |---|---|
-| `file` | Filename as it appears in `msc2-codex-file-inventory.csv` (no path — matches the inventory's own convention; MSC 1 has no filename collisions). |
+| `file` | Filename as it appears in `msc2-file-inventory-b.csv` (no path — matches the inventory's own convention; MSC 1 has no filename collisions). |
 | `bucket` | Which pass found this file: `mixed` (P0.26, all 59 `bucket=mixed` inventory rows) or `ui-flagged` (P0.27, the UI-bucket files P0.25's scanner flags at the chosen hit threshold). |
 | `symbol` | The Swift symbol this row is about — a function/method name, or a short description for a row that isn't one specific symbol (e.g. `(none)` for a file with nothing to extract). |
 | `kind` | `parser` (turns text/bytes into structured data), `policy` (a decision/validation/classification rule), `workflow` (an I/O-driving sequence — process launch, file staging, multi-step orchestration), or `none` (file has no agent-owned symbols). |

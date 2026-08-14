@@ -454,7 +454,7 @@ Two independent audits (conducted blind, then reconciled) classified all 246 pro
 | **Platform** | 11–12 | ~1.9 k | Per-OS adapters behind traits; one Swift sidecar. |
 | **Legacy** | 1 | 658 | **Do not port** (Docker Bedrock backend). |
 
-Per-file dispositions are in `msc2-claude-file-inventory.csv` and `msc2-codex-file-inventory.csv` (246 rows each, joinable on `file`).
+Per-file dispositions are in `msc2-file-inventory-a.csv` and `msc2-file-inventory-b.csv` (246 rows each, joinable on `file`).
 
 ### Estimated translation corpus
 
@@ -474,7 +474,7 @@ Per-file dispositions are in `msc2-claude-file-inventory.csv` and `msc2-codex-fi
 
 ### The UI deletion test
 
-The two audit inventories (`msc2-claude-file-inventory.csv`, `msc2-codex-file-inventory.csv`) are **file-level** dispositions. They are not a symbol ledger and must not be described as one — they identify *which files* need symbol-level review, not *which symbols* inside them must be preserved. Building the actual symbol ledger, one row per parser/policy/workflow found inside a Mixed or UI file, is work that has not been done.
+The two audit inventories (`msc2-file-inventory-a.csv`, `msc2-file-inventory-b.csv`) are **file-level** dispositions. They are not a symbol ledger and must not be described as one — they identify *which files* need symbol-level review, not *which symbols* inside them must be preserved. Building the actual symbol ledger, one row per parser/policy/workflow found inside a Mixed or UI file, is work that has not been done.
 
 A SwiftUI file containing filesystem or network calls is not automatically Mixed. The question is **whether the behavior belongs to the agent or to the replacement client**:
 

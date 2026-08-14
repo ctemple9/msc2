@@ -11,7 +11,7 @@ written.
 Usage:
     scan.py --bucket ui --min-hits 3 <path-to-msc1-source-root>
 
-For each file the inventory CSV (docs/msc2/audit/msc2-codex-file-inventory.csv)
+For each file the inventory CSV (docs/msc2/audit/msc2-file-inventory-b.csv)
 marks with the given --bucket, finds that file under <source-root> and counts
 occurrences of these patterns, comments stripped:
     - FileManager
@@ -34,7 +34,7 @@ import re
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-INVENTORY_CSV = os.path.join(REPO_ROOT, "docs", "msc2", "audit", "msc2-codex-file-inventory.csv")
+INVENTORY_CSV = os.path.join(REPO_ROOT, "docs", "msc2", "audit", "msc2-file-inventory-b.csv")
 
 LINE_COMMENT_RE = re.compile(r"//.*")
 BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)

@@ -1,7 +1,7 @@
 # MSC 2 Audit Reconciliation — Claude vs Codex
 
 **Date:** 2026-07-29
-**Inputs:** `msc2-audit-claude.md`, `msc2-codex-independent-audit.md` (both produced blind)
+**Inputs:** `msc2-audit-independent-a.md`, `msc2-audit-independent-b.md` (both produced blind)
 **Method:** every disagreement re-tested against the code; verdict recorded
 
 ---

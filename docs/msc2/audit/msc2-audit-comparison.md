@@ -340,7 +340,7 @@ Claude should export its classification as:
 file,bucket,difficulty,confidence,recommended_action
 ```
 
-with exactly 246 data rows. Once available, it can be joined directly against `msc2-codex-file-inventory.csv` to produce:
+with exactly 246 data rows. Once available, it can be joined directly against `msc2-file-inventory-b.csv` to produce:
 
 - Exact agreement count
 - Exact disagreement count

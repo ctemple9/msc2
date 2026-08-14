@@ -84,6 +84,7 @@ Rules:
 7. **A phase ends when its gate holds**, not when its steps are ticked. Gates are in `msc2-port-plan.md`.
 8. **MSC 1 is the oracle.** It lives at `~/Documents/Swift Projects/minecraft-server-controller` and must never be modified. Read it freely; write to it never.
 9. **If something contradicts the vision, stop and say so.** Don't build around it quietly.
+10. **No AI names in repo-visible identifiers.** Do not create filenames, directory names, branch names, tags, artifact names, or other repo-visible identifiers containing assistant/vendor/product names such as Codex, Claude, ChatGPT, or OpenAI. The required instruction filename `CLAUDE.md` is the only filename exception unless Cameron explicitly approves another one.
 
 ## Conventions
 

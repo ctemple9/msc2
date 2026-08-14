@@ -120,13 +120,13 @@ Not part of the controlled set; evidence behind it. Currently in `~/Desktop/`.
 | File | Contains |
 |---|---|
 | `msc2.md` | The original vision, written with Codex. Superseded on architecture. |
-| `msc2-audit-claude.md` | Claude's independent portability audit |
-| `msc2-codex-independent-audit.md` | Codex's independent portability audit |
+| `msc2-audit-independent-a.md` | Claude's independent portability audit |
+| `msc2-audit-independent-b.md` | Codex's independent portability audit |
 | `msc2-audit-reconciliation.md` | Disagreements re-tested against the code, with verdicts |
 | `msc2-audit-comparison.md` | Codex's comparison of both audits |
 | `msc2-audit-exact-diff.md` | File-level confusion matrix; 88.6% agreement; 28 adjudicated files |
-| `msc2-claude-file-inventory.csv` | 246-row per-file disposition |
-| `msc2-codex-file-inventory.csv` | 246-row per-file disposition |
+| `msc2-file-inventory-a.csv` | 246-row per-file disposition |
+| `msc2-file-inventory-b.csv` | 246-row per-file disposition |
 
 The two CSVs join on `file`. They are **file-level inputs to the future symbol ledger**, not the ledger itself — they say which files to open, not which symbols inside them must survive. Building the ledger is a Phase 0 deliverable (D-016).
 

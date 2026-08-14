@@ -1,6 +1,6 @@
 # MSC 2 Exact Audit Diff
 
-**Inputs:** `msc2-codex-file-inventory.csv` and `msc2-claude-file-inventory.csv`  
+**Inputs:** `msc2-file-inventory-b.csv` and `msc2-file-inventory-a.csv`  
 **Files compared:** 246  
 **Date:** July 29, 2026
 

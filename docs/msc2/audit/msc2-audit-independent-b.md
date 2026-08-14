@@ -25,7 +25,7 @@ This is a static architectural audit, not a proof of cross-platform compilation.
 - Existing tests
 - Manual inspection of high-risk and ambiguous files
 
-The accompanying `msc2-codex-file-inventory.csv` contains one row for every production file.
+The accompanying `msc2-file-inventory-b.csv` contains one row for every production file.
 
 ---
 

@@ -1,0 +1,29 @@
+{
+  "files": [
+    {
+      "path": "Paper_manual_20260813-222932.zip",
+      "source": "Cameron's live macOS MSC 1 install, server 'paper' -- produced 2026-08-13 22:29 by clicking 'Back Up' on the server editor's Backups tab (P6.3's real-evidence generation step, AppViewModel.createBackupForSelectedServer(isAutomatic: false)).",
+      "sanitized": "Not modified. Kept out of git via corpus/backups/.gitignore (real per-player NBT data) -- local evidence only, described here so its provenance is still recorded.",
+      "sha256": "f8908b44b45f9ba3a9f7718ef8baef81b857ee6bd2f6bf64239a54089bd306f0"
+    },
+    {
+      "path": "Paper_manual_20260813-222932.meta.json",
+      "source": "MSC 1's own sidecar, written alongside the backup zip above.",
+      "sanitized": "Not modified. Contains only server/slot ids and names, no player data -- committed to git as-is.",
+      "sha256": "3ba20a6b6eb5de4bccf9a2b7cba9d906177fd0b2aa1447b1a376596979b5eb09"
+    },
+    {
+      "path": "campack_manual_20260813-222917.zip",
+      "source": "Cameron's live macOS MSC 1 install, server 'campack' -- produced 2026-08-13 22:29 by clicking 'Back Up' on the server editor's Backups tab (P6.3's real-evidence generation step, AppViewModel.createBackupForSelectedServer(isAutomatic: false)).",
+      "sanitized": "Not modified. Kept out of git via corpus/backups/.gitignore (real per-player NBT data) -- local evidence only, described here so its provenance is still recorded.",
+      "sha256": "ca079e0ce5988cba38e79df68d050f19e74214fe6a7c1c1bed431fcfc5b8c03c"
+    },
+    {
+      "path": "campack_manual_20260813-222917.meta.json",
+      "source": "MSC 1's own sidecar, written alongside the backup zip above.",
+      "sanitized": "Not modified. Contains only server/slot ids and names, no player data -- committed to git as-is.",
+      "sha256": "0ed95e72b2c27ae456f836179f38ef2af08d13b494b07b85788ca4b82dea9585"
+    }
+  ],
+  "note": "Both real backups were generated together in the same P6.3 real-evidence session, one per MSC 1-managed Java server, so this checker's Java-backup requirement is proven by two distinct real servers rather than one."
+}

@@ -1,0 +1,35 @@
+{
+  "files": [
+    {
+      "path": "Paper/level.dat",
+      "source": "Cameron's live macOS MSC 1 install, server 'paper' (~/MinecraftServers/java/paper/Paper/level.dat), copied 2026-08-13. Real PaperMC world.",
+      "sanitized": "Not modified. Kept out of git via corpus/worlds/.gitignore (real per-player NBT data) -- local evidence only, described here so its provenance is still recorded.",
+      "sha256": "bf847abb5adecbb37837ceb3f79ac4c3ebb734436ee91f282484b68f6534dcb0"
+    },
+    {
+      "path": "campack/level.dat",
+      "source": "Cameron's live macOS MSC 1 install, server 'campack' (~/MinecraftServers/java/campack/campack/level.dat), copied 2026-08-13. Real Fabric-modded world.",
+      "sanitized": "Not modified. Kept out of git via corpus/worlds/.gitignore (real per-player NBT data) -- local evidence only, described here so its provenance is still recorded.",
+      "sha256": "5a2fe329e1822950b436f29646698903a8e835200dba8f5b51dd2c3601c26dce"
+    },
+    {
+      "path": "world_slots/active_slot_id.txt",
+      "source": "Cameron's live macOS MSC 1 install, server 'paper' (~/MinecraftServers/java/paper/world_slots/active_slot_id.txt), copied 2026-08-13.",
+      "sanitized": "Not modified. Contains only a slot UUID, no player data -- committed to git as-is.",
+      "sha256": "2402674780701bbde3c2a95ca6ae000b84bb2758f5a6b4e81f08a15ba03b0a35"
+    },
+    {
+      "path": "world_slots/3025D982-CB74-4CE8-9F6D-0098B04D3055/slot.json",
+      "source": "Cameron's live macOS MSC 1 install, server 'paper', its one real world slot, copied 2026-08-13.",
+      "sanitized": "Not modified. Contains only slot id/name/level-name/created-at, no player data -- committed to git as-is.",
+      "sha256": "10128c2cd6dd2fb5c981845f251d1ae50c87fa8ebb5dd1b53f729e09c96eacd9"
+    },
+    {
+      "path": "world_slots/3025D982-CB74-4CE8-9F6D-0098B04D3055/world.zip",
+      "source": "Cameron's live macOS MSC 1 install, server 'paper' -- produced 2026-08-13 22:29 by clicking 'Save Current World' on the Worlds tab (P6.3's real-evidence generation step, WorldSlotManager.updateSlotFromCurrentWorld), which zips the live world folder into its active slot.",
+      "sanitized": "Not modified. Kept out of git via corpus/worlds/.gitignore (real per-player NBT data, same archive member layout as the live Paper/ folder above) -- local evidence only, described here so its provenance is still recorded.",
+      "sha256": "28f53f9da7469ce61c0d08218023e2c9b6b865d671faa664ef4942d1220c3ebb"
+    }
+  ],
+  "note": "campack/ and Paper/ are both real live Java multi-folder worlds (Fabric-modded and vanilla-Paper respectively), staged so tools/phase6/corpus-check.py's rglob finds two distinct real shapes. Only one server's world_slots/ tree can occupy this directory's single 'world_slots' path at a time (the checker assumes one server's worth of slot evidence) -- paper's was chosen since it's MSC 2's primary supported Java flavor and the smaller, cleaner example; campack's equally real world_slots/world.zip evidence exists locally under Cameron's own ~/MinecraftServers/java/campack/world_slots/ and can replace this one if a modded-server slot example is ever needed instead. Neither real world has a `<name>_nether`/`<name>_the_end` sibling directory -- see corpus/worlds/README.md's 'P6.3 real evidence collected' section for why this checker requirement stays unmet even with fresh, real, generated evidence."
+}

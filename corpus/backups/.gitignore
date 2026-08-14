@@ -1,0 +1,10 @@
+# Real backup evidence collected by P6.3. The .zip archives themselves are
+# private (real per-player NBT data) and stay local-only; their small
+# .meta.json sidecars (server/slot ids and names only) are tracked.
+# Provenance/hashes for both are recorded in manifest.json, which IS
+# committed. See README.md's "P6.3 real evidence collected" section.
+*
+!.gitignore
+!README.md
+!manifest.json
+!*.meta.json

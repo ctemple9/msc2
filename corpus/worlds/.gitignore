@@ -1,0 +1,19 @@
+# Real per-player/world evidence collected by P6.3 -- large and/or private
+# (contains real Minecraft account UUIDs, inventories, and world state).
+# The live world folders (Paper/, campack/) and every world_slots/*/world.zip
+# stay local-only; provenance/hashes for all of it are recorded in
+# manifest.json instead, which IS committed. See README.md's "P6.3 real
+# evidence collected" section.
+*
+!.gitignore
+!README.md
+!manifest.json
+
+# world_slots/ itself holds only small, non-sensitive metadata (a slot UUID
+# marker, slot.json) alongside the large/private world.zip -- un-ignore the
+# directories so those small files can be tracked; world.zip stays covered
+# by the blanket "*" above since it's never explicitly un-ignored.
+!world_slots/
+!world_slots/*/
+!world_slots/active_slot_id.txt
+!world_slots/*/slot.json

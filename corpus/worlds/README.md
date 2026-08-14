@@ -1,5 +1,8 @@
-See `../README.md`. **Empty — needs real evidence from Cameron, collected by
-P6.3.**
+See `../README.md`. **Populated by P6.3** with real evidence from Cameron's
+live MSC 1 install — the actual `level.dat`/`world.zip`/backup-zip bytes are
+git-ignored (`.gitignore` in this directory), since they carry real
+per-player NBT data; `manifest.json` (committed) records their source,
+hashes, and why. See "P6.3 real evidence collected" below.
 
 `tools/phase6/corpus-check.py` (P6.2) is the dependency-free gate that
 checks this directory (together with `../backups/`) before P6.4 onward
@@ -30,48 +33,55 @@ The checker's own passing and deliberately-broken self-test cases live
 under `tools/phase6/fixtures/` instead, precisely so nothing invented ends
 up here standing in for the real thing.
 
-## P6.3 investigation results (2026-08-13) — blocked, nothing collected
+## P6.3 real evidence collected (2026-08-13)
 
-Searched for real evidence across Cameron's machine: both Java servers MSC 1
-currently manages (`~/MinecraftServers/java/campack`,
-`~/MinecraftServers/java/paper`, per `server_config_swift.json`), an older
-unmanaged copy of the same modpack (`~/Downloads/Minecraft/camcraft_modpack`),
-the Desktop/Downloads folders, and local Time Machine snapshots. This
-directory is still empty on purpose — every gap below is real, and this
-step's own instruction is to stop rather than invent, so nothing was written
-here yet.
+An initial search (both MSC 1-managed Java servers, an older unmanaged
+modpack copy, Desktop/Downloads, local Time Machine snapshots) found real
+`world_slots/` metadata but every real slot was archive-less and no real
+backup existed anywhere — recorded below as "Original gap 1/3", both now
+closed. Cameron then generated the missing evidence for real, in the real
+app: MSC 1's **Back Up** (Backups tab) and **Save Current World** (Worlds
+tab) actions, run against both `campack` and `paper`, 2026-08-13 22:29.
 
-**What's real and present:** three real `world_slots/` trees (`campack`,
-`paper`, and the unmanaged `camcraft_modpack` copy), each with a non-empty
-`active_slot_id.txt` marker naming a slot directory that exists and a real
-`slot.json` (`id`/`name`/`world_level_name`/`created_at`; `campack`'s also
-has `world_seed`); two real live Java worlds with an actual `level.dat`
-outside `world_slots/`.
+**What's here now**, all real, hashed and provenance-recorded in
+`manifest.json`, actual bytes git-ignored:
 
-**Two gaps against this checker's own inventory requirements:**
+- `Paper/` and `campack/` — two real live Java worlds (vanilla-Paper and
+  Fabric-modded), each with a real `level.dat`.
+- `world_slots/` — `paper`'s real slot, now **with** a real `world.zip`
+  (565,734 bytes; see `manifest.json` for the exact hash), produced live by
+  "Save Current World." `campack`'s equally real `world_slots/world.zip`
+  (11,269,354 bytes) exists on Cameron's own disk at
+  `~/MinecraftServers/java/campack/world_slots/` and can swap in if a
+  modded-server slot example is ever needed instead — only one server's
+  `world_slots/` tree fits this checker's single `corpus/worlds/world_slots/`
+  path at a time.
 
-1. **No slot has a `world.zip` archive.** All three real `world_slots/`
-   entries are archive-less — the "fresh archive-less slot" / "initial-slot
-   bootstrap" case P6.4's own characterization work already names, not yet
-   the "copied slot archive" case this checker requires. MSC 1 only writes
-   `world.zip` into a slot on an explicit save/duplicate-to-slot action;
-   neither real server has ever had that triggered.
-2. **Neither real world has a `<name>_nether` / `<name>_the_end` sibling
-   directory.** `campack` is a Fabric server, so Minecraft's own vanilla
-   world format nests dimensions inside the main world folder (`DIM-1`,
-   `DIM1`) — Fabric/vanilla servers structurally never produce sibling
-   dimension folders, now or later. `paper`'s dimensions (both generated —
-   `the_nether` and `the_end` region data both exist) live under a nested
-   `Paper/dimensions/minecraft/{overworld,the_nether,the_end}/` tree
-   instead of the classic sibling-folder layout this checker expects — this
-   looks like a real PaperMC storage-layout change in whatever version is
-   now installed versus whatever version `WorldSlotManager.swift`'s
-   multi-folder assumption was written against, not a configuration choice
-   Cameron made.
+**Original gap 1 (no slot had a `world.zip`) — closed.** Both real slots now
+have one, generated live rather than invented.
 
-No real backup evidence exists anywhere searched — see `../backups/README.md`.
+**Original gap 3 (no real backup existed) — closed**, see `../backups/README.md`.
 
-This is exactly the "stop instead of inventing it" case this step's own
-text names. Nothing here or in `../backups/` was fabricated to fill the
-gap; `docs/msc2/rolling-plan.md`'s P6.3 entry records the question this
-raises for Cameron.
+**Original gap 2 — still open, and generating fresh evidence didn't close
+it:** neither real world has a `<name>_nether` / `<name>_the_end` sibling
+directory next to `level.dat`, which `check_worlds_structure` in
+`tools/phase6/corpus-check.py` requires. Confirmed by running
+`python3 tools/phase6/corpus-check.py --inventory --worlds corpus/worlds
+--backups corpus/backups` against this now-real, now-complete evidence: it
+gets past every provenance/hash/manifest/safety check and fails on exactly
+one line —
+
+```
+corpus/worlds/Paper: no dimension sibling directory (Paper_nether or Paper_the_end) -- not a Java multi-folder world
+```
+
+This isn't a missing-evidence problem any more — it's a real, structural
+mismatch between what this checker expects (MSC 1's classic split-folder
+Java world layout) and what both of Cameron's real servers actually produce:
+`campack` is Fabric, whose vanilla world format nests dimensions inside the
+main world folder (`DIM-1`/`DIM1`) and structurally can never produce
+sibling folders, and `paper` uses a newer nested
+`Paper/dimensions/minecraft/{overworld,the_nether,the_end}/` layout instead
+of the classic sibling convention `WorldSlotManager.swift`'s multi-folder
+assumption was written against. `docs/msc2/rolling-plan.md`'s P6.3 entry
+records the question this raises for Cameron.

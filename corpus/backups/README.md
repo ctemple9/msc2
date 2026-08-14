@@ -1,5 +1,9 @@
-See `../README.md`. **Empty — needs real evidence from Cameron, collected by
-P6.3.**
+See `../README.md`. **Populated by P6.3** with two real backup zips (one per
+MSC 1-managed Java server) from Cameron's live MSC 1 install — the actual
+`.zip`/`.meta.json` bytes are git-ignored (`.gitignore` in this directory),
+since they carry real per-player NBT data; `manifest.json` (committed)
+records their source, hashes, and why. See "P6.3 real evidence collected"
+below.
 
 `tools/phase6/corpus-check.py` (P6.2) is the dependency-free gate that
 checks this directory (together with `../worlds/`) before P6.4 onward
@@ -21,18 +25,20 @@ The checker's own passing and deliberately-broken self-test cases live
 under `tools/phase6/fixtures/` instead, precisely so nothing invented ends
 up here standing in for the real thing.
 
-## P6.3 investigation results (2026-08-13) — blocked, nothing collected
+## P6.3 real evidence collected (2026-08-13)
 
-No real backup `.zip` exists anywhere searched on this machine: MSC 1 only
-creates `<serverDir>/backups/` on the first backup it takes
-(`ConfigManager.backupsDirectoryURL`), and neither Java server MSC 1
-currently manages has that folder at all; an older, unmanaged copy of the
-same modpack under `~/Downloads/Minecraft/camcraft_modpack/backups/` has the
-folder but it's empty. No manual or scheduled backup has ever run on this
-machine. See `../worlds/README.md`'s matching section for the full search
-and the two other real-evidence gaps found alongside this one.
+An initial search found no real backup `.zip` anywhere on this machine (see
+`../worlds/README.md`'s matching section for the full search). Cameron then
+generated two, for real, in the real app: MSC 1's **Back Up** action
+(server editor → Backups tab → "Back Up" under Manual Actions), run against
+both `campack` and `paper`, 2026-08-13 22:29.
 
-This directory stays empty on purpose, per this step's own "stop instead of
-inventing it" instruction — Cameron would need to trigger at least one real
-backup through MSC 1 (or supply one from elsewhere) before this category has
-anything real to inventory.
+- `Paper_manual_20260813-222932.zip` + `.meta.json` (565,734 bytes)
+- `campack_manual_20260813-222917.zip` + `.meta.json` (11,269,354 bytes)
+
+Both are real `AppViewModel.createBackupForSelectedServer(isAutomatic: false)`
+output — same production code path a user's own manual backup takes, not a
+synthetic fixture. The `.zip` bytes are git-ignored (real per-player NBT
+data); the `.meta.json` sidecars are small, contain only server/slot ids and
+names, and are committed as-is. `manifest.json` records source and SHA-256
+for all four files.

@@ -2071,12 +2071,28 @@ before and after the real LaunchDaemon restart. The full P4.43 checker still
 correctly fails until Linux and Windows evidence are produced.
 
 ### P4.43 — Prove credential persistence in real service processes on all three platforms
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase4/macos-service-lifecycle.sh`, `tools/phase4/linux-service-lifecycle.sh`, `tools/phase4/windows-service-lifecycle.ps1`, `tools/phase4/credential-evidence-check.py`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Extend each real service lifecycle check with the missing production proof: issue or migrate a credential through the existing public pairing/bootstrap path, authenticate a protected request, restart the actual LaunchDaemon/systemd/Windows Service process, and authenticate again with the same credential. Record sanitized evidence from real macOS, Fedora/Debian-family Linux, and Windows runs; never record token material. Do not pull the still-deferred named-token `/users` CRUD routes into this step. Only after all three pass, close the P4.3/P4.5 amendments and restate accurately what the Phase 4 gate proved. This amends Phase 4's completion record without reopening its already-proven Paper lifecycle gate.
 **Verify:** `python3 tools/phase4/credential-evidence-check.py --require macos,linux,windows`
 **Commit:** `P4.43: prove service credential persistence on every platform`
 **Batch:** stop-after
+
+**Actual result:** The all-OS P4.43 evidence gate now holds. The committed
+evidence files show macOS LaunchDaemon (`macos-20260813023717-6934.json`,
+PID `6991` → `7010`), Linux systemd
+(`linux-20260813025020-13152.json`, PID `13720` → `13933`), and Windows
+Service (`windows-20260813032132.json`, PID `16756` → `7252`) each
+authenticated `/v1/status` before restart, removed the bootstrap-token
+environment from the service definition, restarted the actual
+service-manager-owned agent process, and authenticated `/v1/status` again
+with the same bearer from the durable platform credential store. The checker
+accepts only sanitized evidence with `tokenMaterialRecorded=false`,
+`credentialStoredInProductionStore=true`, `restartedActualServiceProcess=true`,
+and before/after restart PIDs that differ. Verified with
+`python3 tools/phase4/credential-evidence-check.py --require macos,linux,windows`
+(`credential evidence ok: macos=2, linux=1, windows=1`). Cameron still marks
+the step `DONE`; this record does not self-close it.
 
 ### Phase 5 gate corrections
 

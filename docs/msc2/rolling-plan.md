@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 5 corrective work is verified. P4.40–P4.43 and P5.27–P5.35 are now `DONE` by Cameron's explicit verification closure on 2026-08-13; the prior Phase 5 review findings have corresponding corrective records and evidence.
-> **Next move:** Advance — update phase state and begin Phase 6 planning.
+> ## STATUS: Phase 6 is planned. Phase 5 is complete; Phase 6 execution has not started.
+> **Next move:** Read — Cameron reviews the Phase 6 step list before any code is written.
 > **Repo:** https://github.com/ctemple9/msc2 · the last checked Phase 5 candidate is commit `d229192`, with GitHub Actions run [`31757826552`](https://github.com/ctemple9/msc2/actions/runs/31757826552) green on macOS, Linux, Windows, repo invariants, and the D-021 headless check. P4.43 also records macOS/Linux/Windows real-service credential persistence evidence.
 > **Last updated:** 2026-08-13
 
@@ -55,8 +55,8 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 2 | API contract and operation model | complete |
 | 3 | Safety substrate | complete |
 | 4 | Java lifecycle vertical slice | complete |
-| 5 | Configuration and migration | not started |
-| 6 | Worlds and backups | not started |
+| 5 | Configuration and migration | complete |
+| **6** | Worlds and backups | planned |
 | 7 | Server families and provisioning | not started |
 | 8 | Mods, plugins, modpacks | not started |
 | 9 | Networking and helpers | not started |
@@ -2336,6 +2336,295 @@ scripts. The default Linux production factory still returns
 the P4.41 helper path. The scripts now set the override to an isolated per-run
 directory when running on Linux, matching the macOS smoke-only override pattern
 without silently weakening production startup.
+
+---
+
+## Phase 6 — Worlds and backups
+
+**Gate** (`msc2-port-plan.md` §3): "World discovery, slots, transactional mutations, backups, retention, verification, restore." Phase 6 must also satisfy the P5.33 amendment: audit and reconcile Phase 5's imported live-world and `world_slots` data before world mutations become authoritative.
+
+**Working exit criteria:** a Phase 5-imported Java server with only live world folders, only a copied slot archive, or both can enter the formal slot model without discarding either source; active-slot resolution and every slot mutation reproduce the characterized MSC 1 behavior; archive traversal, symlink escape, partial rename/copy, interrupted activation, and interrupted restore leave the last known-good world recoverable; manual and scheduled backups capture all Java dimension folders, coordinate safely with a running server, resume saves on every exit path, verify before being reported as backups, retain at least one known-good recovery point, and restore only after a mandatory safety backup; the frozen API, CLI, and copied iOS client exercise the same operations; the real local world/backup corpus passes without mutation; macOS, Linux, and Windows CI pass. Bedrock file layouts and pure policies are covered now, but any workflow that requires a live Bedrock runtime stays unavailable until Phase 10 and advertises that honestly.
+
+**Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. Primary files: `WorldSlotManager.swift` (slot model, active resolution, archives, metadata, NBT), `AppViewModel+WorldSlots.swift` (slot orchestration), `AppViewModel+WorldManagement.swift` (rename/replace rollback), `AppViewModel+Backups.swift` (creation, online consistency, metadata, retention, restore), `AppViewModel+WorldConversion.swift` (Chunker workflow), `AppViewModel+WorldRepair.swift` (Bedrock runtime-dependent repair), `AppViewModel+APIWiringWorlds.swift`, `AppViewModel+APIWiringBackupsHealth.swift`, `AppViewModel+APIWiringSettings.swift`, and the copied iOS `WorldsView.swift`/`RemoteAPIClient.swift`/`RemoteAPIModels.swift`.
+
+28 steps, eight groups:
+
+| Group | Steps | Deliverable |
+|---|---|---|
+| Scope and evidence | P6.1–P6.3 | confirmed boundary, self-tested corpus checker, real world/backup evidence |
+| Characterization and contract | P6.4–P6.8 | destructive-workflow fixtures, reconciliation rule, full Phase 6 API and capability rows |
+| World model and transactions | P6.9–P6.14 | records/NBT, safe archive store, import reconciliation, CRUD, activation, rename/replace |
+| Backups and recovery | P6.15–P6.18 | inventory/config, verified creation, scheduling/retention, transactional restore |
+| Conversion | P6.19 | restart-safe conversion behind an injected Chunker boundary |
+| Public clients | P6.20–P6.24 | routes/operations, CLI, and iOS world/backup workflows |
+| Public-path and real-corpus proof | P6.25–P6.27 | restart-sensitive smoke, real evidence run, tri-platform CI |
+| Phase exit | P6.28 | literal gate check |
+
+**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Every `stop-after` step ends its range. No batch crosses a failed Verify.
+
+**Not in this phase**, deferred on purpose:
+
+- **Bedrock `level.dat` repair and production online-backup command delivery** stay Phase 10 because both require a real Bedrock runtime. Phase 6 ports the file-layout/NBT rules and fake-runtime protocol tests, and returns an explicit capability-unavailable error for imported Bedrock records rather than pretending the operation ran.
+- **Provisioning a new server from a backup** (`duplicateBackupToNewServer`) stays Phase 7 with server-family provisioning. Phase 6 can restore a backup into the current server or import it as a world slot; it does not construct a new runtime.
+- **Installing or updating Chunker** is not folded into world mutation. Phase 6 defines and exercises the converter process boundary and uses an already-installed executable; helper acquisition belongs with later helper/provisioning work. An absent converter is an advertised unavailable capability, not an implicit download.
+- **Desktop/web screens** stay Phase 11. Their cells are `Planned` in the capability matrix; that is not an exception. The copied iOS client and CLI are the Phase 6 client surfaces.
+- **Arbitrary host filesystem browsing** remains outside the world API. Import/upload and export/download use bounded, operation-scoped staging under approved roots rather than accepting an unrestricted server-side path from a remote client.
+
+---
+
+### Scope and evidence
+
+### P6.1 — Scope Phase 6 and decide the imported-world reconciliation rule
+**Status:** awaiting verification
+**Files:** `docs/msc2/worlds/phase6-scope.md`, `docs/msc2/config-migration/phase5-scope.md`
+**What:** Read the Phase 5 import implementation and real package layout beside MSC 1's slot manager, then write the authoritative reconciliation rule for the three starting states: live folders only, `world_slots` only, and both together. Preserve Phase 5's established live-world precedence without overwriting a distinct copied slot archive: inventory both, identify the recorded active slot, create a recovery snapshot when the live data differs or cannot be proven identical, and only then persist the formal active marker. Record every symbol-ledger row owned here, the Bedrock/Phase 7/Phase 10 deferrals above, and the working gate. This is a design record, not Rust code.
+**Verify:** `python3 -c "from pathlib import Path; s=Path('docs/msc2/worlds/phase6-scope.md').read_text(); required=['live folders only','world_slots only','both together','recovery snapshot','Bedrock','Phase 7','Phase 10']; missing=[x for x in required if x not in s]; assert not missing, missing"`
+**Commit:** `P6.1: scope Phase 6 world and backup authority`
+**Batch:** solo
+
+### P6.2 — Build the Phase 6 corpus and gate checker first
+**Status:** not started
+**Files:** `tools/phase6/corpus-check.py`, `tools/phase6/fixtures/`, `corpus/worlds/README.md`, `corpus/backups/README.md`
+**What:** Build a dependency-free checker before evidence is collected. Inventory mode requires provenance, hashes, a Java multi-folder world, at least one real MSC 1 `world_slots` tree with metadata/active marker/archive, and at least one real backup ZIP plus any adjacent `.meta.json`; optional Bedrock evidence is reported separately and never fabricated. Exercise mode is added later by P6.26. Passing and deliberately failing self-tests prove missing provenance, duplicate hashes, malformed metadata, unsafe archive entries, and mutated inputs fail loudly.
+**Verify:** `python3 tools/phase6/corpus-check.py --selftest`
+**Commit:** `P6.2: build the Phase 6 corpus checker`
+**Batch:** solo
+
+### P6.3 — Collect real MSC 1 world and backup evidence
+**Status:** not started
+**Files:** `corpus/worlds/`, `corpus/backups/`, `corpus/worlds/README.md`, `corpus/backups/README.md`
+**What:** Inventory the real world-slot and backup material already present in Cameron's MSC 1 installation and the real `.msctransfer` package used in Phase 5. Commit only small sanitized structural evidence whose player/world data can be removed without changing layout, metadata keys, archive member names, or dimension relationships; keep large/private archives outside git behind environment paths. Record source, sanitization, byte size, and SHA-256. If the required Java slot/backup evidence is unavailable, stop instead of inventing it.
+**Verify:** `python3 tools/phase6/corpus-check.py --inventory --worlds corpus/worlds --backups corpus/backups`
+**Commit:** `P6.3: collect the MSC 1 world and backup corpus`
+**Batch:** stop-after
+
+---
+
+### Characterization and contract
+
+### P6.4 — Characterize world slots and Phase 5 import reconciliation
+**Status:** not started
+**Files:** `fixtures/world-slots/`, `fixtures/world-import-reconciliation/`, `docs/msc2/worlds/phase6-scope.md`
+**What:** Capture MSC 1's slot metadata/defaults, tolerant corrupt-entry loading, newest-first ordering, explicit-active → most-recently-played → newest-created fallback, Java/Bedrock level-name rules, fresh archive-less slots, and initial-slot bootstrap. Add the Phase 5 handoff matrix: raw live folders only, copied slots only, live plus matching slot, live plus stale/different active slot, missing/corrupt marker, corrupt slot metadata, and no world data. Expected results must preserve both recoverable sources and follow P6.1's reviewed authority rule.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/world-slots --expect 12 && python3 tools/fixture-runner/run.py --validate-dir fixtures/world-import-reconciliation --expect 8`
+**Commit:** `P6.4: characterize slots and imported-world reconciliation`
+**Batch:** solo
+
+### P6.5 — Characterize transactional world mutations and hostile archives
+**Status:** not started
+**Files:** `fixtures/world-mutations/`, `fixtures/world-archive-safety/`
+**What:** Characterize slot create/update/rename/delete/duplicate/copy/import/export, activation, direct world rename/replace, and rollback after each injected rename/copy/delete/extract failure. Cover Java's main/nether/end folder set, Bedrock's `worlds/<level-name>` layout, fresh-slot activation, wrong/running-server guards, mandatory pre-activation backup, legacy ZIP layout relocation, partial activation recovery, traversal, absolute paths, Windows path forms, symlink entries, corrupt ZIPs, and extraction limits. Record deliberate security corrections against MSC 1's shell-based ZIP handling as D-006 corrections rather than oracle parity.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/world-mutations --expect 20 && python3 tools/fixture-runner/run.py --validate-dir fixtures/world-archive-safety --expect 10`
+**Commit:** `P6.5: characterize transactional world mutations`
+**Batch:** solo
+
+### P6.6 — Characterize backup creation, retention, verification, and restore
+**Status:** not started
+**Files:** `fixtures/backups/`, `fixtures/backup-online-consistency/`, `fixtures/backup-restore/`
+**What:** Capture listing/display-name/meta-sidecar compatibility, association with the active slot, manual/auto/pre-mutation naming, config interval fallback and max-count clamp, pruning only MSC-managed files, and the no-players scheduled-backup skip. Cover Java `save-all flush` → `save-off`, timeout-as-best-effort, unconditional `save-on`, archive/write/meta failures, verification before visibility, failed/interrupted restore, mandatory safety-backup ordering, cross-slot and running-server guards, and retention when only one verified backup remains. Where Phase 6 strengthens MSC 1 by retaining a last known-good verified backup or rolling back an interrupted restore, mark the correction explicitly.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/backups --expect 16 && python3 tools/fixture-runner/run.py --validate-dir fixtures/backup-online-consistency --expect 10 && python3 tools/fixture-runner/run.py --validate-dir fixtures/backup-restore --expect 12`
+**Commit:** `P6.6: characterize backup and restore safety`
+**Batch:** solo
+
+### P6.7 — Characterize world metadata and conversion
+**Status:** not started
+**Files:** `fixtures/world-nbt/`, `fixtures/world-conversion/`
+**What:** Extract real small `level.dat` samples where sanitization preserves binary shape, then characterize the minimal NBT reader: compressed big-endian Java, headered little-endian Bedrock, every tag type the parser accepts, key-path fallbacks, seed/difficulty/gamemode/day-time extraction, ZIP member selection, and adjacent backup metadata precedence. Characterize conversion guards, nested-world discovery, temp cleanup, converter arguments, output packaging, new-slot versus replace-slot placement, mandatory target backup, atomic archive replacement, and failure after each stage. Do not characterize client navigation state.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/world-nbt --expect 14 && python3 tools/fixture-runner/run.py --validate-dir fixtures/world-conversion --expect 10`
+**Commit:** `P6.7: characterize world metadata and conversion`
+**Batch:** solo
+
+### P6.8 — Freeze the complete Phase 6 API and capability surface
+**Status:** not started
+**Files:** `docs/msc2/worlds/phase6-api.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/client-capability-matrix.csv`, `tools/api-contract-check.py`, `tools/phase6/capability-matrix-check.py`
+**What:** Reconcile the frozen baseline routes with the full agent-owned surface. Preserve existing DTO fields and status meanings, add operation IDs additively for activation/backup/restore/conversion, and add the missing slot CRUD/import/export, backup delete, and conversion operations needed so no client is architecturally blocked. Define bounded staged upload/download instead of arbitrary remote paths. Assign permission categories, error/help IDs, cancellation/restart behavior, and capability-unavailable responses for Bedrock-runtime work. Create the overdue D-023 matrix and fill every existing and Phase 6 row for Agent, Desktop/Web, iOS, and CLI; no blank cells or unapproved exceptions.
+**Verify:** `python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P6.8: freeze the Phase 6 world and backup contract`
+**Batch:** solo
+
+---
+
+### World model and transactions
+
+### P6.9 — Port world-slot records, identity rules, and NBT metadata
+**Status:** not started
+**Files:** `crates/msc-domain/src/world.rs`, `crates/msc-domain/src/nbt.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/world.rs`, `crates/msc-domain/tests/world_nbt.rs`, `crates/msc-domain/Cargo.toml`
+**What:** Port the pure `WorldSlot`/imported-metadata types, active-resolution policy, Java/Bedrock level-name sanitization and dimension-set derivation, backup association policy, and the minimal NBT reader against P6.4/P6.7 fixtures. Keep filesystem/archive/process work out of `msc-domain`.
+**Verify:** `cargo nextest run -p msc-domain world`
+**Commit:** `P6.9: port world records and metadata rules`
+**Batch:** safe
+
+### P6.10 — Build the safe world archive and slot repository
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/world_store.rs`, `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/world_store.rs`, `crates/msc-infrastructure/tests/world_archive.rs`, `crates/msc-infrastructure/Cargo.toml`
+**What:** Implement the `world_slots/{id}/{slot.json,world.zip,thumbnail.*}` repository over approved roots and atomic writes. Load corrupt entries independently, compute sizes without extracting, persist metadata/active markers atomically, apply the fixed thumbnail transform, and create/extract archives with traversal, symlink, entry-count, expanded-size, and destination-bound checks. No destructive live-world swap yet.
+**Verify:** `cargo nextest run -p msc-infrastructure -E 'test(/world_(store|archive)/)'`
+**Commit:** `P6.10: build the safe world-slot store`
+**Batch:** safe
+
+### P6.11 — Reconcile Phase 5 imported worlds into the formal slot model
+**Status:** not started
+**Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/world_import_reconciliation.rs`, `crates/msc-agent/src/routes/lifecycle.rs`
+**What:** Implement P6.1's idempotent handoff before any mutation route becomes available. Inventory live folders and copied slots, materialize slot-only legacy imports safely, create an initial slot for raw imports, preserve a distinct live recovery snapshot when both sources differ or equality is unknown, and persist the active marker only after every required archive/metadata write succeeds. A second startup must make no additional changes. Never mutate the original Phase 5 corpus input.
+**Verify:** `cargo nextest run -p msc-application world_import_reconciliation`
+**Commit:** `P6.11: reconcile imported worlds into slots`
+**Batch:** stop-after
+
+### P6.12 — Implement slot CRUD, copy, import, export, and thumbnails
+**Status:** not started
+**Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_slot_crud.rs`
+**What:** Implement create fresh, save live into active, rename, delete-nonactive, duplicate, copy-into-existing, staged ZIP import, staged export, and deterministic thumbnail update over P6.10's repository. Every overwrite uses a temp artifact plus atomic replacement, every failure preserves the previous slot, and server/runtime state guards live in the application service rather than clients.
+**Verify:** `cargo nextest run -p msc-application world_slot_crud`
+**Commit:** `P6.12: implement world-slot CRUD`
+**Batch:** safe
+
+### P6.13 — Implement transactional world activation and restart recovery
+**Status:** not started
+**Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/operations.rs`, `crates/msc-application/tests/world_activation.rs`, `crates/msc-infrastructure/src/operation_journal.rs`
+**What:** Activate a slot as a journaled transaction: refuse a running server, require the safety-backup port, stage the replacement, move the prior live folder set aside, install/relocate the new world, update world identity, commit the active marker/last-played metadata, then remove rollback material. Inject failure after every boundary and reconcile an interrupted operation on restart to either the old complete world or the new complete world, never a mixture.
+**Verify:** `cargo nextest run -p msc-application world_activation`
+**Commit:** `P6.13: make world activation transactional`
+**Batch:** safe
+
+### P6.14 — Implement transactional world rename and replacement
+**Status:** not started
+**Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_mutations.rs`
+**What:** Port MSC 1's Java/Bedrock direct rename and replacement workflows for the public compatibility routes. Preflight every destination and source, require the configured safety backup before destructive replacement, stage fresh/folder/backup input through the safe archive boundary, roll back partial multi-dimension renames in reverse order, and keep slot metadata/active identity consistent with the committed live folders.
+**Verify:** `cargo nextest run -p msc-application world_mutations`
+**Commit:** `P6.14: implement transactional world mutations`
+**Batch:** stop-after
+
+---
+
+### Backups and recovery
+
+### P6.15 — Port backup inventory, metadata, deletion, and configuration
+**Status:** not started
+**Files:** `crates/msc-domain/src/backup.rs`, `crates/msc-infrastructure/src/backup_store.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/backup_inventory.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-application/src/lib.rs`
+**What:** Port `BackupMeta`, legacy/current filename display parsing, newest-first listing, sidecar fallback, verified-state representation, paired ZIP/sidecar deletion, active-slot association, interval-option fallback, and max-count clamping. Configuration persists through the existing durable `ConfigServer` record and re-reads after save.
+**Verify:** `cargo nextest run -p msc-application backup_inventory`
+**Commit:** `P6.15: port backup inventory and configuration`
+**Batch:** safe
+
+### P6.16 — Create and verify offline and running-server backups
+**Status:** not started
+**Files:** `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/backup_creation.rs`, `crates/msc-application/tests/backup_online_consistency.rs`
+**What:** Implement one authoritative backup path for manual, automatic, safety, and pre-replace triggers. Capture every Java dimension folder; when the target is actively running, send `save-all flush`, await the characterized line or timeout, send `save-off`, archive, and unconditionally send `save-on` even after cancellation/error. Verify the completed archive and required members before publishing final metadata or a success result. Keep the Bedrock hold/query/resume protocol behind the same fakeable runtime port but unavailable in production until Phase 10.
+**Verify:** `cargo nextest run -p msc-application -E 'test(/backup_(creation|online_consistency)/)'`
+**Commit:** `P6.16: create verified consistent backups`
+**Batch:** safe
+
+### P6.17 — Implement scheduled backups and known-good retention
+**Status:** not started
+**Files:** `crates/msc-application/src/backups.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-application/tests/backup_retention.rs`, `crates/msc-agent/tests/backup_scheduler.rs`
+**What:** Add a bounded scheduler driven by each persisted server's enabled/interval/max-count settings. Preserve MSC 1's no-online-players skip and live reconfiguration, prune only MSC-managed backups and paired orphan sidecars, and never delete the final verified recovery point. Scheduler ticks enter through operation exclusivity, so they conflict cleanly with activation/restore rather than racing filesystem mutation.
+**Verify:** `cargo nextest run -p msc-application backup_retention && cargo nextest run -p msc-agent backup_scheduler`
+**Commit:** `P6.17: schedule backups with known-good retention`
+**Batch:** safe
+
+### P6.18 — Implement transactional backup restore and restart recovery
+**Status:** not started
+**Files:** `crates/msc-application/src/backups.rs`, `crates/msc-application/src/operations.rs`, `crates/msc-application/tests/backup_restore.rs`
+**What:** Preserve the safety-critical gate order: resolve server/slot, refuse unsupported/running/cross-slot requests, verify source, create and verify a mandatory safety backup, then stage restoration. Swap the current live folders through rollback names, install the verified archive, and journal each boundary. Cancellation or restart must reconcile to a complete old or restored world, retain the safety backup, and explain the outcome through the operation record.
+**Verify:** `cargo nextest run -p msc-application backup_restore`
+**Commit:** `P6.18: make backup restore transactional`
+**Batch:** stop-after
+
+---
+
+### Conversion
+
+### P6.19 — Port world conversion behind a fakeable Chunker boundary
+**Status:** not started
+**Files:** `crates/msc-application/src/world_conversion.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/world_conversion.rs`
+**What:** Define a `WorldConverter` process port and port the agent-owned conversion workflow: validate stopped source/target, unzip into unique staging, locate the actual nested world, invoke an already-installed Chunker, package output as a slot archive, create or atomically replace the destination slot, require a verified target safety backup before activating, and clean every temp directory on success/failure/cancel/restart. Missing Chunker reports capability unavailable and performs no mutation.
+**Verify:** `cargo nextest run -p msc-application world_conversion`
+**Commit:** `P6.19: port the world conversion workflow`
+**Batch:** stop-after
+
+---
+
+### Public clients
+
+### P6.20 — Add Phase 6 DTOs and keep OpenAPI conformance executable
+**Status:** not started
+**Files:** `crates/msc-api/src/dto/worlds.rs`, `crates/msc-api/src/dto/backups.rs`, `crates/msc-api/src/dto/mod.rs`, `crates/msc-api/tests/world_backup_conformance.rs`, `docs/msc2/api-contract/openapi.json`
+**What:** Implement every P6.8 request/response type, preserving the copied iOS client's existing field names/defaults and making all additions optional where skew requires it. Include operation IDs, verification state, staged transfer descriptors, and structured errors/capability-unavailable responses. Round-trip representative legacy and new payloads against the contract.
+**Verify:** `cargo nextest run -p msc-api world_backup_conformance && python3 tools/api-contract-check.py --v1-summary`
+**Commit:** `P6.20: add world and backup API types`
+**Batch:** safe
+
+### P6.21 — Back world and backup routes with the real services
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
+**What:** Replace absent/stub behavior with P6.11–P6.19 services through the one durable Phase 5 state. Enforce `worlds`/`settings` permissions, approved-root staging, request limits, audit attribution, operation journaling/progress/cancellation, and per-server exclusivity. Every GET reflects re-read disk/config state; mutation responses do not claim success before commit and verification.
+**Verify:** `cargo nextest run -p msc-agent world_backup_routes && python3 tools/contract-conformance-check.py --phase6`
+**Commit:** `P6.21: wire real world and backup routes`
+**Batch:** stop-after
+
+### P6.22 — Add complete world and backup CLI commands
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/cli_worlds_backups.rs`
+**What:** Add list/create/rename/activate/delete/duplicate/copy/import/export/convert commands under `msc world`, and list/now/delete/restore/config commands under `msc backup`. Long operations print the operation ID, wait with progress by default, support cancellation, emit stable JSON under `--json`, and preserve meaningful nonzero exit codes.
+**Verify:** `cargo nextest run -p msc-agent cli_worlds_backups`
+**Commit:** `P6.22: add world and backup CLI commands`
+**Batch:** safe
+
+### P6.23 — Repoint iOS world/backup models and networking
+**Status:** not started
+**Files:** `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIClient.swift`, `clients/ios/MSCRemoteiOS_Swift/DashboardViewModel.swift`, `clients/ios/MSCRemoteiOSTests/Phase6WorldBackupAPITests.swift`, `clients/ios/MSCRemoteiOS.xcodeproj/project.pbxproj`
+**What:** Replace the copied MSC 1 world/backup calls with `/v1` DTOs and operation polling/streaming, keep credentials host-keyed, and add multipart/staged upload/download support for slot import/export without exposing arbitrary server paths. Tests decode both preserved baseline payloads and additive Phase 6 payloads and prove auth/version headers remain attached.
+**Verify:** `xcodebuild test -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:MSCRemoteiOSTests/Phase6WorldBackupAPITests`
+**Commit:** `P6.23: repoint iOS world and backup networking`
+**Batch:** safe
+
+### P6.24 — Complete the iOS world and backup workflows
+**Status:** not started
+**Files:** `clients/ios/MSCRemoteiOS_Swift/WorldsView.swift`, `clients/ios/MSCRemoteiOS_Swift/ServerView.swift`, `clients/ios/MSCRemoteiOS_Swift/` (Phase 6 backup views), `clients/ios/MSCRemoteiOSTests/Phase6WorldBackupViewModelTests.swift`, `docs/msc2/client-capability-matrix.csv`
+**What:** Make the phone a real Phase 6 client: show active slot and verified backups; create/rename/activate/duplicate/delete/import/export/convert slots; create/delete/restore backups; edit schedule/retention; show progress/cancel/failure/recovery states; and require the existing device-auth protection for destructive restore/delete actions. Update every Phase 6 iOS matrix cell to `Implemented`; Desktop/Web remains `Planned`, never silently excepted.
+**Verify:** `xcodebuild test -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:MSCRemoteiOSTests/Phase6WorldBackupViewModelTests && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P6.24: complete iOS world and backup workflows`
+**Batch:** stop-after
+
+---
+
+### Public-path and real-corpus proof
+
+### P6.25 — Build a restart-sensitive Phase 6 public-path smoke
+**Status:** not started
+**Files:** `tools/phase6/phase6-gate-smoke.sh`, `tools/phase6/fixtures/`
+**What:** Start a real foreground agent with isolated durable roots and use only the CLI/API to import a Java multi-folder world, reconcile it into slots, run slot CRUD, activate with a safety backup, take and verify manual/scheduled backups, inject failures into save coordination and archive creation, restore, restart the process mid-activation and mid-restore, and prove recovery leaves one complete world plus a known-good backup. The committed synthetic path runs everywhere; private real evidence is supplied only to P6.26.
+**Verify:** `tools/phase6/phase6-gate-smoke.sh --synthetic`
+**Commit:** `P6.25: add the restart-sensitive Phase 6 smoke`
+**Batch:** solo
+
+### P6.26 — Exercise the real MSC 1 world and backup corpus
+**Status:** not started
+**Files:** `tools/phase6/corpus-check.py`, `crates/msc-application/tests/real_world_backup_corpus.rs`, `corpus/worlds/README.md`, `corpus/backups/README.md`
+**What:** Add exercise mode and run the real material collected in P6.3 through repository load, import reconciliation, safe archive validation, metadata/NBT parsing, a non-destructive restore into a temporary root, and save/reload. Hash every source before/after and report each independently. Run the real package/world/backup through the public Phase 6 smoke where size permits; a direct library-only pass is insufficient for the gate.
+**Verify:** `python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"`
+**Commit:** `P6.26: validate the real MSC 1 world and backup corpus`
+**Batch:** stop-after
+
+### P6.27 — Run Phase 6 fixtures and public smoke on all three platforms
+**Status:** not started
+**Files:** `.github/workflows/ci.yml`, `tools/phase6/phase6-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
+**What:** Add the committed synthetic Phase 6 fixture, application, route, CLI, and restart-smoke path to macOS, Linux, and Windows CI. Exercise Windows case-insensitive/path-separator/locked-file rollback cases and require all three jobs for the exact candidate commit. Do not put private corpus data or local absolute paths in CI.
+**Verify:** `gh workflow run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh run list --workflow ci.yml --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P6.27: run Phase 6 safety checks on every platform`
+**Batch:** stop-after
+
+---
+
+### Phase exit
+
+### P6.28 — Phase 6 exit gate check
+**Status:** not started
+**Files:** `docs/msc2/rolling-plan.md` (this entry only unless the gate finds a defect)
+**What:** Run the working gate from this phase's header, not the checklist: formatting and native/cross-target clippy; every workspace test; static API/capability checks; the restart-sensitive synthetic public-path smoke; the real MSC 1 world/backup corpus through readers and public operations; and the exact-commit GitHub Actions macOS/Linux/Windows jobs. Inspect the recovered live folders, slots, markers, backup archives, metadata, and operation records after the injected interruption cases. If any leg fails, stop and plan only the failing correction. Cameron alone marks this step `DONE` and advances to Phase 7.
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && run_id=$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P6.28: run the Phase 6 exit gate`
+**Batch:** stop-after
 
 ---
 

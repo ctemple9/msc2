@@ -1,0 +1,18 @@
+{
+  "domain": "backups",
+  "case": "list-no-backups-directory-returns-empty",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "loadBackupsForSelectedServer() missing-backups-directory guard",
+    "line": 35
+  },
+  "input": {
+    "backups_directory_exists": false
+  },
+  "expected": {
+    "backup_items": [],
+    "backups_folder_size_display": null,
+    "logged": "[Backup] No backups directory yet for <server>."
+  },
+  "notes": "loadBackupsForSelectedServer's guard (line 35) checks fileExists + isDirectory before ever listing contents; a server that has never been backed up simply reports an empty list rather than an error."
+}

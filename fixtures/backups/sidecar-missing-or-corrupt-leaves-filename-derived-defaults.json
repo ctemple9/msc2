@@ -1,0 +1,28 @@
+{
+  "domain": "backups",
+  "case": "sidecar-missing-or-corrupt-leaves-filename-derived-defaults",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "readBackupMeta(forBackupURL:) missing-file guard and decode-failure catch",
+    "line": 474
+  },
+  "input": {
+    "filename": "world_auto_20260101-000000.zip",
+    "sidecar_variants": [
+      { "sidecar_exists": false },
+      { "sidecar_exists": true, "sidecar_contents": "{not valid json" }
+    ]
+  },
+  "expected": {
+    "both_variants": {
+      "slot_id": null,
+      "slot_name": null,
+      "trigger_reason": "auto"
+    },
+    "logged": {
+      "missing_file_variant": null,
+      "malformed_json_variant": "[Backup] Warning: could not read sidecar for world_auto_20260101-000000.zip: <decode error>. Treating it as a legacy/unmatched backup."
+    }
+  },
+  "notes": "readBackupMeta returns nil on both paths -- the missing-file guard (line 478) returns silently, while the do/catch (480-486) logs a warning before returning nil. loadBackupsForSelectedServer's `if let meta = ...` (line 82) treats both identically: it simply skips the override block, leaving item.slotId/slotName nil and triggerReason at its filename-derived value (\"auto\" here, from the `_auto_` token at line 70)."
+}

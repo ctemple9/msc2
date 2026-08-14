@@ -1,0 +1,27 @@
+{
+  "domain": "backups",
+  "case": "sidecar-present-overrides-filename-derived-trigger-reason-and-adds-slot-association",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "loadBackupsForSelectedServer() sidecar override",
+    "line": 82
+  },
+  "input": {
+    "filename": "world_manual_20260101-000000.zip",
+    "sidecar_meta": {
+      "serverId": "server_1",
+      "serverDisplayName": "Main Server",
+      "slotId": "slot-a",
+      "slotName": "Base Camp",
+      "worldSeed": "12345",
+      "triggerReason": "pre-restore"
+    }
+  },
+  "expected": {
+    "trigger_reason": "pre-restore",
+    "slot_id": "slot-a",
+    "slot_name": "Base Camp",
+    "is_automatic": false
+  },
+  "notes": "filenameTrigger (line 70) only seeds a default of \"manual\" from the `_manual_` token; the sidecar assignment block (lines 82-88) unconditionally overwrites triggerReason (and slotId/slotName/serverId/serverDisplayName) whenever readBackupMeta succeeds. isAutomatic (AppModels.swift:240) is derived from the FINAL triggerReason string, so a manually-tokened file whose sidecar says \"pre-restore\" correctly reports isAutomatic == false -- the sidecar, not the filename, is authoritative."
+}

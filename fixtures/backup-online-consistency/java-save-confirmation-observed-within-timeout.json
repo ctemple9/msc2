@@ -1,0 +1,18 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "java-save-confirmation-observed-within-timeout",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pauseSavesForBackup(isBedrock:) java waitForConsoleLine predicate",
+    "line": 351
+  },
+  "input": {
+    "console_line": "[12:00:00] [Server thread/INFO]: Saved the game",
+    "elapsed_seconds": 2
+  },
+  "expected": {
+    "confirmed": true,
+    "logged": "[Backup] Java saves flushed to disk and auto-save paused."
+  },
+  "notes": "waitForConsoleLine's predicate (lines 352-353) matches either 'Saved the game' or 'Saved the world', case-insensitively via localizedCaseInsensitiveContains, so either vanilla Paper phrasing satisfies it."
+}

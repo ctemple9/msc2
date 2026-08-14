@@ -1,0 +1,21 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "sidecar-meta-write-failure-logged-as-warning-backup-still-succeeds",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "writeBackupMeta(_:forBackupURL:) write failure",
+    "line": 492
+  },
+  "input": {
+    "zip_process_exit_status": 0,
+    "meta_json_write_throws": true
+  },
+  "expected": {
+    "backup_success": true,
+    "zip_file_exists": true,
+    "sidecar_written": false,
+    "logged": "[Backup] Warning: could not write sidecar for <file>: <error>.",
+    "function_returns": true
+  },
+  "notes": "writeBackupMeta's own try/catch (lines 494-501) swallows the write error into a log line and returns normally. createBackup's own return value (line 303, `return status == 0`) is keyed only to the zip's exit status, never to whether the sidecar wrote successfully -- per the doc comment at 490-491: 'the backup ZIP itself is the important artifact; the sidecar is supplementary.' A backup that loses its sidecar this way is indistinguishable, once loaded, from an old pre-sidecar backup (see fixtures/backups/sidecar-missing-or-corrupt-leaves-filename-derived-defaults)."
+}

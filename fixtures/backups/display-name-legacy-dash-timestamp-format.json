@@ -1,0 +1,16 @@
+{
+  "domain": "backups",
+  "case": "display-name-legacy-dash-timestamp-format",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "makeDisplayName(for:fallbackDate:) legacy dash-suffix fallback",
+    "line": 962
+  },
+  "input": {
+    "filename_base": "myworld-20250601-120000"
+  },
+  "expected": {
+    "display_name": "myworld — 2025-06-01 12:00:00"
+  },
+  "notes": "Reached only when neither `_auto_` nor `_manual_` is present in the base name. `base.range(of: \"-\", options: .backwards)` (line 962) splits on the LAST dash, so the prefix (\"myworld\") can itself contain dashes without breaking the timestamp parse -- only the final `-yyyyMMdd-HHmmss` suffix has to isolate cleanly. Joined with an em dash, not a hyphen."
+}

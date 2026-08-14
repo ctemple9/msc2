@@ -1,0 +1,16 @@
+{
+  "domain": "backups",
+  "case": "auto-backup-max-count-editor-clamps-to-3-through-50",
+  "source": {
+    "file": "ServerEditorBackupsTab.swift",
+    "test": "backupsTab Stepper(value: $autoBackupMaxCountLocal, in: 3...50)",
+    "line": 47
+  },
+  "input": {
+    "attempted_values": [1, 999]
+  },
+  "expected": {
+    "clamped_values": [3, 50]
+  },
+  "notes": "`Stepper(\"\", value: $autoBackupMaxCountLocal, in: 3...50)` is SwiftUI's own range clamp -- it is UI-layer only. setAutoBackupMaxCount(_:for:) (AppViewModel+ServerControls.swift:820-825) itself performs no validation or clamping on whatever Int it is handed; the 3...50 bound exists purely because the editor's Stepper control cannot itself produce a value outside that range, not because the model enforces it. A config file hand-edited to a value like 1 would be accepted as-is by the model layer."
+}

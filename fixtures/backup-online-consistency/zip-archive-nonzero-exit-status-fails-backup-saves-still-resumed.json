@@ -1,0 +1,23 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "zip-archive-nonzero-exit-status-fails-backup-saves-still-resumed",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "createBackup(for:isAutomatic:slotId:slotName:triggerReason:) nonzero-status branch",
+    "line": 293
+  },
+  "input": {
+    "zip_process_exit_status": 1,
+    "saves_were_paused": true,
+    "is_automatic": false
+  },
+  "expected": {
+    "backup_success": false,
+    "sidecar_written": false,
+    "saves_resumed_before_return": true,
+    "logged": "[Backup] zip failed with status 1",
+    "user_error_shown": true,
+    "error_message": "The zip process exited with an error (status 1). Check the console for details."
+  },
+  "notes": "`if savesPaused { await resumeSavesAfterBackup(...) }` (lines 271-273) runs unconditionally between the zip attempt and the success/failure switch (line 275) -- saves are re-enabled whether the zip succeeded or not. The user-facing error alert only fires for manual backups (`if !isAutomatic`, line 295); an automatic backup's failure only logs, per the same branch."
+}

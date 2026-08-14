@@ -1,0 +1,18 @@
+{
+  "domain": "backups",
+  "case": "manual-backup-uses-manual-token-and-manual-trigger-reason",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "createBackup(for:isAutomatic:slotId:slotName:triggerReason:) filename token and default reason",
+    "line": 233
+  },
+  "input": {
+    "is_automatic": false,
+    "explicit_trigger_reason": null
+  },
+  "expected": {
+    "filename_token": "_manual_",
+    "sidecar_trigger_reason": "manual"
+  },
+  "notes": "token = isAutomatic ? autoBackupToken : manualBackupToken (line 233). The sidecar's reason (line 280) is `triggerReason ?? (isAutomatic ? \"auto\" : \"manual\")` -- with no explicit override, it derives the same default from isAutomatic. An explicit triggerReason argument (as restoreBackup passes \"pre-restore\") overrides this default independently of isAutomatic and independently of the filename token, which is derived from isAutomatic alone."
+}

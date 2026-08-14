@@ -1,0 +1,20 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-aborted-when-archive-validation-fails-world-untouched",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) archive-invalid abort",
+    "line": 657
+  },
+  "input": {
+    "safety_backup_created": true,
+    "archive_valid": false
+  },
+  "expected": {
+    "world_folders_removed": false,
+    "unzip_attempted": false,
+    "error_title": "Restore Failed",
+    "error_message": "The selected backup ZIP could not be opened. Your current world was not changed."
+  },
+  "notes": "The current world survives because folder removal (line 668) is downstream of this guard (lines 657-665). Both the just-created pre-restore safety backup and the still-intact live world exist afterward -- the failed restore leaves nothing worse off than before it started."
+}

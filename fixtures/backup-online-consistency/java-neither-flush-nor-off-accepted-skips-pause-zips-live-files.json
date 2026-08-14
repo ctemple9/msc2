@@ -1,0 +1,20 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "java-neither-flush-nor-off-accepted-skips-pause-zips-live-files",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pauseSavesForBackup(isBedrock:) java both-sends-fail guard",
+    "line": 347
+  },
+  "input": {
+    "flush_send_result": false,
+    "save_off_send_result": false
+  },
+  "expected": {
+    "saves_paused": false,
+    "logged": "[Backup] Warning: could not send save commands; backing up live files without a save pause.",
+    "confirmation_wait_skipped": true,
+    "resume_will_be_called": false
+  },
+  "notes": "Only happens when sendBackupCommand can't dispatch either command at all (e.g. no active backend). The guard at line 347 short-circuits before ever calling waitForConsoleLine. The caller's `savesPaused` (createBackup line 247) stays false, so `if savesPaused { await resumeSavesAfterBackup(...) }` (lines 271-273) is never invoked -- there is nothing to resume."
+}

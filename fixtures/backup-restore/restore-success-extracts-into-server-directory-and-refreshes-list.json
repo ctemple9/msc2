@@ -1,0 +1,21 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-success-extracts-into-server-directory-and-refreshes-list",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) success path",
+    "line": 687
+  },
+  "input": {
+    "safety_backup_created": true,
+    "archive_valid": true,
+    "unzip_exit_status": 0
+  },
+  "expected": {
+    "world_folders_removed_first": true,
+    "unzip_command": "unzip -o <backup.path> -d <serverDirURL.path>",
+    "logged": "[Backup] Restore complete from <path>",
+    "backup_list_reloaded": true
+  },
+  "notes": "Positive control. unzip runs with `-o` (overwrite) extracting directly into the server root (line 675), relying on the ZIP's own internal member paths (`<levelName>`, `<levelName>_nether`, `<levelName>_the_end`) to land in the right place -- the same archive-shape assumption `backupWorld`'s creation-time `zip -r <archive> <worldNames>` (run relative to serverDirURL, line 259/882) guarantees at write time."
+}

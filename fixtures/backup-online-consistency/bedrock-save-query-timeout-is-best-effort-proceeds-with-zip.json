@@ -1,0 +1,21 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "bedrock-save-query-timeout-is-best-effort-proceeds-with-zip",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pauseSavesForBackup(isBedrock:) bedrock timeout path",
+    "line": 336
+  },
+  "input": {
+    "is_bedrock": true,
+    "poll_responses": ["saving in progress", "saving in progress", "saving in progress"],
+    "deadline_reached": true
+  },
+  "expected": {
+    "ready": false,
+    "logged": "[Backup] Warning: timed out waiting for Bedrock 'save query' to report ready; proceeding with the zip anyway.",
+    "zip_still_runs": true,
+    "pause_saves_return_value": true
+  },
+  "notes": "Same best-effort contract as the Java case: pauseSavesForBackup still returns true for Bedrock as long as `sendBackupCommand(\"save hold\")` itself succeeded (line 332), independent of whether readiness was ever confirmed within the 10s window."
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-creates-mandatory-safety-backup-before-any-restore-mutation",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) mandatory safety-backup call",
+    "line": 639
+  },
+  "input": {
+    "restore_requested": true
+  },
+  "expected": {
+    "safety_backup_call": { "is_automatic": false, "trigger_reason": "pre-restore" },
+    "order": ["createBackup(triggerReason: pre-restore)", "validateZipArchive", "removeWorldFolders", "unzip"]
+  },
+  "notes": "The safety backup goes through the same createBackup(...) authoritative path (line 639) as any manual backup: isAutomatic:false. It therefore gets the ordinary `_manual_` filename token and IS subject to pruning -- contrast with the Replace World pre-replace safety backup (fixtures/backups/pre-replace-backup-has-no-token-and-is-excluded-from-pruning), which deliberately opts out of both the token and pruning."
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "backups",
+  "case": "display-name-auto-manual-token-parses-timestamp",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "makeDisplayName(for:fallbackDate:) new-format token loop",
+    "line": 951
+  },
+  "input": {
+    "filename_base": "world_auto_20260214-153045"
+  },
+  "expected": {
+    "display_name": "2026-02-14 15:30:45"
+  },
+  "notes": "The loop at line 951 tries both autoBackupToken (\"_auto_\") and manualBackupToken (\"_manual_\") in turn, taking the substring after the matched token and parsing it with format \"yyyyMMdd-HHmmss\". A `_manual_`-tokened filename goes through the identical code path with the same result shape -- only the matched token differs, not the parsing logic."
+}

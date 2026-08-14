@@ -1,0 +1,25 @@
+{
+  "domain": "backup-restore",
+  "case": "backup-verification-required-before-listing-or-restore-eligibility-phase6-correction",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "createBackup(...) success branch has no structural verification before visibility",
+    "line": 276
+  },
+  "input": {
+    "zip_exit_status": 0,
+    "structural_verification_performed_by_msc1_at_creation_time": false
+  },
+  "expected": {
+    "msc1_behavior": {
+      "backup_becomes_visible_and_restorable_immediately_on_zip_exit_0": true,
+      "structural_check_before_visibility": false
+    },
+    "phase6_correction": {
+      "backup_verified_structurally_before_being_listed_as_restorable": true,
+      "reuses": "the same archive-safety structural check P6.5 built for fixtures/world-archive-safety (rejects traversal, absolute paths, symlinks, corrupt central-directory entries)",
+      "unverified_or_failed_archives": "still reported (never hidden) but excluded from the restorable set until re-verified"
+    }
+  },
+  "notes": "D-006-style correction, not oracle parity. MSC 1 treats a zero zip exit status as sufficient (lines 276-292): it writes the sidecar and reloads the list with no read-back or structural check of the archive it just wrote. restoreBackup's own validateZipArchive call (line 656) only runs later, at restore time, per-attempt -- never at creation/listing time. Phase 6 moves that check earlier so a corrupt-on-write backup (e.g. disk full mid-zip, /usr/bin/zip silently truncated) is flagged when it's created, not discovered mid-restore days later."
+}

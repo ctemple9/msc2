@@ -1,0 +1,16 @@
+{
+  "domain": "backups",
+  "case": "display-name-unparseable-suffix-falls-back-to-raw-filename",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "makeDisplayName(for:fallbackDate:) final fallback",
+    "line": 971
+  },
+  "input": {
+    "filename_base": "world_manual_notatimestamp"
+  },
+  "expected": {
+    "display_name": "world_manual_notatimestamp"
+  },
+  "notes": "The `_manual_` token IS found (line 951), but the tail \"notatimestamp\" fails DateFormatter parsing, so the `if let date = ...` at line 955 never returns and the loop simply continues (no other token matches either). The legacy dash check (962) then finds no `-` in this underscore-only name, so dashRange is nil and execution falls through to `return base` (line 971) -- the extension-stripped filename verbatim, not an error or placeholder."
+}

@@ -1,0 +1,20 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-refused-while-target-server-running",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) running-server guard",
+    "line": 604
+  },
+  "input": {
+    "server_type": "java",
+    "is_server_running": true,
+    "active_server_id_matches_target": true
+  },
+  "expected": {
+    "restore_attempted": false,
+    "error_title": "Restore Blocked",
+    "logged": "[Backup] Refusing to restore while the target server is running. Stop the server first."
+  },
+  "notes": "targetIsRunning requires BOTH `isServerRunning` and `configManager.config.activeServerId == cfgServer.id` (line 604) -- restoring into a server that is merely selected in the UI but is not the process actually running (or is running but not the active server) is allowed to proceed past this guard."
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "resume-skipped-when-server-stopped-before-resume-runs",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "resumeSavesAfterBackup(for:isBedrock:) running/active guard",
+    "line": 371
+  },
+  "input": {
+    "was_paused_at_backup_start": true,
+    "server_running_now": false
+  },
+  "expected": {
+    "command_sent": null,
+    "logged": "[Backup] Server is no longer running; nothing to re-enable (saves resume automatically on next start)."
+  },
+  "notes": "resumeSavesAfterBackup re-checks `isServerRunning && configManager.config.activeServerId == configServer.id` at CALL time (line 371), not the `targetIsRunning` snapshot captured before the zip started (line 245). If the server stopped -- or a different server became active -- during the multi-second zip, resume is skipped entirely rather than sending a save command to a backend that's gone."
+}

@@ -1,0 +1,30 @@
+{
+  "domain": "backups",
+  "case": "pruning-deletes-oldest-managed-files-down-to-maxcount-minus-one-and-removes-orphaned-sidecar",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pruneAutoBackupsIfNeeded(in:maxCount:)",
+    "line": 528
+  },
+  "input": {
+    "managed_files": [
+      { "name": "world_auto_1.zip", "modification_date": "2026-01-01T00:00:00Z", "has_sidecar": true },
+      { "name": "world_auto_2.zip", "modification_date": "2026-01-02T00:00:00Z", "has_sidecar": true },
+      { "name": "world_auto_3.zip", "modification_date": "2026-01-03T00:00:00Z", "has_sidecar": false },
+      { "name": "world_auto_4.zip", "modification_date": "2026-01-04T00:00:00Z", "has_sidecar": true },
+      { "name": "world_auto_5.zip", "modification_date": "2026-01-05T00:00:00Z", "has_sidecar": true }
+    ],
+    "max_count": 4
+  },
+  "expected": {
+    "deleted": ["world_auto_1.zip", "world_auto_2.zip"],
+    "deleted_sidecars": ["world_auto_1.zip.meta.json equivalent -- world_auto_1.meta.json"],
+    "kept": ["world_auto_3.zip", "world_auto_4.zip", "world_auto_5.zip"],
+    "below_threshold_case": {
+      "managed_files_count": 3,
+      "max_count": 4,
+      "result": "no files deleted -- guard at line 550 requires count >= maxCount"
+    }
+  },
+  "notes": "guard managedFiles.count >= maxCount (line 550) means pruning only runs AT OR ABOVE the threshold -- with 3 files and maxCount 4, nothing happens. Once triggered, deleteCount = managedFiles.count - (maxCount - 1) = 5 - 3 = 2 (line 564); dated.sort ascending by modification date (line 562) then `.prefix(deleteCount)` (565) removes the true oldest files independent of directory-enumeration order. Sidecar removal (573-576) is best-effort (`try?`) and silent when no sidecar exists, matching world_auto_3.zip having none."
+}

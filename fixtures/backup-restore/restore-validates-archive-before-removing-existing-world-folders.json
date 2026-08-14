@@ -1,0 +1,18 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-validates-archive-before-removing-existing-world-folders",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) validateZipArchive ordering",
+    "line": 656
+  },
+  "input": {
+    "safety_backup_created": true,
+    "archive_valid": true
+  },
+  "expected": {
+    "order": ["validateZipArchive", "removeWorldFolders", "unzip"],
+    "world_folders_removed_only_after_validation_passes": true
+  },
+  "notes": "validateZipArchive (line 656) -- the same structural check P6.5's world-archive-safety domain characterizes generically -- runs strictly before removeWorldFolders (line 668), so an invalid archive never causes the current world to be deleted."
+}

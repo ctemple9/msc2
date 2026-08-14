@@ -1,0 +1,19 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "resume-always-resends-save-on-unconditionally",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "resumeSavesAfterBackup(for:isBedrock:) java branch",
+    "line": 381
+  },
+  "input": {
+    "is_bedrock": false,
+    "server_still_running": true,
+    "flush_confirmation_was_seen": false
+  },
+  "expected": {
+    "command_sent": "save-on",
+    "sent_regardless_of_confirmation_state": true
+  },
+  "notes": "resumeSavesAfterBackup has no memory of whether the flush confirmation was ever observed -- it always sends 'save-on' once the running/active-server guard at line 371 passes. 'Re-sending save-on later is harmless regardless' per the comment at line 361; the confirmation wait only affects when the zip starts, never whether resume runs."
+}

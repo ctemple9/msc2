@@ -1,0 +1,21 @@
+{
+  "domain": "backups",
+  "case": "scheduled-auto-backup-skipped-when-no-players-online",
+  "source": {
+    "file": "AppViewModel+ServerControls.swift",
+    "test": "startAutoBackupTimer(for:) timer closure no-players guard",
+    "line": 781
+  },
+  "input": {
+    "timer_fired": true,
+    "backend_is_running": true,
+    "is_server_running": true,
+    "online_players_count": 0
+  },
+  "expected": {
+    "backup_created": false,
+    "logged": "[Backup] Auto backup skipped — no players online for <server>.",
+    "timer_continues_running": true
+  },
+  "notes": "The timer's own guard (line 777) already requires the backend to still be running, stopping the timer otherwise. The no-players guard (line 781) is a SEPARATE check, re-evaluated on every single tick -- a quiet server with autoBackupEnabled just keeps skipping forever; it never disables the toggle or the timer. This is distinct from the stop-time trigger (AppViewModel+ServerControls.swift:279-284), which fires unconditionally on stop regardless of player count -- the no-players guard only applies to the recurring timer."
+}

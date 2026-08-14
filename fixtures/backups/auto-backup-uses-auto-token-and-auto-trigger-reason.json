@@ -1,0 +1,18 @@
+{
+  "domain": "backups",
+  "case": "auto-backup-uses-auto-token-and-auto-trigger-reason",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "createBackup(for:isAutomatic:slotId:slotName:triggerReason:) filename token and default reason",
+    "line": 233
+  },
+  "input": {
+    "is_automatic": true,
+    "explicit_trigger_reason": null
+  },
+  "expected": {
+    "filename_token": "_auto_",
+    "sidecar_trigger_reason": "auto"
+  },
+  "notes": "Symmetric with the manual case: isAutomatic:true selects autoBackupToken for the filename (line 233) and \"auto\" as the sidecar default reason (line 280). This is the path used by both the auto-backup timer (createAutoBackupForServer defaults isAutomatic:true) and the stop-time trigger."
+}

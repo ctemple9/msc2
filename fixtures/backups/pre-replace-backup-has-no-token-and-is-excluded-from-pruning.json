@@ -1,0 +1,20 @@
+{
+  "domain": "backups",
+  "case": "pre-replace-backup-has-no-token-and-is-excluded-from-pruning",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "backupWorld(for:) filename construction and pruneAutoBackupsIfNeeded managed-file filter",
+    "line": 872
+  },
+  "input": {
+    "created_by": "backupWorld(for:) -- Replace World's safety backup",
+    "filename_pattern": "<archiveBaseName>-<yyyyMMdd-HHmmss>.zip"
+  },
+  "expected": {
+    "contains_auto_token": false,
+    "contains_manual_token": false,
+    "sidecar_trigger_reason": "pre-replace",
+    "counted_as_managed_by_pruning": false
+  },
+  "notes": "The doc comment at line 836 states this directly: pre-replace backups \"intentionally have no `_auto_` or `_manual_` token so they are not pruned.\" pruneAutoBackupsIfNeeded's managedFiles filter (lines 544-548) requires `.contains(autoBackupToken) || .contains(manualBackupToken)`; a pre-replace backup fails both, so it is invisible to both the pre-backup auto-prune step and the manual \"Prune Old Backups\" button no matter its age. Contrast with restoreBackup's own safety backup, which calls the ordinary createBackup(isAutomatic: false, ...) path and DOES get the `_manual_` token -- see fixtures/backup-restore/restore-creates-mandatory-safety-backup-before-any-restore-mutation."
+}

@@ -1,0 +1,20 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-aborted-when-safety-backup-creation-fails-no-files-changed",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) safety-backup failure abort",
+    "line": 645
+  },
+  "input": {
+    "safety_backup_created": false
+  },
+  "expected": {
+    "world_folders_removed": false,
+    "unzip_attempted": false,
+    "error_title": "Restore Aborted",
+    "logged": "[Backup] Restore aborted because a safety backup could not be created for <server>.",
+    "error_message": "A safety backup of the current world could not be created, so no files were changed."
+  },
+  "notes": "This is a hard abort (lines 645-654) -- execution never reaches archive validation, folder removal, or extraction when the safety backup itself fails. Nothing about the current world is touched."
+}

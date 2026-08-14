@@ -1,0 +1,19 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-refused-for-bedrock-server-java-only-currently-supported",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) server-type guard",
+    "line": 595
+  },
+  "input": {
+    "server_type": "bedrock"
+  },
+  "expected": {
+    "restore_attempted": false,
+    "logged": "[Backup] Live-world restore is currently supported for Java servers only. Bedrock slot backups remain available inside World Slots.",
+    "error_title": "Restore Not Available",
+    "error_shown": true
+  },
+  "notes": "This guard (lines 595-602) runs first, before the running-server check, the cross-slot check, or any file-existence check -- Bedrock is rejected outright regardless of server or backup state. Bedrock world-slot backups (created via WorldSlotManager, characterized in fixtures/world-mutations) remain reachable through the Worlds tab; only this live-world restore path is Java-only."
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "backups",
+  "case": "auto-backup-interval-minutes-defaults-to-30-when-config-field-absent",
+  "source": {
+    "file": "AppConfig.swift",
+    "test": "ConfigServer.init(from:) autoBackupIntervalMinutes decodeIfPresent fallback",
+    "line": 360
+  },
+  "input": {
+    "config_json_has_auto_backup_interval_minutes_field": false
+  },
+  "expected": {
+    "auto_backup_interval_minutes": 30
+  },
+  "notes": "`try c.decodeIfPresent(Int.self, forKey: .autoBackupIntervalMinutes) ?? 30` (line 360) matches the property's own declared default (`var autoBackupIntervalMinutes: Int = 30`, line 140), so an older or hand-edited config missing the `auto_backup_interval_minutes` key silently behaves exactly like a freshly created server rather than erroring or defaulting to 0."
+}

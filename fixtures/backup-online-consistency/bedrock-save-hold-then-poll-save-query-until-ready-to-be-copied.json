@@ -1,0 +1,20 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "bedrock-save-hold-then-poll-save-query-until-ready-to-be-copied",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "waitForBedrockSaveReady(timeout:) poll loop",
+    "line": 394
+  },
+  "input": {
+    "is_bedrock": true,
+    "save_hold_send_result": true,
+    "poll_responses": ["saving in progress", "saving in progress", "files are now ready to be copied"]
+  },
+  "expected": {
+    "ready": true,
+    "polls_sent": 3,
+    "logged": "[Backup] Bedrock reports world files are ready to copy."
+  },
+  "notes": "waitForBedrockSaveReady (lines 394-407) loops re-sending 'save query' (line 397) and re-arming a fresh console-line wait each iteration (lines 401-403), matching on 'ready to be copied' case-insensitively. Each iteration's own wait is capped to whatever time remains in the overall 10s deadline (`slice = min(1.0, remaining)`, line 400), not a flat per-poll timeout, so later polls in a slow window get a shorter individual wait."
+}

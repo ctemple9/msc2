@@ -1,0 +1,26 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-msc1-has-no-automatic-rollback-after-interrupted-extraction-phase6-correction",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) removeWorldFolders / unzip sequence, no rollback on failure",
+    "line": 668
+  },
+  "input": {
+    "world_folders_removed": true,
+    "unzip_exit_status": 1
+  },
+  "expected": {
+    "msc1_behavior": {
+      "world_left_partially_or_fully_missing": true,
+      "automatic_recovery": false,
+      "user_message": "The backup ZIP could not be extracted. A safety backup of the previous world was created before the restore.",
+      "recovery_path": "manual -- operator must find and restore the pre-restore safety backup by hand"
+    },
+    "phase6_correction": {
+      "automatic_recovery": true,
+      "behavior": "on a nonzero unzip exit, Phase 6 automatically restores the just-created pre-restore safety backup itself before returning the error, so a failed restore never leaves the server worldless"
+    }
+  },
+  "notes": "This is a D-006-style correction, not oracle parity. MSC 1 removes the live world folders unconditionally (line 668, no temp-staging or atomic swap) before extracting; if /usr/bin/unzip then fails (line 672-684), the server has NO live world at all until someone manually finds and restores the pre-restore safety backup created two steps earlier (line 639). This is exactly the gap the P6.6 plan text calls out: 'failed/interrupted restore ... Where Phase 6 strengthens MSC 1 by ... rolling back an interrupted restore, mark the correction explicitly.' The error message MSC 1 shows the user (lines 692-695) already tells them a safety backup exists -- it just never uses it automatically."
+}

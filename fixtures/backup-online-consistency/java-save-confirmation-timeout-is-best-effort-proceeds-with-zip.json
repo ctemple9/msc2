@@ -1,0 +1,20 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "java-save-confirmation-timeout-is-best-effort-proceeds-with-zip",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pauseSavesForBackup(isBedrock:) java timeout path",
+    "line": 355
+  },
+  "input": {
+    "console_line_seen": null,
+    "elapsed_seconds": 10
+  },
+  "expected": {
+    "confirmed": false,
+    "logged": "[Backup] Warning: timed out waiting for the save-flush confirmation; proceeding with the zip anyway.",
+    "zip_still_runs": true,
+    "pause_saves_return_value": true
+  },
+  "notes": "Per the function's own doc comment (lines 326-328), a confirmation timeout is explicitly NOT a failure. pauseSavesForBackup still returns true (offSent was true), so resumeSavesAfterBackup still runs afterward -- only the confirmation WAIT timed out, not the save-pause commands themselves, which were already accepted."
+}

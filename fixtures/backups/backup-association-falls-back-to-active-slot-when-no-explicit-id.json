@@ -1,0 +1,20 @@
+{
+  "domain": "backups",
+  "case": "backup-association-falls-back-to-active-slot-when-no-explicit-id",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "effectiveBackupAssociation(for:explicitSlotId:explicitSlotName:) active-slot fallback",
+    "line": 161
+  },
+  "input": {
+    "explicit_slot_id": null,
+    "explicit_slot_name": null,
+    "active_slot_on_disk": { "id": "slot-a", "name": "Overworld", "worldSeed": null }
+  },
+  "expected": {
+    "slot_id": "slot-a",
+    "slot_name": "Overworld",
+    "world_seed": null
+  },
+  "notes": "createBackupForSelectedServer and createAutoBackupForServer -- the timer, stop-time, and manual-button call sites -- never pass slotId/slotName, so every ordinary backup goes through this fallback (lines 161-163) via activeWorldSlotMetadata (138-141), which reads WorldSlotManager.activeSlot(forServerDir:). If there is no active slot at all, the function returns (nil, nil, nil) (line 165) and the sidecar's slot fields all stay nil."
+}

@@ -1,0 +1,25 @@
+{
+  "domain": "backups",
+  "case": "list-filters-zip-extension-and-sorts-newest-first",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "loadBackupsForSelectedServer() zip filter and sort",
+    "line": 61
+  },
+  "input": {
+    "directory_contents": [
+      { "name": "world_auto_20260101-000000.zip", "modification_date": "2026-01-01T00:00:00Z" },
+      { "name": "world_manual_20260103-000000.zip", "modification_date": "2026-01-03T00:00:00Z" },
+      { "name": "world_manual_20260103-000000.meta.json", "modification_date": "2026-01-03T00:00:00Z" },
+      { "name": "notes.txt", "modification_date": "2026-01-02T00:00:00Z" }
+    ]
+  },
+  "expected": {
+    "backup_items_in_order": [
+      "world_manual_20260103-000000.zip",
+      "world_auto_20260101-000000.zip"
+    ],
+    "excluded": ["world_manual_20260103-000000.meta.json", "notes.txt"]
+  },
+  "notes": "The for-loop filter is `url.pathExtension.lowercased() == \"zip\"` (line 61), so the .meta.json sidecar (extension \"json\") and any non-zip file are excluded by construction, not by name matching. items.sort (lines 93-96) orders by contentModificationDate descending, defaulting missing dates to .distantPast."
+}

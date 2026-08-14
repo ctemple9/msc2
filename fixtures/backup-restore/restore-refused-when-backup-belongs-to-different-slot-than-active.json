@@ -1,0 +1,19 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-refused-when-backup-belongs-to-different-slot-than-active",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) cross-slot guard",
+    "line": 611
+  },
+  "input": {
+    "backup_slot_id": "slot-b",
+    "resolved_active_slot_id": "slot-a"
+  },
+  "expected": {
+    "restore_attempted": false,
+    "error_title": "Restore Blocked",
+    "logged": "[Backup] Refusing to restore backup \"<filename>\" because it belongs to slot ID slot-b, not the active slot slot-a."
+  },
+  "notes": "The guard (lines 611-620) only fires when the backup carries a non-nil `slotId` from its sidecar AND `WorldSlotManager.resolvedActiveSlotID` resolves successfully. A legacy backup with no slot association at all (nil slotId) always passes this check regardless of which slot is currently active, since `if let backupSlotId = backup.slotId` short-circuits to skip the comparison entirely."
+}

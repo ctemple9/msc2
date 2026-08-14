@@ -1,0 +1,25 @@
+{
+  "domain": "backup-restore",
+  "case": "retention-preserves-sole-remaining-verified-backup-even-at-maxcount-phase6-correction",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pruneAutoBackupsIfNeeded(in:maxCount:) has no lower-bound floor",
+    "line": 550
+  },
+  "input": {
+    "managed_verified_backups_count": 1,
+    "auto_backup_max_count": 3,
+    "trigger": "next scheduled auto backup about to create a 2nd file then prune"
+  },
+  "expected": {
+    "msc1_behavior": {
+      "prunes_purely_by_count_and_age": true,
+      "would_delete_the_only_backup_if_arithmetic_selected_it": true
+    },
+    "phase6_correction": {
+      "never_deletes_the_last_remaining_verified_backup": true,
+      "rationale": "a hand-edited low max-count, or a run of unverified/failed backups being excluded from the countable set by the verification correction above, must never be able to prune a server down to zero known-good recovery points"
+    }
+  },
+  "notes": "D-006-style correction, not oracle parity. pruneAutoBackupsIfNeeded (lines 528-581) has no lower bound beyond the arithmetic in `deleteCount = managedFiles.count - (maxCount - 1)` (line 564). With maxCount clamped to a minimum of 3 by the editor's Stepper (fixtures/backups/auto-backup-max-count-editor-clamps-to-3-through-50), this exact zero-backups outcome can't happen through the shipped UI today -- but nothing in the pruning function itself enforces that; a hand-edited config bypassing the Stepper, or the verification correction above shrinking the countable set, could reach it. Phase 6's retention rule adds an explicit floor as its own named guarantee rather than relying on an accident of the UI's Stepper range."
+}

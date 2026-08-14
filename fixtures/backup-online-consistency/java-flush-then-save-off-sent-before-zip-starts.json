@@ -1,0 +1,19 @@
+{
+  "domain": "backup-online-consistency",
+  "case": "java-flush-then-save-off-sent-before-zip-starts",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pauseSavesForBackup(isBedrock:) java branch",
+    "line": 343
+  },
+  "input": {
+    "is_bedrock": false,
+    "flush_send_result": true,
+    "save_off_send_result": true
+  },
+  "expected": {
+    "commands_sent_in_order": ["save-all flush", "save-off"],
+    "saves_paused": true
+  },
+  "notes": "Both commands are sent unconditionally in this order (lines 345-346) before the flush confirmation is even awaited. Only after both send attempts does the function decide whether a pause 'happened': `guard flushSent || offSent else { ... return false }` (line 347) -- and the final return value is specifically `offSent` (line 362), not `flushSent || offSent`, per the comment at 360-361 keeping resume-intent tied to whether save-off was actually accepted."
+}

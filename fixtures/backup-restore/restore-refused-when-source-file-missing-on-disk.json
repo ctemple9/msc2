@@ -1,0 +1,19 @@
+{
+  "domain": "backup-restore",
+  "case": "restore-refused-when-source-file-missing-on-disk",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:) file-existence guard",
+    "line": 622
+  },
+  "input": {
+    "backup_file_exists_on_disk": false
+  },
+  "expected": {
+    "restore_attempted": false,
+    "error_title": "Restore Failed",
+    "logged": "[Backup] Restore source is missing: <path>",
+    "backup_list_reloaded": true
+  },
+  "notes": "Unlike the earlier guards, this one still calls loadBackupsForSelectedServer() (line 626) before returning, so a stale UI entry pointing at a since-deleted file gets a chance to disappear from the list on the very same pass rather than lingering until the next manual refresh."
+}

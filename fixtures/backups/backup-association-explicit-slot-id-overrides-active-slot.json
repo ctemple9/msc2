@@ -1,0 +1,21 @@
+{
+  "domain": "backups",
+  "case": "backup-association-explicit-slot-id-overrides-active-slot",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "effectiveBackupAssociation(for:explicitSlotId:explicitSlotName:) explicit-id branch",
+    "line": 148
+  },
+  "input": {
+    "explicit_slot_id": "slot-b",
+    "explicit_slot_name": " Nether Base ",
+    "active_slot_on_disk": { "id": "slot-a", "name": "Overworld" },
+    "slot_b_world_seed_on_disk": "9988"
+  },
+  "expected": {
+    "slot_id": "slot-b",
+    "slot_name": "Nether Base",
+    "world_seed": "9988"
+  },
+  "notes": "The explicit-id branch (lines 148-159) is checked FIRST and wins outright regardless of what WorldSlotManager.activeSlot currently reports -- \"slot-a\" being active is irrelevant once a caller supplies an id. explicitSlotName is trimmed of whitespace (line 149) and an empty result normalizes to nil (line 156). worldSeed is never taken from the caller -- it's looked up fresh via WorldSlotManager.loadSlots(...).first(where: { $0.id == explicitSlotId })?.worldSeed (lines 150-153), so it reflects the slot's current on-disk state even if stale by the time the caller's own slotName argument was captured."
+}

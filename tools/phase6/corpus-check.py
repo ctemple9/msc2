@@ -24,8 +24,16 @@ and a backups directory, each against its own `manifest.json`:
     write outside its extraction root is not safe evidence to build a
     real-world exercise test on top of later.
   - The worlds directory contains a Java multi-folder world: a `level.dat`
-    outside `world_slots/`, with at least one dimension sibling directory
-    (`<name>_nether` or `<name>_the_end`) next to it.
+    outside `world_slots/`, with dimension evidence in any of the three real
+    layouts P6.3 found MSC 1 actually producing -- classic sibling
+    directories (`<name>_nether` / `<name>_the_end`), vanilla/Fabric nested
+    folders (`DIM-1` / `DIM1` inside the world folder itself), or current
+    PaperMC's nested folders (`dimensions/minecraft/the_nether` /
+    `dimensions/minecraft/the_end` inside the world folder). Relaxed from
+    sibling-only in P6.3 once real evidence from Cameron's own Fabric and
+    current-PaperMC servers proved neither one uses the sibling convention
+    `WorldSlotManager.swift`'s original multi-folder assumption was written
+    against -- see `corpus/worlds/README.md`.
   - The worlds directory contains a real `world_slots/` tree: a non-empty
     `active_slot_id.txt` marker that names a slot directory which actually
     exists, at least one `slot.json`, and at least one `world.zip` archive.
@@ -49,9 +57,11 @@ and a backups directory, each against its own `manifest.json`:
 Exercise mode (P6.26) will extend this file the way P5.24 extended
 `tools/phase5/real-corpus-check.py`; this step only builds the inventory
 gate that later mode will plug into. `corpus/worlds/` and `corpus/backups/`
-stay empty (beyond their READMEs) until P6.3 supplies real MSC 1 evidence --
-the fixtures this step ships live under `tools/phase6/fixtures/` instead,
-exactly so nothing invented ends up in `corpus/`.
+were populated with real MSC 1 evidence by P6.3 (large/private files kept
+out of git via `.gitignore`, provenance recorded in `manifest.json`); this
+checker's own passing and deliberately-broken self-test cases live under
+`tools/phase6/fixtures/` instead, exactly so nothing invented ends up in
+`corpus/`.
 
 Stdlib only, on purpose: same reasoning as `tools/phase5/real-corpus-check.py`
 and the Phase 0 checkers both follow the shape of -- no dependency setup for
@@ -79,6 +89,7 @@ SELFTEST_CASES = [
     ("malformed-metadata", 1),
     ("unsafe-archive", 1),
     ("mutated-input", 1),
+    ("no-dimension-evidence", 1),
 ]
 
 
@@ -188,6 +199,31 @@ def check_provenance_and_hashes(dir_path: Path, root_name: str, seen_hashes: dic
                 raise CheckError(f"{file_path}: malformed JSON ({exc})")
 
 
+def _dimension_evidence_shape(base_dir: Path) -> str | None:
+    """Which of the three real Java multi-folder layouts P6.3 found MSC 1
+    actually producing, if any, is present next to/inside `base_dir`.
+    Returns a short shape label for the summary message, or None if the
+    world shows no dimension evidence in any of them.
+
+    Originally this only accepted the classic sibling-folder shape
+    (`WorldSlotManager.swift`'s own multi-folder assumption). P6.3's real
+    corpus proved that assumption doesn't match either of Cameron's two real
+    servers: a Fabric server (vanilla's own on-disk format, DIM-1/DIM1
+    nested inside the world folder -- structurally can never produce sibling
+    folders) or a current PaperMC server (which nests dimensions under
+    `dimensions/minecraft/...` instead of splitting into sibling folders).
+    Both are just as real as the classic shape, so all three are accepted."""
+    base_name = base_dir.name
+    if (base_dir.parent / f"{base_name}_nether").is_dir() or (base_dir.parent / f"{base_name}_the_end").is_dir():
+        return "sibling <name>_nether/<name>_the_end"
+    if (base_dir / "DIM-1").is_dir() or (base_dir / "DIM1").is_dir():
+        return "nested vanilla/Fabric DIM-1/DIM1"
+    nested_paper = base_dir / "dimensions" / "minecraft"
+    if (nested_paper / "the_nether").is_dir() or (nested_paper / "the_end").is_dir():
+        return "nested PaperMC dimensions/minecraft/the_nether|the_end"
+    return None
+
+
 def check_worlds_structure(dir_path: Path) -> str:
     level_dats = sorted(
         p
@@ -199,11 +235,11 @@ def check_worlds_structure(dir_path: Path) -> str:
         raise CheckError(f"{dir_path}: no Java level.dat found (outside world_slots/, outside bedrock*/)")
     base_dir = level_dats[0].parent
     base_name = base_dir.name
-    nether_dir = base_dir.parent / f"{base_name}_nether"
-    end_dir = base_dir.parent / f"{base_name}_the_end"
-    if not nether_dir.is_dir() and not end_dir.is_dir():
+    dimension_shape = _dimension_evidence_shape(base_dir)
+    if dimension_shape is None:
         raise CheckError(
-            f"{base_dir}: no dimension sibling directory ({nether_dir.name} or {end_dir.name}) -- "
+            f"{base_dir}: no dimension evidence found (sibling <name>_nether/<name>_the_end, "
+            "nested DIM-1/DIM1, or nested dimensions/minecraft/the_nether|the_end) -- "
             "not a Java multi-folder world"
         )
 
@@ -236,7 +272,7 @@ def check_worlds_structure(dir_path: Path) -> str:
         bedrock_note = "bedrock: not provided (optional)"
 
     return (
-        f"java multi-folder world ok ({base_name}), "
+        f"java multi-folder world ok ({base_name}, {dimension_shape}), "
         f"world_slots ok ({len(slot_dirs)} slot(s), active={active_id}), {bedrock_note}"
     )
 

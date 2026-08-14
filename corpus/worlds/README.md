@@ -11,8 +11,13 @@ characterizes against it. Run `python3 tools/phase6/corpus-check.py
 point at others. In inventory mode it requires, directly in this directory:
 
 - A real Java multi-folder world: a `level.dat` (outside `world_slots/`)
-  with at least one dimension sibling directory next to it
-  (`<name>_nether` and/or `<name>_the_end`).
+  with dimension evidence in any of three real layouts (see "P6.3 real
+  evidence collected" below for why there are three, not one): classic
+  sibling directories (`<name>_nether` and/or `<name>_the_end`),
+  vanilla/Fabric nested folders (`DIM-1` and/or `DIM1` inside the world
+  folder itself), or current PaperMC's nested folders
+  (`dimensions/minecraft/the_nether` and/or `dimensions/minecraft/the_end`
+  inside the world folder).
 - A real MSC 1 `world_slots/` tree: a non-empty `active_slot_id.txt` marker
   naming a slot that actually exists, at least one slot's `slot.json`
   metadata, and at least one slot's `world.zip` archive.
@@ -62,26 +67,33 @@ have one, generated live rather than invented.
 
 **Original gap 3 (no real backup existed) — closed**, see `../backups/README.md`.
 
-**Original gap 2 — still open, and generating fresh evidence didn't close
-it:** neither real world has a `<name>_nether` / `<name>_the_end` sibling
-directory next to `level.dat`, which `check_worlds_structure` in
-`tools/phase6/corpus-check.py` requires. Confirmed by running
-`python3 tools/phase6/corpus-check.py --inventory --worlds corpus/worlds
---backups corpus/backups` against this now-real, now-complete evidence: it
-gets past every provenance/hash/manifest/safety check and fails on exactly
-one line —
-
-```
-corpus/worlds/Paper: no dimension sibling directory (Paper_nether or Paper_the_end) -- not a Java multi-folder world
-```
-
-This isn't a missing-evidence problem any more — it's a real, structural
-mismatch between what this checker expects (MSC 1's classic split-folder
-Java world layout) and what both of Cameron's real servers actually produce:
-`campack` is Fabric, whose vanilla world format nests dimensions inside the
-main world folder (`DIM-1`/`DIM1`) and structurally can never produce
-sibling folders, and `paper` uses a newer nested
+**Original gap 2 — resolved by relaxing the checker, not by more evidence.**
+Generating fresh evidence didn't close this one: neither real world has a
+`<name>_nether` / `<name>_the_end` sibling directory next to `level.dat`,
+the only layout `check_worlds_structure` in `tools/phase6/corpus-check.py`
+originally accepted. Confirmed by running `python3 tools/phase6/corpus-check.py
+--inventory --worlds corpus/worlds --backups corpus/backups` against this
+real, complete evidence before the checker was changed: it got past every
+provenance/hash/manifest/safety check and failed on exactly one line —
+`corpus/worlds/Paper: no dimension sibling directory (Paper_nether or
+Paper_the_end) -- not a Java multi-folder world`. That wasn't a
+missing-evidence problem, it was a real, structural mismatch between what
+the checker expected (MSC 1's classic split-folder Java world layout) and
+what both of Cameron's real servers actually produce: `campack` is Fabric,
+whose vanilla world format nests dimensions inside the main world folder
+(`DIM-1`/`DIM1`) and structurally can never produce sibling folders, and
+`paper` uses a newer nested
 `Paper/dimensions/minecraft/{overworld,the_nether,the_end}/` layout instead
 of the classic sibling convention `WorldSlotManager.swift`'s multi-folder
-assumption was written against. `docs/msc2/rolling-plan.md`'s P6.3 entry
-records the question this raises for Cameron.
+assumption was written against.
+
+Cameron chose to relax the checker (`docs/msc2/rolling-plan.md`'s P6.3
+entry records the question and the choice) rather than chase evidence for a
+layout neither real server produces. `check_worlds_structure` now accepts
+all three real shapes — see this file's own requirements list above — and
+`corpus/worlds/manifest.json`'s note records that `corpus/worlds/Paper` is
+real evidence for the third (nested PaperMC) shape specifically, not the
+classic one the checker was first built around. A new self-test fixture,
+`tools/phase6/fixtures/no-dimension-evidence/`, pins the negative case the
+relaxation could otherwise have quietly broken: a world with *none* of the
+three shapes still fails inventory mode.

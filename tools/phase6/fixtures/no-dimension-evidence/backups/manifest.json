@@ -1,0 +1,16 @@
+{
+  "files": [
+    {
+      "path": "backup-1.zip",
+      "source": "synthetic fixture for corpus-check.py self-test (P6.2)",
+      "sanitized": "invented selftest content, not real MSC 1 evidence",
+      "sha256": "317972655369cf32bef5b814d8680f6c1f5c69a69884ff4cea4f889a1dd1ae5b"
+    },
+    {
+      "path": "backup-1.meta.json",
+      "source": "synthetic fixture for corpus-check.py self-test (P6.2)",
+      "sanitized": "invented selftest content, not real MSC 1 evidence",
+      "sha256": "1bdf4c7b757ee001c8a72049334c46436d80d4d58df7179378ca88916f8943be"
+    }
+  ]
+}

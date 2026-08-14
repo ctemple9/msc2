@@ -1,0 +1,19 @@
+{
+  "domain": "world-nbt",
+  "case": "bedrock-unheadered-payload-parsed-directly-as-fallback",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromLevelDatData:serverType:) Bedrock branch, else fallback",
+    "line": 1291
+  },
+  "input": {
+    "server_type": "bedrock",
+    "raw_level_dat_bytes_description": "byte at offset 8 is NOT 0x0A (either the file is shorter than 9 bytes, or offset 8 lands on unrelated payload data) -- e.g. a bare little-endian NBT compound with no 8-byte header prepended at all"
+  },
+  "expected": {
+    "header_detected": false,
+    "nbt_payload_starts_at_byte_offset": 0,
+    "parsed_from_offset_zero_little_endian": true
+  },
+  "notes": "Line 1291-1292's else branch: `nbtPayload = rawLevelDat` -- the whole buffer is handed to parseNBTRoot unchanged when the header signature doesn't match. This is a tolerant fallback, not a rejection: MSC 1 does not error here, it just assumes the header is already absent and tries to parse from byte 0. If that guess is wrong (header present but byte 8 coincidentally isn't 0x0A, or truly malformed data), parseNBTRoot's own `try?` swallows the resulting throw and metadata comes back empty -- covered by malformed-nbt-truncated-mid-tag-returns-nil and root-tag-not-compound-rejected rather than duplicated here."
+}

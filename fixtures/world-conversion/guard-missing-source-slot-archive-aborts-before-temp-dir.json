@@ -1,0 +1,23 @@
+{
+  "domain": "world-conversion",
+  "case": "guard-missing-source-slot-archive-aborts-before-temp-dir",
+  "source": {
+    "file": "AppViewModel+WorldConversion.swift",
+    "test": "performWorldConversion(...) source zip existence check",
+    "line": 96
+  },
+  "input": {
+    "java_resolvable": true,
+    "chunker_jar_installed": true,
+    "placement": {
+      "kind": "new_slot",
+      "name": "Converted world"
+    },
+    "source_slot_archive_exists_on_disk": false
+  },
+  "expected": {
+    "thrown_error": "ChunkerError.conversionFailed(\"Source slot archive not found at <path>\")",
+    "temp_root_directory_created": false
+  },
+  "notes": "Line 96-99 resolves the source slot's zip path via WorldSlotManager.zipURL and checks FileManager existence BEFORE line 102's tempRoot is ever computed or created -- an archive-less slot (P6.4/P6.6 both document these as a normal, expected state for freshly-created slots) is refused for conversion with a clear message rather than failing later inside the unzip subprocess with a cryptic non-zero exit."
+}

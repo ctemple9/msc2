@@ -1,0 +1,25 @@
+{
+  "domain": "world-conversion",
+  "case": "pre-conversion-backup-failure-only-warns-while-activation-failure-aborts-after-slot-already-written",
+  "source": {
+    "file": "AppViewModel+WorldConversion.swift",
+    "test": "performWorldConversion(...) steps 6-7 (createBackup, WorldSlotManager.activateSlot)",
+    "line": 168
+  },
+  "input": [
+    {
+      "case": "target_backup_fails",
+      "step_6_createBackup_result": false,
+      "step_7_activateSlot_result": true,
+      "expected_outcome": "progressHandler receives a warning line; conversion proceeds to activation and completes successfully anyway"
+    },
+    {
+      "case": "activation_fails_after_backup_succeeded",
+      "step_6_createBackup_result": true,
+      "step_7_activateSlot_result": false,
+      "expected_outcome": "throws ChunkerError.conversionFailed(\"Failed to activate converted world slot.\"); the new/replaced slot's zip and metadata written in step 5 remain on disk, unactivated"
+    }
+  ],
+  "expected": "see per-case expected_outcome above",
+  "notes": "Step 6 (line 169-173) calls createBackup and only logs a warning on failure -- conversion is NOT aborted, unlike WorldSlotManager.activateSlot's OWN mandatory pre-activation backup (characterized in P6.5's activate-backup-failure-aborts-before-any-world-mutation), which hard-aborts before touching any world folder. That guard is deliberately bypassed here: step 7 calls activateSlot with `backupCurrent: false, backupWorld: { _ in true }` (line 177-183) precisely because step 6 already did the backup (or tried to) -- so activateSlot's own safety net is not in play during conversion at all. If activation itself then fails (step 7's `guard activated else { throw ... }`, line 184-186), the new slot created/overwritten in step 5 is left on disk as-is (createConvertedSlot/replaceSlotWithConvertedZip already returned successfully and wrote real files) -- conversion's failure is reported, but the target server now has an inactive extra (or silently-replaced) slot that nothing reverts. Two independent gaps worth Cameron's attention: an unconfirmed backup before a destructive-adjacent operation, and a non-reverted partial slot write on a later failure."
+}

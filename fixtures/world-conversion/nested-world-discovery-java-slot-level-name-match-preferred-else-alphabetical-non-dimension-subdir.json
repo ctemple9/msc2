@@ -1,0 +1,37 @@
+{
+  "domain": "world-conversion",
+  "case": "nested-world-discovery-java-slot-level-name-match-preferred-else-alphabetical-non-dimension-subdir",
+  "source": {
+    "file": "ChunkerManager.swift",
+    "test": "findInputWorldFolder(in:isBedrock:slotLevelName:) Java branch",
+    "line": 298
+  },
+  "input": [
+    {
+      "case": "level_name_folder_exists",
+      "is_bedrock": false,
+      "slot_level_name": "world",
+      "unzip_dir_entries": [
+        "world",
+        "world_nether",
+        "world_the_end"
+      ],
+      "expected_selected": "world"
+    },
+    {
+      "case": "level_name_absent_or_no_match_falls_back_to_alphabetical_non_dimension_subdir",
+      "is_bedrock": false,
+      "slot_level_name": null,
+      "unzip_dir_entries": [
+        "adventure",
+        "adventure_nether",
+        "adventure_the_end",
+        "__MACOSX",
+        ".DS_Store"
+      ],
+      "expected_selected": "adventure"
+    }
+  ],
+  "expected": "see per-case expected_selected above",
+  "notes": "Java discovery (line 298-314) first tries the slot's own recorded worldLevelName as a direct subfolder (line 299-301); only if that's absent/non-empty-but-missing does it fall back to scanning unzipDir's immediate children, filtering out anything ending _nether/_the_end and anything starting __ or . (line 304-310), sorting the survivors lexicographically, and taking the first (line 311-312, `.sorted { $0.lastPathComponent < $1.lastPathComponent }`). Two folders that both look like valid overworld folders (e.g. a zip with more than one top-level non-dimension directory, which should not normally happen but isn't guarded against) would silently pick whichever sorts first -- worth flagging as a real ambiguity the Rust port inherits rather than resolves."
+}

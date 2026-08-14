@@ -1,0 +1,21 @@
+{
+  "domain": "world-conversion",
+  "case": "replace-existing-slot-overwrite-is-not-atomic-unlike-other-slot-mutations",
+  "source": {
+    "file": "AppViewModel+WorldConversion.swift",
+    "test": "replaceSlotWithConvertedZip(existingSlot:zipURL:targetServer:targetLevelName:)",
+    "line": 258
+  },
+  "input": {
+    "placement": "replace_existing",
+    "existing_slot_has_archive": true,
+    "injected_failure": "copyItem(at: convertedZip, to: destZip) fails after removeItem(at: destZip) already succeeded (e.g. disk full, permissions changed mid-operation)"
+  },
+  "expected": {
+    "previous_archive_already_deleted": true,
+    "new_archive_not_written": true,
+    "slot_left_with_no_archive_at_all": true,
+    "function_throws": true
+  },
+  "notes": "replaceSlotWithConvertedZip (line 258-283) removes the existing destination zip THEN copies the new one in (line 269-272: `if fm.fileExists... try fm.removeItem...; try fm.copyItem...`) -- a plain remove-then-copy, not the temp-file-then-atomic-rename pattern P6.5 characterized for WorldSlotManager's OWN update/copy-into-existing paths (updateSlotFromCurrentWorld, copySlotIntoExisting), where a failed write leaves the previous archive untouched. Here, if copyItem fails after removeItem already succeeded, the slot is left with NO archive at all -- a real, characterized gap between conversion's replace path and every other slot-mutation path in MSC 1, not a hypothetical. Flagged for Cameron in this step's questions rather than corrected here, since P6.5's D-006-style corrections were scoped to archive-safety (unsafe zip entries) and activation/rename/replace's OWN already-atomic paths, not this one."
+}

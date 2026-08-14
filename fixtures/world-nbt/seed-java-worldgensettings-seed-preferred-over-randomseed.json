@@ -1,0 +1,22 @@
+{
+  "domain": "world-nbt",
+  "case": "seed-java-worldgensettings-seed-preferred-over-randomseed",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "extractSeedString(fromNBT:preferJavaPaths:)",
+    "line": 1395
+  },
+  "input": {
+    "server_type": "java",
+    "nbt_data_compound": {
+      "WorldGenSettings": {
+        "seed": 111
+      },
+      "RandomSeed": 222
+    }
+  },
+  "expected": {
+    "seed": "111"
+  },
+  "notes": "extractSeedString's preferJavaPaths branch (line 1396-1399) checks Data.WorldGenSettings.seed BEFORE Data.RandomSeed -- when both are present (as they can be on a world that has been both freshly generated under the modern WorldGenSettings scheme and previously carried the legacy RandomSeed tag forward), the newer WorldGenSettings.seed wins. nbtInteger (line 1442) returns the first successful path match and extractSeedString stops at its first non-nil candidate (line 1397's early return), so this ordering is load-bearing, not incidental."
+}

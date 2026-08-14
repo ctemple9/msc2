@@ -1,0 +1,42 @@
+{
+  "domain": "world-conversion",
+  "case": "output-packaging-java-vs-bedrock-zip-structure-and-empty-output-refused",
+  "source": {
+    "file": "ChunkerManager.swift",
+    "test": "packageOutput(chunkerOutputDir:isBedrockTarget:targetLevelName:)",
+    "line": 323
+  },
+  "input": [
+    {
+      "case": "java_target",
+      "is_bedrock_target": false,
+      "target_level_name": "converted-world",
+      "chunker_output_dir_entries": [
+        "level.dat",
+        "region",
+        "playerdata"
+      ],
+      "expected_zip_top_level_entry": "converted-world/"
+    },
+    {
+      "case": "bedrock_target",
+      "is_bedrock_target": true,
+      "target_level_name": "converted-world",
+      "chunker_output_dir_entries": [
+        "level.dat",
+        "db",
+        "levelname.txt"
+      ],
+      "expected_zip_top_level_entry": "worlds/converted-world/"
+    },
+    {
+      "case": "empty_output_dir_refused",
+      "is_bedrock_target": false,
+      "target_level_name": "converted-world",
+      "chunker_output_dir_entries": [],
+      "expected_error": "ChunkerError.worldFolderNotFound"
+    }
+  ],
+  "expected": "see per-case expected_zip_top_level_entry / expected_error above",
+  "notes": "packageOutput (line 323-383) moves EVERY entry of chunkerOutputDir except a `_package` subfolder and dotfiles (line 338-340) into a freshly created `{targetLevelName}/` (Java) or `worlds/{targetLevelName}/` (Bedrock) directory INSIDE a `_package` staging folder, then shells out to `/usr/bin/zip -r converted.zip <that folder>` with `_package` as the working directory (line 355/372) so the zip's internal paths are relative and correctly rooted. An empty (or entirely dotfile/only-`_package`) chunkerOutputDir throws worldFolderNotFound before any move or zip attempt (line 341) rather than producing an empty/malformed archive. Note the two branches (line 344-362 Bedrock, line 363-380 Java) are structurally identical except the extra `worlds/` path component and the zip's second argument -- a real duplication candidate the Rust port can collapse without changing behavior."
+}

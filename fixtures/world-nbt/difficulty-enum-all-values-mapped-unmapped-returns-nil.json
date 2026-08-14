@@ -1,0 +1,28 @@
+{
+  "domain": "world-nbt",
+  "case": "difficulty-enum-all-values-mapped-unmapped-returns-nil",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "extractDifficultyString(fromNBT:)",
+    "line": 1408
+  },
+  "input": {
+    "raw_difficulty_values": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  "expected": {
+    "mapped_strings": [
+      "peaceful",
+      "easy",
+      "normal",
+      "hard",
+      null
+    ]
+  },
+  "notes": "extractDifficultyString's switch (line 1416-1422) covers exactly Minecraft's four legacy difficulty integers; any other raw integer (4 here, but the same applies to negatives or anything else out of range) falls to `default: return nil` rather than a placeholder string -- the caller sees 'no difficulty known', identical to the field being absent entirely. Distinct from java-real-modern-format-legacy-fields-absent, where the field is a STRING under a different key altogether and this integer-only extractor never even considers it."
+}

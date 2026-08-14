@@ -1,0 +1,28 @@
+{
+  "domain": "world-conversion",
+  "case": "temp-working-directory-cleaned-up-on-both-success-and-mid-pipeline-failure",
+  "source": {
+    "file": "AppViewModel+WorldConversion.swift",
+    "test": "performWorldConversion(...) do/catch cleanup()",
+    "line": 109
+  },
+  "input": [
+    {
+      "case": "chunker_convert_step_throws_conversionFailed",
+      "failing_step": "chunker.convert (step 3, line 130-137)"
+    },
+    {
+      "case": "activation_returns_false_after_everything_else_succeeded",
+      "failing_step": "WorldSlotManager.activateSlot (step 7, line 177-186)"
+    },
+    {
+      "case": "every_step_succeeds",
+      "failing_step": null
+    }
+  ],
+  "expected": {
+    "temp_root_removed_in_every_case": true,
+    "cleanup_runs_exactly_once_per_call": true
+  },
+  "notes": "cleanup() (line 109-111, `try? FileManager.default.removeItem(at: tempRoot)`) is called from the catch block (line 199, before rethrowing) for ANY error thrown between steps 1-7, and again unconditionally after step 8 on the success path (line 196) -- but never both, since the success path's `cleanup()` at line 196 sits after the `catch` and the function returns before falling into it if an error was thrown. Because it's `try?`, a failure to remove tempRoot itself (e.g. permissions) is silently swallowed either way -- MSC 1 has no retry or leftover-tempdir reporting here, which the port should preserve rather than \"fix\" without asking, since a stricter cleanup could turn an already-successful or already-reported-failed conversion into a surprising secondary error."
+}

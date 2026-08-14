@@ -1,0 +1,25 @@
+{
+  "domain": "world-nbt",
+  "case": "java-real-modern-format-legacy-fields-absent",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromLevelDatData:serverType:) Java branch, plus extractSeedString/extractDifficultyString/extractDayTime",
+    "line": 1281
+  },
+  "input": {
+    "server_type": "java",
+    "real_sample": {
+      "file": "fixtures/world-nbt/samples/java-real-modern-format-level.dat.gz",
+      "sha256": "a35587e57d90bc31dd5f306f043be99c7f2eb93f16515ec89571f43d4f261055",
+      "derived_from": "corpus/worlds/Paper/level.dat (real, local-only, hash recorded in corpus/worlds/manifest.json; a real current-PaperMC server world Cameron generated live 2026-08-13, DataVersion 4903)",
+      "sanitization": "Same re-serialization approach as java-real-legacy-fields-full-extraction-succeeds's sample: only the inspected Data-compound keys are kept (GameType, DataVersion, Time, LevelName, difficulty_settings), LevelName replaced by a placeholder. Critically, this sample's absence of legacy Data.Difficulty and Data.WorldGenSettings/Data.RandomSeed is itself real -- the original level.dat genuinely does not contain those keys (confirmed by parsing the real file directly before sanitizing), not an artifact of the reduction."
+    }
+  },
+  "expected": {
+    "seed": null,
+    "difficulty": null,
+    "gamemode": "survival",
+    "day_time": 20927
+  },
+  "notes": "Real, current MSC 1 evidence (server 'paper', current-PaperMC, DataVersion 4903 -- newer than campack's 3465) where the legacy fields extractSeedString and extractDifficultyString look for genuinely do not exist: this server stores difficulty as a string under Data.difficulty_settings.difficulty ('normal') instead of the legacy Data.Difficulty integer tag, and stores no world seed under Data at all (no RandomSeed, no WorldGenSettings). MSC 1's WorldSlotManager.swift never reads difficulty_settings or any string-typed difficulty/seed representation -- extractDifficultyString and extractSeedString only look for integer tags at their known paths, so both genuinely return nil against this real, current server, not a synthetic worst case. extractDayTime falls through its Java-preferred Data.DayTime path (absent here) to Data.Time (present, 20927) -- the real file exercises that exact fallback. This is a real gap Phase 6's port inherits as-is per oracle fidelity (D-... none override this), worth flagging to Cameron since it means MSC 2 will also show 'seed unknown' for modern Paper worlds until a follow-up decision adds the string-based paths -- noted in this step's questions rather than fixed here."
+}

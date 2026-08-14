@@ -1,0 +1,28 @@
+{
+  "domain": "world-nbt",
+  "case": "bedrock-headered-little-endian-8-byte-header-skipped",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromLevelDatData:serverType:) Bedrock branch",
+    "line": 1287
+  },
+  "input": {
+    "server_type": "bedrock",
+    "raw_level_dat_bytes_description": "8-byte header (4-byte version int32 + 4-byte payload-length int32, both little-endian) followed by a little-endian NBT compound whose first payload byte (byte offset 8) is 0x0A (NBTTag.compound)",
+    "nbt_payload_after_header": {
+      "GameType": 1,
+      "Difficulty": 2,
+      "RandomSeed": 123456789,
+      "Time": 4000
+    }
+  },
+  "expected": {
+    "header_detected": true,
+    "nbt_payload_starts_at_byte_offset": 8,
+    "seed": "123456789",
+    "difficulty": "normal",
+    "gamemode": "creative",
+    "day_time": 4000
+  },
+  "notes": "Line 1289: `if rawLevelDat.count > 8, rawLevelDat[8] == NBTTag.compound.rawValue { nbtPayload = rawLevelDat.subdata(in: 8..<rawLevelDat.count) }` -- the 8-byte Bedrock level.dat header (version + length, both little-endian per Bedrock's LevelDB-adjacent save format) is skipped only when byte 8 looks like a valid compound tag start; parsing then proceeds little-endian (readUnsignedInteger's .little branch, line 1236-1239, accumulates least-significant byte first). Bedrock evidence in corpus/worlds/ is optional and none exists yet (per docs/msc2/worlds/phase6-scope.md's deferral -- Bedrock repair stays Phase 10), so unlike the two java-real-* fixtures this case is synthesized directly from the Swift source rather than real captured bytes, same as every P6.4-P6.6 fixture before it and every non-real case in this domain."
+}

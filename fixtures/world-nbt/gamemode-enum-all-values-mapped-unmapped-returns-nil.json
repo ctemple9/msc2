@@ -1,0 +1,28 @@
+{
+  "domain": "world-nbt",
+  "case": "gamemode-enum-all-values-mapped-unmapped-returns-nil",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "extractGamemodeString(fromNBT:)",
+    "line": 1425
+  },
+  "input": {
+    "raw_gametype_values": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  "expected": {
+    "mapped_strings": [
+      "survival",
+      "creative",
+      "adventure",
+      "spectator",
+      null
+    ]
+  },
+  "notes": "extractGamemodeString's switch (line 1433-1439) mirrors extractDifficultyString's shape exactly: four known GameType integers (Minecraft's own survival=0/creative=1/adventure=2/spectator=3 encoding, unrelated to difficulty's own 0-3 range despite the coincidental overlap), anything else -> nil via `default`."
+}

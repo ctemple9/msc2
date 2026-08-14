@@ -1,0 +1,21 @@
+{
+  "domain": "world-nbt",
+  "case": "adjacent-backup-sidecar-seed-overrides-parsed-level-dat-seed",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromZIP:serverType:), readAdjacentBackupMetadata(forZIP:)",
+    "line": 1260
+  },
+  "input": {
+    "zip_path": "backups/2026-08-13_manual.zip",
+    "sidecar_path": "backups/2026-08-13_manual.meta.json",
+    "sidecar_worldSeed_field": "  777  ",
+    "level_dat_inside_zip_random_seed": 555
+  },
+  "expected": {
+    "final_seed": "777",
+    "sidecar_value_trimmed_of_whitespace": true,
+    "level_dat_seed_555_discarded": true
+  },
+  "notes": "importedWorldMetadata(fromZIP:serverType:) (line 1260-1269) starts from readAdjacentBackupMetadata's result (sidecar .meta.json next to the zip, matched by swapping the zip's extension for .meta.json, line 1319) and only fills gaps from the parsed level.dat afterward: `metadata.seed = metadata.seed ?? parsed.seed` (line 1265) -- a non-nil sidecar seed always wins, the level.dat is never consulted for that field once the sidecar supplies one. readAdjacentBackupMetadata trims the sidecar's worldSeed string and treats an empty-after-trim value as absent (line 1325-1327: `trimmedSeed?.isEmpty == false ? trimmedSeed : nil`), which is why this fixture also pins that '  777  ' becomes '777', not the raw padded string. A second, un-covered branch worth noting for whoever picks this up next: if the sidecar is missing/corrupt/undecodable, readAdjacentBackupMetadata returns nil entirely (line 1320-1323) and importedWorldMetadata falls back to `?? ImportedWorldMetadata()` (line 1261) before ever reaching the zip, so parsed.seed becomes the ONLY source -- that path is implicitly exercised by every other zip-based fixture in this file that has no sidecar."
+}

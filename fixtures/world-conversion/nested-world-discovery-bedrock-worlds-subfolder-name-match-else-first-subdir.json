@@ -1,0 +1,32 @@
+{
+  "domain": "world-conversion",
+  "case": "nested-world-discovery-bedrock-worlds-subfolder-name-match-else-first-subdir",
+  "source": {
+    "file": "ChunkerManager.swift",
+    "test": "findInputWorldFolder(in:isBedrock:slotLevelName:) Bedrock branch",
+    "line": 291
+  },
+  "input": [
+    {
+      "case": "level_name_folder_exists_under_worlds",
+      "is_bedrock": true,
+      "slot_level_name": "Bedrock level",
+      "unzip_dir_entries": [
+        "worlds/Bedrock level",
+        "worlds/some-other-world"
+      ],
+      "expected_selected": "worlds/Bedrock level"
+    },
+    {
+      "case": "no_level_name_falls_back_to_first_subdir_of_worlds_in_directory_listing_order",
+      "is_bedrock": true,
+      "slot_level_name": null,
+      "unzip_dir_entries": [
+        "worlds/only-world"
+      ],
+      "expected_selected": "worlds/only-world"
+    }
+  ],
+  "expected": "see per-case expected_selected above",
+  "notes": "Bedrock discovery (line 291-297) looks under a fixed worlds/ subdirectory (the shape a Bedrock slot's zip always has, per WorldSlotManager's create-slot Bedrock branch characterized in P6.5), preferring a name-matched child and otherwise taking firstSubdir's first non-__/non-. directory entry from FileManager's own (unspecified, not sorted) enumeration order -- unlike the Java branch's fallback, this one has NO lexicographic sort (line 280-289's firstSubdir helper just takes `entries.first(where:)` over contentsOfDirectory's raw order), so which world gets picked when worlds/ unexpectedly contains more than one entry is filesystem-enumeration-order-dependent, not deterministic. Worth the same flag as the Java case's ambiguity, but strictly less predictable since there's no sort at all here."
+}

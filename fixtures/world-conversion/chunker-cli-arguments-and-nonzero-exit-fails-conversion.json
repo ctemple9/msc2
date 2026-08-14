@@ -1,0 +1,31 @@
+{
+  "domain": "world-conversion",
+  "case": "chunker-cli-arguments-and-nonzero-exit-fails-conversion",
+  "source": {
+    "file": "ChunkerManager.swift",
+    "test": "convert(inputDir:outputDir:targetFormat:javaPath:progressHandler:)",
+    "line": 222
+  },
+  "input": {
+    "input_dir": "/tmp/.../source/world",
+    "output_dir": "/tmp/.../chunker_output",
+    "target_format": "JAVA_1_21_4",
+    "chunker_process_exit_status": 1
+  },
+  "expected": {
+    "invoked_command": [
+      "<javaPath>",
+      "-jar",
+      "<chunkerJarPath>",
+      "-i",
+      "/tmp/.../source/world",
+      "-f",
+      "JAVA_1_21_4",
+      "-o",
+      "/tmp/.../chunker_output"
+    ],
+    "stdout_and_stderr_lines_each_streamed_to_progressHandler_as_they_arrive": true,
+    "thrown_error": "ChunkerError.conversionFailed(\"Chunker exited with code 1\")"
+  },
+  "notes": "Line 235 builds the exact five-flag argument list; both stdout and stderr get independent `readabilityHandler` closures (line 242-255) that split on newlines and forward every non-empty trimmed line to progressHandler as it's produced (not buffered to the end), then both handlers are cleared (line 260-261) before checking `process.terminationStatus == 0` (line 263-265). MSC 1 does not pass `-o`'s directory pre-creation itself -- Chunker's own CLI is trusted to create outputDir; performWorldConversion never creates chunkerOutputDir ahead of the call, matching packageOutput's doc comment that Chunker \"writes world files DIRECTLY into the output directory.\""
+}

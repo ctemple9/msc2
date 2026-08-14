@@ -1,0 +1,23 @@
+{
+  "domain": "world-conversion",
+  "case": "guard-empty-new-slot-name-rejected-before-any-file-work",
+  "source": {
+    "file": "AppViewModel+WorldConversion.swift",
+    "test": "performWorldConversion(...) placement validation",
+    "line": 88
+  },
+  "input": {
+    "java_resolvable": true,
+    "chunker_jar_installed": true,
+    "placement": {
+      "kind": "new_slot",
+      "name": "   "
+    }
+  },
+  "expected": {
+    "thrown_error": "ChunkerError.conversionFailed(\"Slot name cannot be empty.\")",
+    "source_zip_existence_never_checked": true,
+    "no_temp_directory_created": true
+  },
+  "notes": "Lines 88-93 validate placement's name (trimmed) before the source-zip existence check at line 97 or the temp-directory setup at line 102 -- a whitespace-only name is rejected exactly like an empty one since the guard trims first. This ordering means a conversion started with a bad slot name fails instantly with no unzip, no Chunker process launch, and nothing to clean up -- distinct from guard-missing-source-slot-archive-aborts-before-temp-dir, which is the next guard down and DOES run after this one passes."
+}

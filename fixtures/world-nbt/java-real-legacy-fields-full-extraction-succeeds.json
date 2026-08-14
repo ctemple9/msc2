@@ -1,0 +1,25 @@
+{
+  "domain": "world-nbt",
+  "case": "java-real-legacy-fields-full-extraction-succeeds",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromLevelDatData:serverType:) Java branch, plus extractSeedString/extractDifficultyString/extractGamemodeString/extractDayTime",
+    "line": 1281
+  },
+  "input": {
+    "server_type": "java",
+    "real_sample": {
+      "file": "fixtures/world-nbt/samples/java-real-legacy-fields-level.dat.gz",
+      "sha256": "8dde6b6e6f5be7cd977c959bb001389c5f402ab6311d06f74c810f0b08515d88",
+      "derived_from": "corpus/worlds/campack/level.dat (real, local-only, hash recorded in corpus/worlds/manifest.json; per corpus/worlds/README.md this real Fabric-modded server world was generated live by Cameron 2026-08-13)",
+      "sanitization": "Re-serialized from the real parsed NBT tree keeping only the Data-compound keys this reader inspects (GameType, Difficulty, DataVersion, Time, DayTime, LevelName, WorldGenSettings.seed) with LevelName replaced by a placeholder; every kept value and its original NBT tag type (int/byte/long/string) is byte-for-byte what the real level.dat contained. Drops WorldGenSettings.dimensions (a large mod-generator subtree carrying no player data but irrelevant to this reader) and every other Data key. Still a valid gzip-compressed big-endian NBT root Data compound -- same binary shape, far smaller."
+    }
+  },
+  "expected": {
+    "seed": "0",
+    "difficulty": "normal",
+    "gamemode": "survival",
+    "day_time": 10287
+  },
+  "notes": "Real, current MSC 1 evidence (server 'campack', a Fabric-modded Java world, DataVersion 3465) where every legacy field WorldSlotManager.swift's extractors look for is present: Data.Difficulty is the legacy integer tag (2 == normal), Data.WorldGenSettings.seed is present directly (0), Data.GameType is 0 (survival), and Data.DayTime is present directly (10287, so extractDayTime's Java-preferred Data.DayTime path is used, never falling to Data.Time). Paired with java-real-modern-format-legacy-fields-absent, which is the SAME reader run against a real level.dat where none of these legacy fields exist -- together they show the extractors' fallback chains are not just theoretical, they are actually exercised by real servers Cameron runs today."
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "world-conversion",
+  "case": "guard-order-java-path-checked-before-jar-installed",
+  "source": {
+    "file": "AppViewModel+WorldConversion.swift",
+    "test": "performWorldConversion(sourceSlot:sourceServer:targetServer:targetFormat:placement:progressHandler:) preflight guards",
+    "line": 79
+  },
+  "input": {
+    "java_resolvable": false,
+    "chunker_jar_installed": false
+  },
+  "expected": {
+    "thrown_error": "ChunkerError.javaNotFound",
+    "jar_installed_check_never_reached": true,
+    "no_temp_directory_created": true
+  },
+  "notes": "Lines 79-82: `guard let java = chunker.resolveJavaPath(...) else { throw .javaNotFound }` runs strictly before `guard chunker.isInstalled else { throw .jarNotInstalled }`. When both are false (a fresh install with neither Java nor the Chunker jar configured yet), the error the user sees is javaNotFound even though jarNotInstalled is equally true -- the port must preserve this exact precedence since it changes which error message/remediation the UI shows first."
+}

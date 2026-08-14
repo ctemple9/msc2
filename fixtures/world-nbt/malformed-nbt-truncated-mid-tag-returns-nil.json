@@ -1,0 +1,24 @@
+{
+  "domain": "world-nbt",
+  "case": "malformed-nbt-truncated-mid-tag-returns-nil",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "parseNBTRoot(data:endianness:), NBTReader.readData(count:)/readUInt8()",
+    "line": 1390
+  },
+  "input": {
+    "server_type": "java",
+    "nbt_payload_description": "a valid root compound header (type 0x0A + empty root name) followed by one child tag header (e.g. type 0x03 'int', name 'GameType') whose 4-byte int payload is cut off after 1 byte -- the buffer simply ends"
+  },
+  "expected": {
+    "readData_throws": true,
+    "parseNBTRoot_returns_nil": true,
+    "result": {
+      "seed": null,
+      "difficulty": null,
+      "gamemode": null,
+      "day_time": null
+    }
+  },
+  "notes": "readData (line 1244-1251) guards `offset + count <= data.count` and throws NSError code 5 when it doesn't; readUInt8 (line 1205-1212) similarly throws code 4 past the end. parseNBTRoot (line 1390-1393) wraps the whole read in `try?`, converting any such throw -- at any depth, not just the outermost call -- into a plain nil. importedWorldMetadata(fromLevelDatData:) then falls through its `guard let root else { return ImportedWorldMetadata() }` (line 1297) to all-nil defaults. This is the generic 'ran out of bytes partway through a tag' failure mode; root-tag-not-compound-rejected characterizes a different, earlier failure (the very first byte is wrong) and java-gzip-corrupt-input-fails-before-nbt-parse characterizes an even earlier one (gunzip itself fails, so parseNBTRoot is never called)."
+}

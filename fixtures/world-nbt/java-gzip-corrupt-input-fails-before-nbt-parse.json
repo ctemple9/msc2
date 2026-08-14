@@ -1,0 +1,25 @@
+{
+  "domain": "world-nbt",
+  "case": "java-gzip-corrupt-input-fails-before-nbt-parse",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromLevelDatData:serverType:) Java branch, gunzipData(_:)",
+    "line": 1281
+  },
+  "input": {
+    "server_type": "java",
+    "raw_level_dat_bytes": "not valid gzip (e.g. truncated/corrupted header, or plain uncompressed NBT bytes mistakenly passed in)"
+  },
+  "expected": {
+    "gunzip_invoked": true,
+    "gunzip_exit_status_nonzero_or_no_output": true,
+    "parse_nbt_root_never_called": true,
+    "result": {
+      "seed": null,
+      "difficulty": null,
+      "gamemode": null,
+      "day_time": null
+    }
+  },
+  "notes": "gunzipData (line 1352) writes the raw bytes to a temp .gz file and shells out to /usr/bin/gunzip -c; a non-gzip or corrupt input makes gunzip exit non-zero, runProcess returns nil, and importedWorldMetadata(fromLevelDatData:) (line 1281-1286) returns ImportedWorldMetadata() immediately via its guard -- parseNBTRoot is never reached. Distinct from malformed-nbt-truncated-mid-tag-returns-nil, which characterizes a failure one stage later: valid gzip, invalid NBT payload."
+}

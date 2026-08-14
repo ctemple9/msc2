@@ -1,0 +1,24 @@
+{
+  "domain": "world-nbt",
+  "case": "root-tag-not-compound-rejected",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "NBTReader.readRootCompound()",
+    "line": 1134
+  },
+  "input": {
+    "server_type": "java",
+    "nbt_payload_description": "well-formed gzip and enough bytes, but the very first tag-type byte is 0x03 (int) instead of 0x0A (compound)"
+  },
+  "expected": {
+    "readRootCompound_throws_NSError_code_1": true,
+    "parseNBTRoot_returns_nil": true,
+    "result": {
+      "seed": null,
+      "difficulty": null,
+      "gamemode": null,
+      "day_time": null
+    }
+  },
+  "notes": "readRootCompound (line 1134-1140): `guard let type = NBTTag(rawValue: try readUInt8()), type == .compound else { throw NSError(...code: 1) }`. Every real level.dat (Java or Bedrock) is required by the format itself to start with a root compound, so this is a defensive check against garbage input (e.g. a truncated/wrong file handed in as a slot's level.dat) rather than a real-world branch MSC 1 is ever expected to hit against genuine Minecraft output -- included because the Rust port must preserve the same 'malformed root -> nil, not a crash' contract regardless of why it happens."
+}

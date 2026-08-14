@@ -1,0 +1,23 @@
+{
+  "domain": "world-nbt",
+  "case": "zip-member-selection-excludes-macosx-picks-first-listing-match",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "firstLevelDatPath(inZIP:)",
+    "line": 1333
+  },
+  "input": {
+    "unzip_dash_Z_dash_1_listing_order": [
+      "__MACOSX/._level.dat",
+      "world/",
+      "world/region/r.0.0.mca",
+      "world/level.dat",
+      "world_nether/level.dat"
+    ]
+  },
+  "expected": {
+    "selected_member_path": "world/level.dat",
+    "macosx_entry_excluded": true
+  },
+  "notes": "firstLevelDatPath (line 1333-1346) runs `unzip -Z -1` (bare member listing, one path per line), strips __MACOSX/-prefixed entries (AppleDouble metadata macOS's Archive Utility and, historically, macOS's own zip tool inject) and blank lines, then takes `paths.first(where: { $0 == \"level.dat\" || $0.hasSuffix(\"/level.dat\") })` -- the FIRST match in the zip's own internal member order, not the shortest path or an alphabetical sort. If a zip happened to list world_nether/level.dat before world/level.dat, MSC 1 would silently pick the nether dimension's level.dat instead -- this fixture pins that the selection is positional, not semantic, since a well-formed WorldSlotManager-produced archive (createSlot, line 391) always writes the main world folder first and this ordering assumption has gone unnoticed as a result."
+}

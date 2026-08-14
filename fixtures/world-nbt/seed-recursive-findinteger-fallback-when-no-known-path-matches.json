@@ -1,0 +1,23 @@
+{
+  "domain": "world-nbt",
+  "case": "seed-recursive-findinteger-fallback-when-no-known-path-matches",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "extractSeedString(fromNBT:preferJavaPaths:), findInteger(named:in:)",
+    "line": 1403
+  },
+  "input": {
+    "server_type": "java",
+    "nbt_data_compound": {
+      "SomeUnexpectedNesting": {
+        "DeeperStill": {
+          "RandomSeed": 999
+        }
+      }
+    }
+  },
+  "expected": {
+    "seed": "999"
+  },
+  "notes": "None of the four fixed paths (Data.WorldGenSettings.seed, Data.RandomSeed, top-level RandomSeed, top-level WorldGenSettings.seed) match here. extractSeedString's last two candidates (line 1403-1404) call findInteger(named:in:), which recurses into every compound value depth-first (line 1462-1484) until it finds a key named exactly 'RandomSeed' anywhere in the tree, checked before falling further to a bare 'seed' key search. This fallback exists precisely because level.dat's exact nesting has drifted across Minecraft versions (java-real-modern-format-legacy-fields-absent shows a real level.dat where even this recursive search finds nothing, since the value moved to a string field) -- findInteger only ever matches integer-typed NBT values (via nbtInteger's empty-path base case, line 1443-1456), so it would not find a same-named string tag even if one existed."
+}

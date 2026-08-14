@@ -1,0 +1,86 @@
+{
+  "domain": "world-nbt",
+  "case": "all-twelve-tag-types-accepted-by-reader",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "NBTReader.readPayload(type:)",
+    "line": 1142
+  },
+  "input": {
+    "compound_containing_one_of_each": {
+      "a_byte": {
+        "tag": "byte(1)",
+        "value": -12
+      },
+      "a_short": {
+        "tag": "short(2)",
+        "value": -3000
+      },
+      "an_int": {
+        "tag": "int(3)",
+        "value": 70000
+      },
+      "a_long": {
+        "tag": "long(4)",
+        "value": 9000000000
+      },
+      "a_float": {
+        "tag": "float(5)",
+        "value": 1.5
+      },
+      "a_double": {
+        "tag": "double(6)",
+        "value": 2.25
+      },
+      "a_bytearray": {
+        "tag": "byteArray(7)",
+        "value": [
+          1,
+          2,
+          3
+        ]
+      },
+      "a_string": {
+        "tag": "string(8)",
+        "value": "hello"
+      },
+      "a_list": {
+        "tag": "list(9)",
+        "element_type": "int(3)",
+        "value": [
+          1,
+          2,
+          3
+        ]
+      },
+      "a_nested_compound": {
+        "tag": "compound(10)",
+        "value": {
+          "inner_int": 5
+        }
+      },
+      "an_intarray": {
+        "tag": "intArray(11)",
+        "value": [
+          1,
+          2,
+          3
+        ]
+      },
+      "a_longarray": {
+        "tag": "longArray(12)",
+        "value": [
+          1,
+          2,
+          3
+        ]
+      }
+    }
+  },
+  "expected": {
+    "parse_succeeds": true,
+    "every_key_present_with_correct_type": true,
+    "end_tag_0_terminates_compound_without_being_a_readable_payload_type": true
+  },
+  "notes": "readPayload's switch (line 1142-1203) is exhaustive over NBTTag's 13 raw values (0-12); .end (0) only appears as the compound-terminator sentinel consumed by readPayload's own .compound case (line 1176-1178, `guard rawType != NBTTag.end.rawValue else { break }`) and is never itself dispatched through readPayload's switch as a value to produce -- so this fixture exercises the 12 tags that ARE returned as NBTValue cases. Also pins two int-width quirks worth preserving in the Rust port: float is read as raw 4 bytes reinterpreted via Float(bitPattern:) (line 1155) and double via Double(bitPattern:) (line 1157), not decoded as text, and list (line 1163-1173) reads its element type ONCE then reads `count` payloads of that single type -- a heterogeneous list is not representable and was never attempted here."
+}

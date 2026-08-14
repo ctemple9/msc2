@@ -2297,12 +2297,29 @@ credential-persistence evidence gate; this macOS-only pass does not claim that
 Linux/Windows evidence is complete.
 
 ### P5.34 — Re-run the literal Phase 5 gate
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/rolling-plan.md` (this entry only unless the gate finds a defect)
 **What:** Run the corrected working gate from the Phase 5 header, not the old step checklist: formatting; native/Linux/Windows clippy; every workspace test; corpus dimensions; the restart-sensitive public-path harness; the real sanitized config through production startup; the real MSC 1 transfer package through the public import path; and the GitHub Actions macOS/Linux/Windows jobs for the exact candidate commit. Inspect persisted state after restart and require imported Java servers to be selectable, settings-capable, and lifecycle-capable. If any leg fails, stop and plan only the failing correction. Cameron alone marks this step `DONE` and advances to Phase 6 after running the Verify command.
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/fixture-runner/run.py --validate-dir fixtures/config-corpus-dimensions --expect 8 && tools/phase5/phase5-gate-smoke.sh --real-config corpus/configs/server-config-2026-08-11.json --real-transfer /path/to/your.msctransfer && run_id=$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P5.34: re-run the corrected Phase 5 gate`
 **Batch:** stop-after
+
+**Actual result:** The corrected Phase 5 gate was rerun after the P5.35 Linux
+foreground-smoke fix and after P4.43 recorded all-OS real-service credential
+persistence evidence. Locally on macOS, the gate legs passed: `cargo fmt
+--check`; native, Linux-target, and Windows-target clippy; `cargo nextest run
+--workspace` (`527 tests run: 527 passed (8 leaky), 0 skipped`);
+`python3 tools/fixture-runner/run.py --validate-dir
+fixtures/config-corpus-dimensions --expect 8` (`ok 8`); and
+`tools/phase5/phase5-gate-smoke.sh --real-config
+corpus/configs/server-config-2026-08-11.json --real-transfer
+/Users/camerontemple/Desktop/MinecraftServers-2026-08-11.msctransfer.msctransfer`
+(`phase5 gate smoke passed`). Fedora had already rerun the same Phase 5 smoke
+path after P5.35 against the real config and real transfer package and reported
+it clean. The remaining Verify leg for this exact commit is the
+workflow-dispatch GitHub Actions macOS/Linux/Windows run; that run is watched
+outside the file because recording its ID would change the exact commit under
+test.
 
 ### P5.35 — Make Linux foreground Phase 5 smokes use an explicit local secret store
 **Status:** awaiting verification

@@ -1,0 +1,44 @@
+{
+  "domain": "world-slots",
+  "case": "fresh-archive-less-slot-creation",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createFreshWorldSlot(name:seed:for:logLine:)",
+    "line": 549
+  },
+  "input": {
+    "cases": [
+      {
+        "name": " My New World ",
+        "seed": " 12345 ",
+        "server_type": "java"
+      },
+      {
+        "name": "Blank Seed World",
+        "seed": "   ",
+        "server_type": "bedrock"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "name": "My New World",
+        "world_level_name": "My New World",
+        "world_seed": "12345",
+        "has_archive": false,
+        "last_played_at": null,
+        "zip_size_bytes": null
+      },
+      {
+        "name": "Blank Seed World",
+        "world_level_name": "Blank Seed World",
+        "world_seed": null,
+        "has_archive": false,
+        "last_played_at": null,
+        "zip_size_bytes": null
+      }
+    ]
+  },
+  "notes": "createFreshWorldSlot writes only slot.json -- no world.zip and no world_folders are touched (lines 577-585) -- so the slot is archive-less by construction; `activateSlot` later detects this via `!hasArchivedZip` (line 666-667) and generates a new world on first activation instead of extracting anything. `name` is stored trimmed but otherwise as-typed (line 570, 555), while `worldLevelName` runs through `sanitizedWorldLevelName(trimmedName, fallback: ...)` (line 562) -- for both cases here the trimmed name has no invalid characters, so the two fields happen to match, but they are not the same value in general (see sanitized-level-name-strips-invalid-characters.json). `worldSeed` is trimmed and normalized to nil when blank (lines 563-564, 407-408's twin in createSlot) -- case 2's all-whitespace seed becomes nil rather than an empty string. lastPlayedAt stays nil until the slot is actually activated (line 572), matching every other slot-creation path in this file."
+}

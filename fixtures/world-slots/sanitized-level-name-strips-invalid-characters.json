@@ -1,0 +1,38 @@
+{
+  "domain": "world-slots",
+  "case": "sanitized-level-name-strips-invalid-characters",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "sanitizedWorldLevelName(_:fallback:)",
+    "line": 168
+  },
+  "input": {
+    "cases": [
+      {
+        "raw": "My/World\\Name:Test=",
+        "fallback": "world"
+      },
+      {
+        "raw": "   ",
+        "fallback": "world"
+      },
+      {
+        "raw": "Realm Export==",
+        "fallback": "Bedrock level"
+      },
+      {
+        "raw": "...",
+        "fallback": "world"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      "My-World-Name-Test",
+      "world",
+      "Realm Export",
+      "world"
+    ]
+  },
+  "notes": "sanitizedWorldLevelName exists specifically to undo BDS's own habit of stripping '=' when it turns level-name into a folder name (comment lines 172-175), which matters for base64-encoded Realm exports whose names end in padding '='. Rule, in order: trim whitespace, return fallback if empty (line 170); split on the invalid set '/\\\\:\\n\\r\\t=' (line 176-177); drop empty/whitespace-only pieces and join survivors with '-' (lines 178-181); trim '.' and ' ' off both ends of the joined result (line 182); return fallback if that's now empty (line 184). Case 1 shows the split-and-join producing a dash-joined name. Case 2 shows the up-front empty guard. Case 3 shows the realm-export '=' problem this function was written to fix: the trailing '==' produces two empty split components that get dropped, leaving a single un-dashed component. Case 4 shows an all-dots input surviving the split (no invalid chars present) but being reduced to empty by the trailing '. ' trim, falling back."
+}

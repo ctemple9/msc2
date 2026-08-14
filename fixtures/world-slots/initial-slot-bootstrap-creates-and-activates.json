@@ -1,0 +1,25 @@
+{
+  "domain": "world-slots",
+  "case": "initial-slot-bootstrap-creates-and-activates",
+  "source": {
+    "file": "AppViewModel+WorldSlots.swift",
+    "test": "ensureActiveWorldSlotExists(for:) — no active slot, no existing slots at all",
+    "line": 63
+  },
+  "input": {
+    "server_type": "java",
+    "server_properties_level_name": "world",
+    "live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "world_slots_dir_exists": false
+  },
+  "expected": {
+    "new_slot_created": true,
+    "new_slot_name": "World",
+    "new_slot_world_level_name": "world",
+    "new_slot_last_played_at": "set to now at creation time",
+    "new_slot_has_archive": true,
+    "new_slot_archive_contains": ["world", "world_nether", "world_the_end"],
+    "active_slot_id_txt_written_to": "new slot's id"
+  },
+  "notes": "This is the bootstrap path a server that predates the persistent-slot model takes the first time a slot-dependent operation runs against it: WorldSlotManager.activeSlot returns nil (line 64), loadSlots is empty so the existing.max(by:) fallback also returns nil (lines 73-74), so control falls through to WorldSlotManager.createSlot (lines 83-89) zipping the current live world folders into a brand-new slot. Unlike an ordinary createSlot call, the caller here immediately sets created.lastPlayedAt = Date() (line 93) before persisting -- this bootstrap slot is being marked as already-active/already-played on creation, not left at nil like a freshly-saved snapshot slot (contrast slot-metadata-json-defaults.json and fresh-archive-less-slot-creation.json, where lastPlayedAt starts nil). Both saveMetadata and setActiveSlotID run afterward (lines 95-96) so the new slot is both persisted and marked as the active slot in one pass. defaultPersistentSlotName (lines 51-61) capitalizes the first letter of a non-empty Java level-name -- \"world\" becomes \"World\" -- which is why new_slot_name differs in case from world_level_name."
+}

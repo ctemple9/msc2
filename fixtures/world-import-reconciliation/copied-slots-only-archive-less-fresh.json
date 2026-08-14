@@ -1,0 +1,26 @@
+{
+  "domain": "world-import-reconciliation",
+  "case": "copied-slots-only-archive-less-fresh",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createFreshWorldSlot(...)'s no-backing-archive case, reused for Phase 6 reconciliation State 2 (world_slots only, archive-less) — see docs/msc2/worlds/phase6-scope.md §\"State 2 — world_slots only\"",
+    "line": 549
+  },
+  "input": {
+    "handoff_state": "world_slots only",
+    "server_type": "java",
+    "live_world_folders_present": [],
+    "world_slots_dir_exists": true,
+    "resolved_active_slot": {
+      "id": "slot-fresh",
+      "has_archive": false
+    }
+  },
+  "expected": {
+    "archive_extracted_into_live_folder_location": false,
+    "live_folders_materialized": false,
+    "active_marker_persisted": true,
+    "new_slot_created": false
+  },
+  "notes": "phase6-scope.md State 2, second bullet (line 59): the resolved active slot can itself be fresh/archive-less -- createFreshWorldSlot's no-backing-archive case (fresh-archive-less-slot-creation.json). There is no live data to materialize, so Phase 6 leaves no live folders on disk; the server generates a new world on first start, identical to MSC 1's own behavior when a not-yet-activated fresh slot is later activated (the willGenerateFresh branch, WorldSlotManager.swift line 667/759-766). The active marker is still persisted regardless, so activation state is well-defined before any Phase 6 route becomes reachable for this server -- this is the one branch where the marker is written even though nothing else changed on disk."
+}

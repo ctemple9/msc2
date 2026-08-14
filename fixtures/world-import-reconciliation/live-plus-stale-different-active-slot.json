@@ -1,0 +1,29 @@
+{
+  "domain": "world-import-reconciliation",
+  "case": "live-plus-stale-different-active-slot",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlot(name:for:...) reused as a recovery-snapshot archive — see docs/msc2/worlds/phase6-scope.md §\"State 3 — both together\", step 3, \"Different, or equality cannot be established\"",
+    "line": 391
+  },
+  "input": {
+    "handoff_state": "both together",
+    "server_type": "java",
+    "live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "world_slots_dir_exists": true,
+    "resolved_active_slot": {
+      "id": "slot-recorded",
+      "has_archive": true
+    },
+    "comparison_method": "extract archive to scratch location, compare file-by-file: presence, size, and content hash",
+    "comparison_result": "different"
+  },
+  "expected": {
+    "recovery_snapshot_created": true,
+    "recovery_snapshot_is_new_distinct_slot": true,
+    "active_marker_persisted_to": "the new recovery-snapshot slot's id",
+    "slot_recorded_overwritten": false,
+    "slot_recorded_final_state": "survives untouched, ordinary, selectable, non-active"
+  },
+  "notes": "phase6-scope.md State 3, step 3 (lines 68-69): when the live folders differ from the recorded active slot's archive -- or equality cannot be established at all (archive extraction fails, comparison is inconclusive) -- Phase 6 creates a recovery snapshot: the live folders are archived into a brand-new slot, distinct from and never overwriting the existing recorded slot's archive or metadata. The new snapshot becomes active, which is what 'preserve Phase 5's established live-world precedence' means in practice: the live folders are the freshest data Phase 5 actually imported, so they win the active slot going forward, while the previously-recorded slot survives untouched as an ordinary, selectable, non-active slot -- nothing reachable through MSC 1 before Phase 5 ran is deleted or hidden by this step, it just stops being the default."
+}

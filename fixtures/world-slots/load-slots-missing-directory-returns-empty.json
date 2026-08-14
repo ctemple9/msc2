@@ -1,0 +1,16 @@
+{
+  "domain": "world-slots",
+  "case": "load-slots-missing-directory-returns-empty",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "loadSlots(forServerDir:) — missing world_slots/ guard",
+    "line": 280
+  },
+  "input": {
+    "world_slots_dir_exists": false
+  },
+  "expected": {
+    "loaded_slot_ids": []
+  },
+  "notes": "`guard fm.fileExists(atPath: slotsDir.path) else { return [] }` (line 280) short-circuits before any directory read is attempted. This is the ordinary case for any server that has never been stopped inside MSC 1 -- world_slots/ is only created lazily by createInitialWorldSlotIfNeeded after first stop -- so an empty result here must not be treated as an error condition upstream."
+}

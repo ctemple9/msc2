@@ -1,0 +1,17 @@
+{
+  "domain": "world-slots",
+  "case": "resolved-active-empty-slots-returns-nil",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "resolvedActiveSlotID(forServerDir:) — empty-slots guard",
+    "line": 130
+  },
+  "input": {
+    "active_slot_id_txt": null,
+    "slots": []
+  },
+  "expected": {
+    "resolved_active_slot_id": null
+  },
+  "notes": "`guard !slots.isEmpty else { return nil }` (line 130) returns immediately when loadSlots produced no usable entries at all -- whether because world_slots/ is missing, present-but-empty, or every slot.json inside it failed to parse (loadSlots's own tolerant skip, characterized in load-slots-corrupt-entry-skipped.json, can itself reduce a non-empty directory to this state). There is no recorded active slot to resolve; downstream reconciliation must not invent one."
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "world-import-reconciliation",
+  "case": "no-world-data-neither-source",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "loadSlots(forServerDir:) missing-directory guard combined with worldFolderNames(for:) returning empty — see docs/msc2/worlds/phase6-scope.md §\"Why this is a real problem, not a hypothetical one\"",
+    "line": 280
+  },
+  "input": {
+    "handoff_state": "no world data",
+    "server_type": "java",
+    "live_world_folders_present": [],
+    "world_slots_dir_exists": false
+  },
+  "expected": {
+    "reconciliation_action": "none",
+    "new_slot_created": false,
+    "active_marker_persisted": false
+  },
+  "notes": "Neither source of world data exists: no live world/world_nether/world_the_end (or Bedrock worlds/) folders, and no world_slots/ directory. This is the state a raw-imported plain external install that was never started, or an MSC-1-managed server imported before its first stop (world_slots/ is only created lazily after first stop, per createInitialWorldSlotIfNeeded), can legitimately be in. Reconciliation has nothing to inventory and nothing to protect, so it is a complete no-op -- creating an empty slot or an active marker with nothing behind it would misrepresent a server that genuinely has no world yet as already having one."
+}

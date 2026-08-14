@@ -1,0 +1,28 @@
+{
+  "domain": "world-slots",
+  "case": "resolved-active-explicit-marker-missing-slot-falls-back",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "resolvedActiveSlotID(forServerDir:) — explicit marker naming a nonexistent slot",
+    "line": 132
+  },
+  "input": {
+    "active_slot_id_txt": "slot-ghost\n",
+    "slots": [
+      {
+        "id": "slot-a",
+        "created_at": "2026-01-01T00:00:00Z",
+        "last_played_at": "2026-02-01T00:00:00Z"
+      },
+      {
+        "id": "slot-b",
+        "created_at": "2026-01-05T00:00:00Z",
+        "last_played_at": "2026-03-01T00:00:00Z"
+      }
+    ]
+  },
+  "expected": {
+    "resolved_active_slot_id": "slot-b"
+  },
+  "notes": "active_slot_id.txt names slot-ghost, which does not appear in the loaded slots list -- e.g. it was deleted, or the marker was copied in from a different server/import source. `slots.contains(where: { $0.id == explicit })` at line 133 fails, so the `if let explicit = ...` branch (lines 132-135) never returns, and resolution falls through to the most-recently-played branch (lines 137-141), which picks slot-b over slot-a by lastPlayedAt. This is the same code path exercised by a genuinely missing/empty active_slot_id.txt (loadExplicitActiveSlotID returns nil either way), which is why Phase 6's reconciliation rule treats 'marker present but stale' and 'marker absent' identically -- see world-import-reconciliation/missing-or-corrupt-active-marker-with-live-and-slots.json."
+}

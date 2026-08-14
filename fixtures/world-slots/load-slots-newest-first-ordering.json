@@ -1,0 +1,44 @@
+{
+  "domain": "world-slots",
+  "case": "load-slots-newest-first-ordering",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "loadSlots(forServerDir:) — final sort",
+    "line": 324
+  },
+  "input": {
+    "world_slots_dir_entries": [
+      {
+        "name": "slot-middle",
+        "is_directory": true,
+        "slot_json_contents": {
+          "id": "slot-middle",
+          "name": "Middle",
+          "created_at": "2026-02-01T00:00:00Z"
+        }
+      },
+      {
+        "name": "slot-oldest",
+        "is_directory": true,
+        "slot_json_contents": {
+          "id": "slot-oldest",
+          "name": "Oldest",
+          "created_at": "2026-01-01T00:00:00Z"
+        }
+      },
+      {
+        "name": "slot-newest",
+        "is_directory": true,
+        "slot_json_contents": {
+          "id": "slot-newest",
+          "name": "Newest",
+          "created_at": "2026-03-01T00:00:00Z"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "loaded_slot_ids_in_order": ["slot-newest", "slot-middle", "slot-oldest"]
+  },
+  "notes": "Directory enumeration order (fm.contentsOfDirectory, lines 284-288) is not creation-date order, so loadSlots always finishes with `slots.sorted { $0.createdAt > $1.createdAt }` (line 324) regardless of what order the three entries were discovered on disk. This fixture deliberately lists the input entries out of chronological order to pin that the sort, not enumeration order, decides the result."
+}

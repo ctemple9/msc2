@@ -1,0 +1,25 @@
+{
+  "domain": "world-import-reconciliation",
+  "case": "copied-slots-only-with-archive",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "activateSlot(_:for:...) archive-extraction branch, reused for Phase 6 reconciliation State 2 (world_slots only, archived) — see docs/msc2/worlds/phase6-scope.md §\"State 2 — world_slots only\"",
+    "line": 707
+  },
+  "input": {
+    "handoff_state": "world_slots only",
+    "server_type": "java",
+    "live_world_folders_present": [],
+    "world_slots_dir_exists": true,
+    "resolved_active_slot": {
+      "id": "slot-a",
+      "has_archive": true
+    }
+  },
+  "expected": {
+    "archive_extracted_into_live_folder_location": true,
+    "active_marker_persisted": true,
+    "new_slot_created": false
+  },
+  "notes": "phase6-scope.md State 2 (lines 54-59): no live world folders exist yet (Java: none of level/level_nether/level_the_end; Bedrock: no worlds/), and resolvedActiveSlotID resolves to a real slot. When that slot has an archive, Phase 6 extracts world.zip into the live-folder location -- the same unzip WorldSlotManager.activateSlot already performs (lines 715-732) -- except Phase 6's version *does* persist the active marker afterward, unlike Phase 5's restore_active_slot_world (transfer.rs), which deliberately skipped that write because the formal slot model didn't exist yet when that code was written (phase6-scope.md line 58)."
+}

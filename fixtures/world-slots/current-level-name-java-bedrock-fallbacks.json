@@ -1,0 +1,33 @@
+{
+  "domain": "world-slots",
+  "case": "current-level-name-java-bedrock-fallbacks",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "currentLevelName(for:)",
+    "line": 154
+  },
+  "input": {
+    "cases": [
+      {
+        "server_type": "java",
+        "server_properties_level_name": null
+      },
+      {
+        "server_type": "java",
+        "server_properties_level_name": "MyWorld "
+      },
+      {
+        "server_type": "bedrock",
+        "bedrock_level_name": ""
+      },
+      {
+        "server_type": "bedrock",
+        "bedrock_level_name": "Realm 5"
+      }
+    ]
+  },
+  "expected": {
+    "results": ["world", "MyWorld", "Bedrock level", "Realm 5"]
+  },
+  "notes": "Java (lines 160-165): reads server.properties['level-name'], trims it, and falls back to the literal string \"world\" when the key is absent or blank after trimming -- case 1. A present, non-blank value is trimmed and returned as-is -- case 2 shows trailing whitespace stripped. Bedrock (lines 156-159): reads BedrockPropertiesManager's levelName, trims it, and falls back to \"Bedrock level\" when blank -- case 3. A non-blank value passes through trimmed -- case 4. The two server types use different fallback strings on purpose (\"world\" matches vanilla/Paper's own default level-name; \"Bedrock level\" matches BDS's own default), so a Rust port must not unify them into one shared constant."
+}

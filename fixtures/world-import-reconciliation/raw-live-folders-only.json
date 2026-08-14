@@ -1,0 +1,24 @@
+{
+  "domain": "world-import-reconciliation",
+  "case": "raw-live-folders-only",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "createSlot(name:for:...) reused for Phase 6 reconciliation State 1 (live folders only) — see docs/msc2/worlds/phase6-scope.md §\"State 1 — live folders only\"",
+    "line": 391
+  },
+  "input": {
+    "handoff_state": "live folders only",
+    "server_type": "java",
+    "live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "world_slots_dir_exists": false
+  },
+  "expected": {
+    "new_slot_created": true,
+    "new_slot_source": "archived from the current live folders, mirroring createInitialWorldSlotIfNeeded's own archive step",
+    "active_marker_persisted_to": "the new slot's id",
+    "existing_slot_touched": null,
+    "recovery_snapshot_created": false,
+    "live_folders_left_on_disk": true
+  },
+  "notes": "phase6-scope.md State 1 (lines 50-52): no world_slots/ directory, or one present but resolving to no active slot at all (see resolved-active-empty-slots-returns-nil.json / State 6 of this domain). There is nothing recorded to reconcile against, so Phase 6 archives the current live folders into a brand-new slot and persists that slot as active -- the exact same operation MSC 1's own post-first-stop bootstrap performs (world-slots/initial-slot-bootstrap-creates-and-activates.json), just triggered at Phase 6 startup instead of after a stop event. The live folders themselves are left untouched on disk; the new slot is a parallel archived copy. No recovery snapshot is needed because there is only one source of truth here and it isn't at risk of being silently overwritten."
+}

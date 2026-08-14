@@ -1,0 +1,28 @@
+{
+  "domain": "world-slots",
+  "case": "resolved-active-no-lastplayed-falls-back-to-newest-created",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "resolvedActiveSlotID(forServerDir:) — final createdAt fallback",
+    "line": 143
+  },
+  "input": {
+    "active_slot_id_txt": null,
+    "slots": [
+      {
+        "id": "slot-a",
+        "created_at": "2026-01-01T00:00:00Z",
+        "last_played_at": null
+      },
+      {
+        "id": "slot-b",
+        "created_at": "2026-02-01T00:00:00Z",
+        "last_played_at": null
+      }
+    ]
+  },
+  "expected": {
+    "resolved_active_slot_id": "slot-b"
+  },
+  "notes": "No explicit marker exists, and neither slot has ever been activated (lastPlayedAt nil for both), so `slots.filter({ $0.lastPlayedAt != nil }).max(by:)` (lines 137-139) filters down to an empty array and returns nil. Resolution falls all the way through to the last-resort branch, `slots.max(by: { $0.createdAt < $1.createdAt })` (line 143), which picks slot-b as the newest-created. This is the state a fresh, never-activated set of slots is in immediately after import."
+}

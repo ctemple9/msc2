@@ -1,0 +1,28 @@
+{
+  "domain": "world-slots",
+  "case": "resolved-active-explicit-marker-wins",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "resolvedActiveSlotID(forServerDir:) — explicit-marker branch",
+    "line": 128
+  },
+  "input": {
+    "active_slot_id_txt": "slot-b\n",
+    "slots": [
+      {
+        "id": "slot-a",
+        "created_at": "2026-01-01T00:00:00Z",
+        "last_played_at": "2026-03-01T00:00:00Z"
+      },
+      {
+        "id": "slot-b",
+        "created_at": "2026-02-01T00:00:00Z",
+        "last_played_at": "2026-02-15T00:00:00Z"
+      }
+    ]
+  },
+  "expected": {
+    "resolved_active_slot_id": "slot-b"
+  },
+  "notes": "The explicit marker (loadExplicitActiveSlotID, lines 105-110) is checked first (lines 132-135) and wins outright once it names a slot that still exists in the loaded list -- lastPlayedAt/createdAt are never consulted when this branch succeeds. slot-a's more recent lastPlayedAt (2026-03-01) is a deliberate distractor: a resolver that fell through to the legacy-fallback branch by mistake would wrongly return slot-a instead."
+}

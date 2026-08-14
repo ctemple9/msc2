@@ -1,0 +1,27 @@
+{
+  "domain": "world-import-reconciliation",
+  "case": "live-plus-matching-slot-proven-identical",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "resolvedActiveSlotID(forServerDir:) chain plus a Phase 6 file-by-file archive comparison — see docs/msc2/worlds/phase6-scope.md §\"State 3 — both together\", step 3, \"Proven identical\"",
+    "line": 128
+  },
+  "input": {
+    "handoff_state": "both together",
+    "server_type": "java",
+    "live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "world_slots_dir_exists": true,
+    "resolved_active_slot": {
+      "id": "slot-recorded",
+      "has_archive": true
+    },
+    "comparison_method": "extract archive to scratch location, compare file-by-file: presence, size, and content hash",
+    "comparison_result": "identical"
+  },
+  "expected": {
+    "active_marker_persisted_to": "slot-recorded (the existing recorded slot)",
+    "new_slot_created": false,
+    "recovery_snapshot_created": false
+  },
+  "notes": "phase6-scope.md State 3 (lines 61-69): live folders exist and world_slots/ resolves to a recorded active slot with a real archive. Equality must be proven, not assumed -- a cheap check that could produce a false 'identical' (matching only names or sizes) is explicitly disallowed (line 67) because a wrong 'equal' verdict is a silent data-loss bug, not a performance shortcut. When the file-by-file comparison genuinely proves identical, this is the common no-op case for a server that was cleanly stopped and never touched again: the active marker is persisted pointing at the existing recorded slot, and no new slot is created."
+}

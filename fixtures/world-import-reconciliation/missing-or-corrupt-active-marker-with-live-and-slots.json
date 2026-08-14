@@ -1,0 +1,29 @@
+{
+  "domain": "world-import-reconciliation",
+  "case": "missing-or-corrupt-active-marker-with-live-and-slots",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "resolvedActiveSlotID(forServerDir:) — empty-slots guard, reused for Phase 6 reconciliation State 3's unresolvable-active sub-case — see docs/msc2/worlds/phase6-scope.md §\"State 3 — both together\", step 2",
+    "line": 130
+  },
+  "input": {
+    "handoff_state": "both together",
+    "server_type": "java",
+    "live_world_folders_present": ["world", "world_nether", "world_the_end"],
+    "world_slots_dir_exists": true,
+    "world_slots_entries": [
+      {"id": "slot-corrupt-1", "slot_json_parses": false},
+      {"id": "slot-corrupt-2", "slot_json_parses": false}
+    ],
+    "active_slot_id_txt": "unreadable-or-missing",
+    "resolved_active_slot": null
+  },
+  "expected": {
+    "treated_as": "State 1 (live folders only)",
+    "new_slot_created": true,
+    "active_marker_persisted_to": "the new slot's id",
+    "existing_unresolvable_slot_dirs_deleted": false,
+    "existing_unresolvable_slot_dirs_final_state": "left on disk, inactive, still browsable"
+  },
+  "notes": "phase6-scope.md State 3, step 2 (line 66): if the recorded active slot has no archive, OR resolution finds no active slot at all despite world_slots/ existing (every entry corrupt, or none marked/inferable -- resolved-active-empty-slots-returns-nil.json's condition, reached here because both world_slots_entries fail to parse per loadSlots's tolerant skip), Phase 6 treats this exactly like State 1: archive the live folders as a new slot and make it active, without touching whatever unresolvable/archive-less slot data is already there. That leftover data is not deleted -- it stays on disk as an inactive, still-browsable slot, in case a future repair recovers it."
+}

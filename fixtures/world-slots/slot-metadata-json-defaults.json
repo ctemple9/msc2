@@ -1,0 +1,28 @@
+{
+  "domain": "world-slots",
+  "case": "slot-metadata-json-defaults",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "WorldSlot (Codable struct) decoded via loadSlots(forServerDir:)",
+    "line": 27
+  },
+  "input": {
+    "slot_json_contents": {
+      "id": "b2b0b8b0-1111-4a2a-9999-000000000001",
+      "name": "World 1",
+      "created_at": "2026-01-01T00:00:00Z"
+    },
+    "zip_file_present": false
+  },
+  "expected": {
+    "id": "b2b0b8b0-1111-4a2a-9999-000000000001",
+    "name": "World 1",
+    "created_at": "2026-01-01T00:00:00Z",
+    "last_played_at": null,
+    "thumbnail_file_name": null,
+    "world_level_name": null,
+    "world_seed": null,
+    "zip_size_bytes": null
+  },
+  "notes": "WorldSlot's stored properties beyond id/name/createdAt all carry `= nil` defaults (lastPlayedAt line 31, thumbnailFileName line 32, worldLevelName line 38, worldSeed line 44), so a slot.json written before those fields existed -- or one copied in from a legacy/imported source -- decodes cleanly rather than failing. zipSizeBytes is excluded from CodingKeys entirely (line 59, comment at line 46-47) and is instead populated by loadSlots as a cheap stat of world.zip on disk (lines 313-318); with no zip file present it stays nil after load, same as a freshly-decoded slot before that stat runs."
+}

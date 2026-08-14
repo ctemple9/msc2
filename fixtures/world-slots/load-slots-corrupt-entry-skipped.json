@@ -1,0 +1,41 @@
+{
+  "domain": "world-slots",
+  "case": "load-slots-corrupt-entry-skipped",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "loadSlots(forServerDir:)",
+    "line": 276
+  },
+  "input": {
+    "world_slots_dir_entries": [
+      {
+        "name": "slot-good",
+        "is_directory": true,
+        "slot_json_contents": {
+          "id": "slot-good",
+          "name": "Good Slot",
+          "created_at": "2026-01-01T00:00:00Z"
+        }
+      },
+      {
+        "name": "slot-corrupt-json",
+        "is_directory": true,
+        "slot_json_contents": "{not valid json"
+      },
+      {
+        "name": "slot-missing-metadata",
+        "is_directory": true,
+        "slot_json_contents": null
+      },
+      {
+        "name": ".DS_Store",
+        "is_directory": false,
+        "slot_json_contents": null
+      }
+    ]
+  },
+  "expected": {
+    "loaded_slot_ids": ["slot-good"]
+  },
+  "notes": "loadSlots tolerates three distinct kinds of bad entries without failing the whole directory: a non-directory entry is skipped by the isDir guard (lines 296-299); a directory whose slot.json is missing entirely fails `Data(contentsOf:)` and is skipped via `guard let data = try? ... else { continue }` (lines 301-302); a directory whose slot.json exists but doesn't parse fails the decoder and is skipped via `catch { continue }` (lines 305-311). All three land in the same result: only slot-good survives. Newest-first ordering is exercised separately in load-slots-newest-first-ordering.json to keep this fixture focused on the skip behavior."
+}

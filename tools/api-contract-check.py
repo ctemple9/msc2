@@ -11,9 +11,13 @@ P0.32 baseline plus P2.1/P2.2/P2.4/P2.5/P2.6's designs:
   3. every field flagged for helpId in P2.2 (helpid-contract.md SS4) actually
      carries one, on the schema this contract ships
   4. the total route count matches baseline (88, per P0.23's --total) plus
-     the five routes this phase adds: POST /v1/operations,
-     GET /v1/operations/{id}, POST /v1/operations/{id}/cancel,
-     GET /v1/capabilities, GET /v1/help/{helpId}
+     the five routes P2.8 added (POST /v1/operations, GET /v1/operations/{id},
+     POST /v1/operations/{id}/cancel, GET /v1/capabilities,
+     GET /v1/help/{helpId}) plus the thirteen P6.8 adds (docs/msc2/worlds/
+     phase6-api.md SS3): POST /v1/worlds/{update,delete,duplicate,copy,
+     import,export,rename-active-world,convert}, GET /v1/worlds/{slotId}/
+     thumbnail, POST /v1/backups/delete, POST /v1/staged-uploads,
+     PUT /v1/staged-uploads/{id}, GET /v1/staged-downloads/{id}
 
 Also checks that every non-2xx response resolves to ErrorDTO (P2.4 SS5-6's
 envelope unification), not the baseline's split Error/typed-DTO pattern.
@@ -26,7 +30,7 @@ import json
 import sys
 
 CONTRACT_PATH = "docs/msc2/api-contract/openapi.json"
-EXPECTED_TOTAL = 93  # 88 baseline (P0.23 --total) + 5 new this phase
+EXPECTED_TOTAL = 106  # 88 baseline (P0.23 --total) + 5 P2.8 + 13 P6.8
 
 # helpid-contract.md SS4's table: schema -> field(s) that must carry helpId.
 HELPID_FIELDS = {

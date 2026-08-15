@@ -241,6 +241,42 @@ pub fn extract_zip_with_limits(
     Ok(())
 }
 
+/// The zip's own member listing, in its internal (not sorted) order —
+/// mirrors `unzip -Z -1`'s output, the listing MSC 1's
+/// `inferJavaLevelName(fromSlotZIP:)`/`firstLevelDatPath(inZIP:)` both
+/// shell out for (`WorldSlotManager.swift:192-199`, `1333-1345`). Used
+/// only to make an import-time naming/seed *guess* — never to decide
+/// what's safe to extract, so this deliberately skips
+/// [`extract_zip`]'s traversal/symlink/size checks (P6.12 characterizes
+/// import as accepting the zip verbatim; those checks apply once, at
+/// activation time, per `fixtures/world-archive-safety`).
+pub fn list_entry_names(zip_path: &Path) -> Result<Vec<String>, ArchiveError> {
+    let file = fs::File::open(zip_path).map_err(ArchiveError::Open)?;
+    let archive = ZipArchive::new(file).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
+    Ok(archive.file_names().map(str::to_string).collect())
+}
+
+/// One member's decompressed bytes, or `Ok(None)` if `entry_name` isn't
+/// present — mirrors `unzip -p <zip> <member>`'s "read one file out of
+/// the archive" shape, native rather than shelled out, same rationale as
+/// [`list_entry_names`].
+pub fn read_entry_bytes(
+    zip_path: &Path,
+    entry_name: &str,
+) -> Result<Option<Vec<u8>>, ArchiveError> {
+    let file = fs::File::open(zip_path).map_err(ArchiveError::Open)?;
+    let mut archive = ZipArchive::new(file).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
+    match archive.by_name(entry_name) {
+        Ok(mut entry) => {
+            let mut buf = Vec::new();
+            io::copy(&mut entry, &mut buf).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
+            Ok(Some(buf))
+        }
+        Err(zip::result::ZipError::FileNotFound) => Ok(None),
+        Err(e) => Err(ArchiveError::Corrupt(e.to_string())),
+    }
+}
+
 fn add_directory_entry<W: Write + io::Seek>(
     zip: &mut ZipWriter<W>,
     name: &str,

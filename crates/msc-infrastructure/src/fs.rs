@@ -7,16 +7,25 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::SystemTime;
 
-/// What callers need to know about a path: file vs. directory, and
-/// whether it's executable. Mirrors the shape fixtures already use
-/// (`docs/msc2/fixture-format.md`'s `fsTree`), not the full breadth of
-/// `std::fs::Metadata`.
+/// What callers need to know about a path: file vs. directory, whether
+/// it's executable, its size, and its last-modified time. Mirrors the
+/// shape fixtures already use (`docs/msc2/fixture-format.md`'s `fsTree`),
+/// not the full breadth of `std::fs::Metadata`. `size`/`modified` are a
+/// P6.15 addition (flagged deviation from that step's own `Files:` list,
+/// which didn't name this file) — backup listing (`backup_store::
+/// list_backups`) is the first caller in this codebase that needs a
+/// file's size or timestamp without reading its full contents just to
+/// measure `.len()`, the trick every earlier step (`zip_size_bytes`)
+/// used instead.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Metadata {
     pub is_file: bool,
     pub is_dir: bool,
     pub executable: bool,
+    pub size: u64,
+    pub modified: SystemTime,
 }
 
 pub trait FileSystem: Send + Sync {
@@ -61,6 +70,8 @@ impl FileSystem for StdFileSystem {
             is_file: meta.is_file(),
             is_dir: meta.is_dir(),
             executable: is_executable(&meta),
+            size: meta.len(),
+            modified: meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
         })
     }
 
@@ -139,6 +150,13 @@ pub fn join_forward_slash(base: &Path, component: &std::ffi::OsStr) -> PathBuf {
 struct FakeEntry {
     contents: Vec<u8>,
     executable: bool,
+    /// Defaults to `SystemTime::UNIX_EPOCH` for every entry — no test
+    /// before P6.15 needed a fake file's modified time to mean anything,
+    /// so there's no seeding builder for it yet; backup-listing tests
+    /// exercise mtime-dependent sort order against a real `StdFileSystem`
+    /// temp directory instead, the same "archive.rs needs real files"
+    /// precedent `world_slot_crud.rs` already set.
+    modified: SystemTime,
 }
 
 /// An in-memory filesystem for tests. Constructible directly from the
@@ -197,6 +215,7 @@ impl FakeFileSystem {
                         FakeEntry {
                             contents: Vec::new(),
                             executable,
+                            modified: SystemTime::UNIX_EPOCH,
                         },
                     );
                 }
@@ -231,6 +250,7 @@ impl FakeFileSystem {
             FakeEntry {
                 contents: contents.into(),
                 executable,
+                modified: SystemTime::UNIX_EPOCH,
             },
         );
         self
@@ -279,11 +299,16 @@ impl FileSystem for FakeFileSystem {
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         let mut files = self.files.lock().unwrap();
         let executable = files.get(path).map(|e| e.executable).unwrap_or(false);
+        let modified = files
+            .get(path)
+            .map(|e| e.modified)
+            .unwrap_or(SystemTime::UNIX_EPOCH);
         files.insert(
             path.to_path_buf(),
             FakeEntry {
                 contents: contents.to_vec(),
                 executable,
+                modified,
             },
         );
         Ok(())
@@ -296,6 +321,8 @@ impl FileSystem for FakeFileSystem {
                 is_file: true,
                 is_dir: false,
                 executable: entry.executable,
+                size: entry.contents.len() as u64,
+                modified: entry.modified,
             });
         }
         // A path counts as a directory if some stored file lives underneath
@@ -308,6 +335,8 @@ impl FileSystem for FakeFileSystem {
                 is_file: false,
                 is_dir: true,
                 executable: false,
+                size: 0,
+                modified: SystemTime::UNIX_EPOCH,
             });
         }
         Err(io::Error::new(

@@ -39,18 +39,18 @@ fn err(msg: impl Into<String>) -> DecodeError {
     DecodeError(msg.into())
 }
 
-fn present<'a>(v: &'a Value, key: &str) -> Option<&'a Value> {
+pub(crate) fn present<'a>(v: &'a Value, key: &str) -> Option<&'a Value> {
     v.get(key).filter(|x| !x.is_null())
 }
 
-fn req_str(v: &Value, key: &str) -> Result<String, DecodeError> {
+pub(crate) fn req_str(v: &Value, key: &str) -> Result<String, DecodeError> {
     match present(v, key) {
         Some(Value::String(s)) => Ok(s.clone()),
         _ => Err(err(format!("missing or invalid required field \"{key}\""))),
     }
 }
 
-fn opt_str(v: &Value, key: &str) -> Result<Option<String>, DecodeError> {
+pub(crate) fn opt_str(v: &Value, key: &str) -> Result<Option<String>, DecodeError> {
     match present(v, key) {
         None => Ok(None),
         Some(Value::String(s)) => Ok(Some(s.clone())),
@@ -58,7 +58,7 @@ fn opt_str(v: &Value, key: &str) -> Result<Option<String>, DecodeError> {
     }
 }
 
-fn insert_opt_str(m: &mut Map<String, Value>, key: &str, value: &Option<String>) {
+pub(crate) fn insert_opt_str(m: &mut Map<String, Value>, key: &str, value: &Option<String>) {
     if let Some(v) = value {
         m.insert(key.to_string(), Value::String(v.clone()));
     }

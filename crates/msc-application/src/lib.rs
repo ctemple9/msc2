@@ -1,3 +1,4 @@
+pub mod backups;
 pub mod commands;
 pub mod import;
 pub mod java_launch;

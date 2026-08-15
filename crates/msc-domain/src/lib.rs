@@ -1,4 +1,5 @@
 pub mod app_config_schema;
+pub mod backup;
 pub mod capability;
 pub mod commands;
 pub mod crash_analysis;

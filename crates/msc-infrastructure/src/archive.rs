@@ -158,24 +158,29 @@ fn safe_join(dest_root: &Path, name: &str) -> PathBuf {
     path
 }
 
-/// Extracts every entry of the zip at `zip_path` into `dest_root`.
-/// All-or-nothing: any unsafe entry, any limit exceeded, or any corrupt
-/// entry refuses the whole archive before writing anything to
-/// `dest_root`. See the module doc for the three-pass shape (declared-
-/// metadata checks, then a no-write dry-run decompression, then the real
-/// extraction) that makes "corrupt archive" and "unsafe/oversized
-/// archive" both zero-bytes-written outcomes, not partial ones.
-pub fn extract_zip(zip_path: &Path, dest_root: &Path) -> Result<(), ArchiveError> {
-    extract_zip_with_limits(zip_path, dest_root, ArchiveLimits::default())
+/// The read-only half of [`extract_zip_with_limits`] — declared-metadata
+/// checks (entry count, name safety, symlink mode, total declared
+/// uncompressed size) plus a no-write dry-run decompression proving every
+/// entry's local file data matches its central directory record — without
+/// writing a single byte anywhere. Factored out of extraction (rather than
+/// extraction calling a would-be separate scan) so a caller that only
+/// wants to know "would this archive be safe/complete to extract" — a
+/// backup ZIP being listed, verified after creation, or checked for
+/// restore-eligibility (P6.15's `backup_store::list_backups`, P6.16's
+/// post-creation verification, P6.18's restore gate) — never has to
+/// extract-to-a-scratch-dir just to answer that question.
+pub fn validate_archive_safety(zip_path: &Path) -> Result<(), ArchiveError> {
+    validate_archive_safety_with_limits(zip_path, ArchiveLimits::default()).map(|_| ())
 }
 
-/// Same as [`extract_zip`], with caller-supplied ceilings instead of the
-/// crate's own [`ArchiveLimits::default`].
-pub fn extract_zip_with_limits(
+/// Same as [`validate_archive_safety`], with caller-supplied ceilings.
+/// Returns the already-opened archive handle so [`extract_zip_with_limits`]
+/// can reuse it for its own write pass without reopening and rescanning
+/// the same file.
+fn validate_archive_safety_with_limits(
     zip_path: &Path,
-    dest_root: &Path,
     limits: ArchiveLimits,
-) -> Result<(), ArchiveError> {
+) -> Result<ZipArchive<fs::File>, ArchiveError> {
     let file = fs::File::open(zip_path).map_err(ArchiveError::Open)?;
     let mut archive = ZipArchive::new(file).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
 
@@ -220,7 +225,29 @@ pub fn extract_zip_with_limits(
         io::copy(&mut entry, &mut io::sink()).map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
     }
 
-    // Pass 2: every check above passed — extract for real.
+    Ok(archive)
+}
+
+/// Extracts every entry of the zip at `zip_path` into `dest_root`.
+/// All-or-nothing: any unsafe entry, any limit exceeded, or any corrupt
+/// entry refuses the whole archive before writing anything to
+/// `dest_root`. See the module doc for the three-pass shape (declared-
+/// metadata checks, then a no-write dry-run decompression, then the real
+/// extraction) that makes "corrupt archive" and "unsafe/oversized
+/// archive" both zero-bytes-written outcomes, not partial ones.
+pub fn extract_zip(zip_path: &Path, dest_root: &Path) -> Result<(), ArchiveError> {
+    extract_zip_with_limits(zip_path, dest_root, ArchiveLimits::default())
+}
+
+/// Same as [`extract_zip`], with caller-supplied ceilings instead of the
+/// crate's own [`ArchiveLimits::default`].
+pub fn extract_zip_with_limits(
+    zip_path: &Path,
+    dest_root: &Path,
+    limits: ArchiveLimits,
+) -> Result<(), ArchiveError> {
+    let mut archive = validate_archive_safety_with_limits(zip_path, limits)?;
+
     for i in 0..archive.len() {
         let mut entry = archive
             .by_index(i)

@@ -1,6 +1,7 @@
 pub mod archive;
 pub mod atomic_write;
 pub mod audit_log;
+pub mod backup_store;
 pub mod config_repository;
 pub mod console_buffer;
 pub mod credential_repository;

@@ -1409,3 +1409,244 @@ pub fn reconcile_interrupted_activation(
         slot_id: updated.id,
     }))
 }
+// =====================================================================
+// P6.14 — transactional direct world rename and replacement
+//
+// Ports `AppViewModel+WorldManagement.swift`'s `renameWorld(for:
+// newLevelName:backupFirst:)` (source line 178-247) and `replaceWorld(
+// for:newLevelName:worldSource:backupFirst:)` (source line 45-152) —
+// the *direct* live-folder operations the public compatibility routes
+// use (`docs/msc2/worlds/phase6-api.md`'s naming-trap note: these are
+// distinct from `rename_slot`'s slot-metadata-only rename above). Both
+// share the identically-shaped running-server guard three call sites in
+// source re-derive independently (`fixtures/world-mutations/
+// activate-refused-while-server-running.json`'s own note); this port
+// implements it once ([`WorldError::ServerRunning`], checked first in
+// both functions) rather than a third time.
+// =====================================================================
+
+/// `renameWorld`'s all-or-nothing move set: Java's three level-name-
+/// derived folders, or Bedrock's single `worlds/<level-name>` folder —
+/// the same base-directory split `replace_world` also uses.
+fn world_base_dir(server_dir: &Path, server_type: ServerType) -> PathBuf {
+    match server_type {
+        ServerType::Bedrock => server_dir.join("worlds"),
+        ServerType::Java => server_dir.to_path_buf(),
+    }
+}
+
+fn folder_exists(fs: &dyn FileSystem, path: &Path) -> bool {
+    matches!(fs.stat(path), Ok(m) if m.is_dir)
+}
+
+/// `renameWorld(for:newLevelName:backupFirst:)` (source line 178-247).
+/// A no-op success if `new_level_name` already equals the current
+/// level-name (source line 187). Otherwise: an all-or-nothing pre-check
+/// across every target name before any folder moves
+/// (`fixtures/world-mutations/rename-world-target-folder-exists-refused-before-any-move.json`),
+/// then a move loop that rolls back every already-moved folder in
+/// reverse order on either a mid-sequence move failure or a trailing
+/// `server.properties` write failure
+/// (`fixtures/world-mutations/rename-world-rollback-on-mid-sequence-move-failure.json`).
+/// `backup` is called only when `backup_first` is set, mirroring
+/// `activate_slot`'s own backup-hook shape (backups aren't ported until
+/// P6.15 — this function takes the safety net as a caller-supplied
+/// closure rather than depending on that port directly).
+#[allow(clippy::too_many_arguments)]
+pub fn rename_world(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+    new_level_name: &str,
+    is_server_running: bool,
+    backup_first: bool,
+    backup: impl FnOnce() -> bool,
+) -> Result<(), WorldError> {
+    let trimmed = new_level_name.trim();
+    if trimmed.is_empty() {
+        return Err(WorldError::EmptyName);
+    }
+    if is_server_running {
+        return Err(WorldError::ServerRunning);
+    }
+
+    let old_level_name = world::current_level_name(server_type, raw_level_name);
+    if trimmed == old_level_name {
+        return Ok(());
+    }
+
+    if backup_first && !backup() {
+        return Err(WorldError::BackupFailed);
+    }
+
+    let base = world_base_dir(server_dir, server_type);
+    let target_names = world::world_folder_candidates(server_type, trimmed);
+    for name in &target_names {
+        if folder_exists(fs, &base.join(name)) {
+            return Err(WorldError::TargetFolderExists(name.clone()));
+        }
+    }
+
+    let old_names = world::world_folder_candidates(server_type, &old_level_name);
+    let mut moved_pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
+    let rollback = |fs: &dyn FileSystem, moved_pairs: &[(PathBuf, PathBuf)]| {
+        for (old_path, new_path) in moved_pairs.iter().rev() {
+            if folder_exists(fs, new_path) {
+                let _ = fs.rename(new_path, old_path);
+            }
+        }
+    };
+
+    for (old_name, new_name) in old_names.iter().zip(target_names.iter()) {
+        let old_path = base.join(old_name);
+        let new_path = base.join(new_name);
+        if !folder_exists(fs, &old_path) {
+            continue;
+        }
+        if let Err(e) = fs.rename(&old_path, &new_path) {
+            rollback(fs, &moved_pairs);
+            return Err(e.into());
+        }
+        moved_pairs.push((old_path, new_path));
+    }
+
+    let identity = WorldIdentity {
+        level_name: trimmed.to_string(),
+        seed: None,
+        apply_seed: false,
+    };
+    if let Err(e) = apply_world_identity(fs, server_dir, &identity) {
+        rollback(fs, &moved_pairs);
+        return Err(e.into());
+    }
+
+    Ok(())
+}
+
+/// The three ways `replaceWorld`'s `WorldSource` enum can supply a
+/// replacement world (source line 8-14 of the same file's `WorldSource`
+/// declaration, referenced from `replaceWorld`'s own `switch`).
+#[derive(Debug, Clone)]
+pub enum WorldReplaceSource {
+    /// No source data — the world folders are cleared and a new world
+    /// generates on next start.
+    Fresh,
+    /// A backup ZIP, extracted into place — validated (openable, a real
+    /// zip) before anything else is touched.
+    BackupZip(PathBuf),
+    /// An existing world folder, copied into place under the new
+    /// level-name.
+    ExistingFolder(PathBuf),
+}
+
+/// `validateZipArchive`'s replacement: a structural open (central
+/// directory parses) rather than shelling out to `unzip -t` — the same
+/// native-Rust-over-shell-out call `msc_infrastructure::archive` already
+/// makes throughout this phase (D-006's own precedent), just applied to
+/// a validate-only use rather than an extraction.
+fn zip_opens_cleanly(path: &Path) -> bool {
+    let Ok(file) = fs::File::open(path) else {
+        return false;
+    };
+    zip::ZipArchive::new(file).is_ok()
+}
+
+fn copy_dir_recursive(fs: &dyn FileSystem, from: &Path, to: &Path) -> io::Result<()> {
+    fs.create_dir_all(to)?;
+    for entry in top_level_entries(fs, from)? {
+        let name = entry
+            .file_name()
+            .expect("directory listing entries are named");
+        let dest = to.join(name);
+        if folder_exists(fs, &entry) {
+            copy_dir_recursive(fs, &entry, &dest)?;
+        } else {
+            copy_via_fs(fs, &entry, &dest)?;
+        }
+    }
+    Ok(())
+}
+
+/// `replaceWorld(for:newLevelName:worldSource:backupFirst:)` (source
+/// line 45-152). Guard order matches source exactly: empty name, then
+/// running-server, then source validation, then the optional safety
+/// backup — each aborting before anything is touched. The existing
+/// world folders are removed *before* the new source is extracted/
+/// copied (`fixtures/world-mutations/
+/// replace-world-folder-removal-failure-aborts-before-extraction.json`);
+/// unlike [`crate::worlds::activate_slot`], this is baseline parity, not
+/// a P6.13-style correction — `phase6-scope.md` doesn't flag this
+/// call's post-removal window for a transactional fix, and the
+/// mandatory pre-replace safety backup remains the sole recovery path
+/// if the new source then fails to install, matching source exactly.
+#[allow(clippy::too_many_arguments)]
+pub fn replace_world(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+    new_level_name: &str,
+    world_source: &WorldReplaceSource,
+    is_server_running: bool,
+    backup_first: bool,
+    backup: impl FnOnce() -> bool,
+) -> Result<(), WorldError> {
+    let trimmed = new_level_name.trim();
+    if trimmed.is_empty() {
+        return Err(WorldError::EmptyName);
+    }
+    if is_server_running {
+        return Err(WorldError::ServerRunning);
+    }
+
+    match world_source {
+        WorldReplaceSource::Fresh => {}
+        WorldReplaceSource::BackupZip(path) => {
+            if !zip_opens_cleanly(path) {
+                return Err(WorldError::InvalidWorldSource);
+            }
+        }
+        WorldReplaceSource::ExistingFolder(path) => {
+            if !folder_exists(fs, path) {
+                return Err(WorldError::InvalidWorldSource);
+            }
+        }
+    }
+
+    if backup_first && !backup() {
+        return Err(WorldError::BackupFailed);
+    }
+
+    let base = world_base_dir(server_dir, server_type);
+    let current_level_name = world::current_level_name(server_type, raw_level_name);
+    let current_names = world::world_folder_candidates(server_type, &current_level_name);
+    for name in &current_names {
+        let path = base.join(name);
+        if folder_exists(fs, &path) {
+            fs.remove(&path)?;
+        }
+    }
+
+    match world_source {
+        WorldReplaceSource::Fresh => {}
+        WorldReplaceSource::BackupZip(path) => {
+            archive::extract_zip(path, &base)?;
+        }
+        WorldReplaceSource::ExistingFolder(source_path) => {
+            let dest = base.join(trimmed);
+            if folder_exists(fs, &dest) {
+                fs.remove(&dest)?;
+            }
+            copy_dir_recursive(fs, source_path, &dest)?;
+        }
+    }
+
+    let identity = WorldIdentity {
+        level_name: trimmed.to_string(),
+        seed: None,
+        apply_seed: false,
+    };
+    apply_world_identity(fs, server_dir, &identity)?;
+    Ok(())
+}

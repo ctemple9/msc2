@@ -44,6 +44,71 @@ use crate::auth::{AuthState, AuthenticatedCredential};
 use crate::routes::operations::{OperationsState, operation_error_response};
 use crate::ws::console::ConsoleState;
 
+/// P6.1's idempotent world/`world_slots` handoff
+/// (`msc_application::worlds::reconcile_imported_worlds`), run once per
+/// registered server before this registry — and therefore any later
+/// world-mutation route built over it — becomes reachable. Best-effort
+/// per server: reconciliation failing for one server is logged and does
+/// not block the rest of agent startup, matching this file's existing
+/// `logAppMessage`-style non-fatal-warning convention elsewhere.
+fn reconcile_imported_worlds_at_startup(servers: &[ConfigServer]) {
+    let now = iso8601_now();
+    for server in servers {
+        let server_dir = Path::new(&server.server_dir);
+        if let Err(err) = msc_application::worlds::reconcile_imported_worlds(
+            &StdFileSystem,
+            server_dir,
+            server.server_type,
+            None,
+            &now,
+        ) {
+            eprintln!(
+                "[worlds] Warning: could not reconcile imported world data for {}: {err}",
+                server.server_dir
+            );
+        }
+    }
+}
+
+/// A plain `yyyy-MM-dd'T'HH:mm:ss'Z'` timestamp, matching `WorldSlot`'s
+/// own `.iso8601` encoding strategy (no fractional seconds — unlike
+/// `msc-infrastructure::audit_log`'s own ISO-8601 formatter, which
+/// deliberately includes milliseconds to match a *different* source
+/// formatter). [`civil_from_days`] is duplicated from `audit_log`'s own
+/// private copy of the same public-domain algorithm rather than exposed
+/// across the crate boundary for this one call site.
+fn iso8601_now() -> String {
+    let duration = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let total_secs = duration.as_secs() as i64;
+    let days = total_secs.div_euclid(86_400);
+    let secs_of_day = total_secs.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let hour = secs_of_day / 3_600;
+    let minute = (secs_of_day % 3_600) / 60;
+    let second = secs_of_day % 60;
+    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
+}
+
+/// Howard Hinnant's `civil_from_days` (public domain,
+/// <http://howardhinnant.github.io/date_algorithms.html>) — see
+/// `msc-infrastructure::audit_log`'s own copy for the full derivation
+/// notes.
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    let year = if month <= 2 { y + 1 } else { y };
+    (year, month, day)
+}
+
 #[derive(Clone)]
 pub struct LifecycleRoutesState {
     inner: Arc<LifecycleRoutesInner>,
@@ -139,6 +204,8 @@ impl LifecycleRoutesState {
         process: Box<dyn ProcessSupervisor + Send + Sync>,
         auth_state: Option<AuthState>,
     ) -> Self {
+        reconcile_imported_worlds_at_startup(&app_config.servers());
+
         let registry = Box::leak(Box::new(AgentServerRegistry::new(app_config)));
         let process = Box::leak(process);
         let console = Box::leak(Box::new(AgentConsoleSink {

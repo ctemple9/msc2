@@ -1,3 +1,4 @@
+pub mod archive;
 pub mod atomic_write;
 pub mod audit_log;
 pub mod config_repository;
@@ -13,3 +14,4 @@ pub mod power;
 pub mod process;
 pub mod secret_store;
 pub mod service;
+pub mod world_store;

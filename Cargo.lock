@@ -681,6 +681,7 @@ dependencies = [
  "msc-domain",
  "serde",
  "serde_json",
+ "zip",
 ]
 
 [[package]]

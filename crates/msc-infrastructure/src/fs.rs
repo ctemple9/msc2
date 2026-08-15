@@ -26,6 +26,15 @@ pub trait FileSystem: Send + Sync {
     fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
     fn remove(&self, path: &Path) -> io::Result<()>;
+    /// Creates `path` and any missing intermediate directories, matching
+    /// `std::fs::create_dir_all`'s "already exists" tolerance — a no-op,
+    /// not an error, when `path` is already a directory. No earlier
+    /// consumer of this trait needed to create a directory from scratch
+    /// (every prior write landed inside an already-provisioned server
+    /// directory); `world_store` (P6.10) is the first caller that does —
+    /// a brand-new slot's `world_slots/{id}/` has no other reason to
+    /// exist yet.
+    fn create_dir_all(&self, path: &Path) -> io::Result<()>;
     /// The immediate target of `path`, if it's a symlink. Errors the same
     /// way `std::fs::read_link` does for a path that doesn't exist or
     /// isn't a symlink — P3.5's `path_safety` module treats that error as
@@ -75,6 +84,10 @@ impl FileSystem for StdFileSystem {
 
     fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
         std::fs::read_link(path)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        std::fs::create_dir_all(path)
     }
 }
 
@@ -357,5 +370,10 @@ impl FileSystem for FakeFileSystem {
             .get(path)
             .cloned()
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, path.display().to_string()))
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        self.dirs.lock().unwrap().insert(path.to_path_buf());
+        Ok(())
     }
 }

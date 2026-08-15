@@ -369,3 +369,102 @@ pub fn wait_for_bedrock_save_ready(console: &dyn BackupConsole) -> (bool, u32) {
         }
     }
 }
+
+// =====================================================================
+// P6.17 — scheduled backups and known-good retention
+//
+// `startAutoBackupTimer(for:)`'s closure body (source lines 774-787),
+// minus the `Timer` construction itself: real wall-clock pacing is
+// `msc-agent`'s job (`BackupScheduler`, tokio-driven, tested in
+// `crates/msc-agent/tests/backup_scheduler.rs`), kept out of this crate
+// the same way this phase keeps every other real-runtime concern
+// (process supervision, console waiting) behind a caller-supplied
+// signal rather than owning the clock itself. [`scheduled_tick`] is the
+// one tick's worth of *policy* the timer's closure runs once it fires:
+// skip if the backend isn't running (source stops the timer in that
+// branch — a scheduler-level concern, not this function's), skip if no
+// players are online (source's own guard, timer keeps running), else
+// fire [`create_backup`] with `is_automatic: true`.
+//
+// Retention's "prune only MSC-managed backups and paired orphan
+// sidecars, never delete the final verified recovery point" is already
+// `backup_store::prune_managed_backups`'s job (P6.15) plus this step's
+// own `backup_store::prune_orphan_sidecars` addition — [`scheduled_tick`]
+// runs the former via `create_backup`'s own `auto_prune_max_count`
+// (unchanged from P6.16); orphan-sidecar sweeping is a separate,
+// explicit call this step adds since no fixture ties it to backup
+// *creation* specifically.
+// =====================================================================
+
+#[derive(Debug)]
+pub enum ScheduledTickOutcome {
+    /// `startAutoBackupTimer`'s own guard (source line 777): the backend
+    /// isn't running. Source stops the timer here; deciding whether to
+    /// do the equivalent (or just skip this one tick) is the caller's
+    /// call — see [`crate::backups`]'s module doc and
+    /// `msc-agent::backup_scheduler` for how the real scheduler handles
+    /// it.
+    SkippedNotRunning,
+    /// `fixtures/backups/scheduled-auto-backup-skipped-when-no-players-online.json`:
+    /// re-evaluated on every tick: a quiet server just keeps skipping.
+    SkippedNoPlayers,
+    Fired(Result<BackupCreationResult, BackupError>),
+}
+
+/// One scheduled-timer tick's worth of policy — see the section doc
+/// above. `backend_running`/`online_player_count` are the caller's
+/// already-known snapshot for this tick (this function does no polling
+/// of its own); `auto_prune_max_count` is always consulted (matching
+/// `is_automatic: true` always pruning-eligible), and the save-pause
+/// `console` is always `None` — no production `BackupConsole`
+/// implementation is wired into the real scheduler yet (P6.21), so a
+/// scheduled backup zips live files directly until then, exactly the
+/// fallback source itself takes when `sendBackupCommand` can't reach a
+/// backend at all.
+#[allow(clippy::too_many_arguments)]
+pub fn scheduled_tick(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+    association: &BackupAssociation,
+    server_id: Option<&str>,
+    server_display_name: Option<&str>,
+    auto_prune_max_count: i64,
+    now: &str,
+    backend_running: bool,
+    online_player_count: usize,
+) -> ScheduledTickOutcome {
+    if !backend_running {
+        return ScheduledTickOutcome::SkippedNotRunning;
+    }
+    if online_player_count == 0 {
+        return ScheduledTickOutcome::SkippedNoPlayers;
+    }
+
+    let result = create_backup(
+        fs,
+        server_dir,
+        server_type,
+        raw_level_name,
+        association,
+        server_id,
+        server_display_name,
+        true,
+        true,
+        None,
+        Some(auto_prune_max_count),
+        now,
+        None,
+        || false,
+    );
+    ScheduledTickOutcome::Fired(result)
+}
+
+/// `msc_infrastructure::backup_store::prune_orphan_sidecars`, reached
+/// through this crate's single backup entry point (see this module's own
+/// P6.15 doc note for why every other backup mutation already does the
+/// same).
+pub fn prune_orphan_sidecars(fs: &dyn FileSystem, server_dir: &Path) -> Vec<PathBuf> {
+    backup_store::prune_orphan_sidecars(fs, server_dir)
+}

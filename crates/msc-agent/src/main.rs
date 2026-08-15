@@ -3,6 +3,7 @@
 //! bearer-auth gate; P2.13/P2.14 wire the route handlers behind it.
 
 mod auth;
+mod backup_scheduler;
 mod cli;
 mod routes;
 mod ws;
@@ -108,6 +109,24 @@ pub(crate) fn build_app() -> Router {
         app_config,
         auth_state.clone(),
     );
+
+    // P6.17: one scheduled-backup timer per configured server, started
+    // from whatever `auto_backup_*` settings exist at boot. Leaked
+    // (matching every other long-lived singleton this function already
+    // builds) so its background tasks outlive `build_app()`'s own stack
+    // frame — see `backup_scheduler.rs`'s module doc for what "live
+    // reconfiguration" does and doesn't cover yet.
+    let scheduler_fs: &'static dyn msc_infrastructure::fs::FileSystem =
+        Box::leak(Box::new(msc_infrastructure::fs::StdFileSystem));
+    let scheduler_backend = std::sync::Arc::new(backup_scheduler::LiveSchedulerBackend::new(
+        lifecycle_state.clone(),
+        app_config,
+        scheduler_fs,
+    ));
+    let backup_scheduler = Box::leak(Box::new(backup_scheduler::BackupScheduler::new(
+        scheduler_backend,
+    )));
+    backup_scheduler.reconfigure(&app_config.servers());
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))

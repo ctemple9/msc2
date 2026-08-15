@@ -219,3 +219,33 @@ pub fn prune_managed_backups(
     }
     deleted
 }
+
+/// P6.17's own retention sweep: removes every `.meta.json` sidecar whose
+/// paired `.zip` no longer exists. Distinct from [`delete_backup`]'s own
+/// paired removal (which only ever removes a sidecar *alongside* its own
+/// zip, at the moment that zip is deleted) — this catches a sidecar left
+/// behind by any other path a zip could go missing (a hand-deleted
+/// backup file, a crash between the two removals, ...). No Swift
+/// counterpart names this sweep explicitly, but `pruneAutoBackupsIfNeeded`'s
+/// own paired-removal behavior is the same intent this generalizes.
+pub fn prune_orphan_sidecars(fs: &dyn FileSystem, server_dir: &Path) -> Vec<PathBuf> {
+    let dir = backups_dir(server_dir);
+    let Ok(entries) = fs.list(&dir) else {
+        return Vec::new();
+    };
+
+    let mut removed = Vec::new();
+    for entry in &entries {
+        let Some(filename) = entry.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(base) = filename.strip_suffix(".meta.json") else {
+            continue;
+        };
+        let zip_path = dir.join(format!("{base}.zip"));
+        if fs.stat(&zip_path).is_err() && fs.remove(entry).is_ok() {
+            removed.push(entry.clone());
+        }
+    }
+    removed
+}

@@ -127,7 +127,7 @@ pub(crate) fn existing_world_folders(
 /// stays unavailable until Phase 10 per this phase's own deferral), so
 /// this reads only the one properties file every P6.11 fixture actually
 /// needs. Flagged narrowing, not a silent one.
-fn read_java_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Option<String> {
+pub fn read_java_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Option<String> {
     let bytes = fs.read(&server_dir.join("server.properties")).ok()?;
     let text = String::from_utf8_lossy(&bytes);
     for line in text.lines() {

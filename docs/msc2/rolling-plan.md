@@ -105,7 +105,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 ### Scope and evidence
 
 ### P6.1 — Scope Phase 6 and decide the imported-world reconciliation rule
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/worlds/phase6-scope.md`, `docs/msc2/config-migration/phase5-scope.md`
 **What:** Read the Phase 5 import implementation and real package layout beside MSC 1's slot manager, then write the authoritative reconciliation rule for the three starting states: live folders only, `world_slots` only, and both together. Preserve Phase 5's established live-world precedence without overwriting a distinct copied slot archive: inventory both, identify the recorded active slot, create a recovery snapshot when the live data differs or cannot be proven identical, and only then persist the formal active marker. Record every symbol-ledger row owned here, the Bedrock/Phase 7/Phase 10 deferrals above, and the working gate. This is a design record, not Rust code.
 **Verify:** `python3 -c "from pathlib import Path; s=Path('docs/msc2/worlds/phase6-scope.md').read_text(); required=['live folders only','world_slots only','both together','recovery snapshot','Bedrock','Phase 7','Phase 10']; missing=[x for x in required if x not in s]; assert not missing, missing"`
@@ -121,7 +121,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P6.3 — Collect real MSC 1 world and backup evidence
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `corpus/worlds/`, `corpus/backups/`, `corpus/worlds/README.md`, `corpus/backups/README.md`, `tools/phase6/corpus-check.py`, `tools/phase6/fixtures/no-dimension-evidence/`
 **What:** Inventory the real world-slot and backup material already present in Cameron's MSC 1 installation and the real `.msctransfer` package used in Phase 5. Commit only small sanitized structural evidence whose player/world data can be removed without changing layout, metadata keys, archive member names, or dimension relationships; keep large/private archives outside git behind environment paths. Record source, sanitization, byte size, and SHA-256. If the required Java slot/backup evidence is unavailable, stop instead of inventing it.
 
@@ -135,7 +135,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 ### Characterization and contract
 
 ### P6.4 — Characterize world slots and Phase 5 import reconciliation
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/world-slots/`, `fixtures/world-import-reconciliation/`, `docs/msc2/worlds/phase6-scope.md`
 **What:** Capture MSC 1's slot metadata/defaults, tolerant corrupt-entry loading, newest-first ordering, explicit-active → most-recently-played → newest-created fallback, Java/Bedrock level-name rules, fresh archive-less slots, and initial-slot bootstrap. Add the Phase 5 handoff matrix: raw live folders only, copied slots only, live plus matching slot, live plus stale/different active slot, missing/corrupt marker, corrupt slot metadata, and no world data. Expected results must preserve both recoverable sources and follow P6.1's reviewed authority rule.
 
@@ -145,7 +145,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P6.5 — Characterize transactional world mutations and hostile archives
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/world-mutations/`, `fixtures/world-archive-safety/`
 **What:** Characterize slot create/update/rename/delete/duplicate/copy/import/export, activation, direct world rename/replace, and rollback after each injected rename/copy/delete/extract failure. Cover Java's main/nether/end folder set, Bedrock's `worlds/<level-name>` layout, fresh-slot activation, wrong/running-server guards, mandatory pre-activation backup, legacy ZIP layout relocation, partial activation recovery, traversal, absolute paths, Windows path forms, symlink entries, corrupt ZIPs, and extraction limits. Record deliberate security corrections against MSC 1's shell-based ZIP handling as D-006 corrections rather than oracle parity.
 
@@ -155,7 +155,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P6.6 — Characterize backup creation, retention, verification, and restore
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/backups/`, `fixtures/backup-online-consistency/`, `fixtures/backup-restore/`
 **What:** Capture listing/display-name/meta-sidecar compatibility, association with the active slot, manual/auto/pre-mutation naming, config interval fallback and max-count clamp, pruning only MSC-managed files, and the no-players scheduled-backup skip. Cover Java `save-all flush` → `save-off`, timeout-as-best-effort, unconditional `save-on`, archive/write/meta failures, verification before visibility, failed/interrupted restore, mandatory safety-backup ordering, cross-slot and running-server guards, and retention when only one verified backup remains. Where Phase 6 strengthens MSC 1 by retaining a last known-good verified backup or rolling back an interrupted restore, mark the correction explicitly.
 
@@ -165,7 +165,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P6.7 — Characterize world metadata and conversion
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/world-nbt/`, `fixtures/world-conversion/`
 **What:** Extract real small `level.dat` samples where sanitization preserves binary shape, then characterize the minimal NBT reader: compressed big-endian Java, headered little-endian Bedrock, every tag type the parser accepts, key-path fallbacks, seed/difficulty/gamemode/day-time extraction, ZIP member selection, and adjacent backup metadata precedence. Characterize conversion guards, nested-world discovery, temp cleanup, converter arguments, output packaging, new-slot versus replace-slot placement, mandatory target backup, atomic archive replacement, and failure after each stage. Do not characterize client navigation state.
 
@@ -175,7 +175,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P6.8 — Freeze the complete Phase 6 API and capability surface
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/worlds/phase6-api.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/client-capability-matrix.csv`, `tools/api-contract-check.py`, `tools/phase6/capability-matrix-check.py`
 **What:** Reconcile the frozen baseline routes with the full agent-owned surface. Preserve existing DTO fields and status meanings, add operation IDs additively for activation/backup/restore/conversion, and add the missing slot CRUD/import/export, backup delete, and conversion operations needed so no client is architecturally blocked. Define bounded staged upload/download instead of arbitrary remote paths. Assign permission categories, error/help IDs, cancellation/restart behavior, and capability-unavailable responses for Bedrock-runtime work. Create the overdue D-023 matrix and fill every existing and Phase 6 row for Agent, Desktop/Web, iOS, and CLI; no blank cells or unapproved exceptions.
 
@@ -190,7 +190,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 ### World model and transactions
 
 ### P6.9 — Port world-slot records, identity rules, and NBT metadata
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/world.rs`, `crates/msc-domain/src/nbt.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/world.rs`, `crates/msc-domain/tests/world_nbt.rs`, `crates/msc-domain/Cargo.toml`
 **What:** Port the pure `WorldSlot`/imported-metadata types, active-resolution policy, Java/Bedrock level-name sanitization and dimension-set derivation, backup association policy, and the minimal NBT reader against P6.4/P6.7 fixtures. Keep filesystem/archive/process work out of `msc-domain`.
 
@@ -205,7 +205,7 @@ Both modules' internal types (`NbtValue`, `NbtReader`, the enum-extraction helpe
 **Batch:** safe
 
 ### P6.10 — Build the safe world archive and slot repository
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/world_store.rs`, `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/src/fs.rs`, `crates/msc-infrastructure/tests/world_store.rs`, `crates/msc-infrastructure/tests/world_archive.rs`, `crates/msc-infrastructure/Cargo.toml`
 **What:** Implement the `world_slots/{id}/{slot.json,world.zip,thumbnail.*}` repository over approved roots and atomic writes. Load corrupt entries independently, compute sizes without extracting, persist metadata/active markers atomically, apply the fixed thumbnail transform, and create/extract archives with traversal, symlink, entry-count, expanded-size, and destination-bound checks. No destructive live-world swap yet.
 
@@ -222,7 +222,7 @@ Both modules' internal types (`NbtValue`, `NbtReader`, the enum-extraction helpe
 **Batch:** safe
 
 ### P6.11 — Reconcile Phase 5 imported worlds into the formal slot model
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/world_import_reconciliation.rs`, `crates/msc-agent/src/routes/lifecycle.rs`
 **What:** Implement P6.1's idempotent handoff before any mutation route becomes available. Inventory live folders and copied slots, materialize slot-only legacy imports safely, create an initial slot for raw imports, preserve a distinct live recovery snapshot when both sources differ or equality is unknown, and persist the active marker only after every required archive/metadata write succeeds. A second startup must make no additional changes. Never mutate the original Phase 5 corpus input.
 

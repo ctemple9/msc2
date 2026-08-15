@@ -27,6 +27,7 @@ use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::JavaServerFlavor;
 use msc_domain::identity::ServerType;
 use msc_domain::operation::OperationId;
+use msc_infrastructure::audit_log::AuditLog;
 use msc_infrastructure::config_repository::{
     AppConfigLoadError, ConfigSaveError, default_app_config_path, default_servers_root,
     load_app_config, load_app_config_migrating_legacy_secrets, save_app_config,
@@ -68,6 +69,49 @@ fn reconcile_imported_worlds_at_startup(servers: &[ConfigServer]) {
             );
         }
     }
+}
+
+/// `worlds::reconcile_interrupted_activation`/
+/// `backups::reconcile_interrupted_restore` (P6.13/P6.18) are not called
+/// anywhere yet — now that P6.21 makes world/backup mutation routes
+/// reachable, restart recovery must run before they are, the same
+/// "before routes are reachable" timing
+/// [`reconcile_imported_worlds_at_startup`] already established.
+/// Best-effort per server, same non-fatal-logged convention.
+fn reconcile_interrupted_world_transactions_at_startup(servers: &[ConfigServer]) {
+    let now = iso8601_now();
+    for server in servers {
+        let server_dir = Path::new(&server.server_dir);
+        if let Err(err) = msc_application::worlds::reconcile_interrupted_activation(
+            &StdFileSystem,
+            server_dir,
+            &now,
+        ) {
+            eprintln!(
+                "[worlds] Warning: could not reconcile an interrupted activation for {}: {err}",
+                server.server_dir
+            );
+        }
+        if let Err(err) =
+            msc_application::backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
+        {
+            eprintln!(
+                "[worlds] Warning: could not reconcile an interrupted restore for {}: {err}",
+                server.server_dir
+            );
+        }
+    }
+}
+
+/// `MSC2_AUDIT_LOG_DIR`-overridable, mirroring
+/// `OperationsState::default_journaled`'s `MSC2_OPERATION_JOURNAL_DIR`
+/// pattern — the Phase 6 world/backup mutation audit trail
+/// (`routes/worlds.rs`/`routes/backups.rs`) lives alongside the
+/// operation journal by default, not inside a server directory.
+fn audit_log_dir() -> PathBuf {
+    std::env::var_os("MSC2_AUDIT_LOG_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| std::env::temp_dir().join("msc2-audit-log"))
 }
 
 /// A plain `yyyy-MM-dd'T'HH:mm:ss'Z'` timestamp, matching `WorldSlot`'s
@@ -125,6 +169,7 @@ struct LifecycleRoutesInner {
     active_lifecycle_operation: Mutex<Option<OperationId>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
+    audit_log: &'static AuditLog<'static>,
 }
 
 pub struct AgentServerRegistry {
@@ -205,6 +250,13 @@ impl LifecycleRoutesState {
         auth_state: Option<AuthState>,
     ) -> Self {
         reconcile_imported_worlds_at_startup(&app_config.servers());
+        reconcile_interrupted_world_transactions_at_startup(&app_config.servers());
+
+        let audit_log: &'static AuditLog<'static> = Box::leak(Box::new(AuditLog::new(
+            Box::leak(Box::new(StdFileSystem)),
+            audit_log_dir(),
+        )));
+        let _ = std::fs::create_dir_all(audit_log_dir());
 
         let registry = Box::leak(Box::new(AgentServerRegistry::new(app_config)));
         let process = Box::leak(process);
@@ -228,6 +280,7 @@ impl LifecycleRoutesState {
                 active_lifecycle_operation: Mutex::new(None),
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
+                audit_log,
             }),
         }
     }
@@ -360,6 +413,68 @@ impl LifecycleRoutesState {
             .unwrap()
             .active_server()
             .map(|id| id.as_str().to_string())
+    }
+
+    /// A clone of the shared operation store — P6.21's world/backup
+    /// routes journal every mutation through the same
+    /// `OperationJournal::admit` per-target exclusivity mechanism
+    /// `start_active_server` already uses, so they need their own handle
+    /// on it rather than routing every operation call back through this
+    /// type.
+    pub fn operations(&self) -> OperationsState {
+        self.inner.operations.clone()
+    }
+
+    /// See [`AgentConsoleSink`] / `ConsoleState::recent_lines` — the
+    /// production `BackupConsole`'s read half.
+    pub fn recent_console_lines(&self, count: usize) -> Vec<ConsoleLine> {
+        self.inner.console.console.recent_lines(count)
+    }
+
+    /// The shared Phase 6 mutation audit log — one `AuditLog` instance,
+    /// scoped to world/backup mutation routes only (see
+    /// `routes/worlds.rs`/`routes/backups.rs`'s own doc comments for why
+    /// this doesn't extend to every route in this agent yet).
+    pub fn audit_log(&self) -> &'static AuditLog<'static> {
+        self.inner.audit_log
+    }
+
+    /// Every `ConfigServer` currently on file — the production
+    /// counterpart of the existing `#[cfg(test)] config_servers`, needed
+    /// by `routes/backups.rs` to read/update a server's auto-backup
+    /// settings (`ConfigServer::auto_backup_*`) outside of tests.
+    pub fn app_config_servers(&self) -> Vec<ConfigServer> {
+        self.inner.app_config.servers()
+    }
+
+    /// The currently-active server's full `ConfigServer` record — what
+    /// every P6.21 world/backup route needs (`server_dir`, `server_type`,
+    /// the auto-backup fields) beyond the narrower
+    /// `RegisteredServerDtoParts` [`Self::servers`] already returns.
+    /// `None` if no server is active, matching every other
+    /// `no_active_server` guard already in this codebase.
+    pub fn active_config_server(&self) -> Option<ConfigServer> {
+        let active_id = self.active_server_id()?;
+        self.app_config_servers()
+            .into_iter()
+            .find(|server| server.id == active_id)
+    }
+
+    /// Updates exactly the three auto-backup fields on the `ConfigServer`
+    /// named `server_id`, leaving every other server and every other
+    /// field of this one untouched — unlike `replace_config_servers`,
+    /// which also resets `active_server_id`, a side effect `POST
+    /// /v1/backups/config` has no business triggering.
+    pub fn update_backup_config(
+        &self,
+        server_id: &str,
+        enabled: Option<bool>,
+        interval_minutes: Option<i64>,
+        max_count: Option<i64>,
+    ) -> Result<ConfigServer, AgentAppConfigError> {
+        self.inner
+            .app_config
+            .update_backup_config(server_id, enabled, interval_minutes, max_count)
     }
 
     pub fn select_active_server(&self, server_id: String) -> Result<String, LifecycleError> {
@@ -770,6 +885,32 @@ impl AgentAppConfigStore {
 
     pub fn servers_root(&self) -> PathBuf {
         PathBuf::from(self.config.lock().unwrap().servers_root.clone())
+    }
+
+    /// See [`LifecycleRoutesState::update_backup_config`].
+    pub fn update_backup_config(
+        &self,
+        server_id: &str,
+        enabled: Option<bool>,
+        interval_minutes: Option<i64>,
+        max_count: Option<i64>,
+    ) -> Result<ConfigServer, AgentAppConfigError> {
+        let mut updated = None;
+        self.mutate(|config| {
+            if let Some(server) = config.servers.iter_mut().find(|s| s.id == server_id) {
+                if let Some(enabled) = enabled {
+                    server.auto_backup_enabled = enabled;
+                }
+                if let Some(interval_minutes) = interval_minutes {
+                    server.auto_backup_interval_minutes = interval_minutes;
+                }
+                if let Some(max_count) = max_count {
+                    server.auto_backup_max_count = max_count;
+                }
+                updated = Some(server.clone());
+            }
+        })?;
+        updated.ok_or_else(|| AgentAppConfigError::Save(format!("no server named '{server_id}'")))
     }
 
     pub fn active_server_id(&self) -> Option<String> {

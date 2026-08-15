@@ -67,6 +67,17 @@ impl ConsoleState {
             .expect("console buffer lock poisoned")
             .tail(count)
     }
+
+    /// The most recent `count` console lines — P6.21's `LiveBackupConsole`
+    /// needs read access to whatever the save-pause protocol's console
+    /// commands (`save-all`, `save query`, ...) just printed, the same
+    /// buffer `GET /v1/console/tail` already exposes over HTTP.
+    pub fn recent_lines(&self, count: usize) -> Vec<ConsoleLine> {
+        self.buffer
+            .lock()
+            .expect("console buffer lock poisoned")
+            .tail(count)
+    }
 }
 
 pub async fn upgrade(ws: WebSocketUpgrade, State(state): State<ConsoleState>) -> Response {

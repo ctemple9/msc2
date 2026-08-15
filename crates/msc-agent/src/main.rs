@@ -133,6 +133,19 @@ pub(crate) fn build_app() -> Router {
         .route("/console/tail", get(ws::console::tail))
         .with_state(console_state);
 
+    // P6.21: world/backup routes, backed by the real P6.9-19 services.
+    // `worlds` gets its own `WorldsRoutesState` (adds the in-process
+    // staged-upload/download store); `backups` gets its own
+    // `BackupsRoutesState` (adds the `&'static BackupScheduler` handle
+    // `POST /v1/backups/config` reconfigures on a settings change).
+    let worlds = routes::worlds::router(routes::worlds::WorldsRoutesState::new(
+        lifecycle_state.clone(),
+    ));
+    let backups = routes::backups::router(routes::backups::BackupsRoutesState {
+        lifecycle: lifecycle_state.clone(),
+        scheduler: backup_scheduler,
+    });
+
     let lifecycle = Router::new()
         .route("/servers", get(routes::servers::list))
         .route("/servers/import", post(routes::servers::import))
@@ -159,6 +172,8 @@ pub(crate) fn build_app() -> Router {
         .merge(operations)
         .merge(operation_progress)
         .merge(console)
+        .merge(worlds)
+        .merge(backups)
         .route_layer(axum::middleware::from_fn_with_state(
             auth_state,
             auth::require_bearer_token,

@@ -429,6 +429,197 @@ def expect_auth_store_check(base_url):
     return 0
 
 
+def phase6_example_instances():
+    """One hand-built representative instance per P6.20 world/backup/
+    staged-transfer schema -- kept conceptually (not byte-for-byte) in
+    sync with `crates/msc-api/tests/world_backup_conformance.rs`'s own
+    examples, the Rust-side half of this same round-trip idea."""
+    slot = {
+        "id": "11111111-1111-1111-1111-111111111111",
+        "name": "Survival",
+        "isActive": True,
+        "createdAt": "2026-08-15T12:00:00Z",
+        "zipSizeBytes": 123456,
+        "worldSeed": "42",
+        "hasThumbnail": True,
+    }
+    backup_item = {
+        "id": "world-manual-20260815-120000.zip",
+        "displayName": "world (manual) - Aug 15, 2026 12:00 PM",
+        "fileSize": 654321,
+        "modificationDate": "2026-08-15T12:00:00Z",
+        "isAutomatic": False,
+        "slotId": "11111111-1111-1111-1111-111111111111",
+        "slotName": "Survival",
+        "triggerReason": "manual",
+    }
+    backup_config = {
+        "serverName": "Survival",
+        "autoBackupEnabled": True,
+        "autoBackupIntervalMinutes": 30,
+        "autoBackupMaxCount": 10,
+        "intervalOptions": [15, 30, 60, 120],
+    }
+    return {
+        "WorldSlotDTO": slot,
+        "WorldSlotsResponseDTO": {
+            "slots": [slot],
+            "activeSlotId": slot["id"],
+            "serverRunning": False,
+            "isRepairing": False,
+        },
+        "WorldCreateRequestDTO": {"name": "New World", "seed": "1234"},
+        "WorldRenameRequestDTO": {"slotId": "slot-1", "name": "Renamed"},
+        "WorldReplaceRequestDTO": {"slotId": "slot-1", "sourceSlotId": "slot-2"},
+        "WorldRepairRequestDTO": {"slotId": "slot-1"},
+        "WorldActivateRequestDTO": {"slotId": "slot-1"},
+        "WorldActivateResultDTO": {"result": "activation_started", "operationId": "op-1"},
+        "WorldMutationResultDTO": {"success": True, "message": "saved"},
+        "WorldDeleteRequestDTO": {"slotId": "slot-1"},
+        "WorldDuplicateRequestDTO": {"slotId": "slot-1"},
+        "WorldCopyRequestDTO": {"slotId": "slot-1", "sourceSlotId": "slot-2"},
+        "WorldImportRequestDTO": {"name": "Imported", "stagedUploadId": "upload-1"},
+        "WorldExportRequestDTO": {"slotId": "slot-1"},
+        "WorldExportResultDTO": {
+            "stagedDownloadId": "download-1",
+            "expiresAt": "2026-08-15T12:30:00Z",
+            "sizeBytes": 42,
+        },
+        "WorldRenameActiveWorldRequestDTO": {"name": "new-world-name"},
+        "WorldConvertRequestDTO": {"slotId": "slot-1", "targetName": "Converted", "replaceExisting": False},
+        "WorldConvertResultDTO": {"result": "conversion_started", "operationId": "op-2"},
+        "BackupItemDTO": backup_item,
+        "BackupsResponseDTO": {"backups": [backup_item]},
+        "BackupConfigResponseDTO": backup_config,
+        "BackupConfigUpdateRequestDTO": {"autoBackupEnabled": True, "autoBackupIntervalMinutes": 60},
+        "BackupConfigUpdateResultDTO": {"success": True, "message": "saved", "config": backup_config},
+        "BackupNowResultDTO": {"result": "backup_started", "operationId": "op-3"},
+        "BackupRestoreRequestDTO": {"backupId": "world-manual-20260815-120000.zip"},
+        "BackupRestoreResultDTO": {"result": "restore_started", "operationId": "op-4"},
+        "BackupDeleteRequestDTO": {"backupId": "world-manual-20260815-120000.zip"},
+        "StagedUploadBeginRequestDTO": {"purpose": "world-import", "contentType": "application/zip"},
+        "StagedUploadBeginResultDTO": {
+            "stagedUploadId": "upload-1",
+            "uploadPath": "/v1/staged-uploads/upload-1",
+            "expiresAt": "2026-08-15T12:30:00Z",
+            "maxBytes": 10737418240,
+        },
+        "StagedUploadCompleteResultDTO": {
+            "stagedUploadId": "upload-1",
+            "receivedBytes": 4096,
+            "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        },
+    }
+
+
+PHASE6_PATHS = [
+    ("get", "/v1/worlds"),
+    ("post", "/v1/worlds/create"),
+    ("post", "/v1/worlds/rename"),
+    ("post", "/v1/worlds/replace"),
+    ("post", "/v1/worlds/repair"),
+    ("post", "/v1/worlds/update"),
+    ("post", "/v1/worlds/delete"),
+    ("post", "/v1/worlds/duplicate"),
+    ("post", "/v1/worlds/copy"),
+    ("post", "/v1/worlds/import"),
+    ("post", "/v1/worlds/export"),
+    ("post", "/v1/worlds/rename-active-world"),
+    ("post", "/v1/worlds/activate"),
+    ("post", "/v1/worlds/convert"),
+    ("get", "/v1/worlds/{slotId}/thumbnail"),
+    ("get", "/v1/backups"),
+    ("get", "/v1/backups/config"),
+    ("post", "/v1/backups/config"),
+    ("post", "/v1/backups/now"),
+    ("post", "/v1/backups/restore"),
+    ("post", "/v1/backups/delete"),
+    ("post", "/v1/staged-uploads"),
+    ("put", "/v1/staged-uploads/{id}"),
+    ("get", "/v1/staged-downloads/{id}"),
+]
+
+
+def phase6_check():
+    """A self-contained (no live server) conformance check for the P6.20/
+    P6.21 world/backup/staged-transfer surface, in the same spirit as
+    `--selftest`: `tools/contract-conformance-check.py --phase6` (the
+    plan's own P6.21 Verify command) names no `--base-url`/`--token`,
+    unlike every other live-server check in this file, so it can't be a
+    live-server check the way `run_checks` is -- this is this step's own
+    documented interpretation of that otherwise-unrunnable Verify line
+    (see the P6.21 report for the reasoning).
+
+    Checks, for the full P6.8 world/backup/staged-* surface: (a) every
+    `(method, path)` in `PHASE6_PATHS` exists in `openapi.json`, (b)
+    every `$ref` its request/response schemas name resolves to a real
+    `components/schemas` entry, (c) every schema's `required` fields are
+    all declared in its own `properties`, and (d) a hand-built
+    representative instance per schema (`phase6_example_instances`)
+    passes `assert_conforms` against that schema."""
+    contract = load_contract()
+    paths = contract["paths"]
+    schemas = contract["components"]["schemas"]
+    failures = []
+    checked = 0
+
+    def schema_refs_in(node):
+        if isinstance(node, dict):
+            ref = node.get("$ref")
+            if ref is not None:
+                yield ref
+            for value in node.values():
+                yield from schema_refs_in(value)
+        elif isinstance(node, list):
+            for item in node:
+                yield from schema_refs_in(item)
+
+    for method, path in PHASE6_PATHS:
+        checked += 1
+        if path not in paths or method not in paths[path]:
+            failures.append(f"{method.upper()} {path}: missing from openapi.json")
+            continue
+        for ref in schema_refs_in(paths[path][method]):
+            name = ref.rsplit("/", 1)[-1]
+            if name not in schemas:
+                failures.append(f"{method.upper()} {path}: $ref '{ref}' does not resolve")
+
+    for name, schema in schemas.items():
+        if not (name.startswith("World") or name.startswith("Backup") or name.startswith("StagedUpload")):
+            continue
+        checked += 1
+        properties = schema.get("properties", {})
+        for field in schema.get("required", []):
+            if field not in properties:
+                failures.append(f"{name}: required field '{field}' is not declared in properties")
+
+    examples = phase6_example_instances()
+    for name, instance in examples.items():
+        checked += 1
+        if name not in schemas:
+            failures.append(f"{name}: no such schema in openapi.json")
+            continue
+        try:
+            assert_conforms(contract, schema_ref(name), instance, name)
+        except AssertionError as e:
+            failures.append(str(e))
+
+    missing_examples = set(schemas) - set(examples)
+    missing_examples = {
+        n for n in missing_examples if n.startswith("World") or n.startswith("Backup") or n.startswith("StagedUpload")
+    }
+    for name in sorted(missing_examples):
+        failures.append(f"{name}: no example instance in phase6_example_instances()")
+
+    if failures:
+        for failure in failures:
+            print(f"FAIL {failure}", file=sys.stderr)
+        return 1
+
+    print(f"ok phase6 {checked}")
+    return 0
+
+
 def selftest():
     """A tiny embedded schema/instance pair, independent of the real
     openapi.json or any live server -- checkable on its own, same principle
@@ -470,10 +661,14 @@ def main():
     parser.add_argument("--expect-auth-store", action="store_true", help="P4.5: assert MSC_DEV_TOKEN no longer authorizes protected routes")
     parser.add_argument("--routes", help="comma-separated route keys, e.g. status,performance")
     parser.add_argument("--selftest", action="store_true")
+    parser.add_argument("--phase6", action="store_true", help="P6.21: self-contained world/backup/staged-transfer schema check, no live server needed")
     args = parser.parse_args()
 
     if args.selftest:
         sys.exit(selftest())
+
+    if args.phase6:
+        sys.exit(phase6_check())
 
     if args.expect_auth_store:
         if not args.base_url:

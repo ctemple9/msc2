@@ -110,7 +110,7 @@ fn reconciliation_marker_path(server_dir: &Path) -> PathBuf {
 /// `WorldSlotManager.worldFolderNames(for:)` mixes into the same
 /// function in source, kept separate here per the module-boundary split
 /// P6.9 already established.
-fn existing_world_folders(
+pub(crate) fn existing_world_folders(
     fs: &dyn FileSystem,
     server_dir: &Path,
     server_type: ServerType,

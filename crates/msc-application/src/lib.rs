@@ -7,4 +7,5 @@ pub mod operations;
 pub mod output_reducer;
 pub mod status;
 pub mod transfer;
+pub mod world_conversion;
 pub mod worlds;

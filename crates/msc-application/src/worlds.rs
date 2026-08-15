@@ -1102,7 +1102,7 @@ fn parse_activation_manifest(bytes: &[u8]) -> Option<(String, Option<WorldIdenti
 /// content into place" steps operate on, and what
 /// [`reconcile_interrupted_activation`] replays without needing to have
 /// remembered the names anywhere else.
-fn top_level_entries(fs: &dyn FileSystem, dir: &Path) -> io::Result<Vec<PathBuf>> {
+pub(crate) fn top_level_entries(fs: &dyn FileSystem, dir: &Path) -> io::Result<Vec<PathBuf>> {
     match fs.list(dir) {
         Ok(entries) => Ok(entries),
         Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
@@ -1110,7 +1110,7 @@ fn top_level_entries(fs: &dyn FileSystem, dir: &Path) -> io::Result<Vec<PathBuf>
     }
 }
 
-fn move_entries(fs: &dyn FileSystem, from_dir: &Path, to_dir: &Path) -> io::Result<()> {
+pub(crate) fn move_entries(fs: &dyn FileSystem, from_dir: &Path, to_dir: &Path) -> io::Result<()> {
     fs.create_dir_all(to_dir)?;
     for entry in top_level_entries(fs, from_dir)? {
         let name = entry

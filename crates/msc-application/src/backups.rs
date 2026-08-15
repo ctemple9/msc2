@@ -18,10 +18,19 @@
 //! ahead of that step for P6.12's own use. `backup_inventory.rs`'s tests
 //! cite both rather than re-proving them.
 //!
-//! P6.16's half (below): [`create_backup`], the one authoritative backup
-//! path, and the flush-consistent save-pause protocol
+//! P6.16's half: [`create_backup`], the one authoritative backup path,
+//! and the flush-consistent save-pause protocol
 //! ([`BackupConsole`]/[`pause_saves_for_backup`]/
 //! [`resume_saves_after_backup`]) it runs when the target is live.
+//!
+//! P6.17's half: [`scheduled_tick`] (the timer-fired policy real pacing
+//! lives outside this crate for) and [`prune_orphan_sidecars`].
+//!
+//! P6.18's half (below): [`restore_backup`]/[`reconcile_interrupted_restore`],
+//! transactional for the same reason `worlds::activate_slot`'s own
+//! section doc explains — reused directly, not rebuilt, since restoring
+//! a backup and activating a slot both boil down to "swap the live world
+//! folders for a different, already-verified archive's contents."
 
 use msc_domain::backup::{self as domain_backup, BackupMeta};
 use msc_domain::identity::ServerType;
@@ -29,6 +38,7 @@ use msc_domain::world::{self, BackupAssociation};
 use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::backup_store::{self, BackupEntry};
 use msc_infrastructure::fs::FileSystem;
+use msc_infrastructure::world_store;
 use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -467,4 +477,295 @@ pub fn scheduled_tick(
 /// same).
 pub fn prune_orphan_sidecars(fs: &dyn FileSystem, server_dir: &Path) -> Vec<PathBuf> {
     backup_store::prune_orphan_sidecars(fs, server_dir)
+}
+
+// =====================================================================
+// P6.18 — transactional backup restore and restart recovery
+//
+// Ports `restoreBackup(_:)` (source `AppViewModel+Backups.swift:585-699`)
+// merged with two Phase 6 corrections `fixtures/backup-restore/` already
+// names:
+//
+//   - `restore-msc1-has-no-automatic-rollback-after-interrupted-
+//     extraction-phase6-correction.json`: source removes the live world
+//     folders *before* extracting the replacement (`removeWorldFolders`
+//     then `unzip`, lines 668-684, no staging) — a failed `unzip` leaves
+//     the server with no live world at all, recoverable only by an
+//     operator manually finding and restoring the pre-restore safety
+//     backup source itself already created two steps earlier. This is
+//     the exact shape `worlds::activate_slot`'s own P6.13 correction
+//     already fixed once for activation; restore gets the identical
+//     three-phase on-disk transaction, under `world_slots/.restore/`
+//     rather than `.activation/` (a sibling, not a collision — the two
+//     transactions are independent state machines that happen to touch
+//     the same live folders, never concurrently once P6.21 wires the
+//     exclusivity this phase has flagged at every step so far).
+//   - the backup-verification correction P6.15/P6.16 already built
+//     (`archive::validate_archive_safety`) is restore's own "verify
+//     source" gate (source's `validateZipArchive` call, line 656) —
+//     reused, not reimplemented.
+//
+// Unlike activation, a restored backup carries no new world identity to
+// commit (a backup ZIP's member paths already match *this* server's
+// current level-name — that's what `backupWorld`/`createBackup` captured
+// them as) — so this transaction's "installed" phase has no commit tail
+// beyond removing `.restore/` itself, and its own manifest doesn't need
+// to remember anything phase-3 recovery can't already re-derive from the
+// directory layout alone (unlike activation's slot id/identity) — so
+// restore's transaction carries no `manifest.json` at all.
+//
+// Deviation from this step's own `Files:` list, flagged rather than
+// silent: `msc-application::operations` (`LifecycleOperations`) is not
+// touched. No world- or backup-domain error type in this crate converts
+// into `operations::OperationError`/routes through `LifecycleOperations`
+// anywhere yet — every one of P6.13/14/16/17's own section docs already
+// deferred that conversion to P6.21 (route wiring), once a route exists
+// to own an operation's lifecycle across an async boundary; forcing it
+// into this synchronous application function now would be a second,
+// premature integration point with no caller yet. "Explain the outcome
+// through the operation record" is satisfied here by
+// [`RestoreOutcome`]/[`RestoreRecovery`] — structured, typed results a
+// future route-layer `OperationError`/success-result mapping (P6.21) can
+// translate directly, the same way `worlds::ActivationRecovery` already
+// stands ready for `activate_slot`'s own eventual route wiring.
+// =====================================================================
+
+#[derive(Debug)]
+pub enum RestoreError {
+    /// `restoreBackup`'s server-type guard (source line 595-602): Java
+    /// only, currently — checked first, before any other guard.
+    BedrockNotSupported,
+    /// Source line 604-609.
+    ServerRunning,
+    /// Source line 611-620: the backup carries a non-nil `slotId` that
+    /// disagrees with the resolved active slot. A legacy backup with no
+    /// slot association, or no resolvable active slot at all, always
+    /// passes this guard regardless of `backup_slot_id`.
+    CrossSlot {
+        backup_slot_id: String,
+        active_slot_id: String,
+    },
+    /// Source line 622-628.
+    SourceMissing,
+    /// The mandatory pre-restore safety backup itself failed — a hard
+    /// abort (source line 645-654): nothing about the current world is
+    /// touched.
+    SafetyBackupFailed(BackupError),
+    /// `validateZipArchive`'s structural check (source line 656) failed
+    /// — the current world is never touched (source line 657-665; this
+    /// port's own transaction hasn't started staging yet either way).
+    ArchiveInvalid,
+    Io(io::Error),
+    Archive(ArchiveError),
+}
+
+impl fmt::Display for RestoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RestoreError::BedrockNotSupported => {
+                write!(
+                    f,
+                    "live-world restore is currently supported for Java servers only"
+                )
+            }
+            RestoreError::ServerRunning => write!(f, "server is running"),
+            RestoreError::CrossSlot {
+                backup_slot_id,
+                active_slot_id,
+            } => write!(
+                f,
+                "backup belongs to slot {backup_slot_id}, not the active slot {active_slot_id}"
+            ),
+            RestoreError::SourceMissing => write!(f, "backup source file is missing"),
+            RestoreError::SafetyBackupFailed(e) => {
+                write!(f, "pre-restore safety backup failed: {e}")
+            }
+            RestoreError::ArchiveInvalid => {
+                write!(f, "backup archive failed structural verification")
+            }
+            RestoreError::Io(e) => write!(f, "{e}"),
+            RestoreError::Archive(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for RestoreError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestoreOutcome {
+    /// The mandatory safety backup's own path — always created, always
+    /// retained, regardless of how the restore itself concludes.
+    pub safety_backup_zip_path: PathBuf,
+}
+
+fn restore_dir(server_dir: &Path) -> PathBuf {
+    world_store::slots_directory(server_dir).join(".restore")
+}
+
+fn restore_staged_dir(server_dir: &Path) -> PathBuf {
+    restore_dir(server_dir).join("staged")
+}
+
+fn restore_prior_dir(server_dir: &Path) -> PathBuf {
+    restore_dir(server_dir).join("prior")
+}
+
+/// `restoreBackup(_:)`, transactional (see the section doc above).
+/// `is_server_running`/`resolved_active_slot_id` are the caller's
+/// already-known state (matching this file's established pattern of
+/// folding an orchestration-layer guard into the same function, per
+/// `worlds.rs`'s own module doc). `safety_backup_association`/
+/// `safety_backup_server_id`/`safety_backup_server_display_name` feed
+/// straight through to the mandatory safety backup's own
+/// [`create_backup`] call — resolved by the caller
+/// ([`world::effective_backup_association`]) exactly as every other
+/// backup-creating call site in this module already requires.
+#[allow(clippy::too_many_arguments)]
+pub fn restore_backup(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+    backup_zip_path: &Path,
+    backup_slot_id: Option<&str>,
+    resolved_active_slot_id: Option<&str>,
+    is_server_running: bool,
+    safety_backup_association: &BackupAssociation,
+    safety_backup_server_id: Option<&str>,
+    safety_backup_server_display_name: Option<&str>,
+    now: &str,
+) -> Result<RestoreOutcome, RestoreError> {
+    if server_type == ServerType::Bedrock {
+        return Err(RestoreError::BedrockNotSupported);
+    }
+    if is_server_running {
+        return Err(RestoreError::ServerRunning);
+    }
+    if let (Some(backup_slot), Some(active_slot)) = (backup_slot_id, resolved_active_slot_id)
+        && backup_slot != active_slot
+    {
+        return Err(RestoreError::CrossSlot {
+            backup_slot_id: backup_slot.to_string(),
+            active_slot_id: active_slot.to_string(),
+        });
+    }
+    if !matches!(fs.stat(backup_zip_path), Ok(meta) if meta.is_file) {
+        return Err(RestoreError::SourceMissing);
+    }
+
+    let safety_backup = create_backup(
+        fs,
+        server_dir,
+        server_type,
+        raw_level_name,
+        safety_backup_association,
+        safety_backup_server_id,
+        safety_backup_server_display_name,
+        false,
+        true,
+        Some("pre-restore"),
+        None,
+        now,
+        None,
+        || false,
+    )
+    .map_err(RestoreError::SafetyBackupFailed)?;
+
+    if archive::validate_archive_safety(backup_zip_path).is_err() {
+        return Err(RestoreError::ArchiveInvalid);
+    }
+
+    let level_name = world::current_level_name(server_type, raw_level_name);
+    let current_folders =
+        crate::worlds::existing_world_folders(fs, server_dir, server_type, &level_name);
+
+    fs.create_dir_all(&restore_dir(server_dir))
+        .map_err(RestoreError::Io)?;
+
+    // Phase 1: stage the restored archive. The live world at the server
+    // root is not touched by anything in this block — a failure here
+    // (a corrupt/failing extraction) aborts with the live world
+    // completely intact.
+    let staged_dir = restore_staged_dir(server_dir);
+    if let Err(e) = archive::extract_zip(backup_zip_path, &staged_dir) {
+        let _ = fs.remove(&restore_dir(server_dir));
+        return Err(RestoreError::Archive(e));
+    }
+
+    // Phase 2: move the current live folders aside.
+    let prior_dir = restore_prior_dir(server_dir);
+    fs.create_dir_all(&prior_dir).map_err(RestoreError::Io)?;
+    for name in &current_folders {
+        fs.rename(&server_dir.join(name), &prior_dir.join(name))
+            .map_err(RestoreError::Io)?;
+    }
+
+    // Phase 3: install the staged restore, then remove the whole
+    // transaction directory — `prior/` is discarded too, matching
+    // source's own "restore succeeded" outcome (the safety backup, not
+    // `prior/`, is the durable fallback from here on).
+    crate::worlds::move_entries(fs, &staged_dir, server_dir).map_err(RestoreError::Io)?;
+    let _ = fs.remove(&restore_dir(server_dir));
+
+    Ok(RestoreOutcome {
+        safety_backup_zip_path: safety_backup.zip_path,
+    })
+}
+
+/// What [`reconcile_interrupted_restore`] did, if anything, on this call
+/// — mirrors `worlds::ActivationRecovery`'s own shape exactly, since the
+/// underlying transaction is the identical three-phase pattern.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RestoreRecovery {
+    /// Phase 1 ("staged") or phase 2 ("prior_moved") was interrupted —
+    /// the live world at the server root is (or has been restored to
+    /// be) the complete, unmodified pre-restore world. The safety
+    /// backup this restore attempt created is still on disk either way.
+    RecoveredToOldWorld,
+    /// Phase 3 ("installed") was interrupted after the restored world
+    /// was already moved into place — nothing more to do beyond
+    /// discarding the now-empty transaction directory.
+    RecoveredToRestoredWorld,
+}
+
+/// Call once per server on agent startup, before any restore route is
+/// reachable for it — the same "before routes are reachable" timing
+/// [`crate::worlds::reconcile_imported_worlds`]/
+/// [`crate::worlds::reconcile_interrupted_activation`] already
+/// established. Driven purely by which of `.restore/{prior,staged}`
+/// physically exist, per the section doc's own three-phase table.
+pub fn reconcile_interrupted_restore(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+) -> io::Result<Option<RestoreRecovery>> {
+    let dir = restore_dir(server_dir);
+    if fs.stat(&dir).is_err() {
+        return Ok(None);
+    }
+
+    let prior_dir = restore_prior_dir(server_dir);
+    let staged_dir = restore_staged_dir(server_dir);
+    let prior_exists = fs.stat(&prior_dir).is_ok();
+    let staged_exists = fs.stat(&staged_dir).is_ok();
+
+    if !prior_exists {
+        // Phase 1 ("staged"): nothing at the server root was ever
+        // touched — discard the abandoned staging area outright.
+        let _ = fs.remove(&dir);
+        return Ok(Some(RestoreRecovery::RecoveredToOldWorld));
+    }
+
+    if staged_exists {
+        // Phase 2 ("prior_moved"): the server root currently has no
+        // live world at all — move the prior folders back.
+        crate::worlds::move_entries(fs, &prior_dir, server_dir)?;
+        let _ = fs.remove(&dir);
+        return Ok(Some(RestoreRecovery::RecoveredToOldWorld));
+    }
+
+    // Phase 3 ("installed"): the restored world is already at the
+    // server root; nothing left but to discard the transaction
+    // directory.
+    let _ = fs.remove(&dir);
+    Ok(Some(RestoreRecovery::RecoveredToRestoredWorld))
 }

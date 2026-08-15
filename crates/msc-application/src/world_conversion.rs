@@ -26,21 +26,21 @@
 //! P6.7) is exercised through a scripted `FakeWorldConverter` in
 //! `tests/world_conversion.rs`.
 //!
-//! **Two real MSC 1 gaps are preserved, not corrected**, per each
-//! fixture's own notes (P6.7) — flagged for Cameron in this step's
-//! questions rather than silently fixed here:
+//! **One real MSC 1 gap is preserved, not corrected**, per its fixture's
+//! own notes (P6.7) — raised as a question and left as-is on Cameron's
+//! call: a later activation failure (this function's own final step)
+//! does not revert the slot already written in the placement step — the
+//! new/replaced slot is left on disk, inactive, exactly as source leaves
+//! it.
 //!
-//!  1. [`replace_slot_with_converted_zip`] removes the destination's
-//!     existing archive *before* copying the new one in — a plain
-//!     remove-then-copy, not the temp-file-then-atomic-replace pattern
-//!     every other overwrite in this phase uses (`worlds::
-//!     update_active_slot_from_current_world`,
-//!     `worlds::copy_slot_into_existing`). A copy failure after the
-//!     remove already succeeded leaves the slot with no archive at all.
-//!  2. A later activation failure (this function's own final step) does
-//!     not revert the slot already written in the placement step — the
-//!     new/replaced slot is left on disk, inactive, exactly as source
-//!     leaves it.
+//! **One real MSC 1 gap *is* corrected**, also on Cameron's call:
+//! source's `replaceSlotWithConvertedZip` removes the destination's
+//! existing archive *before* copying the new one in — a plain
+//! remove-then-copy, unlike every other overwrite in this phase
+//! (`worlds::update_active_slot_from_current_world`, `worlds::
+//! copy_slot_into_existing`), which all stage the write to a temp file
+//! first and only then atomically replace the destination. See
+//! [`replace_slot_with_converted_zip`]'s own doc for the fix.
 //!
 //! One precondition this step's own plan text adds beyond the oracle:
 //! "validate stopped source/target." Source itself never checks this
@@ -368,16 +368,22 @@ fn create_converted_slot(
 }
 
 /// `replaceSlotWithConvertedZip(existingSlot:zipURL:targetServer:
-/// targetLevelName:)` (source line 258-283): a plain remove-then-copy,
-/// **not** the temp-file-then-atomic-replace pattern every other
-/// overwrite in this phase uses — preserved as a real, characterized gap
+/// targetLevelName:)` (source line 258-283), **corrected** on Cameron's
+/// call: source is a plain remove-then-copy straight to the destination
 /// (`fixtures/world-conversion/
 /// replace-existing-slot-overwrite-is-not-atomic-unlike-other-slot-mutations.json`),
-/// not corrected here. See the module doc's closing note; flagged for
-/// Cameron rather than silently fixed. If `copy_packaged_zip_into_slot`
-/// fails after the `remove` above it already succeeded, `?` propagates
-/// that error immediately — `destination`'s slot is left with no archive
-/// at all, exactly reproducing source's own gap.
+/// so a write failure after the `remove` already succeeded leaves the
+/// slot with no archive at all. This port instead stages the copy to a
+/// scratch file in the same slot directory first — a failure there
+/// leaves `dest_zip` (the destination's real archive) completely
+/// untouched — and only removes/replaces the real destination once that
+/// staged copy has already fully succeeded, matching the temp-file-
+/// then-atomic-replace pattern every other overwrite in this phase uses
+/// (`worlds::update_active_slot_from_current_world`, `worlds::
+/// copy_slot_into_existing`), including their same remove-before-rename
+/// shape (`fs::rename` doesn't overwrite an existing destination on
+/// Windows the way it does on POSIX, so the explicit `remove` first is
+/// still required even though the copy itself is now crash-safe).
 fn replace_slot_with_converted_zip(
     fs: &dyn FileSystem,
     target_server_dir: &Path,
@@ -387,11 +393,17 @@ fn replace_slot_with_converted_zip(
 ) -> Result<WorldSlot, ConversionError> {
     let dir = world_store::slot_directory(target_server_dir, &existing_slot.id);
     fs.create_dir_all(&dir)?;
-    let dest_zip = world_store::zip_path(target_server_dir, &existing_slot.id);
-    if fs.stat(&dest_zip).is_ok() {
-        fs.remove(&dest_zip)?;
+    let temp_zip = dir.join("world.convert.tmp.zip");
+    let _ = fs.remove(&temp_zip);
+
+    if let Err(e) = copy_packaged_zip_into_slot(fs, converted_zip, &temp_zip) {
+        let _ = fs.remove(&temp_zip);
+        return Err(e.into());
     }
-    copy_packaged_zip_into_slot(fs, converted_zip, &dest_zip)?;
+
+    let dest_zip = world_store::zip_path(target_server_dir, &existing_slot.id);
+    let _ = fs.remove(&dest_zip);
+    fs.rename(&temp_zip, &dest_zip)?;
 
     let mut updated = existing_slot.clone();
     updated.world_level_name = Some(target_level_name.to_string());

@@ -790,25 +790,33 @@ fn world_conversion_activation_failure_leaves_slot_written_but_inactive() {
 
 // ---------------------------------------------------------------------
 // replace-existing-slot-overwrite-is-not-atomic-unlike-other-slot-mutations
+//
+// Corrected on Cameron's call (see `world_conversion.rs`'s module doc
+// and `replace_slot_with_converted_zip`'s own doc): the overwrite now
+// stages to a temp file first, so a write failure never touches the
+// destination's existing archive.
 // ---------------------------------------------------------------------
 
 #[test]
-fn world_conversion_replace_existing_slot_overwrite_is_not_atomic() {
-    let source = TempDir::new("replace-not-atomic-source");
-    let target = TempDir::new("replace-not-atomic-target");
+fn world_conversion_replace_existing_slot_write_failure_preserves_previous_archive() {
+    let source = TempDir::new("replace-atomic-source");
+    let target = TempDir::new("replace-atomic-target");
     let slot = minimal_source(source.path());
 
     let existing = make_slot("EXISTING", Some("old-world"));
-    write_zip(
-        &world_store::zip_path(target.path(), &existing.id),
-        &[("old-world/level.dat", b"previous")],
-    );
     let dest_zip = world_store::zip_path(target.path(), &existing.id);
+    write_zip(&dest_zip, &[("old-world/level.dat", b"previous")]);
     assert!(dest_zip.exists(), "test setup: previous archive must exist");
+    let previous_bytes = fs::read(&dest_zip).unwrap();
 
+    // Fail the staged temp-file write, not the destination — proves the
+    // destination is only ever touched once the staged copy has already
+    // fully succeeded.
+    let temp_zip =
+        world_store::slot_directory(target.path(), &existing.id).join("world.convert.tmp.zip");
     let fs = FailWriteAt {
         inner: StdFileSystem,
-        fail_path: dest_zip.clone(),
+        fail_path: temp_zip.clone(),
     };
     let converter = FakeWorldConverter::ready(Ok(vec![("level.dat", b"x".as_slice())]));
     let mut log = Vec::new();
@@ -831,7 +839,16 @@ fn world_conversion_replace_existing_slot_overwrite_is_not_atomic() {
 
     assert!(matches!(result, Err(ConversionError::Io(_))));
     assert!(
-        !dest_zip.exists(),
-        "the previous archive must already be gone, and the new one never written"
+        dest_zip.exists(),
+        "the previous archive must survive a staged-copy failure"
+    );
+    assert_eq!(
+        fs::read(&dest_zip).unwrap(),
+        previous_bytes,
+        "the previous archive's contents must be untouched"
+    );
+    assert!(
+        !temp_zip.exists(),
+        "the failed staged copy's own temp file must not be left behind"
     );
 }

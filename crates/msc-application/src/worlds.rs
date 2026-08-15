@@ -883,3 +883,529 @@ pub fn set_slot_thumbnail(
         encoded_bytes,
     )?)
 }
+
+// =====================================================================
+// P6.13 — transactional world activation and restart recovery
+//
+// Ports `WorldSlotManager.activateSlot(_:for:backupCurrent:logLine:
+// backupWorld:)` (source line 643-778) merged with
+// `AppViewModel.activateWorldSlot(_:)`'s running-server guard (source
+// `AppViewModel+WorldSlots.swift:212-260`), corrected against the one
+// gap `fixtures/world-mutations/
+// activate-extraction-failure-leaves-partial-state-for-safety-backup-recovery.json`
+// pins as MSC 1's own baseline: source removes the current live folders
+// *before* extracting the replacement, so a corrupt/failing archive
+// leaves the server with no world at all and only the (also-taken)
+// safety backup to recover from — recovery there is manual, not
+// automatic.
+//
+// This port closes that window with a three-phase on-disk transaction
+// under `world_slots/.activation/`:
+//
+//   1. **staged** — the replacement is fully extracted into
+//      `.activation/staged/` (or, for a fresh/archive-less slot, this
+//      phase is trivially already true — nothing to stage). The live
+//      folders at the server root are untouched. A failure here (a
+//      corrupt archive, an I/O error) aborts with the live world
+//      completely intact — the specific improvement over source.
+//   2. **prior_moved** — the current live folders are moved (not
+//      copied) into `.activation/prior/`. The server root now has no
+//      live world at all — the same dangerous-looking window source
+//      has, except every archive/legitimacy check already passed in
+//      phase 1, so what's left is only a plain filesystem move.
+//   3. **installed** — every entry staged in phase 1 is moved into the
+//      server root, then `.activation/staged/` itself is removed
+//      (`.activation/prior/` is deliberately left in place a moment
+//      longer — see below). World identity, slot metadata, and the
+//      active marker are then committed; `.activation/` is removed
+//      last, only once every one of those has succeeded.
+//
+// The three phases are distinguished purely by which of
+// `.activation/{prior,staged}` exist on disk — no separate journaled
+// "current phase" field to trust or fall out of sync with reality:
+//
+//   | `prior/` | `staged/` | phase        | restart recovery            |
+//   |----------|-----------|--------------|------------------------------|
+//   | absent   | n/a       | staged       | delete `.activation/` — old world already complete |
+//   | present  | present   | prior_moved  | move `prior/*` back to the server root, delete `.activation/` — old world restored |
+//   | present  | absent    | installed    | re-run the commit tail (identity/metadata/marker — each idempotent), delete `.activation/` — new world completed |
+//
+// So a restart mid-transaction always reconciles to either the fully
+// old or the fully new world, never a mixture — [`reconcile_interrupted_activation`]
+// is that reconciler, driven only by this physical layout, not by
+// trusting an in-memory or journaled "what was I doing" flag.
+//
+// A small `manifest.json` (slot id, and the identity to apply) is
+// written once, atomically, at the very start of phase 1 — the only
+// piece phase-3 recovery can't re-derive from the directory layout
+// alone. Deviation from this step's planned `Files:` list, flagged
+// rather than silent: this transaction does not route through
+// `msc-infrastructure::operation_journal`/`msc-application::operations`
+// (`LifecycleOperations`) — that substrate models an abstract
+// queued/running/succeeded/failed *operation*, with no notion of a
+// multi-step filesystem transaction's own phase, and forcing this
+// three-phase move-based recovery through it would add a second,
+// redundant source of truth alongside the directory layout itself
+// rather than reuse one. Per-target exclusivity (so a concurrent
+// backup/replace can't race an in-flight activation) is exactly the
+// kind of cross-domain concern `OperationJournal::admit` already solves
+// well — left for the route layer (P6.21) to wire once backups (P6.15+)
+// exist to conflict with.
+// =====================================================================
+/// `ServerPropertiesManager.readProperties`/
+/// `BedrockPropertiesManager.readRawProperties`'s shared parse shape —
+/// both are plain `key=value` text files at this level, so one reader
+/// serves both server types (the type-specific halves never actually
+/// diverge in shape, only in which file they read).
+fn read_properties_map(fs: &dyn FileSystem, path: &Path) -> BTreeMap<String, String> {
+    let Ok(bytes) = fs.read(path) else {
+        return BTreeMap::new();
+    };
+    let text = String::from_utf8_lossy(&bytes);
+    let mut map = BTreeMap::new();
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        if let Some((key, value)) = trimmed.split_once('=') {
+            map.insert(key.trim().to_string(), value.trim().to_string());
+        }
+    }
+    map
+}
+
+/// `ServerPropertiesManager.writeProperties`/
+/// `BedrockPropertiesManager.writeRawProperties`: a full rewrite (header
+/// comment plus one sorted `key=value` line per entry) — comments and
+/// blank lines from the original file don't survive, matching both
+/// source functions exactly. Best-effort is the caller's choice, not
+/// this function's — it returns the write's real result.
+fn write_properties_map(
+    fs: &dyn FileSystem,
+    path: &Path,
+    props: &BTreeMap<String, String>,
+) -> io::Result<()> {
+    let mut out = String::from("# Modified via MSC 2\n");
+    for (key, value) in props {
+        out.push_str(&format!("{key}={value}\n"));
+    }
+    fs.write(path, out.as_bytes())
+}
+
+/// `applyWorldIdentity(levelName:seed:applySeed:for:logLine:)` (source
+/// `WorldSlotManager.swift:596-636`) once the caller has resolved which
+/// level-name/seed to apply and whether the seed half applies at all
+/// (the archived-slot activation branch calls this with `apply_seed:
+/// false`; the fresh-slot branch and direct world replace/rename call it
+/// with the seed half live).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldIdentity {
+    pub level_name: String,
+    pub seed: Option<String>,
+    pub apply_seed: bool,
+}
+
+fn apply_world_identity(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    identity: &WorldIdentity,
+) -> io::Result<()> {
+    let path = server_dir.join("server.properties");
+    let mut props = read_properties_map(fs, &path);
+    props.insert("level-name".to_string(), identity.level_name.clone());
+    if identity.apply_seed {
+        match identity
+            .seed
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            Some(seed) => {
+                props.insert("level-seed".to_string(), seed.to_string());
+            }
+            None => {
+                props.remove("level-seed");
+            }
+        }
+    }
+    write_properties_map(fs, &path, &props)
+}
+
+fn activation_dir(server_dir: &Path) -> PathBuf {
+    world_store::slots_directory(server_dir).join(".activation")
+}
+
+fn activation_manifest_path(server_dir: &Path) -> PathBuf {
+    activation_dir(server_dir).join("manifest.json")
+}
+
+fn activation_staged_dir(server_dir: &Path) -> PathBuf {
+    activation_dir(server_dir).join("staged")
+}
+
+fn activation_prior_dir(server_dir: &Path) -> PathBuf {
+    activation_dir(server_dir).join("prior")
+}
+
+fn activation_manifest_value(slot_id: &str, identity: Option<&WorldIdentity>) -> serde_json::Value {
+    let mut obj = serde_json::Map::new();
+    obj.insert(
+        "slot_id".to_string(),
+        serde_json::Value::String(slot_id.to_string()),
+    );
+    obj.insert(
+        "identity".to_string(),
+        match identity {
+            None => serde_json::Value::Null,
+            Some(identity) => {
+                let mut i = serde_json::Map::new();
+                i.insert(
+                    "level_name".to_string(),
+                    serde_json::Value::String(identity.level_name.clone()),
+                );
+                i.insert(
+                    "seed".to_string(),
+                    identity
+                        .seed
+                        .clone()
+                        .map(serde_json::Value::String)
+                        .unwrap_or(serde_json::Value::Null),
+                );
+                i.insert(
+                    "apply_seed".to_string(),
+                    serde_json::Value::Bool(identity.apply_seed),
+                );
+                serde_json::Value::Object(i)
+            }
+        },
+    );
+    serde_json::Value::Object(obj)
+}
+
+fn parse_activation_manifest(bytes: &[u8]) -> Option<(String, Option<WorldIdentity>)> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    let slot_id = value.get("slot_id")?.as_str()?.to_string();
+    let identity = match value.get("identity") {
+        None | Some(serde_json::Value::Null) => None,
+        Some(obj) => Some(WorldIdentity {
+            level_name: obj.get("level_name")?.as_str()?.to_string(),
+            seed: obj.get("seed").and_then(|v| v.as_str()).map(str::to_string),
+            apply_seed: obj.get("apply_seed")?.as_bool()?,
+        }),
+    };
+    Some((slot_id, identity))
+}
+
+/// Every top-level entry name directly under `dir` (not recursive) — the
+/// unit both the "move current live folders aside" and "move staged
+/// content into place" steps operate on, and what
+/// [`reconcile_interrupted_activation`] replays without needing to have
+/// remembered the names anywhere else.
+fn top_level_entries(fs: &dyn FileSystem, dir: &Path) -> io::Result<Vec<PathBuf>> {
+    match fs.list(dir) {
+        Ok(entries) => Ok(entries),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(Vec::new()),
+        Err(e) => Err(e),
+    }
+}
+
+fn move_entries(fs: &dyn FileSystem, from_dir: &Path, to_dir: &Path) -> io::Result<()> {
+    fs.create_dir_all(to_dir)?;
+    for entry in top_level_entries(fs, from_dir)? {
+        let name = entry
+            .file_name()
+            .expect("directory listing entries are named");
+        fs.rename(&entry, &to_dir.join(name))?;
+    }
+    Ok(())
+}
+
+/// `worldFolderNames(for:)`'s Bedrock legacy-layout relocation (source
+/// line 737-758), applied inside the staging directory rather than the
+/// server root — a failure here is non-fatal either way, matching
+/// source's own warning-only handling
+/// (`fixtures/world-mutations/activate-legacy-zip-loose-worlds-root-relocated.json`),
+/// but staging it first means a relocation failure never risks leaving
+/// half-relocated files at the live server root.
+fn relocate_legacy_bedrock_layout(staged_dir: &Path, level_name: &str) {
+    let worlds_dir = staged_dir.join("worlds");
+    let expected_dir = worlds_dir.join(level_name);
+    let loose_db_dir = worlds_dir.join("db");
+    if expected_dir.is_dir() || !loose_db_dir.is_dir() {
+        return;
+    }
+    let Ok(entries) = fs::read_dir(&worlds_dir) else {
+        return;
+    };
+    let _ = fs::create_dir_all(&expected_dir);
+    for entry in entries.flatten() {
+        if entry.file_name() == level_name {
+            continue;
+        }
+        let dest = expected_dir.join(entry.file_name());
+        let _ = fs::rename(entry.path(), dest);
+    }
+}
+
+#[derive(Debug)]
+pub enum ActivationError {
+    ServerRunning,
+    NoArchiveOrFreshMetadata,
+    BackupFailed,
+    Archive(ArchiveError),
+    Io(io::Error),
+    AtomicWrite(AtomicWriteError),
+    Manifest,
+}
+
+impl fmt::Display for ActivationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ActivationError::ServerRunning => write!(f, "server is running"),
+            ActivationError::NoArchiveOrFreshMetadata => write!(
+                f,
+                "slot has no saved world archive and no fresh-world generation metadata"
+            ),
+            ActivationError::BackupFailed => write!(f, "pre-activation safety backup failed"),
+            ActivationError::Archive(e) => write!(f, "{e}"),
+            ActivationError::Io(e) => write!(f, "{e}"),
+            ActivationError::AtomicWrite(e) => write!(f, "{e}"),
+            ActivationError::Manifest => write!(f, "interrupted activation manifest is unreadable"),
+        }
+    }
+}
+
+impl std::error::Error for ActivationError {}
+
+impl From<io::Error> for ActivationError {
+    fn from(e: io::Error) -> Self {
+        ActivationError::Io(e)
+    }
+}
+
+impl From<ArchiveError> for ActivationError {
+    fn from(e: ArchiveError) -> Self {
+        ActivationError::Archive(e)
+    }
+}
+
+impl From<AtomicWriteError> for ActivationError {
+    fn from(e: AtomicWriteError) -> Self {
+        ActivationError::AtomicWrite(e)
+    }
+}
+
+/// The level-name/seed identity to apply for `slot`, and whether it has
+/// a real archive — `inferredWorldLevelName`'s primary branch only
+/// (`slot.world_level_name`, trimmed); the Java-only zip-listing
+/// fallback that branch also has is narrowed out here since no P6.13
+/// fixture exercises activating a legacy-imported, name-less archived
+/// slot, and it can be added if a real one turns up. Flagged narrowing,
+/// not a silent one.
+fn resolve_activation_identity(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    slot: &WorldSlot,
+) -> Result<(bool, Option<WorldIdentity>), ActivationError> {
+    let has_archive = has_archive(fs, server_dir, &slot.id);
+    let stored_level_name = slot
+        .world_level_name
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let will_generate_fresh = !has_archive && stored_level_name.is_some();
+
+    if !has_archive && !will_generate_fresh {
+        return Err(ActivationError::NoArchiveOrFreshMetadata);
+    }
+
+    let identity = if has_archive {
+        stored_level_name.map(|level_name| WorldIdentity {
+            level_name: level_name.to_string(),
+            seed: None,
+            apply_seed: false,
+        })
+    } else {
+        let current_level_name = read_java_level_name(fs, server_dir)
+            .unwrap_or_else(|| world::current_level_name(server_type, None));
+        let candidate = stored_level_name.unwrap_or(slot.name.as_str());
+        Some(WorldIdentity {
+            level_name: world::sanitized_world_level_name(candidate, &current_level_name),
+            seed: slot.world_seed.clone(),
+            apply_seed: true,
+        })
+    };
+
+    Ok((has_archive, identity))
+}
+
+/// `activateSlot(_:for:backupCurrent:logLine:backupWorld:)`, transactional
+/// (see the section doc above). `is_server_running` is the caller's
+/// already-known process state (`activateWorldSlot`'s guard, folded in
+/// here per this file's established pattern); `backup` is called only
+/// when live folders currently exist, matching source's own
+/// `!currentFolders.isEmpty` condition, and aborts the whole activation
+/// before any folder is touched if it returns `false`.
+pub fn activate_slot(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    slot: &WorldSlot,
+    is_server_running: bool,
+    now: &str,
+    backup: impl FnOnce() -> bool,
+) -> Result<WorldSlot, ActivationError> {
+    if is_server_running {
+        return Err(ActivationError::ServerRunning);
+    }
+
+    let (has_archive, identity) = resolve_activation_identity(fs, server_dir, server_type, slot)?;
+
+    let current_level_name = read_java_level_name(fs, server_dir)
+        .unwrap_or_else(|| world::current_level_name(server_type, None));
+    let current_folders = existing_world_folders(fs, server_dir, server_type, &current_level_name);
+
+    if !current_folders.is_empty() && !backup() {
+        return Err(ActivationError::BackupFailed);
+    }
+
+    let manifest_path = activation_manifest_path(server_dir);
+    fs.create_dir_all(&activation_dir(server_dir))?;
+    let manifest_bytes =
+        serde_json::to_vec_pretty(&activation_manifest_value(&slot.id, identity.as_ref()))
+            .expect("activation manifest always serializes");
+    fs.write(&manifest_path, &manifest_bytes)?;
+
+    // Phase 1: stage the replacement. The live world at the server root
+    // is not touched by anything in this block.
+    let staged_dir = activation_staged_dir(server_dir);
+    if has_archive {
+        let zip_path = world_store::zip_path(server_dir, &slot.id);
+        if let Err(e) = archive::extract_zip(&zip_path, &staged_dir) {
+            let _ = fs.remove(&activation_dir(server_dir));
+            return Err(e.into());
+        }
+        if let Some(identity) = &identity {
+            relocate_legacy_bedrock_layout(&staged_dir, &identity.level_name);
+        }
+    }
+
+    // Phase 2: move the current live folders aside.
+    let prior_dir = activation_prior_dir(server_dir);
+    fs.create_dir_all(&prior_dir)?;
+    for name in &current_folders {
+        fs.rename(&server_dir.join(name), &prior_dir.join(name))?;
+    }
+
+    // Phase 3: install the staged replacement (if any), then commit.
+    if has_archive {
+        move_entries(fs, &staged_dir, server_dir)?;
+        let _ = fs.remove(&staged_dir);
+    }
+
+    finish_activation_commit(fs, server_dir, slot, identity.as_ref(), now)
+}
+
+/// The tail shared by a normal [`activate_slot`] call and
+/// [`reconcile_interrupted_activation`]'s "installed" recovery: apply
+/// identity, persist slot metadata (`last_played_at` refreshed,
+/// `world_level_name` updated if an identity was applied), persist the
+/// active marker, then remove the whole `.activation/` transaction
+/// directory. Every one of these is idempotent, so replaying it after a
+/// restart is always safe even if some of it already ran before the
+/// crash.
+fn finish_activation_commit(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    slot: &WorldSlot,
+    identity: Option<&WorldIdentity>,
+    now: &str,
+) -> Result<WorldSlot, ActivationError> {
+    if let Some(identity) = identity {
+        apply_world_identity(fs, server_dir, identity)?;
+    }
+
+    let mut updated = slot.clone();
+    updated.last_played_at = Some(now.to_string());
+    if let Some(identity) = identity {
+        updated.world_level_name = Some(identity.level_name.clone());
+    }
+    world_store::save_metadata(fs, server_dir, &updated)?;
+    world_store::set_active_slot_id(fs, server_dir, Some(&updated.id))?;
+
+    let _ = fs.remove(&activation_dir(server_dir));
+    Ok(updated)
+}
+
+/// What [`reconcile_interrupted_activation`] did, if anything, on this
+/// call — `None` means there was no in-flight transaction to recover.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ActivationRecovery {
+    /// Phase 1 ("staged") or phase 2 ("prior_moved") was interrupted —
+    /// the live world at the server root is (or has been restored to
+    /// be) the complete, unmodified old world.
+    RecoveredToOldWorld,
+    /// Phase 3 ("installed") was interrupted after the new world was
+    /// already moved into place — the commit tail was replayed to
+    /// completion.
+    RecoveredToNewWorld { slot_id: String },
+}
+
+/// Call once per server on agent startup, before any world-mutation
+/// route is reachable for it (the same "before routes are reachable"
+/// timing [`reconcile_imported_worlds`] already established) — reconciles
+/// an [`activate_slot`] call interrupted by a crash/restart to either
+/// the complete old world or the complete new world, driven only by
+/// which of `.activation/{prior,staged}` physically exist. See the
+/// section doc above for the three-phase table this implements.
+pub fn reconcile_interrupted_activation(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    now: &str,
+) -> Result<Option<ActivationRecovery>, ActivationError> {
+    let activation_dir = activation_dir(server_dir);
+    if fs.stat(&activation_dir).is_err() {
+        return Ok(None);
+    }
+
+    let prior_dir = activation_prior_dir(server_dir);
+    let staged_dir = activation_staged_dir(server_dir);
+    let prior_exists = fs.stat(&prior_dir).is_ok();
+    let staged_exists = fs.stat(&staged_dir).is_ok();
+
+    if !prior_exists {
+        // Phase 1 ("staged"): nothing at the server root was ever
+        // touched — discard the abandoned staging area outright.
+        let _ = fs.remove(&activation_dir);
+        return Ok(Some(ActivationRecovery::RecoveredToOldWorld));
+    }
+
+    if staged_exists {
+        // Phase 2 ("prior_moved"): the server root currently has no
+        // live world at all — move the prior folders back.
+        move_entries(fs, &prior_dir, server_dir)?;
+        let _ = fs.remove(&activation_dir);
+        return Ok(Some(ActivationRecovery::RecoveredToOldWorld));
+    }
+
+    // Phase 3 ("installed"): the new world is already at the server
+    // root; replay the commit tail to completion.
+    let manifest_bytes = fs
+        .read(&activation_manifest_path(server_dir))
+        .map_err(|_| ActivationError::Manifest)?;
+    let (slot_id, identity) =
+        parse_activation_manifest(&manifest_bytes).ok_or(ActivationError::Manifest)?;
+    let slots = world_store::load_slots(fs, server_dir);
+    let slot = slots
+        .iter()
+        .find(|s| s.id == slot_id)
+        .cloned()
+        .ok_or(ActivationError::Manifest)?;
+
+    let updated = finish_activation_commit(fs, server_dir, &slot, identity.as_ref(), now)?;
+    Ok(Some(ActivationRecovery::RecoveredToNewWorld {
+        slot_id: updated.id,
+    }))
+}

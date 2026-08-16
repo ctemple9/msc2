@@ -55,16 +55,16 @@ use axum::{Json, Router};
 use msc_api::dto::{
     PermissionCategoryDto, StagedUploadBeginRequestDto, StagedUploadBeginResultDto,
     StagedUploadCompleteResultDto, StagedUploadPurposeDto, WorldActivateRequestDto,
-    WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto, WorldCopyRequestDto,
-    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
-    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
-    WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
-    WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto,
+    WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto,
+    WorldImportRequestDto, WorldMutationResultDto, WorldRenameActiveWorldRequestDto,
+    WorldRenameRequestDto, WorldRepairRequestDto, WorldReplaceRequestDto, WorldSlotDto,
+    WorldSlotsResponseDto,
 };
 use msc_application::world_conversion::{
     self, ConversionError, ConversionPlacement, WorldConverter,
 };
-use msc_application::worlds::{self, WorldError, WorldReplaceSource};
+use msc_application::worlds::{self, WorldError};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
 use msc_domain::world::WorldSlot;
@@ -101,7 +101,6 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds/update", post(update))
         .route("/worlds/delete", post(delete))
         .route("/worlds/duplicate", post(duplicate))
-        .route("/worlds/copy", post(copy))
         .route("/worlds/import", post(import))
         .route("/worlds/export", post(export))
         .route("/worlds/rename-active-world", post(rename_active_world))
@@ -449,19 +448,18 @@ pub async fn rename(
     .await
 }
 
-/// `POST /v1/worlds/replace` maps a frozen `{slotId, sourceSlotId}`
-/// request onto `worlds::replace_world`'s `new_level_name`/
-/// `WorldReplaceSource` shape. This route predates Phase 6 (P2.8
-/// baseline) and was never service-backed before this step, so there is
-/// no earlier real implementation to check against — **flagged as a
-/// genuinely open question in the P6.21 report**: `sourceSlotId` is
-/// treated as the slot supplying replacement content (its `world.zip`),
-/// and the new live level-name is taken from that slot's own
-/// `world_level_name` (falling back to the current live level-name if
-/// the source slot never recorded one); `slotId` is validated to exist
-/// but not otherwise consumed — its intended purpose (perhaps an
-/// optimistic-concurrency check against the currently-active slot) is
-/// not recoverable from the frozen DTO alone.
+/// `POST /v1/worlds/replace` — **corrected post-review (Cameron)**: this
+/// is `WorldSlotManager.copySlotIntoExisting(source, into: dest, ...)`,
+/// a saved-slot-to-saved-slot copy, not `AppViewModel+WorldManagement
+/// .swift::replaceWorld`'s live-world operation the original P6.21 pass
+/// guessed at (that guess is what the "flagged as a genuinely open
+/// question" comment previously here recorded — Cameron's answer:
+/// "slotId is the existing destination slot, and sourceSlotId is the
+/// slot whose saved contents replace it. This is not a concurrency
+/// check and does not operate on the live world."). No new level name
+/// is needed, and `/v1/worlds/copy` — a newly-proposed route with no
+/// MSC 1 counterpart — duplicated this exact behavior, so it has been
+/// removed from the contract rather than kept alongside it.
 pub async fn replace(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -476,30 +474,21 @@ pub async fn replace(
         body,
         |lifecycle, server, body| {
             let server_dir = Path::new(&server.server_dir);
-            if find_slot(server_dir, &body.slot_id).is_none() {
-                return slot_not_found(&body.slot_id);
-            }
             let Some(source) = find_slot(server_dir, &body.source_slot_id) else {
                 return error_response(StatusCode::NOT_FOUND, "not_found", "source_not_found");
             };
-            let running = lifecycle.status_snapshot().running;
-            let source_zip = world_store::zip_path(server_dir, &source.id);
-            let new_level_name = source
-                .world_level_name
-                .clone()
-                .unwrap_or_else(|| msc_domain::world::current_level_name(server.server_type, None));
-            match worlds::replace_world(
+            let Some(destination) = find_slot(server_dir, &body.slot_id) else {
+                return slot_not_found(&body.slot_id);
+            };
+            let now = iso8601_now();
+            match worlds::copy_slot_into_existing(
                 &StdFileSystem,
                 server_dir,
-                server.server_type,
-                None,
-                &new_level_name,
-                &WorldReplaceSource::BackupZip(source_zip),
-                running,
-                false,
-                || false,
+                &source,
+                &destination,
+                &now,
             ) {
-                Ok(()) => mutation_ok(lifecycle, server, "replaced"),
+                Ok(_) => mutation_ok(lifecycle, server, "replaced"),
                 Err(error) => world_error_response(error),
             }
         },
@@ -652,42 +641,6 @@ pub async fn duplicate(
             let new_name = format!("{} copy", source.name);
             match worlds::duplicate_slot(&StdFileSystem, server_dir, &source, &new_name, &now) {
                 Ok(_) => mutation_ok(lifecycle, server, "duplicated"),
-                Err(error) => world_error_response(error),
-            }
-        },
-    )
-    .await
-}
-
-pub async fn copy(
-    State(state): State<WorldsRoutesState>,
-    Extension(credential): Extension<AuthenticatedCredential>,
-    body: Option<Json<WorldCopyRequestDto>>,
-) -> Response {
-    run_mutation(
-        &state,
-        &credential,
-        "POST",
-        "/v1/worlds/copy",
-        "world-copy",
-        body,
-        |lifecycle, server, body| {
-            let server_dir = Path::new(&server.server_dir);
-            let Some(source) = find_slot(server_dir, &body.source_slot_id) else {
-                return error_response(StatusCode::NOT_FOUND, "not_found", "source_not_found");
-            };
-            let Some(destination) = find_slot(server_dir, &body.slot_id) else {
-                return slot_not_found(&body.slot_id);
-            };
-            let now = iso8601_now();
-            match worlds::copy_slot_into_existing(
-                &StdFileSystem,
-                server_dir,
-                &source,
-                &destination,
-                &now,
-            ) {
-                Ok(_) => mutation_ok(lifecycle, server, "copied"),
                 Err(error) => world_error_response(error),
             }
         },
@@ -1260,6 +1213,21 @@ fn run_pre_mutation_safety_backup(
 // (phase6-api.md SS3: Chunker's process lifetime).
 // =====================================================================
 
+/// **Corrected post-review (Cameron).** MSC 1 conversion always names a
+/// separate, opposite-edition *target* server
+/// (`AppViewModel+WorldConversion.swift::performWorldConversion`'s own
+/// `sourceServer`/`targetServer` parameters,
+/// `WorldConversionWizardView`'s `selectedTargetServer` picker filtered
+/// to `s.id != sourceServer.id && (sourceServer.isBedrock ? s.isJava :
+/// s.isBedrock)`) — the original P6.21 pass wrongly passed the active
+/// server as both source and target. `sourceSlotId` still resolves
+/// against the active server (this whole API's implicit-active-server
+/// convention); `targetServerId` is now a required, separately-looked-up
+/// `ConfigServer`. `targetFormat` is client-chosen and validated against
+/// `WorldConverter::supported_formats` — never hardcoded (MSC 1's own
+/// wizard defaults its picker to the newest compatible format but always
+/// lets the user override it; this route has no picker of its own to
+/// default, so an invalid/unsupported value is simply rejected).
 pub async fn convert(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -1272,30 +1240,60 @@ pub async fn convert(
     let Some(Json(body)) = body else {
         return invalid_body("invalid_json", "Request body must be valid JSON.");
     };
-    let server = match active_server_or_response(&lifecycle) {
+    match (&body.target_name, &body.target_slot_id) {
+        (Some(_), None) | (None, Some(_)) => {}
+        _ => {
+            return invalid_body(
+                "invalid_body",
+                "Exactly one of targetName or targetSlotId must be provided.",
+            );
+        }
+    }
+
+    let source_server = match active_server_or_response(&lifecycle) {
         Ok(server) => server,
         Err(response) => return response,
     };
-    let server_dir = Path::new(&server.server_dir).to_path_buf();
-    let Some(source_slot) = find_slot(&server_dir, &body.slot_id) else {
-        return slot_not_found(&body.slot_id);
+    let source_server_dir = Path::new(&source_server.server_dir).to_path_buf();
+    let Some(source_slot) = find_slot(&source_server_dir, &body.source_slot_id) else {
+        return slot_not_found(&body.source_slot_id);
     };
 
-    let placement = if body.replace_existing {
-        let Some(existing) = world_store::load_slots(&StdFileSystem, &server_dir)
-            .into_iter()
-            .find(|slot| slot.name == body.target_name)
-        else {
-            return error_response(StatusCode::NOT_FOUND, "not_found", "slot_not_found");
+    let Some(target_server) = lifecycle
+        .app_config_servers()
+        .into_iter()
+        .find(|server| server.id == body.target_server_id)
+    else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "target_server_not_found",
+        );
+    };
+    let target_server_dir = Path::new(&target_server.server_dir).to_path_buf();
+
+    let placement = if let Some(target_slot_id) = &body.target_slot_id {
+        let Some(existing) = find_slot(&target_server_dir, target_slot_id) else {
+            return slot_not_found(target_slot_id);
         };
         ConversionPlacement::ReplaceExisting { slot: existing }
     } else {
         ConversionPlacement::NewSlot {
-            name: body.target_name.clone(),
+            name: body
+                .target_name
+                .clone()
+                .expect("target_name is Some, checked above"),
         }
     };
 
     let converter = LiveWorldConverter;
+    let Some(resolved_java_path) = converter.resolve_java_path("") else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "capability_unavailable",
+            "No Java runtime could be resolved for Chunker.",
+        );
+    };
     if !converter.is_installed() {
         return error_response(
             StatusCode::CONFLICT,
@@ -1303,10 +1301,33 @@ pub async fn convert(
             "Chunker is not installed on this agent.",
         );
     }
+    let supported_formats = converter.supported_formats(&resolved_java_path);
+    if !supported_formats.contains(&body.target_format) {
+        return invalid_body(
+            "unsupported_target_format",
+            &format!(
+                "'{}' is not a format the installed Chunker jar supports. Supported: {}.",
+                body.target_format,
+                supported_formats.join(", ")
+            ),
+        );
+    }
 
+    // This agent only ever runs one server process at a time (the
+    // "active" one) — a non-active target server has no process of its
+    // own and can never be "running" here, unlike the source, which is
+    // always the active server and so always reflects the live status
+    // snapshot.
+    let running = lifecycle.status_snapshot().running;
+    let is_target_running = target_server.id == source_server.id && running;
+
+    // Journaled against the *target* server, not the source: conversion
+    // writes a new/replaced slot into the target, while the source is
+    // only ever read (its zip is extracted, never mutated) — exclusivity
+    // needs to protect whichever server this operation actually mutates.
     let operation_id = match begin_operation(
         &lifecycle,
-        &server.id,
+        &target_server.id,
         "world-conversion",
         "Starting world conversion.",
     ) {
@@ -1314,16 +1335,17 @@ pub async fn convert(
         Err(response) => return response,
     };
 
-    let server_type = server.server_type;
-    let running = lifecycle.status_snapshot().running;
+    let source_server_type = source_server.server_type;
+    let target_server_type = target_server.server_type;
+    let target_format = body.target_format.clone();
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
     let task_operation_id_progress = operation_id.clone();
     tokio::spawn(async move {
         let now = iso8601_now();
-        let target_format = default_target_format(server_type);
         let backup_lifecycle = task_lifecycle.clone();
-        let backup_dir = server_dir.clone();
+        let backup_dir = target_server_dir.clone();
+        let backup_type = target_server_type;
         let progress_lifecycle = task_lifecycle.clone();
         let result = tokio::task::spawn_blocking(move || {
             let mut progress = |line: &str| {
@@ -1337,19 +1359,19 @@ pub async fn convert(
             world_conversion::convert_world(
                 &StdFileSystem,
                 &converter,
-                "",
-                &backup_dir,
+                &resolved_java_path,
+                &source_server_dir,
                 &source_slot,
-                server_type,
+                source_server_type,
                 running,
-                &backup_dir,
-                server_type,
+                &target_server_dir,
+                target_server_type,
                 None,
                 &target_format,
                 placement,
-                running,
+                is_target_running,
                 &now,
-                || run_pre_mutation_safety_backup(&backup_lifecycle, &backup_dir, server_type),
+                || run_pre_mutation_safety_backup(&backup_lifecycle, &backup_dir, backup_type),
                 &mut progress,
             )
         })
@@ -1401,23 +1423,6 @@ pub async fn convert(
         response.status(),
     );
     response
-}
-
-/// **Flagged, not silently guessed.** `WorldConvertRequestDTO`'s frozen
-/// shape (`{slotId, targetName, replaceExisting}`) has no field for
-/// Chunker's own `target_format` flag (`-f`, e.g. `"JAVA_1_21_4"`) — a
-/// real product decision (which Minecraft version to target, and
-/// whether that should ever be client-chosen) with no fixture or MSC 1
-/// precedent to derive it from; `ChunkerManager.swift` never hardcodes
-/// one either; it comes from whatever UI picker source's own wizard
-/// presents. This derives a fixed, clearly-labeled placeholder from the
-/// server's own type purely so the route is real and testable today —
-/// see the P6.21 report for the open question this leaves for Cameron.
-fn default_target_format(server_type: ServerType) -> String {
-    match server_type {
-        ServerType::Java => "JAVA_1_21_4".to_string(),
-        ServerType::Bedrock => "BEDROCK".to_string(),
-    }
 }
 
 // =====================================================================
@@ -1542,6 +1547,59 @@ impl WorldConverter for LiveWorldConverter {
             ))
         }
     }
+
+    fn supported_formats(&self, resolved_java_path: &str) -> Vec<String> {
+        use std::process::Command;
+
+        let jar_path = Self::chunker_jar_path();
+        let Ok(output) = Command::new(resolved_java_path)
+            .arg("-jar")
+            .arg(&jar_path)
+            .arg("-f")
+            .arg("?")
+            .output()
+        else {
+            return Vec::new();
+        };
+        let mut combined = String::from_utf8_lossy(&output.stdout).into_owned();
+        combined.push(' ');
+        combined.push_str(&String::from_utf8_lossy(&output.stderr));
+
+        let mut results = Vec::new();
+        for token in combined.split(|c: char| !c.is_alphanumeric() && c != '_') {
+            if is_chunker_format_token(token) && !results.contains(&token.to_string()) {
+                results.push(token.to_string());
+            }
+        }
+        results
+    }
+}
+
+/// `ChunkerManager.supportedFormats`'s own regex, `(?:JAVA|BEDROCK)_R?
+/// \d+(?:_\d+)*`, reproduced as a manual token check rather than pulling
+/// in the `regex` crate for one call site (`msc-agent` has no other
+/// regex need) — this crate's own established "write the ~15-line
+/// algorithm instead" precedent (`civil_from_days`, this file's own
+/// three private copies). `PREVIEW`/`SETTINGS` are excluded per source's
+/// own comment ("not conversion targets"); neither could match this
+/// shape anyway (both lack a leading digit after the prefix), kept here
+/// only for parity with source's explicit exclusion list.
+fn is_chunker_format_token(token: &str) -> bool {
+    const EXCLUDED: [&str; 2] = ["PREVIEW", "SETTINGS"];
+    if EXCLUDED.contains(&token) {
+        return false;
+    }
+    let Some(rest) = token
+        .strip_prefix("JAVA_")
+        .or_else(|| token.strip_prefix("BEDROCK_"))
+    else {
+        return false;
+    };
+    let rest = rest.strip_prefix('R').unwrap_or(rest);
+    !rest.is_empty()
+        && rest
+            .split('_')
+            .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit()))
 }
 
 fn iso8601_now() -> String {
@@ -1727,6 +1785,213 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let deleted: WorldMutationResultDto = json_body(response).await;
         assert_eq!(deleted.updated.unwrap().slots.len(), 1);
+    }
+
+    /// **Corrected post-review**: `/v1/worlds/replace` is
+    /// `copySlotIntoExisting`, not a live-world operation — proves the
+    /// destination slot's content actually changes (its `zip_size_bytes`
+    /// now matches the source's) while the source slot itself is left
+    /// untouched, and that `slotId`/`sourceSlotId` are both consumed
+    /// (unlike the pre-correction reading, which left `slotId`
+    /// unconsumed).
+    #[tokio::test]
+    async fn world_backup_routes_replace_copies_saved_slot_content_into_destination() {
+        let (lifecycle, _dir) = state_with_active_server("replace");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        let create_slot = |name: &'static str| {
+            let state = state.clone();
+            let credential = credential.clone();
+            async move {
+                let response = create(
+                    State(state),
+                    Extension(credential),
+                    Some(Json(WorldCreateRequestDto {
+                        name: name.to_string(),
+                        seed: None,
+                    })),
+                )
+                .await;
+                assert_eq!(response.status(), StatusCode::OK);
+                let created: WorldMutationResultDto = json_body(response).await;
+                created
+                    .updated
+                    .unwrap()
+                    .slots
+                    .into_iter()
+                    .find(|s| s.name == name)
+                    .unwrap()
+            }
+        };
+
+        let source = create_slot("Source").await;
+        let destination = create_slot("Destination").await;
+        assert_ne!(source.id, destination.id);
+
+        let response = replace(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldReplaceRequestDto {
+                slot_id: destination.id.clone(),
+                source_slot_id: source.id.clone(),
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let replaced: WorldMutationResultDto = json_body(response).await;
+        assert!(replaced.success);
+
+        let slots = replaced.updated.unwrap().slots;
+        assert_eq!(slots.len(), 2, "no slot is created or removed by replace");
+        let updated_destination = slots.iter().find(|s| s.id == destination.id).unwrap();
+        let untouched_source = slots.iter().find(|s| s.id == source.id).unwrap();
+        assert_eq!(
+            updated_destination.zip_size_bytes, source.zip_size_bytes,
+            "destination's content now matches the source's"
+        );
+        assert_eq!(
+            untouched_source.zip_size_bytes, source.zip_size_bytes,
+            "the source slot itself is left untouched"
+        );
+
+        // A missing destination/source slot is still a 404 either way.
+        let response = replace(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldReplaceRequestDto {
+                slot_id: "does-not-exist".to_string(),
+                source_slot_id: source.id.clone(),
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    /// **Corrected post-review**: `WorldConvertRequestDto` now requires
+    /// exactly one of `target_name`/`target_slot_id` (both or neither is
+    /// `400 invalid_body`) — the frozen contract's original
+    /// `replaceExisting: bool` couldn't express "which slot" once
+    /// `targetSlotId` replaced a display-name lookup.
+    #[tokio::test]
+    async fn world_backup_routes_convert_requires_exactly_one_of_target_name_or_target_slot_id() {
+        let (lifecycle, _dir) = state_with_active_server("convert-xor");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        let base = WorldConvertRequestDto {
+            source_slot_id: "slot-1".to_string(),
+            target_server_id: "paper-1".to_string(),
+            target_format: "JAVA_1_21_4".to_string(),
+            target_name: None,
+            target_slot_id: None,
+        };
+
+        // Neither provided.
+        let response = convert(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(base.clone())),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        // Both provided.
+        let mut both = base.clone();
+        both.target_name = Some("New Name".to_string());
+        both.target_slot_id = Some("slot-2".to_string());
+        let response = convert(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(both)),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    /// **Corrected post-review**: conversion now resolves `sourceSlotId`
+    /// against the active server and `targetServerId` against a
+    /// *separately looked-up* server — the pre-correction route always
+    /// used the same active server for both, so `target_server_not_found`
+    /// could never actually fire and a real cross-server conversion was
+    /// impossible. This can't exercise a full successful conversion
+    /// without a real installed Chunker jar (`LiveWorldConverter` isn't
+    /// fake-injectable at the route layer), so it only proves the
+    /// plumbing reaches the converter-capability guard with the *correct*
+    /// two distinct servers resolved, and that an unknown target server
+    /// id is rejected before ever reaching that guard.
+    #[tokio::test]
+    async fn world_backup_routes_convert_resolves_separate_source_and_target_servers() {
+        let (lifecycle, server_dir) = state_with_active_server("convert-cross");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        let response = create(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldCreateRequestDto {
+                name: "Source".to_string(),
+                seed: None,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let created: WorldMutationResultDto = json_body(response).await;
+        let source_slot_id = created.updated.unwrap().slots.first().unwrap().id.clone();
+
+        let target_dir = temp_server_dir("convert-cross-target");
+        let target_server = ImportedPaperServer {
+            id: ServerId::new("paper-2"),
+            display_name: "Convert Target Paper".to_string(),
+            paper_jar_path: target_dir.join("paper.jar"),
+            server_dir: target_dir,
+            eula_accepted: Some(true),
+            game_port: 25566,
+            max_players: 20,
+            world_name: "world".to_string(),
+            properties: ServerPropertiesModel::from_dict(&HashMap::new(), None),
+        };
+        std::fs::write(&target_server.paper_jar_path, b"fake jar").unwrap();
+        lifecycle.register_imported_paper(target_server).unwrap();
+
+        // An unknown target server is rejected before touching the
+        // converter at all.
+        let response = convert(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldConvertRequestDto {
+                source_slot_id: source_slot_id.clone(),
+                target_server_id: "does-not-exist".to_string(),
+                target_format: "JAVA_1_21_4".to_string(),
+                target_name: Some("Converted".to_string()),
+                target_slot_id: None,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+        // A real, distinct target server resolves fine and reaches the
+        // converter-capability guard (409 capability_unavailable, since
+        // no real Chunker jar is installed in this test environment) --
+        // not target_server_not_found, proving source/target were
+        // correctly distinguished.
+        let response = convert(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldConvertRequestDto {
+                source_slot_id,
+                target_server_id: "paper-2".to_string(),
+                target_format: "JAVA_1_21_4".to_string(),
+                target_name: Some("Converted".to_string()),
+                target_slot_id: None,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body: msc_api::dto::ErrorDto = json_body(response).await;
+        assert_eq!(body.code, "capability_unavailable");
+
+        let _ = server_dir;
     }
 
     #[tokio::test]

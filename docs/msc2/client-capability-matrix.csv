@@ -95,7 +95,6 @@ GET,/v1/watchdog/status,,Get watchdog enabled status,none,Planned,Planned,Planne
 GET,/v1/worlds,,"World slots for the active server, plus which is active",none,Planned,Planned,Planned,Planned,
 POST,/v1/worlds/activate,activateWorldSlot,Activate a world slot (starts activation asynchronously),worlds,Planned,Planned,Planned,Planned,
 POST,/v1/worlds/convert,convertWorld,Start a Chunker world-format conversion,worlds,Planned,Planned,Planned,Planned,"async-only, operation type world-conversion (phase6-api.md SS3)"
-POST,/v1/worlds/copy,copyWorldSlotContent,Copy one slot's content into another existing slot,worlds,Planned,Planned,Planned,Planned,
 POST,/v1/worlds/create,,Create a new world slot,worlds,Planned,Planned,Planned,Planned,
 POST,/v1/worlds/delete,deleteWorldSlot,Delete a non-active world slot,worlds,Planned,Planned,Planned,Planned,
 POST,/v1/worlds/duplicate,duplicateWorldSlot,Duplicate a world slot under a fresh id,worlds,Planned,Planned,Planned,Planned,
@@ -104,6 +103,6 @@ POST,/v1/worlds/import,importWorldSlot,Import a staged world ZIP as a new slot,w
 POST,/v1/worlds/rename,,Rename a world slot,worlds,Planned,Planned,Planned,Planned,"slot metadata rename only, no file I/O -- see phase6-api.md SS1's naming-trap note"
 POST,/v1/worlds/rename-active-world,renameActiveWorld,Directly rename the active/live world's on-disk folders,worlds,Planned,Planned,Planned,Planned,"direct live-world folder rename (renameWorld) -- distinct from POST /v1/worlds/rename, phase6-api.md SS1"
 POST,/v1/worlds/repair,,Repair a Bedrock world's level.dat,worlds,Planned,Planned,Planned,Planned,Bedrock-only; live workflow stays unavailable until Phase 10 (capability_unavailable)
-POST,/v1/worlds/replace,,Replace the active world with another slot,worlds,Planned,Planned,Planned,Planned,"direct live-world replace, sourced from another slot (replaceWorld)"
+POST,/v1/worlds/replace,,Copy a saved slot's content into another existing slot,worlds,Planned,Planned,Planned,Planned,"corrected post-review: copySlotIntoExisting, not the live world (replaceWorld); copyWorldSlotContent removed as a duplicate"
 POST,/v1/worlds/update,updateActiveWorldSlot,Save the current live world into the active slot,worlds,Planned,Planned,Planned,Planned,
 GET,/v1/worlds/{slotId}/thumbnail,getWorldSlotThumbnail,"A world slot's thumbnail image, if one was generated",none,Planned,Planned,Planned,Planned,"generation is automatic on slot create/update, no separate write route"

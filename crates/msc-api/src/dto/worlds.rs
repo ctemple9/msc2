@@ -44,6 +44,12 @@ pub struct WorldRenameRequestDto {
     pub name: String,
 }
 
+/// `WorldSlotManager.copySlotIntoExisting` — a saved-slot-to-saved-slot
+/// copy, not a live-world operation: `slot_id` is the existing
+/// *destination* slot being overwritten, `source_slot_id` is the slot
+/// whose saved content replaces it. Corrected post-review (Cameron):
+/// this route does not touch the active/live world and needs no new
+/// level name.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorldReplaceRequestDto {
@@ -100,13 +106,6 @@ pub struct WorldDuplicateRequestDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct WorldCopyRequestDto {
-    pub slot_id: String,
-    pub source_slot_id: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct WorldImportRequestDto {
     pub name: String,
     pub staged_upload_id: String,
@@ -136,12 +135,27 @@ pub struct WorldRenameActiveWorldRequestDto {
     pub name: String,
 }
 
+/// Corrected post-review (Cameron): MSC 1 conversion always names a
+/// separate, opposite-edition *target* server (`targetServerId`) — the
+/// source slot lives on the currently-active server, but the converted
+/// world is placed on a different, explicitly-named one. `targetFormat`
+/// is the exact Chunker format string the client chose from
+/// `WorldConverter::supported_formats` (MSC 1 defaults its own picker to
+/// the newest compatible format but always lets the user override it —
+/// never hardcoded here). Exactly one of `target_name` (place into a
+/// fresh slot) or `target_slot_id` (overwrite an existing slot on the
+/// target server, looked up by id, not display name) must be present —
+/// validated at the route layer.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorldConvertRequestDto {
-    pub slot_id: String,
-    pub target_name: String,
-    pub replace_existing: bool,
+    pub source_slot_id: String,
+    pub target_server_id: String,
+    pub target_format: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_slot_id: Option<String>,
 }
 
 /// Always operation-backed (`type: world-conversion`,

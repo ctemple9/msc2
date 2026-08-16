@@ -16,7 +16,7 @@ Six world/backup routes were already in the P2.8 baseline, ported forward unchan
 | `GET /v1/worlds` | `WorldSlotManager.loadSlots` + active resolution | `WorldSlotsResponseDTO` |
 | `POST /v1/worlds/create` | `WorldSlotManager.createSlot`/`createFreshWorldSlot` | sync `WorldMutationResultDTO` |
 | `POST /v1/worlds/rename` | `WorldSlotManager`'s slot rename (metadata only, no file I/O) | sync `WorldMutationResultDTO` |
-| `POST /v1/worlds/replace` | `AppViewModel+WorldManagement.swift::replaceWorld` (the active/live world, sourced from another slot) | sync `WorldMutationResultDTO` |
+| `POST /v1/worlds/replace` | `WorldSlotManager.copySlotIntoExisting` (a saved-slot-to-saved-slot copy — **corrected post-P6.21-review**, see §9) | sync `WorldMutationResultDTO` |
 | `POST /v1/worlds/repair` | `AppViewModel+WorldRepair.swift` (Bedrock `level.dat` repair) | sync `WorldMutationResultDTO`, Phase 10-gated |
 | `POST /v1/worlds/activate` | `WorldSlotManager.activateSlot` | **async**, `{result: "activation_started"}` |
 | `GET /v1/backups` | backup listing | `BackupsResponseDTO` |
@@ -26,7 +26,9 @@ Six world/backup routes were already in the P2.8 baseline, ported forward unchan
 
 None of these request/response shapes changed. D-006 preserves them; this note only adds fields additively (SS2) and adds the operations this baseline never had (SS3–4).
 
-**A naming trap worth stating explicitly, because it cost real time to untangle:** `POST /v1/worlds/rename` and the new `POST /v1/worlds/rename-active-world` (SS3) are **not the same operation** despite the shared verb. The existing route is `WorldSlotManager`'s own rename — it edits `slot.json`'s `name` field and touches no files (`fixtures/world-mutations/rename-slot-metadata-only-leaves-archive-untouched.json`). The new route is `AppViewModel+WorldManagement.swift::renameWorld` — it moves the *live, currently-active* world's on-disk folders (main/nether/end) to new names, with an all-or-nothing pre-check across all three target names and a `rollbackMovedFolders()` recovery path (`fixtures/world-mutations/rename-world-*.json`). `POST /v1/worlds/replace` already correctly mapped to `replaceWorld`'s direct-world semantics (its request shape, `{slotId, sourceSlotId}`, only makes sense as "replace the active world's content with slot X's"); `rename` did not have a direct-world counterpart yet.
+**A naming trap worth stating explicitly, because it cost real time to untangle:** `POST /v1/worlds/rename` and the new `POST /v1/worlds/rename-active-world` (SS3) are **not the same operation** despite the shared verb. The existing route is `WorldSlotManager`'s own rename — it edits `slot.json`'s `name` field and touches no files (`fixtures/world-mutations/rename-slot-metadata-only-leaves-archive-untouched.json`). The new route is `AppViewModel+WorldManagement.swift::renameWorld` — it moves the *live, currently-active* world's on-disk folders (main/nether/end) to new names, with an all-or-nothing pre-check across all three target names and a `rollbackMovedFolders()` recovery path (`fixtures/world-mutations/rename-world-*.json`).
+
+**A second naming trap, caught only after P6.21 tried to wire `/v1/worlds/replace` to a real service and had to guess (§9 records the correction):** this note originally claimed `POST /v1/worlds/replace` "already correctly mapped to `replaceWorld`'s direct-world semantics (its request shape, `{slotId, sourceSlotId}`, only makes sense as 'replace the active world's content with slot X's')." That claim was wrong. `{slotId, sourceSlotId}` is `WorldSlotManager.copySlotIntoExisting`'s own shape, not `replaceWorld`'s — `slotId` is the existing *destination* slot being overwritten, `sourceSlotId` is the slot supplying replacement content, and neither the live world nor a new level name is involved at all. `rename` still had no direct-live-world counterpart before SS3 added one; `replace` was never that counterpart to begin with.
 
 ---
 
@@ -43,25 +45,24 @@ Per the "add operation IDs additively for activation/backup/restore/conversion" 
 
 ## 3. New routes
 
-Twelve new operations close the gaps `fixtures/world-mutations`, `fixtures/world-archive-safety`, `fixtures/backups`, and `fixtures/world-conversion` characterized but the baseline never exposed:
+Eleven new operations close the gaps `fixtures/world-mutations`, `fixtures/world-archive-safety`, `fixtures/backups`, and `fixtures/world-conversion` characterized but the baseline never exposed. (A twelfth, `POST /v1/worlds/copy`, was proposed here originally but removed post-review — see §9: it duplicated `POST /v1/worlds/replace`'s corrected, real semantics exactly.)
 
 | Route | `operationId` | Maps to | Shape |
 |---|---|---|---|
 | `POST /v1/worlds/update` | `updateActiveWorldSlot` | `WorldSlotManager.updateSlotFromCurrentWorld` — save the live world into the active slot | sync, no request body |
 | `POST /v1/worlds/delete` | `deleteWorldSlot` | slot delete, refused on the active slot | sync `WorldMutationResultDTO` |
 | `POST /v1/worlds/duplicate` | `duplicateWorldSlot` | fresh-UUID slot duplicate | sync `WorldMutationResultDTO` |
-| `POST /v1/worlds/copy` | `copyWorldSlotContent` | copy one slot's content into another *existing* slot ("copy-into-existing") | sync `WorldMutationResultDTO` |
 | `POST /v1/worlds/import` | `importWorldSlot` | import a staged ZIP as a new slot | sync `WorldMutationResultDTO` |
 | `POST /v1/worlds/export` | `exportWorldSlot` | stage a slot's archive for download | sync `WorldExportResultDTO` |
 | `POST /v1/worlds/rename-active-world` | `renameActiveWorld` | direct live-world folder rename (SS1) | sync `WorldMutationResultDTO` |
-| `POST /v1/worlds/convert` | `convertWorld` | start a Chunker conversion | **async only** — `WorldConvertResultDTO`, `operationId` required, not optional |
+| `POST /v1/worlds/convert` | `convertWorld` | start a Chunker conversion, between a `sourceSlotId` on the active server and a separate, required `targetServerId` (§9) | **async only** — `WorldConvertResultDTO`, `operationId` required, not optional |
 | `GET /v1/worlds/{slotId}/thumbnail` | `getWorldSlotThumbnail` | fetch a slot's thumbnail bytes | `image/png`, 404 if none |
 | `POST /v1/backups/delete` | `deleteBackup` | delete a backup, refusing to drop the sole remaining verified backup | sync `SimpleResult` |
 | `POST /v1/staged-uploads` | `beginStagedUpload` | begin a bounded staged upload (SS4) | `StagedUploadBeginResultDTO` |
 | `PUT /v1/staged-uploads/{id}` | `uploadStagedBytes` | send bytes into a staging slot | `StagedUploadCompleteResultDTO` |
 | `GET /v1/staged-downloads/{id}` | `downloadStagedBytes` | fetch bytes from a prepared export | binary |
 
-Twelve routes, thirteen operations (`staged-uploads/{id}` and the others are one operation each; the table above already lists thirteen rows — `tools/api-contract-check.py`'s `EXPECTED_TOTAL` counts the operation, not the route: 88 baseline + 5 P2.8 + 13 P6.8 = 106).
+Eleven routes, twelve operations (`staged-uploads/{id}` and the others are one operation each — `tools/api-contract-check.py`'s `EXPECTED_TOTAL` counts the operation, not the route: 88 baseline + 5 P2.8 + 12 P6.8 = 105).
 
 **Why `convert` has no synchronous variant, unlike every other new route.** Every other new mutation costs roughly what `create`/`rename`/`replace` already cost (a folder move or a bounded zip operation) and stays in the baseline's existing synchronous `WorldMutationResultDTO` pattern. Chunker conversion shells out to an external process over a real modpack-sized world and can run for minutes (`fixtures/world-conversion`'s characterization of the five-flag CLI invocation with streamed output) — the same category of work `activate`/`backups/now`/`backups/restore` were already async for. `operation-model.md` SS2 already names `world-conversion` as an anticipated future `type` value, so this route creates its operation with `type: "world-conversion"` through the existing mechanism rather than inventing a fourth async convention.
 
@@ -101,7 +102,7 @@ Every route above carries `x-permission-category: worlds`, matching every existi
 
 ## 7. The client capability matrix
 
-`docs/msc2/client-capability-matrix.csv` is the D-023 matrix — one row per `openapi.json` operation (106 rows) plus the two WebSocket channels `websocket-v1.json` documents (`console`, `operation-progress`; 108 rows total). Columns: `method, path, operation_id, msc1_capability, permission_category, agent_status, desktop_web_status, ios_status, cli_status, notes`.
+`docs/msc2/client-capability-matrix.csv` is the D-023 matrix — one row per `openapi.json` operation (105 rows) plus the two WebSocket channels `websocket-v1.json` documents (`console`, `operation-progress`; 107 rows total). Columns: `method, path, operation_id, msc1_capability, permission_category, agent_status, desktop_web_status, ios_status, cli_status, notes`.
 
 **Status values are `Implemented`, `Planned`, or `Intentional exception`** (D-023's own three values), assessed as of this commit — not aspirational, not "eventually":
 
@@ -126,3 +127,14 @@ New checker, dependency-free (stdlib only), mirroring `tools/api-contract-check.
 5. Confirms any `Intentional exception` cell has a non-empty `notes` value naming a `D-0\d\d` decision — D-023's "becomes its own decision entry" requirement, checked mechanically since there are no exceptions to check against yet, but the rule needs to hold the day there is one.
 
 `--selftest` runs two bundled fixtures (one clean, one violating rules 1–5) the same way `api-contract-check.py --selftest` and `corpus-check.py --selftest` already do.
+
+---
+
+## 9. Post-P6.21-review correction (2026-08-15)
+
+P6.21 (real route wiring) surfaced two shapes this note had gotten wrong, both flagged as open questions to Cameron rather than guessed silently, and corrected here — before either had shipped to a client — per his review:
+
+- **`POST /v1/worlds/replace` is `WorldSlotManager.copySlotIntoExisting`, not `AppViewModel+WorldManagement.swift::replaceWorld`.** §1's original claim that `{slotId, sourceSlotId}` "only makes sense as 'replace the active world's content with slot X's'" was wrong — that shape is `copySlotIntoExisting`'s own (`slotId` = destination slot being overwritten, `sourceSlotId` = source slot), and the operation never touches the live world or needs a new level name. `POST /v1/worlds/copy` — proposed in the original P6.8 pass, with no MSC 1 counterpart — turned out to duplicate this exact behavior once the correction was made, so it has been removed from the contract rather than kept as a redundant second route to the same operation (§3's route/operation counts are updated accordingly: eleven new routes/twelve new operations, 105 total).
+- **World conversion needs a separate `targetServerId`, and `targetFormat` is client-chosen, not hardcoded.** `AppViewModel+WorldConversion.swift::performWorldConversion` always takes a `sourceServer`/`targetServer` pair (MSC 1's own wizard restricts `targetServer` to a different, opposite-edition configured server) and a caller-supplied `targetFormat` loaded from `ChunkerManager.supportedFormats(javaPath:)` — the P6.21 implementation had wrongly passed the same active server as both source and target, with a hardcoded placeholder format. `WorldConvertRequestDTO` now carries `sourceSlotId` (active server), `targetServerId` (required, separate), `targetFormat` (required, validated server-side against the installed Chunker jar's real supported-format list), and exactly one of `targetName`/`targetSlotId` (the latter by id, not display name, per Cameron's explicit correction).
+
+Both corrections are implemented in the same commit that updates this note; see that commit and `rolling-plan.md`'s P6.20/P6.21 entries for the full account.

@@ -500,7 +500,7 @@
     },
     "/v1/worlds/replace": {
       "post": {
-        "summary": "Replace the active world with another slot",
+        "summary": "Copy a saved slot's content into another existing slot",
         "requestBody": {
           "required": true,
           "content": {
@@ -567,7 +567,8 @@
             "x-error-code": "internal_error"
           }
         },
-        "x-permission-category": "worlds"
+        "x-permission-category": "worlds",
+        "x-notes": "WorldSlotManager.copySlotIntoExisting -- a saved-slot-to-saved-slot copy, not the active/live world (corrected post-review; the original P6.8 note wrongly mapped this to AppViewModel+WorldManagement.swift::replaceWorld). slotId is the existing destination slot being overwritten; sourceSlotId is the slot whose saved content replaces it. POST /v1/worlds/copy, a newly-proposed route with no MSC 1 counterpart that duplicated this exact behavior, has been removed from the contract."
       }
     },
     "/v1/worlds/repair": {
@@ -3804,80 +3805,6 @@
         "operationId": "duplicateWorldSlot"
       }
     },
-    "/v1/worlds/copy": {
-      "post": {
-        "summary": "Copy one slot's content into another existing slot",
-        "x-permission-category": "worlds",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/WorldCopyRequestDTO"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Mutation applied",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/WorldMutationResultDTO"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "missing_body / invalid_json / missing field",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDTO"
-                }
-              }
-            },
-            "x-error-code": "invalid_body"
-          },
-          "404": {
-            "description": "slot_not_found / backup_not_found / staged_upload_not_found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDTO"
-                }
-              }
-            },
-            "x-error-code": "not_found"
-          },
-          "409": {
-            "description": "no_active_server / server_running / active_slot_refused / sole_verified_backup",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDTO"
-                }
-              }
-            },
-            "x-error-code": "conflict"
-          },
-          "500": {
-            "description": "internal error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorDTO"
-                }
-              }
-            },
-            "x-error-code": "internal_error"
-          }
-        },
-        "x-notes": "Temp-file-then-atomic-move rollback on a mid-copy failure preserves the destination (fixtures/world-mutations: copy-into-existing-mid-copy-failure-...). Distinct from POST /v1/worlds/replace, which targets the active/live world.",
-        "operationId": "copyWorldSlotContent"
-      }
-    },
     "/v1/worlds/import": {
       "post": {
         "summary": "Import a staged world ZIP as a new slot",
@@ -4170,7 +4097,7 @@
             "x-error-code": "internal_error"
           }
         },
-        "x-notes": "Always operation-backed (operation-model.md SS2's type: world-conversion, named there as an anticipated future type). Guard order, temp cleanup, and the two flagged D-006 gaps (replaceSlotWithConvertedZip's non-atomic archive replacement; the pre-conversion backup's warn-only failure) are characterized in fixtures/world-conversion, not re-litigated here.",
+        "x-notes": "Always operation-backed (operation-model.md SS2's type: world-conversion, named there as an anticipated future type). Guard order, temp cleanup, and the two flagged D-006 gaps (replaceSlotWithConvertedZip's non-atomic archive replacement; the pre-conversion backup's warn-only failure) are characterized in fixtures/world-conversion, not re-litigated here. Corrected post-review: targetFormat is validated against the installed Chunker jar's own supported-format list (400 invalid_body, code unsupported_target_format, if not); exactly one of targetName/targetSlotId is required (400 invalid_body otherwise); targetServerId names a server that may differ from the one sourceSlotId resolves against.",
         "operationId": "convertWorld"
       }
     },
@@ -7991,21 +7918,6 @@
           "slotId"
         ]
       },
-      "WorldCopyRequestDTO": {
-        "type": "object",
-        "properties": {
-          "slotId": {
-            "type": "string"
-          },
-          "sourceSlotId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "slotId",
-          "sourceSlotId"
-        ]
-      },
       "WorldImportRequestDTO": {
         "type": "object",
         "properties": {
@@ -8066,21 +7978,28 @@
       "WorldConvertRequestDTO": {
         "type": "object",
         "properties": {
-          "slotId": {
+          "sourceSlotId": {
+            "type": "string"
+          },
+          "targetServerId": {
+            "type": "string"
+          },
+          "targetFormat": {
             "type": "string"
           },
           "targetName": {
             "type": "string"
           },
-          "replaceExisting": {
-            "type": "boolean"
+          "targetSlotId": {
+            "type": "string"
           }
         },
         "required": [
-          "slotId",
-          "targetName",
-          "replaceExisting"
-        ]
+          "sourceSlotId",
+          "targetServerId",
+          "targetFormat"
+        ],
+        "description": "Corrected post-review: MSC 1 conversion always names a separate, opposite-edition target server (AppViewModel+WorldConversion.swift's own sourceServer/targetServer parameters) -- sourceSlotId resolves against the active server; targetServerId is a separate, required server id. targetFormat is the exact Chunker format string the client chose from the installed jar's own supported list (MSC 1's wizard defaults its picker to the newest compatible format but always lets the user override it -- never hardcoded server-side). Exactly one of targetName (place into a fresh slot) or targetSlotId (overwrite an existing slot on the target server, by id, not display name) must be present."
       },
       "WorldConvertResultDTO": {
         "type": "object",

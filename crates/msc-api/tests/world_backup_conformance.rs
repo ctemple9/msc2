@@ -14,8 +14,8 @@ use msc_api::dto::{
     BackupRestoreResultDto, BackupsResponseDto, StagedUploadBeginRequestDto,
     StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
     WorldActivateRequestDto, WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto,
-    WorldCopyRequestDto, WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto,
-    WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
+    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
+    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
     WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
     WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
@@ -271,17 +271,6 @@ fn world_backup_conformance_world_duplicate_request_matches_schema() {
 }
 
 #[test]
-fn world_backup_conformance_world_copy_request_matches_schema() {
-    check(
-        "WorldCopyRequestDTO",
-        &WorldCopyRequestDto {
-            slot_id: "slot-1".to_string(),
-            source_slot_id: "slot-2".to_string(),
-        },
-    );
-}
-
-#[test]
 fn world_backup_conformance_world_import_request_matches_schema() {
     check(
         "WorldImportRequestDTO",
@@ -329,9 +318,11 @@ fn world_backup_conformance_world_convert_request_matches_schema() {
     check(
         "WorldConvertRequestDTO",
         &WorldConvertRequestDto {
-            slot_id: "slot-1".to_string(),
-            target_name: "Converted".to_string(),
-            replace_existing: false,
+            source_slot_id: "slot-1".to_string(),
+            target_server_id: "server-2".to_string(),
+            target_format: "JAVA_1_21_4".to_string(),
+            target_name: Some("Converted".to_string()),
+            target_slot_id: None,
         },
     );
 }

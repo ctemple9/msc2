@@ -145,6 +145,10 @@ impl WorldConverter for FakeWorldConverter {
         self.java_resolvable.then(|| "/usr/bin/java".to_string())
     }
 
+    fn supported_formats(&self, _resolved_java_path: &str) -> Vec<String> {
+        vec!["JAVA_1_21_4".to_string(), "JAVA_1_20_1".to_string()]
+    }
+
     fn convert(
         &self,
         input_dir: &Path,

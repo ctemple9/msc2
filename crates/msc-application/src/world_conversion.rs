@@ -92,6 +92,16 @@ pub trait WorldConverter {
         java_path: &str,
         progress: &mut dyn FnMut(&str),
     ) -> Result<(), String>;
+    /// `ChunkerManager.supportedFormats(javaPath:)` (source line
+    /// 181-216): every format string the installed jar supports, for
+    /// validating a caller-supplied `targetFormat` against reality
+    /// rather than trusting an unchecked string. `resolved_java_path` is
+    /// the *already-resolved* path (this method's own caller runs after
+    /// `resolve_java_path` already succeeded), matching source's own
+    /// call shape (`chunker.supportedFormats(javaPath: java)`, where
+    /// `java` is `resolveJavaPath`'s own result, not the raw config
+    /// setting).
+    fn supported_formats(&self, resolved_java_path: &str) -> Vec<String>;
 }
 
 /// `ConversionSlotPlacement` (source `AppViewModel+WorldConversion.swift:

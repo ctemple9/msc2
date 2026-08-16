@@ -847,12 +847,102 @@ running the Verify command himself.
 **Batch:** safe
 
 ### P6.33 — Make active-world replacement transactional
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/world_mutations.rs`, `fixtures/world-mutations/`
 **What:** Replace the current remove-then-copy implementation of MSC 1's direct active-world replacement with the same staged/prior/installed transaction shape used by activation and restore. Require and verify a safety backup before touching the live world, stage and validate a folder or ZIP source, preserve the full Java main/nether/end folder set, atomically select the new level name, and reconcile interruption to either the complete old world or complete replacement. Inject failure and restart after every transaction boundary; a safety backup alone is not a substitute for automatic rollback/reconciliation.
 **Verify:** `cargo nextest run -p msc-application --test world_mutations`
 **Commit:** `P6.33: make active world replacement transactional`
 **Batch:** stop-after
+
+**Actual result:** `worlds::replace_world` (`crates/msc-application/src/worlds.rs`)
+is now the same three-phase on-disk transaction `activate_slot` (P6.13) and
+`restore_backup` (P6.18) already use, under `world_slots/.replace/
+{manifest.json,staged/,prior/}`: **staged** (the replacement — a validated
+backup ZIP via `archive::extract_zip`, an existing folder via
+`copy_dir_recursive`, or nothing for a fresh world — is fully staged; the
+live world is untouched by anything in this phase), **prior_moved** (the
+current live folders — Java's full main/nether/end set or Bedrock's single
+folder, the same set source removed outright, now moved via `fs.rename`
+rather than deleted) into `prior/`, **installed** (the staged replacement is
+moved into place, `staged/` removed, the new level-name committed to
+`server.properties`, `.replace/` removed last). `manifest.json` (just the
+new level-name) is the one piece phase-3 recovery can't re-derive from the
+directory layout alone. `reconcile_interrupted_world_replace` resolves an
+interrupted transaction purely from which of `.replace/{prior,staged}`
+physically exist, mirroring `reconcile_interrupted_activation`/
+`reconcile_interrupted_restore` exactly — not yet wired into agent startup
+(`routes/lifecycle.rs`'s `reconcile_servers_at_startup`), since
+`replace_world` itself isn't reachable through any route until P6.34 wires
+it (confirmed: no non-test call site existed before this step either).
+
+The mandatory safety backup is no longer the caller-optional `backup_first`
+flag/closure source used — `replace_world` now calls
+`crate::backups::create_backup` directly (`tokened: false, trigger_reason:
+Some("pre-replace")`, matching source's own separate, untokened
+`backupWorld` shape pinned at P6.16/`fixtures/backups/
+pre-replace-backup-has-no-token-and-is-excluded-from-pruning.json`), and
+only when live world folders currently exist to protect — the same
+`!current_folders.is_empty()` gate `activate_slot`'s own backup hook already
+uses, so a first-time replace against a still-empty server isn't blocked on
+a backup with nothing to capture. `WorldReplaceOutcome::
+safety_backup_zip_path` is `Option<PathBuf>` for exactly that reason. A
+backup ZIP source is now validated via `archive::validate_archive_safety`
+(the same D-006 traversal/symlink/zip-bomb check `restore_backup` already
+gates on) rather than source's own bare structural-open check; `should_cancel`
+(P6.30) is polled at the same two "nothing at the live world touched yet"
+boundaries `activate_slot`/`restore_backup` already use. New `WorldError`
+variants: `SafetyBackupFailed(BackupError)`, `Manifest`, `Cancelled`.
+
+Test coverage lives in `crates/msc-application/tests/world_mutations.rs`
+(Files list per this step; no new file, matching this step's own Verify
+filter). `fixtures/world-mutations/
+replace-world-folder-removal-failure-aborts-before-extraction.json` is left
+untouched — it stays as the MSC 1 baseline record of the remove-then-copy
+window this correction closes (the same "P6.5 fixture pins the gap, the
+correction's own tests characterize the fix" split `activate-extraction-
+failure-leaves-partial-state-for-safety-backup-recovery.json`'s own notes
+already establish, and P6.13/P6.18/P6.30 all landed with no fixture-file
+changes of their own). The now-obsolete removal-failure test is replaced by
+`world_mutations_replace_world_staging_failure_leaves_live_world_untouched`
+(an unreadable file inside an `ExistingFolder` source forces a mid-staging
+failure; every live folder and `server.properties` are proven untouched —
+the actual improvement over source, since renaming a folder aside no longer
+depends on write access to its own contents the way the old delete-then-copy
+did). Four more new tests: the mandatory safety backup is created and
+verified before any other test's usual assertions
+(`..._mandatory_safety_backup_created_before_live_world_touched`,
+checking both the zip and its untokened, unprunable sidecar trigger
+reason), the empty-live-world skip
+(`..._skips_safety_backup_when_no_live_world_exists`), and the two restart-
+recovery cases mirroring `world_activation.rs`'s own
+(`..._reconcile_prior_moved_restores_old_world`,
+`..._reconcile_installed_finishes_committing_new_world`), plus a noop case.
+All five existing `replace_world`/`rename_world` fixture-ported tests were
+updated for the new signature (mandatory backup args, `should_cancel`) with
+no behavioral change to their own assertions.
+
+`cargo fmt --check` clean. `cargo clippy -p msc-application --all-targets`
+clean on native, `x86_64-unknown-linux-gnu`, and `x86_64-pc-windows-msvc`.
+This step's own Verify — `cargo nextest run -p msc-application --test
+world_mutations` — passed: 13/13 (the original 8, minus the repurposed
+removal-failure case, plus 5 new). Not run: the full workspace suite —
+outside this step's own file list and Verify command, same precedent
+P6.29/P6.30 already used.
+
+**Noticed, not acted on** (outside this step's scope): `rename_world`/
+`replace_world`'s Bedrock path pre-dates this step and looks broken —
+`world_base_dir(Bedrock)` is `server_dir/worlds`, but `world_folder_
+candidates(Bedrock, _)` returns `["worlds"]` too, so both functions resolve
+Bedrock folder paths to `server_dir/worlds/worlds`. No fixture or test in
+this file exercises `ServerType::Bedrock` for either function, so this is
+latent and untested, not something this step's own scope (transactional
+shape + mandatory backup) touches. Preserved bug-for-bug in the new
+transaction, same as `rename_world` (untouched by this step) already has
+it.
+
+This step's own text is explicit that only Cameron marks it `DONE` —
+leaving Status as `awaiting verification` above for him to do after
+running the Verify command himself.
 
 ### P6.34 — Expose active-world replacement through the agent
 **Status:** not started

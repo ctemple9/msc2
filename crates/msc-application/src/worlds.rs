@@ -31,7 +31,7 @@
 
 use msc_domain::identity::ServerType;
 use msc_domain::nbt;
-use msc_domain::world::{self, WorldSlot};
+use msc_domain::world::{self, BackupAssociation, WorldSlot};
 use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::atomic_write::AtomicWriteError;
 use msc_infrastructure::download_staging::sha1_hex;
@@ -443,6 +443,22 @@ pub enum WorldError {
     /// The caller-supplied replacement world source failed validation
     /// (unreadable backup ZIP, or a source folder that doesn't exist).
     InvalidWorldSource,
+    /// P6.33: the mandatory pre-replace safety backup itself failed —
+    /// `replace_world`'s own hard-abort guard, distinct from
+    /// [`WorldError::BackupFailed`] (`rename_world`'s caller-optional
+    /// backup closure, unchanged by this correction).
+    SafetyBackupFailed(crate::backups::BackupError),
+    /// P6.33: an interrupted-replace manifest under `world_slots/.replace/`
+    /// is missing or unreadable — the same "can't trust a half-written
+    /// journal" case [`ActivationError::Manifest`] documents.
+    Manifest,
+    /// P6.30-style cooperative cancellation, reported at one of the two
+    /// "nothing at the live world touched yet" boundaries
+    /// `replace_world`'s own doc comment names — the same two-boundary
+    /// shape [`ActivationError::Cancelled`]/`RestoreError::Cancelled`
+    /// already use. The safety backup this attempt already created (if
+    /// any) is left on disk regardless.
+    Cancelled,
 }
 
 impl fmt::Display for WorldError {
@@ -467,6 +483,11 @@ impl fmt::Display for WorldError {
             }
             WorldError::ServerRunning => write!(f, "server is running"),
             WorldError::InvalidWorldSource => write!(f, "replacement world source is invalid"),
+            WorldError::SafetyBackupFailed(e) => {
+                write!(f, "pre-replace safety backup failed: {e}")
+            }
+            WorldError::Manifest => write!(f, "interrupted world replace manifest is unreadable"),
+            WorldError::Cancelled => write!(f, "world replace was cancelled"),
         }
     }
 }
@@ -1623,24 +1644,13 @@ pub enum WorldReplaceSource {
     /// No source data — the world folders are cleared and a new world
     /// generates on next start.
     Fresh,
-    /// A backup ZIP, extracted into place — validated (openable, a real
-    /// zip) before anything else is touched.
+    /// A backup ZIP, extracted into place — validated
+    /// ([`archive::validate_archive_safety`]'s traversal/symlink/size
+    /// checks, P6.33) before anything else is touched.
     BackupZip(PathBuf),
     /// An existing world folder, copied into place under the new
     /// level-name.
     ExistingFolder(PathBuf),
-}
-
-/// `validateZipArchive`'s replacement: a structural open (central
-/// directory parses) rather than shelling out to `unzip -t` — the same
-/// native-Rust-over-shell-out call `msc_infrastructure::archive` already
-/// makes throughout this phase (D-006's own precedent), just applied to
-/// a validate-only use rather than an extraction.
-fn zip_opens_cleanly(path: &Path) -> bool {
-    let Ok(file) = fs::File::open(path) else {
-        return false;
-    };
-    zip::ZipArchive::new(file).is_ok()
 }
 
 fn copy_dir_recursive(fs: &dyn FileSystem, from: &Path, to: &Path) -> io::Result<()> {
@@ -1659,18 +1669,113 @@ fn copy_dir_recursive(fs: &dyn FileSystem, from: &Path, to: &Path) -> io::Result
     Ok(())
 }
 
-/// `replaceWorld(for:newLevelName:worldSource:backupFirst:)` (source
-/// line 45-152). Guard order matches source exactly: empty name, then
-/// running-server, then source validation, then the optional safety
-/// backup — each aborting before anything is touched. The existing
-/// world folders are removed *before* the new source is extracted/
-/// copied (`fixtures/world-mutations/
-/// replace-world-folder-removal-failure-aborts-before-extraction.json`);
-/// unlike [`crate::worlds::activate_slot`], this is baseline parity, not
-/// a P6.13-style correction — `phase6-scope.md` doesn't flag this
-/// call's post-removal window for a transactional fix, and the
-/// mandatory pre-replace safety backup remains the sole recovery path
-/// if the new source then fails to install, matching source exactly.
+// =====================================================================
+// P6.33 — make active-world replacement transactional
+//
+// `replaceWorld(for:newLevelName:worldSource:backupFirst:)` (source line
+// 45-152) removed the live world folders *before* installing the new
+// source, with only the (also caller-optional) safety backup as a manual
+// recovery path if installation then failed — flagged as baseline parity
+// at P6.14, not a correction, since `phase6-scope.md` hadn't named this
+// window yet. The Phase 6 gate review did: this is the exact
+// remove-then-copy shape `activate_slot` (P6.13) and `restore_backup`
+// (P6.18) were already corrected away from, so [`replace_world`] gets
+// the identical three-phase on-disk transaction, under
+// `world_slots/.replace/{manifest.json,staged/,prior/}`, plus a
+// *mandatory* (no longer caller-optional) verified safety backup —
+// matching `restore_backup`'s own unconditional pre-restore backup
+// rather than `rename_world`'s caller-supplied `backup_first` flag,
+// since "a safety backup alone is not a substitute for automatic
+// rollback/reconciliation" is this correction's own point: both now
+// exist together.
+//
+//   1. **staged** — the replacement source (a validated backup ZIP, an
+//      existing folder, or nothing at all for a fresh world) is fully
+//      staged into `.replace/staged/`. The live world is untouched. A
+//      failure here (a corrupt archive, an unreadable source folder)
+//      aborts with the live world completely intact — the safety backup
+//      has already been secured either way.
+//   2. **prior_moved** — the current live folders (Java's full
+//      main/nether/end set, or Bedrock's single folder — the same set
+//      source removed outright) are moved, not deleted, into
+//      `.replace/prior/`.
+//   3. **installed** — the staged replacement is moved into place,
+//      `staged/` is removed, the new level-name is committed to
+//      `server.properties`, then `.replace/` itself is removed last.
+//
+// The three phases are distinguished purely by which of
+// `.replace/{prior,staged}` physically exist — the same journal-free
+// recovery shape `activate_slot`/`restore_backup` already use — so
+// [`reconcile_interrupted_world_replace`] always resolves an interrupted
+// transaction to either the complete old world or the complete new one.
+// `manifest.json` (just the new level-name) is the one piece phase-3
+// recovery can't re-derive from the directory layout alone.
+// =====================================================================
+
+fn replace_dir(server_dir: &Path) -> PathBuf {
+    world_store::slots_directory(server_dir).join(".replace")
+}
+
+fn replace_manifest_path(server_dir: &Path) -> PathBuf {
+    replace_dir(server_dir).join("manifest.json")
+}
+
+fn replace_staged_dir(server_dir: &Path) -> PathBuf {
+    replace_dir(server_dir).join("staged")
+}
+
+fn replace_prior_dir(server_dir: &Path) -> PathBuf {
+    replace_dir(server_dir).join("prior")
+}
+
+fn parse_replace_manifest(bytes: &[u8]) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
+    value.get("level_name")?.as_str().map(str::to_string)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldReplaceOutcome {
+    /// The mandatory pre-replace safety backup's own path — created only
+    /// when live world folders existed to protect, the same
+    /// `!current_folders.is_empty()` gate [`activate_slot`]'s own backup
+    /// hook already uses. `None` when there was nothing yet to back up
+    /// (a first-time replace against a server with no world yet).
+    pub safety_backup_zip_path: Option<PathBuf>,
+}
+
+/// The tail shared by a normal [`replace_world`] call and
+/// [`reconcile_interrupted_world_replace`]'s "installed" recovery:
+/// commit the new level-name to `server.properties`, then remove the
+/// whole `.replace/` transaction directory. Both steps are idempotent,
+/// so replaying this after a restart is always safe even if the identity
+/// write already happened before the crash.
+fn finish_replace_commit(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    level_name: &str,
+) -> Result<(), WorldError> {
+    let identity = WorldIdentity {
+        level_name: level_name.to_string(),
+        seed: None,
+        apply_seed: false,
+    };
+    apply_world_identity(fs, server_dir, &identity)?;
+    let _ = fs.remove(&replace_dir(server_dir));
+    Ok(())
+}
+
+/// `replaceWorld(for:newLevelName:worldSource:backupFirst:)`,
+/// transactional (see the section doc above). Guard order matches
+/// source: empty name, then running-server, then source validation
+/// (a backup ZIP source now runs [`archive::validate_archive_safety`] —
+/// the same D-006 traversal/symlink/zip-bomb check `restore_backup`
+/// already gates on — rather than source's own bare structural-open
+/// check). `should_cancel` (P6.30) is polled at the same two
+/// "nothing at the live world touched yet" boundaries `activate_slot`/
+/// `restore_backup` already use: before the mandatory safety backup
+/// begins at all, and again once staging has finished but before the
+/// live folders move. Once phase 2 begins, the transaction runs to
+/// completion unconditionally, matching every other P6.30 worker.
 #[allow(clippy::too_many_arguments)]
 pub fn replace_world(
     fs: &dyn FileSystem,
@@ -1680,9 +1785,12 @@ pub fn replace_world(
     new_level_name: &str,
     world_source: &WorldReplaceSource,
     is_server_running: bool,
-    backup_first: bool,
-    backup: impl FnOnce() -> bool,
-) -> Result<(), WorldError> {
+    safety_backup_association: &BackupAssociation,
+    safety_backup_server_id: Option<&str>,
+    safety_backup_server_display_name: Option<&str>,
+    now: &str,
+    should_cancel: impl Fn() -> bool,
+) -> Result<WorldReplaceOutcome, WorldError> {
     let trimmed = new_level_name.trim();
     if trimmed.is_empty() {
         return Err(WorldError::EmptyName);
@@ -1694,7 +1802,7 @@ pub fn replace_world(
     match world_source {
         WorldReplaceSource::Fresh => {}
         WorldReplaceSource::BackupZip(path) => {
-            if !zip_opens_cleanly(path) {
+            if archive::validate_archive_safety(path).is_err() {
                 return Err(WorldError::InvalidWorldSource);
             }
         }
@@ -1705,39 +1813,152 @@ pub fn replace_world(
         }
     }
 
-    if backup_first && !backup() {
-        return Err(WorldError::BackupFailed);
+    if should_cancel() {
+        return Err(WorldError::Cancelled);
     }
 
+    // `world_base_dir`/`world_folder_candidates` — the same base and
+    // candidate-name computation `rename_world` uses — decide both which
+    // live folders exist to protect and which ones phase 2 moves aside.
     let base = world_base_dir(server_dir, server_type);
     let current_level_name = world::current_level_name(server_type, raw_level_name);
     let current_names = world::world_folder_candidates(server_type, &current_level_name);
-    for name in &current_names {
-        let path = base.join(name);
-        if folder_exists(fs, &path) {
-            fs.remove(&path)?;
-        }
-    }
+    let current_folders_exist = current_names
+        .iter()
+        .any(|name| folder_exists(fs, &base.join(name)));
 
+    let safety_backup_zip_path = if current_folders_exist {
+        let result = crate::backups::create_backup(
+            fs,
+            server_dir,
+            server_type,
+            raw_level_name,
+            safety_backup_association,
+            safety_backup_server_id,
+            safety_backup_server_display_name,
+            false,
+            false,
+            Some("pre-replace"),
+            None,
+            now,
+            None,
+            || false,
+            || false,
+        )
+        .map_err(WorldError::SafetyBackupFailed)?;
+        Some(result.zip_path)
+    } else {
+        None
+    };
+
+    fs.create_dir_all(&replace_dir(server_dir))?;
+    let manifest_bytes = serde_json::to_vec_pretty(&serde_json::json!({ "level_name": trimmed }))
+        .expect("replace manifest always serializes");
+    fs.write(&replace_manifest_path(server_dir), &manifest_bytes)?;
+
+    // Phase 1: stage the replacement. The live world is not touched by
+    // anything in this block.
+    let staged_dir = replace_staged_dir(server_dir);
     match world_source {
         WorldReplaceSource::Fresh => {}
         WorldReplaceSource::BackupZip(path) => {
-            archive::extract_zip(path, &base)?;
+            if let Err(e) = archive::extract_zip(path, &staged_dir) {
+                let _ = fs.remove(&replace_dir(server_dir));
+                return Err(e.into());
+            }
         }
         WorldReplaceSource::ExistingFolder(source_path) => {
-            let dest = base.join(trimmed);
-            if folder_exists(fs, &dest) {
-                fs.remove(&dest)?;
+            let dest = staged_dir.join(trimmed);
+            if let Err(e) = copy_dir_recursive(fs, source_path, &dest) {
+                let _ = fs.remove(&replace_dir(server_dir));
+                return Err(e.into());
             }
-            copy_dir_recursive(fs, source_path, &dest)?;
         }
     }
 
-    let identity = WorldIdentity {
-        level_name: trimmed.to_string(),
-        seed: None,
-        apply_seed: false,
-    };
-    apply_world_identity(fs, server_dir, &identity)?;
-    Ok(())
+    // Last chance to cancel for free: staging is complete but nothing at
+    // the live world has been touched yet.
+    if should_cancel() {
+        let _ = fs.remove(&replace_dir(server_dir));
+        return Err(WorldError::Cancelled);
+    }
+
+    // Phase 2: move the current live folders aside.
+    let prior_dir = replace_prior_dir(server_dir);
+    fs.create_dir_all(&prior_dir)?;
+    for name in &current_names {
+        let path = base.join(name);
+        if folder_exists(fs, &path) {
+            fs.rename(&path, &prior_dir.join(name))?;
+        }
+    }
+    test_pause_after_world_move();
+
+    // Phase 3: install the staged replacement (if any), then commit.
+    move_entries(fs, &staged_dir, &base)?;
+    let _ = fs.remove(&staged_dir);
+    finish_replace_commit(fs, server_dir, trimmed)?;
+
+    Ok(WorldReplaceOutcome {
+        safety_backup_zip_path,
+    })
+}
+
+/// What [`reconcile_interrupted_world_replace`] did, if anything, on this
+/// call — mirrors `ActivationRecovery`/`RestoreRecovery`'s own shape.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum WorldReplaceRecovery {
+    /// Phase 1 ("staged") or phase 2 ("prior_moved") was interrupted —
+    /// the live world is (or has been restored to be) the complete,
+    /// unmodified pre-replace world. The safety backup this attempt
+    /// created (if any) is still on disk either way.
+    RecoveredToOldWorld,
+    /// Phase 3 ("installed") was interrupted after the new world was
+    /// already moved into place — the commit tail was replayed to
+    /// completion.
+    RecoveredToNewWorld,
+}
+
+/// Call once per server on agent startup, before any world-replace route
+/// is reachable for it — the same "before routes are reachable" timing
+/// [`reconcile_interrupted_activation`]/`reconcile_interrupted_restore`
+/// already establish. Driven purely by which of `.replace/{prior,staged}`
+/// physically exist, per the section doc's own three-phase table.
+pub fn reconcile_interrupted_world_replace(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+) -> Result<Option<WorldReplaceRecovery>, WorldError> {
+    let dir = replace_dir(server_dir);
+    if fs.stat(&dir).is_err() {
+        return Ok(None);
+    }
+
+    let prior_dir = replace_prior_dir(server_dir);
+    let staged_dir = replace_staged_dir(server_dir);
+    let prior_exists = fs.stat(&prior_dir).is_ok();
+    let staged_exists = fs.stat(&staged_dir).is_ok();
+
+    if !prior_exists {
+        // Phase 1 ("staged"): nothing at the live world was ever
+        // touched — discard the abandoned staging area outright.
+        let _ = fs.remove(&dir);
+        return Ok(Some(WorldReplaceRecovery::RecoveredToOldWorld));
+    }
+
+    if staged_exists {
+        // Phase 2 ("prior_moved"): the live world currently has nothing
+        // at it — move the prior folders back.
+        let base = world_base_dir(server_dir, server_type);
+        move_entries(fs, &prior_dir, &base)?;
+        let _ = fs.remove(&dir);
+        return Ok(Some(WorldReplaceRecovery::RecoveredToOldWorld));
+    }
+
+    // Phase 3 ("installed"): the new world is already in place; replay
+    // the commit tail (apply identity, remove `.replace/`).
+    let manifest_bytes = fs.read(&replace_manifest_path(server_dir))?;
+    let level_name = parse_replace_manifest(&manifest_bytes).ok_or(WorldError::Manifest)?;
+    finish_replace_commit(fs, server_dir, &level_name)?;
+    Ok(Some(WorldReplaceRecovery::RecoveredToNewWorld))
 }

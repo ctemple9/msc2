@@ -97,3 +97,47 @@ classic one the checker was first built around. A new self-test fixture,
 `tools/phase6/fixtures/no-dimension-evidence/`, pins the negative case the
 relaxation could otherwise have quietly broken: a world with *none* of the
 three shapes still fails inventory mode.
+
+## P6.26 real evidence exercised (2026-08-16)
+
+Inventory mode (above) only proves the real evidence is *present and
+well-formed*. Exercise mode runs it through the real Rust code paths:
+
+```
+python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds \
+  --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"
+```
+
+This runs every inventory check first, then
+`crates/msc-application/tests/real_world_backup_corpus.rs` against both
+real worlds and both real backups: `world_store::load_slots` on the real
+`world_slots/` tree; `archive::validate_archive_safety` on every real
+`.zip` (`world_slots/.../world.zip` and both backup zips);
+`imported_world_metadata_from_level_dat` on both real `level.dat` files
+(`Paper` parses to `gamemode=survival`, `campack` to
+`difficulty=normal, gamemode=survival` — real values, not fixture ones);
+`worlds::reconcile_imported_worlds` against a temporary copy of `Paper/` +
+`world_slots/` (resolves to `RecoverySnapshotCreated`, not
+`LiveFoldersProvenIdenticalToRecordedSlot` — the live folder and the
+recorded slot's archive aren't byte-identical, a real result neither
+forced nor assumed); and `backups::restore_backup` restoring the real
+`Paper_manual_...zip` backup into a temporary root, followed by
+`create_slot_from_current_world` + repository reload + re-extraction to
+prove a full save/reload round trip is byte-identical. Every real source
+file touched is hashed before and after, both inside the Rust test and
+again by the Python wrapper, independently.
+
+`Paper` (the smaller, ~600KB real world) carries the write-path exercises
+(reconciliation, restore, save/reload); `campack` (~11MB, Fabric-modded)
+is exercised by every read-only check (repository load, archive safety,
+NBT parsing) but not doubled through the write-path ones — this phase's
+own plan text ("where size permits") for that split.
+
+`--private-root` is the plan's other requirement, "run the real package/
+world/backup through the public Phase 6 smoke where size permits" —
+`tools/phase6/phase6-gate-smoke.sh` (P6.25) itself only has a
+`--synthetic` mode; giving it a real-corpus mode is scoped work outside
+this step's own `Files:` list (which doesn't include the smoke script), so
+today `--private-root` only detects whether a private corpus root was
+supplied and reports the public-smoke leg as not yet wired, rather than
+silently declaring it done. Flagged in `rolling-plan.md`'s P6.26 entry.

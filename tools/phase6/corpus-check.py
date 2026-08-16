@@ -54,14 +54,45 @@ and a backups directory, each against its own `manifest.json`:
                                              every deliberately-broken case
                                              fails
 
-Exercise mode (P6.26) will extend this file the way P5.24 extended
-`tools/phase5/real-corpus-check.py`; this step only builds the inventory
-gate that later mode will plug into. `corpus/worlds/` and `corpus/backups/`
-were populated with real MSC 1 evidence by P6.3 (large/private files kept
-out of git via `.gitignore`, provenance recorded in `manifest.json`); this
-checker's own passing and deliberately-broken self-test cases live under
-`tools/phase6/fixtures/` instead, exactly so nothing invented ends up in
-`corpus/`.
+`corpus/worlds/` and `corpus/backups/` were populated with real MSC 1
+evidence by P6.3 (large/private files kept out of git via `.gitignore`,
+provenance recorded in `manifest.json`); this checker's own passing and
+deliberately-broken self-test cases live under `tools/phase6/fixtures/`
+instead, exactly so nothing invented ends up in `corpus/`.
+
+Exercise mode (P6.26) extends this file the way P5.24 extended
+`tools/phase5/real-corpus-check.py`. It runs every inventory check above --
+never a substitute for them -- hashes every evidence file, then shells out
+to `cargo test -p msc-application --test real_world_backup_corpus`, pointed
+at the worlds/backups directories via `MSC2_WORLDS_CORPUS_DIR`/
+`MSC2_BACKUPS_CORPUS_DIR`. That real Rust test runs the real corpus through
+repository load, import reconciliation (against a temporary copy),
+archive-safety validation, NBT metadata parsing, a non-destructive backup
+restore into a temporary root, and a save/reload round trip -- hashing
+every real source file it touches before and after and reporting each one
+independently (`--nocapture` output is passed through). This wrapper
+re-hashes the same evidence files again afterward as its own independent
+defensive check that nothing in `corpus/` moved.
+
+  corpus-check.py --exercise [--worlds DIR] [--backups DIR]
+                  [--private-root DIR]
+                                             run the exercise checks above
+  corpus-check.py --exercise-selftest       (not built by this step --
+                                             the real Rust exercise test
+                                             above only makes sense to run
+                                             against real evidence, so
+                                             there is no synthetic
+                                             exercise-mode fixture the way
+                                             P5.24's is)
+
+`--private-root` is this phase's own plan text's "run the real package/
+world/backup through the public Phase 6 smoke where size permits" leg.
+`tools/phase6/phase6-gate-smoke.sh` (P6.25) only builds a `--synthetic`
+mode today; giving it a real-corpus mode is scoped work outside this
+step's own `Files:` list, so `--private-root` currently only detects
+whether a private corpus root was supplied and reports that the
+public-smoke leg itself is not yet wired, rather than silently declaring
+it done. Flagged in `rolling-plan.md`'s P6.26 entry, not silently skipped.
 
 Stdlib only, on purpose: same reasoning as `tools/phase5/real-corpus-check.py`
 and the Phase 0 checkers both follow the shape of -- no dependency setup for
@@ -73,6 +104,8 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
@@ -80,6 +113,15 @@ from pathlib import Path
 DEFAULT_WORLDS_DIR = Path("corpus/worlds")
 DEFAULT_BACKUPS_DIR = Path("corpus/backups")
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+# Env vars the real Rust exercise test (P6.26,
+# crates/msc-application/tests/real_world_backup_corpus.rs) reads the
+# evidence directories from.
+WORLDS_CORPUS_DIR_ENV = "MSC2_WORLDS_CORPUS_DIR"
+BACKUPS_CORPUS_DIR_ENV = "MSC2_BACKUPS_CORPUS_DIR"
+PRIVATE_ROOT_ENV = "MSC2_PHASE6_PRIVATE_CORPUS"
+EXERCISE_TEST_NAME = "real_world_backup_corpus"
 
 # (fixture directory name, expected inventory exit code)
 SELFTEST_CASES = [
@@ -311,6 +353,93 @@ def run_inventory(worlds_dir: Path, backups_dir: Path) -> tuple[int, str]:
     return 0, message
 
 
+def evidence_file_hashes(dir_path: Path, root_name: str) -> dict[str, str]:
+    """The same evidence files `check_provenance_and_hashes` requires a
+    manifest entry for, hashed again -- exercise mode's own before/after
+    snapshot, independent of the real Rust test's own per-file hashing."""
+    hashes: dict[str, str] = {}
+    for file_path in sorted(dir_path.rglob("*")):
+        if file_path.is_dir() or file_path.name == "manifest.json":
+            continue
+        rel = file_path.relative_to(dir_path)
+        if not requires_provenance(rel, root_name):
+            continue
+        hashes[str(file_path)] = sha256_of(file_path)
+    return hashes
+
+
+def run_cargo_test(test_name: str, env_overrides: dict[str, str]) -> tuple[int, str]:
+    env = os.environ.copy()
+    env.update(env_overrides)
+    proc = subprocess.run(
+        ["cargo", "test", "-p", "msc-application", "--test", test_name, "--", "--nocapture"],
+        cwd=REPO_ROOT,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    return proc.returncode, proc.stdout + proc.stderr
+
+
+def check_private_root_smoke(private_root: str | None) -> str:
+    """This phase's own plan text's "run the real package/world/backup
+    through the public Phase 6 smoke where size permits" leg.
+    `tools/phase6/phase6-gate-smoke.sh` (P6.25) only builds a `--synthetic`
+    mode today; adding a real-corpus mode to it is real, scoped work
+    outside this step's own `Files:` list. Rather than silently declaring
+    the requirement met, this only detects whether a private corpus root
+    was supplied and says plainly that the public-smoke leg itself isn't
+    wired yet -- see rolling-plan.md's P6.26 entry."""
+    if not private_root:
+        return "public smoke not exercised (no --private-root supplied)"
+    root = Path(private_root)
+    if not root.is_dir():
+        raise CheckError(f"{root}: --private-root does not name an existing directory")
+    return (
+        f"public smoke not exercised ({root} supplied and exists, but "
+        "phase6-gate-smoke.sh has no real-corpus mode yet -- see rolling-plan.md P6.26)"
+    )
+
+
+def check_exercise(worlds_dir: Path, backups_dir: Path, private_root: str | None) -> str:
+    """Raises CheckError on the first failure; returns an "ok" message
+    describing what ran otherwise. Runs every inventory check first --
+    exercise mode never substitutes for them -- then the real Rust reader
+    (`real_world_backup_corpus.rs`, P6.26)."""
+    check_inventory(worlds_dir, backups_dir)
+
+    before = evidence_file_hashes(worlds_dir, "worlds")
+    before.update(evidence_file_hashes(backups_dir, "backups"))
+
+    code, output = run_cargo_test(
+        EXERCISE_TEST_NAME,
+        {
+            WORLDS_CORPUS_DIR_ENV: str(worlds_dir.resolve()),
+            BACKUPS_CORPUS_DIR_ENV: str(backups_dir.resolve()),
+        },
+    )
+    print(output, end="")
+    if code != 0:
+        raise CheckError(f"{EXERCISE_TEST_NAME} exercise test failed (exit {code})")
+
+    after = evidence_file_hashes(worlds_dir, "worlds")
+    after.update(evidence_file_hashes(backups_dir, "backups"))
+    if before != after:
+        raise CheckError(f"{worlds_dir}/{backups_dir}: corpus evidence changed during the exercise run")
+
+    smoke_note = check_private_root_smoke(private_root)
+
+    return f"ok exercise {worlds_dir} + {backups_dir} ({len(before)} evidence files unchanged); {smoke_note}"
+
+
+def run_exercise(worlds_dir: Path, backups_dir: Path, private_root: str | None) -> tuple[int, str]:
+    try:
+        message = check_exercise(worlds_dir, backups_dir, private_root)
+    except CheckError as exc:
+        return 1, str(exc)
+    return 0, message
+
+
 def selftest() -> tuple[int, list[str]]:
     lines = []
     all_ok = True
@@ -329,12 +458,26 @@ def main() -> int:
     parser.add_argument("--backups", type=Path, default=DEFAULT_BACKUPS_DIR)
     parser.add_argument("--inventory", action="store_true")
     parser.add_argument("--selftest", action="store_true")
+    parser.add_argument("--exercise", action="store_true", help="run the exercise checks (P6.26)")
+    parser.add_argument(
+        "--private-root",
+        type=str,
+        default=None,
+        help="optional larger private real corpus root for the public Phase 6 smoke leg "
+        "(default: $%s)" % PRIVATE_ROOT_ENV,
+    )
     args = parser.parse_args()
 
     if args.selftest:
         code, lines = selftest()
         for line in lines:
             print(line)
+        return code
+
+    if args.exercise:
+        private_root = args.private_root or os.environ.get(PRIVATE_ROOT_ENV)
+        code, message = run_exercise(args.worlds, args.backups, private_root)
+        print(message)
         return code
 
     code, message = run_inventory(args.worlds, args.backups)

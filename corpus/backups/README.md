@@ -42,3 +42,14 @@ synthetic fixture. The `.zip` bytes are git-ignored (real per-player NBT
 data); the `.meta.json` sidecars are small, contain only server/slot ids and
 names, and are committed as-is. `manifest.json` records source and SHA-256
 for all four files.
+
+## P6.26 real evidence exercised (2026-08-16)
+
+`python3 tools/phase6/corpus-check.py --exercise` (see `../worlds/README.md`'s
+matching section for the full command and what it runs) restores the real
+`Paper_manual_20260813-222932.zip` backup here through the real
+`backups::restore_backup` into a temporary root — never touching this
+directory itself — and validates both real backup `.zip`s' archive safety.
+`campack_manual_20260813-222917.zip` (~11MB) is exercised by the
+archive-safety check but not restored, matching the write-path-stays-small
+split `../worlds/README.md` records.

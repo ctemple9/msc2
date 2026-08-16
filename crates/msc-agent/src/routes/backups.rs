@@ -6,7 +6,7 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
@@ -18,7 +18,7 @@ use msc_api::dto::{
     BackupDeleteRequestDto, BackupItemDto, BackupNowResultDto, BackupRestoreRequestDto,
     BackupRestoreResultDto, BackupsResponseDto, PermissionCategoryDto, SimpleResultDto,
 };
-use msc_application::backups::{self, BackupConsole, RestoreError};
+use msc_application::backups::{self, RestoreError};
 use msc_domain::backup as domain_backup;
 use msc_domain::identity::ServerType;
 use msc_infrastructure::audit_log::Entry as AuditEntry;
@@ -263,91 +263,17 @@ pub async fn now(
         Ok(server) => server,
         Err(response) => return response,
     };
-    let operation_id = match lifecycle.operations().begin_lifecycle(
-        "backup-now",
-        Some(server.id.clone()),
-        "Creating backup.",
-    ) {
-        Ok(id) => id,
-        Err(error) => return crate::routes::operations::operation_error_response(error),
-    };
-
-    let server_dir = Path::new(&server.server_dir).to_path_buf();
-    let server_type = server.server_type;
-    let server_id = server.id.clone();
-    let server_name = server.display_name.clone();
     let running = lifecycle.status_snapshot().running;
-    let task_lifecycle = lifecycle.clone();
-    let task_operation_id = operation_id.clone();
-    let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
-    tokio::spawn(async move {
-        let now = iso8601_now();
-        let backup_lifecycle = task_lifecycle.clone();
-        let result = tokio::task::spawn_blocking(move || {
-            let slots = world_store::load_slots(&StdFileSystem, &server_dir);
-            let marker = world_store::load_explicit_active_slot_id(&StdFileSystem, &server_dir);
-            let active_id = msc_domain::world::resolve_active_slot_id(&slots, marker.as_deref());
-            let association = msc_domain::world::effective_backup_association(
-                &slots,
-                active_id.as_deref(),
-                None,
-                None,
-            );
-            let console: Option<LiveBackupConsole> = if running {
-                Some(LiveBackupConsole::new(backup_lifecycle.clone()))
-            } else {
-                None
-            };
-            backups::create_backup(
-                &StdFileSystem,
-                &server_dir,
-                server_type,
-                None,
-                &association,
-                Some(&server_id),
-                Some(&server_name),
-                false,
-                true,
-                None,
-                None,
-                &now,
-                console.as_ref().map(|c| c as &dyn BackupConsole),
-                || backup_lifecycle.status_snapshot().running,
-                should_cancel,
-            )
-        })
-        .await;
-        match result {
-            Ok(Ok(_)) => {
-                let mut result = BTreeMap::new();
-                result.insert("result".to_string(), "backup_created".to_string());
-                let _ = task_lifecycle.operations().succeed(
-                    &task_operation_id,
-                    "Backup complete.",
-                    result,
-                );
-            }
-            Ok(Err(backups::BackupError::Cancelled)) => {
-                let _ = task_lifecycle
-                    .operations()
-                    .cancel(&task_operation_id, "Backup cancelled.");
-            }
-            Ok(Err(error)) => {
-                let _ = task_lifecycle.operations().fail(
-                    &task_operation_id,
-                    "backup_error",
-                    error.to_string(),
-                );
-            }
-            Err(_) => {
-                let _ = task_lifecycle.operations().fail(
-                    &task_operation_id,
-                    "internal_error",
-                    "Backup task panicked.".to_string(),
-                );
-            }
-        }
-    });
+    // P6.31: routed through the one authoritative backup operation this
+    // agent now shares with the scheduler's own fired tick — see
+    // `backup_operations`'s module doc for why the manual route no
+    // longer builds its own `LiveBackupConsole`/`create_backup` call
+    // here.
+    let operation_id =
+        match crate::backup_operations::start_backup(&lifecycle, server, running, false, None) {
+            Ok(id) => id,
+            Err(error) => return crate::routes::operations::operation_error_response(error),
+        };
 
     let response = Json(BackupNowResultDto {
         result: "backup_started".to_string(),
@@ -577,54 +503,6 @@ pub async fn delete(
 }
 
 // =====================================================================
-// Production `BackupConsole` — wires `send`/`wait_for_line` to
-// `LifecycleService::send_command` and a real console-line wait, per
-// `backups.rs`'s own doc comment naming this P6.21's job.
-// =====================================================================
-
-pub struct LiveBackupConsole {
-    lifecycle: LifecycleRoutesState,
-    deadline: Instant,
-}
-
-impl LiveBackupConsole {
-    /// `waitForConsoleLine(timeout:matching:)`'s own ~10s budget at
-    /// every source call site.
-    const BUDGET: std::time::Duration = std::time::Duration::from_secs(10);
-
-    pub fn new(lifecycle: LifecycleRoutesState) -> Self {
-        Self {
-            lifecycle,
-            deadline: Instant::now() + Self::BUDGET,
-        }
-    }
-}
-
-impl BackupConsole for LiveBackupConsole {
-    fn send(&self, command: &str) -> bool {
-        self.lifecycle.send_command(command).is_ok()
-    }
-
-    fn wait_for_line(&self, matches: &dyn Fn(&str) -> bool) -> bool {
-        let start = Instant::now();
-        loop {
-            let lines = self.lifecycle.recent_console_lines(50);
-            if lines.iter().any(|line| matches(&line.text)) {
-                return true;
-            }
-            if self.deadline_reached() || start.elapsed() >= Self::BUDGET {
-                return false;
-            }
-            std::thread::sleep(std::time::Duration::from_millis(100));
-        }
-    }
-
-    fn deadline_reached(&self) -> bool {
-        Instant::now() >= self.deadline
-    }
-}
-
-// =====================================================================
 // P6.21 tests -- see `routes/worlds.rs`'s own test module doc for why
 // these live inline (`world_backup_routes_*`-prefixed, matching the
 // plan's Verify command's nextest name filter) rather than in
@@ -651,9 +529,6 @@ mod tests {
         }
         fn online_player_count(&self, _server_id: &str) -> usize {
             0
-        }
-        fn admit_backup(&self, _server_id: &str) -> bool {
-            true
         }
         fn run_scheduled_backup(&self, _server_id: &str) {}
     }

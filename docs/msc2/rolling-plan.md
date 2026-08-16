@@ -773,12 +773,70 @@ leaving Status as `awaiting verification` above for him to do after
 running the Verify command himself.
 
 ### P6.31 — Unify manual and scheduled backup orchestration
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/backup_scheduler.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/backup_scheduler.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/backup_online_consistency.rs`, `crates/msc-application/tests/backup_retention.rs`
 **What:** Create one authoritative agent-level backup operation and route both manual HTTP requests and scheduled ticks through it. It must acquire the ordinary per-server operation admission, use the production console adapter when the server is running, issue Java's flush/pause sequence, guarantee save resumption on every success/failure/cancellation exit, create and verify the archive, journal the real outcome, and then apply automatic retention. Keep the scheduler's existing performance snapshot as its real player-count source. Remove the weaker scheduled path that calls `scheduled_tick` with no console and unconditional admission. Prove a fired scheduled backup cannot overlap activation, restore, conversion, replacement, or another backup.
 **Verify:** `cargo nextest run -p msc-application -p msc-agent -E 'test(/backup_scheduler|backup_online_consistency|backup_retention/)'`
 **Commit:** `P6.31: unify scheduled and manual backups`
 **Batch:** stop-after
+
+**Actual result:** A new `crates/msc-agent/src/backup_operations.rs`
+holds the one authoritative entry point, `start_backup(lifecycle,
+server, running, is_automatic, auto_prune_max_count)`: it performs
+`LifecycleOperations::begin_running` per-server admission (via
+`LifecycleRoutesState::operations().begin_lifecycle`, the identical call
+`routes/worlds.rs`'s own mutation routes already make), then spawns the
+same slot-resolution/console/`create_backup`/journal-outcome sequence
+`routes/backups.rs::now` used to build inline. `routes/backups.rs::now`
+now just resolves the active server and calls `start_backup(..., false,
+None)`; `backup_scheduler.rs::LiveSchedulerBackend::run_scheduled_backup`
+calls the same function with `(true, true, Some(server.auto_backup_max_count))`
+once `fire()` has already confirmed the server is running with players
+online, and treats a `LifecycleOperationError::Conflict` return as "skip
+this tick, try again next time" rather than an error worth logging.
+`LiveBackupConsole` (the production `BackupConsole`, `send`/`wait_for_line`
+wired to `LifecycleService::send_command`/console-tail) moved from
+`routes/backups.rs` into `backup_operations.rs` since `start_backup` is
+now its only caller.
+
+`SchedulerBackend::admit_backup` — the stub that always returned `true`
+— is deleted from the trait entirely rather than wired to a real check:
+a separate pre-admission peek isn't available without mutating state, and
+real admission already has to run inside `run_scheduled_backup` to
+actually start the backup, so a second gate in `fire()` would just be a
+redundant call. `fire()`'s own gate order is now just
+running-then-players; `msc_application::backups::scheduled_tick` is
+untouched and still governs
+`crates/msc-application/tests/backup_retention.rs`'s existing coverage of
+that timer policy in isolation — `LiveSchedulerBackend` simply stopped
+calling it, since it hardcodes `console: None`/`should_cancel: || false`
+and cannot reach real exclusivity.
+
+Two new tests in `backup_scheduler.rs`'s own `mod tests` prove the
+overlap requirement directly against a real `LifecycleRoutesState`/
+`LifecycleOperations` pair (not a scripted fake):
+`scheduler_scheduled_backup_refused_while_another_operation_holds_the_server`
+begins a `world-activate` operation on a server and shows `start_backup`
+for that same server then returns `Conflict`;
+`scheduler_scheduled_backup_cannot_overlap_a_second_backup_on_the_same_server`
+shows a second `start_backup` call against a server whose first backup is
+still admitted also returns `Conflict`. Every Phase 6 mutation
+(activation, restore, conversion, replacement, backup) admits through the
+identical per-target `OperationJournal` call with no special case per
+operation type, so one representative competing type plus one same-type
+competitor is the general proof, not a partial one.
+
+Deviation from this step's own `Files:` list, flagged rather than silent
+(the same pattern P6.18/P6.29/P6.30 already used): `crates/msc-agent/src/routes/worlds.rs`
+needed a one-line mechanical fix too — its own test module builds a
+`NoopSchedulerBackend` double to construct a `BackupScheduler` for
+unrelated world-route tests, and that double's now-nonexistent
+`admit_backup` impl had to be deleted to keep the trait implementation
+legal. No behavior in `worlds.rs` itself changed.
+
+This step's own text is explicit that only Cameron marks it `DONE` —
+leaving Status as `awaiting verification` above for him to do after
+running the Verify command himself.
 
 ### P6.32 — Make backup filenames collision-proof
 **Status:** not started

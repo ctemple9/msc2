@@ -25,57 +25,64 @@
 //! backup closure, `backups::BackupConsole`'s missing production impl).
 //!
 //! [`BackupScheduler`] itself only ever calls into [`SchedulerBackend`] —
-//! every fixture-relevant decision (skip-when-not-running, skip-when-
-//! no-players, backup creation, retention) already lives in
-//! `msc_application::backups::scheduled_tick` and is tested there
-//! (`crates/msc-application/tests/backup_retention.rs`); this module's
-//! own tests (`crates/msc-agent/tests/backup_scheduler.rs`) cover only
-//! the tokio-driven cadence and reconfiguration this crate adds, against
-//! a scripted fake — the real [`LiveSchedulerBackend`] wiring below has
-//! no test of its own, the same "real service wiring, no unit test"
-//! precedent `main.rs::run_service`/`build_app` already set.
+//! the timer-fired skip-when-not-running/skip-when-no-players policy
+//! this module's own [`fire`] re-derives is fixture-tested in isolation
+//! against `msc_application::backups::scheduled_tick`
+//! (`crates/msc-application/tests/backup_retention.rs`), but P6.31
+//! stopped [`LiveSchedulerBackend::run_scheduled_backup`] from reaching
+//! production backup creation *through* `scheduled_tick` — that function
+//! always hands `create_backup` `console: None` and `should_cancel: ||
+//! false`, so a live server's flush/pause protocol and cooperative
+//! cancellation could never run on a scheduled tick, and nothing gated
+//! it against a concurrent activation/restore/conversion/replacement/
+//! backup on the same server. [`LiveSchedulerBackend::run_scheduled_backup`]
+//! now calls `crate::backup_operations::start_backup` directly instead —
+//! the same shared entry point `routes/backups.rs::now` uses — which
+//! journals a real per-server operation, builds a real
+//! `LiveBackupConsole`, and wires a real `should_cancel`. This module's
+//! own tests (`crates/msc-agent/tests/backup_scheduler.rs`, plus the
+//! `mod tests` below) cover the tokio-driven cadence/reconfiguration
+//! this crate adds and (below) the real exclusivity `start_backup` now
+//! provides; `backup_retention.rs`'s coverage of `scheduled_tick` itself
+//! stays valid as a description of the timer policy, just no longer the
+//! path a real scheduled backup travels.
 
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
-use msc_application::backups::ScheduledTickOutcome;
 use msc_domain::app_config_schema::ConfigServer;
-use msc_infrastructure::fs::FileSystem;
 use tokio::task::JoinHandle;
 
 use crate::routes::lifecycle::{AgentAppConfigStore, LifecycleRoutesState};
 
-/// What one tick needs to decide/do for a given server, and the
-/// exclusivity gate this step's own scope calls for ("Scheduler ticks
-/// enter through operation exclusivity"). No production exclusivity
-/// check is wired yet — [`LiveSchedulerBackend::admit_backup`] always
-/// returns `true` today; wiring it to a real `OperationJournal`/
-/// `LifecycleOperations` admission (so a scheduled tick can't race an
-/// in-flight activation/restore) is P6.21's job, once backup routes
-/// exist to share that journal with — the same deferred-exclusivity
-/// note `worlds::activate_slot`'s own section doc already left for this
-/// exact moment.
+/// What one tick needs to decide/do for a given server. P6.31 closed the
+/// exclusivity gate this module's own doc used to flag as unwired:
+/// [`LiveSchedulerBackend::run_scheduled_backup`] now reaches production
+/// backup creation through `crate::backup_operations::start_backup`,
+/// which performs the identical `LifecycleOperations::begin_running`
+/// per-server admission every other Phase 6 mutation route already
+/// makes — so a scheduled tick that loses the race against an in-flight
+/// activation/restore/conversion/replacement/backup is refused, not
+/// merely logged.
 pub trait SchedulerBackend: Send + Sync {
     fn is_running(&self, server_id: &str) -> bool;
     fn online_player_count(&self, server_id: &str) -> usize;
-    fn admit_backup(&self, server_id: &str) -> bool;
     fn run_scheduled_backup(&self, server_id: &str);
 }
 
-/// `fire`'s own gate order — running, then players, then admission —
-/// each cheaper than the next, so a quiet or already-busy server never
-/// pays for a filesystem-touching `run_scheduled_backup` call it was
-/// always going to skip.
+/// `fire`'s own gate order — running, then players — each cheaper than
+/// the next, so a quiet server never pays for a filesystem-touching
+/// `run_scheduled_backup` call it was always going to skip. Real
+/// exclusivity admission happens inside `run_scheduled_backup` itself
+/// (see this module's own doc) — cheaper than a separate pre-check here
+/// since it's the same call that would have to run to actually start the
+/// backup anyway.
 fn fire(server_id: &str, backend: &dyn SchedulerBackend) {
     if !backend.is_running(server_id) {
         return;
     }
     if backend.online_player_count(server_id) == 0 {
-        return;
-    }
-    if !backend.admit_backup(server_id) {
         return;
     }
     backend.run_scheduled_backup(server_id);
@@ -181,24 +188,19 @@ async fn run_server_loop(
 }
 
 /// The real [`SchedulerBackend`]: bridges a running server's
-/// `LifecycleRoutesState` (process/player state) and `AgentAppConfigStore`
-/// (persisted server config) to `msc_application::backups::scheduled_tick`.
+/// `LifecycleRoutesState` (process/player state, and now — P6.31 —
+/// operation admission/journaling) and `AgentAppConfigStore` (persisted
+/// server config) to `crate::backup_operations::start_backup`.
 pub struct LiveSchedulerBackend {
     lifecycle: LifecycleRoutesState,
     app_config: &'static AgentAppConfigStore,
-    fs: &'static dyn FileSystem,
 }
 
 impl LiveSchedulerBackend {
-    pub fn new(
-        lifecycle: LifecycleRoutesState,
-        app_config: &'static AgentAppConfigStore,
-        fs: &'static dyn FileSystem,
-    ) -> Self {
+    pub fn new(lifecycle: LifecycleRoutesState, app_config: &'static AgentAppConfigStore) -> Self {
         Self {
             lifecycle,
             app_config,
-            fs,
         }
     }
 
@@ -227,77 +229,38 @@ impl SchedulerBackend for LiveSchedulerBackend {
             .max(0) as usize
     }
 
-    fn admit_backup(&self, _server_id: &str) -> bool {
-        // No production exclusivity check wired yet -- see this
-        // module's own doc.
-        true
-    }
-
+    /// Reached only once [`fire`] has already confirmed `server_id` is
+    /// running with players online — `running: true` below reflects that
+    /// already-known state, matching every other caller in this codebase
+    /// that resolves liveness itself rather than asking the callee to
+    /// re-derive it (`crate::backup_operations::start_backup`'s own
+    /// `running` parameter doc).
     fn run_scheduled_backup(&self, server_id: &str) {
         let Some(server) = self.find_server(server_id) else {
             return;
         };
-        let server_dir = PathBuf::from(&server.server_dir);
-        let raw_level_name = msc_application::worlds::read_java_level_name(self.fs, &server_dir);
-        let slots = msc_infrastructure::world_store::load_slots(self.fs, &server_dir);
-        let explicit =
-            msc_infrastructure::world_store::load_explicit_active_slot_id(self.fs, &server_dir);
-        let active_slot_id = msc_domain::world::resolve_active_slot_id(&slots, explicit.as_deref());
-        let association = msc_domain::world::effective_backup_association(
-            &slots,
-            active_slot_id.as_deref(),
-            None,
-            None,
-        );
-
-        let outcome = msc_application::backups::scheduled_tick(
-            self.fs,
-            &server_dir,
-            server.server_type,
-            raw_level_name.as_deref(),
-            &association,
-            Some(server.id.as_str()),
-            Some(server.display_name.as_str()),
-            server.auto_backup_max_count,
-            &iso8601_now(),
-            self.is_running(server_id),
-            self.online_player_count(server_id),
-        );
-
-        if let ScheduledTickOutcome::Fired(Err(error)) = outcome {
-            eprintln!("[backup-scheduler] scheduled backup failed for {server_id}: {error}");
+        let max_count = server.auto_backup_max_count;
+        match crate::backup_operations::start_backup(
+            &self.lifecycle,
+            server,
+            true,
+            true,
+            Some(max_count),
+        ) {
+            Ok(_) => {}
+            Err(msc_application::operations::LifecycleOperationError::Conflict(_)) => {
+                // Another operation already holds this server's
+                // exclusivity (activation, restore, conversion,
+                // replacement, or another backup) -- this tick is
+                // skipped, not queued; the next tick tries again.
+            }
+            Err(error) => {
+                eprintln!(
+                    "[backup-scheduler] scheduled backup failed to start for {server_id}: {error}"
+                );
+            }
         }
     }
-}
-
-fn iso8601_now() -> String {
-    let secs = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let days = secs / 86_400;
-    let remainder = secs % 86_400;
-    let (hour, minute, second) = (remainder / 3600, (remainder % 3600) / 60, remainder % 60);
-    let (year, month, day) = civil_from_days(days as i64);
-    format!("{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z")
-}
-
-/// Howard Hinnant's `civil_from_days` — the same small duplicate this
-/// codebase already carries in `routes/servers.rs`/`routes/lifecycle.rs`
-/// rather than adding a shared date/time dependency for one formatted
-/// timestamp.
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = z - era * 146_097;
-    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let day = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let month = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    let year = if month <= 2 { y + 1 } else { y };
-    (year, month, day)
 }
 
 /// This crate has no `lib.rs` — its own tests otherwise only reach the
@@ -325,7 +288,6 @@ mod tests {
     struct FakeSchedulerBackend {
         running: Mutex<HashMap<String, bool>>,
         players: Mutex<HashMap<String, usize>>,
-        admit: Mutex<HashMap<String, bool>>,
         fire_count: AtomicUsize,
         fired_ids: Mutex<Vec<String>>,
     }
@@ -341,10 +303,6 @@ mod tests {
 
         fn set_players(&self, id: &str, count: usize) {
             self.players.lock().unwrap().insert(id.to_string(), count);
-        }
-
-        fn set_admit(&self, id: &str, admit: bool) {
-            self.admit.lock().unwrap().insert(id.to_string(), admit);
         }
 
         fn fire_count(&self) -> usize {
@@ -373,15 +331,6 @@ mod tests {
                 .get(server_id)
                 .copied()
                 .unwrap_or(0)
-        }
-
-        fn admit_backup(&self, server_id: &str) -> bool {
-            self.admit
-                .lock()
-                .unwrap()
-                .get(server_id)
-                .copied()
-                .unwrap_or(true)
         }
 
         fn run_scheduled_backup(&self, server_id: &str) {
@@ -413,16 +362,6 @@ mod tests {
         let backend = FakeSchedulerBackend::new();
         backend.set_running("s1", true);
         backend.set_players("s1", 0);
-        fire("s1", &backend);
-        assert_eq!(backend.fire_count(), 0);
-    }
-
-    #[test]
-    fn fire_skips_when_admission_refused() {
-        let backend = FakeSchedulerBackend::new();
-        backend.set_running("s1", true);
-        backend.set_players("s1", 3);
-        backend.set_admit("s1", false);
         fire("s1", &backend);
         assert_eq!(backend.fire_count(), 0);
     }
@@ -538,5 +477,102 @@ mod tests {
         tokio::time::advance(StdDuration::from_secs(60)).await;
         tokio::task::yield_now().await;
         assert_eq!(backend.fire_count(), 1);
+    }
+
+    // ---- start_backup's real exclusivity, reached from the scheduler
+    //      (P6.31) ----
+    //
+    // `fire()`'s own gate order no longer has an `admit_backup` pre-check
+    // — real admission now lives inside
+    // `crate::backup_operations::start_backup`, the same shared entry
+    // point `LiveSchedulerBackend::run_scheduled_backup` and
+    // `routes/backups.rs::now` both call. These two tests prove that
+    // admission directly, against a real `LifecycleRoutesState`/
+    // `LifecycleOperations` pair rather than a scripted fake. Every
+    // Phase 6 mutation (activation, restore, conversion, replacement,
+    // backup) admits through the identical per-target `OperationJournal`
+    // call with no special case for operation type, so proving one
+    // representative competitor (`world-activate`) and one same-type
+    // competitor (a second backup) are both refused proves the general
+    // rule, the same way `world_backup_routes_restore_guard_order_and_capability_unavailable`
+    // already established for a manual route.
+
+    fn scheduled_backup_exclusivity_test_server(tag: &str) -> ConfigServer {
+        let dir = std::env::temp_dir().join(format!(
+            "msc2-backup-scheduler-exclusivity-{tag}-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("world")).unwrap();
+        std::fs::write(dir.join("world/level.dat"), b"fake").unwrap();
+        ConfigServer::new(
+            format!("sched-excl-{tag}"),
+            "Scheduler Exclusivity Server",
+            dir.to_string_lossy().to_string(),
+            "",
+            1.0,
+            2.0,
+        )
+    }
+
+    #[tokio::test]
+    async fn scheduler_scheduled_backup_refused_while_another_operation_holds_the_server() {
+        use crate::routes::lifecycle::LifecycleRoutesState;
+        use crate::routes::operations::OperationsState;
+        use crate::ws::console::ConsoleState;
+        use msc_application::operations::LifecycleOperationError;
+
+        let lifecycle = LifecycleRoutesState::with_fake_process(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
+        let server = scheduled_backup_exclusivity_test_server("activation");
+        lifecycle
+            .merge_config_servers(vec![server.clone()])
+            .unwrap();
+        lifecycle.select_active_server(server.id.clone()).unwrap();
+
+        // Simulate an in-flight activation already holding this server's
+        // exclusivity -- the same `begin_lifecycle` call
+        // `routes/worlds.rs::activate` itself makes.
+        lifecycle
+            .operations()
+            .begin_lifecycle("world-activate", Some(server.id.clone()), "Activating.")
+            .unwrap();
+
+        let result = crate::backup_operations::start_backup(&lifecycle, server, true, true, None);
+        assert!(
+            matches!(result, Err(LifecycleOperationError::Conflict(_))),
+            "{result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn scheduler_scheduled_backup_cannot_overlap_a_second_backup_on_the_same_server() {
+        use crate::routes::lifecycle::LifecycleRoutesState;
+        use crate::routes::operations::OperationsState;
+        use crate::ws::console::ConsoleState;
+        use msc_application::operations::LifecycleOperationError;
+
+        let lifecycle = LifecycleRoutesState::with_fake_process(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
+        let server = scheduled_backup_exclusivity_test_server("second-backup");
+        lifecycle
+            .merge_config_servers(vec![server.clone()])
+            .unwrap();
+        lifecycle.select_active_server(server.id.clone()).unwrap();
+
+        let first =
+            crate::backup_operations::start_backup(&lifecycle, server.clone(), true, true, None);
+        assert!(first.is_ok(), "{first:?}");
+
+        let second = crate::backup_operations::start_backup(&lifecycle, server, true, true, None);
+        assert!(
+            matches!(second, Err(LifecycleOperationError::Conflict(_))),
+            "{second:?}"
+        );
     }
 }

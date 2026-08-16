@@ -2321,9 +2321,6 @@ mod tests {
         fn online_player_count(&self, _server_id: &str) -> usize {
             0
         }
-        fn admit_backup(&self, _server_id: &str) -> bool {
-            true
-        }
         fn run_scheduled_backup(&self, _server_id: &str) {}
     }
 

@@ -175,6 +175,50 @@ fn backup_retention_fired_tick_can_still_fail_with_no_world_folders() {
     ));
 }
 
+/// Six scheduled ticks fired with the identical `now` (the same
+/// wall-clock second, the way a fast-firing scheduler or a manual/
+/// automatic race could in practice) never collide on filename. Pruning
+/// is given enough headroom (`max_count` above the number of ticks) that
+/// none of the six is removed mid-run, isolating this from
+/// `backup_retention_floor_holds_across_repeated_scheduled_ticks`'s own
+/// separate "prune still leaves a known-good backup" coverage.
+#[test]
+fn backup_retention_same_second_ticks_do_not_collide() {
+    let tmp = TempDir::new("same-second-ticks");
+    let server_dir = tmp.path();
+    make_live_folder(server_dir, "world", b"overworld");
+    let association = world::BackupAssociation::default();
+
+    let mut zip_paths = Vec::new();
+    for _ in 0..6 {
+        let outcome = backups::scheduled_tick(
+            &StdFileSystem,
+            server_dir,
+            ServerType::Java,
+            Some("world"),
+            &association,
+            None,
+            None,
+            100,
+            "2026-01-01T00:00:00Z",
+            true,
+            1,
+        );
+        let ScheduledTickOutcome::Fired(Ok(result)) = outcome else {
+            panic!("expected a fired, successful backup: {outcome:?}");
+        };
+        zip_paths.push(result.zip_path);
+    }
+
+    // Every fired backup got its own distinct, still-present file --
+    // none of the six overwrote an earlier one.
+    let unique: std::collections::HashSet<_> = zip_paths.iter().collect();
+    assert_eq!(unique.len(), 6, "same-second ticks collided: {zip_paths:?}");
+    for path in &zip_paths {
+        assert!(path.exists(), "{path:?} is missing after the run");
+    }
+}
+
 // ---------------------------------------------------------------------
 // Orphan sidecar sweeping
 // ---------------------------------------------------------------------

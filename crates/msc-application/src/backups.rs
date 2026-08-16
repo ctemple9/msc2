@@ -246,7 +246,7 @@ pub fn create_backup(
     } else {
         format!("{archive_base_name}-{ts}.zip")
     };
-    let zip_path = backups_dir.join(filename);
+    let zip_path = unique_zip_path(fs, &backups_dir, &filename);
 
     let is_bedrock = server_type == ServerType::Bedrock;
     let saves_paused = match console {
@@ -287,6 +287,43 @@ pub fn create_backup(
         trigger_reason: reason,
         sidecar_written,
     })
+}
+
+/// P6.32's own correction: `filename_timestamp_from_iso8601` has
+/// one-second resolution, and a manual backup racing a mandatory
+/// pre-mutation/pre-restore/pre-replace safety backup (or two automatic
+/// ticks landing in the same wall-clock second) share the same creation
+/// token — without this check, the second `create_backup` call's zip
+/// silently overwrites the first's (`archive::create_zip_from_folders`
+/// opens its destination with `File::create`, which truncates whatever
+/// is already there) and its sidecar does too, destroying a still-wanted
+/// recovery point with no error raised anywhere. Preserves the readable
+/// `<base><token><timestamp>.zip` shape for the first backup in any
+/// given second; a second (or third, ...) hands back
+/// `<base><token><timestamp>-2.zip` instead of colliding. A filename
+/// disambiguated this way no longer matches
+/// [`domain_backup::make_display_name`]'s exact-15-character timestamp
+/// parse, so it falls back to showing the raw filename — the same
+/// documented degraded case
+/// `fixtures/backups/display-name-unparseable-suffix-falls-back-to-raw-filename.json`
+/// already covers, not a new failure mode.
+fn unique_zip_path(fs: &dyn FileSystem, backups_dir: &Path, filename: &str) -> PathBuf {
+    let candidate = backups_dir.join(filename);
+    if fs.stat(&candidate).is_err() {
+        return candidate;
+    }
+    let (stem, ext) = filename
+        .rsplit_once('.')
+        .map(|(stem, ext)| (stem, format!(".{ext}")))
+        .unwrap_or((filename, String::new()));
+    let mut n: u32 = 2;
+    loop {
+        let candidate = backups_dir.join(format!("{stem}-{n}{ext}"));
+        if fs.stat(&candidate).is_err() {
+            return candidate;
+        }
+        n += 1;
+    }
 }
 
 /// This step's own post-creation verification (see [`BackupError::VerificationFailed`]):

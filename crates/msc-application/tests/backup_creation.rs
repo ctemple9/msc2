@@ -383,6 +383,130 @@ fn backup_creation_auto_prune_runs_before_creating_new_backup() {
     assert_eq!(remaining.len(), 4);
 }
 
+/// `fixtures/backups/same-second-backups-get-collision-proof-filenames-phase6-correction.json`
+/// — two manual backups triggered with the identical `now` never collide
+/// on disk, and both archives/sidecars survive with their own captured
+/// content intact.
+#[test]
+fn backup_creation_same_second_backups_do_not_collide() {
+    let tmp = TempDir::new("same-second");
+    let server_dir = tmp.path();
+    make_live_folder(server_dir, "world", b"first");
+    let association = world::BackupAssociation::default();
+
+    let first = backups::create_backup(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Java,
+        Some("world"),
+        &association,
+        None,
+        None,
+        false,
+        true,
+        None,
+        None,
+        "2026-02-14T15:30:45Z",
+        None,
+        || false,
+        || false,
+    )
+    .unwrap();
+
+    // Overwrite the live folder's content between calls so each archive
+    // is independently verifiable -- a real overwrite-in-place bug would
+    // make the second backup's content indistinguishable from the
+    // first's even if the filename check were skipped.
+    fs::write(server_dir.join("world").join("level.dat"), b"second").unwrap();
+
+    let second = backups::create_backup(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Java,
+        Some("world"),
+        &association,
+        None,
+        None,
+        false,
+        true,
+        None,
+        None,
+        "2026-02-14T15:30:45Z",
+        None,
+        || false,
+        || false,
+    )
+    .unwrap();
+
+    assert_ne!(first.zip_path, second.zip_path);
+    assert!(first.zip_path.exists());
+    assert!(second.zip_path.exists());
+
+    let second_name = second.zip_path.file_name().unwrap().to_string_lossy();
+    assert!(second_name.contains("_manual_"));
+    assert!(second_name.ends_with("-2.zip"));
+
+    // The first archive's content was never touched by the second call.
+    let mut first_zip = ZipArchive::new(fs::File::open(&first.zip_path).unwrap()).unwrap();
+    let mut contents = String::new();
+    std::io::Read::read_to_string(
+        &mut first_zip.by_name("world/level.dat").unwrap(),
+        &mut contents,
+    )
+    .unwrap();
+    assert_eq!(contents, "first");
+
+    // Both sidecars are present, independently.
+    let sidecar_first =
+        msc_infrastructure::backup_store::read_sidecar(&StdFileSystem, &first.zip_path);
+    let sidecar_second =
+        msc_infrastructure::backup_store::read_sidecar(&StdFileSystem, &second.zip_path);
+    assert!(sidecar_first.is_some());
+    assert!(sidecar_second.is_some());
+}
+
+/// The untokened pre-replace shape collides the same way, and gets the
+/// same `-2` disambiguation.
+#[test]
+fn backup_creation_same_second_untokened_backups_do_not_collide() {
+    let tmp = TempDir::new("same-second-untokened");
+    let server_dir = tmp.path();
+    make_live_folder(server_dir, "world", b"overworld");
+    let association = world::BackupAssociation::default();
+
+    let make = || {
+        backups::create_backup(
+            &StdFileSystem,
+            server_dir,
+            ServerType::Java,
+            Some("world"),
+            &association,
+            None,
+            None,
+            false,
+            false,
+            Some("pre-replace"),
+            None,
+            "2026-02-14T15:30:45Z",
+            None,
+            || false,
+            || false,
+        )
+        .unwrap()
+    };
+
+    let first = make();
+    let second = make();
+
+    assert_ne!(first.zip_path, second.zip_path);
+    assert!(first.zip_path.exists());
+    assert!(second.zip_path.exists());
+    let second_name = second.zip_path.file_name().unwrap().to_string_lossy();
+    assert!(!second_name.contains("_auto_"));
+    assert!(!second_name.contains("_manual_"));
+    assert!(second_name.ends_with("-2.zip"));
+}
+
 #[cfg(unix)]
 #[test]
 fn backup_creation_zip_write_failure_returns_archive_error() {

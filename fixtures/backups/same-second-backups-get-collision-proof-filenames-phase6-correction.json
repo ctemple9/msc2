@@ -1,0 +1,33 @@
+{
+  "domain": "backups",
+  "case": "same-second-backups-get-collision-proof-filenames-phase6-correction",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "createBackup(for:isAutomatic:slotId:slotName:triggerReason:) filename timestamp, DateFormatter(\"yyyyMMdd-HHmmss\")",
+    "line": 228
+  },
+  "input": {
+    "first_call": {
+      "is_automatic": false,
+      "now": "2026-02-14T15:30:45Z"
+    },
+    "second_call": {
+      "is_automatic": false,
+      "now": "2026-02-14T15:30:45Z"
+    }
+  },
+  "expected": {
+    "msc1_behavior": {
+      "second_backup_filename": "identical to the first (one-second-resolution timestamp)",
+      "second_zip_write": "overwrites the first backup's ZIP and sidecar in place",
+      "data_loss": true
+    },
+    "phase6_correction": {
+      "first_backup_filename": "<archiveBaseName><token>20260214-153045.zip",
+      "second_backup_filename": "<archiveBaseName><token>20260214-153045-2.zip",
+      "both_backups_present_on_disk": true,
+      "data_loss": false
+    }
+  },
+  "notes": "This is a D-006-style correction, not oracle parity. Source's filename timestamp (`DateFormatter` with format \"yyyyMMdd-HHmmss\", line 228-231) has one-second resolution, and `createBackup`'s destination path is opened for writing unconditionally -- two backups triggered in the same wall-clock second (a manual backup racing a mandatory pre-mutation/pre-restore/pre-replace safety backup that shares the same creation token, or two automatic ticks) silently overwrite each other, destroying a still-wanted recovery point with no error surfaced anywhere. Phase 6's `msc_application::backups::unique_zip_path` checks the destination before every backup is written and appends `-2`, `-3`, ... only when the plain timestamped name is already taken, preserving the readable name for the common (non-colliding) case. A disambiguated filename falls back to raw-filename display in `make_display_name` -- see `fixtures/backups/display-name-unparseable-suffix-falls-back-to-raw-filename.json`, an existing documented case, not a new one."
+}

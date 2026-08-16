@@ -839,7 +839,7 @@ leaving Status as `awaiting verification` above for him to do after
 running the Verify command himself.
 
 ### P6.32 — Make backup filenames collision-proof
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/backup_creation.rs`, `crates/msc-application/tests/backup_retention.rs`, `fixtures/backups/`, `tools/phase6/phase6-gate-smoke.sh`
 **What:** Preserve the readable timestamp naming scheme while guaranteeing a distinct archive and sidecar identity for every backup created in the same wall-clock second. Cover collisions among manual, scheduled, pre-mutation, pre-replace, and pre-restore backups; never silently overwrite an earlier recovery point. Remove the smoke harness's one-second sleeps and prove retention still sorts and prunes deterministically while preserving at least one known-good backup.
 **Verify:** `cargo nextest run -p msc-application --test backup_creation --test backup_retention && tools/phase6/phase6-gate-smoke.sh --synthetic`

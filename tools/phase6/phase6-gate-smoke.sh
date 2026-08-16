@@ -294,17 +294,6 @@ wait_server_ready() {
   sleep 1
 }
 
-settle_backup_clock() {
-  # `filename_timestamp_from_iso8601` (`msc-domain/src/backup.rs`) has
-  # one-second resolution, and a manual backup and a mandatory
-  # pre-mutation/pre-restore safety backup share the same manual
-  # filename token -- two such backups triggered within the same
-  # wall-clock second collide on filename and silently overwrite each
-  # other instead of producing two entries. Called before any backup-
-  # creating call that follows closely on another one.
-  sleep 1.1
-}
-
 read_generation() {
   cat "${SERVER_DIR}/world/GENERATION.txt"
 }
@@ -525,7 +514,6 @@ BACKUP_1_ID="$(new_ids_since "${TMP_DIR}/backups-before-1.txt")"
 [[ "$(backup_trigger_reason "${BACKUP_1_ID}")" == "manual" ]] || fail "manual backup #1 has unexpected trigger reason"
 
 echo "   (backup #2 exercises the ~10s save-confirmation timeout path -- this is expected to take a while)"
-settle_backup_clock
 backup_ids_snapshot > "${TMP_DIR}/backups-before-2.txt"
 run_msc backup now >/dev/null
 BACKUP_2_ID="$(new_ids_since "${TMP_DIR}/backups-before-2.txt")"
@@ -539,7 +527,6 @@ wait_running_state "False"
 # =====================================================================
 echo "== activating a slot with its mandatory safety backup =="
 write_generation "GEN-3"
-settle_backup_clock
 backup_ids_snapshot > "${TMP_DIR}/backups-before-activate.txt"
 run_msc world activate "${SLOT_IMPORTED_ID}" >/dev/null
 [[ "$(read_generation)" == "GEN-IMPORTED" ]] || fail "activation did not install the target slot's content"
@@ -564,7 +551,6 @@ wait_running_state "False"
 # below is legitimate again.
 run_msc world activate "${SLOT2_ID}" >/dev/null
 expect_fail backup restore "${BACKUP_1_ID}"
-settle_backup_clock
 run_msc world activate "${SLOT_IMPORTED_ID}" >/dev/null
 [[ "$(active_slot_id)" == "${SLOT_IMPORTED_ID}" ]] || fail "failed to reactivate SLOT_IMPORTED before restore"
 
@@ -575,7 +561,6 @@ expect_fail backup restore "does-not-exist"
 # =====================================================================
 echo "== restoring a backup =="
 write_generation "GEN-4"
-settle_backup_clock
 backup_ids_snapshot > "${TMP_DIR}/backups-before-restore.txt"
 run_msc backup restore "${BACKUP_1_ID}" >/dev/null
 [[ "$(read_generation)" == "GEN-2" ]] || fail "restore did not install the backup's captured content"
@@ -666,19 +651,16 @@ echo "activation recovery verified (${PHASE}, target=${WINNING_TARGET})"
 # `world_slots/.restore/prior/`.
 # =====================================================================
 echo "== restart-mid-restore race =="
-settle_backup_clock
 run_msc world activate "${SLOT_IMPORTED_ID}" >/dev/null
 CURRENT_ACTIVE="$(active_slot_id)"
 
 write_generation "GEN-RESTORE-A"
-settle_backup_clock
 backup_ids_snapshot > "${TMP_DIR}/backups-before-race-a.txt"
 run_msc backup now >/dev/null
 RACE_BACKUP_A="$(new_ids_since "${TMP_DIR}/backups-before-race-a.txt")"
 [[ -n "${RACE_BACKUP_A}" ]] || fail "restore-race backup A did not appear"
 
 write_generation "GEN-RESTORE-B"
-settle_backup_clock
 backup_ids_snapshot > "${TMP_DIR}/backups-before-race-b.txt"
 run_msc backup now >/dev/null
 RACE_BACKUP_B="$(new_ids_since "${TMP_DIR}/backups-before-race-b.txt")"

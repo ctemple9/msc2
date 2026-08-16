@@ -13,7 +13,7 @@ msc-application = { path = "../msc-application" }
 msc-domain = { path = "../msc-domain" }
 msc-infrastructure = { path = "../msc-infrastructure" }
 axum = { version = "0.7", features = ["ws"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "fs", "signal"] }
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

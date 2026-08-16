@@ -5,7 +5,7 @@ pub mod service;
 
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -22,9 +22,10 @@ use msc_api::dto::{
     StagedUploadPurposeDto, WorldActivateRequestDto, WorldActivateResultDto,
     WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
     WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
-    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceRequestDto, WorldSlotDto,
-    WorldSlotsResponseDto,
+    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
+use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -291,6 +292,26 @@ pub enum WorldCommand {
         path: PathBuf,
         /// Name for the new slot.
         name: String,
+    },
+    /// Replace the active/live world's on-disk content directly, from a
+    /// local folder, a local ZIP, or fresh generation. Distinct from
+    /// `copy` (a saved-slot-to-saved-slot copy that never touches the
+    /// live world). Long-running: refuses a running server, takes a
+    /// mandatory safety backup first, then swaps the live world folders.
+    ReplaceActive {
+        /// New level name to commit to server.properties. For a folder
+        /// or ZIP `--source`, this must match the source's own top-level
+        /// folder name — the agent does not rename folders on this
+        /// route's behalf.
+        new_level_name: String,
+        /// A local world folder or ZIP file to upload as the
+        /// replacement. Omit for a fresh (empty) world.
+        #[arg(long)]
+        source: Option<PathBuf>,
+        /// Print the operation id and return immediately instead of
+        /// waiting for replacement to finish.
+        #[arg(long)]
+        no_wait: bool,
     },
     /// Export a slot's saved archive to a local ZIP file.
     Export {
@@ -728,6 +749,34 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
     }
 }
 
+/// Zips a local world folder into bytes suitable for `PUT
+/// /v1/staged-uploads/{id}`, with one top-level entry named after the
+/// folder itself (`create_zip_from_folders(dest, folder.parent(),
+/// [folder.file_name()])`) — the same "portable single-folder world"
+/// layout `worlds::WorldReplaceSource::ExistingFolder` already produces
+/// for in-process callers, reproduced here as a real ZIP because this
+/// route only ever accepts a bounded staged upload, never a server-local
+/// path (`routes/worlds.rs::replace_active`'s own doc note).
+fn zip_folder_to_bytes(path: &Path) -> Result<Vec<u8>, CliError> {
+    let folder_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| CliError::usage(format!("{} has no usable folder name", path.display())))?
+        .to_string();
+    let parent = path.parent().unwrap_or_else(|| Path::new("."));
+    let temp_zip = std::env::temp_dir().join(format!(
+        "msc2-replace-active-{}-{}.zip",
+        std::process::id(),
+        uuid::Uuid::new_v4()
+    ));
+    create_zip_from_folders(&temp_zip, parent, &[folder_name])
+        .map_err(|err| CliError::usage(format!("failed to zip {}: {err}", path.display())))?;
+    let bytes = std::fs::read(&temp_zip)
+        .map_err(|err| CliError::internal(format!("failed to read temporary zip: {err}")))?;
+    let _ = std::fs::remove_file(&temp_zip);
+    Ok(bytes)
+}
+
 /// Parses `<source-server-id>=<port>` pairs, matching `settings set`'s
 /// `key=value` parsing convention.
 fn parse_port_overrides(pairs: &[String]) -> Result<HashMap<String, i64>, CliError> {
@@ -908,6 +957,52 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             let result: WorldMutationResultDto =
                 client.post_json("/v1/worlds/import", &body).await?;
             print_world_mutation_result(common.json, &result)
+        }
+        WorldCommand::ReplaceActive {
+            new_level_name,
+            source,
+            no_wait,
+        } => {
+            let staged_upload_id = match source {
+                Some(path) => {
+                    let bytes = if path.is_dir() {
+                        zip_folder_to_bytes(&path)?
+                    } else {
+                        tokio::fs::read(&path).await.map_err(|err| {
+                            CliError::usage(format!("failed to read {}: {err}", path.display()))
+                        })?
+                    };
+                    let begin: StagedUploadBeginResultDto = client
+                        .post_json(
+                            "/v1/staged-uploads",
+                            &StagedUploadBeginRequestDto {
+                                purpose: StagedUploadPurposeDto::ActiveWorldReplace,
+                                content_type: None,
+                            },
+                        )
+                        .await?;
+                    let _uploaded: StagedUploadCompleteResultDto = client
+                        .put_bytes(&begin.upload_path, "application/octet-stream", bytes)
+                        .await?;
+                    Some(begin.staged_upload_id)
+                }
+                None => None,
+            };
+            let body = WorldReplaceActiveRequestDto {
+                new_level_name,
+                staged_upload_id,
+            };
+            let result: WorldReplaceActiveResultDto = client
+                .post_json("/v1/worlds/replace-active-world", &body)
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "replacement",
+            )
+            .await
         }
         WorldCommand::Export { slot_id, output } => {
             let body = WorldExportRequestDto { slot_id };

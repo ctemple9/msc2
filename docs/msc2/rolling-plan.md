@@ -945,12 +945,114 @@ leaving Status as `awaiting verification` above for him to do after
 running the Verify command himself.
 
 ### P6.34 — Expose active-world replacement through the agent
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/openapi.json`, `docs/msc2/worlds/phase6-api.md`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-agent/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/world_backup_routes.rs`, `crates/msc-agent/tests/cli_worlds_backups.rs`
 **What:** Preserve Cameron's correction that `POST /v1/worlds/replace` means saved-slot-to-saved-slot replacement. Add a separately named active-world replacement operation for MSC 1's direct-live-world capability. It accepts only a bounded staged upload plus the new level name, always takes the mandatory safety backup, returns an operation ID, participates in the ordinary permission/audit/exclusivity/cancellation model, and never accepts an arbitrary server-local path from a remote client. Wire the CLI to upload a local folder or ZIP and call the new route. Update the contract and capability matrix truthfully; desktop/web presentation remains Phase 11, and the copied iOS client need not invent a direct-live replacement screen MSC 1 iOS does not have.
 **Verify:** `cargo nextest run -p msc-agent world_backup_routes && cargo nextest run -p msc-agent cli_worlds_backups && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
 **Commit:** `P6.34: expose active world replacement`
 **Batch:** stop-after
+
+**Actual result:** `POST /v1/worlds/replace-active-world` (`replaceActiveWorld`)
+now exposes P6.33's transactional `worlds::replace_world` — separately
+named and shaped from `POST /v1/worlds/replace`
+(`WorldSlotManager.copySlotIntoExisting`, unchanged). Request shape
+`WorldReplaceActiveRequestDto { new_level_name, staged_upload_id: Option
+<String> }`: a present `staged_upload_id` must have been begun with the
+new `StagedUploadPurposeDto::ActiveWorldReplace` purpose and is redeemed
+exactly once (missing/expired/wrong-purpose is a plain 404, mirroring
+`import`); an absent one replaces with a fresh (empty) world. There is no
+way to name a server-local path — `WorldReplaceSource::ExistingFolder` is
+never constructed by this route, only `Fresh`/`BackupZip`. Always async
+(`{result: "replace_started", operationId}`), guard-ordered like
+`routes/backups.rs::restore` (the closer existing analog — mandatory
+backup + transactional swap + cancellation) rather than `activate`'s:
+running-server refused up front (`409`), staged upload redeemed up front
+(`404` if invalid), then a journaled `world-replace-active` operation
+begins and the real work — the mandatory, verified pre-replace safety
+backup and P6.33's staged/prior/installed transaction — runs on a spawned
+blocking task, `succeed`/`cancel`/`fail`-ing the operation record exactly
+as `activate`/`convert`/`restore` already do.
+
+New `WorldReplaceActiveRequestDto`/`WorldReplaceActiveResultDto` DTOs live
+in `crates/msc-api/src/dto/worlds.rs` — **not**
+`crates/msc-agent/src/dto/worlds.rs` as this step's own `Files:` line
+named; no such path exists in this repo (every world/backup DTO already
+lives in `msc-api`, which `msc-agent`'s routes/CLI both depend on), so the
+line is read as a plan typo rather than a file to create. `openapi.json`
+gained the route plus both schemas, and `StagedUploadBeginRequestDTO.
+purpose`'s enum gained `"active-world-replace"` alongside `"world-import"`
+(`begin_staged_upload`'s own body-purpose check widened from an
+irrefutable single-variant pattern to a real match over both purposes;
+redemption, not the begin step, is what still enforces "a staging slot
+can only be redeemed by the route it was created for"). `phase6-api.md`
+gained a dated §10 recording the addition (mirroring §9's own pattern)
+and had §3/§7's route/operation/row counts updated in place (105→106,
+eleven/twelve routes/operations→twelve/thirteen). `client-capability-
+matrix.csv` gained one row, marked `agent_status`/`cli_status:
+Implemented` (both are genuinely real as of this commit) and `desktop_web
+_status`/`ios_status: Planned` — deliberately not matching the rest of
+the Phase 6 matrix's stale `Planned` `agent_status`/`cli_status` cells,
+per this step's own "truthfully" instruction; P6.36's own "audit the
+capability matrix against what actually exists" is what reconciles the
+older rows.
+
+CLI: `msc world replace-active <new-level-name> [--source <folder-or-
+zip>] [--no-wait]`. A folder source is zipped client-side
+(`msc_infrastructure::archive::create_zip_from_folders`, one top-level
+entry named after the folder itself — the same "portable single-folder
+world" layout `WorldReplaceSource::ExistingFolder` already produces for
+in-process callers) to a temp file, uploaded, and cleaned up; a ZIP file
+is uploaded as-is. `--help` text says explicitly that `new-level-name`
+must match the source's own top-level folder name for a non-fresh
+replacement, since P6.33's `apply_world_identity` only ever writes
+`level-name` into `server.properties` and renames nothing on disk — an
+existing P6.33 contract, not a new one this step introduces.
+
+Tests: four new `world_backup_routes_replace_active_*` inline tests in
+`routes/worlds.rs` (fresh round trip + mandatory pre-replace backup
+verified via `backups::list_backups`; staged-upload round trip proving
+installed content plus single redemption; wrong-purpose staged upload
+rejected; permission-denied), a new POST case in `tests/
+world_backup_routes.rs`'s mounted-behind-bearer-auth black-box test (a
+`http_post` helper added alongside the existing `http_get`, since every
+prior route that test checks is a GET), and two new `cli_worlds_backups_
+world_replace_active_*` clap-structure tests plus `replace-active` added
+to the existing verb-list test in `tests/cli_worlds_backups.rs`. This
+step's own Verify — all four commands — passes, as does `cargo fmt
+--check` and `cargo clippy --all-targets` clean on native,
+`x86_64-unknown-linux-gnu`, and `x86_64-pc-windows-msvc` for `msc-agent`/
+`msc-api`. Also ran (outside this step's own Verify, as a sanity check
+since the DTO/enum changes touch shared schemas): `cargo nextest run -p
+msc-api` (38/38 passing, unaffected).
+
+**Noticed, not acted on** (outside this step's own Files list/Verify):
+
+- `reconcile_interrupted_world_replace` (P6.33) is still not wired into
+  `routes/lifecycle.rs::reconcile_servers_at_startup`. P6.33's own report
+  named this as blocked on P6.34 making the route reachable; now that it
+  is, an agent crash mid-`replace-active-world` leaves `world_slots/
+  .replace/` unresolved across a restart with nothing to reconcile it —
+  `activate`/`restore` both get this reconciliation, `replace_world` does
+  not yet. `routes/lifecycle.rs` is not in this step's `Files:` line, so
+  no change was made; this looks like a real, immediately-reachable gap
+  worth its own correction step before Phase 6's gate.
+- `tools/api-contract-check.py`'s `EXPECTED_TOTAL = 105` is now stale
+  (true total is 106 with this route). That script is not in this step's
+  `Files:` list and its check is not part of this step's own Verify line,
+  so it was left unedited — flagged here since P6.36's Verify runs
+  `tools/api-contract-check.py --v1-summary` and will fail on this count
+  immediately unless it's bumped first.
+- `crates/msc-api/tests/world_backup_conformance.rs` (a fixed, per-schema
+  Rust test list, not an exhaustive-over-`components/schemas` check) was
+  not given tests for the two new DTOs — it isn't in this step's Files
+  list or Verify, and its existing tests all still pass unmodified. Worth
+  a follow-up for parity with the Python-side `phase6_example_instances()`
+  coverage this step did add.
+- `worlds.rs`'s pre-existing Bedrock `world_base_dir`/`world_folder_
+  candidates` double-`worlds/worlds` bug (flagged, not fixed, in P6.33's
+  own report) is inherited unchanged by `replace_world`/`replace_active`
+  — still latent and untested for `ServerType::Bedrock`, still outside
+  this step's own scope.
 
 ### P6.35 — Close the Phase 6 public-path evidence gaps
 **Status:** not started

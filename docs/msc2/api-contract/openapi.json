@@ -4027,6 +4027,69 @@
         "operationId": "renameActiveWorld"
       }
     },
+    "/v1/worlds/replace-active-world": {
+      "post": {
+        "summary": "Replace the active/live world's on-disk content directly (starts asynchronously)",
+        "x-notes": "Separately named from POST /v1/worlds/replace (WorldSlotManager.copySlotIntoExisting, a saved-slot-to-saved-slot copy) per Cameron's post-P6.21-review correction -- see phase6-api.md SS9/SS10. Accepts only a bounded staged upload (purpose \"active-world-replace\") plus the new level name, never an arbitrary server-local path. Always takes a mandatory, verified pre-replace safety backup before touching the live world.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorldReplaceActiveRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replacement started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldReplaceActiveResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / name_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "unknown or already-redeemed stagedUploadId",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "409": {
+            "description": "server_running / conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          }
+        },
+        "x-permission-category": "worlds",
+        "operationId": "replaceActiveWorld"
+      }
+    },
     "/v1/worlds/convert": {
       "post": {
         "summary": "Start a Chunker world-format conversion",
@@ -7975,6 +8038,38 @@
         ],
         "description": "Direct rename of the active/live world's on-disk folders (AppViewModel+WorldManagement.swift's renameWorld) -- distinct from WorldRenameRequestDTO, which renames a slot's metadata only and touches no files."
       },
+      "WorldReplaceActiveRequestDTO": {
+        "type": "object",
+        "properties": {
+          "newLevelName": {
+            "type": "string"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "description": "Redeems a staged upload begun with purpose \"active-world-replace\" as the replacement world's source ZIP. Omit to replace with a fresh (empty) world instead -- never an arbitrary server-local path."
+          }
+        },
+        "required": [
+          "newLevelName"
+        ],
+        "description": "AppViewModel+WorldManagement.swift's replaceWorld -- direct live-world replacement. Separately named from WorldReplaceRequestDTO (WorldSlotManager.copySlotIntoExisting, a saved-slot-to-saved-slot copy that never touches the live world); see phase6-api.md SS9/SS10."
+      },
+      "WorldReplaceActiveResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Operation id for progress polling (GET /v1/operations/{id}) or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, matching SimpleResult's P4 precedent."
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "description": "Always operation-backed: the mandatory pre-replace safety backup and (for an uploaded source) zip staging are real filesystem work, the same class as activate/backups-restore."
+      },
       "WorldConvertRequestDTO": {
         "type": "object",
         "properties": {
@@ -8023,7 +8118,8 @@
           "purpose": {
             "type": "string",
             "enum": [
-              "world-import"
+              "world-import",
+              "active-world-replace"
             ]
           },
           "contentType": {

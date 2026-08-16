@@ -485,6 +485,8 @@ def phase6_example_instances():
             "sizeBytes": 42,
         },
         "WorldRenameActiveWorldRequestDTO": {"name": "new-world-name"},
+        "WorldReplaceActiveRequestDTO": {"newLevelName": "restored-world", "stagedUploadId": "upload-1"},
+        "WorldReplaceActiveResultDTO": {"result": "replace_started", "operationId": "op-5"},
         "WorldConvertRequestDTO": {
             "sourceSlotId": "slot-1",
             "targetServerId": "server-2",
@@ -528,6 +530,7 @@ PHASE6_PATHS = [
     ("post", "/v1/worlds/import"),
     ("post", "/v1/worlds/export"),
     ("post", "/v1/worlds/rename-active-world"),
+    ("post", "/v1/worlds/replace-active-world"),
     ("post", "/v1/worlds/activate"),
     ("post", "/v1/worlds/convert"),
     ("get", "/v1/worlds/{slotId}/thumbnail"),

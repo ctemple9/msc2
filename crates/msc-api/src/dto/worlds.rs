@@ -135,6 +135,34 @@ pub struct WorldRenameActiveWorldRequestDto {
     pub name: String,
 }
 
+/// `AppViewModel+WorldManagement.swift::replaceWorld` — direct live-world
+/// replacement. Separately named from [`WorldReplaceRequestDto`]
+/// (`WorldSlotManager.copySlotIntoExisting`, a saved-slot-to-saved-slot
+/// copy that never touches the live world) per Cameron's post-P6.21-review
+/// correction (`phase6-api.md` SS9/SS10). Accepts only a bounded staged
+/// upload — redeemed once, `purpose: "active-world-replace"` — plus the
+/// new level name; never an arbitrary server-local path. Omitting
+/// `staged_upload_id` replaces with a fresh (empty) world, matching
+/// `msc_application::worlds::WorldReplaceSource::Fresh`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldReplaceActiveRequestDto {
+    pub new_level_name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staged_upload_id: Option<String>,
+}
+
+/// Always operation-backed — the mandatory pre-replace safety backup and
+/// (for an uploaded source) zip staging are real filesystem work, the
+/// same class as `activate`/`backups/restore`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldReplaceActiveResultDto {
+    pub result: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+}
+
 /// Corrected post-review (Cameron): MSC 1 conversion always names a
 /// separate, opposite-edition *target* server (`targetServerId`) — the
 /// source slot lives on the currently-active server, but the converted

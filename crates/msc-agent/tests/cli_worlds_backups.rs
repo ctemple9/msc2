@@ -31,6 +31,7 @@ fn cli_worlds_backups_world_help_lists_every_verb() {
         "duplicate",
         "copy",
         "import",
+        "replace-active",
         "export",
         "activate",
         "convert",
@@ -78,6 +79,38 @@ fn cli_worlds_backups_world_import_help_shows_path_and_name() {
     let stdout = stdout(&output);
     assert!(stdout.contains("<PATH>"));
     assert!(stdout.contains("<NAME>"));
+}
+
+#[test]
+fn cli_worlds_backups_world_replace_active_help_shows_source_and_no_wait_flags() {
+    let output = run_cli(&["world", "replace-active", "--help"], &[]);
+
+    assert!(output.status.success(), "stderr: {}", stderr(&output));
+    let stdout = stdout(&output);
+    assert!(stdout.contains("<NEW_LEVEL_NAME>"));
+    assert!(stdout.contains("--source"));
+    assert!(stdout.contains("--no-wait"));
+}
+
+#[test]
+fn cli_worlds_backups_world_replace_active_missing_source_file_exits_with_usage_error() {
+    let output = run_cli(
+        &[
+            "world",
+            "replace-active",
+            "brand-new",
+            "--source",
+            "/nonexistent/path/does-not-exist.zip",
+        ],
+        &[("MSC2_CLI_TOKEN", "msc2_testid_testsecret")],
+    );
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        stderr(&output).contains("failed to read"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]

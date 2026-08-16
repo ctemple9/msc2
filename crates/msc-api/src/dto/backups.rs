@@ -89,13 +89,15 @@ pub struct BackupDeleteRequestDto {
     pub backup_id: String,
 }
 
-/// `purpose` is a closed enum — one value today (`world-import`), per
-/// `phase6-api.md` §4: a staging slot can only be redeemed by the route
-/// it was created for.
+/// `purpose` is a closed enum, per `phase6-api.md` §4: a staging slot can
+/// only be redeemed by the route it was created for. P6.34 adds
+/// `ActiveWorldReplace` (`active-world-replace`) alongside the original
+/// `WorldImport` value for the new direct-live-world-replacement route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum StagedUploadPurposeDto {
     WorldImport,
+    ActiveWorldReplace,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

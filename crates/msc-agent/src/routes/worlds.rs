@@ -58,13 +58,13 @@ use msc_api::dto::{
     WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto,
     WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto,
     WorldImportRequestDto, WorldMutationResultDto, WorldRenameActiveWorldRequestDto,
-    WorldRenameRequestDto, WorldRepairRequestDto, WorldReplaceRequestDto, WorldSlotDto,
-    WorldSlotsResponseDto,
+    WorldRenameRequestDto, WorldRepairRequestDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_application::world_conversion::{
     self, ConversionError, ConversionPlacement, WorldConverter,
 };
-use msc_application::worlds::{self, WorldError};
+use msc_application::worlds::{self, WorldError, WorldReplaceSource};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
 use msc_domain::world::WorldSlot;
@@ -105,6 +105,7 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds/import", post(import))
         .route("/worlds/export", post(export))
         .route("/worlds/rename-active-world", post(rename_active_world))
+        .route("/worlds/replace-active-world", post(replace_active))
         .route("/worlds/activate", post(activate))
         .route("/worlds/convert", post(convert))
         .route("/worlds/:slot_id/thumbnail", get(thumbnail))
@@ -351,6 +352,26 @@ fn world_error_response(error: WorldError) -> Response {
             "conflict",
             "Slot has no saved world archive.",
         ),
+        // P6.34: `replace_world` (P6.33) is the one caller of these three
+        // — reached only from `replace_active` below, and only via its
+        // background task's own `Ok(Err(error)) => fail(...)` arm (which
+        // uses `error.to_string()` directly, the same convention
+        // `activate`/`convert`/`restore` already use for their async
+        // failures), never through this synchronous responder. Covered
+        // here purely so this match stays exhaustive over `WorldError`.
+        WorldError::SafetyBackupFailed(_) => error_response(
+            StatusCode::CONFLICT,
+            "conflict",
+            "Pre-replace safety backup failed.",
+        ),
+        WorldError::Manifest => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "Replace transaction manifest is missing or unreadable.",
+        ),
+        WorldError::Cancelled => {
+            error_response(StatusCode::CONFLICT, "conflict", "Operation was cancelled.")
+        }
         WorldError::Io(_) | WorldError::Archive(_) | WorldError::AtomicWrite(_) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             "internal_error",
@@ -794,7 +815,15 @@ pub async fn begin_staged_upload(
     let Some(Json(body)) = body else {
         return invalid_body("invalid_json", "Request body must be valid JSON.");
     };
-    let StagedUploadPurposeDto::WorldImport = body.purpose;
+    // Both closed-enum purposes begin the same way — bytes land in the
+    // same uploads store, tagged with whichever `purpose` the caller
+    // named. Redemption (`import`/`replace_active`) is what actually
+    // enforces "a staging slot can only be redeemed by the route it was
+    // created for" (`phase6-api.md` §4), by checking the stored purpose
+    // matches.
+    match body.purpose {
+        StagedUploadPurposeDto::WorldImport | StagedUploadPurposeDto::ActiveWorldReplace => {}
+    }
 
     let id = Uuid::new_v4().to_string();
     let servers_root = state.lifecycle.servers_root();
@@ -1226,6 +1255,178 @@ fn run_pre_mutation_safety_backup(
         || false,
     )
     .is_ok()
+}
+
+// =====================================================================
+// Async: replace-active-world (P6.34) — exposes P6.33's transactional
+// `worlds::replace_world` through the agent, separately named from
+// `POST /v1/worlds/replace` (`replace` above, a saved-slot-to-saved-slot
+// copy — `phase6-api.md` SS9/SS10 records why they're distinct
+// operations). Follows `routes/backups.rs::restore`'s shape — a
+// mandatory safety backup plus a transactional live-world swap, guard-
+// ordered the same way (cheap up-front checks, then a journaled
+// operation, then the real work on a spawned blocking task) — rather
+// than `activate`'s, since restore is the closer existing analog.
+// =====================================================================
+
+pub async fn replace_active(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Option<Json<WorldReplaceActiveRequestDto>>,
+) -> Response {
+    let lifecycle = state.lifecycle.clone();
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let Some(Json(body)) = body else {
+        return invalid_body("invalid_json", "Request body must be valid JSON.");
+    };
+    if body.new_level_name.trim().is_empty() {
+        return invalid_body("name_required", "newLevelName must not be blank.");
+    }
+    let server = match active_server_or_response(&lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    let server_dir = Path::new(&server.server_dir).to_path_buf();
+
+    // Cheap, up-front checks that need no journaled operation to observe
+    // them — mirroring `restore`'s own "running-server, then missing-
+    // source" ordering. `replace_world` re-checks running-server itself
+    // (`false` is passed below because this guard already refused
+    // otherwise), the same "outer route pre-checks, inner service
+    // re-checks" belt-and-braces `restore` already has.
+    if lifecycle.status_snapshot().running {
+        return error_response(StatusCode::CONFLICT, "server_running", "Server is running.");
+    }
+
+    // Redeem the staged upload up front (if any) — the same "missing,
+    // expired, or wrong-purpose staged id is a plain 404" contract
+    // `import` already established. Never an arbitrary server-local
+    // path: the only sources this route can ever build are `Fresh` (no
+    // upload given) or `BackupZip` (an uploaded, bounded, server-
+    // generated staging path) — `WorldReplaceSource::ExistingFolder`
+    // is unreachable from this route.
+    let world_source = if let Some(staged_upload_id) = &body.staged_upload_id {
+        let entry = {
+            state
+                .staging
+                .uploads
+                .lock()
+                .unwrap()
+                .remove(staged_upload_id)
+        };
+        let Some(entry) = entry else {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown or already-redeemed staged upload.",
+            );
+        };
+        if now_unix() > entry.expires_at_unix
+            || !matches!(entry.purpose, StagedUploadPurposeDto::ActiveWorldReplace)
+        {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown or already-redeemed staged upload.",
+            );
+        }
+        WorldReplaceSource::BackupZip(entry.path)
+    } else {
+        WorldReplaceSource::Fresh
+    };
+
+    // Resolve the mandatory safety backup's association before spawning
+    // — the same "load slots/active id up front, hand the association to
+    // the background task" shape `restore` already uses.
+    let slots = world_store::load_slots(&StdFileSystem, &server_dir);
+    let marker = world_store::load_explicit_active_slot_id(&StdFileSystem, &server_dir);
+    let active_id = msc_domain::world::resolve_active_slot_id(&slots, marker.as_deref());
+    let association =
+        msc_domain::world::effective_backup_association(&slots, active_id.as_deref(), None, None);
+
+    let operation_id = match begin_operation(
+        &lifecycle,
+        &server.id,
+        "world-replace-active",
+        "Replacing active world.",
+    ) {
+        Ok(id) => id,
+        Err(response) => return response,
+    };
+
+    let server_type = server.server_type;
+    let server_id = server.id.clone();
+    let server_name = server.display_name.clone();
+    let new_level_name = body.new_level_name.trim().to_string();
+    let task_lifecycle = lifecycle.clone();
+    let task_operation_id = operation_id.clone();
+    let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
+    tokio::spawn(async move {
+        let now = iso8601_now();
+        let result = tokio::task::spawn_blocking(move || {
+            worlds::replace_world(
+                &StdFileSystem,
+                &server_dir,
+                server_type,
+                None,
+                &new_level_name,
+                &world_source,
+                false,
+                &association,
+                Some(&server_id),
+                Some(&server_name),
+                &now,
+                should_cancel,
+            )
+        })
+        .await;
+        match result {
+            Ok(Ok(_)) => {
+                let mut result = BTreeMap::new();
+                result.insert("result".to_string(), "replaced".to_string());
+                let _ = task_lifecycle.operations().succeed(
+                    &task_operation_id,
+                    "Replacement complete.",
+                    result,
+                );
+            }
+            Ok(Err(WorldError::Cancelled)) => {
+                let _ = task_lifecycle
+                    .operations()
+                    .cancel(&task_operation_id, "Replacement cancelled.");
+            }
+            Ok(Err(error)) => {
+                let _ = task_lifecycle.operations().fail(
+                    &task_operation_id,
+                    "world_error",
+                    error.to_string(),
+                );
+            }
+            Err(_) => {
+                let _ = task_lifecycle.operations().fail(
+                    &task_operation_id,
+                    "internal_error",
+                    "Replacement task panicked.".to_string(),
+                );
+            }
+        }
+    });
+
+    let response = Json(WorldReplaceActiveResultDto {
+        result: "replace_started".to_string(),
+        operation_id: Some(operation_id.as_str().to_string()),
+    })
+    .into_response();
+    audit(
+        &lifecycle,
+        &credential,
+        "POST",
+        "/v1/worlds/replace-active-world",
+        response.status(),
+    );
+    response
 }
 
 // =====================================================================
@@ -2183,6 +2384,210 @@ mod tests {
         )
         .await;
         assert_eq!(second.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn world_backup_routes_replace_active_fresh_round_trip_creates_safety_backup() {
+        let (lifecycle, server_dir) = state_with_active_server("replace-fresh");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        assert!(server_dir.join("world").exists());
+
+        let response = replace_active(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldReplaceActiveRequestDto {
+                new_level_name: "brand-new".to_string(),
+                staged_upload_id: None,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let result: WorldReplaceActiveResultDto = json_body(response).await;
+        assert_eq!(result.result, "replace_started");
+        let operation_id = result.operation_id.expect("replace is operation-backed");
+
+        let snapshot = poll_operation_to_terminal(&lifecycle, &operation_id).await;
+        assert_eq!(
+            snapshot.state,
+            msc_api::dto::OperationStateDto::Succeeded,
+            "{snapshot:?}"
+        );
+
+        // The old "world" folder is gone -- a fresh world generates on
+        // next start -- but the mandatory, untokened pre-replace safety
+        // backup protects it first.
+        assert!(!server_dir.join("world").exists());
+        let backups = msc_application::backups::list_backups(&StdFileSystem, &server_dir);
+        assert!(
+            backups.iter().any(|b| b.trigger_reason == "pre-replace"),
+            "expected a pre-replace safety backup, got {backups:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn world_backup_routes_replace_active_staged_upload_round_trip() {
+        let (lifecycle, server_dir) = state_with_active_server("replace-staged");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        let begin = begin_staged_upload(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(StagedUploadBeginRequestDto {
+                purpose: StagedUploadPurposeDto::ActiveWorldReplace,
+                content_type: None,
+            })),
+        )
+        .await;
+        assert_eq!(begin.status(), StatusCode::OK);
+        let begun: StagedUploadBeginResultDto = json_body(begin).await;
+
+        // A real, tiny zip whose one top-level entry is named after the
+        // new level name -- `apply_world_identity` only ever writes
+        // `level-name` into `server.properties`; it doesn't rename
+        // anything on disk, so a caller-supplied `newLevelName` must
+        // already match the uploaded source's own folder name for the
+        // two to agree post-replace (the same contract P6.33's
+        // `replace_world` already established for `BackupZip`/
+        // `ExistingFolder` sources).
+        let zip_bytes = {
+            let mut buf = std::io::Cursor::new(Vec::new());
+            {
+                let mut writer = zip::ZipWriter::new(&mut buf);
+                writer
+                    .start_file(
+                        "restored-world/level.dat",
+                        zip::write::SimpleFileOptions::default(),
+                    )
+                    .unwrap();
+                use std::io::Write;
+                writer.write_all(b"uploaded level dat").unwrap();
+                writer.finish().unwrap();
+            }
+            buf.into_inner()
+        };
+        let upload = upload_staged_bytes(
+            State(state.clone()),
+            Extension(credential.clone()),
+            AxumPath(begun.staged_upload_id.clone()),
+            Bytes::from(zip_bytes),
+        )
+        .await;
+        assert_eq!(upload.status(), StatusCode::OK);
+
+        let response = replace_active(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldReplaceActiveRequestDto {
+                new_level_name: "restored-world".to_string(),
+                staged_upload_id: Some(begun.staged_upload_id.clone()),
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let result: WorldReplaceActiveResultDto = json_body(response).await;
+        let operation_id = result.operation_id.expect("replace is operation-backed");
+
+        let snapshot = poll_operation_to_terminal(&lifecycle, &operation_id).await;
+        assert_eq!(
+            snapshot.state,
+            msc_api::dto::OperationStateDto::Succeeded,
+            "{snapshot:?}"
+        );
+
+        let installed = server_dir.join("restored-world/level.dat");
+        assert_eq!(std::fs::read(&installed).unwrap(), b"uploaded level dat");
+
+        // An already-redeemed staged upload cannot be reused.
+        let second = replace_active(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldReplaceActiveRequestDto {
+                new_level_name: "again".to_string(),
+                staged_upload_id: Some(begun.staged_upload_id.clone()),
+            })),
+        )
+        .await;
+        assert_eq!(second.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn world_backup_routes_replace_active_rejects_wrong_purpose_staged_upload() {
+        let (lifecycle, _dir) = state_with_active_server("replace-wrong-purpose");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        let begin = begin_staged_upload(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(StagedUploadBeginRequestDto {
+                purpose: StagedUploadPurposeDto::WorldImport,
+                content_type: None,
+            })),
+        )
+        .await;
+        let begun: StagedUploadBeginResultDto = json_body(begin).await;
+        let upload = upload_staged_bytes(
+            State(state.clone()),
+            Extension(credential.clone()),
+            AxumPath(begun.staged_upload_id.clone()),
+            Bytes::from_static(b"irrelevant bytes for this purpose-only guard"),
+        )
+        .await;
+        assert_eq!(upload.status(), StatusCode::OK);
+
+        // `replace_active` never redeems a staged upload begun for a
+        // different purpose, even though `upload_staged_bytes` itself
+        // accepted the bytes -- "a staging slot can only be redeemed by
+        // the route it was created for" (phase6-api.md SS4).
+        let response = replace_active(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldReplaceActiveRequestDto {
+                new_level_name: "whatever".to_string(),
+                staged_upload_id: Some(begun.staged_upload_id.clone()),
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn world_backup_routes_replace_active_requires_worlds_permission() {
+        let (lifecycle, _dir) = state_with_active_server("replace-perm");
+        let state = WorldsRoutesState::new(lifecycle);
+        let response = replace_active(
+            State(state),
+            Extension(other_credential()),
+            Some(Json(WorldReplaceActiveRequestDto {
+                new_level_name: "whatever".to_string(),
+                staged_upload_id: None,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    /// Shared poll loop for `world-replace-active`'s async operation —
+    /// real filesystem work, no fake clock to advance, mirroring
+    /// `world_backup_routes_activate_is_async_and_pollable`'s own
+    /// inline loop.
+    async fn poll_operation_to_terminal(
+        lifecycle: &LifecycleRoutesState,
+        operation_id: &str,
+    ) -> msc_api::dto::OperationDto {
+        for _ in 0..200 {
+            if let Some(record) = lifecycle.operations().snapshot(operation_id)
+                && (record.state == msc_api::dto::OperationStateDto::Succeeded
+                    || record.state == msc_api::dto::OperationStateDto::Failed)
+            {
+                return record;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("operation {operation_id} never reached a terminal state");
     }
 
     #[tokio::test]

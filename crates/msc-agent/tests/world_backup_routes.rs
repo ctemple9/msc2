@@ -96,6 +96,15 @@ fn world_backup_routes_are_mounted_behind_bearer_auth() {
         response.lines().next().unwrap_or_default()
     );
 
+    // P6.34: the new direct-live-world-replacement route is a POST, not
+    // a GET -- same mounted-but-auth-gated proof via a POST helper.
+    let response = http_post(port, "/v1/worlds/replace-active-world", None);
+    assert!(
+        response.starts_with("HTTP/1.1 401"),
+        "/v1/worlds/replace-active-world expected 401 (mounted + auth-gated), got: {}",
+        response.lines().next().unwrap_or_default()
+    );
+
     stop_child(&mut agent);
     cleanup_secret(&keychain_service, "remote-api.owner-token");
 }
@@ -149,6 +158,26 @@ fn http_get(port: u16, path: &str, bearer: Option<&str>) -> String {
     write!(
         stream,
         "GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{auth}Connection: close\r\n\r\n"
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    response
+}
+
+fn http_post(port: u16, path: &str, bearer: Option<&str>) -> String {
+    let Ok(mut stream) = TcpStream::connect(SocketAddr::from(([127, 0, 0, 1], port))) else {
+        return String::new();
+    };
+    let auth = bearer
+        .map(|token| format!("Authorization: Bearer {token}\r\n"))
+        .unwrap_or_default();
+    let body = "{}";
+    write!(
+        stream,
+        "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{auth}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        body.len(),
+        body
     )
     .unwrap();
     let mut response = String::new();

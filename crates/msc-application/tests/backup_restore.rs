@@ -84,6 +84,7 @@ fn restore(
         None,
         None,
         "2026-02-14T15:30:45Z",
+        || false,
     )
 }
 

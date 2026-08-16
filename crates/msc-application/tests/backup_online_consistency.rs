@@ -251,6 +251,7 @@ fn backup_online_consistency_zip_failure_still_resumes_saves() {
         "2026-02-14T15:30:45Z",
         Some(&console),
         || true,
+        || false,
     );
 
     fs::set_permissions(&locked, fs::Permissions::from_mode(0o755)).unwrap();
@@ -293,6 +294,7 @@ fn backup_online_consistency_sidecar_write_failure_does_not_fail_backup() {
         None,
         "2026-02-14T15:30:45Z",
         None,
+        || false,
         || false,
     )
     .unwrap();

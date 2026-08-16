@@ -1201,6 +1201,12 @@ pub enum ActivationError {
     Io(io::Error),
     AtomicWrite(AtomicWriteError),
     Manifest,
+    /// `should_cancel` reported true at a boundary where nothing at the
+    /// server root had been touched yet (before staging began, or after
+    /// staging but before the live folders were moved aside) — see
+    /// [`activate_slot`]'s own doc. The live world is untouched, and any
+    /// scratch staging this attempt created has already been cleaned up.
+    Cancelled,
 }
 
 impl fmt::Display for ActivationError {
@@ -1216,6 +1222,7 @@ impl fmt::Display for ActivationError {
             ActivationError::Io(e) => write!(f, "{e}"),
             ActivationError::AtomicWrite(e) => write!(f, "{e}"),
             ActivationError::Manifest => write!(f, "interrupted activation manifest is unreadable"),
+            ActivationError::Cancelled => write!(f, "activation was cancelled"),
         }
     }
 }
@@ -1292,6 +1299,21 @@ fn resolve_activation_identity(
 /// when live folders currently exist, matching source's own
 /// `!currentFolders.isEmpty` condition, and aborts the whole activation
 /// before any folder is touched if it returns `false`.
+///
+/// `should_cancel` (P6.30) is cooperative-cancellation support: polled
+/// only at the two boundaries where the live world at the server root
+/// has not yet been touched — before the pre-activation backup/staging
+/// begins at all, and again once staging (phase 1) has finished but
+/// before phase 2 starts moving the current live folders aside. A `true`
+/// observed at either point cleans up any scratch staging this call
+/// created and returns [`ActivationError::Cancelled`] with the live
+/// world completely untouched. Once phase 2 begins, the transaction runs
+/// to completion unconditionally — the same "finish the current atomic
+/// filesystem action safely" rule [`reconcile_interrupted_activation`]'s
+/// own restart recovery already depends on, since an activation that
+/// stopped mid-phase-2/3 needs that recovery path regardless of why it
+/// stopped.
+#[allow(clippy::too_many_arguments)]
 pub fn activate_slot(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -1300,9 +1322,13 @@ pub fn activate_slot(
     is_server_running: bool,
     now: &str,
     backup: impl FnOnce() -> bool,
+    should_cancel: impl Fn() -> bool,
 ) -> Result<WorldSlot, ActivationError> {
     if is_server_running {
         return Err(ActivationError::ServerRunning);
+    }
+    if should_cancel() {
+        return Err(ActivationError::Cancelled);
     }
 
     let (has_archive, identity) = resolve_activation_identity(fs, server_dir, server_type, slot)?;
@@ -1334,6 +1360,14 @@ pub fn activate_slot(
         if let Some(identity) = &identity {
             relocate_legacy_bedrock_layout(&staged_dir, &identity.level_name);
         }
+    }
+
+    // Last chance to cancel for free: staging is complete but nothing at
+    // the server root has been touched yet, so backing out here is just
+    // deleting the scratch directory this call itself just created.
+    if should_cancel() {
+        let _ = fs.remove(&activation_dir(server_dir));
+        return Err(ActivationError::Cancelled);
     }
 
     // Phase 2: move the current live folders aside.

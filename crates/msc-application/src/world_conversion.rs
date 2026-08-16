@@ -139,6 +139,17 @@ pub enum ConversionError {
     Io(io::Error),
     Archive(ArchiveError),
     AtomicWrite(AtomicWriteError),
+    /// `should_cancel` (P6.30) reported true at one of this function's own
+    /// checkpoints (entry, or immediately before the Chunker process
+    /// starts) — the temp working directory ([`TempRootGuard`]) is
+    /// cleaned up either way, and neither the target slot nor the target
+    /// server's live world has been touched. Not returned once step 5
+    /// (placement) has started: from there the same "finish the current
+    /// atomic filesystem action safely" rule applies, and the nested
+    /// [`worlds::activate_slot`] call at step 7 makes its own independent
+    /// cancellation check at its own boundary before it touches the
+    /// target's live world.
+    Cancelled,
 }
 
 impl fmt::Display for ConversionError {
@@ -156,6 +167,7 @@ impl fmt::Display for ConversionError {
             ConversionError::Io(e) => write!(f, "{e}"),
             ConversionError::Archive(e) => write!(f, "{e}"),
             ConversionError::AtomicWrite(e) => write!(f, "{e}"),
+            ConversionError::Cancelled => write!(f, "conversion was cancelled"),
         }
     }
 }
@@ -445,6 +457,9 @@ fn replace_slot_with_converted_zip(
 ///   already established, so this module stays independent of the
 ///   backups module's own many-argument surface. A `false` result is a
 ///   warning, not an abort — matching source exactly.
+/// - `should_cancel` (P6.30): checked at entry and again immediately
+///   before the Chunker process starts (the longest-running step) — see
+///   [`ConversionError::Cancelled`].
 #[allow(clippy::too_many_arguments)]
 pub fn convert_world(
     fs: &dyn FileSystem,
@@ -463,9 +478,13 @@ pub fn convert_world(
     now: &str,
     pre_conversion_backup: impl FnOnce() -> bool,
     mut progress: impl FnMut(&str),
+    should_cancel: impl Fn() -> bool,
 ) -> Result<WorldSlot, ConversionError> {
     if is_source_running || is_target_running {
         return Err(ConversionError::ServerRunning);
+    }
+    if should_cancel() {
+        return Err(ConversionError::Cancelled);
     }
 
     // Source lines 79-82: java resolution is checked strictly before
@@ -524,6 +543,13 @@ pub fn convert_world(
     .ok_or(ConversionError::WorldFolderNotFound)?;
     if let Some(name) = input_world_dir.file_name().and_then(|n| n.to_str()) {
         progress(&format!("Found world: {name}"));
+    }
+
+    // Last chance to cancel before the longest-running step: nothing at
+    // either server has been touched yet, only the temp working
+    // directory, which `TempRootGuard` cleans up either way.
+    if should_cancel() {
+        return Err(ConversionError::Cancelled);
     }
 
     // Step 3: run Chunker.
@@ -592,9 +618,16 @@ pub fn convert_world(
         is_target_running,
         now,
         || true,
+        &should_cancel,
     )
-    .map_err(|_| {
-        ConversionError::ConversionFailed("Failed to activate converted world slot.".to_string())
+    .map_err(|error| {
+        if matches!(error, worlds::ActivationError::Cancelled) {
+            ConversionError::Cancelled
+        } else {
+            ConversionError::ConversionFailed(
+                "Failed to activate converted world slot.".to_string(),
+            )
+        }
     })?;
 
     progress("Conversion complete.");

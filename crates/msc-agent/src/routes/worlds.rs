@@ -1125,6 +1125,7 @@ pub async fn activate(
     let running = lifecycle.status_snapshot().running;
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
+    let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
     tokio::spawn(async move {
         let now = iso8601_now();
         let backup_lifecycle = task_lifecycle.clone();
@@ -1139,6 +1140,7 @@ pub async fn activate(
                 running,
                 &now,
                 || run_pre_mutation_safety_backup(&backup_lifecycle, &backup_dir, backup_type),
+                should_cancel,
             )
         })
         .await;
@@ -1151,6 +1153,11 @@ pub async fn activate(
                     "Activation complete.",
                     result,
                 );
+            }
+            Ok(Err(worlds::ActivationError::Cancelled)) => {
+                let _ = task_lifecycle
+                    .operations()
+                    .cancel(&task_operation_id, "Activation cancelled.");
             }
             Ok(Err(error)) => {
                 let _ = task_lifecycle.operations().fail(
@@ -1215,6 +1222,7 @@ fn run_pre_mutation_safety_backup(
         None,
         &now,
         None,
+        || false,
         || false,
     )
     .is_ok()
@@ -1353,6 +1361,7 @@ pub async fn convert(
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
     let task_operation_id_progress = operation_id.clone();
+    let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
     tokio::spawn(async move {
         let now = iso8601_now();
         let backup_lifecycle = task_lifecycle.clone();
@@ -1385,6 +1394,7 @@ pub async fn convert(
                 &now,
                 || run_pre_mutation_safety_backup(&backup_lifecycle, &backup_dir, backup_type),
                 &mut progress,
+                should_cancel,
             )
         })
         .await;
@@ -1397,6 +1407,11 @@ pub async fn convert(
                     "Conversion complete.",
                     result,
                 );
+            }
+            Ok(Err(ConversionError::Cancelled)) => {
+                let _ = task_lifecycle
+                    .operations()
+                    .cancel(&task_operation_id, "Conversion cancelled.");
             }
             Ok(Err(error)) => {
                 let code = if matches!(

@@ -127,6 +127,13 @@ pub enum BackupError {
     /// correction (see the module-level P6.16 doc), with no Swift
     /// counterpart: MSC 1 treats a zero `zip` exit status as sufficient.
     VerificationFailed,
+    /// `should_cancel` (P6.30) reported true before archive creation
+    /// began — nothing was written. Checked once, at entry only: once
+    /// `archive::create_zip_from_folders` starts, this function's own
+    /// work is already a single atomic filesystem action (one archive
+    /// write), the same "finish it safely" rule every other P6.30 worker
+    /// boundary follows.
+    Cancelled,
 }
 
 impl fmt::Display for BackupError {
@@ -138,6 +145,7 @@ impl fmt::Display for BackupError {
             BackupError::VerificationFailed => {
                 write!(f, "backup archive failed post-creation verification")
             }
+            BackupError::Cancelled => write!(f, "backup was cancelled"),
         }
     }
 }
@@ -189,6 +197,8 @@ pub struct BackupCreationResult {
 ///   the same shape `worlds::activate_slot`'s `backup` parameter uses
 ///   for the same reason (a caller-observed condition this function
 ///   can't itself know without asking).
+/// - `should_cancel` (P6.30): polled once, before any directory is
+///   created or byte is written — see [`BackupError::Cancelled`].
 #[allow(clippy::too_many_arguments)]
 pub fn create_backup(
     fs: &dyn FileSystem,
@@ -205,7 +215,11 @@ pub fn create_backup(
     now: &str,
     console: Option<&dyn BackupConsole>,
     still_running_at_resume: impl FnOnce() -> bool,
+    should_cancel: impl Fn() -> bool,
 ) -> Result<BackupCreationResult, BackupError> {
+    if should_cancel() {
+        return Err(BackupError::Cancelled);
+    }
     let level_name = world::current_level_name(server_type, raw_level_name);
     let folders = crate::worlds::existing_world_folders(fs, server_dir, server_type, &level_name);
     if folders.is_empty() {
@@ -467,6 +481,7 @@ pub fn scheduled_tick(
         now,
         None,
         || false,
+        || false,
     );
     ScheduledTickOutcome::Fired(result)
 }
@@ -557,6 +572,14 @@ pub enum RestoreError {
     ArchiveInvalid,
     Io(io::Error),
     Archive(ArchiveError),
+    /// `should_cancel` (P6.30) reported true at one of the same two
+    /// "nothing at the server root touched yet" boundaries
+    /// `ActivationError::Cancelled` documents — before the mandatory
+    /// safety backup/staging begins, or after staging but before the
+    /// live folders move. The safety backup this restore attempt already
+    /// created (if any) is left on disk regardless, matching every other
+    /// exit from this function.
+    Cancelled,
 }
 
 impl fmt::Display for RestoreError {
@@ -585,6 +608,7 @@ impl fmt::Display for RestoreError {
             }
             RestoreError::Io(e) => write!(f, "{e}"),
             RestoreError::Archive(e) => write!(f, "{e}"),
+            RestoreError::Cancelled => write!(f, "restore was cancelled"),
         }
     }
 }
@@ -620,6 +644,13 @@ fn restore_prior_dir(server_dir: &Path) -> PathBuf {
 /// [`create_backup`] call — resolved by the caller
 /// ([`world::effective_backup_association`]) exactly as every other
 /// backup-creating call site in this module already requires.
+/// `should_cancel` (P6.30) is checked before the mandatory safety backup
+/// begins at all, and again once the restored archive has finished
+/// staging but before the live folders move — the identical two-boundary
+/// shape [`crate::worlds::activate_slot`]'s own `should_cancel` parameter
+/// documents, for the same reason: both are "nothing at the server root
+/// touched yet" points, and both hand off to the same restart-recovery
+/// guarantee once phase 2 begins.
 #[allow(clippy::too_many_arguments)]
 pub fn restore_backup(
     fs: &dyn FileSystem,
@@ -634,6 +665,7 @@ pub fn restore_backup(
     safety_backup_server_id: Option<&str>,
     safety_backup_server_display_name: Option<&str>,
     now: &str,
+    should_cancel: impl Fn() -> bool,
 ) -> Result<RestoreOutcome, RestoreError> {
     if server_type == ServerType::Bedrock {
         return Err(RestoreError::BedrockNotSupported);
@@ -652,6 +684,9 @@ pub fn restore_backup(
     if !matches!(fs.stat(backup_zip_path), Ok(meta) if meta.is_file) {
         return Err(RestoreError::SourceMissing);
     }
+    if should_cancel() {
+        return Err(RestoreError::Cancelled);
+    }
 
     let safety_backup = create_backup(
         fs,
@@ -667,6 +702,7 @@ pub fn restore_backup(
         None,
         now,
         None,
+        || false,
         || false,
     )
     .map_err(RestoreError::SafetyBackupFailed)?;
@@ -690,6 +726,13 @@ pub fn restore_backup(
     if let Err(e) = archive::extract_zip(backup_zip_path, &staged_dir) {
         let _ = fs.remove(&restore_dir(server_dir));
         return Err(RestoreError::Archive(e));
+    }
+
+    // Last chance to cancel for free: staging is complete but nothing at
+    // the server root has been touched yet.
+    if should_cancel() {
+        let _ = fs.remove(&restore_dir(server_dir));
+        return Err(RestoreError::Cancelled);
     }
 
     // Phase 2: move the current live folders aside.

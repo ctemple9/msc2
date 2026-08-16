@@ -279,6 +279,7 @@ pub async fn now(
     let running = lifecycle.status_snapshot().running;
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
+    let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
     tokio::spawn(async move {
         let now = iso8601_now();
         let backup_lifecycle = task_lifecycle.clone();
@@ -312,6 +313,7 @@ pub async fn now(
                 &now,
                 console.as_ref().map(|c| c as &dyn BackupConsole),
                 || backup_lifecycle.status_snapshot().running,
+                should_cancel,
             )
         })
         .await;
@@ -324,6 +326,11 @@ pub async fn now(
                     "Backup complete.",
                     result,
                 );
+            }
+            Ok(Err(backups::BackupError::Cancelled)) => {
+                let _ = task_lifecycle
+                    .operations()
+                    .cancel(&task_operation_id, "Backup cancelled.");
             }
             Ok(Err(error)) => {
                 let _ = task_lifecycle.operations().fail(
@@ -426,6 +433,7 @@ pub async fn restore(
     let server_name = server.display_name.clone();
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
+    let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
     tokio::spawn(async move {
         let now = iso8601_now();
         let association = msc_domain::world::effective_backup_association(
@@ -450,6 +458,7 @@ pub async fn restore(
                 Some(&server_id),
                 Some(&server_name),
                 &now,
+                should_cancel,
             )
         })
         .await;
@@ -462,6 +471,11 @@ pub async fn restore(
                     "Restore complete.",
                     result,
                 );
+            }
+            Ok(Err(RestoreError::Cancelled)) => {
+                let _ = task_lifecycle
+                    .operations()
+                    .cancel(&task_operation_id, "Restore cancelled.");
             }
             Ok(Err(error)) => {
                 let code = match error {

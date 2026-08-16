@@ -401,6 +401,7 @@ fn real_backup_restores_non_destructively_and_the_restored_world_saves_and_reloa
         None,
         None,
         "2026-08-16T00:00:00Z",
+        || false,
     )
     .unwrap_or_else(|e| {
         panic!(

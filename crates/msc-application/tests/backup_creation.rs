@@ -90,6 +90,7 @@ fn backup_creation_manual_backup_uses_manual_token_and_reason() {
         "2026-02-14T15:30:45Z",
         None,
         || false,
+        || false,
     )
     .unwrap();
 
@@ -128,6 +129,7 @@ fn backup_creation_auto_backup_uses_auto_token_and_reason() {
         "2026-02-14T15:30:45Z",
         None,
         || false,
+        || false,
     )
     .unwrap();
 
@@ -165,6 +167,7 @@ fn backup_creation_pre_replace_backup_has_no_token() {
         None,
         "2026-02-14T15:30:45Z",
         None,
+        || false,
         || false,
     )
     .unwrap();
@@ -214,6 +217,7 @@ fn backup_creation_association_explicit_slot_id_overrides_active_slot() {
         "2026-02-14T15:30:45Z",
         None,
         || false,
+        || false,
     )
     .unwrap();
 
@@ -248,6 +252,7 @@ fn backup_creation_association_falls_back_to_active_slot() {
         None,
         "2026-02-14T15:30:45Z",
         None,
+        || false,
         || false,
     )
     .unwrap();
@@ -284,6 +289,7 @@ fn backup_creation_no_world_folders_returns_error() {
         "2026-02-14T15:30:45Z",
         None,
         || false,
+        || false,
     );
 
     assert!(matches!(result, Err(BackupError::NoWorldFolders)));
@@ -315,6 +321,7 @@ fn backup_creation_captures_every_java_dimension_folder() {
         None,
         "2026-02-14T15:30:45Z",
         None,
+        || false,
         || false,
     )
     .unwrap();
@@ -364,6 +371,7 @@ fn backup_creation_auto_prune_runs_before_creating_new_backup() {
         "2026-02-14T15:30:45Z",
         None,
         || false,
+        || false,
     )
     .unwrap();
 
@@ -402,6 +410,7 @@ fn backup_creation_zip_write_failure_returns_archive_error() {
         None,
         "2026-02-14T15:30:45Z",
         None,
+        || false,
         || false,
     );
 

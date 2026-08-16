@@ -252,6 +252,7 @@ fn run(
         "2026-08-15T00:00:00Z",
         || backup_ok,
         |line: &str| log.push(line.to_string()),
+        || false,
     )
 }
 

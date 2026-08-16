@@ -118,6 +118,7 @@ fn world_activation_refused_while_server_running() {
         true,
         "2026-06-01T00:00:00Z",
         || panic!("backup must not run when the server is refused for running"),
+        || false,
     )
     .unwrap_err();
 
@@ -143,6 +144,7 @@ fn world_activation_backup_failure_aborts_before_any_world_mutation() {
         &slot,
         false,
         "2026-06-01T00:00:00Z",
+        || false,
         || false,
     )
     .unwrap_err();
@@ -181,6 +183,7 @@ fn world_activation_mandatory_pre_activation_backup_runs_before_any_move() {
             );
             true
         },
+        || false,
     )
     .unwrap();
 
@@ -216,6 +219,7 @@ fn world_activation_extraction_failure_leaves_live_world_untouched() {
         false,
         "2026-06-01T00:00:00Z",
         || true,
+        || false,
     )
     .unwrap_err();
 
@@ -257,6 +261,7 @@ fn world_activation_fresh_archive_less_slot_defers_world_generation() {
         false,
         "2026-06-01T00:00:00Z",
         || true,
+        || false,
     )
     .unwrap();
 
@@ -306,6 +311,7 @@ fn world_activation_legacy_zip_loose_worlds_root_relocated() {
         false,
         "2026-06-01T00:00:00Z",
         || true,
+        || false,
     )
     .unwrap();
 

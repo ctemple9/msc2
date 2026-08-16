@@ -101,6 +101,82 @@ fn lifecycle_operations_restart_reconciliation_marks_running_lifecycle_failed() 
     assert_eq!(snapshot.error.unwrap().code, "operation_interrupted");
 }
 
+/// P6.30: requesting cancellation signals the worker's flag but does
+/// *not* itself transition the record — the operation stays `running`
+/// (and its journal admission still exclusive) until the worker that
+/// owns it actually observes the flag and calls `cancel()` itself.
+#[test]
+fn lifecycle_operations_request_cancel_does_not_transition_state() {
+    let fs = FakeFileSystem::new().with_file(format!("{DIR}/.keep"), Vec::new(), false);
+    let operations = make_operations(&fs);
+    let id = operations
+        .begin_running("world-activate", Some("paper-1".to_string()), "Working.")
+        .unwrap();
+
+    operations.request_cancel(&id, "Cancelling…").unwrap();
+
+    let snapshot = operations.snapshot(&id).unwrap().unwrap();
+    assert_eq!(snapshot.state, OperationState::Running);
+    assert_eq!(snapshot.status_line.as_deref(), Some("Cancelling…"));
+    assert!(operations.cancellation_check(&id)());
+
+    // A second mutation against the same target is still refused —
+    // cancellation was only requested, not finalized, so exclusivity
+    // hasn't been released.
+    let error = operations
+        .begin_running("world-activate", Some("paper-1".to_string()), "Working.")
+        .expect_err("target is still held while cancellation is pending");
+    assert!(matches!(error, LifecycleOperationError::Conflict(_)));
+}
+
+/// The worker itself, once it observes the flag at its own safe
+/// boundary, finalizes cancellation by calling `cancel()` — only then
+/// does the record go terminal and the target free up.
+#[test]
+fn lifecycle_operations_worker_finalized_cancel_transitions_to_cancelled_and_frees_target() {
+    let fs = FakeFileSystem::new().with_file(format!("{DIR}/.keep"), Vec::new(), false);
+    let operations = make_operations(&fs);
+    let id = operations
+        .begin_running("world-activate", Some("paper-1".to_string()), "Working.")
+        .unwrap();
+    operations.request_cancel(&id, "Cancelling…").unwrap();
+
+    let should_cancel = operations.cancellation_check(&id);
+    assert!(should_cancel());
+    operations.cancel(&id, "Activation cancelled.").unwrap();
+
+    let snapshot = operations.snapshot(&id).unwrap().unwrap();
+    assert_eq!(snapshot.state, OperationState::Cancelled);
+
+    let second = operations
+        .begin_running("world-activate", Some("paper-1".to_string()), "Working.")
+        .expect("target is free once the worker finalized cancellation");
+    assert_ne!(id, second);
+}
+
+/// Requesting cancellation against an operation that has already reached
+/// a terminal state (e.g. it succeeded before the request landed) is
+/// refused, not silently accepted.
+#[test]
+fn lifecycle_operations_request_cancel_against_terminal_operation_is_refused() {
+    let fs = FakeFileSystem::new().with_file(format!("{DIR}/.keep"), Vec::new(), false);
+    let operations = make_operations(&fs);
+    let id = operations
+        .begin_running("world-activate", Some("paper-1".to_string()), "Working.")
+        .unwrap();
+    operations
+        .succeed(&id, "Activation complete.", Default::default())
+        .unwrap();
+
+    let error = operations
+        .request_cancel(&id, "Cancelling…")
+        .expect_err("cancellation is not legal against a terminal operation");
+    assert!(matches!(
+        error,
+        LifecycleOperationError::IllegalTransition { .. }
+    ));
+}
+
 #[test]
 fn lifecycle_operations_failure_is_persisted_to_journal() {
     let fs = FakeFileSystem::new().with_file(format!("{DIR}/.keep"), Vec::new(), false);

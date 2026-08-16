@@ -13,8 +13,8 @@ use msc_infrastructure::operation_journal::{
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 static NEXT_ID: AtomicU64 = AtomicU64::new(1);
 
@@ -81,6 +81,13 @@ impl From<JournalError> for LifecycleOperationError {
 pub struct LifecycleOperations<'fs> {
     journal: OperationJournal<'fs>,
     records: Mutex<HashMap<OperationId, OperationRecord>>,
+    /// One cooperative-cancellation flag per operation, created alongside
+    /// its record in [`Self::begin_running`] and never removed (the same
+    /// "no eviction" lifetime `records` itself already has). Kept
+    /// separate from `records`'s own `Mutex` so [`Self::cancellation_check`]
+    /// can hand a worker a cheap, lock-free `'static` closure instead of a
+    /// reference back into this store.
+    cancel_flags: Mutex<HashMap<OperationId, Arc<AtomicBool>>>,
 }
 
 impl<'fs> LifecycleOperations<'fs> {
@@ -88,6 +95,7 @@ impl<'fs> LifecycleOperations<'fs> {
         Self {
             journal: OperationJournal::new(fs, dir),
             records: Mutex::new(HashMap::new()),
+            cancel_flags: Mutex::new(HashMap::new()),
         }
     }
 
@@ -146,6 +154,10 @@ impl<'fs> LifecycleOperations<'fs> {
         };
         self.record_journal_state(&id, &record)?;
         self.records.lock().unwrap().insert(id.clone(), record);
+        self.cancel_flags
+            .lock()
+            .unwrap()
+            .insert(id.clone(), Arc::new(AtomicBool::new(false)));
         Ok(id)
     }
 
@@ -206,6 +218,64 @@ impl<'fs> LifecycleOperations<'fs> {
             None,
             None,
         )
+    }
+
+    /// Signal cooperative cancellation for a non-terminal operation.
+    /// Deliberately does **not** transition the record to `cancelled` or
+    /// touch the durable journal — only the worker itself, once it has
+    /// actually observed [`Self::cancellation_check`]'s flag at one of its
+    /// own safe boundaries and stopped, calls [`Self::cancel`] to finalize
+    /// the terminal state. Until then the record (and the journal's
+    /// per-target admission it backs) stays `running`, so a second
+    /// mutation against the same target keeps refusing exactly as it did
+    /// before cancellation was requested — releasing that exclusivity
+    /// early is the exact "truthful cancellation" gap this method closes.
+    pub fn request_cancel(
+        &self,
+        id: &OperationId,
+        status_line: impl Into<String>,
+    ) -> Result<(), LifecycleOperationError> {
+        let mut records = self.records.lock().unwrap();
+        let record = records
+            .get_mut(id)
+            .ok_or_else(|| LifecycleOperationError::UnknownOperation(id.clone()))?;
+        if record.state.is_terminal() {
+            return Err(LifecycleOperationError::IllegalTransition {
+                id: id.clone(),
+                from: record.state,
+                to: OperationState::Cancelled,
+            });
+        }
+        record.status_line = Some(status_line.into());
+        drop(records);
+
+        if let Some(flag) = self.cancel_flags.lock().unwrap().get(id) {
+            flag.store(true, Ordering::SeqCst);
+        }
+        Ok(())
+    }
+
+    /// A cheap, lock-free, `'static` closure a real worker
+    /// (`worlds::activate_slot`, `world_conversion::convert_world`,
+    /// `backups::create_backup`, `backups::restore_backup`) can poll at
+    /// its own safe boundaries as its `should_cancel` parameter, without
+    /// holding a reference back into this store across a `tokio::spawn`/
+    /// `spawn_blocking` boundary. An operation id this store has never
+    /// seen (shouldn't happen — every caller gets one from
+    /// [`Self::begin_running`] first) reports "never cancelled" rather
+    /// than panicking.
+    pub fn cancellation_check(
+        &self,
+        id: &OperationId,
+    ) -> impl Fn() -> bool + Clone + Send + Sync + 'static {
+        let flag = self
+            .cancel_flags
+            .lock()
+            .unwrap()
+            .get(id)
+            .cloned()
+            .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+        move || flag.load(Ordering::SeqCst)
     }
 
     pub fn snapshot(

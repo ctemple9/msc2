@@ -7,8 +7,17 @@
 //! The one `type` this skeletal agent accepts, `demo-install`
 //! (`operation-model.md` §2), is driven by a background "ticker" task that
 //! advances a freshly-created operation `queued → running → succeeded`
-//! over a couple of seconds, checking for external cancellation between
-//! each step rather than blindly overwriting it.
+//! over a couple of seconds. **Cancellation is cooperative and truthful
+//! (P6.30):** `POST .../cancel` only signals a flag
+//! (`OperationsState::request_cancel`) and waits for the ticker — the
+//! same pattern every real Phase 6 worker (`worlds::activate_slot`/
+//! `world_conversion::convert_world`/`backups::create_backup`/
+//! `backups::restore_backup`) now follows — to observe it at its own
+//! safe boundary and finalize the transition itself
+//! (`OperationsState::cancel`). The record stays `running` (and its
+//! per-target exclusivity held) for as long as real work is still in
+//! flight; a request that arrives after the work already finished
+//! reports that real outcome, never a fabricated `cancelled`.
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -103,6 +112,39 @@ impl OperationsState {
         self.operations.fail(id, lifecycle_error(code, message))
     }
 
+    /// Finalizes a worker's own cooperative cancellation once it has
+    /// actually observed [`Self::cancellation_check`]'s flag and stopped
+    /// — see `LifecycleOperations::cancel`'s own doc for why only the
+    /// worker itself, never the `POST .../cancel` handler, calls this.
+    pub fn cancel(
+        &self,
+        id: &OperationId,
+        status_line: &str,
+    ) -> Result<(), LifecycleOperationError> {
+        self.operations.cancel(id, status_line)
+    }
+
+    /// Signals cooperative cancellation for a non-terminal operation
+    /// without transitioning its state — see
+    /// `LifecycleOperations::request_cancel`'s own doc.
+    pub fn request_cancel(
+        &self,
+        id: &OperationId,
+        status_line: &str,
+    ) -> Result<(), LifecycleOperationError> {
+        self.operations.request_cancel(id, status_line)
+    }
+
+    /// A cheap, `'static` closure a real Phase 6 worker can poll at its
+    /// own safe boundaries — see `LifecycleOperations::cancellation_check`'s
+    /// own doc.
+    pub fn cancellation_check(
+        &self,
+        id: &OperationId,
+    ) -> impl Fn() -> bool + Clone + Send + Sync + 'static {
+        self.operations.cancellation_check(id)
+    }
+
     /// Current `OperationDTO` for `id`, or `None` if unknown. Used by the
     /// operation-progress WebSocket handler (P2.16) to existence-check
     /// before upgrading and to poll for changes afterward, without
@@ -169,6 +211,24 @@ pub async fn get(State(store): State<OperationsState>, Path(id): Path<String>) -
 /// `POST /v1/operations/{id}/cancel` — §4.3. Legal only against a
 /// non-terminal operation; a terminal one is `409 conflict`, per the same
 /// transition table `msc_domain::operation::OperationState` enforces.
+///
+/// **Truthful cancellation (P6.30).** This handler never transitions the
+/// operation to `cancelled` itself — it only signals the request
+/// ([`OperationsState::request_cancel`]) and then waits for the worker
+/// that owns the operation to actually observe that signal at one of its
+/// own safe boundaries and stop, exactly the way `spawn_demo_ticker`'s
+/// own loop below and every real Phase 6 worker
+/// (`worlds::activate_slot`/`world_conversion::convert_world`/
+/// `backups::create_backup`/`backups::restore_backup`) do. Reporting
+/// `cancelled` before that has happened would be a lie: the real
+/// filesystem/process work could still be running, and the per-target
+/// exclusivity lock (still held by the non-terminal journal entry) would
+/// have been released early. The wait is bounded — a worker already past
+/// its last cancellable boundary can take a while to finish a large
+/// filesystem move — so a client that outlasts [`CANCEL_WAIT_TIMEOUT`]
+/// gets back the operation's honest current state (still `running`, with
+/// a "Cancelling…" status line) rather than a response that blocks
+/// forever; it can keep polling `GET /v1/operations/{id}` the normal way.
 pub async fn cancel(State(store): State<OperationsState>, Path(id): Path<String>) -> Response {
     let id = OperationId::new(id);
     let Some(record) = store.snapshot(id.as_str()) else {
@@ -182,44 +242,63 @@ pub async fn cancel(State(store): State<OperationsState>, Path(id): Path<String>
         return conflict(id.as_str());
     }
 
-    match store.operations.cancel(&id, "Cancelled by user") {
-        Ok(()) => (
-            StatusCode::OK,
-            Json(
-                store
-                    .snapshot(id.as_str())
-                    .expect("cancelled operation is still present"),
-            ),
-        )
-            .into_response(),
-        Err(error) => operation_error_response(error),
+    if let Err(error) = store.request_cancel(&id, "Cancelling…") {
+        return operation_error_response(error);
+    }
+
+    let deadline = tokio::time::Instant::now() + CANCEL_WAIT_TIMEOUT;
+    loop {
+        let snapshot = store
+            .snapshot(id.as_str())
+            .expect("operation ids are never removed once created");
+        let terminal = matches!(
+            snapshot.state,
+            OperationStateDto::Succeeded | OperationStateDto::Failed | OperationStateDto::Cancelled
+        );
+        if terminal || tokio::time::Instant::now() >= deadline {
+            return (StatusCode::OK, Json(snapshot)).into_response();
+        }
+        tokio::time::sleep(CANCEL_POLL_INTERVAL).await;
     }
 }
 
+/// How long `cancel` waits for a worker to actually stop before returning
+/// the operation's current (possibly still-`running`) state — generous
+/// enough for a real large-world filesystem move already past its last
+/// cancellable boundary, bounded so the HTTP response itself can't hang
+/// indefinitely.
+const CANCEL_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
+const CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(50);
+
 /// Advances a freshly-created operation `queued → running → succeeded`
-/// over ~1.5s, re-checking the record's state before every write so a
-/// `cancel` request that lands mid-run is respected rather than clobbered.
+/// over ~1.5s, polling [`OperationsState::cancellation_check`]'s flag
+/// before every write — the same cooperative shape every real Phase 6
+/// worker uses (see `cancel`'s own doc): a `cancel` request only sets the
+/// flag, so this ticker (not the HTTP handler) is what actually
+/// transitions the record to `cancelled`, once it has itself stopped
+/// doing further "work."
 fn spawn_demo_ticker(store: OperationsState, id: OperationId) {
+    let should_cancel = store.cancellation_check(&id);
     tokio::spawn(async move {
         tokio::time::sleep(Duration::from_millis(300)).await;
+        if should_cancel() {
+            let _ = store.cancel(&id, "Cancelled by user.");
+            return;
+        }
         let _ = store.progress(&id, 0, 3, "Starting demo work");
 
         for step in 1..=3u64 {
             tokio::time::sleep(Duration::from_millis(300)).await;
-            let Some(record) = store.snapshot(id.as_str()) else {
-                return;
-            };
-            if record.state != OperationStateDto::Running {
+            if should_cancel() {
+                let _ = store.cancel(&id, "Cancelled by user.");
                 return;
             }
             let _ = store.progress(&id, step, 3, &format!("Demo step {step}/3"));
         }
 
         tokio::time::sleep(Duration::from_millis(300)).await;
-        let Some(record) = store.snapshot(id.as_str()) else {
-            return;
-        };
-        if record.state != OperationStateDto::Running {
+        if should_cancel() {
+            let _ = store.cancel(&id, "Cancelled by user.");
             return;
         }
         let mut result = BTreeMap::new();
@@ -320,4 +399,120 @@ fn conflict(id: &str) -> Response {
         details: None,
     };
     (StatusCode::CONFLICT, Json(body)).into_response()
+}
+
+// =====================================================================
+// P6.30 tests — inline, not in `tests/operation_cancellation.rs`, for the
+// same "no lib.rs" reason `routes/worlds.rs`/`routes/backups.rs`'s own
+// test-module docs already give: an external integration test can't
+// reach `OperationsState::request_cancel`/`cancellation_check` or the
+// `demo-install` ticker directly. `tests/operation_cancellation.rs`
+// itself only proves the real HTTP wiring (mounted + auth-gated);
+// the truthful-cancellation *behavior* is proven here, against the real
+// handlers and the real `spawn_demo_ticker`, with no HTTP/auth layer in
+// the way.
+// =====================================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body(json: serde_json::Value) -> Bytes {
+        Bytes::from(json.to_string())
+    }
+
+    async fn json_body<T: serde::de::DeserializeOwned>(response: Response) -> T {
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        serde_json::from_slice(&bytes).unwrap()
+    }
+
+    /// `cancel` must not report `cancelled` the instant it's called —
+    /// only once the ticker (the operation's own "worker") has actually
+    /// observed the flag and stopped. Requesting cancellation before the
+    /// ticker's very first tick (300ms) and asserting the response is
+    /// still `cancelled` proves the handler genuinely waited rather than
+    /// racing ahead of the real work.
+    #[tokio::test]
+    async fn operation_cancellation_cancel_waits_for_ticker_to_actually_stop() {
+        let store = OperationsState::fake_journaled();
+        let created = create(
+            State(store.clone()),
+            body(serde_json::json!({ "type": "demo-install" })),
+        )
+        .await;
+        assert_eq!(created.status(), StatusCode::ACCEPTED);
+        let created: OperationDto = json_body(created).await;
+
+        // No sleep here on purpose: this races the ticker's first 300ms
+        // tick, proving `cancel` itself blocks until the ticker gets
+        // there rather than returning early.
+        let cancelled = cancel(State(store.clone()), Path(created.id.clone())).await;
+        assert_eq!(cancelled.status(), StatusCode::OK);
+        let cancelled: OperationDto = json_body(cancelled).await;
+        assert_eq!(cancelled.state, OperationStateDto::Cancelled);
+
+        // And the record that's actually stored agrees — no lie left
+        // behind for a later `GET` to contradict.
+        let fetched = get(State(store), Path(created.id)).await;
+        let fetched: OperationDto = json_body(fetched).await;
+        assert_eq!(fetched.state, OperationStateDto::Cancelled);
+    }
+
+    /// While a cancellation is pending (signaled but not yet observed by
+    /// the worker), the operation's target stays exclusively held — a
+    /// second mutation against the same target is refused exactly as it
+    /// would be for any other non-terminal operation. Uses
+    /// `request_cancel` directly (not the `cancel` route, which blocks
+    /// until terminal) so the assertion lands in the genuinely pending
+    /// window.
+    #[tokio::test]
+    async fn operation_cancellation_target_stays_held_while_cancellation_pending() {
+        let store = OperationsState::fake_journaled();
+        let id = store
+            .begin_lifecycle("world-activate", Some("paper-1".to_string()), "Working.")
+            .unwrap();
+
+        store.request_cancel(&id, "Cancelling…").unwrap();
+        let snapshot = store.snapshot(id.as_str()).unwrap();
+        assert_eq!(snapshot.state, OperationStateDto::Running);
+
+        let conflict =
+            store.begin_lifecycle("world-activate", Some("paper-1".to_string()), "Working.");
+        assert!(matches!(
+            conflict,
+            Err(LifecycleOperationError::Conflict(_))
+        ));
+    }
+
+    /// A `cancel` that arrives after the real work already finished must
+    /// report the truth (`409`, already terminal) rather than a
+    /// fabricated `cancelled` — the same rule that keeps a *pending*
+    /// cancellation from lying in the other direction.
+    #[tokio::test]
+    async fn operation_cancellation_cancel_after_natural_completion_is_conflict_not_a_lie() {
+        let store = OperationsState::fake_journaled();
+        let created = create(
+            State(store.clone()),
+            body(serde_json::json!({ "type": "demo-install" })),
+        )
+        .await;
+        let created: OperationDto = json_body(created).await;
+
+        // The demo ticker finishes in ~1.5s; wait well past that.
+        let mut succeeded = false;
+        for _ in 0..100 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            if let Some(record) = store.snapshot(&created.id)
+                && record.state == OperationStateDto::Succeeded
+            {
+                succeeded = true;
+                break;
+            }
+        }
+        assert!(succeeded, "demo-install operation never reached succeeded");
+
+        let cancelled = cancel(State(store), Path(created.id)).await;
+        assert_eq!(cancelled.status(), StatusCode::CONFLICT);
+    }
 }

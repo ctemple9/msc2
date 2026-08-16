@@ -668,12 +668,109 @@ left blocking this report; nothing in this step's own file list depends on
 that wider run.
 
 ### P6.30 — Make operation cancellation truthful
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/operation.rs`, `crates/msc-application/src/operations.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/world_conversion.rs`, `crates/msc-application/tests/lifecycle_operations.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/operation_cancellation.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
 **What:** Add cooperative cancellation to the real Phase 6 workers. A cancellation request sets a shared stop signal; each worker observes it only at a boundary where it can clean staging data, roll back, or finish the current atomic filesystem action safely. Do not transition the operation to terminal `cancelled`, return a successful cancellation response, or release the per-server exclusivity lock until the worker has actually stopped. Prove a second same-server operation remains refused while cancellation is pending, cancelled work cannot later report success or alter the world, and every cancellation exit leaves one complete recoverable world and truthful durable operation record.
 **Verify:** `cargo nextest run -p msc-application -p msc-agent -E 'test(/operation|world_backup_routes/)'`
 **Commit:** `P6.30: make phase 6 cancellation truthful`
 **Batch:** stop-after
+
+**Actual result:** `LifecycleOperations` (`crates/msc-application/src/operations.rs`)
+now holds one `Arc<AtomicBool>` cancellation flag per operation, created
+alongside its record in `begin_running`. `request_cancel` sets that flag
+and updates the status line but — deliberately — does not touch `state`
+or the journal: only `cancel` (called by the operation's own worker, once
+it has actually observed the flag and stopped) performs the real
+`running -> cancelled` transition, so the journal admission behind
+per-target exclusivity stays held for exactly as long as real work is
+still in flight. `cancellation_check` hands out a cheap `'static` closure
+a worker can poll without holding a reference back into the store, safe
+to move across a `tokio::spawn`/`spawn_blocking` boundary.
+
+Every real Phase 6 worker now takes a `should_cancel: impl Fn() -> bool`
+parameter, checked only where nothing yet-uncommitted has to be
+unwound: `worlds::activate_slot` and `backups::restore_backup` (identical
+staged/prior/installed transactions) check once at entry and once more
+after staging completes but before the live folders move — the same
+"nothing at the server root touched yet" boundary each already used for
+its own restart-recovery split — cleaning up the scratch transaction
+directory on a `true` and returning a new `Cancelled` error variant;
+neither checks again once phase 2 begins, so an activation/restore past
+that point always runs to completion, matching what
+`reconcile_interrupted_activation`/`reconcile_interrupted_restore`
+already assume. `world_conversion::convert_world` checks at entry and
+again immediately before the (longest-running) Chunker process starts,
+and forwards the same closure into its own nested `activate_slot` call at
+step 7 rather than duplicating a third checkpoint. `backups::create_backup`
+checks once, at entry, since its own work is already a single atomic
+archive write with nothing to unwind mid-flight.
+
+`crates/msc-agent/src/routes/operations.rs`'s `cancel` handler no longer
+transitions state itself: it calls `request_cancel`, then polls (50ms,
+bounded to a 30s ceiling) until the record reaches a terminal state,
+returning whatever that terminal state actually is — `cancelled` only if
+the worker got there first, `succeeded`/`failed` if the real work already
+finished before the request landed. The `demo-install` ticker
+(`spawn_demo_ticker`) was rewritten to the identical shape every real
+worker now uses — it polls the same flag and calls `cancel` on itself once
+it stops — since the old "cancel sets terminal state directly, ticker
+just notices" version would otherwise have kept advancing to `succeeded`
+after an ignored cancel request. `routes/worlds.rs`'s `activate`/`convert`
+handlers and `routes/backups.rs`'s `now`/`restore` handlers each wire a
+real `cancellation_check(&operation_id)` into their spawned worker and
+call `operations().cancel(...)` (not `fail`) when the worker reports its
+own `Cancelled` variant back.
+
+Proof: `crates/msc-application/tests/lifecycle_operations.rs` gained three
+tests at the coordinator level — `request_cancel` leaves state `running`
+and a second same-target `begin_running` still conflicts while
+cancellation is pending; the worker's own `cancel()` call is what
+transitions to `cancelled` and frees the target; `request_cancel` against
+an already-terminal operation is refused. `crates/msc-agent/src/routes/operations.rs`
+gained an inline `#[cfg(test)] mod tests` (this crate has no `lib.rs`, so
+an external test file can't reach `OperationsState`'s internals — the
+same "tests live inline" precedent `routes/worlds.rs`/`routes/backups.rs`
+already established) proving, against the real handlers and the real
+ticker: `cancel` genuinely waits for the ticker to stop rather than
+racing ahead of it; the target stays exclusively held while cancellation
+is pending; a `cancel` that arrives after natural completion reports the
+true terminal state (`409`, already finished) instead of a fabricated
+`cancelled`. The new `crates/msc-agent/tests/operation_cancellation.rs`
+(macOS-only, same real-`msc serve`-process constraint every other
+black-box test in this crate already documents) proves the real wiring:
+`POST /v1/operations`, `GET /v1/operations/{id}`, and
+`POST /v1/operations/{id}/cancel` are mounted and bearer-auth-gated
+(`401`, not `404`), and an unauthenticated cancel returns immediately
+rather than entering the new wait loop. Every existing call site of
+`activate_slot`/`restore_backup`/`create_backup`/`convert_world` across
+`msc-application`'s and `msc-agent`'s own test suites was updated to pass
+`|| false` for the new parameter, keeping their existing (non-cancellation)
+assertions unchanged.
+
+`cargo fmt --check` clean. All three clippy targets (native,
+`x86_64-unknown-linux-gnu`, `x86_64-pc-windows-msvc`) clean on
+`-p msc-domain -p msc-application -p msc-agent --all-targets`. This
+step's own Verify —
+`cargo nextest run -p msc-application -p msc-agent -E 'test(/operation|world_backup_routes/)'`
+— passed: 25/25. Also run as extra due diligence beyond this step's own
+Verify: the full `cargo nextest run -p msc-application` suite (227/227)
+and `cargo nextest run -p msc-agent --bin msc` scoped to
+`routes::worlds`/`routes::backups`/`routes::operations` (15/15) — both
+green, confirming nothing else in either crate regressed. Not run: the
+full macOS-Keychain-backed `msc-agent` black-box suite beyond the files
+this step touched, and the workspace-wide suite — neither is in this
+step's own file list or Verify command.
+
+`msc_domain::operation` itself was not touched — no new domain state was
+needed: "pending cancellation" is represented as staying in `Running`
+with an updated `status_line` ("Cancelling…"), not a new state, so the
+existing five-state closed enum and `OperationStateDto` wire contract
+(`operation-model.md` §3, unchanged) already cover it. Flagged per the
+same "deviation from the Files: list" pattern P6.18/P6.29 already used.
+
+This step's own text is explicit that only Cameron marks it `DONE` —
+leaving Status as `awaiting verification` above for him to do after
+running the Verify command himself.
 
 ### P6.31 — Unify manual and scheduled backup orchestration
 **Status:** not started

@@ -28,11 +28,49 @@ guess at timing anywhere.
 import argparse
 import json
 import os
-import signal
 import subprocess
 import sys
 import threading
 import time
+
+
+def hard_kill(pid: int) -> None:
+    # `signal.SIGKILL` does not exist in Python's `signal` module on
+    # Windows, and POSIX `os.kill` semantics (a real SIGKILL) have no
+    # Windows equivalent via `os.kill` at all — `taskkill /F` is the
+    # portable "make it stop right now" primitive there.
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(pid)],
+            capture_output=True,
+        )
+    else:
+        import signal
+
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+
+def process_alive(pid: int) -> bool:
+    # `os.kill(pid, 0)` (POSIX's "is it there" probe) is not portable:
+    # on Windows, CPython's `os.kill` has no null-signal case and would
+    # call `TerminateProcess(handle, 0)` instead of merely checking.
+    if os.name == "nt":
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {pid}"],
+            capture_output=True,
+            text=True,
+        )
+        return str(pid) in result.stdout
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def attempt(msc, base_url, token, argv_tail, pid, prior_dir, staged_dir):
@@ -47,10 +85,7 @@ def attempt(msc, base_url, token, argv_tail, pid, prior_dir, staged_dir):
                 result["phase"] = (
                     "prior_moved" if os.path.isdir(staged_dir) else "installed"
                 )
-                try:
-                    os.kill(pid, signal.SIGKILL)
-                except ProcessLookupError:
-                    pass
+                hard_kill(pid)
                 caught_event.set()
                 return
 
@@ -100,12 +135,8 @@ def main() -> int:
         )
         if result["caught"]:
             deadline = time.time() + 5.0
-            while time.time() < deadline:
-                try:
-                    os.kill(args.pid, 0)
-                    time.sleep(0.02)
-                except ProcessLookupError:
-                    break
+            while time.time() < deadline and process_alive(args.pid):
+                time.sleep(0.02)
             print(
                 json.dumps(
                     {

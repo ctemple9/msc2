@@ -84,6 +84,16 @@ jobs:
       - name: Install cargo-nextest
         uses: taiki-e/install-action@nextest
 
+      # The Phase 6 restart-sensitive smoke (P6.25) compiles a small real
+      # fake-Paper jar with javac/jar and runs it with java, on all three
+      # platforms — pin a JDK explicitly rather than trust whatever a
+      # runner image happens to have on PATH.
+      - name: Install JDK (Phase 6 fake Paper server)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
       - name: Report toolchain
         run: |
           rustc --version
@@ -103,6 +113,14 @@ jobs:
       # tests to run — cargo nextest run --workspace covers both.
       - name: Test
         run: cargo nextest run --workspace
+
+      # P6.27: the same committed synthetic-world smoke (P6.25) on all
+      # three platforms — no real MSC 1 data, no local absolute paths.
+      # `shell: bash` runs it through Git Bash on the Windows runner, the
+      # only leg that has never executed this script before.
+      - name: Phase 6 restart-sensitive public-path smoke
+        shell: bash
+        run: tools/phase6/phase6-gate-smoke.sh --synthetic
 
       - name: Collect headless artifact
         shell: bash

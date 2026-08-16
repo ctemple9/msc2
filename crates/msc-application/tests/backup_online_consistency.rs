@@ -12,20 +12,29 @@
 //! plan's Verify command (`-E 'test(/backup_(creation|online_consistency)/)'`)
 //! selects them.
 
+#[cfg(unix)]
+use msc_application::backups::{self, BackupError};
 use msc_application::backups::{
-    self, BackupConsole, BackupError, pause_saves_for_backup, resume_saves_after_backup,
-    wait_for_bedrock_save_ready, wait_for_java_save_confirmation,
+    BackupConsole, pause_saves_for_backup, resume_saves_after_backup, wait_for_bedrock_save_ready,
+    wait_for_java_save_confirmation,
 };
+#[cfg(unix)]
 use msc_domain::identity::ServerType;
+#[cfg(unix)]
 use msc_domain::world;
+#[cfg(unix)]
 use std::fs;
+#[cfg(unix)]
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
+#[cfg(unix)]
 use msc_infrastructure::fs::StdFileSystem;
 
+#[cfg(unix)]
 struct TempDir(PathBuf);
 
+#[cfg(unix)]
 impl TempDir {
     fn new(label: &str) -> Self {
         let dir = std::env::temp_dir().join(format!(
@@ -42,12 +51,14 @@ impl TempDir {
     }
 }
 
+#[cfg(unix)]
 impl Drop for TempDir {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);
     }
 }
 
+#[cfg(unix)]
 fn make_live_folder(server_dir: &Path, name: &str, content: &[u8]) {
     let dir = server_dir.join(name);
     fs::create_dir_all(&dir).unwrap();

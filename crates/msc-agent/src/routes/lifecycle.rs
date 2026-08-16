@@ -45,14 +45,62 @@ use crate::auth::{AuthState, AuthenticatedCredential};
 use crate::routes::operations::{OperationsState, operation_error_response};
 use crate::ws::console::ConsoleState;
 
-/// P6.1's idempotent world/`world_slots` handoff
-/// (`msc_application::worlds::reconcile_imported_worlds`), run once per
-/// registered server before this registry — and therefore any later
-/// world-mutation route built over it — becomes reachable. Best-effort
-/// per server: reconciliation failing for one server is logged and does
-/// not block the rest of agent startup, matching this file's existing
-/// `logAppMessage`-style non-fatal-warning convention elsewhere.
-fn reconcile_imported_worlds_at_startup(servers: &[ConfigServer]) {
+/// Per-server outcome of the P6.29 startup reconciliation pass (world
+/// import handoff, interrupted-activation recovery, interrupted-restore
+/// recovery — see [`reconcile_servers_at_startup`]). Established once per
+/// agent process at startup and never changed afterward: a server that
+/// comes up `Degraded` stays that way for the life of this process. Only
+/// a later, successful agent startup (a fresh restart, after whatever
+/// left the server's on-disk state unreconcilable has been fixed) clears
+/// it — the gate review's own requirement is "a second successful
+/// startup remains idempotent," not that a running agent self-heals.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReconciliationStatus {
+    /// Startup reconciliation completed for this server; world/backup
+    /// mutation routes are reachable.
+    Ready,
+    /// Startup reconciliation (or restart-transaction recovery) failed
+    /// for this server. `reason` is the first failure encountered, for
+    /// operator diagnosis. Every world/backup mutation route must refuse
+    /// this server with one structured error instead of running.
+    Degraded { reason: String },
+}
+
+/// The idempotent P6.1 world/`world_slots` handoff
+/// (`msc_application::worlds::reconcile_imported_worlds`), followed by
+/// P6.13/P6.18's interrupted-activation/interrupted-restore recovery —
+/// run once per registered server, in that order, before this registry
+/// (and therefore any world/backup mutation route built over it) becomes
+/// reachable. **Corrected post-gate-review:** a failure here used to be
+/// logged and then silently ignored, leaving every mutation route for
+/// that server reachable against unreconciled — possibly unsafe — disk
+/// state. Now the first failure for a server (from either stage) is
+/// recorded as [`ReconciliationStatus::Degraded`] and returned to the
+/// caller, who threads it into every world/backup mutation route's guard
+/// (`routes/worlds.rs`'s `active_server_or_response`, `routes/
+/// backups.rs`'s `active_server_or_response`). The agent itself still
+/// comes up — a damaged server does not block startup, and other,
+/// healthy servers are entirely unaffected — matching the "keep the
+/// agent available for diagnosis" requirement.
+fn reconcile_servers_at_startup(
+    servers: &[ConfigServer],
+) -> BTreeMap<String, ReconciliationStatus> {
+    let mut statuses: BTreeMap<String, ReconciliationStatus> = servers
+        .iter()
+        .map(|server| (server.id.clone(), ReconciliationStatus::Ready))
+        .collect();
+    let degrade =
+        |statuses: &mut BTreeMap<String, ReconciliationStatus>, server_id: &str, reason: String| {
+            // The first failure wins; a server already marked `Degraded`
+            // keeps its original diagnostic reason.
+            if matches!(statuses.get(server_id), Some(ReconciliationStatus::Ready)) {
+                statuses.insert(
+                    server_id.to_string(),
+                    ReconciliationStatus::Degraded { reason },
+                );
+            }
+        };
+
     let now = iso8601_now();
     for server in servers {
         let server_dir = Path::new(&server.server_dir);
@@ -67,19 +115,13 @@ fn reconcile_imported_worlds_at_startup(servers: &[ConfigServer]) {
                 "[worlds] Warning: could not reconcile imported world data for {}: {err}",
                 server.server_dir
             );
+            degrade(
+                &mut statuses,
+                &server.id,
+                format!("world reconciliation failed: {err}"),
+            );
         }
     }
-}
-
-/// `worlds::reconcile_interrupted_activation`/
-/// `backups::reconcile_interrupted_restore` (P6.13/P6.18) are not called
-/// anywhere yet — now that P6.21 makes world/backup mutation routes
-/// reachable, restart recovery must run before they are, the same
-/// "before routes are reachable" timing
-/// [`reconcile_imported_worlds_at_startup`] already established.
-/// Best-effort per server, same non-fatal-logged convention.
-fn reconcile_interrupted_world_transactions_at_startup(servers: &[ConfigServer]) {
-    let now = iso8601_now();
     for server in servers {
         let server_dir = Path::new(&server.server_dir);
         if let Err(err) = msc_application::worlds::reconcile_interrupted_activation(
@@ -91,6 +133,11 @@ fn reconcile_interrupted_world_transactions_at_startup(servers: &[ConfigServer])
                 "[worlds] Warning: could not reconcile an interrupted activation for {}: {err}",
                 server.server_dir
             );
+            degrade(
+                &mut statuses,
+                &server.id,
+                format!("interrupted activation recovery failed: {err}"),
+            );
         }
         if let Err(err) =
             msc_application::backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
@@ -99,8 +146,14 @@ fn reconcile_interrupted_world_transactions_at_startup(servers: &[ConfigServer])
                 "[worlds] Warning: could not reconcile an interrupted restore for {}: {err}",
                 server.server_dir
             );
+            degrade(
+                &mut statuses,
+                &server.id,
+                format!("interrupted restore recovery failed: {err}"),
+            );
         }
     }
+    statuses
 }
 
 /// `MSC2_AUDIT_LOG_DIR`-overridable, mirroring
@@ -170,6 +223,7 @@ struct LifecycleRoutesInner {
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
     audit_log: &'static AuditLog<'static>,
+    reconciliation: BTreeMap<String, ReconciliationStatus>,
 }
 
 pub struct AgentServerRegistry {
@@ -249,8 +303,7 @@ impl LifecycleRoutesState {
         process: Box<dyn ProcessSupervisor + Send + Sync>,
         auth_state: Option<AuthState>,
     ) -> Self {
-        reconcile_imported_worlds_at_startup(&app_config.servers());
-        reconcile_interrupted_world_transactions_at_startup(&app_config.servers());
+        let reconciliation = reconcile_servers_at_startup(&app_config.servers());
 
         let audit_log: &'static AuditLog<'static> = Box::leak(Box::new(AuditLog::new(
             Box::leak(Box::new(StdFileSystem)),
@@ -281,6 +334,7 @@ impl LifecycleRoutesState {
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
                 audit_log,
+                reconciliation,
             }),
         }
     }
@@ -458,6 +512,20 @@ impl LifecycleRoutesState {
         self.app_config_servers()
             .into_iter()
             .find(|server| server.id == active_id)
+    }
+
+    /// This server's startup reconciliation outcome — see
+    /// [`ReconciliationStatus`]. `Ready` for any server id not present in
+    /// the map (there is none such today; every registered server gets
+    /// an entry at startup, but a server added later via import has no
+    /// startup-time reconciliation record to consult, and defaulting to
+    /// `Ready` rather than refusing it outright is correct there too).
+    pub fn reconciliation_status(&self, server_id: &str) -> ReconciliationStatus {
+        self.inner
+            .reconciliation
+            .get(server_id)
+            .cloned()
+            .unwrap_or(ReconciliationStatus::Ready)
     }
 
     /// Updates exactly the three auto-backup fields on the `ConfigServer`
@@ -1126,6 +1194,24 @@ pub fn lifecycle_route_error_response(error: LifecycleRouteError) -> Response {
         LifecycleRouteError::Lifecycle(error) => lifecycle_error_response(error),
         LifecycleRouteError::Operation(error) => operation_error_response(error),
     }
+}
+
+/// The one structured error every world/backup mutation route must
+/// return for a server left [`ReconciliationStatus::Degraded`] by
+/// startup — `routes/worlds.rs`'s and `routes/backups.rs`'s own
+/// `active_server_or_response` gate call this before admitting any
+/// mutation. `409 conflict` (not `503`): this is one server's on-disk
+/// state, not whole-agent unavailability — the agent, and every other
+/// server on it, stays fully usable.
+pub fn reconciliation_degraded_response(reason: &str) -> Response {
+    error_response(
+        StatusCode::CONFLICT,
+        "world_reconciliation_degraded",
+        &format!(
+            "This server's world data could not be safely reconciled at startup, so it is in a \
+             read-only diagnostic state: {reason}. Fix the underlying issue and restart the agent."
+        ),
+    )
 }
 
 pub fn error_response(status: StatusCode, code: &str, message: &str) -> Response {

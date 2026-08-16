@@ -29,8 +29,10 @@ use msc_infrastructure::world_store;
 use crate::auth::AuthenticatedCredential;
 use crate::backup_scheduler::BackupScheduler;
 use crate::routes::lifecycle::{
-    LifecycleRoutesState, error_response, invalid_body, require_permission,
+    LifecycleRoutesState, ReconciliationStatus, error_response, invalid_body,
+    reconciliation_degraded_response, require_permission,
 };
+use msc_domain::app_config_schema::ConfigServer;
 
 /// The default interval choices `GET /v1/backups/config` offers a
 /// client — mirrors `AppViewModel+Backups.swift`'s own picker options.
@@ -62,6 +64,22 @@ fn no_active_server() -> Response {
         "conflict",
         "No server is currently active.",
     )
+}
+
+/// Resolves the active server for a backup mutation route (`now`,
+/// `restore`, `delete`), refusing (per P6.29, mirroring `routes/
+/// worlds.rs`'s own gate) a server left `Degraded` by startup
+/// reconciliation before any mutation runs. `list`/`get_config`/
+/// `update_config` deliberately keep calling `active_config_server`
+/// directly — reading and editing backup *settings* isn't a world/backup
+/// mutation, and stays available for diagnosis on a damaged server.
+#[allow(clippy::result_large_err)]
+fn active_server_or_response(state: &LifecycleRoutesState) -> Result<ConfigServer, Response> {
+    let server = state.active_config_server().ok_or_else(no_active_server)?;
+    if let ReconciliationStatus::Degraded { reason } = state.reconciliation_status(&server.id) {
+        return Err(reconciliation_degraded_response(&reason));
+    }
+    Ok(server)
 }
 
 fn iso8601_now() -> String {
@@ -241,8 +259,9 @@ pub async fn now(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    let Some(server) = lifecycle.active_config_server() else {
-        return no_active_server();
+    let server = match active_server_or_response(&lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
     };
     let operation_id = match lifecycle.operations().begin_lifecycle(
         "backup-now",
@@ -350,8 +369,9 @@ pub async fn restore(
     let Some(Json(body)) = body else {
         return invalid_body("invalid_json", "Request body must be valid JSON.");
     };
-    let Some(server) = lifecycle.active_config_server() else {
-        return no_active_server();
+    let server = match active_server_or_response(&lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
     };
     let server_dir = Path::new(&server.server_dir).to_path_buf();
 
@@ -490,8 +510,9 @@ pub async fn delete(
     let Some(Json(body)) = body else {
         return invalid_body("invalid_json", "Request body must be valid JSON.");
     };
-    let Some(server) = lifecycle.active_config_server() else {
-        return no_active_server();
+    let server = match active_server_or_response(&lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
     };
     let server_dir = Path::new(&server.server_dir);
     let entries = backups::list_backups(&StdFileSystem, server_dir);

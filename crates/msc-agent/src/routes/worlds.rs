@@ -76,7 +76,8 @@ use uuid::Uuid;
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
-    LifecycleRoutesState, error_response, invalid_body, require_permission,
+    LifecycleRoutesState, ReconciliationStatus, error_response, invalid_body,
+    reconciliation_degraded_response, require_permission,
 };
 
 /// A bounded ceiling for one staged world upload — generous enough for a
@@ -251,9 +252,20 @@ fn slot_not_found(slot_id: &str) -> Response {
     )
 }
 
+/// Resolves the active server for a mutation route, refusing (per
+/// P6.29) a server left [`ReconciliationStatus::Degraded`] by startup
+/// reconciliation before any mutation logic runs. Read-only routes
+/// (`list`, `thumbnail`, staged-download) deliberately call
+/// `active_config_server` directly instead of this function — a damaged
+/// server still needs to be inspectable, per the gate review's "keep the
+/// agent available for diagnosis" requirement.
 #[allow(clippy::result_large_err)]
 fn active_server_or_response(state: &LifecycleRoutesState) -> Result<ConfigServer, Response> {
-    state.active_config_server().ok_or_else(no_active_server)
+    let server = state.active_config_server().ok_or_else(no_active_server)?;
+    if let ReconciliationStatus::Degraded { reason } = state.reconciliation_status(&server.id) {
+        return Err(reconciliation_degraded_response(&reason));
+    }
+    Ok(server)
 }
 
 fn find_slot(server_dir: &Path, slot_id: &str) -> Option<WorldSlot> {

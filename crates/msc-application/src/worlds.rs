@@ -105,6 +105,19 @@ fn reconciliation_marker_path(server_dir: &Path) -> PathBuf {
     world_store::slots_directory(server_dir).join(".p6_reconciled")
 }
 
+/// Scratch location for [`reconcile_imported_worlds`]'s own "extract an
+/// archive into the live-folder location" branch — distinct from
+/// [`activation_staged_dir`], which belongs to a different transaction
+/// (`activate_slot`/[`reconcile_interrupted_activation`]) that never runs
+/// concurrently with startup reconciliation but shouldn't share a
+/// directory with it regardless. Extraction lands here first so a
+/// corrupt archive or a mid-extraction crash never leaves a partially
+/// populated live folder at `server_dir` — nothing at the live location
+/// is touched until the full archive has extracted successfully.
+fn reconciliation_staged_dir(server_dir: &Path) -> PathBuf {
+    world_store::slots_directory(server_dir).join(".p6_reconcile_staged")
+}
+
 /// The candidate-name half already lives in `msc_domain::world`
 /// (`world_folder_candidates`); this is the existence-filtering half
 /// `WorldSlotManager.worldFolderNames(for:)` mixes into the same
@@ -289,7 +302,19 @@ pub fn reconcile_imported_worlds(
 
         (true, Some(slot)) if has_archive(fs, server_dir, &slot.id) => {
             let zip_path = world_store::zip_path(server_dir, &slot.id);
-            archive::extract_zip(&zip_path, server_dir).map_err(ReconciliationError::Archive)?;
+            let staged_dir = reconciliation_staged_dir(server_dir);
+            let _ = fs.remove(&staged_dir);
+            if let Err(e) = archive::extract_zip(&zip_path, &staged_dir) {
+                let _ = fs.remove(&staged_dir);
+                return Err(ReconciliationError::Archive(e));
+            }
+            // The live-folder location is not touched until every entry
+            // has already extracted successfully into `staged_dir`.
+            if let Err(e) = move_entries(fs, &staged_dir, server_dir) {
+                let _ = fs.remove(&staged_dir);
+                return Err(ReconciliationError::Io(e));
+            }
+            let _ = fs.remove(&staged_dir);
             world_store::set_active_slot_id(fs, server_dir, Some(&slot.id))
                 .map_err(ReconciliationError::Io)?;
             ReconciliationOutcome::ArchiveExtractedFromResolvedSlot {

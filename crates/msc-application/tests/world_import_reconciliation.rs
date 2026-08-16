@@ -344,6 +344,52 @@ fn world_import_reconciliation_no_world_data_neither_source() {
 }
 
 #[test]
+fn world_import_reconciliation_corrupt_archive_extraction_leaves_no_partial_live_folder() {
+    // P6.29: the archive-extraction branch stages into a scratch
+    // directory before ever touching the live-folder location. A corrupt
+    // archive must fail cleanly with no partial `world/` folder, no
+    // active-slot marker, and no `.p6_reconciled` marker — so a later
+    // startup still sees this server as needing reconciliation rather
+    // than silently treating a half-extracted archive as done.
+    let tmp = TempDir::new("corrupt-archive");
+    let server_dir = tmp.path();
+    write_slot_json(server_dir, "slot-corrupt-archive", "2026-01-01T00:00:00Z");
+    write_file(
+        &server_dir
+            .join("world_slots")
+            .join("slot-corrupt-archive")
+            .join("world.zip"),
+        b"this is not a valid zip archive",
+    );
+
+    let result = reconcile_imported_worlds(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Java,
+        Some("world"),
+        "2026-06-01T00:00:00Z",
+    );
+
+    assert!(result.is_err(), "corrupt archive must not succeed");
+    assert!(
+        !server_dir.join("world").exists(),
+        "no partial live folder may be created from a failed extraction"
+    );
+    assert!(
+        !server_dir.join("world_slots/active_slot_id.txt").exists(),
+        "the active marker must not be set when extraction failed"
+    );
+    assert!(
+        !server_dir.join("world_slots/.p6_reconciled").exists(),
+        "the reconciliation marker must not be written on failure"
+    );
+    assert!(
+        !server_dir.join("world_slots/.p6_reconcile_staged").exists(),
+        "the extraction scratch directory must be cleaned up on failure"
+    );
+}
+
+#[test]
 fn world_import_reconciliation_second_call_is_a_no_op() {
     let tmp = TempDir::new("idempotent");
     let server_dir = tmp.path();

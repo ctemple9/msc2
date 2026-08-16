@@ -1504,6 +1504,18 @@ pub fn rename_world(
         if !folder_exists(fs, &old_path) {
             continue;
         }
+        // `fs.rename` onto an existing path is meant to fail (Unix
+        // refuses a directory-over-non-directory rename), but Windows
+        // can silently replace a stray file at the destination instead
+        // of erroring. Check explicitly so a leftover file is refused
+        // and rolled back the same way on every platform.
+        if fs.stat(&new_path).is_ok() {
+            rollback(fs, &moved_pairs);
+            return Err(WorldError::Io(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                format!("{} already exists", new_path.display()),
+            )));
+        }
         if let Err(e) = fs.rename(&old_path, &new_path) {
             rollback(fs, &moved_pairs);
             return Err(e.into());

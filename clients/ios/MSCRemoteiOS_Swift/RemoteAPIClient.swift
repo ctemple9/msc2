@@ -67,7 +67,15 @@ final class RemoteAPIClient {
     /// the standard 15s cap is too tight. This session gives it comfortable headroom.
     private let diagnosticsSession: URLSession
 
-    init(baseURL: URL, token: String) throws {
+    /// - Parameter protocolClasses: Test-only injection point. `nil` in
+    ///   every production call site (the default), so this session's
+    ///   `URLProtocol` handling is exactly what it always was. Phase 6
+    ///   tests (`Phase6WorldBackupAPITests.swift`) pass `[MockURLProtocol
+    ///   .self]` here to intercept requests on `session` (the one every
+    ///   Phase 6 method — `get`/`post`/`putBytes`/`getBytes` — uses)
+    ///   without a live agent and without relying on the deprecated
+    ///   global `URLProtocol.registerClass`.
+    init(baseURL: URL, token: String, protocolClasses: [AnyClass]? = nil) throws {
         guard baseURL.scheme != nil, baseURL.host != nil else { throw RemoteAPIError.invalidBaseURL }
         guard NetworkSafety.httpIsAllowed(for: baseURL) else { throw RemoteAPIError.insecureHTTPNotAllowed }
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -79,6 +87,9 @@ final class RemoteAPIClient {
         let httpConfig = URLSessionConfiguration.ephemeral
         httpConfig.timeoutIntervalForRequest = 10
         httpConfig.timeoutIntervalForResource = 15
+        if let protocolClasses {
+            httpConfig.protocolClasses = protocolClasses + (httpConfig.protocolClasses ?? [])
+        }
         self.session = URLSession(configuration: httpConfig)
 
         // No timeouts — the WebSocket stays open until explicitly cancelled.
@@ -664,6 +675,91 @@ final class RemoteAPIClient {
                               as: WorldMutationResultDTO.self)
     }
 
+    // MARK: - Worlds: Phase 6 additions
+
+    /// Permanently deletes a non-active saved world slot.
+    func deleteWorldSlot(slotId: String) async throws -> WorldMutationResultDTO {
+        let trimmed = slotId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing slot id.") }
+        return try await post(path: "/worlds/delete",
+                              body: WorldDeleteRequestDTO(slotId: trimmed),
+                              as: WorldMutationResultDTO.self)
+    }
+
+    /// Duplicates a saved slot under a server-chosen "<name> copy" name.
+    func duplicateWorldSlot(slotId: String) async throws -> WorldMutationResultDTO {
+        let trimmed = slotId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing slot id.") }
+        return try await post(path: "/worlds/duplicate",
+                              body: WorldDuplicateRequestDTO(slotId: trimmed),
+                              as: WorldMutationResultDTO.self)
+    }
+
+    /// Renames the active/live world's on-disk folders directly --
+    /// distinct from `renameWorld(slotId:name:)`'s metadata-only slot
+    /// rename.
+    func renameActiveWorld(name: String) async throws -> WorldMutationResultDTO {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing world name.") }
+        return try await post(path: "/worlds/rename-active-world",
+                              body: WorldRenameActiveWorldRequestDTO(name: trimmed),
+                              as: WorldMutationResultDTO.self)
+    }
+
+    /// Uploads a local world ZIP's bytes as a new saved slot: begin a
+    /// staged upload, PUT the raw bytes, then redeem it into
+    /// `/worlds/import`. Bounded server-side staging (`phase6-api.md`
+    /// §4) -- never an arbitrary remote path.
+    func importWorldZip(name: String, data: Data) async throws -> WorldMutationResultDTO {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { throw RemoteAPIError.network("Missing world name.") }
+        let begin = try await post(path: "/staged-uploads",
+                                   body: StagedUploadBeginRequestDTO(purpose: .worldImport, contentType: nil),
+                                   as: StagedUploadBeginResultDTO.self)
+        let _: StagedUploadCompleteResultDTO = try await putBytes(
+            path: stripLeadingV1(begin.uploadPath),
+            contentType: "application/octet-stream",
+            body: data,
+            as: StagedUploadCompleteResultDTO.self
+        )
+        return try await post(path: "/worlds/import",
+                              body: WorldImportRequestDTO(name: trimmedName, stagedUploadId: begin.stagedUploadId),
+                              as: WorldMutationResultDTO.self)
+    }
+
+    /// Exports a saved slot's archive and downloads its bytes in one call.
+    func exportWorldSlot(slotId: String) async throws -> Data {
+        let trimmed = slotId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing slot id.") }
+        let result = try await post(path: "/worlds/export",
+                                    body: WorldExportRequestDTO(slotId: trimmed),
+                                    as: WorldExportResultDTO.self)
+        return try await getBytes(path: "/staged-downloads/\(result.stagedDownloadId)")
+    }
+
+    /// Converts a saved slot to another server's edition/format via
+    /// Chunker. Always operation-backed -- poll the returned
+    /// `operationId` with `getOperation(id:)`/`pollOperationToTerminal`.
+    func convertWorld(sourceSlotId: String, targetServerId: String, targetFormat: String,
+                      targetName: String?, targetSlotId: String?) async throws -> WorldConvertResultDTO {
+        let trimmedSource = sourceSlotId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTarget = targetServerId.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedFormat = targetFormat.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSource.isEmpty, !trimmedTarget.isEmpty, !trimmedFormat.isEmpty else {
+            throw RemoteAPIError.network("Missing conversion parameters.")
+        }
+        guard (targetName != nil) != (targetSlotId != nil) else {
+            throw RemoteAPIError.network("Exactly one of targetName or targetSlotId is required.")
+        }
+        return try await post(path: "/worlds/convert",
+                              body: WorldConvertRequestDTO(sourceSlotId: trimmedSource,
+                                                            targetServerId: trimmedTarget,
+                                                            targetFormat: trimmedFormat,
+                                                            targetName: targetName,
+                                                            targetSlotId: targetSlotId),
+                              as: WorldConvertResultDTO.self)
+    }
+
     // MARK: - Diagnostics (health cards + startup problems)
 
     /// Runs the Mac's diagnostic health checks and returns the cards. Uses the longer
@@ -767,6 +863,49 @@ final class RemoteAPIClient {
                                                        autoBackupIntervalMinutes: intervalMinutes,
                                                        autoBackupMaxCount: maxCount),
                        as: BackupConfigUpdateResultDTO.self)
+    }
+
+    /// Deletes a backup. The agent refuses (409) to drop the sole
+    /// remaining verified backup -- surfaced here as a thrown
+    /// `RemoteAPIError.httpStatus`, not a `success: false` result.
+    func deleteBackup(backupId: String) async throws -> SimpleResult {
+        let trimmed = backupId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing backup id.") }
+        return try await post(path: "/backups/delete",
+                              body: BackupDeleteRequestDTO(backupId: trimmed),
+                              as: SimpleResult.self)
+    }
+
+    // MARK: - Operations (Phase 6: poll long-running world/backup work)
+
+    func getOperation(id: String) async throws -> OperationDTO {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing operation id.") }
+        return try await get(path: "/operations/\(trimmed)", query: [:], as: OperationDTO.self)
+    }
+
+    func cancelOperation(id: String) async throws -> OperationDTO {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing operation id.") }
+        return try await post(path: "/operations/\(trimmed)/cancel", body: EmptyBody(), as: OperationDTO.self)
+    }
+
+    /// Polls `getOperation(id:)` to a terminal state, matching the CLI's
+    /// own P6.22 `poll_operation` shape: ~500ms between polls, no hard
+    /// timeout (a caller with a UI can always cancel the enclosing
+    /// `Task`). `onUpdate` fires once per poll, including the terminal one,
+    /// so a view model can publish live progress before this returns.
+    func pollOperationToTerminal(id: String, onUpdate: (OperationDTO) -> Void = { _ in }) async throws -> OperationDTO {
+        while true {
+            let operation = try await getOperation(id: id)
+            onUpdate(operation)
+            switch operation.state {
+            case .succeeded, .failed, .cancelled:
+                return operation
+            case .queued, .running:
+                try await Task.sleep(nanoseconds: 500_000_000)
+            }
+        }
     }
 
     // MARK: - WebSocket
@@ -1032,6 +1171,85 @@ final class RemoteAPIClient {
         } catch {
             throw RemoteAPIError.network(error.localizedDescription)
         }
+    }
+
+    /// PUTs raw bytes (a staged world-import ZIP) rather than a JSON body
+    /// -- the one non-JSON request this client makes -- and decodes the
+    /// JSON completion result the same way `post` does.
+    private func putBytes<T: Decodable>(path: String, contentType: String, body: Data, as type: T.Type) async throws -> T {
+        let url = try makeHTTPURL(path: path, query: [:])
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "PUT"
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.httpBody = body
+
+        do {
+            let (data, resp) = try await session.data(for: req)
+            guard let http = resp as? HTTPURLResponse else {
+                throw RemoteAPIError.network("No HTTP response.")
+            }
+
+            guard (200...299).contains(http.statusCode) else {
+                let responseBody = bestEffortErrorMessage(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, responseBody)
+            }
+
+            do {
+                return try JSONDecoder().decode(T.self, from: data)
+            } catch {
+                throw RemoteAPIError.decodingFailed
+            }
+        } catch let err as RemoteAPIError {
+            throw err
+        } catch {
+            throw RemoteAPIError.network(error.localizedDescription)
+        }
+    }
+
+    /// GETs a raw response body (a staged world-export ZIP) instead of
+    /// decoding it as JSON.
+    private func getBytes(path: String) async throws -> Data {
+        let url = try makeHTTPURL(path: path, query: [:])
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, resp) = try await session.data(for: req)
+            guard let http = resp as? HTTPURLResponse else {
+                throw RemoteAPIError.network("No HTTP response.")
+            }
+
+            guard (200...299).contains(http.statusCode) else {
+                let responseBody = bestEffortErrorMessage(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, responseBody)
+            }
+
+            return data
+        } catch let err as RemoteAPIError {
+            throw err
+        } catch {
+            throw RemoteAPIError.network(error.localizedDescription)
+        }
+    }
+
+    /// Every other call in this client passes a bare, unversioned path
+    /// (`/worlds`) and relies on `normalizedBaseURL` already carrying
+    /// `/v1`. The staged-upload route is the one place the *server* hands
+    /// back a full path (`uploadPath`, e.g. `/v1/staged-uploads/{id}`)
+    /// that already includes `/v1` -- passed straight through
+    /// `makeHTTPURL` that would double it (`/v1/v1/...`). Strip one
+    /// leading `v1` path segment so both a bare and an already-versioned
+    /// path land on the same URL.
+    private func stripLeadingV1(_ path: String) -> String {
+        let trimmed = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        if trimmed == "v1" { return "" }
+        if trimmed.hasPrefix("v1/") { return String(trimmed.dropFirst(3)) }
+        return trimmed
     }
 
     private func waitForStoppedBeforeRestart() async throws {

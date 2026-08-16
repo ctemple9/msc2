@@ -45,6 +45,10 @@ final class DashboardViewModel: ObservableObject {
 
     @Published var worldsResponse: WorldSlotsResponseDTO? = nil
     @Published var backupsResponse: BackupsResponseDTO? = nil
+    /// Latest snapshot of a long-running world/backup operation this view
+    /// model started (`convertWorld`), published on every poll so a P6.24
+    /// UI can show live progress. `nil` when nothing is in flight.
+    @Published var activeOperation: OperationDTO? = nil
     @Published var allowlistResponse: AllowlistResponseDTO? = nil
     @Published var sessionLogResponse: SessionLogResponseDTO? = nil
     @Published var playerProfilesResponse: PlayerProfilesResponseDTO? = nil
@@ -716,6 +720,116 @@ final class DashboardViewModel: ObservableObject {
             return nil
         } catch {
             return error.localizedDescription
+        }
+    }
+
+    // MARK: - World management verbs: Phase 6 additions
+    // Same shape as the P9 verbs above: nil on success (with worldsResponse
+    // refreshed from the echoed slot list), an error string on failure.
+
+    func deleteWorldSlot(baseURL: URL, token: String, slotId: String) async -> String? {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            let result = try await requireClient().deleteWorldSlot(slotId: slotId)
+            guard result.success else { return worldErrorText(result.message) }
+            if let fresh = result.updated { worldsResponse = fresh }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    func duplicateWorldSlot(baseURL: URL, token: String, slotId: String) async -> String? {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            let result = try await requireClient().duplicateWorldSlot(slotId: slotId)
+            guard result.success else { return worldErrorText(result.message) }
+            if let fresh = result.updated { worldsResponse = fresh }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Renames the active/live world's on-disk folders directly --
+    /// distinct from `renameWorld(slotId:name:)` above, which only
+    /// renames a saved slot's metadata.
+    func renameActiveWorld(baseURL: URL, token: String, name: String) async -> String? {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            let result = try await requireClient().renameActiveWorld(name: name)
+            guard result.success else { return worldErrorText(result.message) }
+            if let fresh = result.updated { worldsResponse = fresh }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Uploads a local world ZIP's bytes as a new saved slot.
+    func importWorldZip(baseURL: URL, token: String, name: String, data: Data) async -> String? {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            let result = try await requireClient().importWorldZip(name: name, data: data)
+            guard result.success else { return worldErrorText(result.message) }
+            if let fresh = result.updated { worldsResponse = fresh }
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Downloads a saved slot's archive bytes. Returns nil on failure
+    /// (`errorMessage` is set); the caller decides where to write them.
+    func exportWorldSlot(baseURL: URL, token: String, slotId: String) async -> Data? {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            return try await requireClient().exportWorldSlot(slotId: slotId)
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    /// Starts a world conversion and polls it to a terminal state,
+    /// publishing each update to `activeOperation`. Returns the terminal
+    /// `OperationDTO` (inspect its `.state`/`.error`) or nil on a
+    /// transport failure (`errorMessage` is set). Unlike the P9 verbs
+    /// above, conversion is always operation-backed -- there is no
+    /// synchronous result to fall back on.
+    func convertWorld(baseURL: URL, token: String, sourceSlotId: String, targetServerId: String,
+                      targetFormat: String, targetName: String?, targetSlotId: String?) async -> OperationDTO? {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        activeOperation = nil
+        do {
+            let client = try requireClient()
+            let started = try await client.convertWorld(sourceSlotId: sourceSlotId, targetServerId: targetServerId,
+                                                         targetFormat: targetFormat, targetName: targetName,
+                                                         targetSlotId: targetSlotId)
+            return try await client.pollOperationToTerminal(id: started.operationId) { [weak self] update in
+                self?.activeOperation = update
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    func deleteBackup(baseURL: URL, token: String, backupId: String) async -> Bool {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            _ = try await requireClient().deleteBackup(backupId: backupId)
+            return true
+        } catch {
+            errorMessage = error.localizedDescription
+            return false
         }
     }
 

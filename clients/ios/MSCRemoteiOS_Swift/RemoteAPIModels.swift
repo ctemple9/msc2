@@ -773,6 +773,12 @@ struct WorldSlotDTO: Codable, Identifiable, Equatable {
     let createdAt: String
     let zipSizeBytes: Int64?
     let worldSeed: String?
+    /// Phase 6 addition (`docs/msc2/worlds/phase6-api.md`) — whether this
+    /// slot has a saved thumbnail image (`GET /worlds/{id}/thumbnail`).
+    /// Optional so a baseline payload from before Phase 6 wiring still
+    /// decodes; treat an absent value as "no thumbnail" rather than
+    /// unknown.
+    let hasThumbnail: Bool?
 }
 
 struct WorldSlotsResponseDTO: Codable, Equatable {
@@ -790,6 +796,94 @@ struct WorldMutationResultDTO: Codable, Equatable {
     let success: Bool
     let message: String
     let updated: WorldSlotsResponseDTO?
+}
+
+// MARK: - World Slots: Phase 6 additions
+//
+// `phase6-api.md`'s thirteen new operations this baseline never exposed.
+// Every request DTO below mirrors `crates/msc-api/src/dto/worlds.rs`
+// field-for-field (already camelCase on the wire, so no CodingKeys is
+// needed); every response DTO decodes only the fields this client
+// actually consumes.
+
+struct WorldDeleteRequestDTO: Encodable, Equatable {
+    let slotId: String
+}
+
+struct WorldDuplicateRequestDTO: Encodable, Equatable {
+    let slotId: String
+}
+
+struct WorldImportRequestDTO: Encodable, Equatable {
+    let name: String
+    let stagedUploadId: String
+}
+
+struct WorldExportRequestDTO: Encodable, Equatable {
+    let slotId: String
+}
+
+struct WorldExportResultDTO: Decodable, Equatable {
+    let stagedDownloadId: String
+    let expiresAt: String
+    let sizeBytes: Int64
+}
+
+/// `AppViewModel+WorldManagement.swift::renameWorld`'s direct live-world
+/// rename — distinct from `WorldMutationResultDTO`-returning
+/// `renameWorld(slotId:name:)`, which only renames a slot's metadata.
+struct WorldRenameActiveWorldRequestDTO: Encodable, Equatable {
+    let name: String
+}
+
+/// `purpose` is a closed, single-value enum today
+/// (`docs/msc2/worlds/phase6-api.md` §4: a staging slot can only be
+/// redeemed by the route it was created for).
+enum StagedUploadPurposeDTO: String, Codable, Equatable {
+    case worldImport = "world-import"
+}
+
+struct StagedUploadBeginRequestDTO: Encodable, Equatable {
+    let purpose: StagedUploadPurposeDTO
+    let contentType: String?
+}
+
+struct StagedUploadBeginResultDTO: Decodable, Equatable {
+    let stagedUploadId: String
+    /// `PUT` this path (already `/v1/...`-relative) with the raw file
+    /// bytes — bounded to this one token, never an arbitrary remote path.
+    let uploadPath: String
+    let expiresAt: String
+    let maxBytes: Int64
+}
+
+struct StagedUploadCompleteResultDTO: Decodable, Equatable {
+    let stagedUploadId: String
+    let receivedBytes: Int64
+    let sha256: String
+}
+
+/// Corrected post-review (Cameron, P6.21): MSC 1 conversion always names a
+/// separate, opposite-edition *target* server — `sourceSlotId` resolves
+/// against the active server (this API's existing implicit-active-server
+/// convention); `targetServerId`/`targetFormat` are both required and
+/// client-chosen. Exactly one of `targetName`/`targetSlotId` must be
+/// present, validated before this is ever sent.
+struct WorldConvertRequestDTO: Encodable, Equatable {
+    let sourceSlotId: String
+    let targetServerId: String
+    let targetFormat: String
+    let targetName: String?
+    let targetSlotId: String?
+}
+
+/// Always operation-backed (`type: "world-conversion"`) — Chunker's
+/// process lifetime makes this the one Phase 6 world mutation with no
+/// synchronous variant, so `operationId` is required here, unlike every
+/// optional `operationId` elsewhere in this file.
+struct WorldConvertResultDTO: Decodable, Equatable {
+    let result: String
+    let operationId: String
 }
 
 // MARK: - Diagnostics: Health cards + startup problems (P10)
@@ -907,6 +1001,73 @@ struct BackupConfigUpdateResultDTO: Codable, Equatable {
     let success: Bool
     let message: String
     let config: BackupConfigResponseDTO?
+}
+
+/// Phase 6 addition — `POST /backups/delete` had no route in the frozen
+/// baseline.
+struct BackupDeleteRequestDTO: Encodable, Equatable {
+    let backupId: String
+}
+
+// MARK: - Operations (Phase 6: poll long-running world/backup work)
+//
+// `operation-model.md` §2's wire shape, hand-written against
+// `crates/msc-api/src/dto/operation.rs` per `RemoteAPIClient.swift`'s own
+// established "no codegen yet" convention (see its `V1StatusDTO` doc
+// comment) — codegen is still deferred past Phase 2.
+
+enum OperationStateDTO: String, Codable, Equatable {
+    case queued, running, succeeded, failed, cancelled
+}
+
+struct OperationProgressDTO: Codable, Equatable {
+    let current: Int
+    let total: Int
+}
+
+/// `versioning-and-errors.md` §5-6's single error envelope. Distinct from
+/// `RemoteAPIClient`'s private `ErrorEnvelope` (which only ever extracts a
+/// display message from a non-2xx body) because `OperationDTO.error`
+/// needs the machine-readable `code` too.
+struct ErrorDTO: Codable, Equatable {
+    let code: String
+    let message: String
+    let helpId: String?
+}
+
+struct OperationDTO: Decodable, Equatable {
+    let id: String
+    let type: String
+    let target: String?
+    let state: OperationStateDTO
+    let progress: OperationProgressDTO?
+    let statusLine: String?
+    /// Only ever a flat string map for every Phase 6 operation type this
+    /// client polls (`world-activate`/`world-conversion`/`backup-now`/
+    /// `backup-restore` all encode a `BTreeMap<String, String>`
+    /// server-side). Decoded leniently — an unexpected shape drops to
+    /// `nil` rather than failing the whole operation record, since a
+    /// client mid-poll cares far more about `state`/`statusLine` than
+    /// about parsing a payload no Phase 6 call site currently produces
+    /// differently.
+    let result: [String: String]?
+    let error: ErrorDTO?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, type, target, state, progress, statusLine, result, error
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        type = try container.decode(String.self, forKey: .type)
+        target = try container.decodeIfPresent(String.self, forKey: .target)
+        state = try container.decode(OperationStateDTO.self, forKey: .state)
+        progress = try container.decodeIfPresent(OperationProgressDTO.self, forKey: .progress)
+        statusLine = try container.decodeIfPresent(String.self, forKey: .statusLine)
+        result = try? container.decodeIfPresent([String: String].self, forKey: .result)
+        error = try container.decodeIfPresent(ErrorDTO.self, forKey: .error)
+    }
 }
 
 // MARK: - Resource Packs

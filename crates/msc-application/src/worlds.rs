@@ -1121,6 +1121,25 @@ pub(crate) fn move_entries(fs: &dyn FileSystem, from_dir: &Path, to_dir: &Path) 
     Ok(())
 }
 
+/// Freezes the calling thread indefinitely once the current live world
+/// has been moved aside but before its replacement is installed --
+/// giving `phase6-gate-smoke.sh`'s restart-race checks a stable,
+/// arbitrarily-wide window to catch and kill a real agent process,
+/// rather than racing a poll against a real handful-of-`rename()`-
+/// syscalls window (which turned out to be too narrow to reliably
+/// observe on Windows CI runners regardless of kill speed). A no-op
+/// unless `MSC2_TEST_PAUSE_AFTER_WORLD_MOVE` is set; the smoke script
+/// only ever sets it for an agent process it starts specifically to
+/// serve one racy call before killing it, never for a process handling
+/// any other operation.
+pub(crate) fn test_pause_after_world_move() {
+    if std::env::var_os("MSC2_TEST_PAUSE_AFTER_WORLD_MOVE").is_some() {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(3600));
+        }
+    }
+}
+
 /// `worldFolderNames(for:)`'s Bedrock legacy-layout relocation (source
 /// line 737-758), applied inside the staging directory rather than the
 /// server root — a failure here is non-fatal either way, matching
@@ -1298,6 +1317,7 @@ pub fn activate_slot(
     for name in &current_folders {
         fs.rename(&server_dir.join(name), &prior_dir.join(name))?;
     }
+    test_pause_after_world_move();
 
     // Phase 3: install the staged replacement (if any), then commit.
     if has_archive {

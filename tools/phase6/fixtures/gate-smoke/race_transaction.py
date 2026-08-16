@@ -17,13 +17,30 @@ than only asserting against a hand-built fixture.
 
 The window is typically a handful of `rename()` syscalls wide (low
 double-digit microseconds on a local SSD) -- too narrow to hit with a
-fixed sleep. This script instead busy-polls for `prior/`'s appearance
-concurrently with a *blocking* CLI call (no `--no-wait`): the CLI
-process only returns once the operation reaches a terminal state, so
-"the CLI call returned and the poller never saw prior/" is a genuine,
-race-free signal that the whole transaction completed normally --
-letting the driver alternate targets and try again without needing to
-guess at timing anywhere.
+fixed sleep, and (discovered running this on real Windows CI) too
+narrow to reliably even *observe* by busy-polling there: GitHub's
+Windows runners have enough per-syscall filesystem overhead that the
+whole transaction can complete between one poll and the next,
+regardless of how fast the kill itself lands afterward. `msc-agent`
+(`worlds::test_pause_after_world_move`/`backups`'s call to it) closes
+that gap by durably blocking in the real window when
+`MSC2_TEST_PAUSE_AFTER_WORLD_MOVE` is set -- the caller
+(`phase6-gate-smoke.sh`) sets it only for an agent instance it starts
+dedicated to one racy call. That turns the window from microseconds
+into "however long it takes this poller to notice", so the busy-poll
+below still does real work (there is no other way to learn *when* to
+kill) but no longer needs to win a timing race to succeed.
+
+This script still busy-polls for `prior/`'s appearance concurrently
+with a *blocking* CLI call (no `--no-wait`): the CLI process only
+returns once the operation reaches a terminal state, so "the CLI call
+returned and the poller never saw prior/" is a genuine, race-free
+signal that the whole transaction completed normally -- letting the
+driver alternate targets and try again without needing to guess at
+timing anywhere. With the pause in place this should always catch on
+the first attempt; the retry loop is left as a harmless fallback
+rather than removed, in case a target's own call fails validation
+before ever reaching the pause point.
 """
 import argparse
 import json

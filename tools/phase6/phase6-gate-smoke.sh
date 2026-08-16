@@ -134,6 +134,18 @@ PY
 }
 
 start_agent() {
+  # Optional first arg "pause-after-world-move" starts this one agent
+  # instance with MSC2_TEST_PAUSE_AFTER_WORLD_MOVE set, so the restart
+  # races below get a stable, arbitrarily-wide window to catch instead
+  # of racing a poll against a real handful-of-rename()-syscalls
+  # window. Every other start_agent call (including the restart right
+  # after each race kills this one) leaves it unset -- this must never
+  # leak into a process serving any other step's operations.
+  if [[ "${1:-}" == "pause-after-world-move" ]]; then
+    export MSC2_TEST_PAUSE_AFTER_WORLD_MOVE=1
+  else
+    unset MSC2_TEST_PAUSE_AFTER_WORLD_MOVE
+  fi
   export MSC2_TEST_BOOTSTRAP_TOKEN="${TOKEN}"
   export MSC2_DATA_DIR="${DATA_DIR}"
   export MSC2_APP_CONFIG_PATH="${CONFIG_PATH}"
@@ -594,10 +606,17 @@ SAFETY_2_ID="$(new_ids_since "${TMP_DIR}/backups-before-restore.txt")"
 # slot." `PRE_RACE_LIVE_GEN`/`PRE_RACE_ACTIVE_SLOT` capture that fact
 # directly rather than assuming it.
 # =====================================================================
-echo "== restart-mid-activation race (this deliberately retries until it lands the window) =="
+echo "== restart-mid-activation race =="
 PRE_RACE_LIVE_GEN="$(read_generation)"
 PRE_RACE_ACTIVE_SLOT="$(active_slot_id)"
 [[ "${PRE_RACE_ACTIVE_SLOT}" == "${SLOT_IMPORTED_ID}" ]] || fail "unexpected active slot before the activation race"
+
+# Restart the agent dedicated to this one call, paused durably between
+# "old world moved aside" and "new world installed" -- see
+# start_agent's own comment. This process's only job from here is to
+# serve this call and then be killed by the race script.
+stop_agent
+start_agent pause-after-world-move
 
 RACE_RESULT="$(python3 "${ROOT}/tools/phase6/fixtures/gate-smoke/race_transaction.py" \
   --msc "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN}" \
@@ -667,6 +686,10 @@ RACE_BACKUP_B="$(new_ids_since "${TMP_DIR}/backups-before-race-b.txt")"
 [[ "${RACE_BACKUP_A}" != "${RACE_BACKUP_B}" ]] || fail "restore-race backups collided"
 PRE_RACE_LIVE_GEN="$(read_generation)"
 [[ "${PRE_RACE_LIVE_GEN}" == "GEN-RESTORE-B" ]] || fail "unexpected live generation before the restore race"
+
+# Same dedicated-paused-process technique as the activation race above.
+stop_agent
+start_agent pause-after-world-move
 
 RACE_RESULT="$(python3 "${ROOT}/tools/phase6/fixtures/gate-smoke/race_transaction.py" \
   --msc "${MSC_BIN}" --base-url "${BASE_URL}" --token "${TOKEN}" \

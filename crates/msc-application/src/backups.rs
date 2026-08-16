@@ -699,6 +699,7 @@ pub fn restore_backup(
         fs.rename(&server_dir.join(name), &prior_dir.join(name))
             .map_err(RestoreError::Io)?;
     }
+    crate::worlds::test_pause_after_world_move();
 
     // Phase 3: install the staged restore, then remove the whole
     // transaction directory — `prior/` is discarded too, matching

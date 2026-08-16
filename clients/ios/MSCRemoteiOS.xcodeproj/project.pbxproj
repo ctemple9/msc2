@@ -64,6 +64,9 @@
 		G71067EB687J1I08JHB0E002 /* UsersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = G71067EB687J1I08JHB0E001 /* UsersView.swift */; };
 		H81068FC798K2J19KIC1F002 /* ComponentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = H81068FC798K2J19KIC1F001 /* ComponentsView.swift */; };
 		A646F4C87A334F4595A45245 /* Phase6WorldBackupAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0D760E77AB141E498408FEA /* Phase6WorldBackupAPITests.swift */; };
+		E7217B72DACB4EF7B9F60422 /* ImportWorldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0D35E41326940969EF091C8 /* ImportWorldView.swift */; };
+		FD6BF81E2961471181CE660C /* ConvertWorldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF5DF3F1C554048A7742CFE /* ConvertWorldView.swift */; };
+		7A58DB3BB01D4E6A8152E312 /* Phase6WorldBackupViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -127,6 +130,9 @@
 		H81068FC798K2J19KIC1F001 /* ComponentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComponentsView.swift; sourceTree = "<group>"; };
 		B0D760E77AB141E498408FEA /* Phase6WorldBackupAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase6WorldBackupAPITests.swift; sourceTree = "<group>"; };
 		6A9D5C2CB0164F409770168B /* MSCRemoteiOSTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MSCRemoteiOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D0D35E41326940969EF091C8 /* ImportWorldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportWorldView.swift; sourceTree = "<group>"; };
+		6AF5DF3F1C554048A7742CFE /* ConvertWorldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertWorldView.swift; sourceTree = "<group>"; };
+		C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase6WorldBackupViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -216,6 +222,8 @@
 				G71067EB687J1I08JHB0E001 /* UsersView.swift */,
 				037EF9722FFE4A20BA98F8BE /* WorldsView.swift */,
 				9ATAB0010000000000000A01 /* ServerView.swift */,
+				D0D35E41326940969EF091C8 /* ImportWorldView.swift */,
+				6AF5DF3F1C554048A7742CFE /* ConvertWorldView.swift */,
 			);
 			path = MSCRemoteiOS_Swift;
 			sourceTree = "<group>";
@@ -243,6 +251,7 @@
 			isa = PBXGroup;
 			children = (
 				B0D760E77AB141E498408FEA /* Phase6WorldBackupAPITests.swift */,
+				C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */,
 			);
 			path = MSCRemoteiOSTests;
 			sourceTree = "<group>";
@@ -406,6 +415,8 @@
 				G71067EB687J1I08JHB0E002 /* UsersView.swift in Sources */,
 				0CE786C8E7F04DC5B2C38F3C /* WorldsView.swift in Sources */,
 				9ATAB0010000000000000A02 /* ServerView.swift in Sources */,
+				E7217B72DACB4EF7B9F60422 /* ImportWorldView.swift in Sources */,
+				FD6BF81E2961471181CE660C /* ConvertWorldView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -414,6 +425,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A646F4C87A334F4595A45245 /* Phase6WorldBackupAPITests.swift in Sources */,
+				7A58DB3BB01D4E6A8152E312 /* Phase6WorldBackupViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

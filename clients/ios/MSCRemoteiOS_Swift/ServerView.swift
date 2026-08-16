@@ -9,11 +9,14 @@ struct ServerView: View {
     @State private var selectedSegment: Segment = .content
     @State private var isContentRefreshing: Bool = false
     @State private var worldsShowCreate: Bool = false
+    @State private var worldsShowImport: Bool = false
 
     private var resolvedBaseURL: URL? { settings.resolvedBaseURL() }
     private var resolvedToken: String? { settings.resolvedToken() }
     private var isPaired: Bool { resolvedBaseURL != nil && resolvedToken != nil }
-    private var isAdmin: Bool { vm.connectedRole == "admin" }
+    /// See `WorldsView.canManageWorlds`'s own doc: the granular "worlds"
+    /// permission, widened from a blanket admin-only gate.
+    private var canManageWorlds: Bool { vm.hasPermission("worlds") }
 
     var body: some View {
         NavigationStack {
@@ -55,10 +58,19 @@ struct ServerView: View {
                         }
                         .disabled(isContentRefreshing)
                     }
-                } else if selectedSegment == .worlds && isAdmin {
+                } else if selectedSegment == .worlds && canManageWorlds {
                     ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            worldsShowCreate = true
+                        Menu {
+                            Button {
+                                worldsShowCreate = true
+                            } label: {
+                                Label("New World…", systemImage: "plus.square")
+                            }
+                            Button {
+                                worldsShowImport = true
+                            } label: {
+                                Label("Import World ZIP…", systemImage: "square.and.arrow.down")
+                            }
                         } label: {
                             Image(systemName: "plus")
                                 .foregroundStyle(MSCRemoteStyle.accent)
@@ -68,7 +80,10 @@ struct ServerView: View {
                 }
             }
             .onChange(of: selectedSegment) { _, new in
-                if new != .worlds { worldsShowCreate = false }
+                if new != .worlds {
+                    worldsShowCreate = false
+                    worldsShowImport = false
+                }
             }
         }
     }
@@ -80,7 +95,7 @@ struct ServerView: View {
                 .environmentObject(settings)
                 .environmentObject(vm)
         } else if selectedSegment == .worlds {
-            WorldsView(showCreateSheet: $worldsShowCreate)
+            WorldsView(showCreateSheet: $worldsShowCreate, showImportSheet: $worldsShowImport)
                 .environmentObject(settings)
                 .environmentObject(vm)
         } else {

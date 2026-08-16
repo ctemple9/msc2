@@ -3,12 +3,12 @@ POST,/v1/active-server,,Select which registered server is active,serverControl,I
 GET,/v1/addons,,Installed add-ons (mods/plugins) with update status,none,Planned,Planned,Planned,Planned,
 GET,/v1/allowlist,,Get the Bedrock allowlist,none,Planned,Planned,Planned,Planned,
 POST,/v1/allowlist,,Add or remove a Bedrock allowlist entry,players,Planned,Planned,Planned,Planned,
-GET,/v1/backups,,Backups available for the active server,none,Planned,Planned,Planned,Planned,
-GET,/v1/backups/config,,Get auto-backup configuration,none,Planned,Planned,Planned,Planned,
-POST,/v1/backups/config,,Update auto-backup configuration,settings,Planned,Planned,Planned,Planned,
-POST,/v1/backups/delete,deleteBackup,Delete a backup by id,worlds,Planned,Planned,Planned,Planned,
-POST,/v1/backups/now,createBackupNow,Start an immediate backup,worlds,Planned,Planned,Planned,Planned,
-POST,/v1/backups/restore,restoreBackup,Restore a backup by id (filename),worlds,Planned,Planned,Planned,Planned,Bedrock-unsupported guard returns capability_unavailable (phase6-api.md SS5)
+GET,/v1/backups,,Backups available for the active server,none,Planned,Planned,Implemented,Planned,
+GET,/v1/backups/config,,Get auto-backup configuration,none,Planned,Planned,Implemented,Planned,
+POST,/v1/backups/config,,Update auto-backup configuration,settings,Planned,Planned,Implemented,Planned,
+POST,/v1/backups/delete,deleteBackup,Delete a backup by id,worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/backups/now,createBackupNow,Start an immediate backup,worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/backups/restore,restoreBackup,Restore a backup by id (filename),worlds,Planned,Planned,Implemented,Planned,Bedrock-unsupported guard returns capability_unavailable (phase6-api.md SS5)
 GET,/v1/broadcast/auth-prompt,,Get pending MCXboxBroadcast auth prompt,none,Planned,Planned,Planned,Planned,
 POST,/v1/broadcast/auth-prompt/dismiss,,Dismiss the pending auth prompt,broadcast,Planned,Planned,Planned,Planned,
 GET,/v1/broadcast/autostart,,Get Xbox broadcast auto-start setting,none,Planned,Planned,Planned,Planned,
@@ -75,9 +75,9 @@ POST,/v1/servers/rename,,Rename a server,fleet,Planned,Planned,Planned,Planned,
 GET,/v1/session-log,,Join/leave event history for the active server,none,Planned,Planned,Planned,Planned,
 GET,/v1/settings,,"Typed server.properties schema for the active server, as sections of fields",none,Implemented,Planned,Planned,Implemented,
 POST,/v1/settings,,"Apply a sparse set of settings changes (key -> string value), validated and clamped per field",settings,Implemented,Planned,Planned,Implemented,
-GET,/v1/staged-downloads/{id},downloadStagedBytes,Download bytes from a previously prepared staged export,worlds,Planned,Planned,Planned,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
-POST,/v1/staged-uploads,beginStagedUpload,Begin a bounded staged upload,worlds,Planned,Planned,Planned,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
-PUT,/v1/staged-uploads/{id},uploadStagedBytes,Upload bytes into a previously begun staging slot,worlds,Planned,Planned,Planned,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
+GET,/v1/staged-downloads/{id},downloadStagedBytes,Download bytes from a previously prepared staged export,worlds,Planned,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
+POST,/v1/staged-uploads,beginStagedUpload,Begin a bounded staged upload,worlds,Planned,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
+PUT,/v1/staged-uploads/{id},uploadStagedBytes,Upload bytes into a previously begun staging slot,worlds,Planned,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
 POST,/v1/start,,Start the active server,serverControl,Implemented,Planned,Implemented,Implemented,
 GET,/v1/status,,"Current run status (active server, pid, running state)",none,Implemented,Planned,Implemented,Implemented,
 POST,/v1/stop,,Stop the active server,serverControl,Implemented,Planned,Implemented,Implemented,
@@ -92,17 +92,17 @@ GET,/v1/versions/create,,"Available versions for the create-server flow (query p
 POST,/v1/watchdog/disable,,Disable the watchdog,settings,Planned,Planned,Planned,Planned,
 POST,/v1/watchdog/enable,,Enable the watchdog,settings,Planned,Planned,Planned,Planned,
 GET,/v1/watchdog/status,,Get watchdog enabled status,none,Planned,Planned,Planned,Planned,
-GET,/v1/worlds,,"World slots for the active server, plus which is active",none,Planned,Planned,Planned,Planned,
-POST,/v1/worlds/activate,activateWorldSlot,Activate a world slot (starts activation asynchronously),worlds,Planned,Planned,Planned,Planned,
-POST,/v1/worlds/convert,convertWorld,Start a Chunker world-format conversion,worlds,Planned,Planned,Planned,Planned,"async-only, operation type world-conversion (phase6-api.md SS3)"
-POST,/v1/worlds/create,,Create a new world slot,worlds,Planned,Planned,Planned,Planned,
-POST,/v1/worlds/delete,deleteWorldSlot,Delete a non-active world slot,worlds,Planned,Planned,Planned,Planned,
-POST,/v1/worlds/duplicate,duplicateWorldSlot,Duplicate a world slot under a fresh id,worlds,Planned,Planned,Planned,Planned,
-POST,/v1/worlds/export,exportWorldSlot,Stage a world slot's archive for download,worlds,Planned,Planned,Planned,Planned,
-POST,/v1/worlds/import,importWorldSlot,Import a staged world ZIP as a new slot,worlds,Planned,Planned,Planned,Planned,
-POST,/v1/worlds/rename,,Rename a world slot,worlds,Planned,Planned,Planned,Planned,"slot metadata rename only, no file I/O -- see phase6-api.md SS1's naming-trap note"
+GET,/v1/worlds,,"World slots for the active server, plus which is active",none,Planned,Planned,Implemented,Planned,
+POST,/v1/worlds/activate,activateWorldSlot,Activate a world slot (starts activation asynchronously),worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/worlds/convert,convertWorld,Start a Chunker world-format conversion,worlds,Planned,Planned,Implemented,Planned,"async-only, operation type world-conversion (phase6-api.md SS3)"
+POST,/v1/worlds/create,,Create a new world slot,worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/worlds/delete,deleteWorldSlot,Delete a non-active world slot,worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/worlds/duplicate,duplicateWorldSlot,Duplicate a world slot under a fresh id,worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/worlds/export,exportWorldSlot,Stage a world slot's archive for download,worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/worlds/import,importWorldSlot,Import a staged world ZIP as a new slot,worlds,Planned,Planned,Implemented,Planned,
+POST,/v1/worlds/rename,,Rename a world slot,worlds,Planned,Planned,Implemented,Planned,"slot metadata rename only, no file I/O -- see phase6-api.md SS1's naming-trap note"
 POST,/v1/worlds/rename-active-world,renameActiveWorld,Directly rename the active/live world's on-disk folders,worlds,Planned,Planned,Planned,Planned,"direct live-world folder rename (renameWorld) -- distinct from POST /v1/worlds/rename, phase6-api.md SS1"
-POST,/v1/worlds/repair,,Repair a Bedrock world's level.dat,worlds,Planned,Planned,Planned,Planned,Bedrock-only; live workflow stays unavailable until Phase 10 (capability_unavailable)
-POST,/v1/worlds/replace,,Copy a saved slot's content into another existing slot,worlds,Planned,Planned,Planned,Planned,"corrected post-review: copySlotIntoExisting, not the live world (replaceWorld); copyWorldSlotContent removed as a duplicate"
+POST,/v1/worlds/repair,,Repair a Bedrock world's level.dat,worlds,Planned,Planned,Implemented,Planned,Bedrock-only; live workflow stays unavailable until Phase 10 (capability_unavailable)
+POST,/v1/worlds/replace,,Copy a saved slot's content into another existing slot,worlds,Planned,Planned,Implemented,Planned,"corrected post-review: copySlotIntoExisting, not the live world (replaceWorld); copyWorldSlotContent removed as a duplicate"
 POST,/v1/worlds/update,updateActiveWorldSlot,Save the current live world into the active slot,worlds,Planned,Planned,Planned,Planned,
 GET,/v1/worlds/{slotId}/thumbnail,getWorldSlotThumbnail,"A world slot's thumbnail image, if one was generated",none,Planned,Planned,Planned,Planned,"generation is automatic on slot create/update, no separate write route"

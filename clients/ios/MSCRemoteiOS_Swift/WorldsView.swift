@@ -21,6 +21,14 @@ struct WorldsView: View {
     @State private var slotToRepair: WorldSlotDTO? = nil
     @State private var isMutating: Bool = false
 
+    // World management (P6.24 additions)
+    @Binding var showImportSheet: Bool
+    @State private var slotToDelete: WorldSlotDTO? = nil
+    @State private var slotToConvert: WorldSlotDTO? = nil
+    @State private var isExporting: Bool = false
+    @State private var exportedFileURL: URL? = nil
+    @State private var backupToDelete: BackupItemDTO? = nil
+
     // Backup schedule card draft state
     @State private var scheduleEnabled: Bool = false
     @State private var scheduleInterval: Int = 30
@@ -34,13 +42,28 @@ struct WorldsView: View {
     private var resolvedBaseURL: URL? { settings.resolvedBaseURL() }
     private var resolvedToken: String? { settings.resolvedToken() }
     private var isPaired: Bool { resolvedBaseURL != nil && resolvedToken != nil }
-    private var isAdmin: Bool { vm.connectedRole == "admin" }
+    /// P6.24: widened from a blanket admin-only gate to the granular
+    /// "worlds" permission category the credential system already has —
+    /// `hasPermission` returns true for an admin token too, so this only
+    /// *adds* capability (a named, non-admin token holding "worlds" can
+    /// now use this screen), never removes it. This is the "existing
+    /// device-auth protection" P6.24's own step text names for gating
+    /// destructive restore/delete actions.
+    private var canManageWorlds: Bool { vm.hasPermission("worlds") }
 
     private var activeServerType: ServerType {
         if let fromServers = vm.servers.first(where: { $0.id == (vm.status?.activeServerId ?? "") })?.resolvedServerType {
             return fromServers
         }
         return vm.status?.resolvedServerType ?? .java
+    }
+
+    /// Whether at least one other, opposite-edition server is registered
+    /// on this agent -- `ConvertWorldView`'s own picker filter, mirrored
+    /// here so the "Convert…" menu item isn't offered for a conversion
+    /// that has nowhere to go.
+    private var eligibleConversionTargetsExist: Bool {
+        vm.servers.contains { $0.resolvedServerType != activeServerType }
     }
 
     private var isRepairing: Bool { vm.worldsResponse?.isRepairing == true }
@@ -93,6 +116,11 @@ struct WorldsView: View {
         .background(repairAlertAnchor)
         .background(activateAlertAnchor)
         .background(restoreAlertAnchor)
+        .background(importSheetAnchor)
+        .background(deleteSlotAlertAnchor)
+        .background(deleteBackupAlertAnchor)
+        .background(convertSheetAnchor)
+        .background(exportShareSheetAnchor)
     }
 
     // MARK: - Isolated presentation anchors
@@ -206,6 +234,76 @@ struct WorldsView: View {
             }
     }
 
+    // MARK: - P6.24 presentation anchors
+
+    private var importSheetAnchor: some View {
+        Color.clear
+            .sheet(isPresented: $showImportSheet) {
+                ImportWorldView { name, data in
+                    Task { await performImport(name: name, data: data) }
+                }
+            }
+    }
+
+    private var deleteSlotAlertAnchor: some View {
+        Color.clear
+            .alert("Delete World", isPresented: Binding(
+                get: { slotToDelete != nil },
+                set: { if !$0 { slotToDelete = nil } }
+            )) {
+                Button("Cancel", role: .cancel) { slotToDelete = nil }
+                Button("Delete", role: .destructive) {
+                    guard let slot = slotToDelete else { return }
+                    slotToDelete = nil
+                    Task { await performDelete(slot: slot) }
+                }
+            } message: {
+                if let slot = slotToDelete {
+                    Text("Permanently delete \"\(slot.name)\"?\n\nThis cannot be undone.")
+                }
+            }
+    }
+
+    private var deleteBackupAlertAnchor: some View {
+        Color.clear
+            .alert("Delete Backup", isPresented: Binding(
+                get: { backupToDelete != nil },
+                set: { if !$0 { backupToDelete = nil } }
+            )) {
+                Button("Cancel", role: .cancel) { backupToDelete = nil }
+                Button("Delete", role: .destructive) {
+                    guard let backup = backupToDelete else { return }
+                    backupToDelete = nil
+                    Task { await performDeleteBackup(backup: backup) }
+                }
+            } message: {
+                if let backup = backupToDelete {
+                    Text("Permanently delete \"\(backup.displayName)\"?\n\nThe agent refuses to delete the last remaining verified backup.")
+                }
+            }
+    }
+
+    private var convertSheetAnchor: some View {
+        Color.clear
+            .sheet(item: $slotToConvert) { slot in
+                ConvertWorldView(sourceSlot: slot, sourceServerType: activeServerType)
+                    .environmentObject(settings)
+                    .environmentObject(vm)
+            }
+    }
+
+    private var exportShareSheetAnchor: some View {
+        Color.clear
+            .sheet(isPresented: Binding(
+                get: { exportedFileURL != nil },
+                set: { if !$0 { exportedFileURL = nil } }
+            )) {
+                if let url = exportedFileURL {
+                    ShareSheet(items: [url])
+                }
+            }
+    }
+
     // MARK: - World Slots Card
 
     private var worldSlotsCard: some View {
@@ -292,7 +390,7 @@ struct WorldsView: View {
                 }
             }
             Spacer()
-            if isAdmin && !slot.isActive {
+            if canManageWorlds && !slot.isActive {
                 Button {
                     slotToActivate = slot
                 } label: {
@@ -308,7 +406,7 @@ struct WorldsView: View {
                 }
                 .disabled(serverRunning || isActivating)
             }
-            if isAdmin {
+            if canManageWorlds {
                 slotMenu(slot, serverRunning: serverRunning)
             }
         }
@@ -342,6 +440,39 @@ struct WorldsView: View {
                     Label("Repair World", systemImage: "wrench.and.screwdriver")
                 }
                 .disabled(serverRunning || isRepairing)
+            }
+
+            Button {
+                Task { await performDuplicate(slot: slot) }
+            } label: {
+                Label("Duplicate", systemImage: "plus.square.on.square")
+            }
+
+            Button {
+                Task { await performExport(slot: slot) }
+            } label: {
+                Label(isExporting ? "Exporting…" : "Export…", systemImage: "square.and.arrow.up")
+            }
+            .disabled(isExporting)
+
+            // Conversion needs at least one other, opposite-edition server
+            // registered on this agent to convert into.
+            if eligibleConversionTargetsExist {
+                Button {
+                    slotToConvert = slot
+                } label: {
+                    Label("Convert…", systemImage: "arrow.left.arrow.right")
+                }
+            }
+
+            // Deleting the active slot is refused server-side anyway --
+            // hidden here to match "Set Active"'s own !slot.isActive gate.
+            if !slot.isActive {
+                Button(role: .destructive) {
+                    slotToDelete = slot
+                } label: {
+                    Label("Delete", systemImage: "trash")
+                }
             }
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -383,7 +514,7 @@ struct WorldsView: View {
             MSCSectionHeader(title: "Backups")
                 .padding(.bottom, MSCRemoteStyle.spaceMD)
 
-            if isAdmin {
+            if canManageWorlds {
                 MSCActionButton(
                     title: isBackingUp ? "Backing Up…" : "Back Up Now",
                     icon: "arrow.down.doc.fill",
@@ -453,7 +584,7 @@ struct WorldsView: View {
                 }
             }
             Spacer()
-            if isAdmin {
+            if canManageWorlds {
                 Button {
                     backupToRestore = backup
                 } label: {
@@ -468,6 +599,20 @@ struct WorldsView: View {
                         )
                 }
                 .disabled(isRestoring)
+
+                Menu {
+                    Button(role: .destructive) {
+                        backupToDelete = backup
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                        .font(.system(size: 18))
+                        .foregroundStyle(MSCRemoteStyle.textSecondary)
+                        .padding(.leading, MSCRemoteStyle.spaceSM)
+                }
+                .disabled(isMutating)
             }
         }
         .padding(.vertical, MSCRemoteStyle.spaceSM + 2)
@@ -512,7 +657,7 @@ struct WorldsView: View {
                 Spacer()
                 Toggle("", isOn: $scheduleEnabled)
                     .labelsHidden()
-                    .disabled(!isAdmin)
+                    .disabled(!canManageWorlds)
                     .tint(MSCRemoteStyle.accent)
             }
             .padding(.vertical, MSCRemoteStyle.spaceSM + 2)
@@ -526,7 +671,7 @@ struct WorldsView: View {
                         .font(.system(size: 14))
                         .foregroundStyle(MSCRemoteStyle.textPrimary)
                     Spacer()
-                    if isAdmin {
+                    if canManageWorlds {
                         Picker("", selection: $scheduleInterval) {
                             ForEach(intervalOptions, id: \.self) { mins in
                                 Text(formatInterval(mins)).tag(mins)
@@ -556,7 +701,7 @@ struct WorldsView: View {
                             .foregroundStyle(MSCRemoteStyle.textTertiary)
                     }
                     Spacer()
-                    if isAdmin {
+                    if canManageWorlds {
                         HStack(spacing: MSCRemoteStyle.spaceSM) {
                             Button {
                                 if scheduleMaxCount > 3 { scheduleMaxCount -= 1 }
@@ -588,7 +733,7 @@ struct WorldsView: View {
                 .padding(.vertical, MSCRemoteStyle.spaceSM + 2)
             }
 
-            if isAdmin && scheduleDraftChanged {
+            if canManageWorlds && scheduleDraftChanged {
                 Divider().background(MSCRemoteStyle.borderSubtle)
                 HStack {
                     if let msg = scheduleSaveMessage {
@@ -803,6 +948,82 @@ struct WorldsView: View {
         }
         if vm.worldsResponse?.isRepairing != true {
             showToast("World repair finished.")
+        }
+    }
+
+    // MARK: - World management actions (P6.24)
+
+    private func performDuplicate(slot: WorldSlotDTO) async {
+        guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
+        isMutating = true
+        let err = await vm.duplicateWorldSlot(baseURL: baseURL, token: token, slotId: slot.id)
+        isMutating = false
+        if let err {
+            showToast(err)
+        } else {
+            showToast("Duplicated \"\(slot.name)\".")
+            await refresh()
+        }
+    }
+
+    private func performDelete(slot: WorldSlotDTO) async {
+        guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
+        isMutating = true
+        let err = await vm.deleteWorldSlot(baseURL: baseURL, token: token, slotId: slot.id)
+        isMutating = false
+        if let err {
+            showToast(err)
+        } else {
+            showToast("Deleted \"\(slot.name)\".")
+            await refresh()
+        }
+    }
+
+    private func performImport(name: String, data: Data) async {
+        guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
+        isMutating = true
+        let err = await vm.importWorldZip(baseURL: baseURL, token: token, name: name, data: data)
+        isMutating = false
+        if let err {
+            showToast(err)
+        } else {
+            showToast("Imported \"\(name)\".")
+            await refresh()
+        }
+    }
+
+    /// Downloads the slot's archive, writes it to a temp file, and hands
+    /// that file to `exportShareSheetAnchor`'s `ShareSheet` -- the user
+    /// picks where it actually goes (Files, AirDrop, Mail, …).
+    private func performExport(slot: WorldSlotDTO) async {
+        guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
+        isExporting = true
+        let data = await vm.exportWorldSlot(baseURL: baseURL, token: token, slotId: slot.id)
+        isExporting = false
+        guard let data else {
+            showToast(vm.errorMessage ?? "Export failed.")
+            return
+        }
+        let safeName = slot.name.replacingOccurrences(of: "/", with: "-")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(safeName).zip")
+        do {
+            try data.write(to: url, options: .atomic)
+            exportedFileURL = url
+        } catch {
+            showToast("Could not save the exported file: \(error.localizedDescription)")
+        }
+    }
+
+    private func performDeleteBackup(backup: BackupItemDTO) async {
+        guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
+        isMutating = true
+        let ok = await vm.deleteBackup(baseURL: baseURL, token: token, backupId: backup.id)
+        isMutating = false
+        if ok {
+            showToast("Deleted backup.")
+            await refresh()
+        } else {
+            showToast(vm.errorMessage ?? "Delete failed.")
         }
     }
 

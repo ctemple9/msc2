@@ -833,6 +833,25 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    /// Requests server-side cancellation of a still-in-flight operation
+    /// (`world convert`'s own Cancel button). Real at the operation-
+    /// record level only -- the same caveat `RemoteAPIClient
+    /// .pollOperationToTerminal`'s own doc names: the underlying
+    /// filesystem/process work may still run to completion in the
+    /// background. Errors are swallowed to `false` rather than surfaced
+    /// through `errorMessage`, since a UI mid-cancel cares only about
+    /// whether the request landed, not about replacing whatever
+    /// in-progress status it's already showing.
+    func cancelOperation(baseURL: URL, token: String, operationId: String) async -> Bool {
+        updateCredentials(baseURL: baseURL, token: token)
+        do {
+            _ = try await requireClient().cancelOperation(id: operationId)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     /// Maps a server world-mutation error code to a friendly message.
     private func worldErrorText(_ code: String) -> String {
         switch code {

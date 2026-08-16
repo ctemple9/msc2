@@ -37,13 +37,25 @@ import time
 def hard_kill(pid: int) -> None:
     # `signal.SIGKILL` does not exist in Python's `signal` module on
     # Windows, and POSIX `os.kill` semantics (a real SIGKILL) have no
-    # Windows equivalent via `os.kill` at all — `taskkill /F` is the
-    # portable "make it stop right now" primitive there.
+    # Windows equivalent via `os.kill` at all. Spawning `taskkill.exe`
+    # (a whole new process, routinely tens of milliseconds) was the
+    # first fix here (P6.27), but the real interruption window this
+    # script targets is a handful of `rename()` syscalls wide -- low
+    # double-digit microseconds, per this file's own module doc -- so
+    # that spawn latency is enough for the agent to race past the
+    # window and finish the whole transaction before the kill lands.
+    # `TerminateProcess` via `ctypes` is a single direct WinAPI call,
+    # not a process spawn, and lands at comparable latency to POSIX
+    # `SIGKILL` below.
     if os.name == "nt":
-        subprocess.run(
-            ["taskkill", "/F", "/T", "/PID", str(pid)],
-            capture_output=True,
-        )
+        import ctypes
+
+        PROCESS_TERMINATE = 0x0001
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(PROCESS_TERMINATE, False, pid)
+        if handle:
+            kernel32.TerminateProcess(handle, 1)
+            kernel32.CloseHandle(handle)
     else:
         import signal
 

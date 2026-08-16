@@ -1,0 +1,131 @@
+#!/usr/bin/env python3
+"""Kill a real msc-agent process mid world-activation/backup-restore
+transaction, to prove `reconcile_interrupted_activation`/
+`reconcile_interrupted_restore` (P6.13/P6.18) actually recover a real
+on-disk `.activation/`-or-`.restore/` transaction, not just a
+fixture-shaped one.
+
+Both transactions share one on-disk shape (`worlds.rs`'s own section
+doc): `<marker-dir>/prior/` appears once the live world folders have
+been moved aside, and `<marker-dir>/staged/` is removed once the
+replacement has been moved into place. So "prior/ exists" is the
+window where the live server directory has *no* complete world at all
+-- the dangerous case `fixtures/world-mutations/
+activate-extraction-failure-leaves-partial-state-for-safety-backup-recovery.json`
+names, and the one worth actually catching with a real SIGKILL rather
+than only asserting against a hand-built fixture.
+
+The window is typically a handful of `rename()` syscalls wide (low
+double-digit microseconds on a local SSD) -- too narrow to hit with a
+fixed sleep. This script instead busy-polls for `prior/`'s appearance
+concurrently with a *blocking* CLI call (no `--no-wait`): the CLI
+process only returns once the operation reaches a terminal state, so
+"the CLI call returned and the poller never saw prior/" is a genuine,
+race-free signal that the whole transaction completed normally --
+letting the driver alternate targets and try again without needing to
+guess at timing anywhere.
+"""
+import argparse
+import json
+import os
+import signal
+import subprocess
+import sys
+import threading
+import time
+
+
+def attempt(msc, base_url, token, argv_tail, pid, prior_dir, staged_dir):
+    argv = [msc, "--base-url", base_url, "--token", token] + argv_tail
+    result = {"caught": False}
+    caught_event = threading.Event()
+
+    def poller():
+        while not caught_event.is_set():
+            if os.path.isdir(prior_dir):
+                result["caught"] = True
+                result["phase"] = (
+                    "prior_moved" if os.path.isdir(staged_dir) else "installed"
+                )
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                caught_event.set()
+                return
+
+    poller_thread = threading.Thread(target=poller, daemon=True)
+    poller_thread.start()
+    try:
+        subprocess.run(argv, capture_output=True, timeout=30)
+    except Exception:
+        pass
+    caught_event.set()
+    poller_thread.join(timeout=2.0)
+    return result
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--msc", required=True)
+    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--token", required=True)
+    parser.add_argument("--pid", type=int, required=True)
+    parser.add_argument("--marker-dir", required=True)
+    parser.add_argument("--cmd-a", required=True, help="comma-separated argv tail")
+    parser.add_argument("--cmd-b", required=True, help="comma-separated argv tail")
+    parser.add_argument("--start-with", choices=["a", "b"], default="a")
+    parser.add_argument("--max-attempts", type=int, default=400)
+    parser.add_argument("--max-seconds", type=float, default=60.0)
+    args = parser.parse_args()
+
+    prior_dir = os.path.join(args.marker_dir, "prior")
+    staged_dir = os.path.join(args.marker_dir, "staged")
+    cmds = {"a": args.cmd_a.split(","), "b": args.cmd_b.split(",")}
+
+    target = args.start_with
+    start = time.time()
+    attempts = 0
+
+    while attempts < args.max_attempts and (time.time() - start) < args.max_seconds:
+        attempts += 1
+        result = attempt(
+            args.msc,
+            args.base_url,
+            args.token,
+            cmds[target],
+            args.pid,
+            prior_dir,
+            staged_dir,
+        )
+        if result["caught"]:
+            deadline = time.time() + 5.0
+            while time.time() < deadline:
+                try:
+                    os.kill(args.pid, 0)
+                    time.sleep(0.02)
+                except ProcessLookupError:
+                    break
+            print(
+                json.dumps(
+                    {
+                        "caught": True,
+                        "winning_target": target,
+                        "phase": result["phase"],
+                        "attempts": attempts,
+                        "elapsed": time.time() - start,
+                    }
+                )
+            )
+            return 0
+        # This attempt's CLI call returned only once the operation
+        # reached a terminal state and the poller never saw prior/, so
+        # the transaction genuinely completed -- `target` is now live.
+        target = "b" if target == "a" else "a"
+
+    print(json.dumps({"caught": False, "attempts": attempts, "elapsed": time.time() - start}))
+    return 3
+
+
+if __name__ == "__main__":
+    sys.exit(main())

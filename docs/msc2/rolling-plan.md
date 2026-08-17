@@ -89,9 +89,9 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | Public clients | P6.20–P6.24 | routes/operations, CLI, and iOS world/backup workflows |
 | Public-path and real-corpus proof | P6.25–P6.27 | restart-sensitive smoke, real evidence run, tri-platform CI |
 | Phase exit | P6.28 | literal gate check |
-| Gate review corrections | P6.29–P6.36 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, and a new literal gate check |
+| Gate review corrections | P6.29–P6.37 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, a new literal gate check, and its own stale-constant fix |
 
-**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.36 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
+**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.37 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
 
 **Not in this phase**, deferred on purpose:
 
@@ -1333,5 +1333,45 @@ docs/msc2/client-capability-matrix.csv` (passes on its own if run alone;
 not reached by the chain above). The full chain in this step's own
 `Verify:` line is what Cameron should run once the `EXPECTED_TOTAL`
 correction lands — it will still stop at the same place until then.
+
+### P6.37 — Fix the stale API route-count check
+**Status:** not started
+**Files:** `tools/api-contract-check.py`
+**What:** Bump `EXPECTED_TOTAL` (line 33) from `105` to `106` and extend its
+explanatory comment to name the route that closed the gap: P6.34's
+`POST /v1/worlds/replace-active-world` (`replaceActiveWorld`), added
+without updating this constant. This is the one gap P6.36's literal gate
+re-run actually hit — the first real failure once formatting, all three
+clippy targets, and the full workspace test suite were confirmed clean —
+before the gate could reach `capability-matrix-check.py`,
+`phase6-gate-smoke.sh`, `corpus-check.py`, or CI. No other file changes:
+the other items P6.34/P6.35 already flagged (the non-`"world"`
+level-name safety-backup gap, `reconcile_interrupted_world_replace` not
+wired into `routes/lifecycle.rs::reconcile_servers_at_startup`, the
+Bedrock `world_base_dir` double-`worlds/worlds` bug, the two missing
+`world_backup_conformance.rs` DTO entries) are each their own gap, not
+this one, and stay out of this step's `Files:` list.
+**Verify:** `python3 tools/api-contract-check.py --v1-summary` prints no
+`expected 106` mismatch line (just `namespace: ok 96` through
+`routes: 106`, exit 0). Then re-run P6.36's full gate from the top —
+`cargo fmt --check && cargo clippy --workspace --all-targets -- -D
+warnings && cargo clippy --workspace --all-targets --target
+x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace
+--all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo
+nextest run --workspace && python3 tools/api-contract-check.py
+--v1-summary && python3 tools/phase6/capability-matrix-check.py
+docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh
+--synthetic && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && python3
+tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups
+corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && gh workflow
+run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh
+run list --workflow ci.yml --branch "$(git branch --show-current)"
+--limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id"
+&& gh run watch "$run_id" --exit-status` — this is the same command
+P6.36 already carries; it should now run past the point P6.36 stopped at
+and either hold all the way through, or stop at the next real gap for its
+own dedicated step, the same pattern P6.30/P6.33/P6.36 already used.
+**Commit:** `P6.37: fix the stale API route-count check`
+**Batch:** stop-after
 
 ---

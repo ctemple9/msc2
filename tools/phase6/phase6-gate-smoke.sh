@@ -1231,27 +1231,22 @@ FINAL_BACKUP_COUNT="$(backup_ids_snapshot | grep -c .)"
 [[ "${FINAL_BACKUP_COUNT}" == "2" ]] || fail "expected exactly 2 backups after pruning (1 pre-tick survivor + the new scheduled one), got ${FINAL_BACKUP_COUNT}"
 backup_ids_snapshot | grep -qx "${SCHEDULED_BACKUP_ID}" || fail "the scheduled backup itself did not survive its own tick's pruning"
 
-BACKUP_ZIPS_AFTER_PRUNE="$(python3 - "${SERVER_DIR}/backups" <<'PY'
-import sys
-from pathlib import Path
-
-print("\n".join(str(path) for path in sorted(Path(sys.argv[1]).glob("*.zip"))))
-PY
-)"
-[[ -n "${BACKUP_ZIPS_AFTER_PRUNE}" ]] || fail "expected surviving backup zips on disk after pruning"
-while IFS= read -r zip_path; do
-  python3 - "${zip_path}" <<'PY'
+python3 - "${SERVER_DIR}/backups" <<'PY'
 import sys
 import zipfile
+from pathlib import Path
 
-zf = zipfile.ZipFile(sys.argv[1])
-bad = zf.testzip()
-if bad is not None:
-    raise SystemExit(f"corrupt member in a surviving backup: {bad}")
-if not zf.namelist():
-    raise SystemExit("a surviving backup has no entries")
+paths = sorted(Path(sys.argv[1]).glob("*.zip"))
+if not paths:
+    raise SystemExit("expected surviving backup zips on disk after pruning")
+for path in paths:
+    with zipfile.ZipFile(path) as zf:
+        bad = zf.testzip()
+        if bad is not None:
+            raise SystemExit(f"corrupt member in a surviving backup: {bad}")
+        if not zf.namelist():
+            raise SystemExit("a surviving backup has no entries")
 PY
-done <<<"${BACKUP_ZIPS_AFTER_PRUNE}"
 echo "every surviving backup after pruning is a valid, restorable archive -- pruning never dropped below one known-good recovery point"
 
 # =====================================================================

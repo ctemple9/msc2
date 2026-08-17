@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 gate closeout P6.50 is awaiting Cameron's verification.
-> **Next move:** Verify — Cameron closes P6.50 after reviewing its exact-commit macOS/Linux/Windows run. Do not begin Phase 7 until then.
-> **Repo:** https://github.com/ctemple9/msc2 · P6.50 is identified by commit subject `P6.50: make smoke filesystem checks portable`. Its local verification covers the complete synthetic public smoke; the final handoff must name the exact-SHA macOS/Linux/Windows run.
+> ## STATUS: Phase 6 gate closeout P6.51 is awaiting Cameron's verification.
+> **Next move:** Verify — Cameron closes P6.51 after reviewing its exact-commit macOS/Linux/Windows run. Do not begin Phase 7 until then.
+> **Repo:** https://github.com/ctemple9/msc2 · P6.51 is identified by commit subject `P6.51: validate backup archives in one process`. Its local verification covers the complete synthetic public smoke; the final handoff must name the exact-SHA macOS/Linux/Windows run.
 > **Last updated:** 2026-08-17
 
 **Previous phases (Setup, Phase 0 through Phase 5) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 6 onward stay here.
@@ -59,7 +59,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 3 | Safety substrate | complete |
 | 4 | Java lifecycle vertical slice | complete |
 | 5 | Configuration and migration | complete |
-| **6** | Worlds and backups | P6.50 awaiting verification |
+| **6** | Worlds and backups | P6.51 awaiting verification |
 | 7 | Server families and provisioning | not started |
 | 8 | Mods, plugins, modpacks | not started |
 | 9 | Networking and helpers | not started |
@@ -77,7 +77,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. Primary files: `WorldSlotManager.swift` (slot model, active resolution, archives, metadata, NBT), `AppViewModel+WorldSlots.swift` (slot orchestration), `AppViewModel+WorldManagement.swift` (rename/replace rollback), `AppViewModel+Backups.swift` (creation, online consistency, metadata, retention, restore), `AppViewModel+WorldConversion.swift` (Chunker workflow), `AppViewModel+WorldRepair.swift` (Bedrock runtime-dependent repair), `AppViewModel+APIWiringWorlds.swift`, `AppViewModel+APIWiringBackupsHealth.swift`, `AppViewModel+APIWiringSettings.swift`, and the copied iOS `WorldsView.swift`/`RemoteAPIClient.swift`/`RemoteAPIModels.swift`.
 
-50 steps, ten groups:
+51 steps, ten groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -90,9 +90,9 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | Public-path and real-corpus proof | P6.25–P6.27 | restart-sensitive smoke, real evidence run, tri-platform CI |
 | Phase exit | P6.28 | literal gate check |
 | Gate review corrections | P6.29–P6.42 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, remaining authority/level-name/Bedrock corrections, and a final literal gate check |
-| Final gate closeout | P6.43–P6.50 | prompt operation-backed server import, atomic cancellation responses, copied-iOS import parity, truthful capability tracking, portable restart/retention proof, and exact-candidate gate proof |
+| Final gate closeout | P6.43–P6.51 | prompt operation-backed server import, atomic cancellation responses, copied-iOS import parity, truthful capability tracking, portable restart/retention proof, and exact-candidate gate proof |
 
-**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.50 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
+**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.51 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
 
 **Not in this phase**, deferred on purpose:
 
@@ -1609,4 +1609,14 @@ The URL-protocol test injection now also reaches the long-timeout install sessio
 **Actual result:** P6.49's exact-commit run `32067153769` proved its own correction on Windows: both interrupted transactions returned their real operation ids, both recovered correctly, and both durable records reported `operation_interrupted`. Windows then passed active replacement and a real scheduled backup tick, including the save pause/resume protocol; the public backup list proved the scheduled id survived and exactly two backups remained after pruning. Only the subsequent direct-disk assertion failed because it interpolated Git Bash's POSIX-shaped temporary path inside Python program text, where MSYS cannot perform the argument conversion it applies when launching native Windows programs. The ZIP verifier now receives the backup directory through `sys.argv`, matching the script's already-portable Python filesystem calls. The only later instance of the same embedded-path pattern—the 100 MB cancellation filler—is corrected in the same way. No product code, retention behavior, timeout, or gate assertion changed. Shell syntax is clean and the complete local synthetic smoke passes through ZIP validation, cancellation cleanup, and final health. The exact-commit CI result is reported in the P6.50 handoff after this commit is pushed and its workflow completes.
 **Verify:** `bash -n tools/phase6/phase6-gate-smoke.sh && tools/phase6/phase6-gate-smoke.sh --synthetic && candidate_sha=$(git rev-parse HEAD) && git push origin HEAD:phase5-corrections && gh workflow run ci.yml --ref phase5-corrections && for attempt in {1..30}; do run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId'); test -n "$run_id" && break; sleep 2; done && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P6.50: make smoke filesystem checks portable`
+**Batch:** solo
+
+### P6.51 — Validate surviving backup archives without a cross-process path round-trip
+**Status:** awaiting verification
+**Files:** `tools/phase6/phase6-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
+**What:** Correct the final path-transport failure exposed by P6.50's exact-commit Windows run. Keep ZIP discovery and validation inside the same Python process that receives the translated backup-directory argument, so native Windows paths never pass back through Git Bash command substitution and retain a trailing carriage return. Preserve the requirements that at least one on-disk ZIP exists, every ZIP opens, every member passes CRC validation, and no surviving archive is empty. Run the complete synthetic smoke and exact-commit macOS/Linux/Windows CI.
+
+**Actual result:** P6.50's exact-commit run `32068020895` passed repo invariants plus the complete Linux and macOS jobs. Windows passed build, formatting, Clippy, all workspace tests, both interrupted-operation recoveries, active replacement, scheduled firing, save pause/resume, retention count, and scheduled-id survival. Its corrected Python discovery then found the native Windows paths, but passing those paths back through Git Bash command substitution left `\r` on each line; `zipfile` rejected the otherwise-correct filename as invalid. Discovery and validation now happen within one Python process, eliminating the cross-process native-path transport while preserving every archive assertion. The remaining cancellation and final-health Python checks already receive one directory/file argument and keep derived paths inside their process. No product code, backup, retention, timeout, or assertion changed. Shell syntax is clean and the complete local synthetic smoke passes, including on-disk ZIP discovery/CRC/nonempty checks, cancellation cleanup, and final health. The exact-commit CI result is reported in the P6.51 handoff after this commit is pushed and its workflow completes.
+**Verify:** `bash -n tools/phase6/phase6-gate-smoke.sh && tools/phase6/phase6-gate-smoke.sh --synthetic && candidate_sha=$(git rev-parse HEAD) && git push origin HEAD:phase5-corrections && gh workflow run ci.yml --ref phase5-corrections && for attempt in {1..30}; do run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId'); test -n "$run_id" && break; sleep 2; done && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P6.51: validate backup archives in one process`
 **Batch:** solo

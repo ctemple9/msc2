@@ -125,6 +125,27 @@ def extract_operation_id(stdout: str) -> str | None:
     return match.group(1) if match else None
 
 
+def run_cli_capture_stdout(argv: list[str], timeout: float) -> str:
+    """Keep stdout printed before either normal exit or a timeout."""
+    try:
+        return subprocess.run(
+            argv,
+            capture_output=True,
+            timeout=timeout,
+            text=True,
+        ).stdout
+    except subprocess.TimeoutExpired as error:
+        # TimeoutExpired.output is bytes even when text=True on some
+        # Python versions/platforms. The operation id was printed before
+        # the interrupted transaction began, so discarding this partial
+        # output would lose the durable record we need to verify after
+        # restart. subprocess.run has already killed and reaped the CLI.
+        stdout = error.stdout or b""
+        if isinstance(stdout, bytes):
+            return stdout.decode(errors="replace")
+        return stdout
+
+
 def attempt(msc, base_url, token, argv_tail, pid, prior_dir, staged_dir):
     argv = [msc, "--base-url", base_url, "--token", token] + argv_tail
     result = {"caught": False}
@@ -143,12 +164,7 @@ def attempt(msc, base_url, token, argv_tail, pid, prior_dir, staged_dir):
 
     poller_thread = threading.Thread(target=poller, daemon=True)
     poller_thread.start()
-    stdout = ""
-    try:
-        proc = subprocess.run(argv, capture_output=True, timeout=30, text=True)
-        stdout = proc.stdout
-    except Exception:
-        pass
+    stdout = run_cli_capture_stdout(argv, timeout=30)
     caught_event.set()
     poller_thread.join(timeout=2.0)
     result["operation_id"] = extract_operation_id(stdout)

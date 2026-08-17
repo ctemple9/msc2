@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 gate closeout P6.48 is awaiting Cameron's verification.
-> **Next move:** Verify — Cameron closes P6.48 after reviewing its exact-commit macOS/Linux/Windows run. Do not begin Phase 7 until then.
-> **Repo:** https://github.com/ctemple9/msc2 · P6.48 is identified by commit subject `P6.48: close the phase 6 gate`. Its local gate includes the previously missing private corpus at `/Users/camerontemple/MinecraftServers`; the final handoff must name the exact-SHA macOS/Linux/Windows run.
+> ## STATUS: Phase 6 gate closeout P6.49 is awaiting Cameron's verification.
+> **Next move:** Verify — Cameron closes P6.49 after reviewing its exact-commit macOS/Linux/Windows run. Do not begin Phase 7 until then.
+> **Repo:** https://github.com/ctemple9/msc2 · P6.49 is identified by commit subject `P6.49: preserve restart-race operation evidence`. Its local verification covers the Windows timeout-output path and the complete synthetic public smoke; the final handoff must name the exact-SHA macOS/Linux/Windows run.
 > **Last updated:** 2026-08-17
 
 **Previous phases (Setup, Phase 0 through Phase 5) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 6 onward stay here.
@@ -59,7 +59,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 3 | Safety substrate | complete |
 | 4 | Java lifecycle vertical slice | complete |
 | 5 | Configuration and migration | complete |
-| **6** | Worlds and backups | P6.48 awaiting verification |
+| **6** | Worlds and backups | P6.49 awaiting verification |
 | 7 | Server families and provisioning | not started |
 | 8 | Mods, plugins, modpacks | not started |
 | 9 | Networking and helpers | not started |
@@ -77,7 +77,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. Primary files: `WorldSlotManager.swift` (slot model, active resolution, archives, metadata, NBT), `AppViewModel+WorldSlots.swift` (slot orchestration), `AppViewModel+WorldManagement.swift` (rename/replace rollback), `AppViewModel+Backups.swift` (creation, online consistency, metadata, retention, restore), `AppViewModel+WorldConversion.swift` (Chunker workflow), `AppViewModel+WorldRepair.swift` (Bedrock runtime-dependent repair), `AppViewModel+APIWiringWorlds.swift`, `AppViewModel+APIWiringBackupsHealth.swift`, `AppViewModel+APIWiringSettings.swift`, and the copied iOS `WorldsView.swift`/`RemoteAPIClient.swift`/`RemoteAPIModels.swift`.
 
-48 steps, ten groups:
+49 steps, ten groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -90,9 +90,9 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | Public-path and real-corpus proof | P6.25–P6.27 | restart-sensitive smoke, real evidence run, tri-platform CI |
 | Phase exit | P6.28 | literal gate check |
 | Gate review corrections | P6.29–P6.42 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, remaining authority/level-name/Bedrock corrections, and a final literal gate check |
-| Final gate closeout | P6.43–P6.48 | prompt operation-backed server import, atomic cancellation responses, copied-iOS import parity, truthful capability tracking, and exact-candidate gate proof |
+| Final gate closeout | P6.43–P6.49 | prompt operation-backed server import, atomic cancellation responses, copied-iOS import parity, truthful capability tracking, restart-race evidence capture, and exact-candidate gate proof |
 
-**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.48 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
+**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.49 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
 
 **Not in this phase**, deferred on purpose:
 
@@ -1589,4 +1589,14 @@ The URL-protocol test injection now also reaches the long-timeout install sessio
 **Actual result:** Corrected the three factual tracking gaps found by gate review: copied iOS and CLI operation reads/cancellation are `Implemented`, and copied-iOS server import is `Implemented` after P6.46. Ran every local gate leg in order with no timeout, checker, fixture, corpus-path, workflow, or product-code change. The focused copied-iOS import suite passed; formatting and native/Linux/Windows Clippy were clean; the complete workspace suite passed 799/799; the API summary reported 106 routes; all 86 Phase 6 contract checks and all 108 capability rows passed; both public smokes passed, including scheduled firing, save pause/resume, interruption recovery, cancellation cleanup, non-default Java level names, and backup-retention validation. The formerly missing real private-corpus leg ran with `MSC2_CLI_RESPONSE_TIMEOUT_SECS` absent against `/Users/camerontemple/MinecraftServers`: it imported and reconciled the real `campack` world, round-tripped its real bytes through bounded staged upload/export/import, activated it with the mandatory safety backup, created and restored a manual backup, and confirmed all nine evidence files were unchanged. The exact-commit CI result is reported in the P6.48 handoff after this commit is pushed and its workflow completes.
 **Verify:** `xcodebuild test -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:MSCRemoteiOSTests/Phase6ServerImportOperationTests && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && env -u MSC2_CLI_RESPONSE_TIMEOUT_SECS python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root /Users/camerontemple/MinecraftServers && candidate_sha=$(git rev-parse HEAD) && git push origin HEAD:phase5-corrections && gh workflow run ci.yml --ref phase5-corrections && for attempt in {1..30}; do run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId'); test -n "$run_id" && break; sleep 2; done && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P6.48: close the phase 6 gate`
+**Batch:** solo
+
+### P6.49 — Preserve restart-race operation evidence after a Windows CLI timeout
+**Status:** awaiting verification
+**Files:** `tools/phase6/fixtures/gate-smoke/race_transaction.py`, `tools/phase6/fixtures/gate-smoke/test_race_transaction.py`, `docs/msc2/rolling-plan.md`
+**What:** Correct the one failure from P6.48's exact-commit Windows run without weakening the restart-sensitive proof. When the killed agent leaves the Windows CLI blocked until the harness's bounded subprocess timeout, retain the CLI's partial stdout instead of discarding the `TimeoutExpired` exception and the already-printed real operation id. Keep checking the recovered filesystem state and the restarted agent's durable operation record. Add a focused test that forces this timeout path, then run the complete synthetic public smoke and exact-commit macOS/Linux/Windows CI.
+
+**Actual result:** P6.48's exact-commit run `32066234626` passed repo invariants and the complete macOS and Linux jobs. Windows passed setup, build, formatting, Clippy, and all workspace tests, then its public smoke correctly caught and recovered the interrupted activation but failed because `operation_id` was `null`. Its ~33-second race duration identified the harness's 30-second CLI timeout: Python's `TimeoutExpired` retained the CLI's partial stdout, including the operation id printed before filesystem work began, but the broad `except Exception: pass` discarded it. `run_cli_capture_stdout` now handles only that expected timeout, normalizes its cross-platform bytes/string output, and preserves the evidence; unexpected subprocess errors are no longer silently hidden. Two focused tests force the timeout and normal-exit paths. Both pass, Python compilation is clean, and the complete local synthetic smoke passes every section, including both restart recoveries and their real persisted `operation_interrupted` records, scheduled backup firing/retention, and cancellation cleanup. No product code, timeout, recovery assertion, or durable-record assertion changed. The exact-commit CI result is reported in the P6.49 handoff after this commit is pushed and its workflow completes.
+**Verify:** `python3 tools/phase6/fixtures/gate-smoke/test_race_transaction.py && python3 -m py_compile tools/phase6/fixtures/gate-smoke/race_transaction.py tools/phase6/fixtures/gate-smoke/test_race_transaction.py && tools/phase6/phase6-gate-smoke.sh --synthetic && candidate_sha=$(git rev-parse HEAD) && git push origin HEAD:phase5-corrections && gh workflow run ci.yml --ref phase5-corrections && for attempt in {1..30}; do run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId'); test -n "$run_id" && break; sleep 2; done && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P6.49: preserve restart-race operation evidence`
 **Batch:** solo

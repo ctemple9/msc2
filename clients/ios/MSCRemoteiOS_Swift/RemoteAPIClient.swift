@@ -102,6 +102,9 @@ final class RemoteAPIClient {
         let installConfig = URLSessionConfiguration.ephemeral
         installConfig.timeoutIntervalForRequest = 120
         installConfig.timeoutIntervalForResource = 180
+        if let protocolClasses {
+            installConfig.protocolClasses = protocolClasses + (installConfig.protocolClasses ?? [])
+        }
         self.installSession = URLSession(configuration: installConfig)
 
         let diagConfig = URLSessionConfiguration.ephemeral
@@ -335,6 +338,15 @@ final class RemoteAPIClient {
                                                  bedrockPortOverrides: nil),
                        as: ServerImportResultDTO.self,
                        urlSession: installSession)
+    }
+
+    /// Follows a current agent's accepted import to its durable terminal
+    /// result. A nil return means an older agent already completed the import
+    /// synchronously and legitimately omitted `operationId`.
+    func pollServerImportToTerminal(_ receipt: ServerImportResultDTO,
+                                    onUpdate: (OperationDTO) -> Void = { _ in }) async throws -> OperationDTO? {
+        guard let operationId = receipt.operationId else { return nil }
+        return try await pollOperationToTerminal(id: operationId, onUpdate: onUpdate)
     }
 
     func start() async throws -> SimpleResult {

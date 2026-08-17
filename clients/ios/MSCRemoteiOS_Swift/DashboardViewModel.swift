@@ -358,8 +358,10 @@ final class DashboardViewModel: ObservableObject {
                               enablePlayit: Bool) async -> String? {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
+        activeOperation = nil
         do {
-            let result = try await requireClient().importExistingServer(
+            let client = try requireClient()
+            let result = try await client.importExistingServer(
                 sourcePath: sourcePath,
                 importKind: importKind,
                 displayName: displayName,
@@ -370,10 +372,7 @@ final class DashboardViewModel: ObservableObject {
                 acceptEula: acceptEula,
                 enablePlayit: enablePlayit
             )
-            guard result.success else { return friendlyServerManagementError(result.message) }
-            if let fetched = try? await requireClient().getServers() { servers = fetched }
-            if let fetchedStatus = try? await requireClient().getStatus() { status = fetchedStatus }
-            return nil
+            return await finishServerImport(result, client: client)
         } catch {
             errorMessage = error.localizedDescription
             return error.localizedDescription
@@ -383,11 +382,42 @@ final class DashboardViewModel: ObservableObject {
     func importTransferPackage(baseURL: URL, token: String, sourcePath: String, replaceAll: Bool, backupPath: String?) async -> String? {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
+        activeOperation = nil
         do {
-            let result = try await requireClient().importTransferPackage(sourcePath: sourcePath, replaceAll: replaceAll, backupPath: backupPath)
-            guard result.success else { return friendlyServerManagementError(result.message) }
-            if let fetched = try? await requireClient().getServers() { servers = fetched }
-            if let fetchedStatus = try? await requireClient().getStatus() { status = fetchedStatus }
+            let client = try requireClient()
+            let result = try await client.importTransferPackage(sourcePath: sourcePath, replaceAll: replaceAll, backupPath: backupPath)
+            return await finishServerImport(result, client: client)
+        } catch {
+            errorMessage = error.localizedDescription
+            return error.localizedDescription
+        }
+    }
+
+    private func finishServerImport(_ receipt: ServerImportResultDTO, client: RemoteAPIClient) async -> String? {
+        guard receipt.success else { return friendlyServerManagementError(receipt.message) }
+
+        do {
+            if let terminal = try await client.pollServerImportToTerminal(receipt) { [weak self] update in
+                self?.activeOperation = update
+            } {
+                switch terminal.state {
+                case .succeeded:
+                    break
+                case .failed:
+                    let message = terminal.error?.message ?? terminal.statusLine ?? "Server import failed."
+                    errorMessage = message
+                    return message
+                case .cancelled:
+                    let message = terminal.error?.message ?? terminal.statusLine ?? "Server import was cancelled."
+                    errorMessage = message
+                    return message
+                case .queued, .running:
+                    preconditionFailure("operation poll returned before reaching a terminal state")
+                }
+            }
+
+            if let fetched = try? await client.getServers() { servers = fetched }
+            if let fetchedStatus = try? await client.getStatus() { status = fetchedStatus }
             return nil
         } catch {
             errorMessage = error.localizedDescription

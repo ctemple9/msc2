@@ -197,6 +197,9 @@ struct ServerImportScanResponseDTO: Codable, Equatable {
 struct ServerImportResultDTO: Codable, Equatable {
     let success: Bool
     let message: String
+    /// Current agents return a durable operation for every mutating import.
+    /// Older agents completed the import synchronously, so this remains optional.
+    let operationId: String?
     let serverId: String?
     let serverName: String?
     let imported: Int?

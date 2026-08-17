@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 final gate P6.45 is awaiting Cameron's verification; P6.43 and P6.44 also remain awaiting verification.
-> **Next move:** Verify — Cameron runs P6.45's Verify command. Do not begin Phase 7.
-> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`; P6.39 by `P6.39: honor configured java world names`; P6.40 by `P6.40: make cancellation responsive and asynchronous`; P6.41 by `P6.41: correct bedrock world mutation paths`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. P6.45 must produce the final exact-commit proof before Phase 7 begins.
+> ## STATUS: Phase 6 final client-parity correction P6.46 is awaiting Cameron's verification; gate proof P6.47 has not started.
+> **Next move:** Verify — Cameron runs P6.46's Verify command. Do not begin P6.47 or Phase 7.
+> **Repo:** https://github.com/ctemple9/msc2 · P6.43 is identified by commit subject `P6.43: return server imports promptly`; P6.44 by `P6.44: make cancellation responses atomic`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the current correction commits do not yet have an exact-commit macOS/Linux/Windows run. P6.47 must produce that proof before Phase 7 begins.
 > **Last updated:** 2026-08-17
 
 **Previous phases (Setup, Phase 0 through Phase 5) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 6 onward stay here.
@@ -59,7 +59,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 3 | Safety substrate | complete |
 | 4 | Java lifecycle vertical slice | complete |
 | 5 | Configuration and migration | complete |
-| **6** | Worlds and backups | final gate corrections planned |
+| **6** | Worlds and backups | P6.46 awaiting verification |
 | 7 | Server families and provisioning | not started |
 | 8 | Mods, plugins, modpacks | not started |
 | 9 | Networking and helpers | not started |
@@ -77,7 +77,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. Primary files: `WorldSlotManager.swift` (slot model, active resolution, archives, metadata, NBT), `AppViewModel+WorldSlots.swift` (slot orchestration), `AppViewModel+WorldManagement.swift` (rename/replace rollback), `AppViewModel+Backups.swift` (creation, online consistency, metadata, retention, restore), `AppViewModel+WorldConversion.swift` (Chunker workflow), `AppViewModel+WorldRepair.swift` (Bedrock runtime-dependent repair), `AppViewModel+APIWiringWorlds.swift`, `AppViewModel+APIWiringBackupsHealth.swift`, `AppViewModel+APIWiringSettings.swift`, and the copied iOS `WorldsView.swift`/`RemoteAPIClient.swift`/`RemoteAPIModels.swift`.
 
-45 steps, ten groups:
+47 steps, ten groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -90,9 +90,9 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | Public-path and real-corpus proof | P6.25–P6.27 | restart-sensitive smoke, real evidence run, tri-platform CI |
 | Phase exit | P6.28 | literal gate check |
 | Gate review corrections | P6.29–P6.42 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, remaining authority/level-name/Bedrock corrections, and a final literal gate check |
-| Final gate closeout | P6.43–P6.45 | prompt operation-backed server import, atomic cancellation responses, and exact-candidate gate proof |
+| Final gate closeout | P6.43–P6.47 | prompt operation-backed server import, atomic cancellation responses, copied-iOS import parity, and exact-candidate gate proof |
 
-**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.45 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
+**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.47 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
 
 **Not in this phase**, deferred on purpose:
 
@@ -1433,7 +1433,7 @@ was touched.
 
 ### Remaining gate corrections
 
-Cameron selected the cancellation response rule on 2026-08-16: `POST /v1/operations/{id}/cancel` returns **`202 Accepted`** with the still-running `OperationDTO` while cooperative cancellation is pending; clients poll the existing operation resource or stream until it becomes terminal. A `200` response is reserved for a cancellation already completed before the response is sent. Returning `200` with `state: running` is never valid. This is an additive correction to the proposed greenfield operation contract; MSC 1 has no cancellation API to preserve.
+Cameron selected the cancellation response rule on 2026-08-16, then explicitly superseded its race-dependent `200` branch with **Option A on 2026-08-17** after P6.44 made cancellation admission atomic: `POST /v1/operations/{id}/cancel` returns `202 Accepted` with the captured non-terminal `OperationDTO` when cancellation admission wins the operation-record lock, `409 Conflict` when any terminal transition wins first, and `404` for an unknown operation. It never returns `200`. Clients poll the existing operation resource or stream until it becomes terminal. This is an owner-confirmed additive correction to the proposed greenfield operation contract; MSC 1 has no cancellation API to preserve.
 
 ### P6.38 — Complete reconciliation authority and replacement recovery
 **Status:** DONE
@@ -1557,4 +1557,24 @@ The OpenAPI contract and operation-model document now expose only the selected `
 **Actual result:** Ran the literal gate in order against candidate commit `36a0260` and stopped at its first failure. `cargo fmt --check`; native, Linux-target, and Windows-target Clippy; the complete workspace suite (799 tests, 799 passed); the API summary (106 routes); all 86 Phase 6 contract checks; all 108 capability-matrix operations; the synthetic public smoke (including real scheduled firing, save pause/resume, interrupted activation and restore recovery, durable operation outcomes, cancellation cleanup, and known-good retention); and the non-default-level-name public smoke all passed. The next literal clause, `test -n "$MSC2_PHASE6_PRIVATE_CORPUS"`, returned exit 1 because that environment variable was not set in this shell. Per the gate's stop-on-first-failure rule, the private real-corpus exercise and exact-commit macOS/Linux/Windows CI dispatch/watch did not run. No timeout, checker constant, path, fixture, capability cell, product code, or capability tracking was changed.
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && env -u MSC2_CLI_RESPONSE_TIMEOUT_SECS python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && candidate_sha=$(git rev-parse HEAD) && gh workflow run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P6.45: prove the phase 6 exit gate`
+**Batch:** solo
+
+### P6.46 — Carry asynchronous server import through the copied iOS client
+**Status:** awaiting verification
+**Files:** `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIClient.swift`, `clients/ios/MSCRemoteiOS_Swift/DashboardViewModel.swift`, `clients/ios/MSCRemoteiOSTests/Phase6ServerImportOperationTests.swift`, `clients/ios/MSCRemoteiOS.xcodeproj/project.pbxproj`
+**What:** Complete P6.43's additive `202 Accepted` correction across the copied iOS import surface instead of treating the acceptance receipt as finished work. Decode `ServerImportResultDTO.operationId` while retaining compatibility with an older synchronous response that legitimately omits it. For current agents, keep raw-folder/ZIP and transfer-package imports in their working state while polling the existing operation resource; publish each progress snapshot through the view model's existing operation state, refresh servers/status only after terminal success, and surface terminal failure or cancellation instead of dismissing the workflow as successful. Keep read-only import scanning synchronous and unchanged. Add URL-protocol-backed iOS tests proving the client does not refresh or report success on the initial `202`, follows running to terminal success, exposes the agent's durable failure, handles cancellation, and still accepts a completed legacy response without `operationId`. This is client parity for the existing route, not a new capability or screen.
+
+**Actual result:** `ServerImportResultDTO` now decodes the additive optional `operationId`, so current agents can return a durable acceptance receipt while an older agent's completed response remains valid. `RemoteAPIClient.pollServerImportToTerminal` reuses the existing operation poller and returns `nil` only for that legacy synchronous shape. Both raw-folder/ZIP and transfer-package view-model paths clear stale operation state, publish every running/terminal snapshot through `activeOperation`, keep their existing awaiting call in progress until the operation finishes, refresh servers/status only after `succeeded`, and return the durable failure or cancellation message to the existing import sheet instead of reporting success. Read-only scanning is unchanged.
+
+The URL-protocol test injection now also reaches the long-timeout install session used by server imports; production construction remains unchanged because it supplies no protocol classes. Five focused tests prove request ordering from `202` through running/success before refresh, durable failure without refresh, cancellation without refresh, a completed legacy response without `operationId`, and transfer-package polling. The exact Verify command passed: the project file linted cleanly, all 5 focused iOS tests passed, and all 108 capability rows matched.
+**Verify:** `plutil -lint clients/ios/MSCRemoteiOS.xcodeproj/project.pbxproj && xcodebuild test -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:MSCRemoteiOSTests/Phase6ServerImportOperationTests && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P6.46: follow server imports on ios`
+**Batch:** solo
+
+### P6.47 — Prove the final Phase 6 candidate across every required surface
+**Status:** not started
+**Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/client-capability-matrix.csv` (tracking corrections only unless the gate finds a defect)
+**What:** After Cameron independently verifies P6.46, run the literal Phase 6 working gate once against its exact commit. Require the focused copied-iOS import-operation test; formatting; native, Linux, and Windows Clippy; the complete workspace suite; API, Phase 6 contract, and capability checks; synthetic and non-default-level-name public smokes; the private real corpus through the ordinary public CLI with `MSC2_CLI_RESPONSE_TIMEOUT_SECS` explicitly absent; and macOS/Linux/Windows CI whose `headSha` equals the pushed candidate. Inspect the private-corpus source hashes, imported/reconciled slots, recovered worlds, transaction markers, archives, metadata, save-resume evidence, durable operation outcomes, and iOS terminal success/failure behavior. Stop at the first failure. Do not adjust a timeout, checker constant, path, fixture, simulator result, capability cell, or workflow selection to turn a failure green. Cameron alone marks this step `DONE`; the other agent then performs the final REVIEW before Advance.
+**Verify:** `xcodebuild test -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:MSCRemoteiOSTests/Phase6ServerImportOperationTests && cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && env -u MSC2_CLI_RESPONSE_TIMEOUT_SECS python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && candidate_sha=$(git rev-parse HEAD) && git push origin HEAD:phase5-corrections && gh workflow run ci.yml --ref phase5-corrections && for attempt in {1..30}; do run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId'); test -n "$run_id" && break; sleep 2; done && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P6.47: prove the phase 6 exit gate`
 **Batch:** solo

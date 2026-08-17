@@ -1,6 +1,7 @@
 use msc_application::operations::{LifecycleOperationError, LifecycleOperations, lifecycle_error};
 use msc_domain::operation::{OperationId, OperationState};
 use msc_infrastructure::fs::FakeFileSystem;
+use std::sync::{Arc, Barrier};
 
 const DIR: &str = "/srv/agent/operations";
 
@@ -113,9 +114,10 @@ fn lifecycle_operations_request_cancel_does_not_transition_state() {
         .begin_running("world-activate", Some("paper-1".to_string()), "Working.")
         .unwrap();
 
-    operations.request_cancel(&id, "Cancelling…").unwrap();
+    let accepted = operations.request_cancel(&id, "Cancelling…").unwrap();
 
     let snapshot = operations.snapshot(&id).unwrap().unwrap();
+    assert_eq!(accepted, snapshot);
     assert_eq!(snapshot.state, OperationState::Running);
     assert_eq!(snapshot.status_line.as_deref(), Some("Cancelling…"));
     assert!(operations.cancellation_check(&id)());
@@ -175,6 +177,74 @@ fn lifecycle_operations_request_cancel_against_terminal_operation_is_refused() {
         error,
         LifecycleOperationError::IllegalTransition { .. }
     ));
+}
+
+/// Cancellation admission and a worker's terminal transition contend on the
+/// same record lock. Whichever acquires it first determines the wire outcome:
+/// terminal-first is a conflict, while cancellation-first returns the owned
+/// non-terminal snapshot captured before the worker can update the record.
+#[test]
+fn lifecycle_operations_cancel_and_terminal_race_has_only_atomic_outcomes() {
+    let fs = FakeFileSystem::new().with_file(format!("{DIR}/.keep"), Vec::new(), false);
+    let operations = make_operations(&fs);
+
+    for attempt in 0..128 {
+        let id = operations
+            .begin_running(
+                "world-activate",
+                Some(format!("paper-{attempt}")),
+                "Working.",
+            )
+            .unwrap();
+        let barrier = Arc::new(Barrier::new(3));
+
+        let (cancel_result, terminal_result) = std::thread::scope(|scope| {
+            let cancel_barrier = Arc::clone(&barrier);
+            let cancel_operations = &operations;
+            let cancel_id = &id;
+            let cancel = scope.spawn(move || {
+                cancel_barrier.wait();
+                cancel_operations.request_cancel(cancel_id, "Cancelling…")
+            });
+            let terminal_barrier = Arc::clone(&barrier);
+            let terminal_operations = &operations;
+            let terminal_id = &id;
+            let terminal = scope.spawn(move || {
+                terminal_barrier.wait();
+                if attempt % 2 == 0 {
+                    terminal_operations.succeed(
+                        terminal_id,
+                        "Activation complete.",
+                        Default::default(),
+                    )
+                } else {
+                    terminal_operations.fail(
+                        terminal_id,
+                        lifecycle_error("activation_failed", "Activation failed."),
+                    )
+                }
+            });
+
+            barrier.wait();
+            (cancel.join().unwrap(), terminal.join().unwrap())
+        });
+
+        terminal_result.expect("a cancellation request does not fabricate a terminal state");
+        match cancel_result {
+            Ok(snapshot) => {
+                assert_eq!(snapshot.state, OperationState::Running);
+                assert_eq!(snapshot.status_line.as_deref(), Some("Cancelling…"));
+                assert!(snapshot.result.is_none());
+                assert!(snapshot.error.is_none());
+            }
+            Err(LifecycleOperationError::IllegalTransition {
+                from: OperationState::Succeeded | OperationState::Failed,
+                to: OperationState::Cancelled,
+                ..
+            }) => {}
+            other => panic!("unexpected cancellation race outcome: {other:?}"),
+        }
+    }
 }
 
 #[test]

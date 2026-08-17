@@ -3500,18 +3500,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Cancellation completed before the response; updated OperationDTO has state: cancelled.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/OperationDTO"
-                }
-              }
-            }
-          },
           "202": {
-            "description": "Cancellation accepted but still pending; OperationDTO remains running with statusLine: Cancelling. Poll or stream until terminal.",
+            "description": "Cancellation atomically accepted with a captured non-terminal OperationDTO, normally running with statusLine: Cancelling. Poll or stream until terminal.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3532,7 +3522,7 @@
             "x-error-code": "not_found"
           },
           "409": {
-            "description": "Operation is already terminal.",
+            "description": "The worker reached a terminal state before cancellation admission.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3544,7 +3534,7 @@
             "x-help-id": "operations.cancel-not-legal"
           }
         },
-        "x-notes": "P2.5 SS4.3, corrected by P6.40: cancellation is cooperative and pending requests return 202 without a server-side wait."
+        "x-notes": "P2.5 SS4.3, corrected by P6.40 and P6.44: cancellation is cooperative; admission and its non-terminal 202 snapshot are atomic, while terminal-first outcomes return 409."
       }
     },
     "/v1/capabilities": {

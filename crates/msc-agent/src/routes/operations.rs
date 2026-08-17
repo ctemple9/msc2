@@ -9,7 +9,7 @@
 //! advances a freshly-created operation `queued → running → succeeded`
 //! over a couple of seconds. **Cancellation is cooperative and truthful
 //! (P6.40):** `POST .../cancel` only signals a flag
-//! (`OperationsState::request_cancel`) and immediately returns `202`
+//! (`OperationsState::request_cancel`) and immediately returns one atomic `202`
 //! while the worker is still stopping. Every real Phase 6 worker (`worlds::activate_slot`/
 //! `world_conversion::convert_world`/`backups::create_backup`/
 //! `backups::restore_backup`) now follows — to observe it at its own
@@ -131,8 +131,8 @@ impl OperationsState {
         &self,
         id: &OperationId,
         status_line: &str,
-    ) -> Result<(), LifecycleOperationError> {
-        self.operations.request_cancel(id, status_line)
+    ) -> Result<OperationDto, LifecycleOperationError> {
+        self.operations.request_cancel(id, status_line).map(to_dto)
     }
 
     /// A cheap, `'static` closure a real Phase 6 worker can poll at its
@@ -212,10 +212,11 @@ pub async fn get(State(store): State<OperationsState>, Path(id): Path<String>) -
 /// non-terminal operation; a terminal one is `409 conflict`, per the same
 /// transition table `msc_domain::operation::OperationState` enforces.
 ///
-/// **Truthful cancellation (P6.40).** This handler never transitions the
-/// operation to `cancelled` itself — it only signals the request
-/// ([`OperationsState::request_cancel`]) and then re-reads the record
-/// once. The worker that owns the operation must observe that signal at one of its
+/// **Truthful, atomic cancellation (P6.40/P6.44).** This handler never
+/// transitions the operation to `cancelled` itself. One application-level
+/// call both signals the request and captures the non-terminal response while
+/// holding the same record lock used by worker terminal transitions. The worker
+/// that owns the operation must observe that signal at one of its
 /// own safe boundaries and stop, exactly the way `spawn_demo_ticker`'s
 /// own loop below and every real Phase 6 worker
 /// (`worlds::activate_slot`/`world_conversion::convert_world`/
@@ -223,36 +224,16 @@ pub async fn get(State(store): State<OperationsState>, Path(id): Path<String>) -
 /// `cancelled` before that has happened would be a lie: the real
 /// filesystem/process work could still be running, and the per-target
 /// exclusivity lock (still held by the non-terminal journal entry) would
-/// have been released early. If the worker has already finalized
-/// cancellation by the one re-read, the response is `200`; otherwise it
-/// is `202 Accepted` with the honest current record and the client keeps
-/// polling `GET /v1/operations/{id}` or the operation stream.
+/// have been released early. If the worker reached any terminal state first,
+/// the request is `409`; otherwise it is `202 Accepted` with the captured
+/// `Cancelling…` record and the client keeps polling
+/// `GET /v1/operations/{id}` or the operation stream.
 pub async fn cancel(State(store): State<OperationsState>, Path(id): Path<String>) -> Response {
     let id = OperationId::new(id);
-    let Some(record) = store.snapshot(id.as_str()) else {
-        return not_found(id.as_str());
-    };
-
-    if matches!(
-        record.state,
-        OperationStateDto::Succeeded | OperationStateDto::Failed | OperationStateDto::Cancelled
-    ) {
-        return conflict(id.as_str());
+    match store.request_cancel(&id, "Cancelling…") {
+        Ok(snapshot) => (StatusCode::ACCEPTED, Json(snapshot)).into_response(),
+        Err(error) => operation_error_response(error),
     }
-
-    if let Err(error) = store.request_cancel(&id, "Cancelling…") {
-        return operation_error_response(error);
-    }
-
-    let snapshot = store
-        .snapshot(id.as_str())
-        .expect("operation ids are never removed once created");
-    let status = if snapshot.state == OperationStateDto::Cancelled {
-        StatusCode::OK
-    } else {
-        StatusCode::ACCEPTED
-    };
-    (status, Json(snapshot)).into_response()
 }
 
 /// Advances a freshly-created operation `queued → running → succeeded`
@@ -387,7 +368,7 @@ fn conflict(id: &str) -> Response {
 }
 
 // =====================================================================
-// P6.30 tests — inline, not in `tests/operation_cancellation.rs`, for the
+// P6.30/P6.44 tests — inline, not in `tests/operation_cancellation.rs`, for the
 // same "no lib.rs" reason `routes/worlds.rs`/`routes/backups.rs`'s own
 // test-module docs already give: an external integration test can't
 // reach `OperationsState::request_cancel`/`cancellation_check` or the

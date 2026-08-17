@@ -220,7 +220,8 @@ impl<'fs> LifecycleOperations<'fs> {
         )
     }
 
-    /// Signal cooperative cancellation for a non-terminal operation.
+    /// Signal cooperative cancellation for a non-terminal operation and
+    /// return the exact non-terminal snapshot accepted by that decision.
     /// Deliberately does **not** transition the record to `cancelled` or
     /// touch the durable journal — only the worker itself, once it has
     /// actually observed [`Self::cancellation_check`]'s flag at one of its
@@ -234,11 +235,20 @@ impl<'fs> LifecycleOperations<'fs> {
         &self,
         id: &OperationId,
         status_line: impl Into<String>,
-    ) -> Result<(), LifecycleOperationError> {
+    ) -> Result<LifecycleOperationSnapshot, LifecycleOperationError> {
         let mut records = self.records.lock().unwrap();
-        let record = records
-            .get_mut(id)
-            .ok_or_else(|| LifecycleOperationError::UnknownOperation(id.clone()))?;
+        let Some(record) = records.get_mut(id) else {
+            return match self.journal.load(id)? {
+                Some(entry) if entry.state.is_terminal() => {
+                    Err(LifecycleOperationError::IllegalTransition {
+                        id: id.clone(),
+                        from: entry.state,
+                        to: OperationState::Cancelled,
+                    })
+                }
+                _ => Err(LifecycleOperationError::UnknownOperation(id.clone())),
+            };
+        };
         if record.state.is_terminal() {
             return Err(LifecycleOperationError::IllegalTransition {
                 id: id.clone(),
@@ -247,12 +257,17 @@ impl<'fs> LifecycleOperations<'fs> {
             });
         }
         record.status_line = Some(status_line.into());
-        drop(records);
+        self.cancel_flags
+            .lock()
+            .unwrap()
+            .entry(id.clone())
+            .or_insert_with(|| Arc::new(AtomicBool::new(false)))
+            .store(true, Ordering::SeqCst);
 
-        if let Some(flag) = self.cancel_flags.lock().unwrap().get(id) {
-            flag.store(true, Ordering::SeqCst);
-        }
-        Ok(())
+        // Worker terminal transitions take the same records lock. Clone the
+        // accepted state before releasing it so a later transition cannot
+        // rewrite the HTTP response that reports this cancellation decision.
+        Ok(snapshot_from_record(id, record.clone()))
     }
 
     /// A cheap, lock-free, `'static` closure a real worker

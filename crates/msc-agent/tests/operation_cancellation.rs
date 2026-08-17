@@ -4,7 +4,9 @@
 //! `POST /v1/operations/{id}/cancel` mounted behind the same bearer-auth
 //! gate every other protected route uses. P6.40 makes `cancel` return
 //! `202` immediately while the target worker is still stopping instead
-//! of waiting inside the HTTP request or transitioning state itself.
+//! of waiting inside the HTTP request or transitioning state itself. P6.44
+//! additionally makes acceptance and the returned non-terminal snapshot one
+//! atomic application-layer decision.
 //!
 //! This crate has no `lib.rs`, so an external test file can't reach
 //! `OperationsState::request_cancel`/`cancellation_check` or the real

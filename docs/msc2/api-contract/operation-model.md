@@ -70,9 +70,9 @@ Failure: unknown `id` is `404` with `ErrorDTO` (`code: "not_found"`, `helpId: "o
 
 #### 4.3 `POST /v1/operations/{id}/cancel` — request cancellation
 
-No request body. Cancellation is cooperative: the agent sets the request and re-reads the operation once without waiting for the worker. Response: `200` with the updated `OperationDTO` only when the worker has already completed cancellation (`state: "cancelled"`) before that re-read. Otherwise the response is `202 Accepted` with the still-running `OperationDTO` (normally `state: "running"`, `statusLine: "Cancelling…"`); clients poll `GET /v1/operations/{id}` or follow the operation stream until the worker reaches a terminal state. The per-target operation lock remains held until that worker finishes cleanup and records its own terminal transition.
+No request body. Cancellation is cooperative. The agent makes cancellation admission and its response snapshot one atomic application-level decision under the operation record lock. If admission wins, it sets the cooperative flag and returns `202 Accepted` with that captured non-terminal `OperationDTO` (normally `state: "running"`, `statusLine: "Cancelling…"`). A worker transition after that decision cannot rewrite the already-captured response body. Clients poll `GET /v1/operations/{id}` or follow the operation stream until the worker reaches a terminal state. The per-target operation lock remains held until that worker finishes cleanup and records its own terminal transition.
 
-Failure: `409` with `ErrorDTO` (`code: "conflict"`, `helpId: "operations.cancel-not-legal"`) if the operation was already terminal before the cancellation request — cancelling a finished operation is refused, not treated as a silent no-op, so a client always knows whether its cancel actually did anything. Unknown `id` is `404`, same as §4.2.
+Failure: `409` with `ErrorDTO` (`code: "conflict"`, `helpId: "operations.cancel-not-legal"`) if the worker's `succeeded`, `failed`, or `cancelled` transition wins the same lock first. Cancelling a finished operation is refused, not treated as a silent no-op, so a client always knows whether its cancel actually did anything. Unknown `id` is `404`, same as §4.2.
 
 #### 4.4 Mutating server imports
 

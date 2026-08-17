@@ -87,12 +87,17 @@ defensive check that nothing in `corpus/` moved.
 
 `--private-root` is this phase's own plan text's "run the real package/
 world/backup through the public Phase 6 smoke where size permits" leg.
-`tools/phase6/phase6-gate-smoke.sh` (P6.25) only builds a `--synthetic`
-mode today; giving it a real-corpus mode is scoped work outside this
-step's own `Files:` list, so `--private-root` currently only detects
-whether a private corpus root was supplied and reports that the
-public-smoke leg itself is not yet wired, rather than silently declaring
-it done. Flagged in `rolling-plan.md`'s P6.26 entry, not silently skipped.
+P6.35 gave `tools/phase6/phase6-gate-smoke.sh` a `--private-corpus DIR`
+mode alongside its existing `--synthetic` one: a smaller, real-data run
+of the same public path (bounded server import, world export/import,
+activation, backup, restore) against whichever real Java world sorts
+first under `DIR`, hashing every real file it touches before and after
+and failing loudly if anything changed. `--private-root` here shells out
+to exactly that (`check_private_root_smoke`), the same
+subprocess-then-check-exit-code shape `check_exercise` already uses for
+the real Rust corpus test -- when a private root is supplied, the public
+leg genuinely runs; when it isn't, this only reports that plainly rather
+than silently declaring it done.
 
 Stdlib only, on purpose: same reasoning as `tools/phase5/real-corpus-check.py`
 and the Phase 0 checkers both follow the shape of -- no dependency setup for
@@ -381,24 +386,45 @@ def run_cargo_test(test_name: str, env_overrides: dict[str, str]) -> tuple[int, 
     return proc.returncode, proc.stdout + proc.stderr
 
 
+GATE_SMOKE_SCRIPT = REPO_ROOT / "tools" / "phase6" / "phase6-gate-smoke.sh"
+
+
 def check_private_root_smoke(private_root: str | None) -> str:
     """This phase's own plan text's "run the real package/world/backup
-    through the public Phase 6 smoke where size permits" leg.
-    `tools/phase6/phase6-gate-smoke.sh` (P6.25) only builds a `--synthetic`
-    mode today; adding a real-corpus mode to it is real, scoped work
-    outside this step's own `Files:` list. Rather than silently declaring
-    the requirement met, this only detects whether a private corpus root
-    was supplied and says plainly that the public-smoke leg itself isn't
-    wired yet -- see rolling-plan.md's P6.26 entry."""
+    through the public Phase 6 smoke where size permits" leg. When a
+    private root is supplied, this actually runs
+    `phase6-gate-smoke.sh --private-corpus <root>` (P6.35) -- the real
+    agent driven, over nothing but its own CLI/HTTP surface, through a
+    bounded server import, a bounded staged-upload world export/import
+    round trip, activation, a manual backup, and a restore, all against
+    whichever real Java world sorts first under `root`. That script does
+    its own before/after hashing of the real source files it touches and
+    fails loudly (nonzero exit) if anything changed or the run didn't
+    happen -- this wrapper only needs to check the exit code, the same
+    subprocess-then-check-exit-code shape `check_exercise` already uses
+    for the real Rust corpus test. Absent `--private-root` this still
+    reports plainly that the public leg wasn't exercised, rather than
+    silently skipping."""
     if not private_root:
         return "public smoke not exercised (no --private-root supplied)"
     root = Path(private_root)
     if not root.is_dir():
         raise CheckError(f"{root}: --private-root does not name an existing directory")
-    return (
-        f"public smoke not exercised ({root} supplied and exists, but "
-        "phase6-gate-smoke.sh has no real-corpus mode yet -- see rolling-plan.md P6.26)"
+
+    proc = subprocess.run(
+        [str(GATE_SMOKE_SCRIPT), "--private-corpus", str(root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
     )
+    print(proc.stdout, end="")
+    print(proc.stderr, end="", file=sys.stderr)
+    if proc.returncode != 0:
+        raise CheckError(
+            f"phase6-gate-smoke.sh --private-corpus {root} failed (exit {proc.returncode})"
+        )
+
+    return f"ok public smoke against real private corpus {root} (phase6-gate-smoke.sh --private-corpus)"
 
 
 def check_exercise(worlds_dir: Path, backups_dir: Path, private_root: str | None) -> str:

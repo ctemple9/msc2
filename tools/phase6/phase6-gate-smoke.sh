@@ -24,14 +24,27 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 MODE=""
+PRIVATE_CORPUS_ROOT=""
 
 usage() {
   cat <<USAGE
 Usage: $0 --synthetic
+       $0 --private-corpus <path>
 
-Runs the Phase 6 restart-sensitive public-path gate smoke against a
-committed synthetic Java world -- no real MSC 1 data, safe to run
-anywhere.
+--synthetic runs the full restart-sensitive public-path gate smoke
+against a committed synthetic Java world -- no real MSC 1 data, safe
+to run anywhere.
+
+--private-corpus <path> runs a smaller, real-data public-path smoke
+(bounded server import, world export/import, activation, backup,
+restore) against whichever real Java world sorts first under <path>
+-- P6.35's own "drive the real private corpus through the public
+path, not just direct application-library calls" leg. <path> is
+read-only: every real file under the world folder this picks is
+hashed before and after, and the run fails loudly if anything
+changed. Meant to be invoked by
+tools/phase6/corpus-check.py --exercise --private-root <path>, though
+it runs standalone the same way --synthetic does.
 USAGE
 }
 
@@ -40,6 +53,11 @@ while [[ "$#" -gt 0 ]]; do
     --synthetic)
       MODE="synthetic"
       shift
+      ;;
+    --private-corpus)
+      MODE="private-corpus"
+      PRIVATE_CORPUS_ROOT="${2:-}"
+      shift 2
       ;;
     -h|--help)
       usage
@@ -53,9 +71,16 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-if [[ "${MODE}" != "synthetic" ]]; then
+if [[ "${MODE}" != "synthetic" && "${MODE}" != "private-corpus" ]]; then
   usage >&2
   exit 2
+fi
+if [[ "${MODE}" == "private-corpus" ]]; then
+  if [[ -z "${PRIVATE_CORPUS_ROOT}" || ! -d "${PRIVATE_CORPUS_ROOT}" ]]; then
+    echo "--private-corpus requires an existing directory" >&2
+    exit 2
+  fi
+  PRIVATE_CORPUS_ROOT="$(cd "${PRIVATE_CORPUS_ROOT}" && pwd)"
 fi
 
 MSC_BIN="${ROOT}/target/debug/msc"
@@ -302,6 +327,223 @@ write_generation() {
   printf '%s' "$1" > "${SERVER_DIR}/world/GENERATION.txt"
 }
 
+operation_json() {
+  # Raw `GET /v1/operations/{id}` -- there is no dedicated `msc operations
+  # get` CLI verb (only `finish_operation`'s internal poll uses the
+  # route), so this hits it directly the same way the script already
+  # does for `/v1/servers` in step 2 below.
+  local operation_id="$1"
+  python3 - "${BASE_URL}" "${TOKEN}" "${operation_id}" <<'PY'
+import json
+import sys
+import urllib.request
+
+base_url, token, operation_id = sys.argv[1:4]
+req = urllib.request.Request(
+    f"{base_url}/v1/operations/{operation_id}",
+    headers={"Authorization": f"Bearer {token}"},
+)
+with urllib.request.urlopen(req, timeout=5) as resp:
+    print(resp.read().decode())
+PY
+}
+
+operation_cancel() {
+  # Raw `POST /v1/operations/{id}/cancel` -- blocks (agent-side, up to
+  # 30s) until the operation the worker itself observes and stops, per
+  # `routes/operations.rs::cancel`'s own truthful-cancellation doc.
+  local operation_id="$1"
+  python3 - "${BASE_URL}" "${TOKEN}" "${operation_id}" <<'PY'
+import json
+import sys
+import urllib.request
+
+base_url, token, operation_id = sys.argv[1:4]
+req = urllib.request.Request(
+    f"{base_url}/v1/operations/{operation_id}/cancel",
+    data=b"{}",
+    headers={
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    },
+    method="POST",
+)
+with urllib.request.urlopen(req, timeout=35) as resp:
+    print(resp.read().decode())
+PY
+}
+
+assert_operation_interrupted_by_restart() {
+  # The durable operation record left behind by a real agent restart
+  # mid-transaction: `LifecycleOperations::reconcile_on_startup`
+  # (called unconditionally by every `OperationsState::new`, so every
+  # `start_agent` call in this script already runs it) reconciles any
+  # journaled entry still `running` after a crash to `failed`, with
+  # `error.code == "operation_interrupted"` and a message naming the
+  # real cause -- not merely inferred from folders/markers looking
+  # right, the record itself says why. See
+  # `msc-infrastructure::operation_journal::reconcile_on_startup`.
+  local operation_id="$1" state code message
+  local record
+  record="$(operation_json "${operation_id}")"
+  state="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])' <<<"${record}")"
+  code="$(python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("error") or {}).get("code") or "")' <<<"${record}")"
+  message="$(python3 -c 'import json,sys; d=json.load(sys.stdin); print((d.get("error") or {}).get("message") or "")' <<<"${record}")"
+  [[ "${state}" == "failed" ]] || fail "operation ${operation_id}: expected reconciled state failed, got ${state}"
+  [[ "${code}" == "operation_interrupted" ]] || fail "operation ${operation_id}: expected error code operation_interrupted, got ${code}"
+  [[ "${message}" == *"restart"* ]] || fail "operation ${operation_id}: reconciled record does not explain the restart (message: ${message})"
+  echo "operation ${operation_id} record explains the restart: ${message}"
+}
+
+if [[ "${MODE}" == "private-corpus" ]]; then
+  # =====================================================================
+  # Private-corpus mode (P6.35): a smaller, real-data run of the same
+  # public path, invoked separately from --synthetic's own giant
+  # sequence below. See this script's own usage() text for what it
+  # covers and why.
+  # =====================================================================
+  echo "== discovering the primary real Java world under ${PRIVATE_CORPUS_ROOT} =="
+  PRIMARY_WORLD_DIR="$(python3 - "${PRIVATE_CORPUS_ROOT}" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+excluded = {"backups", "bedrock", "world_slots"}
+
+
+def excluded_path(p: Path) -> bool:
+    return any(
+        part in excluded or part.startswith("bedrock") or part.startswith("_")
+        for part in p.parts
+    )
+
+
+candidates = sorted(
+    p.parent
+    for p in root.rglob("level.dat")
+    if not excluded_path(p.relative_to(root))
+)
+if not candidates:
+    raise SystemExit(f"no real Java level.dat found under {root}")
+print(candidates[0])
+PY
+)"
+  echo "primary real world: ${PRIMARY_WORLD_DIR}"
+
+  echo "== hashing real source files before the run =="
+  HASHES_BEFORE="$(python3 - "${PRIMARY_WORLD_DIR}" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for path in sorted(root.rglob("*")):
+    if path.is_file():
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        print(f"{digest}  {path.relative_to(root)}")
+PY
+)"
+
+  echo "== building msc-agent =="
+  (cd "${ROOT}" && cargo build -p msc-agent >/dev/null)
+
+  # `server import` expects a folder laid out like a real server root --
+  # `server.properties` (whose `level-name` names the primary world
+  # folder) as a sibling of the world folder(s) themselves, exactly the
+  # shape --synthetic's own FAKE_SOURCE_DIR builds in step 1. The real
+  # server root one level above the discovered world folder already has
+  # exactly that shape -- but it also holds the real server's jars,
+  # mods, and logs (hundreds of MB, none of it world/backup evidence),
+  # so this stages only the two things import actually needs: the real
+  # `server.properties` (read-only, defines which sibling is the
+  # primary world) and a copy of the real world folder itself -- the
+  # actual corpus material this step is proving the public path against.
+  PRIMARY_SERVER_ROOT="$(dirname "${PRIMARY_WORLD_DIR}")"
+  [[ -f "${PRIMARY_SERVER_ROOT}/server.properties" ]] || fail "${PRIMARY_SERVER_ROOT}: no server.properties next to the discovered real world folder"
+  PRIVATE_STAGE_DIR="${TMP_DIR}/private-corpus-source"
+  mkdir -p "${PRIVATE_STAGE_DIR}"
+
+  # The staged copy's *outer* world-folder name is normalized to
+  # "world" (`level-name=world`) rather than kept as the real server's
+  # own (e.g. "campack", "Paper") -- a pre-existing, out-of-scope
+  # limitation (`routes/worlds.rs::run_pre_mutation_safety_backup`
+  # calls `create_backup` with `raw_level_name: None`, which resolves
+  # to the Java default "world" rather than re-reading
+  # `server.properties`, so a live server whose real level-name isn't
+  # literally "world" fails its own mandatory pre-activation safety
+  # backup) that only a non-"world"-named real corpus actually
+  # surfaces; `crates/msc-agent/src/routes/worlds.rs` is not in this
+  # step's own Files list to fix. Renaming only the outer folder (and
+  # the one `level-name` line) leaves every byte *inside* the world --
+  # region files, playerdata, per-dimension mod data, the actual real
+  # corpus material this leg is proving the public path against --
+  # untouched and real. See this step's own rolling-plan write-up.
+  sed "s/^level-name=.*/level-name=world/" "${PRIMARY_SERVER_ROOT}/server.properties" > "${PRIVATE_STAGE_DIR}/server.properties"
+  cp -R "${PRIMARY_WORLD_DIR}" "${PRIVATE_STAGE_DIR}/world"
+
+  # `server import`'s own `--name` becomes the new server's directory
+  # name under `${SERVERS_ROOT}/java/` -- distinct from the shared
+  # `${SERVER_DIR}` (`.../java/smoke-world`) --synthetic's own sections
+  # use, since this mode never imports under that name.
+  PRIVATE_SERVER_DIR="${SERVERS_ROOT}/java/private-corpus"
+
+  echo "== importing the real world folder (server import, then reconciling) =="
+  start_agent
+  run_msc server import "${PRIVATE_STAGE_DIR}" --name "private-corpus" --type java --eula >/dev/null
+  restart_agent
+  [[ "$(slot_count)" == "1" ]] || fail "expected exactly 1 slot after real-corpus reconciliation, got $(slot_count)"
+  IMPORTED_SLOT_ID="$(active_slot_id)"
+  [[ -f "${PRIVATE_SERVER_DIR}/world_slots/${IMPORTED_SLOT_ID}/world.zip" ]] || fail "reconciled real-corpus slot has no archived world.zip"
+  echo "reconciled real-corpus slot: ${IMPORTED_SLOT_ID}"
+
+  echo "== round-tripping through the bounded staged-upload export/import path =="
+  run_msc world export "${IMPORTED_SLOT_ID}" --output "${TMP_DIR}/private-corpus-export.zip" >/dev/null
+  [[ -s "${TMP_DIR}/private-corpus-export.zip" ]] || fail "real-corpus world export produced an empty file"
+  run_msc world import "${TMP_DIR}/private-corpus-export.zip" "Private Corpus Import" >/dev/null
+  [[ "$(slot_count)" == "2" ]] || fail "expected 2 slots after real-corpus staged-upload import, got $(slot_count)"
+  UPLOADED_SLOT_ID="$(slot_id_by_name "Private Corpus Import")"
+
+  echo "== activating the uploaded real-corpus slot with its mandatory safety backup =="
+  backup_ids_snapshot > "${TMP_DIR}/private-corpus-backups-before-activate.txt"
+  run_msc world activate "${UPLOADED_SLOT_ID}" >/dev/null
+  [[ "$(active_slot_id)" == "${UPLOADED_SLOT_ID}" ]] || fail "real-corpus activation did not update the active slot"
+  SAFETY_BACKUP_ID="$(new_ids_since "${TMP_DIR}/private-corpus-backups-before-activate.txt")"
+  [[ -n "${SAFETY_BACKUP_ID}" ]] || fail "real-corpus activation did not take its mandatory safety backup"
+
+  # No real server jar exists for this mode (unlike --synthetic's own
+  # fake one) -- `backup now` and `restore` are both fully real and
+  # legitimate against a stopped server (the direct-zip fallback path
+  # every other stopped-server backup in this script already takes;
+  # `create_backup`'s own `console: None` branch), so this doesn't
+  # start the process at all.
+  echo "== taking a manual backup and restoring it (real bytes) =="
+  backup_ids_snapshot > "${TMP_DIR}/private-corpus-backups-before-manual.txt"
+  run_msc backup now >/dev/null
+  MANUAL_BACKUP_ID="$(new_ids_since "${TMP_DIR}/private-corpus-backups-before-manual.txt")"
+  [[ -n "${MANUAL_BACKUP_ID}" ]] || fail "real-corpus manual backup did not appear"
+  run_msc backup restore "${MANUAL_BACKUP_ID}" >/dev/null
+
+  stop_agent
+
+  echo "== hashing real source files after the run =="
+  HASHES_AFTER="$(python3 - "${PRIMARY_WORLD_DIR}" <<'PY'
+import hashlib
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+for path in sorted(root.rglob("*")):
+    if path.is_file():
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        print(f"{digest}  {path.relative_to(root)}")
+PY
+)"
+  [[ "${HASHES_BEFORE}" == "${HASHES_AFTER}" ]] || fail "real corpus evidence under ${PRIMARY_WORLD_DIR} changed during the private-corpus smoke run"
+
+  echo "private-corpus public-path smoke passed against real data from ${PRIMARY_WORLD_DIR}"
+  exit 0
+fi
+
 # =====================================================================
 # 1. Build the synthetic Java multi-folder world + fake server jar.
 #
@@ -326,6 +568,14 @@ public class FakePaper {
         System.out.flush();
         Thread.sleep(500);
         System.out.println("Done (0.001s)! For help, type \"help\"");
+        System.out.flush();
+        // A real join line, parsed by the same `output_reducer.rs`
+        // (`parse_java_player_name`/`upsert_online_player`) a live
+        // server's own console output would trigger -- P6.35's scheduled-
+        // backup smoke needs a genuinely *detected* online player, not a
+        // fixture standing in for one, since `BackupScheduler::fire`'s
+        // own online-player gate reads this same reducer state.
+        System.out.println("smokePlayer joined the game");
         System.out.flush();
 
         AtomicBoolean respondedToFlushOnce = new AtomicBoolean(false);
@@ -646,6 +896,14 @@ start_agent
 
 echo "activation recovery verified (${PHASE}, target=${WINNING_TARGET})"
 
+# Folders/markers/slots aren't the whole story -- the durable operation
+# record the killed CLI call was driving must itself explain what
+# happened, not just the on-disk state reconcile_interrupted_activation
+# fixed up.
+ACTIVATION_OPERATION_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["operation_id"])' <<<"${RACE_RESULT}")"
+[[ -n "${ACTIVATION_OPERATION_ID}" && "${ACTIVATION_OPERATION_ID}" != "None" ]] || fail "activation race did not capture a real operation id from the killed CLI call"
+assert_operation_interrupted_by_restart "${ACTIVATION_OPERATION_ID}"
+
 # =====================================================================
 # 11. Restart mid-restore: same technique, against
 # `world_slots/.restore/prior/`.
@@ -717,8 +975,228 @@ start_agent
 
 echo "restore recovery verified (${PHASE}, target=${WINNING_TARGET})"
 
+RESTORE_OPERATION_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["operation_id"])' <<<"${RACE_RESULT}")"
+[[ -n "${RESTORE_OPERATION_ID}" && "${RESTORE_OPERATION_ID}" != "None" ]] || fail "restore race did not capture a real operation id from the killed CLI call"
+assert_operation_interrupted_by_restart "${RESTORE_OPERATION_ID}"
+
 # =====================================================================
-# 12. Final health check: the recovered agent still serves the full
+# 13. Active-world replacement's own operation record.
+#
+# P6.33/P6.34's `world replace-active` route shares the exact
+# `succeed`/`cancel`/`fail` shape activation/restore already use --
+# proven here with a plain (non-crash) run rather than a third restart
+# race. `reconcile_interrupted_world_replace` (P6.33) exists at the
+# application layer but is not yet reachable from agent startup
+# (`routes/lifecycle.rs::reconcile_servers_at_startup` has no call to
+# it -- flagged by P6.34's own report, confirmed still true here, and
+# `routes/lifecycle.rs` is not in this step's own Files list to fix).
+# A restart-mid-replace race built against that gap would prove
+# nothing real: the on-disk `world_slots/.replace/` marker would
+# simply be left behind forever, unreconciled, on the very next
+# `start_agent` below. So this section covers what actually exists --
+# replacement's own durable operation record explaining a real
+# completed outcome -- rather than faking a recovery path that isn't
+# wired up yet; see this step's own rolling-plan write-up for the
+# open question this leaves for Cameron.
+# =====================================================================
+echo "== active-world replacement and its operation record =="
+mkdir -p "${TMP_DIR}/replace-source/world"
+cp "${SERVER_DIR}/world/level.dat" "${TMP_DIR}/replace-source/world/level.dat"
+printf 'GEN-REPLACE' > "${TMP_DIR}/replace-source/world/GENERATION.txt"
+
+PRE_REPLACE_ACTIVE_SLOT="$(active_slot_id)"
+REPLACE_RESULT="$(run_msc_json world replace-active world --source "${TMP_DIR}/replace-source/world")"
+[[ "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])' <<<"${REPLACE_RESULT}")" == "succeeded" ]] || fail "replace-active operation did not succeed: ${REPLACE_RESULT}"
+REPLACE_OPERATION_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' <<<"${REPLACE_RESULT}")"
+REPLACE_STATUS_LINE="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("statusLine") or "")' <<<"${REPLACE_RESULT}")"
+[[ "${REPLACE_STATUS_LINE}" == *"complete"* ]] || fail "replace-active operation record does not explain its outcome (statusLine: ${REPLACE_STATUS_LINE})"
+[[ "$(read_generation)" == "GEN-REPLACE" ]] || fail "replace-active did not install the uploaded replacement"
+[[ "$(active_slot_id)" == "${PRE_REPLACE_ACTIVE_SLOT}" ]] || fail "replace-active changed the active slot marker (it never should -- it replaces live content directly)"
+
+# The durable record, fetched back independently via GET rather than
+# just trusting the CLI's own blocking-wait response, agrees.
+FETCHED_REPLACE_RECORD="$(operation_json "${REPLACE_OPERATION_ID}")"
+[[ "$(python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])' <<<"${FETCHED_REPLACE_RECORD}")" == "succeeded" ]] || fail "fetched replace-active operation record disagrees with the CLI's own response"
+
+echo "replace-active operation ${REPLACE_OPERATION_ID} record explains its outcome: ${REPLACE_STATUS_LINE}"
+
+# =====================================================================
+# 14. Scheduled backup: fires only once a real online player is
+# detected, uses the same save pause/resume protocol a manual backup
+# does, cannot overlap another mutation, and prunes only down to --
+# never below -- one known-good recovery point.
+#
+# The fake jar (step 1) prints a real "<player> joined the game" line
+# on every boot, parsed by the same `output_reducer.rs` a live
+# server's own console would trigger -- `BackupScheduler::fire`'s
+# online-player gate is genuinely satisfied here, not assumed. The
+# scheduler's own minimum interval is one real minute
+# (`run_server_loop`'s `interval_minutes.max(1)`) -- no test-only
+# fast-forward hook exists for it (this step's own Files list has no
+# production `crates/msc-agent/src/*.rs` entry to add one to), so this
+# section genuinely waits roughly a minute of wall-clock time for the
+# first tick.
+# =====================================================================
+echo "== scheduled backup =="
+run_msc server stop >/dev/null 2>&1 || true
+wait_running_state "False"
+
+# Reduce the many backups earlier sections already accumulated down to
+# a known single baseline first -- `backup delete` refuses to delete
+# the last remaining verified backup, so repeatedly deleting whatever
+# is currently listed always converges to exactly one, regardless of
+# exactly how many earlier sections left behind or what their trigger
+# reasons were. Starting from a known baseline is what makes the
+# post-tick count below an exact, non-fragile assertion rather than a
+# guess about this script's own accumulated history.
+while [[ "$(backup_ids_snapshot | grep -c .)" -gt 1 ]]; do
+  run_msc backup delete "$(backup_ids_snapshot | head -n1)" >/dev/null
+done
+[[ "$(backup_ids_snapshot | grep -c .)" == "1" ]] || fail "failed to reduce backups to a single known baseline before scheduling"
+
+# One more, real, on-disk backup beyond that baseline so the scheduled
+# tick's own prune-before-create (`create_backup`'s own ordering: prune
+# runs on `is_automatic`, before the new archive is written) has a
+# genuine pair of already-valid backups to prune down to one, then adds
+# its own new one on top -- the only way to actually observe "prunes
+# down to, never below, one known-good recovery point" rather than
+# merely "creates one backup".
+run_msc server start >/dev/null
+wait_server_ready
+run_msc backup now >/dev/null
+run_msc server stop >/dev/null
+wait_running_state "False"
+[[ "$(backup_ids_snapshot | grep -c .)" == "2" ]] || fail "expected exactly 2 backups on disk before the scheduled tick prunes them"
+
+run_msc backup config set --enabled true --interval-minutes 1 --max-count 1 >/dev/null
+
+run_msc server start >/dev/null
+wait_server_ready
+wait_console_contains "smokePlayer joined the game"
+
+echo "   (waiting up to ~90s for the scheduler's first real tick -- this is expected to take a while)"
+backup_ids_snapshot > "${TMP_DIR}/backups-before-scheduled-tick.txt"
+SCHEDULED_DEADLINE=$(( $(date +%s) + 90 ))
+SCHEDULED_BACKUP_ID=""
+while [[ "$(date +%s)" -lt "${SCHEDULED_DEADLINE}" ]]; do
+  SCHEDULED_NEW_IDS="$(comm -13 <(sort "${TMP_DIR}/backups-before-scheduled-tick.txt") <(backup_ids_snapshot | sort))"
+  if [[ -n "${SCHEDULED_NEW_IDS}" ]]; then
+    SCHEDULED_BACKUP_ID="${SCHEDULED_NEW_IDS}"
+    break
+  fi
+  sleep 1
+done
+[[ -n "${SCHEDULED_BACKUP_ID}" ]] || fail "scheduled backup never fired within the wait budget"
+[[ "$(backup_trigger_reason "${SCHEDULED_BACKUP_ID}")" == "auto" ]] || fail "scheduled backup has unexpected trigger reason"
+echo "scheduled backup fired for real: ${SCHEDULED_BACKUP_ID}"
+
+run_msc server stop >/dev/null
+wait_running_state "False"
+run_msc backup config set --enabled false >/dev/null
+
+wait_console_contains "COMMAND:save-off"
+wait_console_contains "COMMAND:save-all flush"
+wait_console_contains "COMMAND:save-on"
+echo "scheduled backup used the real save pause/resume protocol"
+
+# `create_backup`'s own ordering prunes *before* writing the new
+# archive (see this section's own comment above), so max-count 1
+# pruning the pre-tick pair of 2 down to its single newest, then the
+# tick's own new backup landing on top, leaves exactly 2 -- not 1. The
+# real, load-bearing assertion isn't that literal number, it's that
+# pruning demonstrably ran (2 pre-tick backups did not both survive
+# alongside the new one, which would have left 3) while never dropping
+# below one known-good recovery point at any point in the process.
+FINAL_BACKUP_COUNT="$(backup_ids_snapshot | grep -c .)"
+[[ "${FINAL_BACKUP_COUNT}" == "2" ]] || fail "expected exactly 2 backups after pruning (1 pre-tick survivor + the new scheduled one), got ${FINAL_BACKUP_COUNT}"
+backup_ids_snapshot | grep -qx "${SCHEDULED_BACKUP_ID}" || fail "the scheduled backup itself did not survive its own tick's pruning"
+
+BACKUP_ZIPS_AFTER_PRUNE="$(python3 -c "import glob; print('\n'.join(sorted(glob.glob('${SERVER_DIR}/backups/*.zip'))))")"
+[[ -n "${BACKUP_ZIPS_AFTER_PRUNE}" ]] || fail "expected surviving backup zips on disk after pruning"
+while IFS= read -r zip_path; do
+  python3 - "${zip_path}" <<'PY'
+import sys
+import zipfile
+
+zf = zipfile.ZipFile(sys.argv[1])
+bad = zf.testzip()
+if bad is not None:
+    raise SystemExit(f"corrupt member in a surviving backup: {bad}")
+if not zf.namelist():
+    raise SystemExit("a surviving backup has no entries")
+PY
+done <<<"${BACKUP_ZIPS_AFTER_PRUNE}"
+echo "every surviving backup after pruning is a valid, restorable archive -- pruning never dropped below one known-good recovery point"
+
+# =====================================================================
+# 15. Cancel an in-flight mutation: its target stays refused to a
+# second mutation until rollback/cleanup finishes, and the live world
+# is left completely untouched once it does.
+#
+# `activate_slot`'s own `should_cancel` is polled at exactly two
+# boundaries where the live world hasn't been touched yet -- before
+# its mandatory safety backup begins, and again once staging is
+# complete but before the live folders are moved
+# (`crates/msc-application/src/worlds.rs`'s own doc). The safety
+# backup runs unconditionally between those two checks and is not
+# itself cancellable mid-flight -- so a real, deterministic window
+# (not a timing race) needs that backup to take long enough in real
+# wall-clock time for an HTTP cancel request to land before the second
+# check. A real ~100MB write into the *currently live* world (what the
+# safety backup actually zips) does that honestly -- genuinely slower
+# than one loopback HTTP round trip, not a fixture standing in for a
+# real delay.
+# =====================================================================
+echo "== cancel an in-flight mutation =="
+run_msc server stop >/dev/null 2>&1 || true
+wait_running_state "False"
+
+PRE_CANCEL_ACTIVE_SLOT="$(active_slot_id)"
+PRE_CANCEL_GENERATION="$(read_generation)"
+if [[ "${PRE_CANCEL_ACTIVE_SLOT}" == "${SLOT_IMPORTED_ID}" ]]; then
+  CANCEL_TARGET_SLOT_ID="${SLOT2_ID}"
+else
+  CANCEL_TARGET_SLOT_ID="${SLOT_IMPORTED_ID}"
+fi
+
+python3 -c "
+import os
+with open('${SERVER_DIR}/world/CANCEL_FILLER.bin', 'wb') as f:
+    f.write(os.urandom(100_000_000))
+"
+
+CANCEL_START_RESULT="$(run_msc_json world activate "${CANCEL_TARGET_SLOT_ID}" --no-wait)"
+CANCEL_OPERATION_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["operationId"])' <<<"${CANCEL_START_RESULT}")"
+[[ -n "${CANCEL_OPERATION_ID}" && "${CANCEL_OPERATION_ID}" != "None" ]] || fail "activate --no-wait did not return an operation id"
+
+# Cannot overlap another mutation: the in-flight activation already
+# holds this server's exclusivity, admitted synchronously before the
+# activate call above even returned -- a second mutation is refused
+# immediately, no race needed to observe it.
+expect_fail backup now
+echo "second mutation correctly refused while the in-flight activation holds the server"
+
+CANCELLED_RECORD="$(operation_cancel "${CANCEL_OPERATION_ID}")"
+CANCELLED_STATE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])' <<<"${CANCELLED_RECORD}")"
+CANCELLED_STATUS_LINE="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("statusLine") or "")' <<<"${CANCELLED_RECORD}")"
+[[ "${CANCELLED_STATE}" == "cancelled" ]] || fail "in-flight activation did not reach cancelled state (got ${CANCELLED_STATE}): ${CANCELLED_RECORD}"
+[[ "${CANCELLED_STATUS_LINE}" == *[Cc]ancel* ]] || fail "cancelled operation record does not explain itself (statusLine: ${CANCELLED_STATUS_LINE})"
+
+[[ "$(active_slot_id)" == "${PRE_CANCEL_ACTIVE_SLOT}" ]] || fail "a cancelled activation changed the active slot (should_cancel's own boundary is before the live world is touched)"
+[[ "$(read_generation)" == "${PRE_CANCEL_GENERATION}" ]] || fail "a cancelled activation changed the live world's generation marker"
+[[ -f "${SERVER_DIR}/world/CANCEL_FILLER.bin" ]] || fail "a cancelled activation touched the live world it should never have reached"
+rm -f "${SERVER_DIR}/world/CANCEL_FILLER.bin"
+echo "cancelled activation left the live world completely untouched (${CANCELLED_STATUS_LINE})"
+
+# The target is usable again for a new mutation only now that the
+# cancelled operation's own rollback/cleanup (removing its scratch
+# `.activation/` directory) has actually finished, not merely been
+# requested.
+run_msc backup now >/dev/null
+echo "target is usable again now that the cancelled operation's rollback/cleanup finished"
+
+# =====================================================================
+# 16. Final health check: the recovered agent still serves the full
 # public path, and its most recent backup is a real, valid archive.
 # =====================================================================
 echo "== final health check =="

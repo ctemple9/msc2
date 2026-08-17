@@ -134,10 +134,34 @@ NBT parsing) but not doubled through the write-path ones — this phase's
 own plan text ("where size permits") for that split.
 
 `--private-root` is the plan's other requirement, "run the real package/
-world/backup through the public Phase 6 smoke where size permits" —
-`tools/phase6/phase6-gate-smoke.sh` (P6.25) itself only has a
-`--synthetic` mode; giving it a real-corpus mode is scoped work outside
-this step's own `Files:` list (which doesn't include the smoke script), so
-today `--private-root` only detects whether a private corpus root was
-supplied and reports the public-smoke leg as not yet wired, rather than
-silently declaring it done. Flagged in `rolling-plan.md`'s P6.26 entry.
+world/backup through the public Phase 6 smoke where size permits". P6.35
+gave `tools/phase6/phase6-gate-smoke.sh` a second mode alongside its
+existing `--synthetic` one: `--private-corpus <root>` drives a real agent
+through nothing but its own CLI/HTTP surface — `server import`, a
+bounded staged-upload `world export`/`world import` round trip,
+activation (with its mandatory safety backup), a manual backup, and a
+restore — against whichever real Java world sorts first under `<root>`.
+`<root>` is a *different*, larger private corpus than this directory's
+own small evidence (a real MSC-1-managed servers root, e.g.
+`$MSC2_PHASE6_PRIVATE_CORPUS`), read-only throughout: every real file
+under the world folder the smoke picks is hashed before and after, and
+the run fails loudly if anything changed. `corpus-check.py --exercise
+--private-root <root>` invokes this for real and fails if it doesn't
+run; omitting `--private-root` still reports plainly that the public leg
+wasn't exercised, rather than silently skipping it.
+
+One real, pre-existing limitation this leg surfaced (not fixed here —
+`crates/msc-agent/src/routes/worlds.rs` is not in P6.35's own `Files:`
+list): a live server's mandatory pre-activation safety backup
+(`run_pre_mutation_safety_backup`) calls `create_backup` with
+`raw_level_name: None`, which resolves to the Java default `"world"`
+rather than re-reading `server.properties` — so it only works correctly
+when the server's real `level-name` happens to already be `"world"`, true
+of `--synthetic`'s own fixture but not of either real corpus server here
+(`Paper`, `campack`). The private-corpus smoke works around this by
+staging its copy of the real world folder under the name `world` (with a
+matching `level-name=world` in its copy of `server.properties`) rather
+than the server's own real name — every byte *inside* the world (region
+files, playerdata, per-dimension mod data) stays real and untouched, only
+the outer folder/config name is normalized. See `rolling-plan.md`'s
+P6.35 entry for the open question this leaves for Cameron.

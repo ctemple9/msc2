@@ -1055,12 +1055,185 @@ msc-api` (38/38 passing, unaffected).
   this step's own scope.
 
 ### P6.35 — Close the Phase 6 public-path evidence gaps
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase6/phase6-gate-smoke.sh`, `tools/phase6/corpus-check.py`, `tools/phase6/fixtures/gate-smoke/`, `crates/msc-application/tests/real_world_backup_corpus.rs`, `corpus/worlds/README.md`, `corpus/backups/README.md`
 **What:** Extend the real-agent public smoke so it proves a scheduled backup genuinely fires with a detected online player, uses save pause/resume, cannot overlap another mutation, and prunes only after leaving a known-good recovery point. Cancel an in-flight mutation and prove its target remains locked until rollback/cleanup completes. After restart-interrupted activation, replacement, and restore, inspect the durable operation records as well as folders, slots, markers, and backups, and require the record to explain the reconciled outcome. Drive the real private world/backup corpus through bounded upload/import and the public world/backup operations rather than only direct application-library calls; hash every source before and after and fail when a private root was requested but the public leg did not run.
 **Verify:** `test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && tools/phase6/phase6-gate-smoke.sh --synthetic && python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"`
 **Commit:** `P6.35: prove the phase 6 public paths`
 **Batch:** stop-after
+
+**Actual result:** `tools/phase6/phase6-gate-smoke.sh --synthetic` gained
+four new sections (renumbered §13–§16, folding the old §12 "final health
+check" down one slot) plus operation-record checks bolted onto the
+existing §10/§11 activation/restore restart races, all reusing the
+script's existing helpers rather than inventing parallel ones:
+
+- **§13 — active-world replacement's operation record.** A plain
+  (non-crash) `world replace-active world --source <folder>` call, then
+  both the CLI's own blocking-wait `OperationDto` response *and* an
+  independent `GET /v1/operations/{id}` re-fetch are asserted
+  `state == "succeeded"` with `statusLine` containing "complete" —
+  proving the record explains a real completed outcome. **This is not a
+  third restart race** — see "Noticed, not acted on" below for why.
+- **§14 — scheduled backup.** The fake Java jar (§1) now prints a real
+  `"smokePlayer joined the game"` line on every boot, parsed by the same
+  `output_reducer.rs` a live server's own console triggers, so
+  `BackupScheduler::fire`'s online-player gate is genuinely satisfied,
+  not assumed. `backup config set --enabled true --interval-minutes 1
+  --max-count 1` (the scheduler's real floor is one minute —
+  `run_server_loop`'s `interval_minutes.max(1)`; no test-only fast-
+  forward hook exists, so this section genuinely waits ~65–90s of real
+  wall-clock time). Backups are first reduced to a single known baseline
+  (`backup delete` refuses to delete the last verified one, so repeated
+  deletion always converges to exactly 1) plus one more added on top, so
+  the tick's own prune-*before*-create ordering
+  (`create_backup`'s own `is_automatic && auto_prune_max_count`
+  ordering, confirmed by running it) has a real pair to prune from —
+  final count asserted as exactly 2 (the 1 pre-tick survivor + the new
+  scheduled one), both verified as valid, openable zip archives. Console
+  tail is asserted to contain the real `COMMAND:save-off` /
+  `COMMAND:save-all flush` / `COMMAND:save-on` sequence.
+- **§15 — cancel an in-flight mutation.** `activate_slot`'s own
+  `should_cancel` is checked only at two boundaries (before its mandatory
+  safety backup, and again after staging but before the live folders
+  move) with no re-check *during* the backup itself, so this needed a
+  real, non-racy window: a genuine ~100MB `os.urandom` file written into
+  the *currently live* world before `world activate <slot> --no-wait`,
+  making its mandatory safety backup (which zips the live folders)
+  measurably slower than one loopback HTTP round trip — not a test hook,
+  a real size-driven delay. During that window, a concurrent `backup now`
+  is asserted refused (exclusivity admitted synchronously at operation
+  start, so this needs no race either), then `POST
+  /v1/operations/{id}/cancel` (which itself blocks up to 30s
+  agent-side for the worker to actually observe and stop) is asserted to
+  return `state == "cancelled"`. Active slot id, the live generation
+  marker, and the 100MB filler file are all asserted unchanged afterward
+  (should_cancel's boundary is before the live world is touched — nothing
+  needed rolling back), and a fresh `backup now` afterward is asserted to
+  succeed, proving the target is usable again only once cleanup actually
+  finished.
+- **§10/§11 (existing activation/restore restart races).**
+  `tools/phase6/fixtures/gate-smoke/race_transaction.py`'s `attempt()`
+  now captures the killed CLI call's own stdout and scrapes
+  `finish_operation`'s `"operation id: <id>"` line
+  (`extract_operation_id`) — printed well before the on-disk work the
+  script races to interrupt, so it survives the kill. Both race sections
+  now fetch that operation's durable record after the restart and assert
+  `state == "failed"`, `error.code == "operation_interrupted"`, and the
+  message contains "restart" —
+  `msc-infrastructure::operation_journal::reconcile_on_startup`'s own
+  `RESTART_REASON` ("agent restarted mid-operation"), already
+  unconditionally run by every `OperationsState::new` — genuinely
+  explains the reconciled outcome, not just folders/markers looking
+  right.
+- **Real private corpus through the public path.**
+  `phase6-gate-smoke.sh` gained a second mode, `--private-corpus <root>`,
+  alongside its existing `--synthetic` one (mutually exclusive; runs a
+  smaller, separate sequence and exits, sharing every helper function).
+  It discovers whichever real Java `level.dat` sorts first under
+  `<root>` (excluding `backups`/`bedrock*`/`world_slots`/`_*`-prefixed
+  paths), stages a copy of just its world folder plus the real server's
+  `server.properties` (never the whole multi-hundred-MB server root —
+  jars/mods/logs aren't corpus evidence), and drives it through
+  `server import` → restart-triggered reconciliation → `world export` →
+  `world import` (the bounded staged-upload round trip) → `world
+  activate` (mandatory safety backup) → `backup now` → `backup restore` —
+  all real bytes, all through the public CLI/HTTP surface, never a direct
+  `msc_application`/`msc_infrastructure` call. Every file under the
+  discovered real world folder is SHA-256-hashed before and after; the
+  run fails loudly on any mismatch. `corpus-check.py`'s
+  `check_private_root_smoke` now actually invokes this (subprocess,
+  checks the exit code — the same shape `check_exercise` already uses for
+  the Rust corpus test) instead of only reporting "not wired yet."
+  Verified end to end against `$HOME/MinecraftServers` (real
+  MSC-1-managed `campack`/`paper` server directories) — `campack` (the
+  larger, ~11MB, Fabric-modded one) sorts first alphabetically under that
+  root and is what the leg actually exercises.
+
+Also required one deliberate staging workaround, not a code fix:
+`run_pre_mutation_safety_backup` (`crates/msc-agent/src/routes/worlds.rs`,
+not in this step's `Files:` list) calls `create_backup` with
+`raw_level_name: None`, which resolves to the Java default `"world"`
+rather than re-reading `server.properties` — so a live server whose real
+`level-name` isn't literally `"world"` (true of both real corpus
+servers, `campack` and `Paper`) fails its own mandatory pre-activation
+safety backup. The private-corpus mode stages its copy of the real world
+folder under the name `world` (with a matching `level-name=world` line in
+its copy of `server.properties`) to work around this — every byte
+*inside* the world stays real and untouched; only the outer folder/config
+name is normalized. See the open question below.
+
+**Verify, run for real:** `MSC2_PHASE6_PRIVATE_CORPUS="$HOME/MinecraftServers"`,
+then `tools/phase6/phase6-gate-smoke.sh --synthetic` (passes, ~1m50s) and
+`python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds
+--backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"`
+(passes — the 3 existing library-level Rust tests plus the new
+`--private-corpus` public-path leg, ~30s). `cargo fmt --check` and
+`cargo clippy --all-targets -- -D warnings` clean (only Rust change is a
+doc comment in `real_world_backup_corpus.rs`).
+
+**Noticed, not acted on** (outside this step's own Files list/Verify):
+
+- **No restart-interrupted restart race was built for
+  `world replace-active-world`.** P6.33's own
+  `reconcile_interrupted_world_replace` exists at the application layer,
+  but P6.34's own report already flagged that it is not wired into
+  `routes/lifecycle.rs::reconcile_servers_at_startup` — confirmed still
+  true here. A race against `world_slots/.replace/` built on that gap
+  would prove nothing real (the marker would simply be left behind
+  forever, unreconciled, on the very next restart); this step's own
+  §13 instead proves replacement's operation record on a plain completed
+  run. `routes/lifecycle.rs` is not in P6.35's `Files:` list, so it was
+  not touched.
+- `tools/api-contract-check.py`'s `EXPECTED_TOTAL = 105` is still stale
+  (P6.34's own report already flagged true total 106); still outside
+  this step's `Files:`/Verify.
+- `crates/msc-api/tests/world_backup_conformance.rs` still has no test
+  entries for the two P6.34 DTOs; still outside this step's
+  `Files:`/Verify.
+- `worlds.rs`'s pre-existing Bedrock `world_base_dir`/`world_folder_
+  candidates` double-`worlds/worlds` bug (flagged at P6.33) remains
+  latent and untouched.
+- The private-corpus leg's own `server.properties`/level-name workaround
+  (above) is a staging-side workaround for a real production limitation,
+  not a fix — see the question below.
+
+**Open question for Cameron:**
+
+QUESTION — Fix the non-"world" level-name safety-backup bug now, or defer it?
+
+What it is: `run_pre_mutation_safety_backup` (the code that takes the
+mandatory safety backup right before activating/replacing a world) always
+assumes the server's world folder is named "world". Every server this
+project has tested against until now happened to use that name, so
+nobody had hit it. Driving P6.35's new real-corpus smoke against
+Cameron's actual `campack`/`paper` servers (whose real world folders are
+named `campack`/`Paper`) hit it directly: activation's own safety backup
+failed outright.
+
+The choice: (A) leave it as a known, flagged gap — the private-corpus
+smoke works around it by staging under the name "world" rather than the
+server's real name, so nothing here is blocked — and fix it in its own
+later correction step, the same way P6.30/P6.33 each got a dedicated step
+for one specific correctness gap. (B) fix it right now as part of closing
+out this step, even though `crates/msc-agent/src/routes/worlds.rs` isn't
+in P6.35's own `Files:` list.
+
+Why it matters: this is a real bug that would bite any real server whose
+world folder isn't literally named "world" — which describes both of
+Cameron's own real servers. It's currently masked because activation
+success elsewhere in this phase's tests always uses "world"-named
+fixtures.
+
+If unsure: recommend (A) — same reasoning CLAUDE.md gives for every other
+"noticed, not acted on" item this phase has surfaced: a step's `Files:`
+list is a deliberate scope boundary, and silently expanding it (even for
+a one-line real bug) risks exactly the kind of scope creep the phase's
+six-move loop exists to prevent. A one-step fix (thread the already-
+resolved `current_level_name`/`level_name` through to the safety-backup
+closure instead of passing `None`) looks small, but Cameron should decide
+whether it's worth its own dedicated correction step or folds into
+P6.36's gate re-run.
 
 ### P6.36 — Re-run the literal Phase 6 exit gate
 **Status:** not started

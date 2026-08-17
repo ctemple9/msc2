@@ -25,6 +25,21 @@
 //! `level_dats[0]` selection: "where size permits" (per this phase's own
 //! plan text) rather than doubling every write-path exercise against
 //! campack's larger corpus too.
+//!
+//! P6.35 note: every check in this file calls straight into
+//! `msc_application`/`msc_infrastructure` — never through the agent's own
+//! HTTP/CLI surface. That stays true on purpose (it's what makes this
+//! file fast and dependency-free); it's also why it alone can't stand in
+//! for "drive the real corpus through the public path." That leg is a
+//! separate, real-data mode of `tools/phase6/phase6-gate-smoke.sh`
+//! (`--private-corpus <root>`, driven by a *different*, larger private
+//! corpus root than `corpus/worlds`/`corpus/backups` — see
+//! `MSC2_PHASE6_PRIVATE_CORPUS` in `tools/phase6/corpus-check.py`), which
+//! runs a real agent through `server import`, a bounded staged-upload
+//! `world export`/`world import` round trip, activation, a manual
+//! backup, and a restore against whichever real Java world sorts first
+//! under that root — hashing the real source files it touches before and
+//! after the same way every test in this file already does.
 
 use msc_application::backups;
 use msc_application::worlds::{self as app_worlds, ReconciliationOutcome};

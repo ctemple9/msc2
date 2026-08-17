@@ -41,10 +41,22 @@ timing anywhere. With the pause in place this should always catch on
 the first attempt; the retry loop is left as a harmless fallback
 rather than removed, in case a target's own call fails validation
 before ever reaching the pause point.
+
+P6.35 adds one more thing worth catching from the caught attempt: the
+real operation id the killed CLI call was driving, scraped from its
+own captured stdout (`extract_operation_id`) rather than invented --
+`finish_operation`'s "operation id: <id>" line prints as soon as the
+agent admits the operation, well before the on-disk work this script
+races to interrupt. The caller uses it to fetch the operation's
+durable record (`GET /v1/operations/{id}`) after the killed agent is
+restarted, and confirm the record itself explains what happened
+(`agent restarted mid-operation`) rather than only checking that the
+recovered folders/markers look right.
 """
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -102,6 +114,17 @@ def process_alive(pid: int) -> bool:
     return True
 
 
+def extract_operation_id(stdout: str) -> str | None:
+    # `finish_operation`'s own non-JSON print (`cli/mod.rs`), the first
+    # thing it writes once the agent has journaled the operation and
+    # admitted it for its target -- present in the captured stdout even
+    # when this same process is killed later, mid-transaction, since the
+    # print happens well before the on-disk work this script is racing
+    # to catch.
+    match = re.search(r"operation id:\s*(\S+)", stdout)
+    return match.group(1) if match else None
+
+
 def attempt(msc, base_url, token, argv_tail, pid, prior_dir, staged_dir):
     argv = [msc, "--base-url", base_url, "--token", token] + argv_tail
     result = {"caught": False}
@@ -120,12 +143,15 @@ def attempt(msc, base_url, token, argv_tail, pid, prior_dir, staged_dir):
 
     poller_thread = threading.Thread(target=poller, daemon=True)
     poller_thread.start()
+    stdout = ""
     try:
-        subprocess.run(argv, capture_output=True, timeout=30)
+        proc = subprocess.run(argv, capture_output=True, timeout=30, text=True)
+        stdout = proc.stdout
     except Exception:
         pass
     caught_event.set()
     poller_thread.join(timeout=2.0)
+    result["operation_id"] = extract_operation_id(stdout)
     return result
 
 
@@ -174,6 +200,7 @@ def main() -> int:
                         "phase": result["phase"],
                         "attempts": attempts,
                         "elapsed": time.time() - start,
+                        "operation_id": result.get("operation_id"),
                     }
                 )
             )

@@ -53,3 +53,14 @@ directory itself — and validates both real backup `.zip`s' archive safety.
 `campack_manual_20260813-222917.zip` (~11MB) is exercised by the
 archive-safety check but not restored, matching the write-path-stays-small
 split `../worlds/README.md` records.
+
+## P6.35 real evidence driven through the public path (2026-08-16)
+
+The evidence in this directory stays exercised only at the application-
+library level (above). P6.35's own public-path leg — proving backup/
+restore work over the real agent's CLI/HTTP surface, not just direct
+library calls — runs against a *different*, larger private corpus
+(`$MSC2_PHASE6_PRIVATE_CORPUS`, a real MSC-1-managed servers root, not
+this directory) via `tools/phase6/phase6-gate-smoke.sh --private-corpus
+<root>`. See `../worlds/README.md`'s matching P6.35 section for what that
+mode does and the one real, pre-existing limitation it surfaced.

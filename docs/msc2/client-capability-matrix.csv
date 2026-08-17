@@ -49,8 +49,8 @@ GET,/v1/help/{helpId},,Resolve an educational content topic,none,Planned,Planned
 GET,/v1/java-runtimes,,Java runtimes detected on this host,none,Planned,Planned,Planned,Planned,
 GET,/v1/me,,The calling token's own role and permissions,none,Planned,Planned,Planned,Planned,
 POST,/v1/operations,,Create a long-running operation,serverControl,Implemented,Planned,Planned,Planned,
-GET,/v1/operations/{id},,Read an operation's current state,none,Implemented,Planned,Planned,Planned,
-POST,/v1/operations/{id}/cancel,,Request cancellation of an operation,serverControl,Implemented,Planned,Planned,Planned,
+GET,/v1/operations/{id},,Read an operation's current state,none,Implemented,Planned,Implemented,Implemented,"iOS and CLI poll durable world, backup, conversion, and import operations"
+POST,/v1/operations/{id}/cancel,,Request cancellation of an operation,serverControl,Implemented,Planned,Implemented,Implemented,"iOS conversion UI and CLI polling request cooperative cancellation"
 WS,/v1/operations/{id}/stream,,operation-progress channel,none,Implemented,Planned,Planned,Planned,no MSC 1 equivalent (operation-model.md SS1)
 GET,/v1/performance,,"Latest performance snapshot (TPS, players, CPU, RAM, world size)",none,Implemented,Planned,Implemented,Planned,
 GET,/v1/players,,List currently-online players,none,Planned,Planned,Planned,Planned,
@@ -70,7 +70,7 @@ GET,/v1/servers,,List all registered servers,none,Implemented,Planned,Implemente
 POST,/v1/servers/create,,Create a new server,fleet,Planned,Planned,Planned,Planned,
 POST,/v1/servers/delete,,Delete a server,fleet,Planned,Planned,Planned,Planned,
 POST,/v1/servers/eula,,Accept the Minecraft EULA for a server,fleet,Planned,Planned,Planned,Planned,
-POST,/v1/servers/import,,"Scan, import, or rescan existing servers",fleet,Implemented,Planned,Planned,Implemented,
+POST,/v1/servers/import,,"Scan, import, or rescan existing servers",fleet,Implemented,Planned,Implemented,Implemented,"P6.46: copied iOS follows accepted raw/ZIP and transfer imports to their durable terminal result"
 POST,/v1/servers/rename,,Rename a server,fleet,Planned,Planned,Planned,Planned,
 GET,/v1/session-log,,Join/leave event history for the active server,none,Planned,Planned,Planned,Planned,
 GET,/v1/settings,,"Typed server.properties schema for the active server, as sections of fields",none,Implemented,Planned,Planned,Implemented,

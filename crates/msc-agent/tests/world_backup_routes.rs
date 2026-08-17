@@ -35,6 +35,13 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use msc_domain::app_config_schema::{AppConfig, ConfigServer};
+use msc_domain::identity::ServerType;
+use msc_infrastructure::config_repository::save_app_config;
+use msc_infrastructure::fs::StdFileSystem;
+
+const TOKEN: &str = "msc2_replacementrecovery_recoverysecret";
+
 #[test]
 fn world_backup_routes_are_mounted_behind_bearer_auth() {
     let temp = temp_dir("world-backup-routes-mounted");
@@ -109,6 +116,140 @@ fn world_backup_routes_are_mounted_behind_bearer_auth() {
     cleanup_secret(&keychain_service, "remote-api.owner-token");
 }
 
+#[test]
+fn world_backup_routes_restart_recovers_each_active_replacement_boundary_and_operation() {
+    for boundary in ["staged", "prior_moved", "installed"] {
+        let temp = temp_dir(&format!("world-replace-recovery-{boundary}"));
+        let data_dir = temp.join("data");
+        let servers_root = temp.join("servers");
+        let server_dir = servers_root.join("replacement-server");
+        let config_path = data_dir.join("server_config_swift.json");
+        let journal_dir = data_dir.join("journal");
+        fs::create_dir_all(&server_dir).unwrap();
+        fs::create_dir_all(&journal_dir).unwrap();
+        fs::write(server_dir.join("paper.jar"), b"fake jar").unwrap();
+        fs::write(
+            server_dir.join("server.properties"),
+            "server-port=25565\nlevel-name=world\n",
+        )
+        .unwrap();
+        seed_replace_boundary(&server_dir, boundary);
+        write_single_server_config(&config_path, &servers_root, &server_dir);
+
+        let operation_id = format!("replace-restart-{boundary}");
+        fs::write(
+            journal_dir.join(format!("{operation_id}.json")),
+            format!(
+                r#"{{"id":"{operation_id}","operationType":"world-replace-active","target":"replacement-server","state":"running","error":null}}"#
+            ),
+        )
+        .unwrap();
+
+        let port = free_port();
+        let keychain_service = format!(
+            "com.msc2.world-replace-recovery.{boundary}.{}.{}",
+            std::process::id(),
+            suffix()
+        );
+        let log_path = temp.join("agent.log");
+        let mut agent = spawn_agent(
+            &format!("127.0.0.1:{port}"),
+            &data_dir,
+            &config_path,
+            &servers_root,
+            &keychain_service,
+            &log_path,
+        );
+        wait_for_health(port);
+
+        let operation = http_get(port, &format!("/v1/operations/{operation_id}"), Some(TOKEN));
+        assert!(
+            operation.starts_with("HTTP/1.1 200")
+                && operation.contains(r#""state":"failed""#)
+                && operation.contains("operation_interrupted"),
+            "{boundary} operation record was not truthfully reconciled: {operation}"
+        );
+
+        let properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
+        if boundary == "installed" {
+            assert_eq!(
+                fs::read(server_dir.join("newname/level.dat")).unwrap(),
+                b"complete replacement world"
+            );
+            assert!(properties.contains("level-name=newname"));
+        } else {
+            assert_eq!(
+                fs::read(server_dir.join("world/level.dat")).unwrap(),
+                b"complete old world"
+            );
+            assert!(properties.contains("level-name=world"));
+        }
+        assert!(!server_dir.join("world_slots/.replace").exists());
+
+        let worlds = http_get(port, "/v1/worlds", Some(TOKEN));
+        assert!(
+            worlds.starts_with("HTTP/1.1 200"),
+            "{boundary} recovered server should remain publicly inspectable: {worlds}"
+        );
+
+        stop_child(&mut agent);
+        cleanup_secret(&keychain_service, "remote-api.owner-token");
+    }
+}
+
+fn seed_replace_boundary(server_dir: &Path, boundary: &str) {
+    let replace_dir = server_dir.join("world_slots/.replace");
+    fs::create_dir_all(&replace_dir).unwrap();
+    fs::write(
+        replace_dir.join("manifest.json"),
+        br#"{"level_name":"newname"}"#,
+    )
+    .unwrap();
+
+    match boundary {
+        "staged" => {
+            write_level(server_dir.join("world"), b"complete old world");
+            write_level(
+                replace_dir.join("staged/newname"),
+                b"complete replacement world",
+            );
+        }
+        "prior_moved" => {
+            write_level(replace_dir.join("prior/world"), b"complete old world");
+            write_level(
+                replace_dir.join("staged/newname"),
+                b"complete replacement world",
+            );
+        }
+        "installed" => {
+            write_level(server_dir.join("newname"), b"complete replacement world");
+            write_level(replace_dir.join("prior/world"), b"complete old world");
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn write_level(dir: PathBuf, contents: &[u8]) {
+    fs::create_dir_all(&dir).unwrap();
+    fs::write(dir.join("level.dat"), contents).unwrap();
+}
+
+fn write_single_server_config(config_path: &Path, servers_root: &Path, server_dir: &Path) {
+    let mut config = AppConfig::default_config(servers_root.to_string_lossy().into_owned());
+    let mut server = ConfigServer::new(
+        "replacement-server",
+        "Replacement Server",
+        server_dir.to_string_lossy().into_owned(),
+        server_dir.join("paper.jar").to_string_lossy().into_owned(),
+        1.0,
+        2.0,
+    );
+    server.server_type = ServerType::Java;
+    config.servers = vec![server];
+    config.active_server_id = Some("replacement-server".to_string());
+    save_app_config(&StdFileSystem, config_path, &config).unwrap();
+}
+
 fn spawn_agent(
     bind: &str,
     data_dir: &Path,
@@ -131,6 +272,8 @@ fn spawn_agent(
             data_dir.join("credential-registry.json"),
         )
         .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", keychain_service)
+        .env("MSC2_OPERATION_JOURNAL_DIR", data_dir.join("journal"))
+        .env("MSC2_TEST_BOOTSTRAP_TOKEN", TOKEN)
         .stdout(Stdio::from(log.try_clone().unwrap()))
         .stderr(Stdio::from(log));
 

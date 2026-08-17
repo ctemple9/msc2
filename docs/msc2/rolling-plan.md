@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 review corrections in progress. P6.1–P6.28 are implemented; the independent gate review found that the Phase 6 gate does not yet hold; P6.29 has been executed.
-> **Next move:** Verify — Cameron runs P6.29's Verify command. P6.30–P6.36 remain to be executed after that.
-> **Repo:** https://github.com/ctemple9/msc2 · Phase 6 candidate commit `3f3f0df` has GitHub Actions run [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) green on macOS, Linux, Windows, repo invariants, and the D-021 headless check. The subsequent commits through current HEAD `c4eb2b5` record verification status only. The gate review found safety and public-proof gaps that the correction steps below must close before Phase 7 begins.
-> **Last updated:** 2026-08-16
+> ## STATUS: Phase 6 review corrections continue. P6.1–P6.37 are implemented or recorded; P6.38 is awaiting Cameron's verification; P6.39–P6.42 remain not started.
+> **Next move:** Verify — Cameron runs P6.38's Verify command. Do not begin P6.39 before P6.38 is marked DONE.
+> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. The current synthetic gate reaches its cancellation section and fails with the operation still `running`/`Cancelling…`; P6.39–P6.42 must close the remaining level-name, cancellation, Bedrock-path, and proof gaps before Phase 7 begins.
+> **Last updated:** 2026-08-17
 
 **Previous phases (Setup, Phase 0 through Phase 5) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 6 onward stay here.
 
@@ -77,7 +77,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. Primary files: `WorldSlotManager.swift` (slot model, active resolution, archives, metadata, NBT), `AppViewModel+WorldSlots.swift` (slot orchestration), `AppViewModel+WorldManagement.swift` (rename/replace rollback), `AppViewModel+Backups.swift` (creation, online consistency, metadata, retention, restore), `AppViewModel+WorldConversion.swift` (Chunker workflow), `AppViewModel+WorldRepair.swift` (Bedrock runtime-dependent repair), `AppViewModel+APIWiringWorlds.swift`, `AppViewModel+APIWiringBackupsHealth.swift`, `AppViewModel+APIWiringSettings.swift`, and the copied iOS `WorldsView.swift`/`RemoteAPIClient.swift`/`RemoteAPIModels.swift`.
 
-36 steps, nine groups:
+42 steps, nine groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -89,9 +89,9 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | Public clients | P6.20–P6.24 | routes/operations, CLI, and iOS world/backup workflows |
 | Public-path and real-corpus proof | P6.25–P6.27 | restart-sensitive smoke, real evidence run, tri-platform CI |
 | Phase exit | P6.28 | literal gate check |
-| Gate review corrections | P6.29–P6.37 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, a new literal gate check, and its own stale-constant fix |
+| Gate review corrections | P6.29–P6.42 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, remaining authority/level-name/Bedrock corrections, and a final literal gate check |
 
-**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.37 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
+**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.42 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
 
 **Not in this phase**, deferred on purpose:
 
@@ -1429,3 +1429,51 @@ worker's own cancellation-boundary polling has a real gap. Distinguishing
 those two needs its own investigation; this step's scope is the
 route-count constant only, so no code beyond `tools/api-contract-check.py`
 was touched.
+
+### Remaining gate corrections
+
+Cameron selected the cancellation response rule on 2026-08-16: `POST /v1/operations/{id}/cancel` returns **`202 Accepted`** with the still-running `OperationDTO` while cooperative cancellation is pending; clients poll the existing operation resource or stream until it becomes terminal. A `200` response is reserved for a cancellation already completed before the response is sent. Returning `200` with `state: running` is never valid. This is an additive correction to the proposed greenfield operation contract; MSC 1 has no cancellation API to preserve.
+
+### P6.38 — Complete reconciliation authority and replacement recovery
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/world_import_reconciliation.rs`, `crates/msc-agent/tests/world_backup_routes.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_mutations.rs`
+**What:** Make reconciliation readiness authoritative for every server that can be mutated, not only the configuration snapshot present when the agent starts. A raw/transfer/rescan import must enter a non-ready state before registration, run the same imported-world reconciliation before the server can be selected or mutated, and become `Ready` only after success; a failure remains registered for diagnosis but `Degraded`. An unknown server id must never default to `Ready`. When conversion mutates a separate target server, check that target's reconciliation state before operation admission as well as checking the active source. Add `reconcile_interrupted_world_replace` to the startup recovery sequence, feed any failure into the same degraded status, and prove a restart at each replace transaction boundary produces one complete old or replacement world plus a truthful operation record. Exercise post-start import, a degraded conversion target, and interrupted public active replacement through real mounted routes.
+
+**Actual result:** Reconciliation authority is now live state shared by the agent instead of an immutable startup snapshot. Every raw, transfer-package, and rescan import is recorded as `Reconciling` before its config is registered, runs the same imported-world plus interrupted activation/restore/active-replacement recovery sequence, and transitions to `Ready` or remains registered as `Degraded`; missing state fails closed instead of defaulting to `Ready`. Active-server selection refuses non-ready servers, mutation guards retain the same structured `world_reconciliation_degraded` response, and conversion checks the separately mutated target before testing Chunker availability or admitting an operation. Startup now calls `reconcile_interrupted_world_replace` and folds a failure into the server's degraded reason.
+
+The focused proof adds a corrupt post-start raw import through a real authenticated agent route (registered but unselectable), a distinct degraded conversion target, the previously untested staged replacement recovery boundary, and a spawned-agent restart test for `staged`, `prior_moved`, and `installed`. Each restart leaves exactly one complete old or replacement world, removes `.replace`, and exposes the pre-restart public `world-replace-active` operation as terminal `failed` with `operation_interrupted` rather than claiming the interrupted request succeeded. The exact Verify command passes all 44 selected tests.
+**Verify:** `cargo nextest run -p msc-application -p msc-agent -E 'test(/world_import_reconciliation|world_mutations|world_backup_routes/)'`
+**Commit:** `P6.38: complete world reconciliation authority`
+**Batch:** stop-after
+
+### P6.39 — Use the real Java level name on every mutation path
+**Status:** not started
+**Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/world_backup_routes.rs`, `crates/msc-agent/tests/backup_scheduler.rs`, `crates/msc-application/tests/backup_creation.rs`, `tools/phase6/phase6-gate-smoke.sh`, `tools/phase6/corpus-check.py`
+**What:** Resolve Java's current `level-name` from each server's own `server.properties` at the agent boundary and pass it through every manual/scheduled backup, activation safety backup, conversion target safety backup, restore, and active-world replacement call instead of passing `None` and silently falling back to `world`. Keep Bedrock's distinct layout rule. Add a focused public-smoke mode that uses a non-default level name and proves all three Java dimension folders are captured, mandatory backups are created, the old world is actually moved during replacement, and activation/conversion do not fail or protect the wrong folder. Remove P6.35's staging workaround that renamed real-corpus worlds to `world`; the private public-path exercise must use the copied server's real folder/config name while hashing the source unchanged.
+**Verify:** `cargo nextest run -p msc-application -p msc-agent -E 'test(/backup_creation|backup_scheduler|world_backup_routes/)' && tools/phase6/phase6-gate-smoke.sh --custom-level-name`
+**Commit:** `P6.39: honor configured java world names`
+**Batch:** stop-after
+
+### P6.40 — Make cancellation responsive and return Accepted while pending
+**Status:** not started
+**Files:** `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/operation-model.md`, `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/tests/world_archive.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/operations.rs`, `crates/msc-application/tests/backup_online_consistency.rs`, `crates/msc-application/tests/lifecycle_operations.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/operation_cancellation.rs`, `crates/msc-api/tests/dto_conformance.rs`, `tools/phase6/phase6-gate-smoke.sh`
+**What:** Carry the operation's cancellation signal into mandatory safety backups and the archive writer itself. Poll it between bounded read/write chunks, abort promptly, remove every partial ZIP/temp artifact, and still send Minecraft's save-resume command on all cancellation exits. Preserve the per-server lock until the worker finishes cleanup and performs its own terminal transition. Implement Cameron's selected wire rule without the current 30-second server-side wait: set the cancellation request, re-read the record once, return `200` only if it is already terminal `cancelled`, otherwise return `202 Accepted` with `state: running`/`Cancelling…`; keep `404` for unknown and `409` for an operation that was already terminal before the request. Update OpenAPI, contract prose, conformance tests, and public smoke; the smoke must accept `202`, poll/stream to terminal `cancelled`, prove a second mutation remains refused until then, and prove the live world and save state remain intact.
+**Verify:** `cargo nextest run -p msc-infrastructure -p msc-application -p msc-agent -p msc-api -E 'test(/archive|backup_online_consistency|lifecycle_operations|operation_cancellation/)' && tools/phase6/phase6-gate-smoke.sh --synthetic`
+**Commit:** `P6.40: make cancellation responsive and asynchronous`
+**Batch:** stop-after
+
+### P6.41 — Correct offline Bedrock world mutation paths
+**Status:** not started
+**Files:** `crates/msc-domain/src/world.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_mutations.rs`, `fixtures/world-mutations/`
+**What:** Separate the Bedrock backup-root candidate (`server_dir/worlds`) from the direct-live-world candidate (`server_dir/worlds/<level-name>`). Fix rename and transactional active replacement so they never resolve `server_dir/worlds/worlds`, while preserving Java's main/nether/end behavior and Phase 10's live-runtime deferral. Characterize and test Bedrock rename preflight, rollback after a failed move/properties write, mandatory safety backup, staged folder/ZIP replacement, cancellation before the live move, and restart recovery at `prior_moved` and `installed`. These are offline file-layout operations and must hold before Phase 6 closes even though live Bedrock command delivery remains Phase 10.
+**Verify:** `cargo nextest run -p msc-domain -p msc-application -E 'test(/world_mutations|world_folder_candidates/)'`
+**Commit:** `P6.41: correct bedrock world mutation paths`
+**Batch:** stop-after
+
+### P6.42 — Re-run the final Phase 6 gate
+**Status:** not started
+**Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/client-capability-matrix.csv` (tracking corrections only unless the gate finds a defect)
+**What:** Run the literal gate against one exact candidate commit after P6.38–P6.41 are independently verified: formatting; native, Linux, and Windows clippy; the full workspace suite; API, contract, and capability checks; synthetic public smoke including scheduled firing, `202` cancellation-to-terminal polling, and restart-interrupted active replacement; non-default-level-name public smoke; the private real corpus through public operations without outer-folder renaming; and macOS/Linux/Windows CI. Inspect recovered worlds, slots, transaction markers, archives, metadata, save-resume evidence, and durable operation records. Stop at the first failure and report it; do not convert checker constants, omitted paths, workarounds, or unrun legs into a green gate. Cameron alone marks this step `DONE` and advances Phase 7.
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && gh workflow run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh run list --workflow ci.yml --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P6.42: close the phase 6 exit gate`
+**Batch:** solo

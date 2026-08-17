@@ -108,16 +108,49 @@ fn world_import_reconciliation_degrades_only_the_broken_server_and_is_idempotent
     // at startup: an ordinary mutation succeeds.
     assert_world_create_succeeds(port, "First Run Healthy");
 
-    // Switching to the broken server and attempting any world or backup
-    // mutation must return one structured error, not run.
-    activate_server(port, "broken");
-    assert_world_mutation_degraded(port, "/v1/worlds/create", r#"{"name":"Should Not Apply"}"#);
-    assert_backup_mutation_degraded(port, "/v1/backups/now", "{}");
+    // The broken server remains registered, but P6.38 closes authority
+    // one step earlier than P6.29 did: it cannot even become active.
+    assert_server_activation_degraded(port, "broken");
 
     // Switching back proves the healthy server was never blocked by the
     // broken one sharing the same agent process.
     activate_server(port, "healthy");
     assert_world_create_succeeds(port, "First Run Healthy Again");
+
+    // A server imported after startup must pass the same authority gate.
+    // Its corrupt active archive makes reconciliation fail after the
+    // copied server has been registered; it remains visible for diagnosis
+    // but cannot become active.
+    let post_start_source = temp.join("post-start-broken-source");
+    write_corrupt_import_source(&post_start_source);
+    let import_response = http_post(
+        port,
+        "/v1/servers/import",
+        Some(TOKEN),
+        &format!(
+            r#"{{"action":"importExisting","sourcePath":"{}","importKind":"folder","displayName":"Post Start Broken","serverType":"java"}}"#,
+            json_path(&post_start_source)
+        ),
+    );
+    assert!(
+        import_response.starts_with("HTTP/1.1 200"),
+        "post-start import should remain registered for diagnosis: {import_response}"
+    );
+    let imported_id = response_json(&import_response)["serverId"]
+        .as_str()
+        .expect("import response carries serverId")
+        .to_string();
+    let activation = http_post(
+        port,
+        "/v1/active-server",
+        Some(TOKEN),
+        &format!(r#"{{"serverId":"{imported_id}"}}"#),
+    );
+    assert!(
+        activation.starts_with("HTTP/1.1 409")
+            && activation.contains("world_reconciliation_degraded"),
+        "post-start degraded import must not be selectable: {activation}"
+    );
 
     stop_child(&mut agent);
     cleanup_secret(&keychain_service, "remote-api.owner-token");
@@ -142,15 +175,49 @@ fn world_import_reconciliation_degrades_only_the_broken_server_and_is_idempotent
 
     activate_server(port2, "healthy");
     assert_world_create_succeeds(port2, "Second Startup Healthy");
-    activate_server(port2, "broken");
-    assert_world_mutation_degraded(
-        port2,
-        "/v1/worlds/create",
-        r#"{"name":"Still Should Not Apply"}"#,
-    );
+    assert_server_activation_degraded(port2, "broken");
 
     stop_child(&mut agent2);
     cleanup_secret(&keychain_service, "remote-api.owner-token");
+}
+
+fn write_corrupt_import_source(source: &Path) {
+    fs::create_dir_all(source.join("world_slots/slot-corrupt")).unwrap();
+    fs::write(source.join("paper-1.21.1.jar"), b"fake jar").unwrap();
+    fs::write(
+        source.join("server.properties"),
+        "server-port=25570\nlevel-name=world\n",
+    )
+    .unwrap();
+    fs::write(
+        source.join("world_slots/slot-corrupt/slot.json"),
+        r#"{"id":"slot-corrupt","name":"Broken","created_at":"2026-01-01T00:00:00Z"}"#,
+    )
+    .unwrap();
+    fs::write(
+        source.join("world_slots/slot-corrupt/world.zip"),
+        b"not a real zip archive",
+    )
+    .unwrap();
+    fs::write(
+        source.join("world_slots/active_slot_id.txt"),
+        "slot-corrupt",
+    )
+    .unwrap();
+}
+
+fn response_json(response: &str) -> serde_json::Value {
+    let body = response
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("HTTP response contains a body separator");
+    serde_json::from_str(body).expect("HTTP response body is JSON")
+}
+
+fn json_path(path: &Path) -> String {
+    path.to_string_lossy()
+        .replace('\\', "\\\\")
+        .replace('"', "\\\"")
 }
 
 fn write_app_config(
@@ -197,6 +264,19 @@ fn activate_server(port: u16, server_id: &str) {
     );
 }
 
+fn assert_server_activation_degraded(port: u16, server_id: &str) {
+    let response = http_post(
+        port,
+        "/v1/active-server",
+        Some(TOKEN),
+        &format!(r#"{{"serverId":"{server_id}"}}"#),
+    );
+    assert!(
+        response.starts_with("HTTP/1.1 409") && response.contains("world_reconciliation_degraded"),
+        "selecting degraded server {server_id} should fail closed: {response}"
+    );
+}
+
 fn assert_world_create_succeeds(port: u16, name: &str) {
     let response = http_post(
         port,
@@ -209,25 +289,6 @@ fn assert_world_create_succeeds(port: u16, name: &str) {
         "expected world create to succeed for a healthy server, got: {}\n{response}",
         response.lines().next().unwrap_or_default()
     );
-}
-
-fn assert_world_mutation_degraded(port: u16, path: &str, body: &str) {
-    let response = http_post(port, path, Some(TOKEN), body);
-    assert!(
-        response.starts_with("HTTP/1.1 409"),
-        "expected {path} to refuse a degraded server with 409, got: {}\n{response}",
-        response.lines().next().unwrap_or_default()
-    );
-    assert!(
-        response.contains("world_reconciliation_degraded"),
-        "expected the structured degraded-server error code on {path}, got: {response}"
-    );
-}
-
-fn assert_backup_mutation_degraded(port: u16, path: &str, body: &str) {
-    // Same structured error and status as a world mutation — one shared
-    // gate (`routes/backups.rs`'s own `active_server_or_response`).
-    assert_world_mutation_degraded(port, path, body);
 }
 
 fn spawn_agent(

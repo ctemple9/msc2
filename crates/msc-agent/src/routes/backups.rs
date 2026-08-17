@@ -68,7 +68,7 @@ fn no_active_server() -> Response {
 
 /// Resolves the active server for a backup mutation route (`now`,
 /// `restore`, `delete`), refusing (per P6.29, mirroring `routes/
-/// worlds.rs`'s own gate) a server left `Degraded` by startup
+/// worlds.rs`'s own gate) a server that has not reached `Ready`
 /// reconciliation before any mutation runs. `list`/`get_config`/
 /// `update_config` deliberately keep calling `active_config_server`
 /// directly — reading and editing backup *settings* isn't a world/backup
@@ -76,8 +76,16 @@ fn no_active_server() -> Response {
 #[allow(clippy::result_large_err)]
 fn active_server_or_response(state: &LifecycleRoutesState) -> Result<ConfigServer, Response> {
     let server = state.active_config_server().ok_or_else(no_active_server)?;
-    if let ReconciliationStatus::Degraded { reason } = state.reconciliation_status(&server.id) {
-        return Err(reconciliation_degraded_response(&reason));
+    match state.reconciliation_status(&server.id) {
+        ReconciliationStatus::Ready => {}
+        ReconciliationStatus::Reconciling => {
+            return Err(reconciliation_degraded_response(
+                "world reconciliation is still in progress",
+            ));
+        }
+        ReconciliationStatus::Degraded { reason } => {
+            return Err(reconciliation_degraded_response(&reason));
+        }
     }
     Ok(server)
 }

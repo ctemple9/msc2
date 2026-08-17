@@ -254,7 +254,7 @@ fn slot_not_found(slot_id: &str) -> Response {
 }
 
 /// Resolves the active server for a mutation route, refusing (per
-/// P6.29) a server left [`ReconciliationStatus::Degraded`] by startup
+/// P6.29/P6.38) a server that has not reached [`ReconciliationStatus::Ready`]
 /// reconciliation before any mutation logic runs. Read-only routes
 /// (`list`, `thumbnail`, staged-download) deliberately call
 /// `active_config_server` directly instead of this function — a damaged
@@ -263,8 +263,16 @@ fn slot_not_found(slot_id: &str) -> Response {
 #[allow(clippy::result_large_err)]
 fn active_server_or_response(state: &LifecycleRoutesState) -> Result<ConfigServer, Response> {
     let server = state.active_config_server().ok_or_else(no_active_server)?;
-    if let ReconciliationStatus::Degraded { reason } = state.reconciliation_status(&server.id) {
-        return Err(reconciliation_degraded_response(&reason));
+    match state.reconciliation_status(&server.id) {
+        ReconciliationStatus::Ready => {}
+        ReconciliationStatus::Reconciling => {
+            return Err(reconciliation_degraded_response(
+                "world reconciliation is still in progress",
+            ));
+        }
+        ReconciliationStatus::Degraded { reason } => {
+            return Err(reconciliation_degraded_response(&reason));
+        }
     }
     Ok(server)
 }
@@ -1491,6 +1499,19 @@ pub async fn convert(
             "target_server_not_found",
         );
     };
+    match lifecycle.reconciliation_status(&target_server.id) {
+        ReconciliationStatus::Ready => {}
+        ReconciliationStatus::Reconciling => {
+            return reconciliation_degraded_response(
+                "the conversion target's world reconciliation is still in progress",
+            );
+        }
+        ReconciliationStatus::Degraded { reason } => {
+            return reconciliation_degraded_response(&format!(
+                "conversion target reconciliation failed: {reason}"
+            ));
+        }
+    }
     let target_server_dir = Path::new(&target_server.server_dir).to_path_buf();
 
     let placement = if let Some(target_slot_id) = &body.target_slot_id {
@@ -2207,7 +2228,7 @@ mod tests {
             State(state.clone()),
             Extension(credential.clone()),
             Some(Json(WorldConvertRequestDto {
-                source_slot_id,
+                source_slot_id: source_slot_id.clone(),
                 target_server_id: "paper-2".to_string(),
                 target_format: "JAVA_1_21_4".to_string(),
                 target_name: Some("Converted".to_string()),
@@ -2218,6 +2239,64 @@ mod tests {
         assert_eq!(response.status(), StatusCode::CONFLICT);
         let body: msc_api::dto::ErrorDto = json_body(response).await;
         assert_eq!(body.code, "capability_unavailable");
+
+        // A distinct target whose imported world archive cannot be
+        // reconciled is refused before Chunker capability checks. The
+        // source is healthy; authority must follow the server conversion
+        // will mutate, not merely the currently active source.
+        let degraded_dir = temp_server_dir("convert-degraded-target");
+        std::fs::remove_dir_all(degraded_dir.join("world")).unwrap();
+        std::fs::create_dir_all(degraded_dir.join("world_slots/slot-corrupt")).unwrap();
+        std::fs::write(
+            degraded_dir.join("world_slots/slot-corrupt/slot.json"),
+            r#"{"id":"slot-corrupt","name":"Broken","created_at":"2026-01-01T00:00:00Z"}"#,
+        )
+        .unwrap();
+        std::fs::write(
+            degraded_dir.join("world_slots/slot-corrupt/world.zip"),
+            b"not a zip",
+        )
+        .unwrap();
+        std::fs::write(
+            degraded_dir.join("world_slots/active_slot_id.txt"),
+            "slot-corrupt",
+        )
+        .unwrap();
+        let degraded_target = ImportedPaperServer {
+            id: ServerId::new("paper-degraded"),
+            display_name: "Degraded Convert Target".to_string(),
+            paper_jar_path: degraded_dir.join("paper.jar"),
+            server_dir: degraded_dir,
+            eula_accepted: Some(true),
+            game_port: 25567,
+            max_players: 20,
+            world_name: "world".to_string(),
+            properties: ServerPropertiesModel::from_dict(&HashMap::new(), None),
+        };
+        std::fs::write(&degraded_target.paper_jar_path, b"fake jar").unwrap();
+        lifecycle.register_imported_paper(degraded_target).unwrap();
+        lifecycle.set_reconciliation_status(
+            "paper-degraded",
+            ReconciliationStatus::Degraded {
+                reason: "corrupt imported archive".to_string(),
+            },
+        );
+
+        let response = convert(
+            State(state),
+            Extension(credential),
+            Some(Json(WorldConvertRequestDto {
+                source_slot_id,
+                target_server_id: "paper-degraded".to_string(),
+                target_format: "JAVA_1_21_4".to_string(),
+                target_name: Some("Must Not Convert".to_string()),
+                target_slot_id: None,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let body: msc_api::dto::ErrorDto = json_body(response).await;
+        assert_eq!(body.code, "world_reconciliation_degraded");
 
         let _ = server_dir;
     }

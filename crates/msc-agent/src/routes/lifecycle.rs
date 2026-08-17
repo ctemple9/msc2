@@ -45,17 +45,14 @@ use crate::auth::{AuthState, AuthenticatedCredential};
 use crate::routes::operations::{OperationsState, operation_error_response};
 use crate::ws::console::ConsoleState;
 
-/// Per-server outcome of the P6.29 startup reconciliation pass (world
-/// import handoff, interrupted-activation recovery, interrupted-restore
-/// recovery — see [`reconcile_servers_at_startup`]). Established once per
-/// agent process at startup and never changed afterward: a server that
-/// comes up `Degraded` stays that way for the life of this process. Only
-/// a later, successful agent startup (a fresh restart, after whatever
-/// left the server's on-disk state unreconcilable has been fixed) clears
-/// it — the gate review's own requirement is "a second successful
-/// startup remains idempotent," not that a running agent self-heals.
+/// Per-server outcome of world reconciliation and interrupted-mutation
+/// recovery. The map is live rather than a startup-only snapshot because
+/// imports can add servers after the agent has started.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReconciliationStatus {
+    /// The server has been placed in the registry but its world data has
+    /// not yet passed reconciliation. Selection and mutation stay closed.
+    Reconciling,
     /// Startup reconciliation completed for this server; world/backup
     /// mutation routes are reachable.
     Ready,
@@ -68,7 +65,8 @@ pub enum ReconciliationStatus {
 
 /// The idempotent P6.1 world/`world_slots` handoff
 /// (`msc_application::worlds::reconcile_imported_worlds`), followed by
-/// P6.13/P6.18's interrupted-activation/interrupted-restore recovery —
+/// P6.13/P6.18/P6.33's interrupted activation, restore, and active-world
+/// replacement recovery —
 /// run once per registered server, in that order, before this registry
 /// (and therefore any world/backup mutation route built over it) becomes
 /// reachable. **Corrected post-gate-review:** a failure here used to be
@@ -82,78 +80,67 @@ pub enum ReconciliationStatus {
 /// comes up — a damaged server does not block startup, and other,
 /// healthy servers are entirely unaffected — matching the "keep the
 /// agent available for diagnosis" requirement.
+fn reconcile_server(server: &ConfigServer) -> ReconciliationStatus {
+    let mut first_failure = None;
+    let now = iso8601_now();
+    let server_dir = Path::new(&server.server_dir);
+    if let Err(err) = msc_application::worlds::reconcile_imported_worlds(
+        &StdFileSystem,
+        server_dir,
+        server.server_type,
+        None,
+        &now,
+    ) {
+        eprintln!(
+            "[worlds] Warning: could not reconcile imported world data for {}: {err}",
+            server.server_dir
+        );
+        first_failure = Some(format!("world reconciliation failed: {err}"));
+    }
+    if let Err(err) =
+        msc_application::worlds::reconcile_interrupted_activation(&StdFileSystem, server_dir, &now)
+    {
+        eprintln!(
+            "[worlds] Warning: could not reconcile an interrupted activation for {}: {err}",
+            server.server_dir
+        );
+        first_failure
+            .get_or_insert_with(|| format!("interrupted activation recovery failed: {err}"));
+    }
+    if let Err(err) =
+        msc_application::backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
+    {
+        eprintln!(
+            "[worlds] Warning: could not reconcile an interrupted restore for {}: {err}",
+            server.server_dir
+        );
+        first_failure.get_or_insert_with(|| format!("interrupted restore recovery failed: {err}"));
+    }
+    if let Err(err) = msc_application::worlds::reconcile_interrupted_world_replace(
+        &StdFileSystem,
+        server_dir,
+        server.server_type,
+    ) {
+        eprintln!(
+            "[worlds] Warning: could not reconcile an interrupted active-world replacement for {}: {err}",
+            server.server_dir
+        );
+        first_failure
+            .get_or_insert_with(|| format!("interrupted world replacement recovery failed: {err}"));
+    }
+
+    first_failure.map_or(ReconciliationStatus::Ready, |reason| {
+        ReconciliationStatus::Degraded { reason }
+    })
+}
+
 fn reconcile_servers_at_startup(
     servers: &[ConfigServer],
 ) -> BTreeMap<String, ReconciliationStatus> {
-    let mut statuses: BTreeMap<String, ReconciliationStatus> = servers
+    servers
         .iter()
-        .map(|server| (server.id.clone(), ReconciliationStatus::Ready))
-        .collect();
-    let degrade =
-        |statuses: &mut BTreeMap<String, ReconciliationStatus>, server_id: &str, reason: String| {
-            // The first failure wins; a server already marked `Degraded`
-            // keeps its original diagnostic reason.
-            if matches!(statuses.get(server_id), Some(ReconciliationStatus::Ready)) {
-                statuses.insert(
-                    server_id.to_string(),
-                    ReconciliationStatus::Degraded { reason },
-                );
-            }
-        };
-
-    let now = iso8601_now();
-    for server in servers {
-        let server_dir = Path::new(&server.server_dir);
-        if let Err(err) = msc_application::worlds::reconcile_imported_worlds(
-            &StdFileSystem,
-            server_dir,
-            server.server_type,
-            None,
-            &now,
-        ) {
-            eprintln!(
-                "[worlds] Warning: could not reconcile imported world data for {}: {err}",
-                server.server_dir
-            );
-            degrade(
-                &mut statuses,
-                &server.id,
-                format!("world reconciliation failed: {err}"),
-            );
-        }
-    }
-    for server in servers {
-        let server_dir = Path::new(&server.server_dir);
-        if let Err(err) = msc_application::worlds::reconcile_interrupted_activation(
-            &StdFileSystem,
-            server_dir,
-            &now,
-        ) {
-            eprintln!(
-                "[worlds] Warning: could not reconcile an interrupted activation for {}: {err}",
-                server.server_dir
-            );
-            degrade(
-                &mut statuses,
-                &server.id,
-                format!("interrupted activation recovery failed: {err}"),
-            );
-        }
-        if let Err(err) =
-            msc_application::backups::reconcile_interrupted_restore(&StdFileSystem, server_dir)
-        {
-            eprintln!(
-                "[worlds] Warning: could not reconcile an interrupted restore for {}: {err}",
-                server.server_dir
-            );
-            degrade(
-                &mut statuses,
-                &server.id,
-                format!("interrupted restore recovery failed: {err}"),
-            );
-        }
-    }
-    statuses
+        .map(|server| (server.id.clone(), reconcile_server(server)))
+        .collect()
 }
 
 /// `MSC2_AUDIT_LOG_DIR`-overridable, mirroring
@@ -223,7 +210,7 @@ struct LifecycleRoutesInner {
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
     audit_log: &'static AuditLog<'static>,
-    reconciliation: BTreeMap<String, ReconciliationStatus>,
+    reconciliation: Mutex<BTreeMap<String, ReconciliationStatus>>,
 }
 
 pub struct AgentServerRegistry {
@@ -240,6 +227,12 @@ pub struct AgentAppConfigStore {
 pub enum AgentAppConfigError {
     Load(String),
     Save(String),
+}
+
+#[derive(Debug)]
+pub enum ActiveServerSelectionError {
+    Lifecycle(LifecycleError),
+    Reconciliation { reason: String },
 }
 
 pub struct AgentConsoleSink {
@@ -317,7 +310,12 @@ impl LifecycleRoutesState {
             console: console_state,
         }));
         let mut lifecycle = LifecycleService::new(registry, process, console);
-        if let Some(active) = app_config.active_server_id() {
+        if let Some(active) = app_config.active_server_id()
+            && matches!(
+                reconciliation.get(&active),
+                Some(ReconciliationStatus::Ready)
+            )
+        {
             let _ = lifecycle.select_active_server(ServerId::new(active));
         }
 
@@ -334,7 +332,7 @@ impl LifecycleRoutesState {
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
                 audit_log,
-                reconciliation,
+                reconciliation: Mutex::new(reconciliation),
             }),
         }
     }
@@ -378,7 +376,22 @@ impl LifecycleRoutesState {
         &self,
         server: ImportedPaperServer,
     ) -> Result<(), AgentAppConfigError> {
-        self.inner.registry.insert(server)
+        let server_id = server.id.as_str().to_string();
+        self.inner
+            .reconciliation
+            .lock()
+            .unwrap()
+            .insert(server_id.clone(), ReconciliationStatus::Reconciling);
+        if let Err(error) = self.inner.registry.insert(server) {
+            self.inner.reconciliation.lock().unwrap().remove(&server_id);
+            return Err(error);
+        }
+        self.inner
+            .reconciliation
+            .lock()
+            .unwrap()
+            .insert(server_id, ReconciliationStatus::Ready);
+        Ok(())
     }
 
     pub fn begin_import_operation(
@@ -425,18 +438,61 @@ impl LifecycleRoutesState {
         self.inner.app_config.servers_root()
     }
 
+    #[cfg(test)]
     pub fn merge_config_servers(
         &self,
         new_servers: Vec<ConfigServer>,
     ) -> Result<(), AgentAppConfigError> {
-        self.inner.app_config.merge_servers(new_servers)
+        self.register_imported_config_servers(new_servers, false)
+            .map(|_| ())
     }
 
-    pub fn replace_config_servers(
+    /// Persist newly imported servers while their mutation authority is
+    /// closed, then run the same reconciliation/recovery sequence used at
+    /// startup. A failed reconciliation deliberately does not roll back
+    /// registration: the server remains visible for diagnosis as
+    /// `Degraded`.
+    pub fn register_imported_config_servers(
         &self,
         new_servers: Vec<ConfigServer>,
-    ) -> Result<(), AgentAppConfigError> {
-        self.inner.app_config.replace_servers(new_servers)
+        replace_all: bool,
+    ) -> Result<Vec<(String, ReconciliationStatus)>, AgentAppConfigError> {
+        let previous_statuses = self.inner.reconciliation.lock().unwrap().clone();
+        {
+            let mut statuses = self.inner.reconciliation.lock().unwrap();
+            for server in &new_servers {
+                statuses.insert(server.id.clone(), ReconciliationStatus::Reconciling);
+            }
+        }
+
+        let save_result = if replace_all {
+            self.inner.app_config.replace_servers(new_servers.clone())
+        } else {
+            self.inner.app_config.merge_servers(new_servers.clone())
+        };
+        if let Err(error) = save_result {
+            *self.inner.reconciliation.lock().unwrap() = previous_statuses;
+            return Err(error);
+        }
+
+        let mut outcomes = Vec::with_capacity(new_servers.len());
+        if replace_all {
+            self.inner
+                .reconciliation
+                .lock()
+                .unwrap()
+                .retain(|id, _| new_servers.iter().any(|server| server.id == *id));
+        }
+        for server in &new_servers {
+            let status = reconcile_server(server);
+            self.inner
+                .reconciliation
+                .lock()
+                .unwrap()
+                .insert(server.id.clone(), status.clone());
+            outcomes.push((server.id.clone(), status));
+        }
+        Ok(outcomes)
     }
 
     pub fn existing_java_ports(&self) -> Vec<i64> {
@@ -514,18 +570,32 @@ impl LifecycleRoutesState {
             .find(|server| server.id == active_id)
     }
 
-    /// This server's startup reconciliation outcome — see
-    /// [`ReconciliationStatus`]. `Ready` for any server id not present in
-    /// the map (there is none such today; every registered server gets
-    /// an entry at startup, but a server added later via import has no
-    /// startup-time reconciliation record to consult, and defaulting to
-    /// `Ready` rather than refusing it outright is correct there too).
+    /// This server's reconciliation outcome. An absent id fails closed:
+    /// callers must never gain mutation authority merely because no state
+    /// was recorded for it.
     pub fn reconciliation_status(&self, server_id: &str) -> ReconciliationStatus {
         self.inner
             .reconciliation
+            .lock()
+            .unwrap()
             .get(server_id)
             .cloned()
-            .unwrap_or(ReconciliationStatus::Ready)
+            .unwrap_or_else(|| ReconciliationStatus::Degraded {
+                reason: "no reconciliation state exists for this server".to_string(),
+            })
+    }
+
+    #[cfg(test)]
+    pub fn set_reconciliation_status(
+        &self,
+        server_id: impl Into<String>,
+        status: ReconciliationStatus,
+    ) {
+        self.inner
+            .reconciliation
+            .lock()
+            .unwrap()
+            .insert(server_id.into(), status);
     }
 
     /// Updates exactly the three auto-backup fields on the `ConfigServer`
@@ -545,18 +615,35 @@ impl LifecycleRoutesState {
             .update_backup_config(server_id, enabled, interval_minutes, max_count)
     }
 
-    pub fn select_active_server(&self, server_id: String) -> Result<String, LifecycleError> {
+    pub fn select_active_server(
+        &self,
+        server_id: String,
+    ) -> Result<String, ActiveServerSelectionError> {
+        match self.reconciliation_status(&server_id) {
+            ReconciliationStatus::Ready => {}
+            ReconciliationStatus::Reconciling => {
+                return Err(ActiveServerSelectionError::Reconciliation {
+                    reason: "world reconciliation is still in progress".to_string(),
+                });
+            }
+            ReconciliationStatus::Degraded { reason } => {
+                return Err(ActiveServerSelectionError::Reconciliation { reason });
+            }
+        }
         let id = ServerId::new(server_id);
         let active = id.as_str().to_string();
         self.inner
             .lifecycle
             .lock()
             .unwrap()
-            .select_active_server(id)?;
+            .select_active_server(id)
+            .map_err(ActiveServerSelectionError::Lifecycle)?;
         self.inner
             .app_config
             .set_active_server_id(Some(active.clone()))
-            .map_err(|error| LifecycleError::Repository(error.to_string()))?;
+            .map_err(|error| {
+                ActiveServerSelectionError::Lifecycle(LifecycleError::Repository(error.to_string()))
+            })?;
         Ok(active)
     }
 
@@ -852,7 +939,7 @@ pub async fn active_server(
             operation_id: None,
         })
         .into_response(),
-        Err(error) => lifecycle_error_response(error),
+        Err(error) => active_server_selection_error_response(error),
     }
 }
 
@@ -1196,9 +1283,18 @@ pub fn lifecycle_route_error_response(error: LifecycleRouteError) -> Response {
     }
 }
 
+fn active_server_selection_error_response(error: ActiveServerSelectionError) -> Response {
+    match error {
+        ActiveServerSelectionError::Lifecycle(error) => lifecycle_error_response(error),
+        ActiveServerSelectionError::Reconciliation { reason } => {
+            reconciliation_degraded_response(&reason)
+        }
+    }
+}
+
 /// The one structured error every world/backup mutation route must
-/// return for a server left [`ReconciliationStatus::Degraded`] by
-/// startup — `routes/worlds.rs`'s and `routes/backups.rs`'s own
+/// return for a server left [`ReconciliationStatus::Degraded`] —
+/// `routes/worlds.rs`'s and `routes/backups.rs`'s own
 /// `active_server_or_response` gate call this before admitting any
 /// mutation. `409 conflict` (not `503`): this is one server's on-disk
 /// state, not whole-agent unavailability — the agent, and every other
@@ -1208,7 +1304,7 @@ pub fn reconciliation_degraded_response(reason: &str) -> Response {
         StatusCode::CONFLICT,
         "world_reconciliation_degraded",
         &format!(
-            "This server's world data could not be safely reconciled at startup, so it is in a \
+            "This server's world data could not be safely reconciled, so it is in a \
              read-only diagnostic state: {reason}. Fix the underlying issue and restart the agent."
         ),
     )

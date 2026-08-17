@@ -130,8 +130,8 @@ fn rescan_import(state: &LifecycleRoutesState) -> Response {
     let imported = result.added.len() as i64;
     let skipped = result.skipped as i64;
 
-    match state.merge_config_servers(result.added) {
-        Ok(()) => {
+    match state.register_imported_config_servers(result.added, false) {
+        Ok(_) => {
             if let Some(server_id) = first_java_server_id {
                 let _ = state.select_active_server(server_id);
             }
@@ -327,8 +327,8 @@ async fn import_raw(
                 replaced: Some(false),
             };
             let imported_server_id = config.id.clone();
-            match state.merge_config_servers(vec![config]) {
-                Ok(()) => {
+            match state.register_imported_config_servers(vec![config], false) {
+                Ok(_) => {
                     if server_type == ServerType::Java {
                         let _ = state.select_active_server(imported_server_id);
                     }
@@ -473,12 +473,14 @@ impl ConfiguredServerStore for LifecycleRoutesState {
     }
 
     fn merge(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
-        self.merge_config_servers(new_servers)
+        self.register_imported_config_servers(new_servers, false)
+            .map(|_| ())
             .map_err(|error| error.to_string())
     }
 
     fn replace_all(&self, new_servers: Vec<ConfigServer>) -> Result<(), String> {
-        self.replace_config_servers(new_servers)
+        self.register_imported_config_servers(new_servers, true)
+            .map(|_| ())
             .map_err(|error| error.to_string())
     }
 }

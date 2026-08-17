@@ -434,6 +434,44 @@ fn world_mutations_replace_world_reconcile_no_transaction_in_flight_is_noop() {
 }
 
 #[test]
+fn world_mutations_replace_world_reconcile_staged_keeps_complete_old_world() {
+    let tmp = TempDir::new("replace-reconcile-staged");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "world");
+    make_folder(server_dir, "world", b"old overworld");
+
+    // Phase 1 completed, but the live move never began: only a fully
+    // staged replacement and manifest exist under the transaction root.
+    write_file(
+        &server_dir
+            .join("world_slots")
+            .join(".replace")
+            .join("manifest.json"),
+        br#"{"level_name":"newname"}"#,
+    );
+    write_file(
+        &server_dir
+            .join("world_slots")
+            .join(".replace")
+            .join("staged")
+            .join("newname")
+            .join("level.dat"),
+        b"new overworld, never moved",
+    );
+
+    let outcome =
+        worlds::reconcile_interrupted_world_replace(&StdFileSystem, server_dir, ServerType::Java)
+            .unwrap()
+            .unwrap();
+    assert_eq!(outcome, WorldReplaceRecovery::RecoveredToOldWorld);
+    assert_eq!(
+        fs::read(server_dir.join("world").join("level.dat")).unwrap(),
+        b"old overworld"
+    );
+    assert!(!server_dir.join("world_slots").join(".replace").exists());
+}
+
+#[test]
 fn world_mutations_replace_world_reconcile_prior_moved_restores_old_world() {
     let tmp = TempDir::new("replace-reconcile-prior-moved");
     let server_dir = tmp.path();

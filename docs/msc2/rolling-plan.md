@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 review corrections continue. P6.1–P6.37 are implemented or recorded; P6.38–P6.41 are awaiting Cameron's verification; P6.42 remains not started.
-> **Next move:** Verify — Cameron runs P6.41's Verify command. Do not begin P6.42 before the pending correction steps are marked DONE.
-> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`; P6.39 by `P6.39: honor configured java world names`; P6.40 by `P6.40: make cancellation responsive and asynchronous`; P6.41 by `P6.41: correct bedrock world mutation paths`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. P6.42 must produce the final exact-commit proof before Phase 7 begins.
+> ## STATUS: Phase 6 final gate correction P6.43 is awaiting Cameron's verification; P6.44–P6.45 remain planned.
+> **Next move:** Verify — Cameron runs P6.43's Verify command. Do not begin P6.44 or Phase 7.
+> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`; P6.39 by `P6.39: honor configured java world names`; P6.40 by `P6.40: make cancellation responsive and asynchronous`; P6.41 by `P6.41: correct bedrock world mutation paths`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. P6.45 must produce the final exact-commit proof before Phase 7 begins.
 > **Last updated:** 2026-08-17
 
 **Previous phases (Setup, Phase 0 through Phase 5) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 6 onward stay here.
@@ -59,7 +59,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 3 | Safety substrate | complete |
 | 4 | Java lifecycle vertical slice | complete |
 | 5 | Configuration and migration | complete |
-| **6** | Worlds and backups | review corrections planned |
+| **6** | Worlds and backups | final gate corrections planned |
 | 7 | Server families and provisioning | not started |
 | 8 | Mods, plugins, modpacks | not started |
 | 9 | Networking and helpers | not started |
@@ -77,7 +77,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 **Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. Primary files: `WorldSlotManager.swift` (slot model, active resolution, archives, metadata, NBT), `AppViewModel+WorldSlots.swift` (slot orchestration), `AppViewModel+WorldManagement.swift` (rename/replace rollback), `AppViewModel+Backups.swift` (creation, online consistency, metadata, retention, restore), `AppViewModel+WorldConversion.swift` (Chunker workflow), `AppViewModel+WorldRepair.swift` (Bedrock runtime-dependent repair), `AppViewModel+APIWiringWorlds.swift`, `AppViewModel+APIWiringBackupsHealth.swift`, `AppViewModel+APIWiringSettings.swift`, and the copied iOS `WorldsView.swift`/`RemoteAPIClient.swift`/`RemoteAPIModels.swift`.
 
-42 steps, nine groups:
+45 steps, ten groups:
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -90,8 +90,9 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | Public-path and real-corpus proof | P6.25–P6.27 | restart-sensitive smoke, real evidence run, tri-platform CI |
 | Phase exit | P6.28 | literal gate check |
 | Gate review corrections | P6.29–P6.42 | fail-closed reconciliation, truthful cancellation, safe scheduling, collision-proof backups, transactional active replacement, public proof, remaining authority/level-name/Bedrock corrections, and a final literal gate check |
+| Final gate closeout | P6.43–P6.45 | prompt operation-backed server import, atomic cancellation responses, and exact-candidate gate proof |
 
-**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.42 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
+**Planned batch ranges:** after their preceding solo characterization/contract step is verified, `P6.9–P6.11`, `P6.12–P6.14`, `P6.15–P6.18`, `P6.20–P6.21`, and `P6.22–P6.24` may each run as one BATCH EXECUTE conversation. Of the gate-review corrections, only P6.32 is mechanically safe to include in a named batch; P6.29–P6.31 and P6.33–P6.45 each stop for inspection. Every `stop-after` step ends its range. No batch crosses a failed Verify.
 
 **Not in this phase**, deferred on purpose:
 
@@ -614,7 +615,7 @@ The independent Phase 6 gate review found that the green focused tests, syntheti
 No earlier phase needs amending. P5.33 already states the correct reconciliation handoff, and the Phase 2/3 operation and exclusivity contracts are sufficient. The following steps make Phase 6 honor those requirements before its gate is checked again.
 
 ### P6.29 — Make imported-world reconciliation fail closed
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_import_reconciliation.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/world_import_reconciliation.rs`
 **What:** Make every reconciliation write crash-safe, including staging a slots-only archive extraction before it becomes the live world. Record reconciliation readiness per server during startup. If imported-world reconciliation or interrupted activation/restore recovery fails, keep the agent available for diagnosis but place only that server in a degraded read-only state: every world or backup mutation for it must return one structured error until a later startup reconciles successfully. A warning followed by reachable mutation routes is not acceptable. Prove a second successful startup remains idempotent and that healthy servers are not blocked by one damaged server.
 **Verify:** `cargo nextest run -p msc-application --test world_import_reconciliation -p msc-agent`
@@ -668,7 +669,7 @@ left blocking this report; nothing in this step's own file list depends on
 that wider run.
 
 ### P6.30 — Make operation cancellation truthful
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/operation.rs`, `crates/msc-application/src/operations.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/world_conversion.rs`, `crates/msc-application/tests/lifecycle_operations.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/operation_cancellation.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
 **What:** Add cooperative cancellation to the real Phase 6 workers. A cancellation request sets a shared stop signal; each worker observes it only at a boundary where it can clean staging data, roll back, or finish the current atomic filesystem action safely. Do not transition the operation to terminal `cancelled`, return a successful cancellation response, or release the per-server exclusivity lock until the worker has actually stopped. Prove a second same-server operation remains refused while cancellation is pending, cancelled work cannot later report success or alter the world, and every cancellation exit leaves one complete recoverable world and truthful durable operation record.
 **Verify:** `cargo nextest run -p msc-application -p msc-agent -E 'test(/operation|world_backup_routes/)'`
@@ -773,7 +774,7 @@ leaving Status as `awaiting verification` above for him to do after
 running the Verify command himself.
 
 ### P6.31 — Unify manual and scheduled backup orchestration
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/backup_scheduler.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/backup_scheduler.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/backup_online_consistency.rs`, `crates/msc-application/tests/backup_retention.rs`
 **What:** Create one authoritative agent-level backup operation and route both manual HTTP requests and scheduled ticks through it. It must acquire the ordinary per-server operation admission, use the production console adapter when the server is running, issue Java's flush/pause sequence, guarantee save resumption on every success/failure/cancellation exit, create and verify the archive, journal the real outcome, and then apply automatic retention. Keep the scheduler's existing performance snapshot as its real player-count source. Remove the weaker scheduled path that calls `scheduled_tick` with no console and unconditional admission. Prove a fired scheduled backup cannot overlap activation, restore, conversion, replacement, or another backup.
 **Verify:** `cargo nextest run -p msc-application -p msc-agent -E 'test(/backup_scheduler|backup_online_consistency|backup_retention/)'`
@@ -839,7 +840,7 @@ leaving Status as `awaiting verification` above for him to do after
 running the Verify command himself.
 
 ### P6.32 — Make backup filenames collision-proof
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/backup_creation.rs`, `crates/msc-application/tests/backup_retention.rs`, `fixtures/backups/`, `tools/phase6/phase6-gate-smoke.sh`
 **What:** Preserve the readable timestamp naming scheme while guaranteeing a distinct archive and sidecar identity for every backup created in the same wall-clock second. Cover collisions among manual, scheduled, pre-mutation, pre-replace, and pre-restore backups; never silently overwrite an earlier recovery point. Remove the smoke harness's one-second sleeps and prove retention still sorts and prunes deterministically while preserving at least one known-good backup.
 **Verify:** `cargo nextest run -p msc-application --test backup_creation --test backup_retention && tools/phase6/phase6-gate-smoke.sh --synthetic`
@@ -847,7 +848,7 @@ running the Verify command himself.
 **Batch:** safe
 
 ### P6.33 — Make active-world replacement transactional
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/tests/world_mutations.rs`, `fixtures/world-mutations/`
 **What:** Replace the current remove-then-copy implementation of MSC 1's direct active-world replacement with the same staged/prior/installed transaction shape used by activation and restore. Require and verify a safety backup before touching the live world, stage and validate a folder or ZIP source, preserve the full Java main/nether/end folder set, atomically select the new level name, and reconcile interruption to either the complete old world or complete replacement. Inject failure and restart after every transaction boundary; a safety backup alone is not a substitute for automatic rollback/reconciliation.
 **Verify:** `cargo nextest run -p msc-application --test world_mutations`
@@ -945,7 +946,7 @@ leaving Status as `awaiting verification` above for him to do after
 running the Verify command himself.
 
 ### P6.34 — Expose active-world replacement through the agent
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/openapi.json`, `docs/msc2/worlds/phase6-api.md`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-agent/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/world_backup_routes.rs`, `crates/msc-agent/tests/cli_worlds_backups.rs`
 **What:** Preserve Cameron's correction that `POST /v1/worlds/replace` means saved-slot-to-saved-slot replacement. Add a separately named active-world replacement operation for MSC 1's direct-live-world capability. It accepts only a bounded staged upload plus the new level name, always takes the mandatory safety backup, returns an operation ID, participates in the ordinary permission/audit/exclusivity/cancellation model, and never accepts an arbitrary server-local path from a remote client. Wire the CLI to upload a local folder or ZIP and call the new route. Update the contract and capability matrix truthfully; desktop/web presentation remains Phase 11, and the copied iOS client need not invent a direct-live replacement screen MSC 1 iOS does not have.
 **Verify:** `cargo nextest run -p msc-agent world_backup_routes && cargo nextest run -p msc-agent cli_worlds_backups && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
@@ -1055,7 +1056,7 @@ msc-api` (38/38 passing, unaffected).
   this step's own scope.
 
 ### P6.35 — Close the Phase 6 public-path evidence gaps
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase6/phase6-gate-smoke.sh`, `tools/phase6/corpus-check.py`, `tools/phase6/fixtures/gate-smoke/`, `crates/msc-application/tests/real_world_backup_corpus.rs`, `corpus/worlds/README.md`, `corpus/backups/README.md`
 **What:** Extend the real-agent public smoke so it proves a scheduled backup genuinely fires with a detected online player, uses save pause/resume, cannot overlap another mutation, and prunes only after leaving a known-good recovery point. Cancel an in-flight mutation and prove its target remains locked until rollback/cleanup completes. After restart-interrupted activation, replacement, and restore, inspect the durable operation records as well as folders, slots, markers, and backups, and require the record to explain the reconciled outcome. Drive the real private world/backup corpus through bounded upload/import and the public world/backup operations rather than only direct application-library calls; hash every source before and after and fail when a private root was requested but the public leg did not run.
 **Verify:** `test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && tools/phase6/phase6-gate-smoke.sh --synthetic && python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"`
@@ -1236,7 +1237,7 @@ whether it's worth its own dedicated correction step or folds into
 P6.36's gate re-run.
 
 ### P6.36 — Re-run the literal Phase 6 exit gate
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/client-capability-matrix.csv` (tracking corrections only unless the gate finds a defect)
 **What:** First audit the capability matrix against the service logic and CLI that actually exist, correcting stale `Planned` cells without claiming later desktop/web work. Then re-run the working gate rather than the old checklist: formatting; native, Linux, and Windows clippy; every workspace test; API and matrix checks; synthetic public smoke including scheduled firing/cancellation/replacement; real corpus through public operations; and exact-commit macOS/Linux/Windows CI. Inspect all recovered worlds, slots, transaction markers, backup archives, metadata, and operation records. Stop at the first failure and plan only that correction. Cameron alone marks this step `DONE` and advances Phase 7.
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && gh workflow run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh run list --workflow ci.yml --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
@@ -1335,7 +1336,7 @@ not reached by the chain above). The full chain in this step's own
 correction lands — it will still stop at the same place until then.
 
 ### P6.37 — Fix the stale API route-count check
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/api-contract-check.py`
 **What:** Bump `EXPECTED_TOTAL` (line 33) from `105` to `106` and extend its
 explanatory comment to name the route that closed the gap: P6.34's
@@ -1435,7 +1436,7 @@ was touched.
 Cameron selected the cancellation response rule on 2026-08-16: `POST /v1/operations/{id}/cancel` returns **`202 Accepted`** with the still-running `OperationDTO` while cooperative cancellation is pending; clients poll the existing operation resource or stream until it becomes terminal. A `200` response is reserved for a cancellation already completed before the response is sent. Returning `200` with `state: running` is never valid. This is an additive correction to the proposed greenfield operation contract; MSC 1 has no cancellation API to preserve.
 
 ### P6.38 — Complete reconciliation authority and replacement recovery
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/world_import_reconciliation.rs`, `crates/msc-agent/tests/world_backup_routes.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_mutations.rs`
 **What:** Make reconciliation readiness authoritative for every server that can be mutated, not only the configuration snapshot present when the agent starts. A raw/transfer/rescan import must enter a non-ready state before registration, run the same imported-world reconciliation before the server can be selected or mutated, and become `Ready` only after success; a failure remains registered for diagnosis but `Degraded`. An unknown server id must never default to `Ready`. When conversion mutates a separate target server, check that target's reconciliation state before operation admission as well as checking the active source. Add `reconcile_interrupted_world_replace` to the startup recovery sequence, feed any failure into the same degraded status, and prove a restart at each replace transaction boundary produces one complete old or replacement world plus a truthful operation record. Exercise post-start import, a degraded conversion target, and interrupted public active replacement through real mounted routes.
 
@@ -1447,7 +1448,7 @@ The focused proof adds a corrupt post-start raw import through a real authentica
 **Batch:** stop-after
 
 ### P6.39 — Use the real Java level name on every mutation path
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/world_backup_routes.rs`, `crates/msc-agent/tests/backup_scheduler.rs`, `crates/msc-application/tests/backup_creation.rs`, `tools/phase6/phase6-gate-smoke.sh`, `tools/phase6/corpus-check.py`
 **What:** Resolve Java's current `level-name` from each server's own `server.properties` at the agent boundary and pass it through every manual/scheduled backup, activation safety backup, conversion target safety backup, restore, and active-world replacement call instead of passing `None` and silently falling back to `world`. Keep Bedrock's distinct layout rule. Add a focused public-smoke mode that uses a non-default level name and proves all three Java dimension folders are captured, mandatory backups are created, the old world is actually moved during replacement, and activation/conversion do not fail or protect the wrong folder. Remove P6.35's staging workaround that renamed real-corpus worlds to `world`; the private public-path exercise must use the copied server's real folder/config name while hashing the source unchanged.
 
@@ -1459,7 +1460,7 @@ The new `--custom-level-name` public smoke imports a Java server configured as `
 **Batch:** stop-after
 
 ### P6.40 — Make cancellation responsive and return Accepted while pending
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/operation-model.md`, `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/tests/world_archive.rs`, `crates/msc-application/src/backups.rs`, `crates/msc-application/src/operations.rs`, `crates/msc-application/tests/backup_online_consistency.rs`, `crates/msc-application/tests/lifecycle_operations.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/operation_cancellation.rs`, `crates/msc-api/tests/dto_conformance.rs`, `tools/phase6/phase6-gate-smoke.sh`
 **What:** Carry the operation's cancellation signal into mandatory safety backups and the archive writer itself. Poll it between bounded read/write chunks, abort promptly, remove every partial ZIP/temp artifact, and still send Minecraft's save-resume command on all cancellation exits. Preserve the per-server lock until the worker finishes cleanup and performs its own terminal transition. Implement Cameron's selected wire rule without the current 30-second server-side wait: set the cancellation request, re-read the record once, return `200` only if it is already terminal `cancelled`, otherwise return `202 Accepted` with `state: running`/`Cancelling…`; keep `404` for unknown and `409` for an operation that was already terminal before the request. Update OpenAPI, contract prose, conformance tests, and public smoke; the smoke must accept `202`, poll/stream to terminal `cancelled`, prove a second mutation remains refused until then, and prove the live world and save state remain intact.
 
@@ -1475,7 +1476,7 @@ The synthetic public smoke now requires `202`, polls `GET /v1/operations/{id}` t
 **Batch:** stop-after
 
 ### P6.41 — Correct offline Bedrock world mutation paths
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/world.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_mutations.rs`, `fixtures/world-mutations/`
 **What:** Separate the Bedrock backup-root candidate (`server_dir/worlds`) from the direct-live-world candidate (`server_dir/worlds/<level-name>`). Fix rename and transactional active replacement so they never resolve `server_dir/worlds/worlds`, while preserving Java's main/nether/end behavior and Phase 10's live-runtime deferral. Characterize and test Bedrock rename preflight, rollback after a failed move/properties write, mandatory safety backup, staged folder/ZIP replacement, cancellation before the live move, and restart recovery at `prior_moved` and `installed`. These are offline file-layout operations and must hold before Phase 6 closes even though live Bedrock command delivery remains Phase 10.
 
@@ -1487,11 +1488,67 @@ Bedrock replacement now stages both folder and ZIP sources under a normalized `s
 **Batch:** stop-after
 
 ### P6.42 — Re-run the final Phase 6 gate
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/client-capability-matrix.csv` (tracking corrections only unless the gate finds a defect)
 **What:** Run the literal gate against one exact candidate commit after P6.38–P6.41 are independently verified: formatting; native, Linux, and Windows clippy; the full workspace suite; API, contract, and capability checks; synthetic public smoke including scheduled firing, `202` cancellation-to-terminal polling, and restart-interrupted active replacement; non-default-level-name public smoke; the private real corpus through public operations without outer-folder renaming; and macOS/Linux/Windows CI. Inspect recovered worlds, slots, transaction markers, archives, metadata, save-resume evidence, and durable operation records. Stop at the first failure and report it; do not convert checker constants, omitted paths, workarounds, or unrun legs into a green gate. Cameron alone marks this step `DONE` and advances Phase 7.
 
 **Actual result:** Ran the literal gate in order against candidate commit `a43d499` and stopped at its first failure. `cargo fmt --check`; native, Linux-target, and Windows-target clippy; the full workspace suite (796 tests, 796 passed); API summary (106 routes); Phase 6 contract conformance (86 checks); capability-matrix conformance (108 contract operations); the synthetic public smoke (including a real scheduled backup, restart recovery, asynchronous `202` cancellation through terminal cleanup, archive validation, save-resume evidence, and durable operation outcomes); and the non-default-level-name public smoke all passed. The next literal clause, `test -n "$MSC2_PHASE6_PRIVATE_CORPUS"`, returned exit 1 because that environment variable was not set in this shell. Per the gate's stop-on-first-failure rule, the private real-corpus exercise and macOS/Linux/Windows CI dispatch/watch did not run. No checker constants, paths, workarounds, production code, or capability tracking were changed.
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && gh workflow run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh run list --workflow ci.yml --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P6.42: close the phase 6 exit gate`
+**Batch:** solo
+
+---
+
+### Final gate closeout
+
+The independent gate re-check after P6.38–P6.42 found that the data-safety
+corrections are materially working: 123/123 focused reconciliation, mutation,
+backup, cancellation, and archive tests passed, as did the 106-route API
+summary, 86 Phase 6 contract checks, and all 108 capability rows. The real
+private corpus also completed through the public smoke with its source hashes
+unchanged when the CLI response timeout was manually raised.
+
+The gate still does not hold under the ordinary product path. With the timeout
+override absent, `server import` times out after five seconds while the agent
+continues copying and reconciling the real `campack` world synchronously; the
+caller sees failure before the operation ID is returned. The cancellation
+handler also performs its accept-and-snapshot sequence through separate locks,
+so a worker can become terminal between them and produce `202 Accepted` with a
+`succeeded` or `failed` snapshot. Finally, no exact-commit macOS/Linux/Windows
+CI run contains P6.38–P6.41. No earlier phase needs amending: P5.33 already
+assigns imported-world reconciliation to Phase 6, and the Phase 2 operation
+model already states the prompt, durable behavior these corrections must honor.
+
+These are the only new closeout steps from this review.
+
+### P6.43 — Return mutating server imports promptly as durable operations
+**Status:** awaiting verification
+**Files:** `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/operation-model.md`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-api/tests/dto_conformance.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/world_import_reconciliation.rs`
+**What:** Keep the read-only `scan` action synchronous and preserve its existing `200` response. For the mutating `importExisting`, `importTransfer`, and `rescan` actions, perform request validation and operation admission synchronously, then return `202 Accepted` with the existing `ServerImportResultDTO` and its durable `operationId` before any potentially long copy, extraction, registration, or world reconciliation. Run blocking filesystem work off the async request thread. The worker, not the route, must finish the operation as `succeeded`, `failed`, or `cancelled`, include the final server/import counts in the durable result, leave failed reconciliation registered as `Degraded`, and select a Java server only after it is `Ready`. Cancellation may take effect only at a boundary where unregistered staging can be removed safely; if work has crossed its last reversible boundary, it may finish truthfully rather than claiming cancellation. Make the CLI poll the existing operation resource to a terminal result by default, using short ordinary requests, so a real import neither depends on a raised `MSC2_CLI_RESPONSE_TIMEOUT_SECS` nor reports failure while work continues. Record the `202` response as an explicit D-006 correction while retaining the existing DTO and synchronous scan compatibility.
+
+**Actual result:** `POST /v1/servers/import` now keeps only `scan` synchronous (`200 OK`). `importExisting`, `importTransfer`, and `rescan` validate their request shape/source and acquire the durable import operation before returning `202 Accepted` with `ServerImportResultDTO.operationId`. Each accepted mutation moves its filesystem scan/copy/extraction, configuration registration, and world reconciliation into `spawn_blocking`; that worker alone records the terminal state and writes final IDs/counts into the operation result. Java selection is gated on the imported server's live reconciliation status being `Ready`; a reconciliation failure remains registered and reports `ready: false` in the durable result.
+
+Raw-import cancellation is observed before copying and again after copying but before registration; the second boundary removes the unregistered destination before the worker records `cancelled`. Rescan observes the same pre-scan/pre-registration boundaries. Transfer import observes cancellation before entering its orchestration; after its backup/apply/registration boundary begins, it completes truthfully because that workflow can replace configuration and wipe secrets and is no longer generally reversible. A panicking blocking task is converted to a durable `background_worker_failed` result instead of leaving the operation running forever.
+
+The CLI now treats the initial import DTO as an acceptance receipt and polls `GET /v1/operations/{id}` with the ordinary per-request timeout until terminal, matching the existing world/backup operation path. The OpenAPI contract and operation-model document record the split `200` scan / `202` mutation behavior as an explicit D-006 correction, and DTO conformance covers the retained response type plus required `operationId` wire field. Focused route tests were updated to assert the accepted response and terminal durable result; the real post-start degraded-reconciliation test now polls the operation before trying to select the registered server.
+
+`cargo fmt` and workspace Clippy are clean. The exact Verify command passed: 24 focused tests passed; API summary reported 106 routes with no missing categories, non-`ErrorDTO` errors, or missing help IDs; Phase 6 contract conformance passed 86 checks; and the private-corpus exercise ran with `MSC2_CLI_RESPONSE_TIMEOUT_SECS` absent against `$HOME/MinecraftServers`, passed its library and public CLI legs, and left all nine source evidence files unchanged.
+**Verify:** `cargo nextest run -p msc-agent -p msc-api -E 'test(/server_import|raw_import|transfer_import|rescan|world_import_reconciliation|dto_conformance/)' && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && env -u MSC2_CLI_RESPONSE_TIMEOUT_SECS python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS"`
+**Commit:** `P6.43: return server imports promptly`
+**Batch:** solo
+
+### P6.44 — Make cancellation acceptance and its response snapshot atomic
+**Status:** not started
+**Files:** `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/operation-model.md`, `crates/msc-application/src/operations.rs`, `crates/msc-application/tests/lifecycle_operations.rs`, `crates/msc-agent/src/routes/operations.rs`, `crates/msc-agent/tests/operation_cancellation.rs`, `crates/msc-api/tests/dto_conformance.rs`
+**What:** Replace the cancel route's separate terminal pre-check, cancellation request, and re-read with one application-level operation that linearizes the decision under the operation record lock. If the worker reached any terminal state first, preserve the existing `409` response. If cancellation admission wins, set the cooperative flag and return one captured non-terminal `Cancelling…` snapshot as `202 Accepted`; a worker transition after that linearization point cannot rewrite the already-captured response body to `succeeded` or `failed`. Preserve Cameron's selected wire rule and the existing worker-owned terminal transition: the handler never fabricates `cancelled`, releases the target lock, or waits for cleanup. Add a deterministic race test proving the two legal outcomes are terminal-first `409` or cancellation-first `202` with a non-terminal snapshot, never `202` carrying a terminal success/failure.
+**Verify:** `cargo nextest run -p msc-application -p msc-agent -p msc-api -E 'test(/lifecycle_operations|operation_cancellation|dto_conformance/)' && python3 tools/contract-conformance-check.py --phase6`
+**Commit:** `P6.44: make cancellation responses atomic`
+**Batch:** solo
+
+### P6.45 — Prove the final Phase 6 candidate
+**Status:** not started
+**Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/client-capability-matrix.csv` (tracking corrections only unless the gate finds a defect)
+**What:** After Cameron independently verifies P6.43 and P6.44, run the literal working gate once against their exact candidate commit. Require formatting; native, Linux, and Windows clippy; the complete workspace suite; API, Phase 6 contract, and capability checks; synthetic and non-default-level-name public smokes; the private real corpus through the ordinary public CLI with `MSC2_CLI_RESPONSE_TIMEOUT_SECS` explicitly absent; and a macOS/Linux/Windows CI run whose `headSha` equals the candidate. Inspect the private-corpus source hashes, recovered worlds, slots, transaction markers, archives, metadata, save-resume evidence, and durable operation outcomes. Stop at the first failure. Do not adjust a timeout, checker constant, path, fixture, or capability cell to turn a failure green. Cameron alone marks this step `DONE`; the other agent then performs the final REVIEW before Advance.
+**Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/contract-conformance-check.py --phase6 && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase6/phase6-gate-smoke.sh --custom-level-name && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && env -u MSC2_CLI_RESPONSE_TIMEOUT_SECS python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && candidate_sha=$(git rev-parse HEAD) && gh workflow run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --event workflow_dispatch --limit 1 --json databaseId,headSha --jq 'map(select(.headSha == "'"$candidate_sha"'"))[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
+**Commit:** `P6.45: prove the phase 6 exit gate`
 **Batch:** solo

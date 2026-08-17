@@ -83,18 +83,21 @@
         },
         "responses": {
           "200": {
-            "description": "action=scan returns ServerImportScanResponseDTO; importExisting/importTransfer/rescan return ServerImportResultDTO \u2014 same status code, different body shape, dispatched on the request's own 'action' field.",
+            "description": "action=scan returns ServerImportScanResponseDTO synchronously.",
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "$ref": "#/components/schemas/ServerImportScanResponseDTO"
-                    },
-                    {
-                      "$ref": "#/components/schemas/ServerImportResultDTO"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/ServerImportScanResponseDTO"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "importExisting/importTransfer/rescan accepted as a durable background operation. Poll operationId for the final result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerImportResultDTO"
                 }
               }
             }
@@ -144,7 +147,7 @@
             "x-error-code": "internal_error"
           }
         },
-        "x-notes": "Read from RemoteAPIServer+ComponentRoutes.swift handleImportServer and importStatus. req.action == \"scan\" routes to serverImportScanProvider; anything else routes to serverImportProvider.",
+        "x-notes": "Read from RemoteAPIServer+ComponentRoutes.swift handleImportServer and importStatus. req.action == \"scan\" routes to serverImportScanProvider; anything else routes to serverImportProvider. D-006 correction: mutating imports return 202 with operationId before filesystem work instead of holding the request open and returning 200.",
         "x-permission-category": "fleet"
       }
     },
@@ -4652,6 +4655,9 @@
           "message": {
             "type": "string"
           },
+          "operationId": {
+            "type": "string"
+          },
           "serverId": {
             "type": "string"
           },
@@ -4670,7 +4676,8 @@
         },
         "required": [
           "success",
-          "message"
+          "message",
+          "operationId"
         ]
       },
       "ServerDeleteRequestDTO": {

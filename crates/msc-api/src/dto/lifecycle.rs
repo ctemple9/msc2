@@ -90,6 +90,9 @@ pub struct ServerImportWorldDto {
 pub struct ServerImportResultDto {
     pub success: bool,
     pub message: String,
+    /// Durable operation to poll after a mutating import is accepted.
+    /// Kept optional for decoding older agents during the version-skew
+    /// window, although MSC 2 agents always populate it on `202`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -16,7 +16,7 @@ use msc_api::dto::{
     BedrockBackendDto, BedrockSupportDto, CapabilitiesDto, ErrorDto, HealthCardDto,
     HealthResponseDto, HelpersDto, HostOsDto, OperationDto, OperationProgressDto,
     OperationStateDto, PerformanceMetricNumberDto, PerformanceSnapshotDto, PermissionCategoryDto,
-    RemoteApiStatus, ServerTypesDto,
+    RemoteApiStatus, ServerImportResultDto, ServerTypesDto,
 };
 use serde_json::{Value, json};
 use std::path::Path;
@@ -201,6 +201,37 @@ fn dto_conformance_operation_cancellation_declares_pending_and_completed_respons
     assert_eq!(
         responses["202"]["content"]["application/json"]["schema"]["$ref"],
         "#/components/schemas/OperationDTO"
+    );
+}
+
+#[test]
+fn dto_conformance_server_import_is_a_durable_accepted_operation() {
+    let contract = load_contract();
+    let responses = &contract["paths"]["/v1/servers/import"]["post"]["responses"];
+    assert_eq!(
+        responses["200"]["content"]["application/json"]["schema"]["$ref"],
+        "#/components/schemas/ServerImportScanResponseDTO"
+    );
+    assert_eq!(
+        responses["202"]["content"]["application/json"]["schema"]["$ref"],
+        "#/components/schemas/ServerImportResultDTO"
+    );
+
+    let accepted = ServerImportResultDto {
+        success: true,
+        message: "Server import accepted.".to_string(),
+        operation_id: Some("op-123-1".to_string()),
+        server_id: None,
+        server_name: None,
+        imported: None,
+        skipped: None,
+        replaced: None,
+    };
+    assert_conforms(
+        &contract,
+        schema_for(&contract, "ServerImportResultDTO"),
+        &serde_json::to_value(accepted).unwrap(),
+        "ServerImportResultDTO",
     );
 }
 

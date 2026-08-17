@@ -27,6 +27,7 @@ use msc_application::transfer::{
 };
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::ServerType;
+use msc_domain::operation::OperationId;
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
@@ -92,7 +93,7 @@ pub async fn import(
         || source_path.to_ascii_lowercase().ends_with(".msctransfer");
 
     if is_transfer_request {
-        return import_transfer(&state, &source_path, &body).await;
+        return import_transfer(&state, &source_path, &body);
     }
 
     if action != "importExisting" {
@@ -102,7 +103,7 @@ pub async fn import(
         );
     }
 
-    import_raw(&state, &source_path, &body).await
+    import_raw(&state, &source_path, &body)
 }
 
 fn rescan_import(state: &LifecycleRoutesState) -> Response {
@@ -111,16 +112,56 @@ fn rescan_import(state: &LifecycleRoutesState) -> Response {
         Ok(operation_id) => operation_id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
-    let existing_server_dirs: Vec<String> = state
+    let worker_state = state.clone();
+    let worker_operation_id = operation_id.clone();
+    tokio::spawn(async move {
+        let failure_state = worker_state.clone();
+        let failure_operation_id = worker_operation_id.clone();
+        if let Err(error) = tokio::task::spawn_blocking(move || {
+            run_rescan_import(worker_state, worker_operation_id, servers_root)
+        })
+        .await
+        {
+            let _ = failure_state.finish_operation_failure(
+                &failure_operation_id,
+                "background_worker_failed",
+                error.to_string(),
+            );
+        }
+    });
+
+    accepted_import_response(&operation_id, "Recovery rescan accepted.")
+}
+
+fn run_rescan_import(
+    state: LifecycleRoutesState,
+    operation_id: OperationId,
+    servers_root: PathBuf,
+) {
+    let should_cancel = state.operations().cancellation_check(&operation_id);
+    if should_cancel() {
+        let _ = state
+            .operations()
+            .cancel(&operation_id, "Recovery rescan cancelled before scanning.");
+        return;
+    }
+    let existing_server_dirs = state
         .export_inputs()
         .into_iter()
         .map(|input| input.server.server_dir)
-        .collect();
+        .collect::<Vec<_>>();
     let result = rescan_and_import_servers(
         &StdRawImportFileSystem,
         &servers_root,
         &existing_server_dirs,
     );
+    if should_cancel() {
+        let _ = state.operations().cancel(
+            &operation_id,
+            "Recovery rescan cancelled before registration.",
+        );
+        return;
+    }
     let first_java_server_id = result
         .added
         .iter()
@@ -129,28 +170,29 @@ fn rescan_import(state: &LifecycleRoutesState) -> Response {
     let first_added = result.added.first().cloned();
     let imported = result.added.len() as i64;
     let skipped = result.skipped as i64;
-
     match state.register_imported_config_servers(result.added, false) {
-        Ok(_) => {
-            if let Some(server_id) = first_java_server_id {
+        Ok(statuses) => {
+            if let Some(server_id) = first_java_server_id
+                && statuses.iter().any(|(id, status)| {
+                    id == &server_id
+                        && matches!(
+                            status,
+                            crate::routes::lifecycle::ReconciliationStatus::Ready
+                        )
+                })
+            {
                 let _ = state.select_active_server(server_id);
             }
             let message = format!("Recovery rescan complete: {imported} added, {skipped} skipped.");
             let mut result_map = BTreeMap::new();
             result_map.insert("imported".to_string(), imported.to_string());
             result_map.insert("skipped".to_string(), skipped.to_string());
+            result_map.insert("replaced".to_string(), "false".to_string());
+            if let Some(server) = first_added {
+                result_map.insert("serverId".to_string(), server.id);
+                result_map.insert("serverName".to_string(), server.display_name);
+            }
             let _ = state.finish_operation_success(&operation_id, &message, result_map);
-            Json(ServerImportResultDto {
-                success: true,
-                message,
-                operation_id: Some(operation_id.as_str().to_string()),
-                server_id: first_added.as_ref().map(|server| server.id.clone()),
-                server_name: first_added.map(|server| server.display_name),
-                imported: Some(imported),
-                skipped: Some(skipped),
-                replaced: Some(false),
-            })
-            .into_response()
         }
         Err(error) => {
             let _ = state.finish_operation_failure(
@@ -158,11 +200,6 @@ fn rescan_import(state: &LifecycleRoutesState) -> Response {
                 "rescan_save_failed",
                 error.to_string(),
             );
-            error_response(
-                axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-                "internal_error",
-                &error.to_string(),
-            )
         }
     }
 }
@@ -273,7 +310,7 @@ fn world_to_dto(world: &DetectedWorld) -> ServerImportWorldDto {
 /// Bedrock instead of falling back to the old Phase 4 Paper-only stand-in.
 /// Imported Java servers are selected as active immediately, which makes
 /// settings/start/stop use the same persisted record.
-async fn import_raw(
+fn import_raw(
     state: &LifecycleRoutesState,
     source_path: &str,
     body: &ServerImportRequestDto,
@@ -283,58 +320,140 @@ async fn import_raw(
         .clone()
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(|| default_display_name(source_path));
-    let server_type = match infer_import_server_type(source_path, body) {
-        Ok(server_type) => server_type,
-        Err(response) => return *response,
+    let server_type = match body.server_type.as_deref() {
+        Some(raw) => match ServerType::from_raw_value(raw) {
+            Some(server_type) => Some(server_type),
+            None => {
+                return invalid_body("invalid_server_type", "serverType must be java or bedrock.");
+            }
+        },
+        None => None,
     };
-    let source = if resolve_is_zip(body.import_kind.as_deref(), source_path) {
-        RawImportSource::Zip(PathBuf::from(source_path))
+    let is_zip = resolve_is_zip(body.import_kind.as_deref(), source_path);
+    let source_path = PathBuf::from(source_path);
+    if (is_zip && !source_path.is_file()) || (!is_zip && !source_path.is_dir()) {
+        return source_not_found_response(&source_path.to_string_lossy());
+    }
+    let source = if is_zip {
+        RawImportSource::Zip(source_path)
     } else {
-        RawImportSource::Folder(PathBuf::from(source_path))
+        RawImportSource::Folder(source_path)
+    };
+
+    let operation_target = match &source {
+        RawImportSource::Folder(path) | RawImportSource::Zip(path) => path.to_string_lossy(),
+    };
+    let operation_id = match state.begin_import_operation(&operation_target) {
+        Ok(operation_id) => operation_id,
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
+    let servers_root = state.servers_root();
+    let overrides = RawImportOverrides {
+        port: body.port,
+        max_players: body.max_players,
+        active_world_name: body.active_world_name.clone(),
+        eula_accepted: body.accept_eula,
+    };
+
+    let worker_state = state.clone();
+    let worker_operation_id = operation_id.clone();
+    tokio::spawn(async move {
+        let failure_state = worker_state.clone();
+        let failure_operation_id = worker_operation_id.clone();
+        if let Err(error) = tokio::task::spawn_blocking(move || {
+            run_raw_import(
+                worker_state,
+                worker_operation_id,
+                display_name,
+                server_type,
+                source,
+                servers_root,
+                overrides,
+            )
+        })
+        .await
+        {
+            let _ = failure_state.finish_operation_failure(
+                &failure_operation_id,
+                "background_worker_failed",
+                error.to_string(),
+            );
+        }
+    });
+
+    accepted_import_response(&operation_id, "Server import accepted.")
+}
+
+fn run_raw_import(
+    state: LifecycleRoutesState,
+    operation_id: OperationId,
+    display_name: String,
+    server_type: Option<ServerType>,
+    source: RawImportSource,
+    servers_root: PathBuf,
+    overrides: RawImportOverrides,
+) {
+    let should_cancel = state.operations().cancellation_check(&operation_id);
+    if should_cancel() {
+        let _ = state
+            .operations()
+            .cancel(&operation_id, "Server import cancelled before copying.");
+        return;
+    }
+    let server_type = match server_type {
+        Some(server_type) => server_type,
+        None => match infer_import_server_type_from_source(&source) {
+            Ok(server_type) => server_type,
+            Err(error) => {
+                let _ = state.finish_operation_failure(
+                    &operation_id,
+                    raw_import_error_code(&error),
+                    error.to_string(),
+                );
+                return;
+            }
+        },
     };
     let request = RawImportRequest {
         display_name,
         server_type,
         source,
-        servers_root: state.servers_root(),
-        overrides: RawImportOverrides {
-            port: body.port,
-            max_players: body.max_players,
-            active_world_name: body.active_world_name.clone(),
-            eula_accepted: body.accept_eula,
-        },
+        servers_root,
+        overrides,
     };
-
-    let operation_id = match state.begin_import_operation(source_path) {
-        Ok(operation_id) => operation_id,
-        Err(error) => return crate::routes::operations::operation_error_response(error),
-    };
-
     match import_raw_server(&request, &agent_home_dir()) {
         Ok(imported) => {
             let config = imported.config;
+            if should_cancel() {
+                remove_unregistered_raw_import(&request, &config);
+                let _ = state.operations().cancel(
+                    &operation_id,
+                    "Server import cancelled before registration.",
+                );
+                return;
+            }
             let message = format!("Imported {} server.", server_type.raw_value());
             let mut result = BTreeMap::new();
             result.insert("serverId".to_string(), config.id.clone());
-            let response = ServerImportResultDto {
-                success: true,
-                message,
-                operation_id: Some(operation_id.as_str().to_string()),
-                server_id: Some(config.id.clone()),
-                server_name: Some(config.display_name.clone()),
-                imported: Some(1),
-                skipped: Some(0),
-                replaced: Some(false),
-            };
+            result.insert("serverName".to_string(), config.display_name.clone());
+            result.insert("imported".to_string(), "1".to_string());
+            result.insert("skipped".to_string(), "0".to_string());
+            result.insert("replaced".to_string(), "false".to_string());
             let imported_server_id = config.id.clone();
             match state.register_imported_config_servers(vec![config], false) {
-                Ok(_) => {
-                    if server_type == ServerType::Java {
+                Ok(statuses) => {
+                    let ready = statuses.iter().any(|(id, status)| {
+                        id == &imported_server_id
+                            && matches!(
+                                status,
+                                crate::routes::lifecycle::ReconciliationStatus::Ready
+                            )
+                    });
+                    result.insert("ready".to_string(), ready.to_string());
+                    if server_type == ServerType::Java && ready {
                         let _ = state.select_active_server(imported_server_id);
                     }
-                    let _ =
-                        state.finish_operation_success(&operation_id, &response.message, result);
-                    Json(response).into_response()
+                    let _ = state.finish_operation_success(&operation_id, &message, result);
                 }
                 Err(error) => {
                     let _ = state.finish_operation_failure(
@@ -342,11 +461,6 @@ async fn import_raw(
                         "internal_error",
                         error.to_string(),
                     );
-                    error_response(
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        "internal_error",
-                        &error.to_string(),
-                    )
                 }
             }
         }
@@ -356,38 +470,55 @@ async fn import_raw(
                 raw_import_error_code(&error),
                 error.to_string(),
             );
-            raw_import_error_response(error)
         }
     }
 }
 
-fn infer_import_server_type(
-    source_path: &str,
-    body: &ServerImportRequestDto,
-) -> Result<ServerType, Box<Response>> {
-    if let Some(raw) = body.server_type.as_deref() {
-        return ServerType::from_raw_value(raw).ok_or_else(|| {
-            Box::new(invalid_body(
-                "invalid_server_type",
-                "serverType must be java or bedrock.",
-            ))
-        });
+fn infer_import_server_type_from_source(
+    source: &RawImportSource,
+) -> Result<ServerType, RawImportError> {
+    match source {
+        RawImportSource::Zip(path) => scan_zip_source(path).map(|info| info.server_type),
+        RawImportSource::Folder(path) => {
+            Ok(scan_server_directory(&StdRawImportFileSystem, path).server_type)
+        }
     }
+}
 
-    let path = Path::new(source_path);
-    if resolve_is_zip(body.import_kind.as_deref(), source_path) {
-        if !path.is_file() {
-            return Err(Box::new(source_not_found_response(source_path)));
-        }
-        scan_zip_source(path)
-            .map(|info| info.server_type)
-            .map_err(|error| Box::new(raw_import_error_response(error)))
-    } else {
-        if !path.is_dir() {
-            return Err(Box::new(source_not_found_response(source_path)));
-        }
-        Ok(scan_server_directory(&StdRawImportFileSystem, path).server_type)
-    }
+fn remove_unregistered_raw_import(request: &RawImportRequest, config: &ConfigServer) {
+    let type_root = request
+        .servers_root
+        .join(if request.server_type == ServerType::Java {
+            "java"
+        } else {
+            "bedrock"
+        });
+    let configured = Path::new(&config.server_dir);
+    let Some(first_component) = configured
+        .strip_prefix(&type_root)
+        .ok()
+        .and_then(|relative| relative.components().next())
+    else {
+        return;
+    };
+    let _ = std::fs::remove_dir_all(type_root.join(first_component.as_os_str()));
+}
+
+fn accepted_import_response(operation_id: &OperationId, message: &str) -> Response {
+    (
+        StatusCode::ACCEPTED,
+        Json(ServerImportResultDto {
+            success: true,
+            message: message.to_string(),
+            operation_id: Some(operation_id.as_str().to_string()),
+            server_id: None,
+            server_name: None,
+            imported: None,
+            skipped: None,
+            replaced: None,
+        }),
+    )
+        .into_response()
 }
 
 fn raw_import_error_code(error: &RawImportError) -> &'static str {
@@ -760,7 +891,7 @@ fn perform_transfer_import(
     Ok(result)
 }
 
-async fn import_transfer(
+fn import_transfer(
     state: &LifecycleRoutesState,
     source_path: &str,
     body: &ServerImportRequestDto,
@@ -773,16 +904,65 @@ async fn import_transfer(
         bedrock_port_overrides: body.bedrock_port_overrides.clone(),
     };
     let replace_all = plan.mode == TransferMode::ReplaceAll;
+    if !plan.package_path.is_file() {
+        return source_not_found_response(source_path);
+    }
+    if replace_all
+        && plan
+            .backup_path
+            .as_deref()
+            .map(str::trim)
+            .is_none_or(str::is_empty)
+    {
+        return invalid_body(
+            "backup_path_required",
+            "backupPath is required for a replaceAll transfer import.",
+        );
+    }
 
     let operation_id = match state.begin_import_operation(source_path) {
         Ok(operation_id) => operation_id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
 
+    let worker_state = state.clone();
+    let worker_operation_id = operation_id.clone();
+    tokio::spawn(async move {
+        let failure_state = worker_state.clone();
+        let failure_operation_id = worker_operation_id.clone();
+        if let Err(error) = tokio::task::spawn_blocking(move || {
+            run_transfer_import(worker_state, worker_operation_id, plan, replace_all)
+        })
+        .await
+        {
+            let _ = failure_state.finish_operation_failure(
+                &failure_operation_id,
+                "background_worker_failed",
+                error.to_string(),
+            );
+        }
+    });
+
+    accepted_import_response(&operation_id, "Transfer import accepted.")
+}
+
+fn run_transfer_import(
+    state: LifecycleRoutesState,
+    operation_id: OperationId,
+    plan: TransferImportPlan,
+    replace_all: bool,
+) {
+    let should_cancel = state.operations().cancellation_check(&operation_id);
+    if should_cancel() {
+        let _ = state
+            .operations()
+            .cancel(&operation_id, "Transfer import cancelled before staging.");
+        return;
+    }
     let staging_root = transfer_staging_root();
     let result = perform_transfer_import(
         &RealTransferImportPorts,
-        state,
+        &state,
         &state.servers_root(),
         &staging_root,
         &plan,
@@ -807,24 +987,20 @@ async fn import_transfer(
             let mut result_map = BTreeMap::new();
             result_map.insert("imported".to_string(), applied.imported.to_string());
             result_map.insert("skipped".to_string(), applied.skipped.to_string());
-            if let Some(server_id) = lifecycle_server_id {
+            if let Some(server_id) = lifecycle_server_id
+                && matches!(
+                    state.reconciliation_status(&server_id),
+                    crate::routes::lifecycle::ReconciliationStatus::Ready
+                )
+            {
                 let _ = state.select_active_server(server_id);
             }
+            result_map.insert("replaced".to_string(), replace_all.to_string());
+            if let Some(server) = applied.servers.first() {
+                result_map.insert("serverId".to_string(), server.id.clone());
+                result_map.insert("serverName".to_string(), server.display_name.clone());
+            }
             let _ = state.finish_operation_success(&operation_id, &message, result_map);
-            Json(ServerImportResultDto {
-                success: true,
-                message,
-                operation_id: Some(operation_id.as_str().to_string()),
-                server_id: applied.servers.first().map(|server| server.id.clone()),
-                server_name: applied
-                    .servers
-                    .first()
-                    .map(|server| server.display_name.clone()),
-                imported: Some(applied.imported as i64),
-                skipped: Some(applied.skipped as i64),
-                replaced: Some(replace_all),
-            })
-            .into_response()
         }
         Err(error) => {
             let _ = state.finish_operation_failure(
@@ -832,7 +1008,6 @@ async fn import_transfer(
                 transfer_error_code(&error),
                 transfer_error_message(&error),
             );
-            transfer_import_error_response(error)
         }
     }
 }
@@ -856,29 +1031,6 @@ fn transfer_error_message(error: &TransferImportRouteError) -> String {
         TransferImportRouteError::InvalidPackage(message) => message.clone(),
         TransferImportRouteError::SecretWipeFailed(message) => message.clone(),
         TransferImportRouteError::SaveFailed(message) => message.clone(),
-    }
-}
-
-fn transfer_import_error_response(error: TransferImportRouteError) -> Response {
-    match &error {
-        TransferImportRouteError::BackupPathRequired => {
-            invalid_body(transfer_error_code(&error), &transfer_error_message(&error))
-        }
-        TransferImportRouteError::BackupFailed(_) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            transfer_error_code(&error),
-            &transfer_error_message(&error),
-        ),
-        TransferImportRouteError::SecretWipeFailed(_) | TransferImportRouteError::SaveFailed(_) => {
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                transfer_error_code(&error),
-                &transfer_error_message(&error),
-            )
-        }
-        TransferImportRouteError::InvalidPackage(_) => {
-            invalid_body(transfer_error_code(&error), &transfer_error_message(&error))
-        }
     }
 }
 
@@ -945,6 +1097,7 @@ mod tests {
     use crate::routes::lifecycle::AgentAppConfigStore;
     use crate::routes::operations::OperationsState;
     use crate::ws::console::ConsoleState;
+    use msc_api::dto::{OperationDto, OperationStateDto};
     use msc_application::transfer::{TransferManifest, TransferServerConflict};
     use msc_infrastructure::fs::{FileSystem, StdFileSystem};
     use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
@@ -1293,24 +1446,62 @@ mod tests {
         (status, serde_json::from_slice(&bytes).unwrap())
     }
 
+    async fn await_import(
+        state: &LifecycleRoutesState,
+        response: Response,
+    ) -> (StatusCode, ServerImportResultDto, OperationDto) {
+        let (status, accepted): (StatusCode, ServerImportResultDto) = response_json(response).await;
+        let operation_id = accepted
+            .operation_id
+            .as_deref()
+            .expect("accepted import carries operationId");
+        for _ in 0..200 {
+            let operation = state
+                .operations()
+                .snapshot(operation_id)
+                .expect("accepted operation remains readable");
+            if matches!(
+                operation.state,
+                OperationStateDto::Succeeded
+                    | OperationStateDto::Failed
+                    | OperationStateDto::Cancelled
+            ) {
+                return (status, accepted, operation);
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        panic!("import operation {operation_id} did not become terminal");
+    }
+
+    fn operation_result_string<'a>(operation: &'a OperationDto, key: &str) -> &'a str {
+        operation.result.as_ref().unwrap()[key]
+            .as_str()
+            .unwrap_or_else(|| panic!("operation result has no string field {key}"))
+    }
+
     #[tokio::test]
     async fn transfer_import_route_merge_appends_across_two_imports() {
         let state = route_state();
         let package_one = build_transfer_package("ROUTE-A", 25601);
         let package_two = build_transfer_package("ROUTE-B", 25602);
 
-        let (status_one, result_one): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&state, import_request(&package_one, None, None)).await)
-                .await;
-        assert_eq!(status_one, StatusCode::OK);
-        assert_eq!(result_one.imported, Some(1));
-        assert_eq!(result_one.replaced, Some(false));
+        let (status_one, _, operation_one) = await_import(
+            &state,
+            call_import(&state, import_request(&package_one, None, None)).await,
+        )
+        .await;
+        assert_eq!(status_one, StatusCode::ACCEPTED);
+        assert_eq!(operation_one.state, OperationStateDto::Succeeded);
+        assert_eq!(operation_result_string(&operation_one, "imported"), "1");
+        assert_eq!(operation_result_string(&operation_one, "replaced"), "false");
 
-        let (status_two, result_two): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&state, import_request(&package_two, None, None)).await)
-                .await;
-        assert_eq!(status_two, StatusCode::OK);
-        assert_eq!(result_two.imported, Some(1));
+        let (status_two, _, operation_two) = await_import(
+            &state,
+            call_import(&state, import_request(&package_two, None, None)).await,
+        )
+        .await;
+        assert_eq!(status_two, StatusCode::ACCEPTED);
+        assert_eq!(operation_result_string(&operation_two, "imported"), "1");
 
         let ids: Vec<String> = state
             .config_servers()
@@ -1341,15 +1532,19 @@ mod tests {
     async fn transfer_import_route_replace_all_backs_up_before_replacing() {
         let state = route_state();
         let first_package = build_transfer_package("ROUTE-D", 25604);
-        let (status, _result): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&state, import_request(&first_package, None, None)).await)
-                .await;
-        assert_eq!(status, StatusCode::OK);
+        let (status, _, operation) = await_import(
+            &state,
+            call_import(&state, import_request(&first_package, None, None)).await,
+        )
+        .await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation.state, OperationStateDto::Succeeded);
 
         let second_package = build_transfer_package("ROUTE-E", 25605);
         let backup_path = temp_dir("backups").join("before-replace-all.msctransfer");
 
-        let (status, result): (StatusCode, ServerImportResultDto) = response_json(
+        let (status, _, operation) = await_import(
+            &state,
             call_import(
                 &state,
                 import_request(
@@ -1362,8 +1557,8 @@ mod tests {
         )
         .await;
 
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(result.replaced, Some(true));
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation_result_string(&operation, "replaced"), "true");
         assert!(
             backup_path.is_file(),
             "backup file was not written before replaceAll"
@@ -1407,7 +1602,8 @@ mod tests {
 
         let package = build_transfer_package("ROUTE-F", 25606);
         let backup_path = temp_dir("replace-all-real-secret-backup").join("backup.msctransfer");
-        let (status, result): (StatusCode, ServerImportResultDto) = response_json(
+        let (status, _, operation) = await_import(
+            &state,
             call_import(
                 &state,
                 import_request(
@@ -1420,8 +1616,8 @@ mod tests {
         )
         .await;
 
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(result.replaced, Some(true));
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation_result_string(&operation, "replaced"), "true");
         assert!(
             secret_store
                 .get(&format!("remote-api.token.{}", issued.credential_id))
@@ -1595,13 +1791,15 @@ mod tests {
         request.active_world_name = Some("survival".to_string());
         request.accept_eula = Some(true);
 
-        let (status, result): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&state, request).await).await;
+        let (status, _, operation) = await_import(&state, call_import(&state, request).await).await;
 
-        assert_eq!(status, StatusCode::OK);
-        assert!(result.success);
-        assert_eq!(result.server_name.as_deref(), Some("Raw Route Java"));
-        let server_id = result.server_id.expect("expected a server id");
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation.state, OperationStateDto::Succeeded);
+        assert_eq!(
+            operation_result_string(&operation, "serverName"),
+            "Raw Route Java"
+        );
+        let server_id = operation_result_string(&operation, "serverId").to_string();
 
         let snapshot = state.config_servers();
         let registered = snapshot
@@ -1634,12 +1832,11 @@ mod tests {
         request.display_name = Some("Raw Route Bedrock".to_string());
         request.port = Some(19199);
 
-        let (status, result): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&state, request).await).await;
+        let (status, _, operation) = await_import(&state, call_import(&state, request).await).await;
 
-        assert_eq!(status, StatusCode::OK);
-        assert!(result.success);
-        let server_id = result.server_id.expect("expected a server id");
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation.state, OperationStateDto::Succeeded);
+        let server_id = operation_result_string(&operation, "serverId").to_string();
 
         let snapshot = state.config_servers();
         let registered = snapshot
@@ -1647,6 +1844,35 @@ mod tests {
             .find(|s| s.id == server_id)
             .expect("imported server should be registered");
         assert_eq!(registered.server_type, ServerType::Bedrock);
+    }
+
+    #[test]
+    fn raw_import_worker_cancels_before_copying_at_its_first_safe_boundary() {
+        let state = route_state();
+        let source = temp_dir("cancelled-raw-import-source");
+        write_paper_source(&source);
+        let operation_id = state.begin_import_operation("cancelled-source").unwrap();
+        state
+            .operations()
+            .request_cancel(&operation_id, "Cancelling…")
+            .unwrap();
+
+        run_raw_import(
+            state.clone(),
+            operation_id.clone(),
+            "Cancelled Import".to_string(),
+            Some(ServerType::Java),
+            RawImportSource::Folder(source),
+            state.servers_root(),
+            RawImportOverrides::default(),
+        );
+
+        let snapshot = state
+            .operations()
+            .snapshot(operation_id.as_str())
+            .expect("cancelled operation remains readable");
+        assert_eq!(snapshot.state, OperationStateDto::Cancelled);
+        assert!(state.config_servers().is_empty());
     }
 
     #[tokio::test]
@@ -1660,10 +1886,19 @@ mod tests {
         request.display_name = Some("Conflict Server".to_string());
 
         let first = call_import(&state, request.clone()).await;
-        assert_eq!(first.status(), StatusCode::OK);
+        let (first_status, _, first_operation) = await_import(&state, first).await;
+        assert_eq!(first_status, StatusCode::ACCEPTED);
+        assert_eq!(first_operation.state, OperationStateDto::Succeeded);
 
         let second = call_import(&state, request).await;
-        assert_eq!(second.status(), StatusCode::CONFLICT);
+        let (second_status, _, second_operation) = await_import(&state, second).await;
+        assert_eq!(second_status, StatusCode::ACCEPTED);
+        assert_eq!(second_operation.state, OperationStateDto::Failed);
+        assert_eq!(
+            second_operation.error.unwrap().code,
+            "conflict",
+            "filesystem conflicts after admission are recorded durably"
+        );
     }
 
     #[tokio::test]
@@ -1673,12 +1908,11 @@ mod tests {
         write_paper_source(&source);
 
         let request = raw_import_request("importExisting", &source, Some("folder"), None);
-        let (status, result): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&state, request).await).await;
+        let (status, _, operation) = await_import(&state, call_import(&state, request).await).await;
 
-        assert_eq!(status, StatusCode::OK);
-        assert!(result.success);
-        let server_id = result.server_id.expect("expected a server id");
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation.state, OperationStateDto::Succeeded);
+        let server_id = operation_result_string(&operation, "serverId").to_string();
 
         assert!(
             state.servers().iter().any(|s| s.id == server_id),
@@ -1734,14 +1968,17 @@ mod tests {
         write_paper_source(&source);
 
         let state = persistent_route_state(&config_path, &root);
-        let (status, result): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&state, rescan_request()).await).await;
+        let (status, _, operation) =
+            await_import(&state, call_import(&state, rescan_request()).await).await;
 
-        assert_eq!(status, StatusCode::OK);
-        assert!(result.success);
-        assert_eq!(result.imported, Some(1));
-        let server_id = result.server_id.expect("expected rescanned server id");
-        assert_eq!(result.server_name.as_deref(), Some("rescan smoke java"));
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation.state, OperationStateDto::Succeeded);
+        assert_eq!(operation_result_string(&operation, "imported"), "1");
+        let server_id = operation_result_string(&operation, "serverId").to_string();
+        assert_eq!(
+            operation_result_string(&operation, "serverName"),
+            "rescan smoke java"
+        );
         assert_eq!(
             state.active_server_id().as_deref(),
             Some(server_id.as_str())
@@ -1768,9 +2005,9 @@ mod tests {
             "restarted route state should reconstruct lifecycle registry from saved config"
         );
 
-        let (status, second): (StatusCode, ServerImportResultDto) =
-            response_json(call_import(&restarted, rescan_request()).await).await;
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(second.imported, Some(0));
+        let (status, _, second) =
+            await_import(&restarted, call_import(&restarted, rescan_request()).await).await;
+        assert_eq!(status, StatusCode::ACCEPTED);
+        assert_eq!(operation_result_string(&second, "imported"), "0");
     }
 }

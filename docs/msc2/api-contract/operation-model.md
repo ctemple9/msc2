@@ -74,6 +74,27 @@ No request body. Cancellation is cooperative: the agent sets the request and re-
 
 Failure: `409` with `ErrorDTO` (`code: "conflict"`, `helpId: "operations.cancel-not-legal"`) if the operation was already terminal before the cancellation request — cancelling a finished operation is refused, not treated as a silent no-op, so a client always knows whether its cancel actually did anything. Unknown `id` is `404`, same as §4.2.
 
+#### 4.4 Mutating server imports
+
+`POST /v1/servers/import` keeps `action=scan` synchronous and returns its
+existing `ServerImportScanResponseDTO` with `200 OK`. The mutating
+`importExisting`, `importTransfer`, and `rescan` actions are an explicit D-006
+correction: after validation and operation admission they return `202 Accepted`
+with the existing `ServerImportResultDTO`, whose `operationId` names the durable
+operation. Copying, extraction, registration, and world reconciliation continue
+in a background worker. Clients poll `GET /v1/operations/{operationId}` (or use
+the operation stream) for the final state and result; they must not keep the
+import request open while filesystem work runs.
+
+The worker alone records `succeeded`, `failed`, or `cancelled`. Successful
+operation results carry `serverId`, `serverName`, `imported`, `skipped`, and
+`replaced` where those values apply. A Java server is selected only after world
+reconciliation reports it `Ready`; a reconciliation failure leaves the imported
+server registered as `Degraded` for diagnosis. Cancellation is honored before
+work begins or after an unregistered raw import has been copied and can still be
+removed safely. Once registration or another irreversible transfer boundary has
+been crossed, the worker finishes with the truthful outcome instead.
+
 ### 5. Not designed here
 
 - **Progress/cancellation delivery over WebSocket** — `/v1/operations/{id}/stream`, pushing `OperationDTO` updates as they happen, is P2.7's job. This document is the DTO that channel carries; it does not itself design the streaming transport.

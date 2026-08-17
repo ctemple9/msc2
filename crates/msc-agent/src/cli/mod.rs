@@ -646,21 +646,17 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
 
             let result: ServerImportResultDto =
                 client.post_json("/v1/servers/import", &body).await?;
-            if common.json {
-                print_json(&result)?;
-            } else {
+            if !common.json {
                 println!("{}", result.message);
-                if let Some(server_name) = &result.server_name {
-                    println!("server: {server_name}");
-                }
-                if let Some(server_id) = &result.server_id {
-                    println!("server id: {server_id}");
-                }
-                if let Some(operation_id) = &result.operation_id {
-                    println!("operation id: {operation_id}");
-                }
             }
-            Ok(())
+            finish_operation(
+                &client,
+                common.json,
+                false,
+                result.operation_id,
+                "server import",
+            )
+            .await
         }
         ServerCommand::Rescan => {
             let body = ServerImportRequestDto {
@@ -681,18 +677,17 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
             };
             let result: ServerImportResultDto =
                 client.post_json("/v1/servers/import", &body).await?;
-            if common.json {
-                print_json(&result)?;
-            } else {
+            if !common.json {
                 println!("{}", result.message);
-                if let Some(imported) = result.imported {
-                    println!("imported: {imported}");
-                }
-                if let Some(skipped) = result.skipped {
-                    println!("skipped: {skipped}");
-                }
             }
-            Ok(())
+            finish_operation(
+                &client,
+                common.json,
+                false,
+                result.operation_id,
+                "server rescan",
+            )
+            .await
         }
         ServerCommand::Start { server } => {
             if server.is_some() {

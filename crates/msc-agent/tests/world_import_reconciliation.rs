@@ -133,12 +133,19 @@ fn world_import_reconciliation_degrades_only_the_broken_server_and_is_idempotent
         ),
     );
     assert!(
-        import_response.starts_with("HTTP/1.1 200"),
-        "post-start import should remain registered for diagnosis: {import_response}"
+        import_response.starts_with("HTTP/1.1 202"),
+        "post-start import should be accepted promptly: {import_response}"
     );
-    let imported_id = response_json(&import_response)["serverId"]
+    let operation_id = response_json(&import_response)["operationId"]
         .as_str()
-        .expect("import response carries serverId")
+        .expect("import response carries operationId")
+        .to_string();
+    let operation = wait_for_operation(port, &operation_id);
+    assert_eq!(operation["state"], "succeeded", "{operation}");
+    assert_eq!(operation["result"]["ready"], "false", "{operation}");
+    let imported_id = operation["result"]["serverId"]
+        .as_str()
+        .expect("completed import operation carries serverId")
         .to_string();
     let activation = http_post(
         port,
@@ -331,6 +338,24 @@ fn wait_for_health(port: u16) {
         thread::sleep(Duration::from_millis(100));
     }
     panic!("agent did not become healthy");
+}
+
+fn wait_for_operation(port: u16, operation_id: &str) -> serde_json::Value {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while Instant::now() < deadline {
+        let response = http_get(port, &format!("/v1/operations/{operation_id}"), Some(TOKEN));
+        if response.starts_with("HTTP/1.1 200") {
+            let operation = response_json(&response);
+            if matches!(
+                operation["state"].as_str(),
+                Some("succeeded" | "failed" | "cancelled")
+            ) {
+                return operation;
+            }
+        }
+        thread::sleep(Duration::from_millis(50));
+    }
+    panic!("operation {operation_id} did not become terminal");
 }
 
 fn http_get(port: u16, path: &str, bearer: Option<&str>) -> String {

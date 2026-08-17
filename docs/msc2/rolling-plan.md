@@ -1236,11 +1236,102 @@ whether it's worth its own dedicated correction step or folds into
 P6.36's gate re-run.
 
 ### P6.36 — Re-run the literal Phase 6 exit gate
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/rolling-plan.md`, `docs/msc2/client-capability-matrix.csv` (tracking corrections only unless the gate finds a defect)
 **What:** First audit the capability matrix against the service logic and CLI that actually exist, correcting stale `Planned` cells without claiming later desktop/web work. Then re-run the working gate rather than the old checklist: formatting; native, Linux, and Windows clippy; every workspace test; API and matrix checks; synthetic public smoke including scheduled firing/cancellation/replacement; real corpus through public operations; and exact-commit macOS/Linux/Windows CI. Inspect all recovered worlds, slots, transaction markers, backup archives, metadata, and operation records. Stop at the first failure and plan only that correction. Cameron alone marks this step `DONE` and advances Phase 7.
 **Verify:** `cargo fmt --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings && cargo nextest run --workspace && python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && tools/phase6/phase6-gate-smoke.sh --synthetic && test -n "$MSC2_PHASE6_PRIVATE_CORPUS" && python3 tools/phase6/corpus-check.py --exercise --worlds corpus/worlds --backups corpus/backups --private-root "$MSC2_PHASE6_PRIVATE_CORPUS" && gh workflow run ci.yml --ref "$(git branch --show-current)" && sleep 5 && run_id=$(gh run list --workflow ci.yml --branch "$(git branch --show-current)" --limit 1 --json databaseId --jq '.[0].databaseId') && test -n "$run_id" && gh run watch "$run_id" --exit-status`
 **Commit:** `P6.36: re-run the phase 6 exit gate`
 **Batch:** solo
+
+**Actual result:** Audited every `docs/msc2/client-capability-matrix.csv` row
+against the routes actually mounted in `crates/msc-agent/src/main.rs`
+(`build_app()`'s `worlds`/`backups` sub-routers, both merged into
+`protected` alongside `lifecycle`/`operations`/`console`) and the CLI
+subcommands actually defined in `crates/msc-agent/src/cli/mod.rs`
+(`WorldCommand`, `BackupCommand`, `BackupConfigCommand`). Every world/backup
+route the matrix still called `agent_status: Planned` for turned out to
+already be wired to a real handler with genuine logic behind it (not a
+stub) — confirmed by reading each handler body, not just its route
+registration. Corrected 22 `agent_status` cells from `Planned` to
+`Implemented`: all 6 `/v1/backups*` rows and 16 `/v1/worlds*`/staged-upload/
+staged-download rows. Of those, 16 also got their `cli_status` cell
+corrected to `Implemented` because a direct CLI subcommand exists for that
+exact operation (`backup list/config get/config set/delete/now/restore`,
+`world list/activate/convert/create/delete/duplicate/export/import/rename/
+copy`). Left three cells deliberately unchanged, each for a specific
+reason:
+
+- `POST /v1/worlds/repair` stayed `Planned` — its handler
+  (`routes/worlds.rs:537`) unconditionally returns a `bedrock_only`
+  conflict; there is no real repair path behind it yet (matches its own
+  existing note, "live workflow stays unavailable until Phase 10").
+- `cli_status` stayed `Planned` on `rename-active-world`, `update`,
+  `thumbnail`, and both staged-upload/staged-download rows — each route is
+  real, but no CLI subcommand calls it directly. `world import`/`export`/
+  `replace-active` do call the staged-upload/download routes internally as
+  plumbing, but the existing matrix already treats indirect internal use as
+  non-qualifying: `POST /v1/operations` stays `cli_status: Planned` despite
+  every long-running CLI command creating one under the hood. Followed that
+  same precedent rather than inventing a new rule.
+- `desktop_web_status` and `ios_status` were not touched anywhere — this
+  step's own text scopes the audit to "the service logic and CLI that
+  actually exist," and desktop/web is explicitly Phase 11 on every row
+  regardless (`capability-matrix-check.py`'s own rule 3).
+
+`python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+passes after the correction (108 contract operations, all matched; 96
+namespace-ok; desktop/web still Planned everywhere).
+
+Then ran the gate itself, in the order the `Verify:` line lists, stopping
+at the first failure:
+
+1. `cargo fmt --check` — clean.
+2. `cargo clippy --workspace --all-targets -- -D warnings` — clean.
+3. `cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings` — clean.
+4. `cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings` — clean.
+5. `cargo nextest run --workspace` — 780 tests run: 780 passed (1 leaky), 0 skipped.
+6. `python3 tools/api-contract-check.py --v1-summary` — **failed**:
+   ```
+   namespace: ok 96
+   missing-category: 0
+   non-errordto-responses: 0
+   missing-helpid: 0
+   routes: 106
+     expected 105
+   ```
+
+Stopped there, per this step's own instruction to stop at the first
+failure and plan only that correction — did not run
+`capability-matrix-check.py`, `phase6-gate-smoke.sh`, `corpus-check.py`, or
+the CI workflow, since the gate is a `&&` chain and none of those run for
+real once an earlier link fails.
+
+**The failure, and the one correction to plan:** `tools/api-contract-check.py:33`
+hardcodes `EXPECTED_TOTAL = 105` with a comment explaining its derivation
+("88 baseline (P0.23 --total) + 5 P2.8 + 12 P6.8 ..."). The real route
+count is 106 — one higher — because P6.34 added
+`POST /v1/worlds/replace-active-world` (`replaceActiveWorld`) without
+bumping this constant. This is exactly the gap P6.34's own report and
+P6.35's own "Noticed, not acted on" list already named; this gate re-run
+is the first time it was ever actually *run* as a hard check rather than
+just flagged, so it's the first real failure the literal gate hits. The
+correction is one line: bump `EXPECTED_TOTAL` from `105` to `106` in
+`tools/api-contract-check.py`, extend its explanatory comment to name the
+P6.34 route, then re-run this same gate from the top. `tools/
+api-contract-check.py` is not in this step's own `Files:` list, so it was
+not edited here — that's the next correction step, not a fix folded into
+this one.
+
+**Verify (what actually ran here):** `cargo fmt --check && cargo clippy
+--workspace --all-targets -- -D warnings && cargo clippy --workspace
+--all-targets --target x86_64-unknown-linux-gnu -- -D warnings && cargo
+clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D
+warnings && cargo nextest run --workspace && python3
+tools/api-contract-check.py --v1-summary` (stops here, exit 1, by design)
+`&& python3 tools/phase6/capability-matrix-check.py
+docs/msc2/client-capability-matrix.csv` (passes on its own if run alone;
+not reached by the chain above). The full chain in this step's own
+`Verify:` line is what Cameron should run once the `EXPECTED_TOTAL`
+correction lands — it will still stop at the same place until then.
 
 ---

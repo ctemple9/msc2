@@ -1359,7 +1359,11 @@ pub fn activate_slot(
     let current_folders = existing_world_folders(fs, server_dir, server_type, &current_level_name);
 
     if !current_folders.is_empty() && !backup() {
-        return Err(ActivationError::BackupFailed);
+        return if should_cancel() {
+            Err(ActivationError::Cancelled)
+        } else {
+            Err(ActivationError::BackupFailed)
+        };
     }
 
     let manifest_path = activation_manifest_path(server_dir);
@@ -1843,9 +1847,13 @@ pub fn replace_world(
             now,
             None,
             || false,
-            || false,
-        )
-        .map_err(WorldError::SafetyBackupFailed)?;
+            &should_cancel,
+        );
+        let result = match result {
+            Ok(result) => result,
+            Err(crate::backups::BackupError::Cancelled) => return Err(WorldError::Cancelled),
+            Err(error) => return Err(WorldError::SafetyBackupFailed(error)),
+        };
         Some(result.zip_path)
     } else {
         None

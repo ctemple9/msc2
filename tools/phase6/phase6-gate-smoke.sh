@@ -357,9 +357,9 @@ PY
 }
 
 operation_cancel() {
-  # Raw `POST /v1/operations/{id}/cancel` -- blocks (agent-side, up to
-  # 30s) until the operation the worker itself observes and stops, per
-  # `routes/operations.rs::cancel`'s own truthful-cancellation doc.
+  # Raw `POST /v1/operations/{id}/cancel` -- P6.40 returns immediately:
+  # 202 while cooperative cleanup is pending, or 200 only if the worker
+  # completed cancellation before the route's single re-read.
   local operation_id="$1"
   python3 - "${BASE_URL}" "${TOKEN}" "${operation_id}" <<'PY'
 import json
@@ -376,8 +376,11 @@ req = urllib.request.Request(
     },
     method="POST",
 )
-with urllib.request.urlopen(req, timeout=35) as resp:
-    print(resp.read().decode())
+with urllib.request.urlopen(req, timeout=5) as resp:
+    print(json.dumps({
+        "httpStatus": resp.status,
+        "operation": json.loads(resp.read().decode()),
+    }))
 PY
 }
 
@@ -1250,19 +1253,10 @@ echo "every surviving backup after pruning is a valid, restorable archive -- pru
 # second mutation until rollback/cleanup finishes, and the live world
 # is left completely untouched once it does.
 #
-# `activate_slot`'s own `should_cancel` is polled at exactly two
-# boundaries where the live world hasn't been touched yet -- before
-# its mandatory safety backup begins, and again once staging is
-# complete but before the live folders are moved
-# (`crates/msc-application/src/worlds.rs`'s own doc). The safety
-# backup runs unconditionally between those two checks and is not
-# itself cancellable mid-flight -- so a real, deterministic window
-# (not a timing race) needs that backup to take long enough in real
-# wall-clock time for an HTTP cancel request to land before the second
-# check. A real ~100MB write into the *currently live* world (what the
-# safety backup actually zips) does that honestly -- genuinely slower
-# than one loopback HTTP round trip, not a fixture standing in for a
-# real delay.
+# The mandatory safety backup now carries the operation's cancellation
+# signal into the archive writer. A real ~100MB file makes the request
+# land during bounded chunk copying; cancellation removes the partial
+# ZIP before the worker finalizes its record.
 # =====================================================================
 echo "== cancel an in-flight mutation =="
 run_msc server stop >/dev/null 2>&1 || true
@@ -1293,11 +1287,36 @@ CANCEL_OPERATION_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["
 expect_fail backup now
 echo "second mutation correctly refused while the in-flight activation holds the server"
 
-CANCELLED_RECORD="$(operation_cancel "${CANCEL_OPERATION_ID}")"
+CANCEL_RESPONSE="$(operation_cancel "${CANCEL_OPERATION_ID}")"
+CANCEL_HTTP_STATUS="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["httpStatus"])' <<<"${CANCEL_RESPONSE}")"
+[[ "${CANCEL_HTTP_STATUS}" == "202" ]] || fail "pending cancellation did not return 202 Accepted: ${CANCEL_RESPONSE}"
+CANCEL_ACCEPTED_RECORD="$(python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["operation"]))' <<<"${CANCEL_RESPONSE}")"
+CANCEL_ACCEPTED_STATE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])' <<<"${CANCEL_ACCEPTED_RECORD}")"
+[[ "${CANCEL_ACCEPTED_STATE}" == "running" ]] || fail "202 cancellation response was not still running: ${CANCEL_RESPONSE}"
+
+CANCELLED_RECORD=""
+for _ in $(seq 1 200); do
+  CANCELLED_RECORD="$(operation_json "${CANCEL_OPERATION_ID}")"
+  CANCELLED_STATE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])' <<<"${CANCELLED_RECORD}")"
+  [[ "${CANCELLED_STATE}" == "running" ]] || break
+  sleep 0.05
+done
 CANCELLED_STATE="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["state"])' <<<"${CANCELLED_RECORD}")"
 CANCELLED_STATUS_LINE="$(python3 -c 'import json,sys; print(json.load(sys.stdin).get("statusLine") or "")' <<<"${CANCELLED_RECORD}")"
 [[ "${CANCELLED_STATE}" == "cancelled" ]] || fail "in-flight activation did not reach cancelled state (got ${CANCELLED_STATE}): ${CANCELLED_RECORD}"
 [[ "${CANCELLED_STATUS_LINE}" == *[Cc]ancel* ]] || fail "cancelled operation record does not explain itself (statusLine: ${CANCELLED_STATUS_LINE})"
+
+python3 - "${SERVER_DIR}/backups" <<'PY'
+import pathlib
+import sys
+import zipfile
+
+backups_dir = pathlib.Path(sys.argv[1])
+for path in backups_dir.glob("*.zip"):
+    with zipfile.ZipFile(path) as archive:
+        assert archive.testzip() is None, f"partial/corrupt backup remained after cancellation: {path}"
+assert not list(backups_dir.glob("*.tmp")), "temporary backup artifact remained after cancellation"
+PY
 
 [[ "$(active_slot_id)" == "${PRE_CANCEL_ACTIVE_SLOT}" ]] || fail "a cancelled activation changed the active slot (should_cancel's own boundary is before the live world is touched)"
 [[ "$(read_generation)" == "${PRE_CANCEL_GENERATION}" ]] || fail "a cancelled activation changed the live world's generation marker"

@@ -188,6 +188,22 @@ fn dto_conformance_operation_dto_failed_matches_schema() {
     assert_conforms(&contract, schema, &instance, "OperationDTO");
 }
 
+/// P6.40's cooperative-cancellation wire rule is part of the contract,
+/// not an agent-only implementation detail.
+#[test]
+fn dto_conformance_operation_cancellation_declares_pending_and_completed_responses() {
+    let contract = load_contract();
+    let responses = &contract["paths"]["/v1/operations/{id}/cancel"]["post"]["responses"];
+    assert!(responses.get("200").is_some());
+    assert!(responses.get("202").is_some());
+    assert!(responses.get("404").is_some());
+    assert!(responses.get("409").is_some());
+    assert_eq!(
+        responses["202"]["content"]["application/json"]["schema"]["$ref"],
+        "#/components/schemas/OperationDTO"
+    );
+}
+
 /// `capability-model.md` §3's own worked example.
 #[test]
 fn dto_conformance_capabilities_dto_matches_schema() {

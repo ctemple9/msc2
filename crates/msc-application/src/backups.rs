@@ -127,12 +127,9 @@ pub enum BackupError {
     /// correction (see the module-level P6.16 doc), with no Swift
     /// counterpart: MSC 1 treats a zero `zip` exit status as sufficient.
     VerificationFailed,
-    /// `should_cancel` (P6.30) reported true before archive creation
-    /// began — nothing was written. Checked once, at entry only: once
-    /// `archive::create_zip_from_folders` starts, this function's own
-    /// work is already a single atomic filesystem action (one archive
-    /// write), the same "finish it safely" rule every other P6.30 worker
-    /// boundary follows.
+    /// `should_cancel` reported true before or during archive creation.
+    /// The archive writer removes its incomplete destination before this
+    /// error is returned.
     Cancelled,
 }
 
@@ -197,8 +194,8 @@ pub struct BackupCreationResult {
 ///   the same shape `worlds::activate_slot`'s `backup` parameter uses
 ///   for the same reason (a caller-observed condition this function
 ///   can't itself know without asking).
-/// - `should_cancel` (P6.30): polled once, before any directory is
-///   created or byte is written — see [`BackupError::Cancelled`].
+/// - `should_cancel`: polled before setup and by the archive writer
+///   between bounded read/write chunks — see [`BackupError::Cancelled`].
 #[allow(clippy::too_many_arguments)]
 pub fn create_backup(
     fs: &dyn FileSystem,
@@ -254,14 +251,23 @@ pub fn create_backup(
         None => false,
     };
 
-    let zip_result = archive::create_zip_from_folders(&zip_path, server_dir, &folders);
+    let zip_result = archive::create_zip_from_folders_cancellable(
+        &zip_path,
+        server_dir,
+        &folders,
+        &should_cancel,
+    );
 
     if saves_paused {
         let console = console.expect("saves_paused is only true when console was Some");
         resume_saves_after_backup(console, is_bedrock, still_running_at_resume());
     }
 
-    zip_result.map_err(BackupError::Archive)?;
+    match zip_result {
+        Ok(()) => {}
+        Err(ArchiveError::Cancelled) => return Err(BackupError::Cancelled),
+        Err(error) => return Err(BackupError::Archive(error)),
+    }
 
     if archive::validate_archive_safety(&zip_path).is_err()
         || !archive_contains_every_folder(&zip_path, &folders)
@@ -740,9 +746,13 @@ pub fn restore_backup(
         now,
         None,
         || false,
-        || false,
-    )
-    .map_err(RestoreError::SafetyBackupFailed)?;
+        &should_cancel,
+    );
+    let safety_backup = match safety_backup {
+        Ok(result) => result,
+        Err(BackupError::Cancelled) => return Err(RestoreError::Cancelled),
+        Err(error) => return Err(RestoreError::SafetyBackupFailed(error)),
+    };
 
     if archive::validate_archive_safety(backup_zip_path).is_err() {
         return Err(RestoreError::ArchiveInvalid);

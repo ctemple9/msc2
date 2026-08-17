@@ -3498,7 +3498,17 @@
         ],
         "responses": {
           "200": {
-            "description": "Updated OperationDTO, state: cancelled.",
+            "description": "Cancellation completed before the response; updated OperationDTO has state: cancelled.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationDTO"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Cancellation accepted but still pending; OperationDTO remains running with statusLine: Cancelling. Poll or stream until terminal.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3531,7 +3541,7 @@
             "x-help-id": "operations.cancel-not-legal"
           }
         },
-        "x-notes": "P2.5 SS4.3."
+        "x-notes": "P2.5 SS4.3, corrected by P6.40: cancellation is cooperative and pending requests return 202 without a server-side wait."
       }
     },
     "/v1/capabilities": {

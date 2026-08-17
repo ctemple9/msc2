@@ -32,7 +32,7 @@
 
 use std::fmt;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
@@ -85,6 +85,10 @@ pub enum ArchiveError {
         declared: u64,
         limit: u64,
     },
+    /// Archive creation stopped after its cooperative cancellation flag
+    /// was observed. The partially-written destination is removed before
+    /// this error is returned.
+    Cancelled,
     Io(io::Error),
 }
 
@@ -104,6 +108,7 @@ impl fmt::Display for ArchiveError {
                 f,
                 "extraction refused: {declared} declared uncompressed bytes exceeds limit of {limit}"
             ),
+            ArchiveError::Cancelled => write!(f, "archive creation was cancelled"),
             ArchiveError::Io(e) => write!(f, "{e}"),
         }
     }
@@ -313,17 +318,32 @@ fn add_directory_entry<W: Write + io::Seek>(
         .map_err(|e| ArchiveError::Corrupt(e.to_string()))
 }
 
-fn add_file_entry<W: Write + io::Seek>(
+fn add_file_from_disk<W: Write + io::Seek, F: Fn() -> bool>(
     zip: &mut ZipWriter<W>,
     name: &str,
-    bytes: &[u8],
+    disk_path: &Path,
+    should_cancel: &F,
 ) -> Result<(), ArchiveError> {
     let opts = SimpleFileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .unix_permissions(0o644);
     zip.start_file(name, opts)
         .map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
-    zip.write_all(bytes).map_err(ArchiveError::Io)?;
+    let mut input = fs::File::open(disk_path).map_err(ArchiveError::Io)?;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        if should_cancel() {
+            return Err(ArchiveError::Cancelled);
+        }
+        let read = input.read(&mut buffer).map_err(ArchiveError::Io)?;
+        if read == 0 {
+            break;
+        }
+        if should_cancel() {
+            return Err(ArchiveError::Cancelled);
+        }
+        zip.write_all(&buffer[..read]).map_err(ArchiveError::Io)?;
+    }
     Ok(())
 }
 
@@ -334,11 +354,15 @@ fn add_file_entry<W: Write + io::Seek>(
 /// unspecified), so this is a Rust-side improvement, not a parity
 /// requirement, matching the same precedent already set by
 /// `msc-application::transfer`'s own `add_dir_recursive`.
-fn add_dir_recursive<W: Write + io::Seek>(
+fn add_dir_recursive<W: Write + io::Seek, F: Fn() -> bool>(
     zip: &mut ZipWriter<W>,
     disk_dir: &Path,
     zip_prefix: &str,
+    should_cancel: &F,
 ) -> Result<(), ArchiveError> {
+    if should_cancel() {
+        return Err(ArchiveError::Cancelled);
+    }
     add_directory_entry(zip, zip_prefix)?;
     let mut entries: Vec<_> = fs::read_dir(disk_dir)
         .map_err(ArchiveError::Io)?
@@ -351,10 +375,9 @@ fn add_dir_recursive<W: Write + io::Seek>(
         let zip_path = format!("{zip_prefix}/{name}");
         let file_type = entry.file_type().map_err(ArchiveError::Io)?;
         if file_type.is_dir() {
-            add_dir_recursive(zip, &path, &zip_path)?;
+            add_dir_recursive(zip, &path, &zip_path, should_cancel)?;
         } else if file_type.is_file() {
-            let bytes = fs::read(&path).map_err(ArchiveError::Io)?;
-            add_file_entry(zip, &zip_path, &bytes)?;
+            add_file_from_disk(zip, &zip_path, &path, should_cancel)?;
         }
         // A symlink inside a source world folder is neither expected nor
         // specially handled — the same "don't invent new source-side
@@ -379,15 +402,49 @@ pub fn create_zip_from_folders(
     base_dir: &Path,
     folder_names: &[String],
 ) -> Result<(), ArchiveError> {
-    let file = fs::File::create(dest_zip_path).map_err(ArchiveError::Io)?;
-    let mut zip = ZipWriter::new(file);
-    for name in folder_names {
-        let disk_dir = base_dir.join(name);
-        if disk_dir.is_dir() {
-            add_dir_recursive(&mut zip, &disk_dir, name)?;
+    create_zip_from_folders_cancellable(dest_zip_path, base_dir, folder_names, || false)
+}
+
+/// Cancellable form of [`create_zip_from_folders`]. The cancellation
+/// signal is checked before each directory and between 64 KiB file
+/// read/write chunks. Any cancellation or write failure removes the
+/// incomplete destination before returning, so callers never mistake a
+/// partial ZIP for a recovery point.
+pub fn create_zip_from_folders_cancellable(
+    dest_zip_path: &Path,
+    base_dir: &Path,
+    folder_names: &[String],
+    should_cancel: impl Fn() -> bool,
+) -> Result<(), ArchiveError> {
+    let result = (|| {
+        if should_cancel() {
+            return Err(ArchiveError::Cancelled);
+        }
+        let file = fs::File::create(dest_zip_path).map_err(ArchiveError::Io)?;
+        let mut zip = ZipWriter::new(file);
+        for name in folder_names {
+            if should_cancel() {
+                return Err(ArchiveError::Cancelled);
+            }
+            let disk_dir = base_dir.join(name);
+            if disk_dir.is_dir() {
+                add_dir_recursive(&mut zip, &disk_dir, name, &should_cancel)?;
+            }
+        }
+        if should_cancel() {
+            return Err(ArchiveError::Cancelled);
+        }
+        zip.finish()
+            .map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
+        Ok(())
+    })();
+
+    if result.is_err() {
+        match fs::remove_file(dest_zip_path) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            Err(_) => {}
         }
     }
-    zip.finish()
-        .map_err(|e| ArchiveError::Corrupt(e.to_string()))?;
-    Ok(())
+    result
 }

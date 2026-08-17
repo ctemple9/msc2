@@ -23,16 +23,13 @@
 //! request/response cycle, so it's already terminal by the time a client
 //! could poll or cancel it.
 //!
-//! **Cancellation is real at the operation-record level only.** A
-//! `POST /v1/operations/{id}/cancel` against one of the four async
-//! operations marks the *record* cancelled, but none of
-//! `worlds::activate_slot`/`world_conversion::convert_world`/
-//! `backups::create_backup`/`backups::restore_backup` accept a
-//! cancellation token — there is no injectable interruption point in the
-//! P6.9-19 application layer today, and adding one is out of this step's
-//! scope. A "cancelled" operation's real filesystem/process work still
-//! runs to completion in the background; this is a known, flagged
-//! limitation, not a silent one.
+//! **Cancellation is cooperative and truthful.** A
+//! `POST /v1/operations/{id}/cancel` signals the operation's worker and
+//! returns `202` while cleanup is pending. World transactions poll at
+//! boundaries before touching the live world, and backup creation polls
+//! between bounded archive chunks; only the worker records `cancelled`
+//! after its cleanup has finished, so per-server exclusivity remains held
+//! for the entire mutation lifetime.
 //!
 //! **Audit attribution is scoped to this module and `routes/backups.rs`
 //! only.** `msc_infrastructure::audit_log::AuditLog` is wired here (one
@@ -1165,6 +1162,7 @@ pub async fn activate(
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
     let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
+    let backup_should_cancel = should_cancel.clone();
     tokio::spawn(async move {
         let now = iso8601_now();
         let backup_lifecycle = task_lifecycle.clone();
@@ -1184,6 +1182,7 @@ pub async fn activate(
                         &backup_dir,
                         backup_type,
                         raw_level_name.as_deref(),
+                        &backup_should_cancel,
                     )
                 },
                 should_cancel,
@@ -1247,6 +1246,7 @@ fn run_pre_mutation_safety_backup(
     server_dir: &Path,
     server_type: ServerType,
     raw_level_name: Option<&str>,
+    should_cancel: impl Fn() -> bool,
 ) -> bool {
     let _ = lifecycle;
     let now = iso8601_now();
@@ -1270,7 +1270,7 @@ fn run_pre_mutation_safety_backup(
         &now,
         None,
         || false,
-        || false,
+        should_cancel,
     )
     .is_ok()
 }
@@ -1600,6 +1600,7 @@ pub async fn convert(
     let task_operation_id = operation_id.clone();
     let task_operation_id_progress = operation_id.clone();
     let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
+    let backup_should_cancel = should_cancel.clone();
     tokio::spawn(async move {
         let now = iso8601_now();
         let backup_lifecycle = task_lifecycle.clone();
@@ -1636,6 +1637,7 @@ pub async fn convert(
                         &backup_dir,
                         backup_type,
                         target_raw_level_name.as_deref(),
+                        &backup_should_cancel,
                     )
                 },
                 &mut progress,

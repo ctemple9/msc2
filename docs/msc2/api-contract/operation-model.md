@@ -70,9 +70,9 @@ Failure: unknown `id` is `404` with `ErrorDTO` (`code: "not_found"`, `helpId: "o
 
 #### 4.3 `POST /v1/operations/{id}/cancel` — request cancellation
 
-No request body. Response: `200` with the updated `OperationDTO` (`state: "cancelled"`) if the operation was `queued` or `running`.
+No request body. Cancellation is cooperative: the agent sets the request and re-reads the operation once without waiting for the worker. Response: `200` with the updated `OperationDTO` only when the worker has already completed cancellation (`state: "cancelled"`) before that re-read. Otherwise the response is `202 Accepted` with the still-running `OperationDTO` (normally `state: "running"`, `statusLine: "Cancelling…"`); clients poll `GET /v1/operations/{id}` or follow the operation stream until the worker reaches a terminal state. The per-target operation lock remains held until that worker finishes cleanup and records its own terminal transition.
 
-Failure: `409` with `ErrorDTO` (`code: "conflict"`, `helpId: "operations.cancel-not-legal"`) if the operation is already terminal — cancelling a finished operation is refused, not treated as a silent no-op, so a client always knows whether its cancel actually did anything. Unknown `id` is `404`, same as §4.2.
+Failure: `409` with `ErrorDTO` (`code: "conflict"`, `helpId: "operations.cancel-not-legal"`) if the operation was already terminal before the cancellation request — cancelling a finished operation is refused, not treated as a silent no-op, so a client always knows whether its cancel actually did anything. Unknown `id` is `404`, same as §4.2.
 
 ### 5. Not designed here
 

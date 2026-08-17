@@ -8,9 +8,9 @@
 //! (`operation-model.md` §2), is driven by a background "ticker" task that
 //! advances a freshly-created operation `queued → running → succeeded`
 //! over a couple of seconds. **Cancellation is cooperative and truthful
-//! (P6.30):** `POST .../cancel` only signals a flag
-//! (`OperationsState::request_cancel`) and waits for the ticker — the
-//! same pattern every real Phase 6 worker (`worlds::activate_slot`/
+//! (P6.40):** `POST .../cancel` only signals a flag
+//! (`OperationsState::request_cancel`) and immediately returns `202`
+//! while the worker is still stopping. Every real Phase 6 worker (`worlds::activate_slot`/
 //! `world_conversion::convert_world`/`backups::create_backup`/
 //! `backups::restore_backup`) now follows — to observe it at its own
 //! safe boundary and finalize the transition itself
@@ -212,10 +212,10 @@ pub async fn get(State(store): State<OperationsState>, Path(id): Path<String>) -
 /// non-terminal operation; a terminal one is `409 conflict`, per the same
 /// transition table `msc_domain::operation::OperationState` enforces.
 ///
-/// **Truthful cancellation (P6.30).** This handler never transitions the
+/// **Truthful cancellation (P6.40).** This handler never transitions the
 /// operation to `cancelled` itself — it only signals the request
-/// ([`OperationsState::request_cancel`]) and then waits for the worker
-/// that owns the operation to actually observe that signal at one of its
+/// ([`OperationsState::request_cancel`]) and then re-reads the record
+/// once. The worker that owns the operation must observe that signal at one of its
 /// own safe boundaries and stop, exactly the way `spawn_demo_ticker`'s
 /// own loop below and every real Phase 6 worker
 /// (`worlds::activate_slot`/`world_conversion::convert_world`/
@@ -223,12 +223,10 @@ pub async fn get(State(store): State<OperationsState>, Path(id): Path<String>) -
 /// `cancelled` before that has happened would be a lie: the real
 /// filesystem/process work could still be running, and the per-target
 /// exclusivity lock (still held by the non-terminal journal entry) would
-/// have been released early. The wait is bounded — a worker already past
-/// its last cancellable boundary can take a while to finish a large
-/// filesystem move — so a client that outlasts [`CANCEL_WAIT_TIMEOUT`]
-/// gets back the operation's honest current state (still `running`, with
-/// a "Cancelling…" status line) rather than a response that blocks
-/// forever; it can keep polling `GET /v1/operations/{id}` the normal way.
+/// have been released early. If the worker has already finalized
+/// cancellation by the one re-read, the response is `200`; otherwise it
+/// is `202 Accepted` with the honest current record and the client keeps
+/// polling `GET /v1/operations/{id}` or the operation stream.
 pub async fn cancel(State(store): State<OperationsState>, Path(id): Path<String>) -> Response {
     let id = OperationId::new(id);
     let Some(record) = store.snapshot(id.as_str()) else {
@@ -246,29 +244,16 @@ pub async fn cancel(State(store): State<OperationsState>, Path(id): Path<String>
         return operation_error_response(error);
     }
 
-    let deadline = tokio::time::Instant::now() + CANCEL_WAIT_TIMEOUT;
-    loop {
-        let snapshot = store
-            .snapshot(id.as_str())
-            .expect("operation ids are never removed once created");
-        let terminal = matches!(
-            snapshot.state,
-            OperationStateDto::Succeeded | OperationStateDto::Failed | OperationStateDto::Cancelled
-        );
-        if terminal || tokio::time::Instant::now() >= deadline {
-            return (StatusCode::OK, Json(snapshot)).into_response();
-        }
-        tokio::time::sleep(CANCEL_POLL_INTERVAL).await;
-    }
+    let snapshot = store
+        .snapshot(id.as_str())
+        .expect("operation ids are never removed once created");
+    let status = if snapshot.state == OperationStateDto::Cancelled {
+        StatusCode::OK
+    } else {
+        StatusCode::ACCEPTED
+    };
+    (status, Json(snapshot)).into_response()
 }
-
-/// How long `cancel` waits for a worker to actually stop before returning
-/// the operation's current (possibly still-`running`) state — generous
-/// enough for a real large-world filesystem move already past its last
-/// cancellable boundary, bounded so the HTTP response itself can't hang
-/// indefinitely.
-const CANCEL_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
-const CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 /// Advances a freshly-created operation `queued → running → succeeded`
 /// over ~1.5s, polling [`OperationsState::cancellation_check`]'s flag
@@ -427,14 +412,11 @@ mod tests {
         serde_json::from_slice(&bytes).unwrap()
     }
 
-    /// `cancel` must not report `cancelled` the instant it's called —
-    /// only once the ticker (the operation's own "worker") has actually
-    /// observed the flag and stopped. Requesting cancellation before the
-    /// ticker's very first tick (300ms) and asserting the response is
-    /// still `cancelled` proves the handler genuinely waited rather than
-    /// racing ahead of the real work.
+    /// `cancel` returns `202` while the worker still owns the operation,
+    /// then normal polling observes the worker's truthful terminal
+    /// transition.
     #[tokio::test]
-    async fn operation_cancellation_cancel_waits_for_ticker_to_actually_stop() {
+    async fn operation_cancellation_cancel_returns_accepted_then_worker_stops() {
         let store = OperationsState::fake_journaled();
         let created = create(
             State(store.clone()),
@@ -444,16 +426,25 @@ mod tests {
         assert_eq!(created.status(), StatusCode::ACCEPTED);
         let created: OperationDto = json_body(created).await;
 
-        // No sleep here on purpose: this races the ticker's first 300ms
-        // tick, proving `cancel` itself blocks until the ticker gets
-        // there rather than returning early.
-        let cancelled = cancel(State(store.clone()), Path(created.id.clone())).await;
-        assert_eq!(cancelled.status(), StatusCode::OK);
-        let cancelled: OperationDto = json_body(cancelled).await;
-        assert_eq!(cancelled.state, OperationStateDto::Cancelled);
+        let accepted = cancel(State(store.clone()), Path(created.id.clone())).await;
+        assert_eq!(accepted.status(), StatusCode::ACCEPTED);
+        let accepted: OperationDto = json_body(accepted).await;
+        assert_eq!(accepted.state, OperationStateDto::Running);
+        assert_eq!(accepted.status_line.as_deref(), Some("Cancelling…"));
 
-        // And the record that's actually stored agrees — no lie left
-        // behind for a later `GET` to contradict.
+        let mut reached_cancelled = false;
+        for _ in 0..20 {
+            tokio::time::sleep(Duration::from_millis(50)).await;
+            if store
+                .snapshot(&created.id)
+                .is_some_and(|record| record.state == OperationStateDto::Cancelled)
+            {
+                reached_cancelled = true;
+                break;
+            }
+        }
+        assert!(reached_cancelled, "worker never finalized cancellation");
+
         let fetched = get(State(store), Path(created.id)).await;
         let fetched: OperationDto = json_body(fetched).await;
         assert_eq!(fetched.state, OperationStateDto::Cancelled);
@@ -463,9 +454,8 @@ mod tests {
     /// the worker), the operation's target stays exclusively held — a
     /// second mutation against the same target is refused exactly as it
     /// would be for any other non-terminal operation. Uses
-    /// `request_cancel` directly (not the `cancel` route, which blocks
-    /// until terminal) so the assertion lands in the genuinely pending
-    /// window.
+    /// `request_cancel` directly so the assertion lands in the genuinely
+    /// pending window without racing the demo worker.
     #[tokio::test]
     async fn operation_cancellation_target_stays_held_while_cancellation_pending() {
         let store = OperationsState::fake_journaled();

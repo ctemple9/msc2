@@ -1,17 +1,16 @@
-//! Black-box smoke test for P6.30's operation routes in `build_app()`
+//! Black-box smoke test for P6.40's operation routes in `build_app()`
 //! (`main.rs`): a real `msc serve` process must still expose
 //! `POST /v1/operations`, `GET /v1/operations/{id}`, and
 //! `POST /v1/operations/{id}/cancel` mounted behind the same bearer-auth
-//! gate every other protected route uses, after P6.30 changed `cancel`'s
-//! internal behavior (it now waits for the target operation's worker to
-//! actually stop before responding, instead of transitioning state
-//! itself).
+//! gate every other protected route uses. P6.40 makes `cancel` return
+//! `202` immediately while the target worker is still stopping instead
+//! of waiting inside the HTTP request or transitioning state itself.
 //!
 //! This crate has no `lib.rs`, so an external test file can't reach
 //! `OperationsState::request_cancel`/`cancellation_check` or the real
 //! `demo-install` ticker directly — the substantive truthful-cancellation
-//! behavior (cancel blocks for the worker, the target stays exclusively
-//! held while cancellation is pending, a cancel that arrives after
+//! behavior (cancel returns Accepted while pending, the target stays
+//! exclusively held, and a cancel that arrives after
 //! natural completion reports the true outcome instead of a fabricated
 //! `cancelled`) is proven inline, against the real handlers, in
 //! `operation_cancellation_*`-prefixed `#[cfg(test)]` tests inside
@@ -94,9 +93,7 @@ fn operation_cancellation_routes_are_mounted_behind_bearer_auth() {
         response.lines().next().unwrap_or_default()
     );
 
-    // The new (P6.30) blocking-wait cancel handler must still 401
-    // immediately — auth runs before the handler, so an unauthenticated
-    // request never reaches the wait loop at all. A slow response here
+    // Auth runs before the cancellation handler. A slow response here
     // (rather than a prompt 401) would itself be a wiring regression.
     let started = Instant::now();
     let response = http_post(port, "/v1/operations/does-not-exist/cancel", None, "");
@@ -107,7 +104,7 @@ fn operation_cancellation_routes_are_mounted_behind_bearer_auth() {
     );
     assert!(
         started.elapsed() < Duration::from_secs(5),
-        "unauthenticated cancel took {:?} — should 401 immediately, not enter the wait loop",
+        "unauthenticated cancel took {:?} — should 401 immediately",
         started.elapsed()
     );
 

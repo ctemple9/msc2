@@ -9,12 +9,14 @@
 //! into) the destination directory.
 
 use msc_infrastructure::archive::{
-    ArchiveError, ArchiveLimits, extract_zip, extract_zip_with_limits,
+    ArchiveError, ArchiveLimits, create_zip_from_folders_cancellable, extract_zip,
+    extract_zip_with_limits,
 };
 use serde_json::Value;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipWriter};
 
@@ -301,5 +303,27 @@ fn world_archive_legitimate_nested_world_archive_extracts_normally() {
     assert_eq!(
         fs::read(dest.join("world/level.dat")).unwrap(),
         b"hello world"
+    );
+}
+
+#[test]
+fn world_archive_creation_cancellation_removes_partial_zip() {
+    let tmp = TempDir::new("cancel-create");
+    let world = tmp.path().join("world");
+    fs::create_dir_all(&world).unwrap();
+    fs::write(world.join("region.mca"), vec![0x5a; 256 * 1024]).unwrap();
+    let zip_path = tmp.path().join("cancelled.zip");
+    let polls = AtomicUsize::new(0);
+
+    let result =
+        create_zip_from_folders_cancellable(&zip_path, tmp.path(), &["world".to_string()], || {
+            polls.fetch_add(1, Ordering::SeqCst) >= 4
+        });
+
+    assert!(matches!(result, Err(ArchiveError::Cancelled)));
+    assert!(polls.load(Ordering::SeqCst) >= 5);
+    assert!(
+        !zip_path.exists(),
+        "a cancelled archive must not leave a partial ZIP"
     );
 }

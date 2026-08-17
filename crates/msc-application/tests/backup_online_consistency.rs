@@ -27,6 +27,8 @@ use std::fs;
 #[cfg(unix)]
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+#[cfg(unix)]
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 #[cfg(unix)]
 use msc_infrastructure::fs::StdFileSystem;
@@ -301,4 +303,52 @@ fn backup_online_consistency_sidecar_write_failure_does_not_fail_backup() {
 
     assert!(result.zip_path.is_file());
     assert!(!result.sidecar_written);
+}
+
+/// Cancellation during the bounded archive-copy loop removes the partial
+/// ZIP and still resumes Minecraft saves before reporting cancellation.
+#[cfg(unix)]
+#[test]
+fn backup_online_consistency_archive_cancellation_cleans_up_and_resumes_saves() {
+    let tmp = TempDir::new("archive-cancel-resume");
+    let server_dir = tmp.path();
+    let world = server_dir.join("world");
+    fs::create_dir_all(&world).unwrap();
+    fs::write(world.join("region.mca"), vec![0x5a; 256 * 1024]).unwrap();
+
+    let console = FakeBackupConsole::new(true).with_line_results([true]);
+    let association = world::BackupAssociation::default();
+    let polls = AtomicUsize::new(0);
+    let result = backups::create_backup(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Java,
+        Some("world"),
+        &association,
+        None,
+        None,
+        false,
+        true,
+        None,
+        None,
+        "2026-02-14T15:30:45Z",
+        Some(&console),
+        || true,
+        || polls.fetch_add(1, Ordering::SeqCst) >= 5,
+    );
+
+    assert!(matches!(result, Err(BackupError::Cancelled)));
+    assert_eq!(
+        console.sent_commands(),
+        vec!["save-all flush", "save-off", "save-on"]
+    );
+    let backups_dir = server_dir.join("backups");
+    let leftovers: Vec<_> = fs::read_dir(backups_dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert!(
+        leftovers.is_empty(),
+        "leftover backup artifacts: {leftovers:?}"
+    );
 }

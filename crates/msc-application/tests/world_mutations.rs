@@ -17,9 +17,9 @@ use msc_application::backups;
 use msc_application::worlds::{self, WorldError, WorldReplaceRecovery, WorldReplaceSource};
 use msc_domain::identity::ServerType;
 use msc_domain::world::BackupAssociation;
-use msc_infrastructure::fs::StdFileSystem;
+use msc_infrastructure::fs::{FileSystem, Metadata, StdFileSystem};
 use std::fs;
-use std::io::Write;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
@@ -62,6 +62,50 @@ fn write_server_properties(server_dir: &Path, level_name: &str) {
         &server_dir.join("server.properties"),
         format!("level-name={level_name}\n").as_bytes(),
     );
+}
+
+fn make_bedrock_world(server_dir: &Path, name: &str, content: &[u8]) {
+    make_folder(&server_dir.join("worlds"), name, content);
+}
+
+struct FailPropertiesWriteFileSystem;
+
+impl FileSystem for FailPropertiesWriteFileSystem {
+    fn read(&self, path: &Path) -> io::Result<Vec<u8>> {
+        StdFileSystem.read(path)
+    }
+
+    fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        if path.ends_with("server.properties") {
+            Err(io::Error::other("simulated properties write failure"))
+        } else {
+            StdFileSystem.write(path, contents)
+        }
+    }
+
+    fn stat(&self, path: &Path) -> io::Result<Metadata> {
+        StdFileSystem.stat(path)
+    }
+
+    fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>> {
+        StdFileSystem.list(path)
+    }
+
+    fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
+        StdFileSystem.rename(from, to)
+    }
+
+    fn remove(&self, path: &Path) -> io::Result<()> {
+        StdFileSystem.remove(path)
+    }
+
+    fn create_dir_all(&self, path: &Path) -> io::Result<()> {
+        StdFileSystem.create_dir_all(path)
+    }
+
+    fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
+        StdFileSystem.read_link(path)
+    }
 }
 
 #[test]
@@ -160,6 +204,90 @@ fn world_mutations_rename_world_refuses_while_server_running() {
 
     assert!(matches!(err, WorldError::ServerRunning));
     assert!(server_dir.join("world").join("level.dat").is_file());
+}
+
+#[test]
+fn world_mutations_bedrock_rename_preflight_uses_named_world_below_worlds() {
+    let tmp = TempDir::new("bedrock-rename-preflight");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    make_bedrock_world(server_dir, "Bedrock level", b"old world");
+    make_bedrock_world(server_dir, "newname", b"conflicting world");
+
+    let err = worlds::rename_world(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        Some("Bedrock level"),
+        "newname",
+        false,
+        true,
+        || {
+            assert!(server_dir.join("worlds/Bedrock level/level.dat").is_file());
+            true
+        },
+    )
+    .unwrap_err();
+
+    assert!(matches!(err, WorldError::TargetFolderExists(name) if name == "newname"));
+    assert!(server_dir.join("worlds/Bedrock level/level.dat").is_file());
+    assert!(!server_dir.join("worlds/worlds").exists());
+}
+
+#[test]
+fn world_mutations_bedrock_rename_move_failure_preserves_old_world() {
+    let tmp = TempDir::new("bedrock-rename-move-failure");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    make_bedrock_world(server_dir, "Bedrock level", b"old world");
+    write_file(&server_dir.join("worlds/newname"), b"blocking file");
+
+    let err = worlds::rename_world(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        Some("Bedrock level"),
+        "newname",
+        false,
+        false,
+        || true,
+    )
+    .unwrap_err();
+
+    assert!(matches!(err, WorldError::Io(_)));
+    assert_eq!(
+        fs::read(server_dir.join("worlds/Bedrock level/level.dat")).unwrap(),
+        b"old world"
+    );
+}
+
+#[test]
+fn world_mutations_bedrock_rename_properties_failure_rolls_back_move() {
+    let tmp = TempDir::new("bedrock-rename-properties-failure");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    make_bedrock_world(server_dir, "Bedrock level", b"old world");
+
+    let err = worlds::rename_world(
+        &FailPropertiesWriteFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        Some("Bedrock level"),
+        "newname",
+        false,
+        false,
+        || true,
+    )
+    .unwrap_err();
+
+    assert!(matches!(err, WorldError::Io(_)));
+    assert!(server_dir.join("worlds/Bedrock level/level.dat").is_file());
+    assert!(!server_dir.join("worlds/newname").exists());
+    assert!(
+        fs::read_to_string(server_dir.join("server.properties"))
+            .unwrap()
+            .contains("level-name=Bedrock level")
+    );
 }
 
 #[test]
@@ -419,6 +547,192 @@ fn world_mutations_replace_world_skips_safety_backup_when_no_live_world_exists()
 
     assert!(outcome.safety_backup_zip_path.is_none());
     assert!(backups::list_backups(&StdFileSystem, server_dir).is_empty());
+}
+
+#[test]
+fn world_mutations_bedrock_replace_folder_stages_named_world_and_makes_safety_backup() {
+    let tmp = TempDir::new("bedrock-replace-folder");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    make_bedrock_world(server_dir, "Bedrock level", b"old world");
+    let source = tmp.path().join("outside/replacement");
+    make_folder(
+        tmp.path().join("outside").as_path(),
+        "replacement",
+        b"new world",
+    );
+
+    let outcome = worlds::replace_world(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        Some("Bedrock level"),
+        "newname",
+        &WorldReplaceSource::ExistingFolder(source),
+        false,
+        &BackupAssociation::default(),
+        None,
+        None,
+        "2026-01-01T00:00:00Z",
+        || false,
+    )
+    .unwrap();
+
+    let backup = outcome
+        .safety_backup_zip_path
+        .expect("the old named Bedrock world requires a safety backup");
+    let mut archive = zip::ZipArchive::new(fs::File::open(backup).unwrap()).unwrap();
+    assert!(archive.by_name("worlds/Bedrock level/level.dat").is_ok());
+    assert_eq!(
+        fs::read(server_dir.join("worlds/newname/level.dat")).unwrap(),
+        b"new world"
+    );
+    assert!(!server_dir.join("worlds/Bedrock level").exists());
+    assert!(!server_dir.join("worlds/worlds").exists());
+}
+
+#[test]
+fn world_mutations_bedrock_replace_zip_installs_below_worlds_once() {
+    let tmp = TempDir::new("bedrock-replace-zip");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    make_bedrock_world(server_dir, "Bedrock level", b"old world");
+
+    let backup_zip = tmp.path().join("outside/bedrock.zip");
+    fs::create_dir_all(backup_zip.parent().unwrap()).unwrap();
+    let file = fs::File::create(&backup_zip).unwrap();
+    let mut zip = ZipWriter::new(file);
+    zip.start_file("worlds/newname/level.dat", SimpleFileOptions::default())
+        .unwrap();
+    zip.write_all(b"new world from zip").unwrap();
+    zip.finish().unwrap();
+
+    worlds::replace_world(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        Some("Bedrock level"),
+        "newname",
+        &WorldReplaceSource::BackupZip(backup_zip),
+        false,
+        &BackupAssociation::default(),
+        None,
+        None,
+        "2026-01-01T00:00:00Z",
+        || false,
+    )
+    .unwrap();
+
+    assert_eq!(
+        fs::read(server_dir.join("worlds/newname/level.dat")).unwrap(),
+        b"new world from zip"
+    );
+    assert!(!server_dir.join("worlds/worlds").exists());
+}
+
+#[test]
+fn world_mutations_bedrock_replace_cancellation_before_live_move_keeps_old_world() {
+    let tmp = TempDir::new("bedrock-replace-cancel");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    make_bedrock_world(server_dir, "Bedrock level", b"old world");
+    let source = tmp.path().join("outside/replacement");
+    make_folder(
+        tmp.path().join("outside").as_path(),
+        "replacement",
+        b"new world",
+    );
+    let staged = server_dir.join("world_slots/.replace/staged");
+
+    let err = worlds::replace_world(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        Some("Bedrock level"),
+        "newname",
+        &WorldReplaceSource::ExistingFolder(source),
+        false,
+        &BackupAssociation::default(),
+        None,
+        None,
+        "2026-01-01T00:00:00Z",
+        || staged.exists(),
+    )
+    .unwrap_err();
+
+    assert!(matches!(err, WorldError::Cancelled));
+    assert_eq!(
+        fs::read(server_dir.join("worlds/Bedrock level/level.dat")).unwrap(),
+        b"old world"
+    );
+    assert!(!server_dir.join("worlds/newname").exists());
+    assert!(!server_dir.join("world_slots/.replace").exists());
+}
+
+#[test]
+fn world_mutations_bedrock_replace_reconcile_prior_moved_restores_named_world() {
+    let tmp = TempDir::new("bedrock-replace-reconcile-prior");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    write_file(
+        &server_dir.join("world_slots/.replace/manifest.json"),
+        br#"{"level_name":"newname"}"#,
+    );
+    write_file(
+        &server_dir.join("world_slots/.replace/prior/Bedrock level/level.dat"),
+        b"old world",
+    );
+    write_file(
+        &server_dir.join("world_slots/.replace/staged/worlds/newname/level.dat"),
+        b"new world, not installed",
+    );
+
+    let outcome = worlds::reconcile_interrupted_world_replace(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+    )
+    .unwrap();
+    assert_eq!(outcome, Some(WorldReplaceRecovery::RecoveredToOldWorld));
+    assert_eq!(
+        fs::read(server_dir.join("worlds/Bedrock level/level.dat")).unwrap(),
+        b"old world"
+    );
+    assert!(!server_dir.join("worlds/worlds").exists());
+}
+
+#[test]
+fn world_mutations_bedrock_replace_reconcile_installed_commits_named_world() {
+    let tmp = TempDir::new("bedrock-replace-reconcile-installed");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "Bedrock level");
+    make_bedrock_world(server_dir, "newname", b"new world");
+    write_file(
+        &server_dir.join("world_slots/.replace/manifest.json"),
+        br#"{"level_name":"newname"}"#,
+    );
+    write_file(
+        &server_dir.join("world_slots/.replace/prior/Bedrock level/level.dat"),
+        b"old world",
+    );
+
+    let outcome = worlds::reconcile_interrupted_world_replace(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+    )
+    .unwrap();
+    assert_eq!(outcome, Some(WorldReplaceRecovery::RecoveredToNewWorld));
+    assert_eq!(
+        fs::read(server_dir.join("worlds/newname/level.dat")).unwrap(),
+        b"new world"
+    );
+    assert!(
+        fs::read_to_string(server_dir.join("server.properties"))
+            .unwrap()
+            .contains("level-name=newname")
+    );
+    assert!(!server_dir.join("worlds/worlds").exists());
 }
 
 #[test]

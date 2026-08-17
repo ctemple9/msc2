@@ -119,7 +119,7 @@ fn reconciliation_staged_dir(server_dir: &Path) -> PathBuf {
 }
 
 /// The candidate-name half already lives in `msc_domain::world`
-/// (`world_folder_candidates`); this is the existence-filtering half
+/// (`backup_root_folder_candidates`); this is the existence-filtering half
 /// `WorldSlotManager.worldFolderNames(for:)` mixes into the same
 /// function in source, kept separate here per the module-boundary split
 /// P6.9 already established.
@@ -129,7 +129,7 @@ pub(crate) fn existing_world_folders(
     server_type: ServerType,
     level_name: &str,
 ) -> Vec<String> {
-    world::world_folder_candidates(server_type, level_name)
+    world::backup_root_folder_candidates(server_type, level_name)
         .into_iter()
         .filter(|name| matches!(fs.stat(&server_dir.join(name)), Ok(meta) if meta.is_dir))
         .collect()
@@ -541,7 +541,7 @@ fn slot_zip_exists(fs: &dyn FileSystem, server_dir: &Path, slot_id: &str) -> boo
 /// returning — no half-written `slot.json` or partial archive is left
 /// behind
 /// (`fixtures/world-mutations/create-slot-zip-failure-cleans-up-slot-directory.json`).
-/// Covers both server types via [`world::world_folder_candidates`]
+/// Covers both server types via [`world::backup_root_folder_candidates`]
 /// (`create-slot-java-zips-main-nether-end.json`,
 /// `create-slot-bedrock-zips-worlds-folder.json`).
 pub fn create_slot_from_current_world(
@@ -1585,14 +1585,14 @@ pub fn rename_world(
     }
 
     let base = world_base_dir(server_dir, server_type);
-    let target_names = world::world_folder_candidates(server_type, trimmed);
+    let target_names = world::live_world_folder_candidates(server_type, trimmed);
     for name in &target_names {
         if folder_exists(fs, &base.join(name)) {
             return Err(WorldError::TargetFolderExists(name.clone()));
         }
     }
 
-    let old_names = world::world_folder_candidates(server_type, &old_level_name);
+    let old_names = world::live_world_folder_candidates(server_type, &old_level_name);
     let mut moved_pairs: Vec<(PathBuf, PathBuf)> = Vec::new();
     let rollback = |fs: &dyn FileSystem, moved_pairs: &[(PathBuf, PathBuf)]| {
         for (old_path, new_path) in moved_pairs.iter().rev() {
@@ -1821,12 +1821,12 @@ pub fn replace_world(
         return Err(WorldError::Cancelled);
     }
 
-    // `world_base_dir`/`world_folder_candidates` — the same base and
+    // `world_base_dir`/`live_world_folder_candidates` — the same base and
     // candidate-name computation `rename_world` uses — decide both which
     // live folders exist to protect and which ones phase 2 moves aside.
     let base = world_base_dir(server_dir, server_type);
     let current_level_name = world::current_level_name(server_type, raw_level_name);
-    let current_names = world::world_folder_candidates(server_type, &current_level_name);
+    let current_names = world::live_world_folder_candidates(server_type, &current_level_name);
     let current_folders_exist = current_names
         .iter()
         .any(|name| folder_exists(fs, &base.join(name)));
@@ -1867,6 +1867,8 @@ pub fn replace_world(
     // Phase 1: stage the replacement. The live world is not touched by
     // anything in this block.
     let staged_dir = replace_staged_dir(server_dir);
+    let staged_base = world_base_dir(&staged_dir, server_type);
+    fs.create_dir_all(&staged_base)?;
     match world_source {
         WorldReplaceSource::Fresh => {}
         WorldReplaceSource::BackupZip(path) => {
@@ -1876,7 +1878,7 @@ pub fn replace_world(
             }
         }
         WorldReplaceSource::ExistingFolder(source_path) => {
-            let dest = staged_dir.join(trimmed);
+            let dest = staged_base.join(trimmed);
             if let Err(e) = copy_dir_recursive(fs, source_path, &dest) {
                 let _ = fs.remove(&replace_dir(server_dir));
                 return Err(e.into());
@@ -1903,7 +1905,7 @@ pub fn replace_world(
     test_pause_after_world_move();
 
     // Phase 3: install the staged replacement (if any), then commit.
-    move_entries(fs, &staged_dir, &base)?;
+    move_entries(fs, &staged_base, &base)?;
     let _ = fs.remove(&staged_dir);
     finish_replace_commit(fs, server_dir, trimmed)?;
 

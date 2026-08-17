@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 review corrections continue. P6.1–P6.37 are implemented or recorded; P6.38–P6.40 are awaiting Cameron's verification; P6.41–P6.42 remain not started.
-> **Next move:** Verify — Cameron runs P6.40's Verify command. Do not begin P6.41 before the pending correction steps are marked DONE.
-> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`; P6.39 by `P6.39: honor configured java world names`; P6.40 by `P6.40: make cancellation responsive and asynchronous`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. The synthetic gate now passes through responsive cancellation; P6.41–P6.42 must close the remaining Bedrock-path and final-proof gaps before Phase 7 begins.
+> ## STATUS: Phase 6 review corrections continue. P6.1–P6.37 are implemented or recorded; P6.38–P6.41 are awaiting Cameron's verification; P6.42 remains not started.
+> **Next move:** Verify — Cameron runs P6.41's Verify command. Do not begin P6.42 before the pending correction steps are marked DONE.
+> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`; P6.39 by `P6.39: honor configured java world names`; P6.40 by `P6.40: make cancellation responsive and asynchronous`; P6.41 by `P6.41: correct bedrock world mutation paths`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. P6.42 must produce the final exact-commit proof before Phase 7 begins.
 > **Last updated:** 2026-08-17
 
 **Previous phases (Setup, Phase 0 through Phase 5) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 6 onward stay here.
@@ -1475,9 +1475,13 @@ The synthetic public smoke now requires `202`, polls `GET /v1/operations/{id}` t
 **Batch:** stop-after
 
 ### P6.41 — Correct offline Bedrock world mutation paths
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/world.rs`, `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/world_mutations.rs`, `fixtures/world-mutations/`
 **What:** Separate the Bedrock backup-root candidate (`server_dir/worlds`) from the direct-live-world candidate (`server_dir/worlds/<level-name>`). Fix rename and transactional active replacement so they never resolve `server_dir/worlds/worlds`, while preserving Java's main/nether/end behavior and Phase 10's live-runtime deferral. Characterize and test Bedrock rename preflight, rollback after a failed move/properties write, mandatory safety backup, staged folder/ZIP replacement, cancellation before the live move, and restart recovery at `prior_moved` and `installed`. These are offline file-layout operations and must hold before Phase 6 closes even though live Bedrock command delivery remains Phase 10.
+
+**Actual result:** The domain now names two distinct path concepts: `backup_root_folder_candidates` keeps MSC 1's archive shape (Bedrock's fixed top-level `worlds`, Java's configured main/nether/end set), while `live_world_folder_candidates` describes direct mutation below each edition's world base (Bedrock's configured level name below `worlds`, the same Java set below the server root). Rename and transactional replacement use only the live candidates, removing the erroneous `worlds/worlds` resolution without changing backup/slot capture or Java behavior.
+
+Bedrock replacement now stages both folder and ZIP sources under a normalized `staged/worlds/<level-name>` base, always creates that staging marker even for a fresh replacement, moves named children into the live `server_dir/worlds` directory, and uses the same base during `prior_moved` recovery. Focused tests cover the candidate split, Java preservation, Bedrock rename preflight and requested backup ordering, move failure, properties-write rollback, mandatory verified safety backup contents, folder/ZIP staging, cancellation before the live move, and both `prior_moved` and `installed` restart recovery. Three fixtures record the source distinction and corrected transaction guarantees. `cargo fmt --check` and `cargo clippy --workspace --all-targets -- -D warnings` are clean; the exact Verify command passes 24 tests with 0 failures (one pre-existing nextest `LEAK` notice).
 **Verify:** `cargo nextest run -p msc-domain -p msc-application -E 'test(/world_mutations|world_folder_candidates/)'`
 **Commit:** `P6.41: correct bedrock world mutation paths`
 **Batch:** stop-after

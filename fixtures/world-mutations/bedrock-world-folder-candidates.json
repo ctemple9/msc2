@@ -1,0 +1,19 @@
+{
+  "domain": "world-mutations",
+  "case": "bedrock-world-folder-candidates",
+  "source": {
+    "file": "WorldSlotManager.swift and AppViewModel+WorldManagement.swift",
+    "test": "worldFolderNames(for:) versus direct rename/replace worldBaseURL",
+    "line": "244-255 and 89-101/170-202"
+  },
+  "input": {
+    "server_type": "bedrock",
+    "level_name": "Bedrock level"
+  },
+  "expected": {
+    "backup_root_candidates_relative_to_server_dir": ["worlds"],
+    "direct_live_candidates_relative_to_server_dir_worlds": ["Bedrock level"],
+    "invalid_direct_live_path": "worlds/worlds"
+  },
+  "notes": "Slot and backup archives deliberately capture the fixed top-level worlds directory. Direct rename and replacement instead set their base to serverDir/worlds and operate on the configured named world below it. These are different path concepts even though both workflows concern Bedrock worlds."
+}

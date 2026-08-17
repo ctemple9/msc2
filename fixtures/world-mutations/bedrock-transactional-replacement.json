@@ -1,0 +1,25 @@
+{
+  "domain": "world-mutations",
+  "case": "bedrock-transactional-replacement",
+  "source": {
+    "file": "AppViewModel+WorldManagement.swift",
+    "test": "replaceWorld(for:newLevelName:worldSource:backupFirst:)",
+    "line": "45-152"
+  },
+  "input": {
+    "server_type": "bedrock",
+    "old_level_name": "Bedrock level",
+    "new_level_name": "newname",
+    "folder_source_installs_at": "serverDir/worlds/newname",
+    "zip_source_member": "worlds/newname/level.dat"
+  },
+  "expected": {
+    "mandatory_safety_backup_member": "worlds/Bedrock level/level.dat",
+    "folder_and_zip_sources_install_at_same_live_path": true,
+    "cancellation_after_staging_leaves_old_world_untouched": true,
+    "prior_moved_recovery_restores_to": "serverDir/worlds/Bedrock level",
+    "installed_recovery_commits": "serverDir/worlds/newname",
+    "path_serverDir_worlds_worlds_is_never_used": true
+  },
+  "notes": "MSC 2 strengthens source's remove-then-copy flow with the already-approved three-phase replacement transaction. Bedrock keeps the source archive shape rooted at worlds/, while the transaction moves named children relative to serverDir/worlds."
+}

@@ -1,0 +1,24 @@
+{
+  "domain": "world-mutations",
+  "case": "bedrock-rename-preflight-and-rollback",
+  "source": {
+    "file": "AppViewModel+WorldManagement.swift",
+    "test": "renameWorld(for:newLevelName:backupFirst:)",
+    "line": "154-247"
+  },
+  "input": {
+    "server_type": "bedrock",
+    "old_level_name": "Bedrock level",
+    "new_level_name": "newname",
+    "world_base": "serverDir/worlds"
+  },
+  "expected": {
+    "preflight_target": "serverDir/worlds/newname",
+    "move": "serverDir/worlds/Bedrock level -> serverDir/worlds/newname",
+    "backup_runs_before_preflight_when_requested": true,
+    "move_failure_preserves_old_named_world": true,
+    "properties_write_failure_moves_newname_back_to_Bedrock_level": true,
+    "path_serverDir_worlds_worlds_is_never_used": true
+  },
+  "notes": "Bedrock has one move rather than Java's three, but it keeps the same preflight and rollback guarantees. The properties write happens after the move and must roll that move back if it fails."
+}

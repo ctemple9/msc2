@@ -215,13 +215,10 @@ pub fn sanitized_world_level_name(raw: &str, fallback: &str) -> String {
     }
 }
 
-/// `worldFolderNames(for:)`'s *candidate* half (source line 244-270):
-/// which folder names are relevant for a server type/level-name, before
-/// filtering to what actually exists on disk. Java: the level-name folder
-/// plus its `_nether`/`_the_end` siblings. Bedrock: the fixed `worlds`
-/// directory name. Filtering these candidates down to ones that exist is
-/// `msc-infrastructure`'s job (source's own `fm.fileExists` checks).
-pub fn world_folder_candidates(server_type: ServerType, level_name: &str) -> Vec<String> {
+/// `WorldSlotManager.worldFolderNames(for:)`'s backup-root candidates.
+/// Java archives its level-name-derived folders; Bedrock archives the fixed
+/// top-level `worlds` directory containing every named world.
+pub fn backup_root_folder_candidates(server_type: ServerType, level_name: &str) -> Vec<String> {
     match server_type {
         ServerType::Bedrock => vec!["worlds".to_string()],
         ServerType::Java => vec![
@@ -229,6 +226,47 @@ pub fn world_folder_candidates(server_type: ServerType, level_name: &str) -> Vec
             format!("{level_name}_nether"),
             format!("{level_name}_the_end"),
         ],
+    }
+}
+
+/// Direct live-world mutation candidates, relative to the edition-specific
+/// world base. Java's base is the server root; Bedrock's base is the fixed
+/// `worlds` directory, so its only candidate is the configured level name.
+pub fn live_world_folder_candidates(server_type: ServerType, level_name: &str) -> Vec<String> {
+    match server_type {
+        ServerType::Bedrock => vec![level_name.to_string()],
+        ServerType::Java => backup_root_folder_candidates(server_type, level_name),
+    }
+}
+
+#[cfg(test)]
+mod world_folder_candidates_tests {
+    use super::{backup_root_folder_candidates, live_world_folder_candidates};
+    use crate::identity::ServerType;
+
+    #[test]
+    fn world_folder_candidates_separate_bedrock_backup_root_from_live_world() {
+        assert_eq!(
+            backup_root_folder_candidates(ServerType::Bedrock, "Bedrock level"),
+            ["worlds"]
+        );
+        assert_eq!(
+            live_world_folder_candidates(ServerType::Bedrock, "Bedrock level"),
+            ["Bedrock level"]
+        );
+    }
+
+    #[test]
+    fn world_folder_candidates_preserve_java_dimension_set() {
+        let expected = ["survival", "survival_nether", "survival_the_end"];
+        assert_eq!(
+            backup_root_folder_candidates(ServerType::Java, "survival"),
+            expected
+        );
+        assert_eq!(
+            live_world_folder_candidates(ServerType::Java, "survival"),
+            expected
+        );
     }
 }
 

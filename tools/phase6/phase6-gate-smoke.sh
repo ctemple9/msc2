@@ -1231,7 +1231,13 @@ FINAL_BACKUP_COUNT="$(backup_ids_snapshot | grep -c .)"
 [[ "${FINAL_BACKUP_COUNT}" == "2" ]] || fail "expected exactly 2 backups after pruning (1 pre-tick survivor + the new scheduled one), got ${FINAL_BACKUP_COUNT}"
 backup_ids_snapshot | grep -qx "${SCHEDULED_BACKUP_ID}" || fail "the scheduled backup itself did not survive its own tick's pruning"
 
-BACKUP_ZIPS_AFTER_PRUNE="$(python3 -c "import glob; print('\n'.join(sorted(glob.glob('${SERVER_DIR}/backups/*.zip'))))")"
+BACKUP_ZIPS_AFTER_PRUNE="$(python3 - "${SERVER_DIR}/backups" <<'PY'
+import sys
+from pathlib import Path
+
+print("\n".join(str(path) for path in sorted(Path(sys.argv[1]).glob("*.zip"))))
+PY
+)"
 [[ -n "${BACKUP_ZIPS_AFTER_PRUNE}" ]] || fail "expected surviving backup zips on disk after pruning"
 while IFS= read -r zip_path; do
   python3 - "${zip_path}" <<'PY'
@@ -1270,11 +1276,13 @@ else
   CANCEL_TARGET_SLOT_ID="${SLOT_IMPORTED_ID}"
 fi
 
-python3 -c "
+python3 - "${SERVER_DIR}/world/CANCEL_FILLER.bin" <<'PY'
 import os
-with open('${SERVER_DIR}/world/CANCEL_FILLER.bin', 'wb') as f:
+import sys
+
+with open(sys.argv[1], 'wb') as f:
     f.write(os.urandom(100_000_000))
-"
+PY
 
 CANCEL_START_RESULT="$(run_msc_json world activate "${CANCEL_TARGET_SLOT_ID}" --no-wait)"
 CANCEL_OPERATION_ID="$(python3 -c 'import json,sys; print(json.load(sys.stdin)["operationId"])' <<<"${CANCEL_START_RESULT}")"

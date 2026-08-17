@@ -29,11 +29,15 @@ PRIVATE_CORPUS_ROOT=""
 usage() {
   cat <<USAGE
 Usage: $0 --synthetic
+       $0 --custom-level-name
        $0 --private-corpus <path>
 
 --synthetic runs the full restart-sensitive public-path gate smoke
 against a committed synthetic Java world -- no real MSC 1 data, safe
 to run anywhere.
+
+--custom-level-name runs the focused public-path proof with a Java
+server whose configured world is not named "world".
 
 --private-corpus <path> runs a smaller, real-data public-path smoke
 (bounded server import, world export/import, activation, backup,
@@ -54,6 +58,10 @@ while [[ "$#" -gt 0 ]]; do
       MODE="synthetic"
       shift
       ;;
+    --custom-level-name)
+      MODE="custom-level-name"
+      shift
+      ;;
     --private-corpus)
       MODE="private-corpus"
       PRIVATE_CORPUS_ROOT="${2:-}"
@@ -71,7 +79,7 @@ while [[ "$#" -gt 0 ]]; do
   esac
 done
 
-if [[ "${MODE}" != "synthetic" && "${MODE}" != "private-corpus" ]]; then
+if [[ "${MODE}" != "synthetic" && "${MODE}" != "custom-level-name" && "${MODE}" != "private-corpus" ]]; then
   usage >&2
   exit 2
 fi
@@ -395,6 +403,124 @@ assert_operation_interrupted_by_restart() {
   echo "operation ${operation_id} record explains the restart: ${message}"
 }
 
+if [[ "${MODE}" == "custom-level-name" ]]; then
+  CUSTOM_NAME="family-realm"
+  JAVA_SOURCE_DIR="${TMP_DIR}/custom-java-source"
+  BEDROCK_SOURCE_DIR="${TMP_DIR}/custom-bedrock-source"
+  JAVA_SERVER_DIR="${SERVERS_ROOT}/java/custom-java"
+  BEDROCK_SERVER_DIR="${SERVERS_ROOT}/bedrock/custom-bedrock"
+  CHUNKER_BUILD_DIR="${TMP_DIR}/fake-chunker"
+
+  echo "== building focused non-default-level-name inputs =="
+  mkdir -p \
+    "${JAVA_SOURCE_DIR}/${CUSTOM_NAME}" \
+    "${JAVA_SOURCE_DIR}/${CUSTOM_NAME}_nether" \
+    "${JAVA_SOURCE_DIR}/${CUSTOM_NAME}_the_end" \
+    "${BEDROCK_SOURCE_DIR}/worlds/Bedrock level" \
+    "${CHUNKER_BUILD_DIR}"
+  printf 'java-overworld\n' > "${JAVA_SOURCE_DIR}/${CUSTOM_NAME}/level.dat"
+  printf 'java-nether\n' > "${JAVA_SOURCE_DIR}/${CUSTOM_NAME}_nether/DIM.txt"
+  printf 'java-end\n' > "${JAVA_SOURCE_DIR}/${CUSTOM_NAME}_the_end/DIM.txt"
+  printf 'server-port=25565\nlevel-name=%s\n' "${CUSTOM_NAME}" > "${JAVA_SOURCE_DIR}/server.properties"
+  printf 'eula=true\n' > "${JAVA_SOURCE_DIR}/eula.txt"
+  printf 'fake jar\n' > "${JAVA_SOURCE_DIR}/paper.jar"
+  printf 'bedrock-source\n' > "${BEDROCK_SOURCE_DIR}/worlds/Bedrock level/level.dat"
+  printf 'server-port=19132\nlevel-name=Bedrock level\n' > "${BEDROCK_SOURCE_DIR}/server.properties"
+  printf 'fake binary\n' > "${BEDROCK_SOURCE_DIR}/bedrock_server"
+
+  cat > "${CHUNKER_BUILD_DIR}/FakeChunker.java" <<'EOF'
+import java.nio.file.*;
+public class FakeChunker {
+  public static void main(String[] args) throws Exception {
+    if (args.length == 2 && args[0].equals("-f") && args[1].equals("?")) {
+      System.out.println("JAVA_1_21_4 BEDROCK_1_21_0");
+      return;
+    }
+    Path output = null;
+    for (int i = 0; i + 1 < args.length; i++) {
+      if (args[i].equals("-o")) output = Path.of(args[i + 1]);
+    }
+    if (output == null) System.exit(2);
+    Files.createDirectories(output);
+    Files.writeString(output.resolve("level.dat"), "converted-world");
+  }
+}
+EOF
+  (
+    cd "${CHUNKER_BUILD_DIR}"
+    javac FakeChunker.java
+    printf 'Main-Class: FakeChunker\n' > manifest.txt
+    jar cfm fake-chunker.jar manifest.txt FakeChunker.class >/dev/null
+  )
+  export MSC2_CHUNKER_JAR_PATH="${CHUNKER_BUILD_DIR}/fake-chunker.jar"
+
+  echo "== importing custom Java target and Bedrock conversion source =="
+  (cd "${ROOT}" && cargo build -p msc-agent >/dev/null)
+  start_agent
+  run_msc server import "${JAVA_SOURCE_DIR}" --name "custom-java" --type java --eula >/dev/null
+  restart_agent
+  JAVA_SLOT_ID="$(active_slot_id)"
+  run_msc server import "${BEDROCK_SOURCE_DIR}" --name "custom-bedrock" --type bedrock >/dev/null
+  restart_agent
+
+  SERVER_IDS="$(python3 - "${BASE_URL}" "${TOKEN}" <<'PY'
+import json, sys, urllib.request
+req = urllib.request.Request(sys.argv[1] + "/v1/servers", headers={"Authorization": "Bearer " + sys.argv[2]})
+with urllib.request.urlopen(req, timeout=5) as resp:
+    servers = json.load(resp)
+for wanted in ("custom-java", "custom-bedrock"):
+    matches = [s["id"] for s in servers if s["name"] == wanted]
+    if len(matches) != 1: raise SystemExit(f"expected one {wanted}: {servers!r}")
+    print(matches[0])
+PY
+)"
+  JAVA_SERVER_ID="$(printf '%s\n' "${SERVER_IDS}" | sed -n '1p')"
+  BEDROCK_SERVER_ID="$(printf '%s\n' "${SERVER_IDS}" | sed -n '2p')"
+  echo "== proving manual backup and restore capture the configured Java folders =="
+  backup_ids_snapshot > "${TMP_DIR}/custom-before-manual.txt"
+  run_msc backup now >/dev/null
+  CUSTOM_BACKUP_ID="$(new_ids_since "${TMP_DIR}/custom-before-manual.txt")"
+  python3 - "${JAVA_SERVER_DIR}/backups/${CUSTOM_BACKUP_ID}" "${CUSTOM_NAME}" <<'PY'
+import sys, zipfile
+path, base = sys.argv[1:3]
+with zipfile.ZipFile(path) as zf:
+    names = zf.namelist()
+for folder in (base, base + "_nether", base + "_the_end"):
+    if not any(name.startswith(folder + "/") for name in names):
+        raise SystemExit(f"{path}: missing {folder}: {names!r}")
+PY
+  run_msc backup restore "${CUSTOM_BACKUP_ID}" >/dev/null
+
+  echo "== proving conversion keeps the Bedrock target's distinct layout =="
+  [[ ! -e "${BEDROCK_SERVER_DIR}/backups" ]] || fail "Bedrock target unexpectedly had backups before conversion"
+  CUSTOM_BACKUPS_BEFORE_CONVERT=0
+  run_msc world convert "${JAVA_SLOT_ID}" \
+    --target-server "${BEDROCK_SERVER_ID}" \
+    --target-format BEDROCK_1_21_0 \
+    --target-name "Converted" >/dev/null
+  CUSTOM_BACKUPS_AFTER_CONVERT="$(find "${BEDROCK_SERVER_DIR}/backups" -name '*.zip' -type f | wc -l | tr -d ' ')"
+  [[ "${CUSTOM_BACKUPS_AFTER_CONVERT}" -eq $((CUSTOM_BACKUPS_BEFORE_CONVERT + 1)) ]] || fail "conversion did not create its Bedrock target safety backup"
+  [[ -d "${BEDROCK_SERVER_DIR}/worlds" ]] || fail "conversion did not preserve Bedrock's worlds/ layout"
+
+  echo "== proving activation and replacement use the configured Java world =="
+  backup_ids_snapshot > "${TMP_DIR}/custom-before-activate.txt"
+  run_msc world activate "${JAVA_SLOT_ID}" >/dev/null
+  new_ids_since "${TMP_DIR}/custom-before-activate.txt" >/dev/null
+
+  mkdir -p "${TMP_DIR}/custom-replacement/replacement"
+  printf 'replacement\n' > "${TMP_DIR}/custom-replacement/replacement/level.dat"
+  backup_ids_snapshot > "${TMP_DIR}/custom-before-replace.txt"
+  run_msc world replace-active replacement --source "${TMP_DIR}/custom-replacement/replacement" >/dev/null
+  new_ids_since "${TMP_DIR}/custom-before-replace.txt" >/dev/null
+  [[ ! -e "${JAVA_SERVER_DIR}/${CUSTOM_NAME}" ]] || fail "replacement left the old configured Java world in place"
+  [[ ! -e "${JAVA_SERVER_DIR}/${CUSTOM_NAME}_nether" ]] || fail "replacement left the old configured Nether folder in place"
+  [[ ! -e "${JAVA_SERVER_DIR}/${CUSTOM_NAME}_the_end" ]] || fail "replacement left the old configured End folder in place"
+  [[ -f "${JAVA_SERVER_DIR}/replacement/level.dat" ]] || fail "replacement did not install the new world"
+
+  echo "phase6 gate smoke (custom level name) passed"
+  exit 0
+fi
+
 if [[ "${MODE}" == "private-corpus" ]]; then
   # =====================================================================
   # Private-corpus mode (P6.35): a smaller, real-data run of the same
@@ -463,23 +589,14 @@ PY
   PRIVATE_STAGE_DIR="${TMP_DIR}/private-corpus-source"
   mkdir -p "${PRIVATE_STAGE_DIR}"
 
-  # The staged copy's *outer* world-folder name is normalized to
-  # "world" (`level-name=world`) rather than kept as the real server's
-  # own (e.g. "campack", "Paper") -- a pre-existing, out-of-scope
-  # limitation (`routes/worlds.rs::run_pre_mutation_safety_backup`
-  # calls `create_backup` with `raw_level_name: None`, which resolves
-  # to the Java default "world" rather than re-reading
-  # `server.properties`, so a live server whose real level-name isn't
-  # literally "world" fails its own mandatory pre-activation safety
-  # backup) that only a non-"world"-named real corpus actually
-  # surfaces; `crates/msc-agent/src/routes/worlds.rs` is not in this
-  # step's own Files list to fix. Renaming only the outer folder (and
-  # the one `level-name` line) leaves every byte *inside* the world --
-  # region files, playerdata, per-dimension mod data, the actual real
-  # corpus material this leg is proving the public path against --
-  # untouched and real. See this step's own rolling-plan write-up.
-  sed "s/^level-name=.*/level-name=world/" "${PRIMARY_SERVER_ROOT}/server.properties" > "${PRIVATE_STAGE_DIR}/server.properties"
-  cp -R "${PRIMARY_WORLD_DIR}" "${PRIVATE_STAGE_DIR}/world"
+  cp "${PRIMARY_SERVER_ROOT}/server.properties" "${PRIVATE_STAGE_DIR}/server.properties"
+  PRIMARY_WORLD_NAME="$(basename "${PRIMARY_WORLD_DIR}")"
+  cp -R "${PRIMARY_WORLD_DIR}" "${PRIVATE_STAGE_DIR}/${PRIMARY_WORLD_NAME}"
+  for suffix in _nether _the_end; do
+    if [[ -d "${PRIMARY_SERVER_ROOT}/${PRIMARY_WORLD_NAME}${suffix}" ]]; then
+      cp -R "${PRIMARY_SERVER_ROOT}/${PRIMARY_WORLD_NAME}${suffix}" "${PRIVATE_STAGE_DIR}/${PRIMARY_WORLD_NAME}${suffix}"
+    fi
+  done
 
   # `server import`'s own `--name` becomes the new server's directory
   # name under `${SERVERS_ROOT}/java/` -- distinct from the shared

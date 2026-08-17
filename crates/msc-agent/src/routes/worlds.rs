@@ -1159,6 +1159,8 @@ pub async fn activate(
     };
 
     let server_type = server.server_type;
+    let raw_level_name =
+        crate::backup_operations::configured_java_level_name(server_type, &server_dir);
     let running = lifecycle.status_snapshot().running;
     let task_lifecycle = lifecycle.clone();
     let task_operation_id = operation_id.clone();
@@ -1176,7 +1178,14 @@ pub async fn activate(
                 &slot,
                 running,
                 &now,
-                || run_pre_mutation_safety_backup(&backup_lifecycle, &backup_dir, backup_type),
+                || {
+                    run_pre_mutation_safety_backup(
+                        &backup_lifecycle,
+                        &backup_dir,
+                        backup_type,
+                        raw_level_name.as_deref(),
+                    )
+                },
                 should_cancel,
             )
         })
@@ -1237,6 +1246,7 @@ fn run_pre_mutation_safety_backup(
     lifecycle: &LifecycleRoutesState,
     server_dir: &Path,
     server_type: ServerType,
+    raw_level_name: Option<&str>,
 ) -> bool {
     let _ = lifecycle;
     let now = iso8601_now();
@@ -1249,7 +1259,7 @@ fn run_pre_mutation_safety_backup(
         &StdFileSystem,
         server_dir,
         server_type,
-        None,
+        raw_level_name,
         &association,
         None,
         None,
@@ -1365,6 +1375,8 @@ pub async fn replace_active(
     };
 
     let server_type = server.server_type;
+    let raw_level_name =
+        crate::backup_operations::configured_java_level_name(server_type, &server_dir);
     let server_id = server.id.clone();
     let server_name = server.display_name.clone();
     let new_level_name = body.new_level_name.trim().to_string();
@@ -1378,7 +1390,7 @@ pub async fn replace_active(
                 &StdFileSystem,
                 &server_dir,
                 server_type,
-                None,
+                raw_level_name.as_deref(),
                 &new_level_name,
                 &world_source,
                 false,
@@ -1513,6 +1525,10 @@ pub async fn convert(
         }
     }
     let target_server_dir = Path::new(&target_server.server_dir).to_path_buf();
+    let target_raw_level_name = crate::backup_operations::configured_java_level_name(
+        target_server.server_type,
+        &target_server_dir,
+    );
 
     let placement = if let Some(target_slot_id) = &body.target_slot_id {
         let Some(existing) = find_slot(&target_server_dir, target_slot_id) else {
@@ -1609,12 +1625,19 @@ pub async fn convert(
                 running,
                 &target_server_dir,
                 target_server_type,
-                None,
+                target_raw_level_name.as_deref(),
                 &target_format,
                 placement,
                 is_target_running,
                 &now,
-                || run_pre_mutation_safety_backup(&backup_lifecycle, &backup_dir, backup_type),
+                || {
+                    run_pre_mutation_safety_backup(
+                        &backup_lifecycle,
+                        &backup_dir,
+                        backup_type,
+                        target_raw_level_name.as_deref(),
+                    )
+                },
                 &mut progress,
                 should_cancel,
             )

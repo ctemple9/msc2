@@ -575,4 +575,72 @@ mod tests {
             "{second:?}"
         );
     }
+
+    #[tokio::test]
+    async fn backup_scheduler_uses_configured_java_level_name() {
+        use crate::routes::lifecycle::LifecycleRoutesState;
+        use crate::routes::operations::OperationsState;
+        use crate::ws::console::ConsoleState;
+
+        let lifecycle = LifecycleRoutesState::with_fake_process(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
+        let server = scheduled_backup_exclusivity_test_server("custom-level-name");
+        let server_dir = std::path::PathBuf::from(&server.server_dir);
+        std::fs::rename(server_dir.join("world"), server_dir.join("family-realm")).unwrap();
+        std::fs::create_dir_all(server_dir.join("family-realm_nether")).unwrap();
+        std::fs::create_dir_all(server_dir.join("family-realm_the_end")).unwrap();
+        std::fs::write(
+            server_dir.join("server.properties"),
+            "level-name=family-realm\n",
+        )
+        .unwrap();
+
+        let operation_id =
+            crate::backup_operations::start_backup(&lifecycle, server, false, true, Some(3))
+                .unwrap();
+        for _ in 0..200 {
+            if lifecycle
+                .operations()
+                .snapshot(operation_id.as_str())
+                .is_some_and(|record| {
+                    matches!(
+                        record.state,
+                        msc_api::dto::OperationStateDto::Succeeded
+                            | msc_api::dto::OperationStateDto::Failed
+                            | msc_api::dto::OperationStateDto::Cancelled
+                    )
+                })
+            {
+                break;
+            }
+            tokio::time::sleep(StdDuration::from_millis(10)).await;
+        }
+        let record = lifecycle
+            .operations()
+            .snapshot(operation_id.as_str())
+            .expect("scheduled backup operation exists");
+        assert_eq!(record.state, msc_api::dto::OperationStateDto::Succeeded);
+
+        let zip_path = std::fs::read_dir(server_dir.join("backups"))
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| path.extension().is_some_and(|ext| ext == "zip"))
+            .expect("scheduled backup zip exists");
+        let mut archive = zip::ZipArchive::new(std::fs::File::open(zip_path).unwrap()).unwrap();
+        let names: Vec<String> = (0..archive.len())
+            .map(|index| archive.by_index(index).unwrap().name().to_string())
+            .collect();
+        for folder in [
+            "family-realm",
+            "family-realm_nether",
+            "family-realm_the_end",
+        ] {
+            assert!(
+                names.iter().any(|name| name.starts_with(folder)),
+                "{names:?}"
+            );
+        }
+    }
 }

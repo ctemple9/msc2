@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 review corrections continue. P6.1–P6.37 are implemented or recorded; P6.38 is awaiting Cameron's verification; P6.39–P6.42 remain not started.
-> **Next move:** Verify — Cameron runs P6.38's Verify command. Do not begin P6.39 before P6.38 is marked DONE.
-> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. The current synthetic gate reaches its cancellation section and fails with the operation still `running`/`Cancelling…`; P6.39–P6.42 must close the remaining level-name, cancellation, Bedrock-path, and proof gaps before Phase 7 begins.
+> ## STATUS: Phase 6 review corrections continue. P6.1–P6.37 are implemented or recorded; P6.38 and P6.39 are awaiting Cameron's verification; P6.40–P6.42 remain not started.
+> **Next move:** Verify — Cameron runs P6.39's Verify command. Do not begin P6.40 before P6.39 is marked DONE.
+> **Repo:** https://github.com/ctemple9/msc2 · P6.38 is identified by commit subject `P6.38: complete world reconciliation authority`; P6.39 by `P6.39: honor configured java world names`. The latest green three-platform run remains [`31959840181`](https://github.com/ctemple9/msc2/actions/runs/31959840181) at older Phase 6 candidate `3f3f0df`; the correction commits do not yet have an exact-commit macOS/Linux/Windows run. The current synthetic gate reaches its cancellation section and fails with the operation still `running`/`Cancelling…`; P6.40–P6.42 must close the remaining cancellation, Bedrock-path, and proof gaps before Phase 7 begins.
 > **Last updated:** 2026-08-17
 
 **Previous phases (Setup, Phase 0 through Phase 5) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 6 onward stay here.
@@ -1447,9 +1447,13 @@ The focused proof adds a corrupt post-start raw import through a real authentica
 **Batch:** stop-after
 
 ### P6.39 — Use the real Java level name on every mutation path
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/backup_operations.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/world_backup_routes.rs`, `crates/msc-agent/tests/backup_scheduler.rs`, `crates/msc-application/tests/backup_creation.rs`, `tools/phase6/phase6-gate-smoke.sh`, `tools/phase6/corpus-check.py`
 **What:** Resolve Java's current `level-name` from each server's own `server.properties` at the agent boundary and pass it through every manual/scheduled backup, activation safety backup, conversion target safety backup, restore, and active-world replacement call instead of passing `None` and silently falling back to `world`. Keep Bedrock's distinct layout rule. Add a focused public-smoke mode that uses a non-default level name and proves all three Java dimension folders are captured, mandatory backups are created, the old world is actually moved during replacement, and activation/conversion do not fail or protect the wrong folder. Remove P6.35's staging workaround that renamed real-corpus worlds to `world`; the private public-path exercise must use the copied server's real folder/config name while hashing the source unchanged.
+
+**Actual result:** The agent now resolves a Java server's configured `level-name` once at its filesystem boundary and carries that owned value into every asynchronous worker that needs it: the shared manual/scheduled backup entry point, restore, activation's mandatory backup, direct active-world replacement, and conversion's target identity and safety backup. Bedrock deliberately receives no Java level name and retains its fixed `worlds/` backup-root behavior. Focused Rust coverage changes the three-folder backup fixture to `family-realm` and proves the scheduled path produces an archive containing `family-realm`, `family-realm_nether`, and `family-realm_the_end`.
+
+The new `--custom-level-name` public smoke imports a Java server configured as `family-realm`, proves manual backup plus restore through the public CLI, verifies all three Java folders are archived, runs a fake-Chunker Java-to-Bedrock conversion while confirming the target keeps its distinct `worlds/` layout and receives its mandatory backup, activates the reconciled Java slot, then replaces the live world and proves all three old configured folders were moved before the replacement landed. Private-corpus staging no longer rewrites `level-name` or renames the copied outer world folder to `world`; it copies the real properties file, real folder name, and any real sibling dimension folders while retaining the existing before/after source hashes. The exact Verify command passes all 43 selected Rust tests and the focused public smoke.
 **Verify:** `cargo nextest run -p msc-application -p msc-agent -E 'test(/backup_creation|backup_scheduler|world_backup_routes/)' && tools/phase6/phase6-gate-smoke.sh --custom-level-name`
 **Commit:** `P6.39: honor configured java world names`
 **Batch:** stop-after

@@ -315,6 +315,8 @@ pub async fn restore(
         Err(response) => return response,
     };
     let server_dir = Path::new(&server.server_dir).to_path_buf();
+    let raw_level_name =
+        crate::backup_operations::configured_java_level_name(server.server_type, &server_dir);
 
     let entries = backups::list_backups(&StdFileSystem, &server_dir);
     let Some(entry) = entries
@@ -383,7 +385,7 @@ pub async fn restore(
                 &StdFileSystem,
                 &server_dir,
                 server_type,
-                None,
+                raw_level_name.as_deref(),
                 &zip_path,
                 backup_slot_id.as_deref(),
                 active_id.as_deref(),

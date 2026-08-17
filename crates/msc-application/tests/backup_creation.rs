@@ -295,23 +295,22 @@ fn backup_creation_no_world_folders_returns_error() {
     assert!(matches!(result, Err(BackupError::NoWorldFolders)));
 }
 
-/// Real Java dimension-folder capture: `world`, `world_nether`,
-/// `world_the_end` are all zipped, matching `worldFolderNames(for:)`'s
-/// Java candidate set.
+/// Real Java dimension-folder capture follows the supplied configured
+/// level name rather than assuming the vanilla default.
 #[test]
 fn backup_creation_captures_every_java_dimension_folder() {
     let tmp = TempDir::new("dimensions");
     let server_dir = tmp.path();
-    make_live_folder(server_dir, "world", b"overworld");
-    make_live_folder(server_dir, "world_nether", b"nether");
-    make_live_folder(server_dir, "world_the_end", b"end");
+    make_live_folder(server_dir, "family-realm", b"overworld");
+    make_live_folder(server_dir, "family-realm_nether", b"nether");
+    make_live_folder(server_dir, "family-realm_the_end", b"end");
     let association = world::BackupAssociation::default();
 
     let result = backups::create_backup(
         &StdFileSystem,
         server_dir,
         ServerType::Java,
-        Some("world"),
+        Some("family-realm"),
         &association,
         None,
         None,
@@ -327,7 +326,11 @@ fn backup_creation_captures_every_java_dimension_folder() {
     .unwrap();
 
     let names = zip_entry_names(&result.zip_path);
-    for folder in ["world", "world_nether", "world_the_end"] {
+    for folder in [
+        "family-realm",
+        "family-realm_nether",
+        "family-realm_the_end",
+    ] {
         assert!(
             names.iter().any(|n| n.starts_with(&format!("{folder}/"))),
             "missing {folder} in {names:?}"

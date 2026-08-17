@@ -395,9 +395,10 @@ def check_private_root_smoke(private_root: str | None) -> str:
     private root is supplied, this actually runs
     `phase6-gate-smoke.sh --private-corpus <root>` (P6.35) -- the real
     agent driven, over nothing but its own CLI/HTTP surface, through a
-    bounded server import, a bounded staged-upload world export/import
-    round trip, activation, a manual backup, and a restore, all against
-    whichever real Java world sorts first under `root`. That script does
+    bounded server import using the copied server's real configured world
+    folder name, a bounded staged-upload world export/import round trip,
+    activation, a manual backup, and a restore, all against whichever real
+    Java world sorts first under `root`. That script does
     its own before/after hashing of the real source files it touches and
     fails loudly (nonzero exit) if anything changed or the run didn't
     happen -- this wrapper only needs to check the exit code, the same

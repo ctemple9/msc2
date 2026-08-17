@@ -52,6 +52,20 @@ use msc_infrastructure::world_store;
 
 use crate::routes::lifecycle::LifecycleRoutesState;
 
+/// Reads the Java world's configured folder name at the agent boundary.
+/// Bedrock keeps its distinct fixed backup-root rule, so its callers pass
+/// no Java level name into the shared application services.
+pub(crate) fn configured_java_level_name(
+    server_type: msc_domain::identity::ServerType,
+    server_dir: &Path,
+) -> Option<String> {
+    if server_type == msc_domain::identity::ServerType::Java {
+        msc_application::worlds::read_java_level_name(&StdFileSystem, server_dir)
+    } else {
+        None
+    }
+}
+
 /// `createBackup`'s manual button and `startAutoBackupTimer`'s fired
 /// closure, unified — see this module's own doc for why one function now
 /// covers both.
@@ -86,6 +100,7 @@ pub fn start_backup(
 
     let server_dir = Path::new(&server.server_dir).to_path_buf();
     let server_type = server.server_type;
+    let raw_level_name = configured_java_level_name(server_type, &server_dir);
     let server_id = server.id.clone();
     let server_name = server.display_name.clone();
     let task_lifecycle = lifecycle.clone();
@@ -114,7 +129,7 @@ pub fn start_backup(
                 &StdFileSystem,
                 &server_dir,
                 server_type,
-                None,
+                raw_level_name.as_deref(),
                 &association,
                 Some(&server_id),
                 Some(&server_name),

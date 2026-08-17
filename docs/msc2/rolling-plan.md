@@ -1335,7 +1335,7 @@ not reached by the chain above). The full chain in this step's own
 correction lands — it will still stop at the same place until then.
 
 ### P6.37 — Fix the stale API route-count check
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/api-contract-check.py`
 **What:** Bump `EXPECTED_TOTAL` (line 33) from `105` to `106` and extend its
 explanatory comment to name the route that closed the gap: P6.34's
@@ -1374,4 +1374,58 @@ own dedicated step, the same pattern P6.30/P6.33/P6.36 already used.
 **Commit:** `P6.37: fix the stale API route-count check`
 **Batch:** stop-after
 
----
+**Actual result:** `tools/api-contract-check.py:33` now reads
+`EXPECTED_TOTAL = 106`, with the comment extended to name the P6.34 route
+(`POST /v1/worlds/replace-active-world`, `replaceActiveWorld`) that closed
+the gap. `python3 tools/api-contract-check.py --v1-summary` now prints no
+mismatch line (`namespace: ok 96` through `routes: 106`, exit 0).
+
+Then re-ran P6.36's full gate from the top, in order, stopping at the
+first failure:
+
+1. `cargo fmt --check` — clean.
+2. `cargo clippy --workspace --all-targets -- -D warnings` — clean.
+3. `cargo clippy --workspace --all-targets --target x86_64-unknown-linux-gnu -- -D warnings` — clean.
+4. `cargo clippy --workspace --all-targets --target x86_64-pc-windows-msvc -- -D warnings` — clean.
+5. `cargo nextest run --workspace` — 780 tests run: 780 passed, 0 skipped.
+6. `python3 tools/api-contract-check.py --v1-summary` — passes (this step's own fix).
+7. `python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv` — `ok: 108 contract operations, all matched`.
+8. `tools/phase6/phase6-gate-smoke.sh --synthetic` — **failed**, in a new
+   section the gate had never reached before (P6.36 stopped three steps
+   earlier, at item 6). Sections 1–14 (import/reconcile, slot CRUD,
+   archive-failure injection, manual backups, activation with mandatory
+   safety backup, restore guards, a restore, restart-mid-activation and
+   restart-mid-restore races with their operation-record checks,
+   active-world replacement with its operation-record check, and a real
+   scheduled backup firing with save pause/resume and correct pruning)
+   all passed. Section 15, "cancel an in-flight mutation," failed:
+   ```
+   FAIL: in-flight activation did not reach cancelled state (got running): {"id":"op-77570-6","type":"world-activate","target":"7E32B011-08B2-4237-8F17-9E99C7B13259","state":"running","statusLine":"Cancelling…"}
+   ```
+
+Stopped there, per this step's own instruction to stop at the next real
+gap and leave it for its own dedicated step — did not run
+`corpus-check.py` (also blocked locally since `$MSC2_PHASE6_PRIVATE_CORPUS`
+is unset in this environment) or trigger the CI workflow, since the gate
+is a `&&` chain and neither runs for real once an earlier link fails.
+
+**Noticed, not acted on** (outside this step's own `Files:` line, which is
+only `tools/api-contract-check.py`): `routes/operations.rs::cancel`
+(`crates/msc-agent/src/routes/operations.rs:232`) sets the cooperative
+cancel flag via `request_cancel`, then polls the operation's own snapshot
+for up to `CANCEL_WAIT_TIMEOUT` (30s, 50ms poll interval) before returning
+whatever state it finds — by its own doc comment, "generous enough for a
+real large-world filesystem move already past its last cancellable
+boundary, bounded so the HTTP response itself can't hang indefinitely."
+The smoke script's §15 (`tools/phase6/phase6-gate-smoke.sh:1131-1187`)
+writes a 100MB filler into the live world specifically to force the
+mandatory pre-cancel safety backup to take "genuinely slower than one
+loopback HTTP round trip" so the cancel request lands inside a real
+window, then asserts the returned record's `state` is exactly
+`"cancelled"`. In this run it came back `"running"` / `"Cancelling…"`
+instead — either the 30s wait is not generous enough for a ~100MB safety
+backup plus rollback in this environment's actual disk I/O, or the
+worker's own cancellation-boundary polling has a real gap. Distinguishing
+those two needs its own investigation; this step's scope is the
+route-count constant only, so no code beyond `tools/api-contract-check.py`
+was touched.

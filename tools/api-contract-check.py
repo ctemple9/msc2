@@ -30,7 +30,7 @@ import json
 import sys
 
 CONTRACT_PATH = "docs/msc2/api-contract/openapi.json"
-EXPECTED_TOTAL = 105  # 88 baseline (P0.23 --total) + 5 P2.8 + 12 P6.8 (copyWorldSlotContent removed post-review; folded into /v1/worlds/replace)
+EXPECTED_TOTAL = 106  # 88 baseline (P0.23 --total) + 5 P2.8 + 12 P6.8 (copyWorldSlotContent removed post-review; folded into /v1/worlds/replace) + 1 P6.34 (POST /v1/worlds/replace-active-world, replaceActiveWorld)
 
 # helpid-contract.md SS4's table: schema -> field(s) that must carry helpId.
 HELPID_FIELDS = {

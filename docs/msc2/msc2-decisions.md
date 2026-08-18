@@ -157,6 +157,8 @@ Three things follow, and conflating them is a mistake:
 
 **Consequences.** The seven `AppViewModel+APIWiring*.swift` files (2,701 lines) are deleted once their mappings become contract tests.
 
+**Addendum, 2026-08-18 (Phase 7, P7.1):** Cameron answered "Questions before P7.1" in `rolling-plan.md` — MSC 2 installs Java itself rather than only detecting and reporting it. `POST /v1/java-runtimes/install` is added under this decision's "extension" clause: an additive superset route, not a change to any preserved baseline behavior. Full reasoning and consequences for the Phase 7 step list in `docs/msc2/families/phase7-scope.md`, "Java runtime install: Cameron's answer."
+
 ---
 
 ## D-007 — macOS Bedrock stays Swift behind a sidecar

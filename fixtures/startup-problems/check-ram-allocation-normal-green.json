@@ -1,0 +1,22 @@
+{
+  "domain": "startup-problems",
+  "case": "check-ram-allocation-normal-green",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkRAMAllocation(for:)",
+    "line": 460
+  },
+  "input": {
+    "function": "checkRAMAllocation",
+    "allocatedGB": 4.0,
+    "physicalGB": 16
+  },
+  "expected": {
+    "id": "ram",
+    "status": "green",
+    "detectedValue": "Configured: 4 GB — Physical RAM: 16 GB",
+    "actionLabel": null,
+    "actionType": null
+  },
+  "notes": "The green message (line 460-466) has no third line at all -- the yellow branch's percentage line only appears when `fraction > 0.8`; green never states the fraction even though it was computed."
+}

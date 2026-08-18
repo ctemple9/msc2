@@ -1,0 +1,35 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-delete-success-removes-problem-returns-updated-snapshot",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 231
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p1",
+    "action": "delete",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "isServerRunning": false,
+    "startupProblems": [
+      {
+        "id": "p1",
+        "kind": "loadError",
+        "installedJarStem": "badplugin-2.0"
+      }
+    ],
+    "startupProblemsServerId": "srv-1",
+    "cfgAddOnKind": "plugin"
+  },
+  "expected": {
+    "success": true,
+    "message": "deleted",
+    "dispatchedTo": "removePlugin(jarStem: \"badplugin-2.0\")",
+    "startupProblemsAfter": [],
+    "updatedIncludedInResponse": true
+  },
+  "notes": "Mirrors the disable case with `removePlugin` instead of `togglePlugin` for a plugin-kind server -- \"delete\" removes the jar from disk permanently (StartupProblemsSheet's confirmation dialog, lines 74-86, warns exactly this on the UI side; the wire route itself has no separate confirmation step, the client is trusted to have already confirmed)."
+}

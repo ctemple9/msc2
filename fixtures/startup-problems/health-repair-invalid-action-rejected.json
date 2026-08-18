@@ -1,0 +1,19 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-invalid-action-rejected",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 188
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p1",
+    "action": "FRobnicate"
+  },
+  "expected": {
+    "success": false,
+    "message": "invalid_action"
+  },
+  "notes": "The action allowlist check (line 188-191: lowercased against `[\"update\",\"install\",\"disable\",\"delete\"]`) runs BEFORE ever hopping onto the MainActor -- an unknown action never touches `selectedServer`/`isServerRunning`/the problem set at all, so this rejection is identical whether or not a server is even selected."
+}

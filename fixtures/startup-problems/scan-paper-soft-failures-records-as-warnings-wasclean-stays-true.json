@@ -1,0 +1,42 @@
+{
+  "domain": "startup-problems",
+  "case": "scan-paper-soft-failures-records-as-warnings-wasclean-stays-true",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "scanPaperSoftFailures(for:)",
+    "line": 256
+  },
+  "input": {
+    "function": "scanPaperSoftFailures",
+    "cfg": {
+      "isJava": true,
+      "javaFlavor": "paper",
+      "addOnKind": "plugin"
+    },
+    "analyzerReturns": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "Essentials",
+        "requirement": "Requires Vault"
+      }
+    ]
+  },
+  "expected": {
+    "guardPasses": true,
+    "writeLastStartupResultCalledWith": {
+      "wasClean": true,
+      "fatalErrors": [],
+      "warnings": [
+        "Essentials: Requires Vault"
+      ],
+      "problems": [
+        {
+          "kind": "missingDependency",
+          "offenderName": "Essentials"
+        }
+      ]
+    },
+    "modalOpened": false
+  },
+  "notes": "Only runs for `cfg.isJava && cfg.javaFlavor.addOnKind == .plugin` (line 257) -- Forge/NeoForge mod failures never reach this soft-fail path, only Paper-family plugin failures do (`analyzePaperPlugins`, not `analyze`). `wasClean` is hardcoded `true` here (comment at line 268: \"the server did start; these are non-fatal\") even though `problems` is populated, which is exactly the shape case 4 (`last-startup-card-clean-with-soft-problems-yellow`) reads. Never sets `isShowingStartupProblems` -- no modal, per the file header's \"never auto-opens a modal\" comment."
+}

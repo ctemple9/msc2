@@ -1,0 +1,23 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-refuses-while-server-running-before-lookup",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 196
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "does-not-exist-and-is-never-checked",
+    "action": "delete",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "isServerRunning": true
+  },
+  "expected": {
+    "success": false,
+    "message": "server_running"
+  },
+  "notes": "The running-server guard (line 196-198) fires BEFORE the problem-lookup/disk-reconstruction step (line 200-209) -- a bogus or already-repaired `problemId` on a running server still gets \"server_running\", not \"problem_not_found\"; the guard order means the caller can't distinguish \"this problem doesn't exist\" from \"the server just happens to be running\" while it's running."
+}

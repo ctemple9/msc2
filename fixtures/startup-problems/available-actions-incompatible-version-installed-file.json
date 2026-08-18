@@ -1,0 +1,32 @@
+{
+  "domain": "startup-problems",
+  "case": "available-actions-incompatible-version-installed-file",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "mapProblem(_:cfg:isRepairing:)",
+    "line": 120
+  },
+  "input": {
+    "function": "mapProblem",
+    "problem": {
+      "kind": "incompatibleVersion",
+      "offenderName": "Sodium",
+      "installedFile": "sodium-0.4.0.jar",
+      "installedJarStem": "sodium-0.4.0",
+      "missingDependency": null
+    }
+  },
+  "expected": {
+    "kind": "incompatibleVersion",
+    "kindTitle": "Incompatible version",
+    "iconSystemName": "exclamationmark.triangle.fill",
+    "availableActions": [
+      "update",
+      "disable",
+      "delete"
+    ],
+    "isRepairing": false,
+    "helpId": "diagnostics.crash.incompatible-version"
+  },
+  "notes": "Three independent `if` checks build `actions` (line 122-124), not a switch -- \"update\" requires `kind == .incompatibleVersion && installedFile != nil`; \"disable\"/\"delete\" are gated only on `installedJarStem != nil`, regardless of kind. All three can be true at once, as here."
+}

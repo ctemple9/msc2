@@ -1,0 +1,30 @@
+{
+  "domain": "startup-problems",
+  "case": "last-startup-card-hard-fail-no-structured-problems-red-view-log",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkLastStartup(for:)",
+    "line": 886
+  },
+  "input": {
+    "function": "checkLastStartup",
+    "resultFileExists": true,
+    "result": {
+      "startedAt": "2026-08-10T12:00:00Z",
+      "wasClean": false,
+      "fatalErrors": [
+        "Server stopped before reaching ready state."
+      ],
+      "warnings": [],
+      "problems": null
+    }
+  },
+  "expected": {
+    "id": "lastStartup",
+    "status": "red",
+    "detectedValue": "Last start: <formatted date>\nServer stopped before reaching ready state.",
+    "actionLabel": "View Full Console Log",
+    "actionType": "openConsoleLog"
+  },
+  "notes": "`hasProblems = !(result.problems ?? []).isEmpty` (line 888) is the sole switch between the two red actions -- a non-modded (e.g. Vanilla/Paper) hard fail always lands here, since `StartupCrashAnalyzer.analyze` only runs `shouldAnalyze = isHardFail && cfg.isModded` (OutputHandling.swift:201) and Paper/Vanilla/Purpur are never modded."
+}

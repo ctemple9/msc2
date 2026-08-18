@@ -1,0 +1,35 @@
+{
+  "domain": "startup-problems",
+  "case": "last-startup-card-clean-with-soft-problems-yellow",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkLastStartup(for:)",
+    "line": 868
+  },
+  "input": {
+    "function": "checkLastStartup",
+    "resultFileExists": true,
+    "result": {
+      "startedAt": "2026-08-10T12:00:00Z",
+      "wasClean": true,
+      "fatalErrors": [],
+      "warnings": [
+        "Vault: Failed to enable"
+      ],
+      "problems": [
+        {
+          "kind": "loadError",
+          "offenderName": "Vault"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "id": "lastStartup",
+    "status": "yellow",
+    "detectedValue": "Last start: <formatted date>\nServer started, but 1 add-on failed to load.",
+    "actionLabel": "Diagnose Add-ons",
+    "actionType": "diagnoseStartup"
+  },
+  "notes": "`wasClean == true` with a non-empty `problems` array is the soft-fail shape `scanPaperSoftFailures` produces (case 23) -- the server booted, so this branch is checked before the fatal/warnings branches below it even reach the `else if !result.wasClean` guard."
+}

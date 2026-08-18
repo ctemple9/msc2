@@ -1,0 +1,37 @@
+{
+  "domain": "startup-problems",
+  "case": "reopen-startup-problems-softfail-matches-wasclean",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "reopenStartupProblems()",
+    "line": 238
+  },
+  "input": {
+    "function": "reopenStartupProblems",
+    "persistedResult": {
+      "startedAt": "2026-08-10T12:00:00Z",
+      "wasClean": true,
+      "fatalErrors": [],
+      "warnings": [
+        "Essentials: Requires Vault"
+      ],
+      "problems": [
+        {
+          "kind": "missingDependency",
+          "offenderName": "Essentials"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "startupProblemsSet": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "Essentials"
+      }
+    ],
+    "startupProblemsAreSoftFailSet": true,
+    "isShowingStartupProblemsSet": true
+  },
+  "notes": "`startupProblemsAreSoftFail = result.wasClean` (line 249) -- reopening reads the sheet's soft-fail flag directly off the persisted `wasClean`, the same field `checkLastStartup` branches on. A result file with `problems == nil` or an empty array (line 243's guard: `let problems = result.problems, !problems.isEmpty`) logs a message and does nothing -- the sheet is not opened on an empty problem set."
+}

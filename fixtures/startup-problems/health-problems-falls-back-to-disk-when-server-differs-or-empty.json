@@ -1,0 +1,42 @@
+{
+  "domain": "startup-problems",
+  "case": "health-problems-falls-back-to-disk-when-server-differs-or-empty",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "healthProblemsProvider (GET /v1/health/problems)",
+    "line": 174
+  },
+  "input": {
+    "function": "healthProblemsProvider",
+    "selectedServer": {
+      "id": "srv-2"
+    },
+    "startupProblemsServerId": "srv-1",
+    "startupProblems": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "jei"
+      }
+    ],
+    "diskLastStartupResult": {
+      "wasClean": false,
+      "problems": [
+        {
+          "kind": "loadError",
+          "offenderName": "OnDisk"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "isSoftFail": false,
+    "problems": [
+      {
+        "offenderName": "OnDisk",
+        "kind": "loadError"
+      }
+    ]
+  },
+  "notes": "`problemsServerId == cfg.id` failing (selected server changed since the in-memory set was populated) routes to `loadPersistedProblems(cfg)` (line 174, reads `{serverDir}/last_startup_result.json` -- same file `checkLastStartup`/`reopenStartupProblems` read). If disk also has nothing (`problems == nil` or `.isEmpty`, line 116's guard), the response is `problems: [], isSoftFail: false` (line 177) -- never an error, an empty list is the normal \"no known problems\" answer."
+}

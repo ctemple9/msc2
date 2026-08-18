@@ -1,0 +1,52 @@
+{
+  "domain": "startup-problems",
+  "case": "diagnose-unexpected-stop-modded-crash-analyzer-attributes-problems",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "diagnoseUnexpectedStop(reachedReadyState:)",
+    "line": 184
+  },
+  "input": {
+    "function": "diagnoseUnexpectedStop",
+    "reachedReadyState": false,
+    "cfg": {
+      "isModded": true,
+      "javaFlavor": "forge"
+    },
+    "analyzerReturns": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "SomeMod",
+        "requirement": "Requires jei [15.2,)"
+      }
+    ]
+  },
+  "expected": {
+    "isHardFail": true,
+    "shouldAnalyze": true,
+    "writeLastStartupResultCalledWith": {
+      "wasClean": false,
+      "fatalErrors": [
+        "SomeMod: Requires jei [15.2,)"
+      ],
+      "warnings": [],
+      "problems": [
+        {
+          "kind": "missingDependency",
+          "offenderName": "SomeMod"
+        }
+      ]
+    },
+    "startupProblemsSet": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "SomeMod"
+      }
+    ],
+    "startupProblemsServerIdSet": true,
+    "startupProblemsAreSoftFailSet": false,
+    "isShowingStartupProblemsSet": true,
+    "genericAlertShown": false
+  },
+  "notes": "The per-problem fatal-error summary is `\"\\(offenderName): \\(requirement ?? kind.title)\"` (line 213) -- falls back to the kind's display title (e.g. \"Missing dependency\") only when `requirement` is nil. `isHardFail = !reachedReadyState` and `shouldAnalyze = isHardFail && cfg.isModded` (line 200-201) are computed unconditionally before the detached Task runs."
+}

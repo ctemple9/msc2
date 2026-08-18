@@ -1,0 +1,28 @@
+{
+  "domain": "startup-problems",
+  "case": "diagnose-unexpected-stop-reached-ready-state-no-persistence-but-alert-shown",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "diagnoseUnexpectedStop(reachedReadyState:)",
+    "line": 220
+  },
+  "input": {
+    "function": "diagnoseUnexpectedStop",
+    "reachedReadyState": true,
+    "cfg": {
+      "isModded": true
+    },
+    "errorExcerpt": [
+      "[ERROR] Unexpected shutdown signal"
+    ]
+  },
+  "expected": {
+    "isHardFail": false,
+    "shouldAnalyze": false,
+    "analyzerCalled": false,
+    "writeLastStartupResultCalled": false,
+    "genericAlertShown": true,
+    "alertMessage": "[ERROR] Unexpected shutdown signal"
+  },
+  "notes": "`if isHardFail { writeLastStartupResult(...) }` (line 220-222) is conditional -- a server that reached ready state and then stopped unexpectedly (e.g. crashed mid-session, not during boot) never touches `last_startup_result.json` at all, even though the generic alert still fires unconditionally in the same `else` block (line 224-227). The \"Last Startup\" health card therefore keeps showing the prior clean boot's green state through a later mid-session crash."
+}

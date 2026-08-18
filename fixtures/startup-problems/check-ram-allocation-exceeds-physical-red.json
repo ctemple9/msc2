@@ -1,0 +1,23 @@
+{
+  "domain": "startup-problems",
+  "case": "check-ram-allocation-exceeds-physical-red",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkRAMAllocation(for:)",
+    "line": 438
+  },
+  "input": {
+    "function": "checkRAMAllocation",
+    "allocatedGB": 16.0,
+    "physicalGB": 8
+  },
+  "expected": {
+    "id": "ram",
+    "status": "red",
+    "detectedValue": "Configured: 16 GB — Physical RAM: 8 GB\nAllocation exceeds physical memory.",
+    "actionLabel": null,
+    "actionType": null,
+    "helpId": "health.ram"
+  },
+  "notes": "The red guard is `allocatedGB <= 0 || (physicalGB > 0 && allocatedGB > Double(physicalGB))` (line 438) -- a non-positive configured allocation (0 or a corrupted negative value) hits this exact same red card and message as genuinely over-allocating, even though the two causes are unrelated."
+}

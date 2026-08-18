@@ -1,0 +1,28 @@
+{
+  "domain": "startup-problems",
+  "case": "last-startup-card-inconclusive-fallback-yellow",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkLastStartup(for:)",
+    "line": 906
+  },
+  "input": {
+    "function": "checkLastStartup",
+    "resultFileExists": true,
+    "result": {
+      "startedAt": "2026-08-10T12:00:00Z",
+      "wasClean": false,
+      "fatalErrors": [],
+      "warnings": [],
+      "problems": null
+    }
+  },
+  "expected": {
+    "id": "lastStartup",
+    "status": "yellow",
+    "detectedValue": "Last start: <formatted date>\nResult inconclusive.",
+    "actionLabel": null,
+    "actionType": null
+  },
+  "notes": "The trailing fallback (line 906-912, no `else` guard needed since it's the function's last statement) -- `wasClean: false` with every array empty. Like the previous case, nothing in this codebase currently writes this exact shape; it exists to make `checkLastStartup` total over any decodable `LastStartupResult` rather than force-unwrapping an assumption."
+}

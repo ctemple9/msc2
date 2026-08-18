@@ -1,0 +1,44 @@
+{
+  "domain": "startup-problems",
+  "case": "health-problems-uses-in-memory-when-server-matches",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "healthProblemsProvider (GET /v1/health/problems)",
+    "line": 160
+  },
+  "input": {
+    "function": "healthProblemsProvider",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "startupProblemsServerId": "srv-1",
+    "startupProblems": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "jei"
+      }
+    ],
+    "startupProblemsAreSoftFail": false,
+    "diskLastStartupResult": {
+      "wasClean": true,
+      "problems": [
+        {
+          "kind": "loadError",
+          "offenderName": "Stale"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "serverType": "java",
+    "serverRunning": "<current isServerRunning>",
+    "isSoftFail": false,
+    "problems": [
+      {
+        "offenderName": "jei",
+        "kind": "missingDependency"
+      }
+    ]
+  },
+  "notes": "The in-memory `startupProblems` wins over disk whenever it is non-empty AND `startupProblemsServerId == cfg.id` (line 172) -- disk is never consulted in that case, even though this fixture's disk record disagrees (a different, stale problem set). The guard exists so switching the selected server doesn't leak the previous server's in-memory problems onto the newly selected one's response."
+}

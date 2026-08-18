@@ -1,0 +1,35 @@
+{
+  "domain": "startup-problems",
+  "case": "last-startup-card-hard-fail-with-structured-problems-red-diagnose",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkLastStartup(for:)",
+    "line": 886
+  },
+  "input": {
+    "function": "checkLastStartup",
+    "resultFileExists": true,
+    "result": {
+      "startedAt": "2026-08-10T12:00:00Z",
+      "wasClean": false,
+      "fatalErrors": [
+        "jei: Requires forge [15.2,)"
+      ],
+      "warnings": [],
+      "problems": [
+        {
+          "kind": "missingDependency",
+          "offenderName": "jei"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "id": "lastStartup",
+    "status": "red",
+    "detectedValue": "Last start: <formatted date>\njei: Requires forge [15.2,)",
+    "actionLabel": "Diagnose Startup",
+    "actionType": "diagnoseStartup"
+  },
+  "notes": "`preview` is `fatalErrors.prefix(3).joined(separator: \"\\n\")` (line 887) -- only the first three fatal-error lines are shown on the card face even when more were recorded; the rest are reachable only by opening the diagnostics sheet."
+}

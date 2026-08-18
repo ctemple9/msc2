@@ -1,0 +1,35 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-disable-success-removes-problem-returns-updated-snapshot",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 224
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p1",
+    "action": "disable",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "isServerRunning": false,
+    "startupProblems": [
+      {
+        "id": "p1",
+        "kind": "loadError",
+        "installedJarStem": "somemod-1.0"
+      }
+    ],
+    "startupProblemsServerId": "srv-1",
+    "cfgAddOnKind": "mod"
+  },
+  "expected": {
+    "success": true,
+    "message": "disabled",
+    "dispatchedTo": "toggleMod(jarStem: \"somemod-1.0\")",
+    "startupProblemsAfter": [],
+    "updatedIncludedInResponse": true
+  },
+  "notes": "\"disable\"/\"delete\" pick `toggleMod`/`togglePlugin` (and `removeMod`/`removePlugin`) by `cfg.javaFlavor.addOnKind == .mod` (line 210, 228, 235) -- the same `isMod` flag `StartupProblemsSheet.performDisable`/`performDelete` use (StartupProblemsSheet.swift:273, 277, 283). Unlike \"update\"/\"install\" (case 37), disable/delete mutate `self.startupProblems` SYNCHRONOUSLY on the same MainActor hop (line 229) before returning -- no `isRepairing` flag is ever set for these two actions. `outcome.success` being true triggers a second call to `healthProblemsProvider()` (line 243) so the wire response's `updated` field reflects the problem already having been removed."
+}

@@ -1,0 +1,23 @@
+{
+  "domain": "startup-problems",
+  "case": "check-java-runtime-found-major-21-plus-green",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkJavaRuntime(for:)",
+    "line": 219
+  },
+  "input": {
+    "function": "checkJavaRuntime",
+    "candidate": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java",
+    "versionOutput": "openjdk version \"21.0.7\" 2026-04-15\nOpenJDK Runtime Environment Temurin-21.0.7+6\n",
+    "exitCode": 0
+  },
+  "expected": {
+    "id": "java",
+    "status": "green",
+    "detectedValue": "21.0.7 — minimum is Java 21 ✓\nPath: /Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java",
+    "actionLabel": null,
+    "actionType": null
+  },
+  "notes": "Returns on the FIRST candidate in `searchPaths` that both exists and exits 0 with non-empty combined stdout+stderr (line 210-214) -- it does not try every candidate and pick the best; search-path order (configured path, JAVA_HOME, java_home output, then the hardcoded list) is the whole selection policy."
+}

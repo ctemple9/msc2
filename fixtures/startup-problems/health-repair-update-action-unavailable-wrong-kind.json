@@ -1,0 +1,31 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-update-action-unavailable-wrong-kind",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 213
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p1",
+    "action": "update",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "isServerRunning": false,
+    "startupProblems": [
+      {
+        "id": "p1",
+        "kind": "missingDependency",
+        "installedFile": "somemod.jar"
+      }
+    ],
+    "startupProblemsServerId": "srv-1"
+  },
+  "expected": {
+    "success": false,
+    "message": "action_unavailable"
+  },
+  "notes": "\"update\" requires `problem.kind == .incompatibleVersion && problem.installedFile != nil` (line 213) -- a `.missingDependency` problem always fails this guard regardless of whether it's matched to an installed file, since \"update\" only makes sense for a version mismatch, not an absent mod."
+}

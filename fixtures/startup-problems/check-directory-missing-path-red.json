@@ -1,0 +1,23 @@
+{
+  "domain": "startup-problems",
+  "case": "check-directory-missing-path-red",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkDirectory(for:)",
+    "line": 156
+  },
+  "input": {
+    "function": "checkDirectory",
+    "serverDir": "/servers/java/missing_server",
+    "exists": false
+  },
+  "expected": {
+    "id": "directory",
+    "status": "red",
+    "detectedValue": "Path not found:\n/servers/java/missing_server",
+    "actionLabel": "Locate Folder",
+    "actionType": "locateFolder",
+    "helpId": "health.directory"
+  },
+  "notes": "`fm.fileExists(atPath:isDirectory:)` covers both \"nothing there\" and \"a file sits where a directory is expected\" (isDir.boolValue false) in one guard (line 162) -- both read as this same red card, not distinguished."
+}

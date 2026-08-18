@@ -1,0 +1,28 @@
+{
+  "domain": "startup-problems",
+  "case": "available-actions-unmatched-offender-no-actions",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "mapProblem(_:cfg:isRepairing:)",
+    "line": 120
+  },
+  "input": {
+    "function": "mapProblem",
+    "problem": {
+      "kind": "missingDependency",
+      "offenderName": "minecraft",
+      "installedFile": null,
+      "installedJarStem": null,
+      "missingDependency": null
+    }
+  },
+  "expected": {
+    "kind": "missingDependency",
+    "kindTitle": "Missing dependency",
+    "iconSystemName": "puzzlepiece.extension",
+    "availableActions": [],
+    "isRepairing": false,
+    "helpId": "diagnostics.crash.missing-dependency"
+  },
+  "notes": "When the offender never matched an installed mod/plugin (`installedFile`/`installedJarStem` both nil, e.g. the requester itself couldn't be mapped) and the missing target was filtered out as non-installable, `availableActions` is genuinely empty -- the sheet's row (line 183-186 in StartupProblemsSheet.swift) then only offers \"View\" on Modrinth, no repair action at all."
+}

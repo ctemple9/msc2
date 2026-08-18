@@ -1,0 +1,23 @@
+{
+  "domain": "startup-problems",
+  "case": "check-java-runtime-not-found-red",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkJavaRuntime(for:)",
+    "line": 248
+  },
+  "input": {
+    "function": "checkJavaRuntime",
+    "candidatesExisting": [],
+    "searchPathCount": 16
+  },
+  "expected": {
+    "id": "java",
+    "status": "red",
+    "detectedValue": "Java not found. Checked 16 locations.\nInstall Adoptium Temurin 21 or set your Java path in Preferences.",
+    "actionLabel": "Download Java",
+    "actionType": "openURL:https://adoptium.net",
+    "helpId": "health.java"
+  },
+  "notes": "Reached only when every candidate in `searchPaths` fails `FileManager.fileExists` -- the loop never runs `java -version` at all in this case, so a `java` binary reachable only via a bare `PATH` lookup (no absolute path in the static list, no JAVA_HOME) is invisible to this card, unlike `checkJavaOnPath` in SetupWizardView (fixtures/java-runtime-selection), which does shell out to `which java`."
+}

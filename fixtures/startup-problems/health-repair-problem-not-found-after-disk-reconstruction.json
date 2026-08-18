@@ -1,0 +1,34 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-problem-not-found-after-disk-reconstruction",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 207
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p-missing",
+    "action": "disable",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "isServerRunning": false,
+    "startupProblemsServerId": "srv-2",
+    "diskLastStartupResult": {
+      "wasClean": false,
+      "problems": [
+        {
+          "kind": "loadError",
+          "offenderName": "Other",
+          "id": "p-other"
+        }
+      ]
+    }
+  },
+  "expected": {
+    "success": false,
+    "message": "problem_not_found"
+  },
+  "notes": "Reconstruction from disk (line 200-206, same fallback `healthProblemsProvider` uses) runs first because `startupProblemsServerId` didn't match the selected server, but the requested `problemId` still isn't among what disk had -- a stale client-side problem id (e.g. from a response the client cached before the server restarted and rewrote its result file) fails cleanly here rather than repairing the wrong problem."
+}

@@ -1,0 +1,36 @@
+{
+  "domain": "startup-problems",
+  "case": "diagnose-unexpected-stop-modded-crash-analyzer-finds-nothing-generic-alert",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "diagnoseUnexpectedStop(reachedReadyState:)",
+    "line": 219
+  },
+  "input": {
+    "function": "diagnoseUnexpectedStop",
+    "reachedReadyState": false,
+    "cfg": {
+      "isModded": true
+    },
+    "analyzerReturns": [],
+    "errorExcerpt": [
+      "[ERROR] java.lang.OutOfMemoryError"
+    ]
+  },
+  "expected": {
+    "isHardFail": true,
+    "shouldAnalyze": true,
+    "writeLastStartupResultCalledWith": {
+      "wasClean": false,
+      "fatalErrors": [
+        "Server stopped before reaching ready state."
+      ],
+      "warnings": []
+    },
+    "isShowingStartupProblemsSet": false,
+    "genericAlertShown": true,
+    "alertTitle": "Server Stopped Unexpectedly",
+    "alertMessage": "[ERROR] java.lang.OutOfMemoryError"
+  },
+  "notes": "A modded server that hard-fails but that `StartupCrashAnalyzer.analyze` can't attribute to any mod falls all the way through to the same generic \"Server Stopped Unexpectedly\" alert a non-modded server would get -- `problems.isEmpty` is the only branch (line 212), not `cfg.isModded`."
+}

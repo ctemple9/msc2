@@ -1,0 +1,34 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-update-success-dispatches-repair-returns-repair-started",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 212
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p1",
+    "action": "update",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "isServerRunning": false,
+    "startupProblems": [
+      {
+        "id": "p1",
+        "kind": "incompatibleVersion",
+        "installedFile": "sodium-0.4.0.jar"
+      }
+    ],
+    "startupProblemsServerId": "srv-1"
+  },
+  "expected": {
+    "success": true,
+    "message": "repair_started",
+    "dispatchedTo": "repairIncompatibleAddon(problem, for: cfg)",
+    "startupProblemsAfter": "<unchanged -- problem still present, not synchronously removed>",
+    "updatedIncludedInResponse": true
+  },
+  "notes": "Unlike disable/delete, \"update\"/\"install\" are genuinely async: `repairIncompatibleAddon`/`installMissingDependency` (AppViewModel+AddonUpdates.swift:221, 293) each `repairingProblemIds.insert(problem.id)` synchronously then spawn a `Task` that hits the Modrinth API over the network; the problem is only removed later, by `finishRepair` on success. The wire handler returns \"repair_started\" immediately without awaiting that Task, so `updated.problems` in THIS response still contains the problem (now with `isRepairing: true`, since `repairingProblemIds` was already mutated). Additionally, `repairIncompatibleAddon`'s own guard (`AppViewModel+AddonUpdates.swift:222-224`) requires `cfg.javaFlavor.addOnKind` non-nil and re-checks `!repairingProblemIds.contains(problem.id)` -- a second \"update\" call issued while the first is still in flight, or one issued for a Vanilla-family config with no add-on kind, silently no-ops inside `repairIncompatibleAddon` even though the wire wrapper already returned `success: true, message: \"repair_started\"`. This gap between \"the HTTP call succeeded\" and \"the repair actually started\" is a real MSC 1 quirk to preserve or flag, not invent a fix for here."
+}

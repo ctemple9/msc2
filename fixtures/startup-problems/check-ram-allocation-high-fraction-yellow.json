@@ -1,0 +1,22 @@
+{
+  "domain": "startup-problems",
+  "case": "check-ram-allocation-high-fraction-yellow",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkRAMAllocation(for:)",
+    "line": 450
+  },
+  "input": {
+    "function": "checkRAMAllocation",
+    "allocatedGB": 7.0,
+    "physicalGB": 8
+  },
+  "expected": {
+    "id": "ram",
+    "status": "yellow",
+    "detectedValue": "Configured: 7 GB — Physical RAM: 8 GB\n87% of system RAM — may cause instability.",
+    "actionLabel": null,
+    "actionType": null
+  },
+  "notes": "`fraction = allocatedGB / Double(physicalGB)` then `fraction > 0.8` (line 448-450); 7/8 = 0.875 -> `Int(0.875 * 100)` = 87 (Swift's `Int(Double)` truncates toward zero, not rounds). `allocatedGB.ramGBLabel` (AppConfig.swift:78) is `String(format: \"%g\", self)`, which drops the trailing `.0` for whole-number GB values -- \"7\" not \"7.0\"."
+}

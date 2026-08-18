@@ -1,0 +1,23 @@
+{
+  "domain": "startup-problems",
+  "case": "check-java-runtime-found-version-unreadable-yellow",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkJavaRuntime(for:)",
+    "line": 239
+  },
+  "input": {
+    "function": "checkJavaRuntime",
+    "candidate": "/usr/bin/java",
+    "versionOutput": "some non-standard launcher wrapper output with no version token",
+    "exitCode": 0
+  },
+  "expected": {
+    "id": "java",
+    "status": "yellow",
+    "detectedValue": "Java found but version unreadable.\nOutput: some non-standard launcher wrapper output with no version token\nPath: /usr/bin/java",
+    "actionLabel": "Download Java",
+    "actionType": "openURL:https://adoptium.net"
+  },
+  "notes": "`extractJavaVersion`'s regex (`version\\s+\"([^\"]+)\"`, line 954) failing to match does NOT advance the loop to try another candidate -- the function still `return`s here on the first responsive binary (line 210-214 already committed to this candidate once exitCode==0 and output is non-empty), even though a later candidate in the list might parse cleanly. `Output:` is truncated with `.prefix(120)` (line 242)."
+}

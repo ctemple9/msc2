@@ -1,0 +1,30 @@
+{
+  "domain": "startup-problems",
+  "case": "last-startup-card-not-clean-warnings-only-yellow",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkLastStartup(for:)",
+    "line": 896
+  },
+  "input": {
+    "function": "checkLastStartup",
+    "resultFileExists": true,
+    "result": {
+      "startedAt": "2026-08-10T12:00:00Z",
+      "wasClean": false,
+      "fatalErrors": [],
+      "warnings": [
+        "World save took longer than usual"
+      ],
+      "problems": null
+    }
+  },
+  "expected": {
+    "id": "lastStartup",
+    "status": "yellow",
+    "detectedValue": "Last start: <formatted date>\n1 warning(s) logged.",
+    "actionLabel": null,
+    "actionType": null
+  },
+  "notes": "Reached only when `wasClean == false` but `fatalErrors` is empty and `warnings` is not -- no code path in this file actually constructs a `LastStartupResult` in this shape (both call sites either set fatal errors on a hard fail or leave warnings empty on a soft-fail write); characterized because the branch exists and a hand-edited or future result file could hit it."
+}

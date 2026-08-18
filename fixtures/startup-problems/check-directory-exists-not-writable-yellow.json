@@ -1,0 +1,25 @@
+{
+  "domain": "startup-problems",
+  "case": "check-directory-exists-not-writable-yellow",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkDirectory(for:)",
+    "line": 178
+  },
+  "input": {
+    "function": "checkDirectory",
+    "serverDir": "/servers/java/ro_server",
+    "exists": true,
+    "isDir": true,
+    "writable": false,
+    "readable": true
+  },
+  "expected": {
+    "id": "directory",
+    "status": "yellow",
+    "detectedValue": "Exists but may have permission issues:\n/servers/java/ro_server",
+    "actionLabel": "Locate Folder",
+    "actionType": "locateFolder"
+  },
+  "notes": "`writable && readable` (line 175) is a single AND-gate to green -- losing either permission alone produces this identical yellow card; the message never says which permission is missing."
+}

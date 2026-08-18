@@ -1,0 +1,28 @@
+{
+  "domain": "startup-problems",
+  "case": "last-startup-card-clean-no-problems-green",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkLastStartup(for:)",
+    "line": 879
+  },
+  "input": {
+    "function": "checkLastStartup",
+    "resultFileExists": true,
+    "result": {
+      "startedAt": "2026-08-10T12:00:00Z",
+      "wasClean": true,
+      "fatalErrors": [],
+      "warnings": [],
+      "problems": null
+    }
+  },
+  "expected": {
+    "id": "lastStartup",
+    "status": "green",
+    "detectedValue": "Last start: <medium-date short-time formatted 2026-08-10T12:00:00Z>\nNo fatal errors detected.",
+    "actionLabel": null,
+    "actionType": null
+  },
+  "notes": "`formatDate` (line 933-937) uses `DateFormatter` with `.medium`/`.short` styles under the process locale -- the literal string is locale- and timezone-dependent, so the port should compare on structure (prefix, fields present) rather than a fixed byte string."
+}

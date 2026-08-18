@@ -1,0 +1,22 @@
+{
+  "domain": "startup-problems",
+  "case": "last-startup-card-never-started-gray",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkLastStartup(for:)",
+    "line": 852
+  },
+  "input": {
+    "function": "checkLastStartup",
+    "resultFileExists": false
+  },
+  "expected": {
+    "id": "lastStartup",
+    "status": "gray",
+    "detectedValue": "Start your server for the first time to see health data here.",
+    "actionLabel": null,
+    "actionType": null,
+    "helpId": "health.last-startup"
+  },
+  "notes": "Fires both when the file is genuinely absent (never started) and when it exists but fails to decode (line 856-858 guards file-exists AND successful JSONDecoder.decode in one clause) -- a corrupted result file reads identically to \"never started\", not as an error state."
+}

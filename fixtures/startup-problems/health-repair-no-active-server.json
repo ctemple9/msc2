@@ -1,0 +1,20 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-no-active-server",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 193
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p1",
+    "action": "disable",
+    "selectedServer": null
+  },
+  "expected": {
+    "success": false,
+    "message": "no_active_server"
+  },
+  "notes": "Checked immediately on entering the `MainActor.run` block (line 193-195), before the `isServerRunning` guard -- with no server selected, \"no_active_server\" is returned even if some other server happens to be mid-boot."
+}

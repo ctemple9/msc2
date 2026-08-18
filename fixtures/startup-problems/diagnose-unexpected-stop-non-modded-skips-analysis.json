@@ -1,0 +1,34 @@
+{
+  "domain": "startup-problems",
+  "case": "diagnose-unexpected-stop-non-modded-skips-analysis",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "diagnoseUnexpectedStop(reachedReadyState:)",
+    "line": 201
+  },
+  "input": {
+    "function": "diagnoseUnexpectedStop",
+    "reachedReadyState": false,
+    "cfg": {
+      "isModded": false,
+      "javaFlavor": "paper"
+    },
+    "errorExcerpt": []
+  },
+  "expected": {
+    "isHardFail": true,
+    "shouldAnalyze": false,
+    "analyzerCalled": false,
+    "writeLastStartupResultCalledWith": {
+      "wasClean": false,
+      "fatalErrors": [
+        "Server stopped before reaching ready state."
+      ],
+      "warnings": []
+    },
+    "genericAlertShown": true,
+    "alertTitle": "Server Stopped Unexpectedly",
+    "alertMessage": "The server process stopped unexpectedly with no error output in the log."
+  },
+  "notes": "`StartupCrashAnalyzer.analyze` is never invoked for Paper/Vanilla/Purpur/Fabric-without-mods -- `shouldAnalyze` gates on `cfg.isModded`, not on `javaFlavor` alone, since a Fabric server with zero mods installed is still `.fabric` but not modded in the sense this guard means. `errorExcerpt.isEmpty` falls back to the fixed no-log-output sentence (line 224-226)."
+}

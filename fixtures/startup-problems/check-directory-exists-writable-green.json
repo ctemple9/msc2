@@ -1,0 +1,25 @@
+{
+  "domain": "startup-problems",
+  "case": "check-directory-exists-writable-green",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkDirectory(for:)",
+    "line": 176
+  },
+  "input": {
+    "function": "checkDirectory",
+    "serverDir": "/servers/java/my_server",
+    "exists": true,
+    "isDir": true,
+    "writable": true,
+    "readable": true
+  },
+  "expected": {
+    "id": "directory",
+    "status": "green",
+    "detectedValue": "/servers/java/my_server",
+    "actionLabel": null,
+    "actionType": null
+  },
+  "notes": "The green `detectedValue` (line 176) is the bare path with no prefix text -- unlike the red and yellow branches, which both prepend an explanatory line."
+}

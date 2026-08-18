@@ -1,0 +1,35 @@
+{
+  "domain": "startup-problems",
+  "case": "write-last-startup-result-record-shape-and-path",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "writeLastStartupResult(for:wasClean:fatalErrors:warnings:problems:)",
+    "line": 917
+  },
+  "input": {
+    "function": "writeLastStartupResult",
+    "server": {
+      "serverDir": "/servers/java/my_server"
+    },
+    "now": "2026-08-18T10:15:00Z",
+    "wasClean": false,
+    "fatalErrors": [
+      "Server stopped before reaching ready state."
+    ],
+    "warnings": [],
+    "problems": []
+  },
+  "expected": {
+    "writtenPath": "/servers/java/my_server/last_startup_result.json",
+    "recordShape": {
+      "startedAt": "2026-08-18T10:15:00Z",
+      "wasClean": false,
+      "fatalErrors": [
+        "Server stopped before reaching ready state."
+      ],
+      "warnings": [],
+      "problems": null
+    }
+  },
+  "notes": "`problems: problems.isEmpty ? nil : problems` (line 923) means an empty array is never round-tripped as `[]` -- it is always written as JSON `null`, identical to the case where no problems were ever collected. A reader of the persisted file cannot distinguish \"analyzer ran and found nothing\" from \"analyzer never ran\" from this field alone. `LastStartupResult.problems` (HealthCardModels.swift:52) is `[StartupProblem]? = nil` specifically so older result files without the key still decode."
+}

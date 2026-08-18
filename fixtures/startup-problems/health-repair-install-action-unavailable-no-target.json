@@ -1,0 +1,31 @@
+{
+  "domain": "startup-problems",
+  "case": "health-repair-install-action-unavailable-no-target",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "repairHealthProblemProvider (POST /v1/health/repair)",
+    "line": 219
+  },
+  "input": {
+    "function": "repairHealthProblemProvider",
+    "problemId": "p1",
+    "action": "install",
+    "selectedServer": {
+      "id": "srv-1"
+    },
+    "isServerRunning": false,
+    "startupProblems": [
+      {
+        "id": "p1",
+        "kind": "missingDependency",
+        "missingDependency": null
+      }
+    ],
+    "startupProblemsServerId": "srv-1"
+  },
+  "expected": {
+    "success": false,
+    "message": "action_unavailable"
+  },
+  "notes": "\"install\" guards on `problem.missingDependency != nil` alone (line 219), not on `kind` -- a missing-dependency problem whose target was filtered as non-installable (see case 26) has `missingDependency == nil` and so cannot be \"install\"ed even though its kind matches."
+}

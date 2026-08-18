@@ -1,0 +1,32 @@
+{
+  "domain": "startup-problems",
+  "case": "available-actions-missing-dependency-with-target",
+  "source": {
+    "file": "AppViewModel+APIWiringBackupsHealth.swift",
+    "test": "mapProblem(_:cfg:isRepairing:)",
+    "line": 123
+  },
+  "input": {
+    "function": "mapProblem",
+    "problem": {
+      "kind": "missingDependency",
+      "offenderName": "SomeMod",
+      "installedFile": "somemod-1.0.jar",
+      "installedJarStem": "somemod-1.0",
+      "missingDependency": "fabric-api"
+    }
+  },
+  "expected": {
+    "kind": "missingDependency",
+    "kindTitle": "Missing dependency",
+    "iconSystemName": "puzzlepiece.extension",
+    "availableActions": [
+      "install",
+      "disable",
+      "delete"
+    ],
+    "isRepairing": false,
+    "helpId": "diagnostics.crash.missing-dependency"
+  },
+  "notes": "\"install\" requires `kind == .missingDependency && missingDependency != nil` -- a missing-dependency problem whose target is a non-installable loader/minecraft/java name (see `StartupCrashAnalyzer`'s `nonInstallable` set, `StartupCrashAnalyzer.swift:235-236`) carries `missingDependency == nil` and so never offers \"install\", even though its kind is `.missingDependency` -- covered by the next case."
+}

@@ -1,0 +1,27 @@
+{
+  "domain": "startup-problems",
+  "case": "check-java-runtime-found-major-below-21-yellow",
+  "source": {
+    "file": "AppViewModel+HealthCards.swift",
+    "test": "checkJavaRuntime(for:)",
+    "line": 228
+  },
+  "input": {
+    "function": "checkJavaRuntime",
+    "candidate": "/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home/bin/java",
+    "versionOutput": "openjdk version \"17.0.9\" 2026-01-17\nOpenJDK Runtime Environment Temurin-17.0.9+9\n",
+    "exitCode": 0,
+    "serverContext": {
+      "minecraftVersion": "1.20.4",
+      "requiredJavaMajorPerP7_12": 17
+    }
+  },
+  "expected": {
+    "id": "java",
+    "status": "yellow",
+    "detectedValue": "17.0.9 — minimum is Java 21\nPath: /Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home/bin/java",
+    "actionLabel": "Download Java",
+    "actionType": "openURL:https://adoptium.net"
+  },
+  "notes": "IMPORTANT divergence from the provisioning-side runtime guard (P7.7/P7.12's required-vs-detected major check): `checkJavaRuntime` hardcodes `major >= 21` (line 220) with no knowledge of `server.minecraftVersion` at all -- it is never passed the server's actual required major. A 1.20.4 server (which needs exactly Java 17 per D-014/P7.7's `requiredJavaMajor`) with Java 17 correctly installed still shows this yellow \"minimum is Java 21\" card, which is simply wrong advice for that server. This health card and the create/launch-time guard are two independent implementations in MSC 1, not one shared check -- flagged for whichever of P7.17-P7.22 builds the Rust health card to decide whether to preserve the bug or thread the server's real required major through (a Phase 7 strengthening candidate, not silently fixed here)."
+}

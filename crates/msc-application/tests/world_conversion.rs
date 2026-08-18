@@ -199,6 +199,12 @@ impl FileSystem for FailWriteAt {
         }
         self.inner.write(path, contents)
     }
+    fn write_executable(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        if path == self.fail_path {
+            return Err(io::Error::other("simulated write failure"));
+        }
+        self.inner.write_executable(path, contents)
+    }
     fn stat(&self, path: &Path) -> io::Result<Metadata> {
         self.inner.stat(path)
     }

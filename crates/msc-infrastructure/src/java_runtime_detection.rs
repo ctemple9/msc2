@@ -6,22 +6,34 @@
 //! phase's [`FileSystem`] trait existed to back it — `msc-domain` carries
 //! no I/O, per `msc2-engineering.md` §6.
 //!
-//! Two things this deliberately does *not* port, since no fixture exercises
-//! either and both need capabilities beyond a `FileSystem` trait:
-//! - `detectJavaMajor` (spawning `java -version` as a subprocess) — the
-//!   fixtures' own notes confirm the ported behavior should come from
-//!   [`infer_java_major_version`]'s path-text inference alone ("majorVersion
-//!   and name must come from parsing the macOS JDK bundle directory-naming
-//!   convention... never from executing the binary"). Real process
-//!   execution is a separate substrate concern for a later phase.
-//! - `defaultJavaRuntimeSearchRoots` (resolving the current user's home
-//!   directory and OS-specific install locations) — every fixture supplies
-//!   `searchRoots` explicitly; a caller wiring this into Settings can build
-//!   its own default list once that phase exists.
+//! One thing this still deliberately does *not* port, since no fixture
+//! exercises it and P1.5's own fixture notes are explicit about why:
+//! `detectJavaMajor` (spawning `java -version` as a subprocess) —
+//! "majorVersion and name must come from parsing the macOS JDK bundle
+//! directory-naming convention... never from executing the binary". Real
+//! process execution *is* used below, but only for the two `which java`
+//! probes P7.16 characterizes fresh (`checkJavaOnPath`/`isJavaInstalled`),
+//! never for major-version detection.
+//!
+//! P7.16 extends this module with the rest of P7.7's discovery surface:
+//! [`default_java_runtime_search_roots`] (deferred here at P1.5 pending a
+//! caller — this phase is that caller), and the `which java`-backed
+//! [`check_java_on_path`]/[`is_java_installed`]/
+//! [`has_critical_missing_dependency`], ported from `SetupWizardView.swift`
+//! and `PrerequisitesView.swift` against
+//! `fixtures/java-runtime-selection/check-java-on-path-*` and
+//! `has-critical-missing-dependency-*` (4 of the 6 cases P7.12 deferred
+//! here; the other 2, Adoptium's managed install, are
+//! `java_runtime_install.rs`'s job).
 
 use crate::fs::FileSystem;
+use crate::process::{
+    OutputStream, ProcessError, ProcessEvent, ProcessSpawnRequest, ProcessSupervisor,
+};
+use msc_domain::identity::ServerType;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DetectedJavaRuntime {
@@ -261,4 +273,160 @@ fn infer_java_major_version(text: &str) -> Option<i64> {
         }
     }
     None
+}
+
+/// Which host platform is running MSC 2 — governs both
+/// [`default_java_runtime_search_roots`] here and the managed-install
+/// archive format in `java_runtime_install.rs`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostOs {
+    Mac,
+    Linux,
+    Windows,
+}
+
+/// `defaultJavaRuntimeSearchRoots()` (`JavaRuntimeManager.swift:108-119`),
+/// generalized to all three host platforms. The Mac list is a direct port
+/// — real oracle, real paths. Linux and Windows have no MSC 1 counterpart
+/// to port at all (the source app never ran anywhere else), so those two
+/// lists are new, reasoned-but-unfixtured defaults: common JDK install
+/// locations plus the same cross-platform version managers
+/// (SDKMAN, jenv) the Mac list already includes. A caller that wants a
+/// different set already can — every fixture in this corpus supplies
+/// `search_roots` explicitly rather than calling this function, and
+/// nothing in Phase 7's gate depends on these particular paths being
+/// exactly right.
+pub fn default_java_runtime_search_roots(os: HostOs, home_dir: &Path) -> Vec<String> {
+    let home = home_dir.to_string_lossy();
+    match os {
+        HostOs::Mac => vec![
+            "/Library/Java/JavaVirtualMachines".to_string(),
+            format!("{home}/Library/Java/JavaVirtualMachines"),
+            format!("{home}/.sdkman/candidates/java"),
+            format!("{home}/.jenv/versions"),
+            "/opt/homebrew/opt".to_string(),
+            "/usr/local/opt".to_string(),
+            "/opt/homebrew/Cellar".to_string(),
+            "/usr/local/Cellar".to_string(),
+        ],
+        HostOs::Linux => vec![
+            "/usr/lib/jvm".to_string(),
+            format!("{home}/.sdkman/candidates/java"),
+            format!("{home}/.jenv/versions"),
+            "/home/linuxbrew/.linuxbrew/opt".to_string(),
+            "/home/linuxbrew/.linuxbrew/Cellar".to_string(),
+        ],
+        HostOs::Windows => vec![
+            "C:/Program Files/Java".to_string(),
+            "C:/Program Files/Eclipse Adoptium".to_string(),
+            "C:/Program Files/Microsoft".to_string(),
+            format!("{home}/.sdkman/candidates/java"),
+            format!("{home}/.jenv/versions"),
+            format!("{home}/scoop/apps"),
+        ],
+    }
+}
+
+/// How often [`run_which_java`]'s wait loop polls for output/exit.
+const WHICH_JAVA_POLL_INTERVAL: Duration = Duration::from_millis(10);
+/// `/usr/bin/which` returns effectively instantly in every real case; this
+/// only exists so a broken supervisor degrades honestly (per this phase's
+/// own "honest degradation" requirement) instead of hanging a caller
+/// forever.
+const WHICH_JAVA_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// `checkJavaOnPath()`'s and `isJavaInstalled()`'s shared shell-out
+/// (`SetupWizardView.swift:1332-1342`, `PrerequisitesView.swift:571-582`):
+/// both run `/usr/bin/which java`, trim stdout, and treat anything else —
+/// a spawn failure, a non-empty-but-untrimmed-to-empty result, a timeout —
+/// as "not found", the same catch-all shape source's own `catch { ...
+/// notFound }` uses. Unix-only, matching source (`/usr/bin/which` has no
+/// Windows equivalent — a Windows `which_java` probe is not something any
+/// fixture in this corpus asks for).
+fn run_which_java(supervisor: &dyn ProcessSupervisor) -> Result<String, ProcessError> {
+    let request = ProcessSpawnRequest::new("/usr/bin/which", ".").arg("java");
+    let pid = supervisor.spawn(request)?;
+    let mut stdout = Vec::new();
+    let deadline = Instant::now() + WHICH_JAVA_TIMEOUT;
+
+    loop {
+        for event in supervisor.drain_events(pid)? {
+            match event {
+                ProcessEvent::Output {
+                    stream: OutputStream::Stdout,
+                    bytes,
+                } => stdout.extend_from_slice(&bytes),
+                ProcessEvent::Output { .. } => {}
+                ProcessEvent::Exited(_) => {
+                    return Ok(String::from_utf8_lossy(&stdout).trim().to_string());
+                }
+            }
+        }
+        if Instant::now() >= deadline {
+            let _ = supervisor.force_terminate(pid);
+            return Ok(String::from_utf8_lossy(&stdout).trim().to_string());
+        }
+        std::thread::sleep(WHICH_JAVA_POLL_INTERVAL);
+    }
+}
+
+/// `checkJavaOnPath()`'s own result shape (`SetupWizardView.swift`'s
+/// `JavaStatus`, as far as this probe touches it): found carries the
+/// trimmed `which` output, matching `.found(path:)`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JavaOnPathStatus {
+    Found { path: String },
+    NotFound,
+}
+
+/// `checkJavaOnPath()` (source line 1329-1357): a non-empty trimmed
+/// `which java` result is `.found`; an empty result or any process error
+/// is `.notFound` — source never inspects the exit code, only the output.
+pub fn check_java_on_path(supervisor: &dyn ProcessSupervisor) -> JavaOnPathStatus {
+    match run_which_java(supervisor) {
+        Ok(output) if !output.is_empty() => JavaOnPathStatus::Found { path: output },
+        _ => JavaOnPathStatus::NotFound,
+    }
+}
+
+/// Source line 1346-1348's `if self.javaPath...isEmpty` guard, split out
+/// as pure logic: `Some(path)` when the preference field should be
+/// auto-filled, `None` when it should be left exactly as the caller had
+/// it (either because nothing was found, or because a user-entered value
+/// is already there and must never be clobbered by this check).
+pub fn java_on_path_field_autofill(
+    current_field: &str,
+    status: &JavaOnPathStatus,
+) -> Option<String> {
+    match status {
+        JavaOnPathStatus::Found { path } if current_field.trim().is_empty() => Some(path.clone()),
+        _ => None,
+    }
+}
+
+/// `PrerequisitesView.isJavaInstalled()` (source line 570-584): its own,
+/// separately-implemented `which java` probe — same shell command as
+/// [`check_java_on_path`], not shared code in the oracle, so not
+/// artificially unified here either (this port already collapses the
+/// actual duplicate subprocess-invocation code into [`run_which_java`];
+/// what stays separate is the two callers' own pass/fail semantics).
+pub fn is_java_installed(supervisor: &dyn ProcessSupervisor) -> bool {
+    matches!(run_which_java(supervisor), Ok(output) if !output.is_empty())
+}
+
+/// `PrerequisitesView.hasCriticalMissingDependency(for:)` (source line
+/// 556-568): only calls [`is_java_installed`] at all when `server_types`
+/// contains [`ServerType::Java`] — a fleet with no Java servers configured
+/// never trips this on a missing Java runtime. The commented-out Bedrock/
+/// Docker branch in source (line 562-566) was never wired up; this port
+/// does not invent a check that doesn't exist there.
+pub fn has_critical_missing_dependency(
+    supervisor: &dyn ProcessSupervisor,
+    server_types: &[ServerType],
+) -> bool {
+    if server_types.contains(&ServerType::Java) {
+        !is_java_installed(supervisor)
+    } else {
+        false
+    }
 }

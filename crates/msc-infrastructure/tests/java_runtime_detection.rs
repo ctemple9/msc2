@@ -8,13 +8,20 @@
 //! Verify command (a plain nextest substring filter, which matches on test
 //! name, not file/binary name) selects all of them.
 
+use msc_domain::identity::ServerType;
 use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::java_runtime_detection::{
-    detect_installed_java_runtimes, normalized_java_executable_path,
+    JavaOnPathStatus, check_java_on_path, detect_installed_java_runtimes,
+    has_critical_missing_dependency, is_java_installed, java_on_path_field_autofill,
+    normalized_java_executable_path,
 };
+use msc_infrastructure::process::FakeProcessSupervisor;
 use serde_json::Value;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 struct Fixture {
     input: Value,
@@ -242,5 +249,168 @@ fn java_runtime_detection_ignores_invalid_candidates() {
     assert!(
         runtimes.is_empty(),
         "case {case}: expected no runtimes, got {runtimes:?}"
+    );
+}
+
+// --- checkJavaOnPath / isJavaInstalled / hasCriticalMissingDependency ---
+//
+// P7.16's own 4 fixtures (the other 2 of the 6 P7.12 deferred here are
+// `java_runtime_install.rs`'s Adoptium cases), under
+// `fixtures/java-runtime-selection/` rather than `-guards/`.
+
+struct SelectionFixture {
+    input: Value,
+    expected: Value,
+}
+
+fn load_selection(case: &str) -> SelectionFixture {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/java-runtime-selection")
+        .join(format!("{case}.json"));
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("{}: could not read fixture: {e}", path.display()));
+    let json: Value = serde_json::from_str(&text)
+        .unwrap_or_else(|e| panic!("{}: could not parse fixture JSON: {e}", path.display()));
+    SelectionFixture {
+        input: json["input"].clone(),
+        expected: json["expected"].clone(),
+    }
+}
+
+/// `run_which_java` spawns then blocks polling `drain_events` in a loop —
+/// `FakeProcessSupervisor` has no automatic responder, so a test has to
+/// feed it output/exit from a second thread once the spawn has actually
+/// happened. Polls `spawned_requests()` rather than assuming a fixed pid,
+/// since `run_which_java`'s pid comes from the fake's own counter.
+fn drive_which_java(
+    supervisor: &Arc<FakeProcessSupervisor>,
+    stdout: impl Into<String>,
+    exit_code: i32,
+) {
+    let supervisor = Arc::clone(supervisor);
+    let stdout = stdout.into();
+    thread::spawn(move || {
+        loop {
+            if let Some(pid) = supervisor.spawned_requests().first().map(|(pid, _)| *pid) {
+                if !stdout.is_empty() {
+                    let _ = supervisor.emit_stdout(pid, stdout.as_bytes().to_vec());
+                }
+                if exit_code == 0 {
+                    let _ = supervisor.exit_normally(pid);
+                } else {
+                    let _ = supervisor.crash(pid, exit_code);
+                }
+                break;
+            }
+            thread::sleep(Duration::from_millis(1));
+        }
+    });
+}
+
+#[test]
+fn java_runtime_detection_check_java_on_path_found_autofills_empty_preference_field() {
+    let fixture = load_selection("check-java-on-path-found-autofills-empty-preference-field");
+    let exit_code = fixture.input["whichJavaExitCode"].as_i64().unwrap() as i32;
+    let output = fixture.input["whichJavaOutput"].as_str().unwrap().trim();
+    let current_field = fixture.input["currentJavaPathField"].as_str().unwrap();
+    let expected_path = fixture.expected["javaPathField"].as_str().unwrap();
+
+    let supervisor = Arc::new(FakeProcessSupervisor::new());
+    drive_which_java(&supervisor, output, exit_code);
+    let status = check_java_on_path(supervisor.as_ref());
+
+    assert_eq!(
+        status,
+        JavaOnPathStatus::Found {
+            path: expected_path.to_string()
+        }
+    );
+    assert_eq!(
+        java_on_path_field_autofill(current_field, &status).as_deref(),
+        Some(expected_path)
+    );
+}
+
+#[test]
+fn java_runtime_detection_check_java_on_path_not_found_sets_status() {
+    let fixture = load_selection("check-java-on-path-not-found-sets-status");
+    let exit_code = fixture.input["whichJavaExitCode"].as_i64().unwrap() as i32;
+    let output = fixture.input["whichJavaOutput"].as_str().unwrap();
+    let current_field = fixture.input["currentJavaPathField"].as_str().unwrap();
+
+    let supervisor = Arc::new(FakeProcessSupervisor::new());
+    drive_which_java(&supervisor, output, exit_code);
+    let status = check_java_on_path(supervisor.as_ref());
+
+    assert_eq!(status, JavaOnPathStatus::NotFound);
+    // The stale field is left exactly as-is — the fixture's own point.
+    assert_eq!(java_on_path_field_autofill(current_field, &status), None);
+    assert_eq!(
+        fixture.expected["javaPathField"].as_str().unwrap(),
+        current_field
+    );
+}
+
+#[test]
+fn java_runtime_detection_has_critical_missing_dependency_blocks_when_java_configured_and_missing()
+{
+    let fixture = load_selection(
+        "has-critical-missing-dependency-blocks-when-java-server-configured-and-missing",
+    );
+    let server_types: Vec<ServerType> = fixture.input["serverTypes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| ServerType::from_raw_value(v.as_str().unwrap()).unwrap())
+        .collect();
+    let exit_code = fixture.input["whichJavaExitCode"].as_i64().unwrap() as i32;
+    let output = fixture.input["whichJavaOutput"].as_str().unwrap();
+
+    let supervisor = Arc::new(FakeProcessSupervisor::new());
+    drive_which_java(&supervisor, output, exit_code);
+    let result = has_critical_missing_dependency(supervisor.as_ref(), &server_types);
+
+    assert_eq!(
+        result,
+        fixture.expected["hasCriticalMissingDependency"]
+            .as_bool()
+            .unwrap()
+    );
+    // `is_java_installed` alone should agree — same probe, same input.
+    let supervisor2 = Arc::new(FakeProcessSupervisor::new());
+    drive_which_java(&supervisor2, output, exit_code);
+    assert!(!is_java_installed(supervisor2.as_ref()));
+}
+
+#[test]
+fn java_runtime_detection_has_critical_missing_dependency_skips_java_check_when_only_bedrock_configured()
+ {
+    let fixture = load_selection(
+        "has-critical-missing-dependency-skips-java-check-when-only-bedrock-configured",
+    );
+    let server_types: Vec<ServerType> = fixture.input["serverTypes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| ServerType::from_raw_value(v.as_str().unwrap()).unwrap())
+        .collect();
+
+    // No `drive_which_java` puppeteer: source's own guard means
+    // `isJavaInstalled()` (and so `run_which_java`) must never even be
+    // called for a fleet with no Java servers configured. A supervisor
+    // that would hang forever if actually polled proves the short-circuit
+    // rather than merely asserting the returned value.
+    let supervisor = FakeProcessSupervisor::new();
+    let result = has_critical_missing_dependency(&supervisor, &server_types);
+
+    assert_eq!(
+        result,
+        fixture.expected["hasCriticalMissingDependency"]
+            .as_bool()
+            .unwrap()
+    );
+    assert!(
+        supervisor.spawned_requests().is_empty(),
+        "which java must not be spawned when no Java server is configured"
     );
 }

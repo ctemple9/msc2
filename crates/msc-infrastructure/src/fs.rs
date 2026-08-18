@@ -31,6 +31,16 @@ pub struct Metadata {
 pub trait FileSystem: Send + Sync {
     fn read(&self, path: &Path) -> io::Result<Vec<u8>>;
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
+    /// Writes `contents` to `path` and marks the result executable —
+    /// `write` alone never touches permission bits (matching
+    /// `std::fs::write`'s own behavior), which is fine for every prior
+    /// caller in this crate but wrong for `java_runtime_install.rs`
+    /// (P7.16), the first one that extracts a real binary (`bin/java`)
+    /// out of a downloaded archive: a managed Java install whose `java`
+    /// binary isn't executable is silently useless. Unix sets `0o755`;
+    /// Windows has no POSIX executable bit (same rationale as this
+    /// module's own [`is_executable`]) so it's a plain write there.
+    fn write_executable(&self, path: &Path, contents: &[u8]) -> io::Result<()>;
     fn stat(&self, path: &Path) -> io::Result<Metadata>;
     fn list(&self, path: &Path) -> io::Result<Vec<PathBuf>>;
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()>;
@@ -62,6 +72,11 @@ impl FileSystem for StdFileSystem {
 
     fn write(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
         std::fs::write(path, contents)
+    }
+
+    fn write_executable(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        std::fs::write(path, contents)?;
+        set_executable(path)
     }
 
     fn stat(&self, path: &Path) -> io::Result<Metadata> {
@@ -114,6 +129,19 @@ fn is_executable(meta: &std::fs::Metadata) -> bool {
 #[cfg(not(unix))]
 fn is_executable(_meta: &std::fs::Metadata) -> bool {
     false
+}
+
+#[cfg(unix)]
+fn set_executable(path: &Path) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    let mut perms = std::fs::metadata(path)?.permissions();
+    perms.set_mode(0o755);
+    std::fs::set_permissions(path, perms)
+}
+
+#[cfg(not(unix))]
+fn set_executable(_path: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 /// Joins `base` and `component` with a literal `/`, never
@@ -314,6 +342,23 @@ impl FileSystem for FakeFileSystem {
         Ok(())
     }
 
+    fn write_executable(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        let mut files = self.files.lock().unwrap();
+        let modified = files
+            .get(path)
+            .map(|e| e.modified)
+            .unwrap_or(SystemTime::UNIX_EPOCH);
+        files.insert(
+            path.to_path_buf(),
+            FakeEntry {
+                contents: contents.to_vec(),
+                executable: true,
+                modified,
+            },
+        );
+        Ok(())
+    }
+
     fn stat(&self, path: &Path) -> io::Result<Metadata> {
         let files = self.files.lock().unwrap();
         if let Some(entry) = files.get(path) {
@@ -373,10 +418,36 @@ impl FileSystem for FakeFileSystem {
             return Err(io::Error::other("simulated rename failure"));
         }
         let mut files = self.files.lock().unwrap();
-        let entry = files
-            .remove(from)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, from.display().to_string()))?;
-        files.insert(to.to_path_buf(), entry);
+        if let Some(entry) = files.remove(from) {
+            files.insert(to.to_path_buf(), entry);
+            return Ok(());
+        }
+        // Not a single stored file at `from` -- try a directory rename
+        // instead: `std::fs::rename` renames a whole directory in one
+        // syscall on every real filesystem (java_runtime_install's
+        // atomic "extracting -> final" swap relies on exactly this), so
+        // this fake needs to move every stored file nested under `from`
+        // to the same relative path under `to`, not just a single key.
+        let nested: Vec<PathBuf> = files
+            .keys()
+            .filter(|p| *p != from && p.starts_with(from))
+            .cloned()
+            .collect();
+        if nested.is_empty() {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                from.display().to_string(),
+            ));
+        }
+        for path in nested {
+            let Ok(rel) = path.strip_prefix(from) else {
+                continue;
+            };
+            let new_path = to.join(rel);
+            if let Some(entry) = files.remove(&path) {
+                files.insert(new_path, entry);
+            }
+        }
         Ok(())
     }
 

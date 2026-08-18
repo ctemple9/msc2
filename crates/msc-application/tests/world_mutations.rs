@@ -83,6 +83,14 @@ impl FileSystem for FailPropertiesWriteFileSystem {
         }
     }
 
+    fn write_executable(&self, path: &Path, contents: &[u8]) -> io::Result<()> {
+        if path.ends_with("server.properties") {
+            Err(io::Error::other("simulated properties write failure"))
+        } else {
+            StdFileSystem.write_executable(path, contents)
+        }
+    }
+
     fn stat(&self, path: &Path) -> io::Result<Metadata> {
         StdFileSystem.stat(path)
     }

@@ -1,0 +1,19 @@
+{
+  "domain": "server-creation",
+  "case": "pre-existing-folder-refused-with-message",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- pre-existing folder refusal",
+    "line": 178
+  },
+  "input": {
+    "safeName": "Existing",
+    "newDirAlreadyExists": true
+  },
+  "expected": {
+    "returns": false,
+    "directoryCreated": false,
+    "lastServerCreateError": "A server folder named \"existing\" already exists at <servers_root>/java/existing. Choose a different name, or remove that folder."
+  },
+  "notes": "Checked with `fm.fileExists(atPath: newDir.path)` (line 178) *before* `fm.createDirectory` runs -- this refusal never touches the filesystem, unlike every later failure path in this function which has already created the directory by the time it fails."
+}

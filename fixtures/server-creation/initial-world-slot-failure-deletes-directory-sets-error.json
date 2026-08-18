@@ -1,0 +1,20 @@
+{
+  "domain": "server-creation",
+  "case": "initial-world-slot-failure-deletes-directory-sets-error",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- initial persistent world slot creation failure",
+    "line": 356
+  },
+  "input": {
+    "createInitialPersistentWorldSlotResult": null
+  },
+  "expected": {
+    "returns": false,
+    "directoryRemoved": true,
+    "removedPath": "<newDir>",
+    "lastServerCreateError": "Couldn't create the initial world slot for \"<safeName>\".",
+    "serverRegistryTouched": false
+  },
+  "notes": "`guard await createInitialPersistentWorldSlot(...) != nil else { try? fm.removeItem(at: newDir); ...; return false }` (line 356-367) -- this is the first point in the function that both cleans up the directory *and* reports an error message, unlike the two WorldSource copy-failure paths above it in source order which do neither. `upsertServer(cfgServer)` (line 382) hasn't run yet at this point, so the server registry is untouched."
+}

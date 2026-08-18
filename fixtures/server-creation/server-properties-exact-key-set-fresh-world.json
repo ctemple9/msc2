@@ -1,0 +1,40 @@
+{
+  "domain": "server-creation",
+  "case": "server-properties-exact-key-set-fresh-world",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- server.properties key set written for a fresh world",
+    "line": 298
+  },
+  "input": {
+    "safeName": "Fresh World Server",
+    "port": 25566,
+    "difficulty": "hard",
+    "gamemode": "survival",
+    "worldSource": "fresh",
+    "worldSeed": null,
+    "initialWorldName": null
+  },
+  "expected": {
+    "propertiesFileContainsExactlyKeys": [
+      "server-port",
+      "motd",
+      "max-players",
+      "online-mode",
+      "difficulty",
+      "gamemode",
+      "level-name"
+    ],
+    "values": {
+      "server-port": "25566",
+      "motd": "Fresh World Server",
+      "max-players": "20",
+      "online-mode": "true",
+      "difficulty": "hard",
+      "gamemode": "survival",
+      "level-name": "Fresh World Server"
+    },
+    "level-seed-key-present": false
+  },
+  "notes": "`ServerPropertiesManager.writeProperties` (line 44 of ServerPropertiesManager.swift) replaces the whole file with only the given dict -- there is no merge with a template `server.properties`, so this is the *complete* key set for a brand-new server, not a subset. `level-seed` is only added `if let effectiveWorldSeed` (line 307-309); with no seed and a fresh world it's simply absent, not written empty."
+}

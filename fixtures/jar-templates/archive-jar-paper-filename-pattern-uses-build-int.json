@@ -1,0 +1,21 @@
+{
+  "domain": "jar-templates",
+  "case": "archive-jar-paper-filename-pattern-uses-build-int",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "archiveServerJar(flavor:result:from:) -- Paper archive filename",
+    "line": 632
+  },
+  "input": {
+    "flavor": "paper",
+    "result": {
+      "version": "1.21.4",
+      "build": "231"
+    }
+  },
+  "expected": {
+    "archiveFilename": "paper-1.21.4-build231.jar",
+    "skippedIfBuildNotInt": true
+  },
+  "notes": "`guard let buildInt = Int(result.build) else { return }` (line 632) -- Paper's build number is parsed to an Int before formatting; a non-numeric build string (shouldn't happen from `PaperDownloader`, but the guard exists) silently aborts archiving with no error surfaced, same silent-skip shape as the unsupported-flavor case below."
+}

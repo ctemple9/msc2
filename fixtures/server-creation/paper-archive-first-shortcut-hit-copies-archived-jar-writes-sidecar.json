@@ -1,0 +1,31 @@
+{
+  "domain": "server-creation",
+  "case": "paper-archive-first-shortcut-hit-copies-archived-jar-writes-sidecar",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- Paper archive-first shortcut, archive hit",
+    "line": 258
+  },
+  "input": {
+    "flavor": "paper",
+    "saveDownloadedJars": true,
+    "jarSource": "downloadLatest",
+    "fetchLatestMetadata": {
+      "version": "1.21.4",
+      "build": 231
+    },
+    "archiveFileExists": "paper-1.21.4-build231.jar"
+  },
+  "expected": {
+    "networkJarDownloadCalled": false,
+    "usedArchive": true,
+    "jarCopiedFrom": "<paperTemplateDir>/paper-1.21.4-build231.jar",
+    "resolvedVersion": "1.21.4",
+    "resolvedBuild": "231",
+    "sidecarWritten": {
+      "mcVersion": "1.21.4",
+      "build": 231
+    }
+  },
+  "notes": "Archive-first only runs `if flavor == .paper && configManager.config.saveDownloadedJars` (line 258): a lightweight `PaperDownloader.fetchLatestMetadata()` call (no jar bytes) builds `paper-<version>-build<build>.jar` and checks it against the archive directory *before* any real download; a hit copies the archived jar, writes the version sidecar, and sets `usedArchive = true`, so the download branch below is skipped entirely."
+}

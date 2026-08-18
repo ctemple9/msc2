@@ -1,0 +1,20 @@
+{
+  "domain": "jar-templates",
+  "case": "create-server-from-template-resolves-flavor-from-filename-prefix",
+  "source": {
+    "file": "AppViewModel+APIWiringServerMgmt.swift",
+    "test": "templateMutationProvider -- case \"createServer\", templateFlavorForFilename",
+    "line": 244
+  },
+  "input": {
+    "action": "createServer",
+    "templateId": "paper:purpur-1.21.4-build2270.jar",
+    "name": "From Template"
+  },
+  "expected": {
+    "flavorResolvedFor createNewServer": "purpur",
+    "jarSourcePassed": "template(<templateURL for purpur-1.21.4-build2270.jar>)",
+    "createNewServerCalled": true
+  },
+  "notes": "`templateFlavorForFilename` (lines 244-251) is a plain filename-prefix sniff: \"purpur-\" -> `.purpur`, \"pufferfish\" -> `.pufferfish`, \"minecraft_server-\" -> `.vanilla`, \"fabric-server-launch\" -> `.fabric`, and everything else (including plain \"paper-...\") falls to the `.paper` default (line 250) -- there is no case for NeoForge/Forge filenames because `archiveServerJar` never produces one to archive in the first place, so a `templateId` can never actually resolve to those flavors. `templateFilenameFromId` (lines 239-243) strips the fixed `\"paper:\"` kind-prefix `templateIdFor` (lines 236-238) adds when building the id in the first place -- the `\"paper:\"` kind label here names the *template bucket* (Paper-template-directory), not the resolved `JavaServerFlavor`, which is a naming collision worth carrying a note into the Rust port about rather than silently renaming away."
+}

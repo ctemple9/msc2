@@ -1,0 +1,31 @@
+{
+  "domain": "jar-templates",
+  "case": "export-server-as-template-jar-and-plugins-no-running-server-check",
+  "source": {
+    "file": "AppViewModel+APIWiringServerMgmt.swift",
+    "test": "templateMutationProvider -- case \"exportServer\"",
+    "line": 339
+  },
+  "input": {
+    "action": "exportServer",
+    "serverId": "abc-123",
+    "includePlugins": true,
+    "serverIsRunning": true,
+    "sidecarPresent": {
+      "mcVersion": "1.21.4",
+      "build": 231
+    },
+    "pluginsDirJars": [
+      "Geyser-Spigot.jar",
+      "someplugin.jar"
+    ]
+  },
+  "expected": {
+    "success": true,
+    "message": "exported",
+    "exportedCount": 3,
+    "jarArchivedAs": "paper-1.21.4-build231.jar",
+    "refusedBecauseRunning": false
+  },
+  "notes": "Read the whole `case \"exportServer\":` block (lines 339-386) end to end: there is no `self.isServerRunning` guard anywhere in it, unlike `applyPaperTemplateToSelectedServer` (AppViewModel+Templates.swift line 301-304) which explicitly refuses while the server is running. **This contradicts this step's own \"What\" wording**, which named a running-server refusal for export-as-template -- none exists in source for the remote-API export path; recorded here as a wording correction (the same kind P7.1 made for `archiveServerJar` and NeoForge/Forge) rather than characterizing a refusal that isn't there. The jar destination filename comes from the `PaperVersionSidecarManager` sidecar when present (`paper-<mc>-build<build>.jar`, line 353), falling back to the source jar's own filename when there's no sidecar (line 355); `includePlugins` defaults to `true` when the field is omitted (`req.includePlugins ?? true`, line 370), and a missing plugins directory is tolerated via `try?` (line 371), not an error."
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "server-creation",
+  "case": "cross-play-template-copy-skipped-for-non-plugin-addon",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- cross-play template copy condition",
+    "line": 317
+  },
+  "input": {
+    "flavor": "neoforge",
+    "enableCrossPlay": true,
+    "geyserAndFloodgateTemplatesPresent": true
+  },
+  "expected": {
+    "applyCrossPlayTemplatesIfAvailableCalled": false
+  },
+  "notes": "`addOn == .plugin` (line 317) is false for a `.mod` add-on kind -- a modded server with `enableCrossPlay: true` still never gets Geyser/Floodgate copied in, because those are Bukkit/Paper plugin jars that a mod loader can't load anyway; the cross-play port fields on `ConfigServer` are still set (lines 352-354), only the jar copy is skipped."
+}

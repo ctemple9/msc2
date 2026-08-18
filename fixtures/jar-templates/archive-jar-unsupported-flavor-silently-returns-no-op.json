@@ -1,0 +1,22 @@
+{
+  "domain": "jar-templates",
+  "case": "archive-jar-unsupported-flavor-silently-returns-no-op",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "archiveServerJar(flavor:result:from:) -- default case, unsupported flavors",
+    "line": 640
+  },
+  "input": {
+    "flavor": "pufferfish",
+    "result": {
+      "version": "1.21.4",
+      "build": "n/a"
+    }
+  },
+  "expected": {
+    "archiveFilename": null,
+    "fileCopied": false,
+    "logMessageWritten": false
+  },
+  "notes": "`default: return` (line 640-641) -- NeoForge, Forge, Spigot, Quilt, and Pufferfish all fall through here with no log message and no error; this is the same finding P7.1 recorded for NeoForge/Forge specifically (\"never archives them; no such path exists\"), confirmed here to cover every flavor the switch doesn't name, including Pufferfish which P7.1's per-flavor accounting flagged as having a working downloader but landing in this same silent no-op on archive."
+}

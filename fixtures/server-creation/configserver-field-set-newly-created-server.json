@@ -1,0 +1,40 @@
+{
+  "domain": "server-creation",
+  "case": "configserver-field-set-newly-created-server",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- ConfigServer construction",
+    "line": 338
+  },
+  "input": {
+    "safeName": "New Server",
+    "newDirPath": "<servers_root>/java/new_server",
+    "primaryJarPath": "<newDir>/paper.jar",
+    "flavor": "paper",
+    "resolvedVersion": "1.21.4",
+    "resolvedBuild": "231",
+    "resolvedLoader": null,
+    "defaultBannerColorHex": "#3366FF",
+    "enablePlayit": false,
+    "enableXboxBroadcast": false,
+    "enableCrossPlay": false
+  },
+  "expected": {
+    "id": "<newly generated UUID string>",
+    "displayName": "New Server",
+    "serverDir": "<newDir>.path",
+    "paperJarPath": "<newDir>/paper.jar",
+    "minRamGB": 2,
+    "maxRamGB": 4,
+    "notes": "",
+    "javaFlavor": "paper",
+    "minecraftVersion": "1.21.4",
+    "serverBuild": "231",
+    "loaderVersion": null,
+    "bannerColorHex": "#3366FF",
+    "playitEnabled": false,
+    "xboxBroadcastEnabled": false,
+    "bedrockPort": null
+  },
+  "notes": "`ConfigServer(id: newId, displayName: safeName, serverDir: newDir.path, paperJarPath: primaryJarPath, minRamGB: 2, maxRamGB: 4, notes: \"\")` (line 338-339) is the base initializer call; every field after that (`javaFlavor` through `bedrockPort`, lines 340-354) is set on the `var` afterward, one statement per field, not part of the initializer. `bedrockPort` is only set `if enableCrossPlay, let bedrockPort = crossPlayBedrockPort` (line 352) -- absent here since cross-play is off."
+}

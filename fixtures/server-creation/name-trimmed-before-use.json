@@ -1,0 +1,17 @@
+{
+  "domain": "server-creation",
+  "case": "name-trimmed-before-use",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- whitespace trimmed from name before any use",
+    "line": 146
+  },
+  "input": {
+    "name": "  My Server  "
+  },
+  "expected": {
+    "safeName": "My Server",
+    "folderName": "my_server"
+  },
+  "notes": "`name.trimmingCharacters(in: .whitespacesAndNewlines)` (line 146) runs before the empty check and before folder-name derivation; the trimmed value, not the raw argument, is what everything downstream (folder name, motd, ConfigServer.displayName) uses."
+}

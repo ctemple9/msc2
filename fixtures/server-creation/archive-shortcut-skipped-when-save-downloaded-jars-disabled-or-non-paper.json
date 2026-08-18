@@ -1,0 +1,19 @@
+{
+  "domain": "server-creation",
+  "case": "archive-shortcut-skipped-when-save-downloaded-jars-disabled-or-non-paper",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- archive-first gated on saveDownloadedJars and flavor == .paper",
+    "line": 258
+  },
+  "input": {
+    "flavor": "purpur",
+    "saveDownloadedJars": true
+  },
+  "expected": {
+    "fetchLatestMetadataCalled": false,
+    "archiveCheckPerformed": false,
+    "downloadFunction": "ServerJarProvider.downloadLatest"
+  },
+  "notes": "The condition is `flavor == .paper && configManager.config.saveDownloadedJars` (line 258) -- both a Purpur download with the setting on, and a Paper download with `saveDownloadedJars` off, skip the metadata check entirely and go straight to `ServerJarProvider.downloadLatest`; this fixture exercises the flavor half of that AND, the sibling case for the setting-off half is implied by the same guard."
+}

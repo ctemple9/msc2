@@ -1,0 +1,17 @@
+{
+  "domain": "server-creation",
+  "case": "addon-folder-mods-for-modded-flavor",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- add-on folder creation per flavor.addOnKind",
+    "line": 314
+  },
+  "input": {
+    "flavor": "neoforge"
+  },
+  "expected": {
+    "addOnKind": "mod",
+    "folderCreated": "<newDir>/mods"
+  },
+  "notes": "`flavor.addOnKind` for any `.modded`-category flavor is `.mod`, whose `folderName` is `\"mods\"`; Forge and Fabric take the same path as NeoForge here even though NeoForge/Forge are install-step and Fabric is download-and-go -- add-on folder creation happens after both branches rejoin (line 314), so it's provisioningKind-independent."
+}

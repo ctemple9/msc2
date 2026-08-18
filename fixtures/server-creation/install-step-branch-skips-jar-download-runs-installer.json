@@ -1,0 +1,22 @@
+{
+  "domain": "server-creation",
+  "case": "install-step-branch-skips-jar-download-runs-installer",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- provisioningKind == .installStep branch",
+    "line": 194
+  },
+  "input": {
+    "flavor": "neoforge",
+    "provisioningKind": "installStep"
+  },
+  "expected": {
+    "jarDownloadAttempted": false,
+    "jarDest": null,
+    "primaryJarPathAtEnd": "",
+    "installerInvoked": "NeoForgeInstaller.install",
+    "resolvedVersionSource": "info.minecraftVersion",
+    "resolvedLoaderSource": "info.neoForgeVersion"
+  },
+  "notes": "`if flavor.provisioningKind == .installStep { ... } else { <jar download branch> }` (line 194/240) -- the two branches are mutually exclusive; NeoForge and Forge never construct a `jarDest` or set `primaryJarPath` at all, so the resulting `ConfigServer.paperJarPath` stays the empty string it was initialized to (line 192)."
+}

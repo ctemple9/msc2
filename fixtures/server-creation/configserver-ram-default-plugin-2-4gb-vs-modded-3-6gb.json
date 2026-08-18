@@ -1,0 +1,24 @@
+{
+  "domain": "server-creation",
+  "case": "configserver-ram-default-plugin-2-4gb-vs-modded-3-6gb",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- modded RAM default override",
+    "line": 345
+  },
+  "input": {
+    "pluginFlavor": "paper",
+    "moddedFlavor": "fabric"
+  },
+  "expected": {
+    "paper": {
+      "minRamGB": 2,
+      "maxRamGB": 4
+    },
+    "fabric": {
+      "minRamGB": 3,
+      "maxRamGB": 6
+    }
+  },
+  "notes": "The `ConfigServer` initializer always sets `minRamGB: 2, maxRamGB: 4` (line 339) first; `if flavor.category == .modded { cfgServer.minRamGB = 3; cfgServer.maxRamGB = 6 }` (line 345-348) then overrides it for any modded flavor -- Fabric, NeoForge, and Forge all get 3/6 GB, every standard-category flavor keeps 2/4 GB."
+}

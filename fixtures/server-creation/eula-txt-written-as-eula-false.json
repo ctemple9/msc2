@@ -1,0 +1,17 @@
+{
+  "domain": "server-creation",
+  "case": "eula-txt-written-as-eula-false",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- eula.txt write",
+    "line": 296
+  },
+  "input": {
+    "safeName": "Any Server"
+  },
+  "expected": {
+    "file": "<newDir>/eula.txt",
+    "contents": "eula=false\n"
+  },
+  "notes": "`try \"eula=false\\n\".write(...)` (line 296) is a literal string write, not a round trip through `EULAManager` -- every newly created Java server starts with the EULA unaccepted regardless of flavor or world source, and the trailing newline is part of the fixed literal."
+}

@@ -1,0 +1,42 @@
+{
+  "domain": "jar-templates",
+  "case": "archive-jar-purpur-vanilla-fabric-filename-patterns",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "archiveServerJar(flavor:result:from:) -- non-Paper filename patterns",
+    "line": 634
+  },
+  "input": {
+    "cases": [
+      {
+        "flavor": "purpur",
+        "result": {
+          "version": "1.21.4",
+          "build": "2270"
+        }
+      },
+      {
+        "flavor": "vanilla",
+        "result": {
+          "version": "1.21.4",
+          "build": "n/a"
+        }
+      },
+      {
+        "flavor": "fabric",
+        "result": {
+          "version": "1.21.4",
+          "build": "n/a"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "archiveFilenames": [
+      "purpur-1.21.4-build2270.jar",
+      "minecraft_server-1.21.4.jar",
+      "fabric-server-launch-1.21.4.jar"
+    ]
+  },
+  "notes": "Purpur keeps `result.build` as a raw string (line 635, no `Int(...)` parse, unlike Paper); Vanilla and Fabric's filenames (lines 637, 639) don't reference `result.build` at all -- version-only names, since neither provider has a meaningful \"build number\" the way Paper/Purpur do."
+}

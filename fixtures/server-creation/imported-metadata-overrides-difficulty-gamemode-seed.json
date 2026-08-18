@@ -1,0 +1,26 @@
+{
+  "domain": "server-creation",
+  "case": "imported-metadata-overrides-difficulty-gamemode-seed",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- imported world metadata overrides wizard-chosen values",
+    "line": 160
+  },
+  "input": {
+    "worldSource": "backupZip",
+    "wizardDifficulty": "peaceful",
+    "wizardGamemode": "creative",
+    "wizardWorldSeed": null,
+    "importedMetadata": {
+      "difficulty": "hard",
+      "gamemode": "survival",
+      "seed": "1234567890"
+    }
+  },
+  "expected": {
+    "effectiveDifficulty": "hard",
+    "effectiveGamemode": "survival",
+    "effectiveWorldSeed": "1234567890"
+  },
+  "notes": "`effectiveDifficulty = importedMetadata.difficulty ?? difficulty`, same pattern for gamemode (lines 160-161), and `effectiveWorldSeed = normalizedWorldSeed ?? importedMetadata.seed` (line 162) -- a backup zip or existing folder that carries its own level.dat metadata always wins over whatever the create-server wizard's form fields said, for all three fields. A fresh world source has no imported metadata (`WorldSlotManager.ImportedWorldMetadata()`, line 154), so the wizard's values pass through untouched in that case."
+}

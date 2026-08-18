@@ -1,0 +1,19 @@
+{
+  "domain": "server-creation",
+  "case": "world-source-backup-zip-failure-aborts-returns-false",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- WorldSource.backupZip unzip failure",
+    "line": 329
+  },
+  "input": {
+    "worldSource": "backupZip",
+    "unzipWorldBackupResult": false
+  },
+  "expected": {
+    "returns": false,
+    "directoryRemoved": false,
+    "lastServerCreateErrorSetByThisPath": false
+  },
+  "notes": "`if !ok { return false }` (line 331) -- unlike the initial-world-slot failure (line 363) and the catch-all throw handler (line 400), this early return does *not* call `fm.removeItem(at: newDir)` and does not set `lastServerCreateError`. A failed backup-zip extraction leaves the partially built server directory (folder, eula.txt, server.properties, add-on folder) on disk with no cleanup and no message -- flagged per this step's own instruction to mark such partial-state gaps as a deliberate Phase 7 strengthening point rather than port them, for P7.17/P7.18 to close."
+}

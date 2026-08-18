@@ -1,0 +1,20 @@
+{
+  "domain": "server-creation",
+  "case": "catch-block-removes-newdir-on-any-thrown-error",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- top-level catch cleanup",
+    "line": 395
+  },
+  "input": {
+    "thrownDuring": "ServerJarProvider.downloadLatest",
+    "errorDescription": "network unreachable"
+  },
+  "expected": {
+    "returns": false,
+    "directoryRemoved": true,
+    "removedPath": "<newDir>",
+    "lastServerCreateError": "network unreachable"
+  },
+  "notes": "`catch { ...; try? FileManager.default.removeItem(at: newDir); return false }` (line 395-401) wraps the entire `do` block starting right after `fm.createDirectory(at: newDir, ...)` (line 185) -- any Swift `throw` from installer invocation, jar download, or properties writing lands here and rolls the whole directory back; this is the one failure path in the function proven to be unconditionally symmetric (comment at line 398-399 calls out NeoForge's `libraries/` tree specifically as the reason this matters)."
+}

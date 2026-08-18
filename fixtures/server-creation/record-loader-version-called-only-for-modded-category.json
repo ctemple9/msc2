@@ -1,0 +1,21 @@
+{
+  "domain": "server-creation",
+  "case": "record-loader-version-called-only-for-modded-category",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- recordLoaderVersion call condition",
+    "line": 383
+  },
+  "input": {
+    "flavor": "neoforge",
+    "resolvedVersion": "26.2",
+    "resolvedLoader": "20.4.237"
+  },
+  "expected": {
+    "recordLoaderVersionCalled": true,
+    "flavor": "neoforge",
+    "mc": "26.2",
+    "loader": "20.4.237"
+  },
+  "notes": "`if cfgServer.javaFlavor.category == .modded, let mc = cfgServer.minecraftVersion, let loader = cfgServer.loaderVersion { recordLoaderVersion(...) }` (line 383-386) -- all three conditions are required; a standard-category flavor (Paper, Purpur, Vanilla) never calls this even though `resolvedVersion` is always set for it, because `category == .modded` alone gates it. `loaderVersion` is also `nil` for download-and-go flavors other than Fabric (`result.loaderVersion`, line 285), so a modded flavor with no loader version resolved (shouldn't happen in practice for NeoForge/Forge, which always set it) would also skip the call."
+}

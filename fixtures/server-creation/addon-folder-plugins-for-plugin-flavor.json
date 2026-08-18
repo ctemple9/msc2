@@ -1,0 +1,17 @@
+{
+  "domain": "server-creation",
+  "case": "addon-folder-plugins-for-plugin-flavor",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- add-on folder creation per flavor.addOnKind",
+    "line": 314
+  },
+  "input": {
+    "flavor": "paper"
+  },
+  "expected": {
+    "addOnKind": "plugin",
+    "folderCreated": "<newDir>/plugins"
+  },
+  "notes": "`flavor.addOnKind` for a `.standard`-category flavor other than Vanilla is `.plugin` (JavaServerFlavor.swift line ~152), whose `folderName` is `\"plugins\"`."
+}

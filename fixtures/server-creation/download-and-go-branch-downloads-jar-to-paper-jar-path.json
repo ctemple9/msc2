@@ -1,0 +1,19 @@
+{
+  "domain": "server-creation",
+  "case": "download-and-go-branch-downloads-jar-to-paper-jar-path",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- provisioningKind == .downloadAndGo branch",
+    "line": 240
+  },
+  "input": {
+    "flavor": "paper",
+    "provisioningKind": "downloadAndGo"
+  },
+  "expected": {
+    "jarDest": "<newDir>/paper.jar",
+    "primaryJarPathAtEnd": "<newDir>/paper.jar",
+    "installerInvoked": null
+  },
+  "notes": "`let jarDest = newDir.appendingPathComponent(\"paper.jar\")` (line 242) -- every download-and-go flavor (Paper, Purpur, Vanilla, Fabric, Pufferfish) writes to a file literally named `paper.jar` regardless of which flavor it is; this is the name `JavaServerLaunchHelper.resolve`'s empty-`paperJarPath` fallback also uses."
+}

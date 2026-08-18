@@ -1,0 +1,19 @@
+{
+  "domain": "server-creation",
+  "case": "world-source-existing-folder-failure-aborts-returns-false",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- WorldSource.existingFolder copy failure",
+    "line": 332
+  },
+  "input": {
+    "worldSource": "existingFolder",
+    "copyExistingWorldFolderResult": false
+  },
+  "expected": {
+    "returns": false,
+    "directoryRemoved": false,
+    "lastServerCreateErrorSetByThisPath": false
+  },
+  "notes": "Same shape and same gap as the backupZip case (line 333-334): `copyExistingWorldFolder` returning false is an early `return false` with no `newDir` cleanup and no `lastServerCreateError` set. Both are one instance of the same unflagged-in-source oracle gap, characterized once each since they're reached via different `WorldSource` cases and different copy functions."
+}

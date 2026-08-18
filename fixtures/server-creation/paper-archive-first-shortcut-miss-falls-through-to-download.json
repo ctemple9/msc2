@@ -1,0 +1,25 @@
+{
+  "domain": "server-creation",
+  "case": "paper-archive-first-shortcut-miss-falls-through-to-download",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- Paper archive-first shortcut, archive miss",
+    "line": 274
+  },
+  "input": {
+    "flavor": "paper",
+    "saveDownloadedJars": true,
+    "fetchLatestMetadata": {
+      "version": "1.21.5",
+      "build": 5
+    },
+    "archiveFileExists": false
+  },
+  "expected": {
+    "usedArchive": false,
+    "networkJarDownloadCalled": true,
+    "downloadFunction": "ServerJarProvider.downloadLatest",
+    "archiveServerJarCalledAfter": true
+  },
+  "notes": "`if !usedArchive { ... }` (line 274) -- a metadata check that finds no matching archived filename falls through to the real download exactly as if `saveDownloadedJars` had been off, and (since it's still on) the freshly downloaded jar is archived afterwards via `archiveServerJar` (line 290) so the next server of the same version hits the shortcut instead."
+}

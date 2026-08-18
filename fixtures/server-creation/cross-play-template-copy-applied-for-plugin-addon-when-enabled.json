@@ -1,0 +1,19 @@
+{
+  "domain": "server-creation",
+  "case": "cross-play-template-copy-applied-for-plugin-addon-when-enabled",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- cross-play template copy condition",
+    "line": 317
+  },
+  "input": {
+    "flavor": "paper",
+    "enableCrossPlay": true,
+    "geyserAndFloodgateTemplatesPresent": true
+  },
+  "expected": {
+    "applyCrossPlayTemplatesIfAvailableCalled": true,
+    "copiedInto": "<newDir>/plugins"
+  },
+  "notes": "`if enableCrossPlay, addOn == .plugin { applyCrossPlayTemplatesIfAvailable(to: addOnDir) }` (line 317-318) -- both conditions are required; this is the plugin-addon, cross-play-on case, which copies the newest Geyser and Floodgate jars found in the global plugin template directory into the new server's `plugins/`."
+}

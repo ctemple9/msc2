@@ -1,0 +1,20 @@
+{
+  "domain": "jar-templates",
+  "case": "archive-jar-already-exists-in-archive-skipped-not-overwritten",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "archiveServerJar(flavor:result:from:) -- existing-archive-entry guard",
+    "line": 647
+  },
+  "input": {
+    "flavor": "paper",
+    "archiveFilename": "paper-1.21.4-build231.jar",
+    "alreadyExistsInArchiveDir": true
+  },
+  "expected": {
+    "fileCopied": false,
+    "logMessage": "[Archive] Already in archive: paper-1.21.4-build231.jar",
+    "loadPaperTemplatesCalled": false
+  },
+  "notes": "`guard !fm.fileExists(atPath: archiveURL.path) else { logAppMessage(...); return }` (line 647-650) -- an archive hit is a silent (well, logged) no-op, not an overwrite; the existing archived jar is trusted as-is rather than re-copied, and `loadPaperTemplates()` (line 656) -- which refreshes the in-memory template list -- only runs on the success path below this guard, not here."
+}

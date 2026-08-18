@@ -1,0 +1,24 @@
+{
+  "domain": "jar-templates",
+  "case": "template-listing-sorted-localized-case-insensitive-ascending-not-lexicographic",
+  "source": {
+    "file": "AppViewModel+Templates.swift",
+    "test": "loadPaperTemplates() / loadPluginTemplates() -- template list sort order",
+    "line": 232
+  },
+  "input": {
+    "filesInDir": [
+      "paper-1.21.10-build5.jar",
+      "paper-1.21.4-build231.jar",
+      "PAPER-1.20.1-build196.jar"
+    ]
+  },
+  "expected": {
+    "order": [
+      "PAPER-1.20.1-build196.jar",
+      "paper-1.21.4-build231.jar",
+      "paper-1.21.10-build5.jar"
+    ]
+  },
+  "notes": "`.sorted { $0.lastPathComponent.localizedCaseInsensitiveCompare($1.lastPathComponent) == .orderedAscending }` (loadPaperTemplates line 234-236, loadPluginTemplates line 54-56 -- identical logic, one function per template kind) is case-insensitive *and* locale-aware, which for this input set happens to order \"1.21.4\" before \"1.21.10\" digit-by-digit the way a person reading the list would expect. This is a genuinely different algorithm from `latestTemplate`'s raw `<` string compare above -- the display list and the \"which one is latest\" pick can disagree on ordering for the same directory, and that divergence is preserved rather than unified."
+}

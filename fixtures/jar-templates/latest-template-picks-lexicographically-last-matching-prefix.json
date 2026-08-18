@@ -1,0 +1,22 @@
+{
+  "domain": "jar-templates",
+  "case": "latest-template-picks-lexicographically-last-matching-prefix",
+  "source": {
+    "file": "AppViewModel+Templates.swift",
+    "test": "latestTemplate(in:prefixLowercased:) -- sort and pick",
+    "line": 778
+  },
+  "input": {
+    "prefixLowercased": "paper",
+    "filesInDir": [
+      "paper-1.20.1-build196.jar",
+      "paper-1.21.4-build231.jar",
+      "paper-1.21.10-build5.jar",
+      "purpur-1.21.4-build2270.jar"
+    ]
+  },
+  "expected": {
+    "picked": "paper-1.21.4-build231.jar"
+  },
+  "notes": "`jars.sorted { $0.lastPathComponent < $1.lastPathComponent }.last` (line 778) is a **raw string** comparison, not the numeric/version-aware compare `ComponentVersionParsing.isVersionNewer` uses elsewhere -- \"paper-1.21.4-...\" sorts after \"paper-1.21.10-...\" because the character `'4'` (0x34) is greater than `'1'` (0x31) at the first differing position, even though 1.21.10 is the numerically newer Minecraft version. This is a real quirk to preserve exactly, not a bug to silently fix in the port: `updatePaperFromLatestTemplate` (line 604-608) trusts whatever this returns as \"latest\"."
+}

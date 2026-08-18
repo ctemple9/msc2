@@ -1,0 +1,32 @@
+{
+  "domain": "jar-templates",
+  "case": "jar-summary-geyser-floodgate-pick-newest-by-modification-date",
+  "source": {
+    "file": "AppViewModel+Templates.swift",
+    "test": "jarSummary(for:) -- Geyser/Floodgate newest-by-modification-date selection",
+    "line": 557
+  },
+  "input": {
+    "pluginsDirContents": [
+      {
+        "name": "Geyser-Spigot-2.4.0.jar",
+        "modDate": "2026-01-01T00:00:00Z"
+      },
+      {
+        "name": "geyser-spigot-2.5.0.jar",
+        "modDate": "2026-03-01T00:00:00Z"
+      },
+      {
+        "name": "Floodgate-Spigot.jar",
+        "modDate": null
+      }
+    ],
+    "paperJarPath": ""
+  },
+  "expected": {
+    "paperFilename": "paper.jar \u2014 <formatted mod date>",
+    "geyserFilename": "geyser-spigot-2.5.0.jar \u2014 Mar 1, 2026 at 12:00 AM",
+    "floodgateFilename": "Floodgate-Spigot.jar"
+  },
+  "notes": "Prefix match on `base.hasPrefix(\"geyser\")`/`\"floodgate\"` is done on the lowercased filename stem (line 546), so \"Geyser-Spigot-2.4.0.jar\" matches despite the capital G; between two Geyser jars the one with the later `modificationDate` wins (lines 557-567), and a jar with *no* readable mod date is only used `else if geyserURLForSummary == nil` (line 568) -- i.e. it's a last-resort fallback, not a tiebreaker, which is why Floodgate's undated jar here is still picked (it's the only Floodgate candidate) but shows no date suffix (`label(forPath:)`'s no-attrs branch, line 518-519, returns the bare filename). `paperFilename` falls back to `<serverDir>/paper.jar` when `cfgServer.paperJarPath` is empty (lines 525-530), same fallback name as `JavaServerLaunchHelper.resolve`'s."
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "server-creation",
+  "case": "empty-name-after-trim-refused-no-directory-created",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- empty name after trim returns false immediately",
+    "line": 147
+  },
+  "input": {
+    "name": "   "
+  },
+  "expected": {
+    "returns": false,
+    "directoryCreated": false,
+    "lastServerCreateError": null
+  },
+  "notes": "`guard !safeName.isEmpty else { return false }` (line 147) fires before the servers_root/java directory is even touched -- no folder, no error message set (that only happens on the pre-existing-folder path), just a bare `false`."
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "server-creation",
+  "case": "folder-name-lowercased-and-spaces-to-underscores",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- folder derivation from server name",
+    "line": 169
+  },
+  "input": {
+    "safeName": "My Cool SMP"
+  },
+  "expected": {
+    "folderName": "my_cool_smp",
+    "fullPath": "<servers_root>/java/my_cool_smp"
+  },
+  "notes": "`folderName = safeName.replacingOccurrences(of: \" \", with: \"_\").lowercased()` (line 169) -- only the literal ASCII space is replaced; other whitespace (tabs, non-breaking spaces) or punctuation passes through unchanged, and this runs on the already-trimmed name."
+}

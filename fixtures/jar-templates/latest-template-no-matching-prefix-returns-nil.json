@@ -1,0 +1,20 @@
+{
+  "domain": "jar-templates",
+  "case": "latest-template-no-matching-prefix-returns-nil",
+  "source": {
+    "file": "AppViewModel+Templates.swift",
+    "test": "latestTemplate(in:prefixLowercased:) -- no matching jar",
+    "line": 772
+  },
+  "input": {
+    "prefixLowercased": "floodgate",
+    "filesInDir": [
+      "paper-1.21.4-build231.jar",
+      "geyser-2.4.0.jar"
+    ]
+  },
+  "expected": {
+    "picked": null
+  },
+  "notes": "`jars.filter { ... base.hasPrefix(prefixLowercased.lowercased()) }` (line 772-776) over an empty result set, followed by `.sorted{...}.last` on an empty array, yields `nil` -- callers like `updateFloodgateFromTemplate` (line 662) treat this as \"no templates found\" and log rather than crash."
+}

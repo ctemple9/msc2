@@ -1,0 +1,17 @@
+{
+  "domain": "server-creation",
+  "case": "addon-folder-none-for-vanilla",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(name:...) -- add-on folder creation per flavor.addOnKind",
+    "line": 314
+  },
+  "input": {
+    "flavor": "vanilla"
+  },
+  "expected": {
+    "addOnKind": null,
+    "folderCreated": false
+  },
+  "notes": "`if let addOn = flavor.addOnKind` (line 314) -- Vanilla's `addOnKind` is `nil` (JavaServerFlavor.swift line ~150, \"Vanilla has no plugin/mod API\"), so this whole block, including any cross-play template copy, is skipped for Vanilla regardless of the `enableCrossPlay` flag."
+}

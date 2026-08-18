@@ -1,0 +1,455 @@
+//! The server-jar provider boundary: the first place MSC 2 makes an
+//! outbound network request on a user's behalf.
+//!
+//! Architecture call, decided for you rather than asked (per this phase's
+//! own "decided without asking" precedent): a synchronous/blocking HTTP
+//! client (`ureq`, rustls TLS backend via its default feature set) rather
+//! than pulling `reqwest`+`tokio` into this crate. Every existing
+//! `msc-infrastructure` trait (`FileSystem`, `process`) is synchronous;
+//! this stays consistent. The async agent layer (`msc-agent`, which
+//! already depends on `tokio`) can wrap a blocking call in
+//! `spawn_blocking` when it gets there in a later step — that's not this
+//! step's job.
+//!
+//! [`Transport`] is the boundary itself: fetch bytes from a URL, capped at
+//! a caller-given size, with a request timeout. [`HttpTransport`] is the
+//! real implementation; `tests/jar_provider.rs`'s own `FakeTransport`
+//! serves canned bytes fed from `corpus/providers/`, per this phase's own
+//! decided-for-you note: "Provisioning tests never touch the network."
+//! Every successful jar/installer download routes through
+//! [`crate::download_staging::stage_download`].
+//!
+//! Per-family functions compose [`Transport::get`] with
+//! `msc_domain::server_versions`'s pure parsing (P7.10): fetch bytes, hand
+//! them to the parser, follow whatever URL it resolves. Ported from
+//! `ServerJarProviders.swift` (Vanilla/Paper/Purpur/Fabric's `downloadLatest`/
+//! `listVersions`) and `NeoForgeInstaller.swift` (NeoForge's/Forge's
+//! `listVersionPairs` metadata fetch and their installer-jar download step
+//! — *running* the installer is P7.14's `loader_installer`, not this step's
+//! job; this step only fetches the installer jar itself, the same as it
+//! fetches any other family's jar).
+
+use std::fmt;
+use std::path::Path;
+use std::time::Duration;
+
+use msc_domain::server_versions::{self, CatalogError};
+
+use crate::download_staging::{self, CachedFile, DownloadStagingError};
+use crate::fs::FileSystem;
+
+const USER_AGENT: &str = "MinecraftServerController/2.0 (msc2 agent)";
+
+/// Catalog/metadata responses (JSON or XML) are small — bound generously
+/// but well below what a runaway/malicious response could exhaust memory
+/// with.
+pub const CATALOG_MAX_BYTES: u64 = 20 * 1024 * 1024; // 20 MB
+
+/// Real server jars run 40-65 MB in the P7.3 corpus evidence; installer
+/// jars are smaller. 300 MB leaves headroom for a large modpack-adjacent
+/// jar without accepting an unbounded stream.
+pub const JAR_MAX_BYTES: u64 = 300 * 1024 * 1024; // 300 MB
+
+/// Connect + the whole exchange must complete within this long — long
+/// enough for a slow real download, short enough that a hung provider
+/// degrades honestly (per this phase's "honest degradation" requirement)
+/// instead of blocking a create/version-change operation forever.
+pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+#[derive(Debug)]
+pub enum JarProviderError {
+    /// Connection failure, non-2xx status, or any other transport-level
+    /// problem. `what` is a call-site label, the same convention
+    /// `ensure_http_ok`/`ensureOK` already established in P7.10.
+    Network(String),
+    Timeout(String),
+    ResponseTooLarge {
+        what: String,
+        max_bytes: u64,
+    },
+    /// A parse/shape failure from `msc_domain::server_versions`.
+    Catalog(CatalogError),
+    /// Response bytes weren't valid UTF-8 where a caller needed text
+    /// (`server_versions`'s functions all take `&str`).
+    InvalidUtf8 {
+        what: String,
+    },
+    Staging(DownloadStagingError),
+}
+
+impl fmt::Display for JarProviderError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            JarProviderError::Network(m) => write!(f, "{m}"),
+            JarProviderError::Timeout(what) => write!(f, "{what} timed out."),
+            JarProviderError::ResponseTooLarge { what, max_bytes } => {
+                write!(f, "{what} exceeded the {max_bytes}-byte size cap.")
+            }
+            JarProviderError::Catalog(e) => write!(f, "{e}"),
+            JarProviderError::InvalidUtf8 { what } => {
+                write!(f, "{what}: response was not valid UTF-8.")
+            }
+            JarProviderError::Staging(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for JarProviderError {}
+
+impl From<CatalogError> for JarProviderError {
+    fn from(e: CatalogError) -> Self {
+        JarProviderError::Catalog(e)
+    }
+}
+
+/// The boundary every family's catalog fetch and jar download goes
+/// through. `get` returns the response body on a 200 status, bounded at
+/// `max_bytes`; anything else (non-2xx, connection failure, timeout, a
+/// body that exceeds the cap) is a typed [`JarProviderError`], never a
+/// panic or an unbounded read.
+pub trait Transport: Send + Sync {
+    fn get(&self, url: &str, what: &str, max_bytes: u64) -> Result<Vec<u8>, JarProviderError>;
+}
+
+fn bytes_to_utf8(bytes: Vec<u8>, what: &str) -> Result<String, JarProviderError> {
+    String::from_utf8(bytes).map_err(|_| JarProviderError::InvalidUtf8 {
+        what: what.to_string(),
+    })
+}
+
+/// The real implementation, backed by `ureq`.
+pub struct HttpTransport {
+    agent: ureq::Agent,
+}
+
+impl Default for HttpTransport {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl HttpTransport {
+    pub fn new() -> Self {
+        let config = ureq::Agent::config_builder()
+            .timeout_global(Some(REQUEST_TIMEOUT))
+            .build();
+        Self {
+            agent: ureq::Agent::new_with_config(config),
+        }
+    }
+}
+
+impl Transport for HttpTransport {
+    fn get(&self, url: &str, what: &str, max_bytes: u64) -> Result<Vec<u8>, JarProviderError> {
+        let response = self
+            .agent
+            .get(url)
+            .header("User-Agent", USER_AGENT)
+            .header("Accept", "*/*")
+            .call();
+        let mut response = match response {
+            Ok(r) => r,
+            Err(ureq::Error::StatusCode(code)) => {
+                return Err(JarProviderError::Network(format!(
+                    "{what} returned status {code}."
+                )));
+            }
+            Err(ureq::Error::Timeout(_)) => {
+                return Err(JarProviderError::Timeout(what.to_string()));
+            }
+            Err(e) => return Err(JarProviderError::Network(format!("{what}: {e}"))),
+        };
+        response
+            .body_mut()
+            .with_config()
+            .limit(max_bytes)
+            .read_to_vec()
+            .map_err(|e| match e {
+                ureq::Error::BodyExceedsLimit(limit) => JarProviderError::ResponseTooLarge {
+                    what: what.to_string(),
+                    max_bytes: limit,
+                },
+                ureq::Error::Timeout(_) => JarProviderError::Timeout(what.to_string()),
+                other => JarProviderError::Network(format!("{what}: {other}")),
+            })
+    }
+}
+
+// ---------------------------------------------------------------------
+// Vanilla
+// ---------------------------------------------------------------------
+
+const VANILLA_MANIFEST_URL: &str =
+    "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
+
+pub fn vanilla_list_versions(
+    transport: &dyn Transport,
+) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
+    let bytes = transport.get(VANILLA_MANIFEST_URL, "Mojang manifest", CATALOG_MAX_BYTES)?;
+    let manifest = bytes_to_utf8(bytes, "Mojang manifest")?;
+    Ok(server_versions::vanilla_list_versions(&manifest)?)
+}
+
+pub fn vanilla_download_latest(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
+    let manifest_bytes =
+        transport.get(VANILLA_MANIFEST_URL, "Mojang manifest", CATALOG_MAX_BYTES)?;
+    let manifest = bytes_to_utf8(manifest_bytes, "Mojang manifest")?;
+    let (release_id, meta_url) = server_versions::vanilla_resolve_metadata_url(&manifest, None)?;
+
+    let meta_bytes = transport.get(&meta_url, "Mojang version metadata", CATALOG_MAX_BYTES)?;
+    let meta_text = bytes_to_utf8(meta_bytes, "Mojang version metadata")?;
+    let jar_url = server_versions::vanilla_server_download_url(&meta_text, &release_id)?;
+
+    let jar_bytes = transport.get(&jar_url, "Vanilla download", JAR_MAX_BYTES)?;
+    download_staging::stage_download(fs, dest, &jar_bytes, &jar_url, &release_id, None)
+        .map_err(JarProviderError::Staging)
+}
+
+// ---------------------------------------------------------------------
+// Purpur
+// ---------------------------------------------------------------------
+
+const PURPUR_PROJECT_URL: &str = "https://api.purpurmc.org/v2/purpur";
+
+pub fn purpur_list_versions(
+    transport: &dyn Transport,
+) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
+    let bytes = transport.get(PURPUR_PROJECT_URL, "Purpur project", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Purpur project")?;
+    Ok(server_versions::purpur_list_versions(&body)?)
+}
+
+pub fn purpur_download_version(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    version: &str,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
+    let dl_url = format!("https://api.purpurmc.org/v2/purpur/{version}/latest/download");
+    let jar_bytes = transport.get(&dl_url, "Purpur download", JAR_MAX_BYTES)?;
+    download_staging::stage_download(fs, dest, &jar_bytes, &dl_url, version, None)
+        .map_err(JarProviderError::Staging)
+}
+
+// ---------------------------------------------------------------------
+// Paper
+// ---------------------------------------------------------------------
+
+const PAPER_PROJECT_URL: &str = "https://fill.papermc.io/v3/projects/paper";
+
+pub fn paper_flatten_and_sort_versions(
+    transport: &dyn Transport,
+) -> Result<Vec<String>, JarProviderError> {
+    let bytes = transport.get(PAPER_PROJECT_URL, "Paper project v3", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Paper project v3")?;
+    Ok(server_versions::paper_flatten_and_sort(&body)?)
+}
+
+/// `fetchBestBuild(forVersion:includeExperimental:)`'s real HTTP hop:
+/// fetch that one version's builds, then delegate the pure selection to
+/// `msc_domain::server_versions::paper_select_build`.
+pub fn paper_select_build(
+    transport: &dyn Transport,
+    version: &str,
+    include_experimental: bool,
+) -> Option<server_versions::PaperBuildSelection> {
+    let url = format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds");
+    let bytes = transport
+        .get(&url, "Paper builds", CATALOG_MAX_BYTES)
+        .ok()?;
+    let body = String::from_utf8(bytes).ok()?;
+    server_versions::paper_select_build(&body, include_experimental)
+}
+
+/// `fetchAvailableVersions(includeExperimental:limit:)`: the flatten+sort
+/// fetch, then [`server_versions::paper_walk_candidates`]'s 20-candidate
+/// walk, fetching each candidate's builds through [`paper_select_build`].
+pub fn paper_fetch_available_versions(
+    transport: &dyn Transport,
+    include_experimental: bool,
+    limit: usize,
+) -> Result<Vec<server_versions::PaperBuildSelection>, JarProviderError> {
+    let candidates = paper_flatten_and_sort_versions(transport)?;
+    let outcome = server_versions::paper_walk_candidates(&candidates, limit, |v| {
+        paper_select_build(transport, v, include_experimental)
+    });
+    Ok(outcome.results)
+}
+
+/// Downloads the given build's jar for `version`. `paper_select_build`
+/// only records `build_id`/`channel`/`is_stable`, not the download URL
+/// (MSC 1's own `PaperVersionOption` carries a `downloadURL` field that
+/// selection doesn't expose in this port) — the URL is re-read from the
+/// same builds response here rather than plumbed through
+/// `PaperBuildSelection`, keeping that struct a pure "which build" answer.
+pub fn paper_download_build(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    version: &str,
+    build_id: i64,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
+    let builds_url = format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds");
+    let bytes = transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Paper builds")?;
+    let jar_url = paper_build_download_url(&body, build_id).ok_or_else(|| {
+        JarProviderError::Network(format!(
+            "No download found for Paper {version} build {build_id}."
+        ))
+    })?;
+
+    let jar_bytes = transport.get(&jar_url, "Paper download", JAR_MAX_BYTES)?;
+    download_staging::stage_download(
+        fs,
+        dest,
+        &jar_bytes,
+        &jar_url,
+        &format!("{version}-{build_id}"),
+        None,
+    )
+    .map_err(JarProviderError::Staging)
+}
+
+fn paper_build_download_url(raw_builds_body: &str, build_id: i64) -> Option<String> {
+    let builds: serde_json::Value = serde_json::from_str(raw_builds_body).ok()?;
+    let builds = builds.as_array()?;
+    builds
+        .iter()
+        .find(|entry| entry.get("id").and_then(serde_json::Value::as_i64) == Some(build_id))
+        .and_then(|entry| entry.get("downloads"))
+        .and_then(|d| d.get("server:default"))
+        .and_then(|sd| sd.get("url"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+}
+
+// ---------------------------------------------------------------------
+// Fabric
+// ---------------------------------------------------------------------
+
+const FABRIC_GAME_URL: &str = "https://meta.fabricmc.net/v2/versions/game";
+const FABRIC_INSTALLER_URL: &str = "https://meta.fabricmc.net/v2/versions/installer";
+
+pub fn fabric_list_versions(
+    transport: &dyn Transport,
+) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
+    let bytes = transport.get(FABRIC_GAME_URL, "Fabric game versions", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Fabric game versions")?;
+    Ok(server_versions::fabric_list_versions(&body)?)
+}
+
+pub fn fabric_download_version(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    mc_version: &str,
+    pinned_loader_version: Option<&str>,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
+    let loader = match pinned_loader_version
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+    {
+        Some(pinned) => pinned.to_string(),
+        None => {
+            let loader_url = format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}");
+            let bytes = transport.get(&loader_url, "Fabric loader", CATALOG_MAX_BYTES)?;
+            let body = bytes_to_utf8(bytes, "Fabric loader")?;
+            server_versions::fabric_select_loader(&body)?
+        }
+    };
+
+    let installer_bytes =
+        transport.get(FABRIC_INSTALLER_URL, "Fabric installer", CATALOG_MAX_BYTES)?;
+    let installer_body = bytes_to_utf8(installer_bytes, "Fabric installer")?;
+    let installer =
+        server_versions::fabric_first_stable_version(&installer_body, "Fabric installer")?;
+
+    let dl_url = format!(
+        "https://meta.fabricmc.net/v2/versions/loader/{mc_version}/{loader}/{installer}/server/jar"
+    );
+    let jar_bytes = transport.get(&dl_url, "Fabric server jar", JAR_MAX_BYTES)?;
+    download_staging::stage_download(fs, dest, &jar_bytes, &dl_url, mc_version, None)
+        .map_err(JarProviderError::Staging)
+}
+
+// ---------------------------------------------------------------------
+// NeoForge
+// ---------------------------------------------------------------------
+
+const NEOFORGE_METADATA_URL: &str =
+    "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
+
+pub fn neoforge_list_version_pairs(
+    transport: &dyn Transport,
+) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
+    let bytes = transport.get(
+        NEOFORGE_METADATA_URL,
+        "NeoForge metadata",
+        CATALOG_MAX_BYTES,
+    )?;
+    let xml = bytes_to_utf8(bytes, "NeoForge metadata")?;
+    Ok(server_versions::neoforge_build_entries(&xml))
+}
+
+/// Downloads (not runs — that's P7.14's `loader_installer`) the NeoForge
+/// installer jar for `version` into `dest`.
+pub fn neoforge_download_installer(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    version: &str,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
+    let url = format!(
+        "https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar"
+    );
+    let bytes = transport.get(&url, "NeoForge installer download", JAR_MAX_BYTES)?;
+    download_staging::stage_download(fs, dest, &bytes, &url, version, None)
+        .map_err(JarProviderError::Staging)
+}
+
+// ---------------------------------------------------------------------
+// Forge
+// ---------------------------------------------------------------------
+
+const FORGE_METADATA_URL: &str =
+    "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml";
+const FORGE_PROMOTIONS_URL: &str =
+    "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
+
+pub fn forge_list_version_pairs(
+    transport: &dyn Transport,
+) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
+    let bytes = transport.get(FORGE_METADATA_URL, "Forge metadata", CATALOG_MAX_BYTES)?;
+    let xml = bytes_to_utf8(bytes, "Forge metadata")?;
+    Ok(server_versions::forge_parse_maven_metadata(&xml))
+}
+
+pub fn forge_latest_recommended(
+    transport: &dyn Transport,
+) -> Result<(String, String), JarProviderError> {
+    let bytes = transport.get(FORGE_PROMOTIONS_URL, "Forge promotions", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Forge promotions")?;
+    Ok(server_versions::forge_latest_recommended(&body)?)
+}
+
+/// Downloads (not runs) the Forge installer jar for the `{mc}-{forge}`
+/// pair into `dest`.
+pub fn forge_download_installer(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    mc_version: &str,
+    forge_version: &str,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
+    let url = format!(
+        "https://maven.minecraftforge.net/net/minecraftforge/forge/{mc_version}-{forge_version}/forge-{mc_version}-{forge_version}-installer.jar"
+    );
+    let version_label = format!("{mc_version}-{forge_version}");
+    let bytes = transport.get(&url, "Forge installer download", JAR_MAX_BYTES)?;
+    download_staging::stage_download(fs, dest, &bytes, &url, &version_label, None)
+        .map_err(JarProviderError::Staging)
+}

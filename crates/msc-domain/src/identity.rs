@@ -92,6 +92,15 @@ impl AddOnKind {
             Self::Mod => "mod",
         }
     }
+
+    /// The add-on directory `createNewServer` creates inside a new
+    /// server's folder (`AppViewModel+ServerCreation.swift:314`).
+    pub fn folder_name(self) -> &'static str {
+        match self {
+            Self::Plugin => "plugins",
+            Self::Mod => "mods",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

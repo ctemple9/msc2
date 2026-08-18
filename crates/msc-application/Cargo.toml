@@ -11,4 +11,5 @@ uuid = { version = "1.24.0", features = ["v4"] }
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [dev-dependencies]
+serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"

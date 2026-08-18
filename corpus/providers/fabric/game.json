@@ -1,0 +1,50 @@
+[
+  {
+    "version": "26.3-snapshot-9",
+    "stable": false
+  },
+  {
+    "version": "26.3-snapshot-8",
+    "stable": false
+  },
+  {
+    "version": "26.3-snapshot-7",
+    "stable": false
+  },
+  {
+    "version": "26.3-snapshot-6",
+    "stable": false
+  },
+  {
+    "version": "26.3-snapshot-5",
+    "stable": false
+  },
+  {
+    "version": "26.3-snapshot-4",
+    "stable": false
+  },
+  {
+    "version": "26.2",
+    "stable": true
+  },
+  {
+    "version": "26.1.2",
+    "stable": true
+  },
+  {
+    "version": "26.1.1",
+    "stable": true
+  },
+  {
+    "version": "1.20.1",
+    "stable": true
+  },
+  {
+    "version": "1.19.4",
+    "stable": true
+  },
+  {
+    "version": "1.16.5",
+    "stable": true
+  }
+]

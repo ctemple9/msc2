@@ -1,0 +1,208 @@
+{
+  "files": [
+    {
+      "path": "paper/projects-paper.json",
+      "family": "paper",
+      "source_url": "https://fill.papermc.io/v3/projects/paper",
+      "captured": "2026-08-18",
+      "sha256": "764d179574324fbeaea469498a9e86db2c5c87a9583e507d7ab7932c8c195b66",
+      "byte_size": 836
+    },
+    {
+      "path": "paper/builds-1.21.11.json",
+      "family": "paper",
+      "source_url": "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
+      "captured": "2026-08-18",
+      "sha256": "172e62fa9e72306e0ad0518dbe679a8bed92fb3a3c70c5584af11172675ba8ad",
+      "byte_size": 4810,
+      "note": "Truncated from 92 real build entries to 7 (top 3 STABLE, top 2 BETA, top 2 ALPHA by build id) to keep the file small while still exercising the STABLE/BETA/ALPHA channel-selection logic."
+    },
+    {
+      "path": "purpur/project-purpur.json",
+      "family": "purpur",
+      "source_url": "https://api.purpurmc.org/v2/purpur",
+      "captured": "2026-08-18",
+      "sha256": "4c292e412babed9a8dc1e7d8b58484dd61f6878d1f584a15a00f8c05736dd17e",
+      "byte_size": 411
+    },
+    {
+      "path": "purpur/version-1.21.11.json",
+      "family": "purpur",
+      "source_url": "https://api.purpurmc.org/v2/purpur/1.21.11",
+      "captured": "2026-08-18",
+      "sha256": "708e7ead43f0316c18114fb4d3c6352c8480e561e17c475ee10cb71b26c9d2cb",
+      "byte_size": 306
+    },
+    {
+      "path": "vanilla/version-manifest-v2.json",
+      "family": "vanilla",
+      "source_url": "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json",
+      "captured": "2026-08-18",
+      "sha256": "4cbbc06b50b64f823f6ffa318355e593d504b587bc322429a9bfdd6abe08f3bc",
+      "byte_size": 3996,
+      "note": "Truncated from 907 real entries to 11: the 2 newest snapshots, the latest release (26.2), one older release (26.1.2), a 1.20-floor boundary release (1.21.11), the two releases either side of the 1.20 floor (1.20.1, 1.20), one pre-floor release (1.19.4), one legacy release (1.16.5), and the two oldest historical entries (rd-132328, rd-132211). The 'latest' object is kept as recorded by Mojang."
+    },
+    {
+      "path": "vanilla/version-26.2.json",
+      "family": "vanilla",
+      "source_url": "https://piston-meta.mojang.com/v1/packages/c75d82e7fa6eca5a043dab0c6cf77cb8317644f4/26.2.json",
+      "captured": "2026-08-18",
+      "sha256": "56ed8570826cf3a75bf96e3393b383571f63775381a27c6b8d26411607bd275b",
+      "byte_size": 4949,
+      "note": "Truncated from the real per-version metadata: 'libraries' cut from 131 entries to 3, 'arguments.game'/'arguments.jvm' each cut to their first 5 entries. 'downloads' (including 'downloads.server', the field VanillaDownloader actually reads), 'javaVersion', 'assetIndex', and every other top-level field are kept in full."
+    },
+    {
+      "path": "fabric/game.json",
+      "family": "fabric",
+      "source_url": "https://meta.fabricmc.net/v2/versions/game",
+      "captured": "2026-08-18",
+      "sha256": "823a23e3e4d95b2235fa660309d5e7f9546b179e302c4351f6fd7000c025eb3d",
+      "byte_size": 696,
+      "note": "Truncated from 67 real entries to 12: the 6 newest, 3 more stable=true entries, and 3 older stable releases spanning the 1.20 floor (1.20.1, 1.19.4, 1.16.5)."
+    },
+    {
+      "path": "fabric/loader-1.21.11.json",
+      "family": "fabric",
+      "source_url": "https://meta.fabricmc.net/v2/versions/loader/1.21.11",
+      "captured": "2026-08-18",
+      "sha256": "31ed5b07da388df4a7c5bcd3341713536060bc2c8888f16640a82fcafdc5a30d",
+      "byte_size": 6736,
+      "note": "Truncated from 251 real entries to the top 3 (highest loader build first, matching the oracle's 'first stable' selection); each entry's launcherMeta.libraries lists cut to their first 2 items per platform group."
+    },
+    {
+      "path": "fabric/installer.json",
+      "family": "fabric",
+      "source_url": "https://meta.fabricmc.net/v2/versions/installer",
+      "captured": "2026-08-18",
+      "sha256": "f12e0dc7395d1599032edbb41a0415c2dd12bce319495bde157f7f9236449768",
+      "byte_size": 1677,
+      "note": "Truncated from 67 real entries to the first 8 (newest first, matching the oracle's 'first stable' selection)."
+    },
+    {
+      "path": "neoforge/maven-metadata.xml",
+      "family": "neoforge",
+      "source_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml",
+      "captured": "2026-08-18",
+      "sha256": "3e64721a52f78bc4d44d72819504299e84906d973c0a7c6db81fc385d7187ade",
+      "byte_size": 548,
+      "note": "Truncated from 1662 real <version> entries to 7, chosen to span NeoForge's Minecraft-version eras: one beta (20.2.12-beta), one stable per MC 1.20.2/1.20.4/1.21.1/1.21.4 era, and the two newest stable releases (26.1.2.95, 26.2.0.61 = <latest>/<release>). groupId, artifactId, latest, release, and lastUpdated are kept as recorded."
+    },
+    {
+      "path": "forge/maven-metadata.xml",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml",
+      "captured": "2026-08-18",
+      "sha256": "d79ee51c8d59ae779b8ca8a236e41490b69844552297efd348322e55ff305a8e",
+      "byte_size": 669,
+      "note": "Truncated from 5040 real <version> entries to 9: the highest build for MC 1.20/1.20.1/1.20.4/1.20.6/1.21/1.21.1/1.21.5, plus the array's own first and last entries (1.21.11-61.0.0 and 1.21.5-55.1.13 = <latest>/<release>). Finding: <latest>/<release> (1.21.5-55.1.13) is stale relative to the newest entry actually present in <versions> (1.21.11-61.0.0) -- Forge's own maven-metadata.xml under-reports its newest version, which is presumably why the oracle's latestRecommendedVersion() reads promotions_slim.json instead of trusting this tag."
+    },
+    {
+      "path": "forge/promotions-slim.json",
+      "family": "forge",
+      "source_url": "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json",
+      "captured": "2026-08-18",
+      "sha256": "8723de3664a7e7caa40c56b258a871825912c2c86ab2631b6cb882a6a6954425",
+      "byte_size": 4082,
+      "note": "Not named in this step's file list, but captured in full (4082 bytes, no truncation needed) because NeoForgeInstaller.swift's latestRecommendedVersion() -- characterized by P7.5/P7.7 -- reads this endpoint, not maven-metadata.xml's <latest> tag, for Forge's actual recommended-version resolution."
+    },
+    {
+      "path": "forge/installer-evidence/run.sh",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "cf393d2dab4a29f0bcfc0e7d1a410790107936a34b0ee03a4f1f9c3b834ff333",
+      "byte_size": 365,
+      "note": "Produced by running forge-1.20.1-47.4.5-installer.jar --installServer locally; this file lands at the server directory root, unchanged from the installer's real output."
+    },
+    {
+      "path": "forge/installer-evidence/run.bat",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "2622f860eb01ff12ec59251726fc2e3cfd3def825593ef596cdcc82788f9b568",
+      "byte_size": 373,
+      "note": "Produced by running forge-1.20.1-47.4.5-installer.jar --installServer locally; this file lands at the server directory root, unchanged from the installer's real output."
+    },
+    {
+      "path": "forge/installer-evidence/user_jvm_args.txt",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "60908ccc470bc913341006fb076baf75b1ce2d9c132b837aec133e8d98474278",
+      "byte_size": 339,
+      "note": "Produced by running forge-1.20.1-47.4.5-installer.jar --installServer locally; this file lands at the server directory root, unchanged from the installer's real output. Byte-identical to what the real NeoForge 20.4.237 installer produces at the same path -- both installers ship the same boilerplate template, so it is recorded once here rather than twice (a second copy would be a duplicate, not a second sample)."
+    },
+    {
+      "path": "forge/installer-evidence/unix_args.txt",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "75a34cf6021014fbfbdbf4297cbe5de3c343cb09150dfef6b27dd8878fe890e4",
+      "byte_size": 5219,
+      "note": "Produced by actually running forge-1.20.1-47.4.5-installer.jar --installServer locally (not committed here: 6,064,949 bytes, see manifest note). Real on-disk path was libraries/net/minecraftforge/forge/1.20.1-47.4.5/unix_args.txt."
+    },
+    {
+      "path": "forge/installer-evidence/win_args.txt",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "5d40f923e110ef7f59e6e7a0c7be5ce125d82c03e65a2846414477bb9a4f4edc",
+      "byte_size": 5219,
+      "note": "Produced by actually running forge-1.20.1-47.4.5-installer.jar --installServer locally (not committed here: 6,064,949 bytes, see manifest note). Real on-disk path was libraries/net/minecraftforge/forge/1.20.1-47.4.5/win_args.txt."
+    },
+    {
+      "path": "forge/installer-evidence/libraries-shape.txt",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "781a36fb30fb7213034389bc1e0e1bd761766f5d08c01a73dd9f6c6d5900af67",
+      "byte_size": 8219,
+      "note": "Not a provider response -- a `size relative/path` listing of every file the real installer wrote under libraries/ (104 files, 161 MB total). Captures the shape per corpus/providers/README.md's rule against committing the actual jars."
+    },
+    {
+      "path": "neoforge/installer-evidence/run.sh",
+      "family": "neoforge",
+      "source_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "e19604494296958a36c5db90afe05c9d2f854a632f241dfff46d8dd8c1ff4362",
+      "byte_size": 358,
+      "note": "Produced by running neoforge-20.4.237-installer.jar --installServer locally; this file lands at the server directory root, unchanged from the installer's real output."
+    },
+    {
+      "path": "neoforge/installer-evidence/run.bat",
+      "family": "neoforge",
+      "source_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "43dc59098915c70b854ba416e5e5319582ef182ff5fc6877379ba8e0cc29484e",
+      "byte_size": 359,
+      "note": "Produced by running neoforge-20.4.237-installer.jar --installServer locally; this file lands at the server directory root, unchanged from the installer's real output."
+    },
+    {
+      "path": "neoforge/installer-evidence/unix_args.txt",
+      "family": "neoforge",
+      "source_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "9f8149cd69faa28c0b9cb50aec021927dedae003c18b51b49bdaca8a98167029",
+      "byte_size": 6120,
+      "note": "Produced by actually running neoforge-20.4.237-installer.jar --installServer locally (not committed here: 6,456,359 bytes, see manifest note). Real on-disk path was libraries/net/neoforged/neoforge/20.4.237/unix_args.txt."
+    },
+    {
+      "path": "neoforge/installer-evidence/win_args.txt",
+      "family": "neoforge",
+      "source_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "359aefd9abeaa467c4487cd07a2c880b39e492eba1f3909e5ad7f171e81358a7",
+      "byte_size": 6120,
+      "note": "Produced by actually running neoforge-20.4.237-installer.jar --installServer locally (not committed here: 6,456,359 bytes, see manifest note). Real on-disk path was libraries/net/neoforged/neoforge/20.4.237/win_args.txt."
+    },
+    {
+      "path": "neoforge/installer-evidence/libraries-shape.txt",
+      "family": "neoforge",
+      "source_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar",
+      "captured": "2026-08-18",
+      "sha256": "c8edeb4a46153ec7b63ae68adc2361be84f5ab611ffd1611b4c4764d1182b16b",
+      "byte_size": 9017,
+      "note": "Not a provider response -- a `size relative/path` listing of every file the real installer wrote under libraries/ (115 files, 171 MB total). Captures the shape per corpus/providers/README.md's rule against committing the actual jars."
+    }
+  ]
+}

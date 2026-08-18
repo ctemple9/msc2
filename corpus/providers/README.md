@@ -1,12 +1,45 @@
-See `../README.md`. **Not yet populated — needs P7.3's real evidence.**
-This directory holds real, recorded provider responses (Paper fill v3,
-Purpur, Mojang's version manifest, Fabric meta, the NeoForge/Forge Maven
-`maven-metadata.xml` listings) plus the on-disk shape a real Forge and a
-real NeoForge installer leave behind, per `rolling-plan.md`'s P7.3 step.
-This note (P7.2) fixes the shape that evidence must arrive in, and the
-checker that gates it, before any of it is collected — the same ordering
+See `../README.md`. **Populated by P7.3** with real, recorded provider
+responses (Paper fill v3, Purpur, Mojang's version manifest, Fabric meta,
+the NeoForge/Forge Maven `maven-metadata.xml` listings, plus Forge's
+`promotions_slim.json`) and the on-disk shape a real Forge and a real
+NeoForge installer leave behind, captured 2026-08-18. This note (P7.2)
+fixed the shape that evidence must arrive in, and the checker that gates
+it, before any of it was collected — the same ordering
 `tools/phase6/corpus-check.py` and `tools/phase5/real-corpus-check.py`
 used for their own corpora.
+
+## P7.3 findings
+
+- **Forge's own `maven-metadata.xml` under-reports its newest version.**
+  Its `<latest>`/`<release>` tags read `1.21.5-55.1.13`, but the `<versions>`
+  array itself already contains a newer `1.21.11-61.0.0` entry. This is
+  presumably why the oracle's `latestRecommendedVersion()` reads
+  `promotions_slim.json` instead of trusting the metadata tag — recorded
+  here, and `promotions-slim.json` captured alongside it, even though the
+  step's file list named only `maven-metadata.xml` for Forge.
+- **A stale negative CDN cache briefly made NeoForge's Maven return 404**
+  for `maven-metadata.xml` (Reposilite via CDN77, `x-77-cache: HIT`,
+  `age: 19`) even though the file demonstrably exists (confirmed via the
+  directory listing and a cache-busted request). Retried and captured
+  successfully; not a real shape change or outage, so P7.3 did not stop.
+- **Minecraft's own versioning has moved from `1.x` to a `YY.n` scheme**
+  (current release `26.2`, e.g. via Paper's and Fabric's `stable` game-version
+  lists and Mojang's own `version_manifest_v2.json`). The oracle's
+  `compareMCVersions` already special-cases this ("including the new
+  26.x.x scheme"), so this is a live-data fact worth knowing, not a parse
+  break — Fabric's `firstStableVersion()` as written would now resolve
+  `downloadLatest()` to `26.2`, not a `1.x` release. Purpur's `listVersions()`
+  filters to `1.`-prefixed versions and Vanilla's does not; both behaviors
+  are captured as-is for P7.4/P7.10 to characterize, not corrected here.
+- **Minecraft 26.2 requires Java 25** (`javaVersion.majorVersion` in its
+  piston-meta JSON), matching the Temurin 25 JDK already on this machine —
+  worth carrying into P7.7's runtime-selection characterization.
+- **NeoForge's and Forge's real installers produce a byte-identical
+  `user_jvm_args.txt`** at the server directory root (same boilerplate
+  template in both installers). Recorded once, under `forge/`, with a note
+  on both installers' manifest entries — a second copy would trip the
+  checker's duplicate-hash rule for the right reason (it isn't a second
+  sample).
 
 `tools/phase7/provider-corpus-check.py` (P7.2) is the dependency-free gate.
 It has two modes:

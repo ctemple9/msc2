@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "forge/maven-metadata.xml",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml",
+      "captured": "2026-08-18",
+      "sha256": "2887e75a3fab648fda66f12fb326ea2678267373d5db1207c1dc023df58c2200",
+      "byte_size": 32
+    }
+  ]
+}

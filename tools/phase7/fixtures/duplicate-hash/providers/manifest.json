@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "paper/projects-paper.json",
+      "family": "paper",
+      "source_url": "https://fill.papermc.io/v3/projects/paper",
+      "captured": "2026-08-18",
+      "sha256": "e9f0b22299b111e657e0d8bca19cd8c179680839899d95faf483db7ea292a37b",
+      "byte_size": 61
+    },
+    {
+      "path": "paper/projects-paper-copy.json",
+      "family": "paper",
+      "source_url": "https://fill.papermc.io/v3/projects/paper",
+      "captured": "2026-08-18",
+      "sha256": "e9f0b22299b111e657e0d8bca19cd8c179680839899d95faf483db7ea292a37b",
+      "byte_size": 61
+    }
+  ]
+}

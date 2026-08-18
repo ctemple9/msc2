@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "pufferfish/latest-build.json",
+      "family": "pufferfish",
+      "source_url": "https://ci.pufferfish.host/job/Pufferfish-1.21/lastSuccessfulBuild/",
+      "captured": "2026-08-18",
+      "sha256": "4bf4009121d43da99bb2b9aae0b72b9ca40f92dae607008e6193938d53ea8a5e",
+      "byte_size": 32
+    }
+  ]
+}

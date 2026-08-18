@@ -1,0 +1,18 @@
+{
+  "domain": "server-jar-providers",
+  "case": "vanilla-release-listing",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "self-test placeholder -- not a real characterization case",
+    "line": 1
+  },
+  "input": {
+    "placeholder": true
+  },
+  "expected": {
+    "placeholder": true
+  },
+  "corpus_source": [
+    "vanilla/version_manifest.json"
+  ]
+}

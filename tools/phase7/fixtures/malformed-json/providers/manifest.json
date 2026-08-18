@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "vanilla/version_manifest.json",
+      "family": "vanilla",
+      "source_url": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+      "captured": "2026-08-18",
+      "sha256": "a0b8e93c2b24cf18a8a013f4dbe0b0116d3b3be50153bc22509a793bc3cf976f",
+      "byte_size": 25
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "purpur/purpur-versions.json",
+      "family": "purpur",
+      "source_url": "https://api.purpurmc.org/v2/purpur",
+      "captured": "2026-08-18",
+      "sha256": "05ad4d1a7fecebe5fc6c597c2af328793790540e392d721a6e8fc86badc2e2e8",
+      "byte_size": 38
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "latest": {
+    "release": "1.21.4"
+  },
+  "versions": [
+    {
+      "id": "1.21.4",
+      "type": "release"
+    }
+  ]
+}

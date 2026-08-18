@@ -1,0 +1,52 @@
+{
+  "files": [
+    {
+      "path": "vanilla/version_manifest.json",
+      "family": "vanilla",
+      "source_url": "https://piston-meta.mojang.com/mc/game/version_manifest_v2.json",
+      "captured": "2026-08-18",
+      "sha256": "b1ab89d231403fe52c7171b2b86caa560a10a530cefefcf8b5ce93252085302e",
+      "byte_size": 216
+    },
+    {
+      "path": "paper/projects-paper.json",
+      "family": "paper",
+      "source_url": "https://fill.papermc.io/v3/projects/paper",
+      "captured": "2026-08-18",
+      "sha256": "e9f0b22299b111e657e0d8bca19cd8c179680839899d95faf483db7ea292a37b",
+      "byte_size": 61
+    },
+    {
+      "path": "purpur/purpur-versions.json",
+      "family": "purpur",
+      "source_url": "https://api.purpurmc.org/v2/purpur",
+      "captured": "2026-08-18",
+      "sha256": "5cda6355e02e32defd5cff64a86d8ea34788016afa5d25d88507ac076c912ed6",
+      "byte_size": 59
+    },
+    {
+      "path": "fabric/loader-meta.json",
+      "family": "fabric",
+      "source_url": "https://meta.fabricmc.net/v2/versions/game",
+      "captured": "2026-08-18",
+      "sha256": "3477b0f462f7c846864fabf4869e7f15da3b1a95a04784eb558991cb90ff049c",
+      "byte_size": 79
+    },
+    {
+      "path": "neoforge/maven-metadata.xml",
+      "family": "neoforge",
+      "source_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml",
+      "captured": "2026-08-18",
+      "sha256": "0282c1bd3a5923c7547099c508017db998fc613d91fdd6e50e375c3757927ca2",
+      "byte_size": 94
+    },
+    {
+      "path": "forge/maven-metadata.xml",
+      "family": "forge",
+      "source_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml",
+      "captured": "2026-08-18",
+      "sha256": "4e8fdfb50fa70225ae8a2593b8bb8d1b4b1c8a9414121d58a7d22b9864669365",
+      "byte_size": 100
+    }
+  ]
+}

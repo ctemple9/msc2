@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 is closed. Phase 7 is planned (30 steps, P7.1–P7.30). QUESTION 1 is answered. P7.1 is done and awaiting Cameron's verification.
-> **Next move:** Verify — Cameron runs P7.1's `Verify:` command and, if he's satisfied, moves its Status to DONE. P7.2 starts after that.
+> ## STATUS: Phase 6 is closed. Phase 7 is planned (30 steps, P7.1–P7.30). QUESTION 1 is answered. P7.1 and P7.2 are built and awaiting Cameron's verification.
+> **Next move:** Verify — Cameron runs P7.1's and P7.2's `Verify:` commands and, if he's satisfied, moves their Status to DONE. P7.3 starts after that.
 > **Repo:** https://github.com/ctemple9/msc2 · `main` is fast-forwarded to `8568dea` (`P6.51: validate backup archives in one process`), the exact commit Codex's review checked (GitHub Actions run [32068857631](https://github.com/ctemple9/msc2/actions/runs/32068857631), fully green). Review detail: `rolling-plan-archive.md`'s Amendments log, "2026-08-18 — Codex Phase 6 review: gate holds."
 > **Last updated:** 2026-08-18
 
@@ -170,9 +170,10 @@ If unsure:       (a). The product document already promises it, the download/ver
 **Batch:** solo
 
 ### P7.2 — Build the Phase 7 provider corpus and gate checker first
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase7/provider-corpus-check.py`, `tools/phase7/fixtures/`, `corpus/providers/README.md`
 **What:** Build a dependency-free checker before any evidence is collected, so the bar is set before it can be bent to fit what turned up. Inventory mode requires, for every recorded provider response: source URL, capture date, SHA-256, byte size, and which family it belongs to; it fails on a missing provenance field, a duplicate hash, malformed JSON/XML, or a response mutated after recording. Coverage mode takes a fixture directory and asserts every one of the six families is represented and that no fixture cites a recorded response that is absent from the corpus. Passing and deliberately failing self-tests prove each rejection fires. No network access anywhere in this tool.
+**Actual result:** Built `tools/phase7/provider-corpus-check.py` (stdlib only, same shape as `tools/phase6/corpus-check.py`). Inventory mode requires a `manifest.json` entry per evidence file with `family` (must be one of `vanilla`/`paper`/`purpur`/`fabric`/`neoforge`/`forge` — an unknown family fails loudly too, since coverage mode's family count depends on every recorded response being attributed correctly), `source_url`, `captured`, `sha256`, `byte_size`; rejects a missing manifest entry or field, a duplicate SHA-256, a `.json`/`.xml` file that doesn't parse, and a recomputed SHA-256 that doesn't match what was recorded. Coverage mode reads an optional `corpus_source` field (a list of paths into the provider corpus) that a fixture may carry — additive to `fixture-format.md`'s existing six fields, nothing there needed to change — and fails on a citation with no corpus manifest entry or a family with zero citations across the fixture directory. Ten self-test cases (7 inventory, 3 coverage) under `tools/phase7/fixtures/` prove every rejection fires and the passing case doesn't; `corpus/providers/README.md` documents the schema, both modes, and the `<family>/<name>.<ext>` directory convention for P7.3. `corpus/providers/` itself is still empty — deliberately; P7.3 populates it.
 **Verify:** `python3 tools/phase7/provider-corpus-check.py --selftest`
 **Commit:** `P7.2: build the Phase 7 provider corpus checker`
 **Batch:** solo

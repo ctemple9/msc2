@@ -9,6 +9,7 @@ pub mod download_staging;
 pub mod fs;
 pub mod jar_provider;
 pub mod java_runtime_detection;
+pub mod loader_installer;
 pub mod metrics;
 pub mod operation_journal;
 pub mod path_safety;

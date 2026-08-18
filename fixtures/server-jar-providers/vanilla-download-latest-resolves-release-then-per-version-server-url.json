@@ -1,0 +1,325 @@
+{
+  "domain": "server-jar-providers",
+  "case": "vanilla-download-latest-resolves-release-then-per-version-server-url",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "VanillaDownloader.downloadLatest(to:) manifest -> per-version metadata -> downloads.server.url",
+    "line": 341
+  },
+  "input": {
+    "function": "VanillaDownloader.downloadLatest",
+    "manifest_response": {
+      "latest": {
+        "release": "26.2",
+        "snapshot": "26.3-snapshot-9"
+      },
+      "versions": [
+        {
+          "id": "26.3-snapshot-9",
+          "type": "snapshot",
+          "url": "https://piston-meta.mojang.com/v1/packages/cc88c84a24aa6e73ec4b0c7b2237a36056b23563/26.3-snapshot-9.json",
+          "time": "2026-08-17T11:52:59+00:00",
+          "releaseTime": "2026-08-17T11:46:16+00:00",
+          "sha1": "cc88c84a24aa6e73ec4b0c7b2237a36056b23563",
+          "complianceLevel": 1
+        },
+        {
+          "id": "26.3-snapshot-8",
+          "type": "snapshot",
+          "url": "https://piston-meta.mojang.com/v1/packages/839d060e8e557a7ca0b347a47d69726c925b1353/26.3-snapshot-8.json",
+          "time": "2026-08-17T11:41:35+00:00",
+          "releaseTime": "2026-08-12T09:39:37+00:00",
+          "sha1": "839d060e8e557a7ca0b347a47d69726c925b1353",
+          "complianceLevel": 1
+        },
+        {
+          "id": "26.2",
+          "type": "release",
+          "url": "https://piston-meta.mojang.com/v1/packages/c75d82e7fa6eca5a043dab0c6cf77cb8317644f4/26.2.json",
+          "time": "2026-08-17T06:44:16+00:00",
+          "releaseTime": "2026-06-16T12:03:33+00:00",
+          "sha1": "c75d82e7fa6eca5a043dab0c6cf77cb8317644f4",
+          "complianceLevel": 1
+        },
+        {
+          "id": "26.1.2",
+          "type": "release",
+          "url": "https://piston-meta.mojang.com/v1/packages/b6eceb24d9494a52f3a75073fb13c6ebe9909296/26.1.2.json",
+          "time": "2026-08-17T06:42:57+00:00",
+          "releaseTime": "2026-04-09T10:12:23+00:00",
+          "sha1": "b6eceb24d9494a52f3a75073fb13c6ebe9909296",
+          "complianceLevel": 1
+        },
+        {
+          "id": "1.21.11",
+          "type": "release",
+          "url": "https://piston-meta.mojang.com/v1/packages/e39d9c8db0d398a988488e6d799db6f09987f98a/1.21.11.json",
+          "time": "2026-08-17T06:41:49+00:00",
+          "releaseTime": "2025-12-09T12:23:30+00:00",
+          "sha1": "e39d9c8db0d398a988488e6d799db6f09987f98a",
+          "complianceLevel": 1
+        },
+        {
+          "id": "1.20.1",
+          "type": "release",
+          "url": "https://piston-meta.mojang.com/v1/packages/e846101ba6cf0b548e8b71624c7351b6458c5349/1.20.1.json",
+          "time": "2026-08-17T06:45:12+00:00",
+          "releaseTime": "2023-06-12T13:25:51+00:00",
+          "sha1": "e846101ba6cf0b548e8b71624c7351b6458c5349",
+          "complianceLevel": 1
+        },
+        {
+          "id": "1.20",
+          "type": "release",
+          "url": "https://piston-meta.mojang.com/v1/packages/9911f9d9d44162ba8990be2a5838c857f62e75c6/1.20.json",
+          "time": "2026-08-17T06:45:12+00:00",
+          "releaseTime": "2023-06-02T08:36:17+00:00",
+          "sha1": "9911f9d9d44162ba8990be2a5838c857f62e75c6",
+          "complianceLevel": 1
+        },
+        {
+          "id": "1.19.4",
+          "type": "release",
+          "url": "https://piston-meta.mojang.com/v1/packages/334386975d70ad1717af2019e988b99b4a677a2f/1.19.4.json",
+          "time": "2026-08-17T06:42:18+00:00",
+          "releaseTime": "2023-03-14T12:56:18+00:00",
+          "sha1": "334386975d70ad1717af2019e988b99b4a677a2f",
+          "complianceLevel": 1
+        },
+        {
+          "id": "1.16.5",
+          "type": "release",
+          "url": "https://piston-meta.mojang.com/v1/packages/fba9f7833e858a1257d810d21a3a9e3c967f9077/1.16.5.json",
+          "time": "2023-06-07T11:09:02+00:00",
+          "releaseTime": "2021-01-14T16:05:32+00:00",
+          "sha1": "fba9f7833e858a1257d810d21a3a9e3c967f9077",
+          "complianceLevel": 1
+        },
+        {
+          "id": "rd-132328",
+          "type": "old_alpha",
+          "url": "https://piston-meta.mojang.com/v1/packages/4ec49ff663f96e78a5cf0d9538adb9d1358fc485/rd-132328.json",
+          "time": "2022-03-10T09:51:38+00:00",
+          "releaseTime": "2009-05-13T21:28:00+00:00",
+          "sha1": "4ec49ff663f96e78a5cf0d9538adb9d1358fc485",
+          "complianceLevel": 0
+        },
+        {
+          "id": "rd-132211",
+          "type": "old_alpha",
+          "url": "https://piston-meta.mojang.com/v1/packages/d090f5d3766a28425316473d9ab6c37234d48b02/rd-132211.json",
+          "time": "2022-03-10T09:51:38+00:00",
+          "releaseTime": "2009-05-13T20:11:00+00:00",
+          "sha1": "d090f5d3766a28425316473d9ab6c37234d48b02",
+          "complianceLevel": 0
+        }
+      ]
+    },
+    "per_version_metadata_response": {
+      "arguments": {
+        "default-user-jvm": [
+          {
+            "value": [
+              "-Xms2G",
+              "-Xmx4G",
+              "-XX:+UseCompactObjectHeaders",
+              "-XX:+AlwaysPreTouch",
+              "-XX:+UseStringDeduplication"
+            ]
+          },
+          {
+            "rules": [
+              {
+                "action": "allow",
+                "os": {
+                  "name": "osx"
+                }
+              },
+              {
+                "action": "allow",
+                "os": {
+                  "name": "linux"
+                }
+              },
+              {
+                "action": "allow",
+                "os": {
+                  "name": "windows",
+                  "versionRange": {
+                    "min": "10.0.17134"
+                  }
+                }
+              }
+            ],
+            "value": [
+              "-XX:+UseZGC"
+            ]
+          },
+          {
+            "rules": [
+              {
+                "action": "allow",
+                "os": {
+                  "name": "windows",
+                  "versionRange": {
+                    "max": "10.0.17134"
+                  }
+                }
+              }
+            ],
+            "value": [
+              "-XX:+UnlockExperimentalVMOptions",
+              "-XX:+UseG1GC",
+              "-XX:G1NewSizePercent=20",
+              "-XX:G1ReservePercent=20",
+              "-XX:MaxGCPauseMillis=50",
+              "-XX:G1HeapRegionSize=32M"
+            ]
+          }
+        ],
+        "game": [
+          "--username",
+          "${auth_player_name}",
+          "--version",
+          "${version_name}",
+          "--gameDir"
+        ],
+        "jvm": [
+          {
+            "rules": [
+              {
+                "action": "allow",
+                "os": {
+                  "name": "osx"
+                }
+              }
+            ],
+            "value": [
+              "-XstartOnFirstThread"
+            ]
+          },
+          {
+            "rules": [
+              {
+                "action": "allow",
+                "os": {
+                  "name": "windows"
+                }
+              }
+            ],
+            "value": "-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump"
+          },
+          {
+            "rules": [
+              {
+                "action": "allow",
+                "os": {
+                  "arch": "x86"
+                }
+              }
+            ],
+            "value": "-Xss1M"
+          },
+          "--sun-misc-unsafe-memory-access=allow",
+          "--enable-native-access=ALL-UNNAMED"
+        ]
+      },
+      "assetIndex": {
+        "id": "32",
+        "sha1": "773791767c043b4f9493b50c54257619cecb08a4",
+        "size": 586366,
+        "totalSize": 479185985,
+        "url": "https://piston-meta.mojang.com/v1/packages/773791767c043b4f9493b50c54257619cecb08a4/32.json"
+      },
+      "assets": "32",
+      "complianceLevel": 1,
+      "downloads": {
+        "client": {
+          "sha1": "2dc72797acbc1b63fc16a11c4ac393605f453754",
+          "size": 39193383,
+          "url": "https://piston-data.mojang.com/v1/objects/2dc72797acbc1b63fc16a11c4ac393605f453754/client.jar"
+        },
+        "server": {
+          "sha1": "823e2250d24b3ddac457a60c92a6a941943fcd6a",
+          "size": 60894273,
+          "url": "https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar"
+        }
+      },
+      "id": "26.2",
+      "javaVersion": {
+        "component": "java-runtime-epsilon",
+        "majorVersion": 25
+      },
+      "libraries": [
+        {
+          "downloads": {
+            "artifact": {
+              "path": "at/yawk/lz4/lz4-java/1.10.1/lz4-java-1.10.1.jar",
+              "sha1": "f541d7f910fe3d76f38f799c507c48cc81b12ecb",
+              "size": 910232,
+              "url": "https://libraries.minecraft.net/at/yawk/lz4/lz4-java/1.10.1/lz4-java-1.10.1.jar"
+            }
+          },
+          "name": "at.yawk.lz4:lz4-java:1.10.1"
+        },
+        {
+          "downloads": {
+            "artifact": {
+              "path": "ca/weblite/java-objc-bridge/1.1/java-objc-bridge-1.1.jar",
+              "sha1": "1227f9e0666314f9de41477e3ec277e542ed7f7b",
+              "size": 1330045,
+              "url": "https://libraries.minecraft.net/ca/weblite/java-objc-bridge/1.1/java-objc-bridge-1.1.jar"
+            }
+          },
+          "name": "ca.weblite:java-objc-bridge:1.1",
+          "rules": [
+            {
+              "action": "allow",
+              "os": {
+                "name": "osx"
+              }
+            }
+          ]
+        },
+        {
+          "downloads": {
+            "artifact": {
+              "path": "com/azure/azure-json/1.4.0/azure-json-1.4.0.jar",
+              "sha1": "fcc1d354dbc3e0300e5276b1bf124d0247799cd8",
+              "size": 325945,
+              "url": "https://libraries.minecraft.net/com/azure/azure-json/1.4.0/azure-json-1.4.0.jar"
+            }
+          },
+          "name": "com.azure:azure-json:1.4.0"
+        }
+      ],
+      "logging": {
+        "client": {
+          "argument": "-Dlog4j.configurationFile=${path}",
+          "file": {
+            "id": "client-1.21.2.xml",
+            "sha1": "39384bd14c0606d812afec88d8aff595b2587dd9",
+            "size": 1073,
+            "url": "https://piston-data.mojang.com/v1/objects/39384bd14c0606d812afec88d8aff595b2587dd9/client-1.21.2.xml"
+          },
+          "type": "log4j2-xml"
+        }
+      },
+      "mainClass": "net.minecraft.client.main.Main",
+      "minimumLauncherVersion": 21,
+      "releaseTime": "2026-06-16T12:03:33+00:00",
+      "time": "2026-06-16T12:03:33+00:00",
+      "type": "release"
+    }
+  },
+  "expected": {
+    "resolved_release_id": "26.2",
+    "resolved_server_download_url": "https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar",
+    "build_label": "release"
+  },
+  "notes": "Two real HTTP round trips chained: `latest.release` from the manifest (\"26.2\") is looked up by exact `id` match in the manifest's own `versions` array to find that version's per-version metadata URL, which is then fetched separately to read `downloads.server.url` -- the manifest itself never carries the server jar URL directly. `build` is always the literal string \"release\" (ServerJarProviders.swift:374), never a real build number, since Mojang's API has no concept of one for a Vanilla release.",
+  "corpus_source": [
+    "vanilla/version-manifest-v2.json",
+    "vanilla/version-26.2.json"
+  ]
+}

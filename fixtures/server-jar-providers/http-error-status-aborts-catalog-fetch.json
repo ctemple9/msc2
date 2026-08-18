@@ -1,0 +1,37 @@
+{
+  "domain": "server-jar-providers",
+  "case": "http-error-status-aborts-catalog-fetch",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "ensureOK(_:_:), called by every downloadAndGo provider before parsing a response body",
+    "line": 580
+  },
+  "input": {
+    "function": "ensureOK",
+    "cases": [
+      {
+        "what": "Mojang manifest",
+        "http_status": 500
+      },
+      {
+        "what": "Paper builds for 1.21.11",
+        "http_status": 503
+      }
+    ]
+  },
+  "expected": {
+    "cases": [
+      {
+        "result": "throws",
+        "error": "networkError",
+        "message": "Mojang manifest returned status 500."
+      },
+      {
+        "result": "throws",
+        "error": "networkError",
+        "message": "Paper builds for 1.21.11 returned status 503."
+      }
+    ]
+  },
+  "notes": "The shared helper (ServerJarProviders.swift:580-584) any non-2xx-checking call site uses: `networkError(\"\\(what) returned status \\(code).\")`, where `what` is a call-site-supplied label baked into the message (\"Mojang manifest\", \"Paper builds for 1.21.11\", etc. -- every call site names itself). Only a literal HTTP status code != 200 trips this; a 200 with a garbage body is a separate failure mode (see malformed-json-response-rejected-as-invalid-shape). NeoForge/Forge check status inline rather than through this shared helper (`if let http = resp as? HTTPURLResponse, http.statusCode != 200 { throw .network(...) }`) but produce the same class of error for the same condition."
+}

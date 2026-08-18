@@ -1,0 +1,66 @@
+{
+  "domain": "server-jar-providers",
+  "case": "forge-maven-metadata-parsed-to-mc-forge-pairs",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.parseMavenMetadata(_:) / parseMavenVersion(_:)",
+    "line": 418
+  },
+  "input": {
+    "function": "ForgeInstaller.parseMavenMetadata",
+    "raw_metadata_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<metadata>\n  <groupId>net.minecraftforge</groupId>\n  <artifactId>forge</artifactId>\n  <versioning>\n    <latest>1.21.5-55.1.13</latest>\n    <release>1.21.5-55.1.13</release>\n    <versions>\n      <version>1.20-46.0.14</version>\n      <version>1.20.1-47.4.5</version>\n      <version>1.20.4-49.2.0</version>\n      <version>1.20.6-50.2.1</version>\n      <version>1.21-51.0.33</version>\n      <version>1.21.1-52.1.2</version>\n      <version>1.21.11-61.0.0</version>\n      <version>1.21.5-55.0.24</version>\n      <version>1.21.5-55.1.13</version>\n    </versions>\n    <lastUpdated>20260815204212</lastUpdated>\n  </versioning>\n</metadata>\n"
+  },
+  "expected": {
+    "parsed_pairs": [
+      {
+        "raw": "1.20-46.0.14",
+        "mc": "1.20",
+        "forge": "46.0.14"
+      },
+      {
+        "raw": "1.20.1-47.4.5",
+        "mc": "1.20.1",
+        "forge": "47.4.5"
+      },
+      {
+        "raw": "1.20.4-49.2.0",
+        "mc": "1.20.4",
+        "forge": "49.2.0"
+      },
+      {
+        "raw": "1.20.6-50.2.1",
+        "mc": "1.20.6",
+        "forge": "50.2.1"
+      },
+      {
+        "raw": "1.21-51.0.33",
+        "mc": "1.21",
+        "forge": "51.0.33"
+      },
+      {
+        "raw": "1.21.1-52.1.2",
+        "mc": "1.21.1",
+        "forge": "52.1.2"
+      },
+      {
+        "raw": "1.21.11-61.0.0",
+        "mc": "1.21.11",
+        "forge": "61.0.0"
+      },
+      {
+        "raw": "1.21.5-55.0.24",
+        "mc": "1.21.5",
+        "forge": "55.0.24"
+      },
+      {
+        "raw": "1.21.5-55.1.13",
+        "mc": "1.21.5",
+        "forge": "55.1.13"
+      }
+    ]
+  },
+  "notes": "Unlike NeoForge's single-dash-per-version scheme, Forge's Maven version string is `{mc}-{forgeBuild}` where `{forgeBuild}` can itself legitimately contain no further dashes in the stable case -- `parseMavenVersion` (line 453) splits on the FIRST `-` only (`firstIndex(of: \"-\")`), so a build string that itself contained a dash (a pre-release Forge build, none present in this real response) would still split correctly into `(mc, forge)` rather than being mis-split. Every one of the 9 real versions in this corpus parses cleanly -- note two entries share the same `mc` (\"1.21.5\") with two different Forge builds (55.0.24 and 55.1.13), which is expected and, per the next case, is NOT deduplicated away.",
+  "corpus_source": [
+    "forge/maven-metadata.xml"
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "domain": "server-jar-providers",
+  "case": "purpur-download-latest-prefers-paper-stable-version-when-present",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PurpurDownloader.downloadLatest(to:) step 1, target-version selection",
+    "line": 262
+  },
+  "input": {
+    "function": "PurpurDownloader.downloadLatest",
+    "purpur_versions_list": [
+      "1.14.1",
+      "1.14.2",
+      "1.14.3",
+      "1.14.4",
+      "1.15",
+      "1.15.1",
+      "1.15.2",
+      "1.16.1",
+      "1.16.2",
+      "1.16.3",
+      "1.16.4",
+      "1.16.5",
+      "1.17",
+      "1.17.1",
+      "1.18",
+      "1.18.1",
+      "1.18.2",
+      "1.19",
+      "1.19.1",
+      "1.19.2",
+      "1.19.3",
+      "1.19.4",
+      "1.20",
+      "1.20.1",
+      "1.20.2",
+      "1.20.4",
+      "1.20.6",
+      "1.21",
+      "1.21.1",
+      "1.21.3",
+      "1.21.4",
+      "1.21.5",
+      "1.21.6",
+      "1.21.7",
+      "1.21.8",
+      "1.21.9",
+      "1.21.10",
+      "1.21.11",
+      "26.1.2",
+      "26.2"
+    ],
+    "papers_stable_version": "1.21.11"
+  },
+  "expected": {
+    "target_version": "1.21.11",
+    "reason": "papers_stable_version is present verbatim in purpur_versions_list, so it wins outright -- the 1.-prefix/highest-number fallback never runs"
+  },
+  "notes": "Purpur tracks the Paper family, so before picking a target Minecraft version to download, `downloadLatest` first asks `PaperDownloader.fetchLatestMetadata()` for whatever version Paper itself currently considers latest-stable, and uses that exact string if Purpur's own version list contains it (ServerJarProviders.swift:276-279) -- this is deliberately NOT \"pick Purpur's own highest 1.-prefixed version\", even though that fallback exists as `else if` (lines 280-284) for when Purpur hasn't caught up to Paper's newest release yet. Real corpus data lines up exactly: Paper's real builds-1.21.11.json shows 1.21.11 has a real STABLE build, and Purpur's real version list already carries \"1.21.11\" too, so the Paper-alignment branch fires and the two providers agree on the same target version for this snapshot in time.",
+  "corpus_source": [
+    "purpur/project-purpur.json",
+    "paper/builds-1.21.11.json"
+  ]
+}

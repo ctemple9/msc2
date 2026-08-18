@@ -1,0 +1,39 @@
+{
+  "domain": "server-jar-providers",
+  "case": "neoforge-stable-filter-excludes-hyphenated-versions",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.listVersionPairs() hand-scraped <version> extraction + stable filter",
+    "line": 43
+  },
+  "input": {
+    "function": "NeoForgeInstaller.listVersionPairs",
+    "raw_metadata_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<metadata>\n  <groupId>net.neoforged</groupId>\n  <artifactId>neoforge</artifactId>\n  <versioning>\n    <latest>26.2.0.61</latest>\n    <release>26.2.0.61</release>\n    <versions>\n      <version>20.2.12-beta</version>\n      <version>20.2.86</version>\n      <version>20.4.237</version>\n      <version>21.1.248</version>\n      <version>21.4.154</version>\n      <version>26.1.2.95</version>\n      <version>26.2.0.61</version>\n    </versions>\n    <lastUpdated>20260818013550</lastUpdated>\n  </versioning>\n</metadata>\n"
+  },
+  "expected": {
+    "all_scraped_versions": [
+      "20.2.12-beta",
+      "20.2.86",
+      "20.4.237",
+      "21.1.248",
+      "21.4.154",
+      "26.1.2.95",
+      "26.2.0.61"
+    ],
+    "stable_after_filter": [
+      "20.2.86",
+      "20.4.237",
+      "21.1.248",
+      "21.4.154",
+      "26.1.2.95",
+      "26.2.0.61"
+    ],
+    "dropped": [
+      "20.2.12-beta"
+    ]
+  },
+  "notes": "The XML isn't parsed by a real XML library at all -- `listVersionPairs` and `latestStableVersion` both hand-scan the raw text for literal `<version>`/`</version>` substrings (lines 52-56), collecting everything between them regardless of surrounding structure. \"Stable\" is then just `!version.contains(\"-\")` (line 57) -- the one real pre-release entry in this corpus, \"20.2.12-beta\", is dropped by that check alone; there is no separate channel field to consult, unlike Paper's STABLE/BETA/ALPHA. Every remaining entry is listed (not just the newest build per MC version) because modpacks pin exact NeoForge builds.",
+  "corpus_source": [
+    "neoforge/maven-metadata.xml"
+  ]
+}

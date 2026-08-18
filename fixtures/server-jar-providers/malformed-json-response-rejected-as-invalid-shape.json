@@ -1,0 +1,43 @@
+{
+  "domain": "server-jar-providers",
+  "case": "malformed-json-response-rejected-as-invalid-shape",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "VanillaDownloader.listVersions() JSONSerialization guard vs a JSON-syntax parse failure",
+    "line": 381
+  },
+  "input": {
+    "cases": [
+      {
+        "name": "valid-json-wrong-shape",
+        "function": "VanillaDownloader.listVersions",
+        "raw_response_body": "[1, 2, 3]",
+        "note": "syntactically valid JSON, but not the expected top-level object with a \"versions\" array"
+      },
+      {
+        "name": "syntactically-invalid-json",
+        "function": "VanillaDownloader.listVersions",
+        "raw_response_body": "{not json at all",
+        "note": "fails to parse as JSON at all"
+      }
+    ]
+  },
+  "expected": {
+    "cases": [
+      {
+        "name": "valid-json-wrong-shape",
+        "result": "throws",
+        "error": "invalidResponse",
+        "message": "Mojang manifest malformed.",
+        "mechanism": "the `guard let root = try JSONSerialization.jsonObject(...) as? [String: Any] ... else { throw ... }` cast fails (line 381-384), and the custom error fires"
+      },
+      {
+        "name": "syntactically-invalid-json",
+        "result": "throws",
+        "error": "not ServerJarProviderError at all -- an uncaught Foundation JSON parse error",
+        "mechanism": "`try JSONSerialization.jsonObject(with: data)` (line 381) is a plain `try`, not `try?` -- when the bytes are not valid JSON syntax, JSONSerialization itself throws before the guard's `as?` cast ever runs, so the custom invalidResponse wrapping never applies"
+      }
+    ]
+  },
+  "notes": "A real distinction every one of the six providers shares, worth preserving precisely in the Rust port: \"valid JSON with the wrong shape\" and \"not valid JSON at all\" are NOT the same failure path in MSC 1. The former is caught by the guard's failed type-cast and produces a friendly, provider-specific `invalidResponse(String)` message. The latter propagates as whatever raw error `JSONSerialization.jsonObject(with:)` throws (a Foundation `NSError`/Cocoa error, not one of `ServerJarProviderError`'s three cases) straight out of the function, since none of these call sites wrap the parse call in `try?` or a `do`/`catch`. A Rust `serde_json::from_slice` parse error and a custom \"malformed shape\" domain error are the natural two-variant mapping -- collapsing them into one error type would lose a distinction MSC 1 itself has (even if only as an accident of `try` vs `try?`, not a designed one)."
+}

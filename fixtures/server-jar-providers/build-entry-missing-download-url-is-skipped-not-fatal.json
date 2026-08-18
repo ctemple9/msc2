@@ -1,0 +1,48 @@
+{
+  "domain": "server-jar-providers",
+  "case": "build-entry-missing-download-url-is-skipped-not-fatal",
+  "source": {
+    "file": "PaperDownloader.swift",
+    "test": "PaperDownloader.fetchBestBuild(forVersion:includeExperimental:) downloads guard",
+    "line": 244
+  },
+  "input": {
+    "function": "PaperDownloader.fetchBestBuild",
+    "include_experimental": false,
+    "raw_response": [
+      {
+        "id": 999,
+        "time": "2026-06-01T00:00:00Z",
+        "channel": "STABLE",
+        "downloads": {}
+      },
+      {
+        "id": 132,
+        "time": "2026-05-11T11:43:09Z",
+        "channel": "STABLE",
+        "commits": [
+          {
+            "sha": "c5eb0790f199da6c38d0a650e1e5cd5415b28185",
+            "time": "2026-05-11T11:41:08Z",
+            "message": "Fork friendly byte buf correctly\n"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-132.jar",
+            "checksums": {
+              "sha256": "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba"
+            },
+            "size": 54846016,
+            "url": "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "selected_build_id": 132,
+    "reason": "id 999 is a higher build number and STABLE-channel, so it would normally win the highest-id comparison -- but its `downloads` object has no `server:default.url` field, so the guard at line 244-247 (`guard let downloads = ..., serverDefault = ..., urlString = ..., downloadURL = URL(string: urlString) else { continue }`) skips it entirely via `continue` before it's ever compared against `bestId`. The scan continues to the next entry (real id 132, which has a valid download) and selects that instead."
+  },
+  "notes": "A missing/malformed download URL on an otherwise-qualifying build entry does not abort the whole fetch and does not even get compared as a worse candidate -- it is invisible to the `bestId`/`bestOption` tracking entirely (the `continue` at line 247 fires before either variable is touched). This means a single corrupted entry higher up in the real build list can never accidentally suppress a good lower entry from being found; the same guard shape (`downloads[\"server:default\"]` -> `url` -> parseable `URL`) appears identically in `ServerJarProviders.PaperDownloader.downloadVersion` (ServerJarProviders.swift:230-239) for the simpler create-flow download path, not just this Components-tab helper."
+}

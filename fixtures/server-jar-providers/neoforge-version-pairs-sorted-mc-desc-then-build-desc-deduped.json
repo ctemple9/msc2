@@ -1,0 +1,56 @@
+{
+  "domain": "server-jar-providers",
+  "case": "neoforge-version-pairs-sorted-mc-desc-then-build-desc-deduped",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.listVersionPairs() entry build + sort",
+    "line": 43
+  },
+  "input": {
+    "function": "NeoForgeInstaller.listVersionPairs",
+    "raw_metadata_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<metadata>\n  <groupId>net.neoforged</groupId>\n  <artifactId>neoforge</artifactId>\n  <versioning>\n    <latest>26.2.0.61</latest>\n    <release>26.2.0.61</release>\n    <versions>\n      <version>20.2.12-beta</version>\n      <version>20.2.86</version>\n      <version>20.4.237</version>\n      <version>21.1.248</version>\n      <version>21.4.154</version>\n      <version>26.1.2.95</version>\n      <version>26.2.0.61</version>\n    </versions>\n    <lastUpdated>20260818013550</lastUpdated>\n  </versioning>\n</metadata>\n"
+  },
+  "expected": {
+    "sorted_entries": [
+      {
+        "mcVersion": "26.2",
+        "loaderVersion": "26.2.0.61",
+        "id": "26.2—26.2.0.61"
+      },
+      {
+        "mcVersion": "26.1",
+        "loaderVersion": "26.1.2.95",
+        "id": "26.1—26.1.2.95"
+      },
+      {
+        "mcVersion": "1.21.4",
+        "loaderVersion": "21.4.154",
+        "id": "1.21.4—21.4.154"
+      },
+      {
+        "mcVersion": "1.21.1",
+        "loaderVersion": "21.1.248",
+        "id": "1.21.1—21.1.248"
+      },
+      {
+        "mcVersion": "1.20.4",
+        "loaderVersion": "20.4.237",
+        "id": "1.20.4—20.4.237"
+      },
+      {
+        "mcVersion": "1.20.2",
+        "loaderVersion": "20.2.86",
+        "id": "1.20.2—20.2.86"
+      }
+    ],
+    "every_entry": {
+      "buildLabel_prefix": "NeoForge ",
+      "displayLabel_equals_mcVersion": true,
+      "isStable": true
+    }
+  },
+  "notes": "Full real-data walk from raw XML to sorted picker rows: the 6 stable versions from neoforge-stable-filter-excludes-hyphenated-versions, each paired with its derived Minecraft version from neoforge-minecraft-version-derivation-classic-and-new-scheme, deduplicated by the combined `\"{mc}—{nfv}\"` id (lines 66-68 -- none collide in this real response, since each stable NeoForge build maps to a distinct MC version here), then sorted newest-MC-first and, within a tied MC version, newest-build-first (lines 79-83). `displayLabel` is always just the MC version (line 71), never the paired string -- the em-dash id is an internal key, not what the picker shows a person.",
+  "corpus_source": [
+    "neoforge/maven-metadata.xml"
+  ]
+}

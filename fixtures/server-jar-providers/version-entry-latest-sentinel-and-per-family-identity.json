@@ -1,0 +1,65 @@
+{
+  "domain": "server-jar-providers",
+  "case": "version-entry-latest-sentinel-and-per-family-identity",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "ServerVersionEntry.latest, ServerVersionEntry.isLatest",
+    "line": 26
+  },
+  "input": {
+    "latest_sentinel": {
+      "id": "__latest__",
+      "mcVersion": "",
+      "loaderVersion": null,
+      "buildLabel": null,
+      "isStable": true
+    },
+    "family_id_rule": [
+      {
+        "family": "vanilla",
+        "id_equals_mc_version": true,
+        "example_id": "1.21.11"
+      },
+      {
+        "family": "paper",
+        "id_equals_mc_version": true,
+        "example_id": "1.21.11"
+      },
+      {
+        "family": "purpur",
+        "id_equals_mc_version": true,
+        "example_id": "1.21.11"
+      },
+      {
+        "family": "fabric",
+        "id_equals_mc_version": true,
+        "example_id": "1.21.11"
+      },
+      {
+        "family": "neoforge",
+        "id_equals_mc_version": false,
+        "example_id": "1.21.4—21.4.154",
+        "id_shape": "{mcVersion}—{loaderVersion}"
+      },
+      {
+        "family": "forge",
+        "id_equals_mc_version": false,
+        "example_id": "1.21.11—61.0.0",
+        "id_shape": "{mcVersion}—{loaderVersion}"
+      }
+    ]
+  },
+  "expected": {
+    "isLatest": true,
+    "must_short_circuit_before_reading_mc_version": true,
+    "family_id_equals_mc_version": [
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "notes": "ServerVersionEntry.latest (ServerJarProviders.swift:26-33) is a sentinel row injected by the version-picker UI, not a real catalog entry: id is the literal string \"__latest__\" and mcVersion is empty. Every provider call site must check `entry.isLatest` (line 34, `id == \"__latest__\"`) before trusting mcVersion/loaderVersion -- an empty-string mcVersion is never a real version to look up. Separately, id is NOT interchangeable with mcVersion for every family: true for the four downloadAndGo flavors (Vanilla/Paper/Purpur/Fabric), false for the two installStep flavors (NeoForge/Forge), whose id is the paired \"{mc}—{loaderVersion}\" string built by listVersionPairs. Recorded per docs/msc2/families/phase7-scope.md's \"What install/downloadVersion need per family, precisely\" section -- a version-change route that keys off id alone will silently misbehave for the paired families."
+}

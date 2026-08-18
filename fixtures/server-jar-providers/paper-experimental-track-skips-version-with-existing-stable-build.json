@@ -1,0 +1,176 @@
+{
+  "domain": "server-jar-providers",
+  "case": "paper-experimental-track-skips-version-with-existing-stable-build",
+  "source": {
+    "file": "PaperDownloader.swift",
+    "test": "PaperDownloader.fetchBestBuild(forVersion:includeExperimental:) hasStableBuild guard",
+    "line": 267
+  },
+  "input": {
+    "function": "PaperDownloader.fetchBestBuild",
+    "include_experimental": true,
+    "raw_response": [
+      {
+        "id": 132,
+        "time": "2026-05-11T11:43:09Z",
+        "channel": "STABLE",
+        "commits": [
+          {
+            "sha": "c5eb0790f199da6c38d0a650e1e5cd5415b28185",
+            "time": "2026-05-11T11:41:08Z",
+            "message": "Fork friendly byte buf correctly\n"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-132.jar",
+            "checksums": {
+              "sha256": "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba"
+            },
+            "size": 54846016,
+            "url": "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar"
+          }
+        }
+      },
+      {
+        "id": 131,
+        "time": "2026-05-03T16:08:07Z",
+        "channel": "STABLE",
+        "commits": [
+          {
+            "sha": "6d5b910ff0b3c9a9d164f3d90d60a4f2467b510f",
+            "time": "2026-05-03T16:07:01Z",
+            "message": "Fix spear jab attack not connecting after charge attack (#13843)"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-131.jar",
+            "checksums": {
+              "sha256": "6c099540fccd27e10750d1adcb382f1552fb5aa2816aeaf2cc1efb23ddd9e3df"
+            },
+            "size": 54836919,
+            "url": "https://fill-data.papermc.io/v1/objects/6c099540fccd27e10750d1adcb382f1552fb5aa2816aeaf2cc1efb23ddd9e3df/paper-1.21.11-131.jar"
+          }
+        }
+      },
+      {
+        "id": 130,
+        "time": "2026-04-11T11:14:19Z",
+        "channel": "STABLE",
+        "commits": [
+          {
+            "sha": "c5a2736aaa33a6447badd2ed294fbf5940cb014b",
+            "time": "2026-04-11T11:13:57Z",
+            "message": "Drop hunk from previous commit (#13772)"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-130.jar",
+            "checksums": {
+              "sha256": "25eb85bd8415195ce4bc188e1939e0c7cef77fb51d26d4e766407ee922561097"
+            },
+            "size": 54836966,
+            "url": "https://fill-data.papermc.io/v1/objects/25eb85bd8415195ce4bc188e1939e0c7cef77fb51d26d4e766407ee922561097/paper-1.21.11-130.jar"
+          }
+        }
+      },
+      {
+        "id": 66,
+        "time": "2025-12-30T14:15:39Z",
+        "channel": "BETA",
+        "commits": [
+          {
+            "sha": "5875d88002d9beeb8b0a3dc8af352777d32265c0",
+            "time": "2025-12-30T14:13:53Z",
+            "message": "Fix inventory desyncs with certain cancelled interactions (#12960)\n\n"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-66.jar",
+            "checksums": {
+              "sha256": "22322ae26aa839afb6ab51763fd629ded1044e0ad83510fb50942880fa622c7f"
+            },
+            "size": 54815533,
+            "url": "https://fill-data.papermc.io/v1/objects/22322ae26aa839afb6ab51763fd629ded1044e0ad83510fb50942880fa622c7f/paper-1.21.11-66.jar"
+          }
+        }
+      },
+      {
+        "id": 65,
+        "time": "2025-12-29T21:56:22Z",
+        "channel": "BETA",
+        "commits": [
+          {
+            "sha": "8c6b632718d099b22cc32407b01e15e4ef899708",
+            "time": "2025-12-29T21:54:32Z",
+            "message": "Properly update hidden effects (#13173)\n\n"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-65.jar",
+            "checksums": {
+              "sha256": "a7bcf3ad65733f168a0d83be1fc40f23c7762f34bf01b7d29c3f90f643258f57"
+            },
+            "size": 54813900,
+            "url": "https://fill-data.papermc.io/v1/objects/a7bcf3ad65733f168a0d83be1fc40f23c7762f34bf01b7d29c3f90f643258f57/paper-1.21.11-65.jar"
+          }
+        }
+      },
+      {
+        "id": 48,
+        "time": "2025-12-21T11:40:42Z",
+        "channel": "ALPHA",
+        "commits": [
+          {
+            "sha": "997f5054574db24d114d25d7ed88b0c9db3573a0",
+            "time": "2025-12-21T11:38:53Z",
+            "message": "Mark client as loading after API respawn (Fixes #13417) (#13418)\n\n"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-48.jar",
+            "checksums": {
+              "sha256": "8fac758fae652914a9820306fa75335fb26bf9dbccf24215b4abb0e1116d2eae"
+            },
+            "size": 54185874,
+            "url": "https://fill-data.papermc.io/v1/objects/8fac758fae652914a9820306fa75335fb26bf9dbccf24215b4abb0e1116d2eae/paper-1.21.11-48.jar"
+          }
+        }
+      },
+      {
+        "id": 47,
+        "time": "2025-12-21T10:24:13Z",
+        "channel": "ALPHA",
+        "commits": [
+          {
+            "sha": "f76defd39009494d4374cd3dc309d6ec48d535e6",
+            "time": "2025-12-21T10:22:24Z",
+            "message": "Fix javadocs in UseCooldownComponent (#13416)\n\n"
+          }
+        ],
+        "downloads": {
+          "server:default": {
+            "name": "paper-1.21.11-47.jar",
+            "checksums": {
+              "sha256": "2398383ccb9247b830d6b4539a072a46402050a6ace1e348ed45a232e4633a70"
+            },
+            "size": 54185052,
+            "url": "https://fill-data.papermc.io/v1/objects/2398383ccb9247b830d6b4539a072a46402050a6ace1e348ed45a232e4633a70/paper-1.21.11-47.jar"
+          }
+        }
+      }
+    ]
+  },
+  "expected": {
+    "result": null
+  },
+  "notes": "Real 1.21.11 build data has STABLE builds (132/131/130) alongside older BETA (66/65) and ALPHA (48/47) entries from earlier in that version's development. Requested on the experimental track, the function still finds a best BETA candidate (id 66) internally, then discards it at the `hasStableBuild` guard (line 267-269) because this version also shipped a STABLE build -- it is a normal released version, not an experimental one, even though it has beta-channel history. `fetchAvailableVersions`'s caller loop (PaperDownloader.swift:97-107) treats a `nil` result as \"this version doesn't qualify, keep walking to the next lower one\" rather than an error.",
+  "corpus_source": [
+    "paper/builds-1.21.11.json"
+  ]
+}

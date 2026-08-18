@@ -1,0 +1,82 @@
+{
+  "domain": "server-jar-providers",
+  "case": "fabric-list-versions-filters-stable-true-and-loaderversion-always-nil",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "FabricDownloader.listVersions()",
+    "line": 456
+  },
+  "input": {
+    "function": "FabricDownloader.listVersions",
+    "raw_response": [
+      {
+        "version": "26.3-snapshot-9",
+        "stable": false
+      },
+      {
+        "version": "26.3-snapshot-8",
+        "stable": false
+      },
+      {
+        "version": "26.3-snapshot-7",
+        "stable": false
+      },
+      {
+        "version": "26.3-snapshot-6",
+        "stable": false
+      },
+      {
+        "version": "26.3-snapshot-5",
+        "stable": false
+      },
+      {
+        "version": "26.3-snapshot-4",
+        "stable": false
+      },
+      {
+        "version": "26.2",
+        "stable": true
+      },
+      {
+        "version": "26.1.2",
+        "stable": true
+      },
+      {
+        "version": "26.1.1",
+        "stable": true
+      },
+      {
+        "version": "1.20.1",
+        "stable": true
+      },
+      {
+        "version": "1.19.4",
+        "stable": true
+      },
+      {
+        "version": "1.16.5",
+        "stable": true
+      }
+    ]
+  },
+  "expected": {
+    "result_ids_in_order": [
+      "26.2",
+      "26.1.2",
+      "26.1.1",
+      "1.20.1",
+      "1.19.4",
+      "1.16.5"
+    ],
+    "dropped_stable_false_count": 6,
+    "every_entry": {
+      "loaderVersion": null,
+      "buildLabel": null,
+      "isStable": true
+    }
+  },
+  "notes": "Filters on the game-version entry's own `stable` boolean (line 464) -- the 6 real \"26.3-snapshot-*\" entries in this response are all `stable: false` and dropped; order is preserved from the response (Fabric's own list already happens to be newest-first, same caveat as Vanilla: nothing here re-sorts it). Per phase7-scope.md, `loaderVersion` is `nil` on every one of these picker rows regardless of what loader exists -- it is populated only by `downloadLatest`/`downloadVersion`'s *result*, never by the picker. A version-change UI that tries to pre-fill a \"current loader\" field from this list's rows will always see blank for Fabric; that is oracle-faithful, not a gap to fix.",
+  "corpus_source": [
+    "fabric/game.json"
+  ]
+}

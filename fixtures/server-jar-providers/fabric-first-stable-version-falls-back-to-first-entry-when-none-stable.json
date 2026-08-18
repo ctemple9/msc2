@@ -1,0 +1,21 @@
+{
+  "domain": "server-jar-providers",
+  "case": "fabric-first-stable-version-falls-back-to-first-entry-when-none-stable",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "FabricDownloader.firstStableVersion(from:what:) fallback branch",
+    "line": 505
+  },
+  "input": {
+    "function": "FabricDownloader.firstStableVersion (and the equivalent inline loader-entry scan)",
+    "raw_response": {
+      "file": "fixtures/server-jar-providers/samples/fabric-loader-no-stable-entries.json",
+      "note": "synthetic -- a dev-build-only loader response shape, not present in the real corpus recording, which only ever showed a version with a stable build available"
+    }
+  },
+  "expected": {
+    "selected_loader_version": "0.19.2-dev",
+    "reason": "no entry has loader.stable == true, so the `?? loaderList[0]` fallback (ServerJarProviders.swift:438) wins -- the FIRST entry in response order, not the highest build number"
+  },
+  "notes": "The fallback half of the same \"first stable, else first\" rule exercised by fabric-loader-and-installer-first-stable-selection. Genuinely reachable in production: a freshly cut Minecraft version can have only unstable dev-build Fabric loaders published before a stable one lands. Both the inline loader-entry scan (`downloadLatest`/`downloadVersion`) and the standalone `firstStableVersion(from:what:)` helper (used for the installer list, and for the game-version resolution in `downloadLatest`) share this exact `first { stable } ?? list[0]` shape."
+}

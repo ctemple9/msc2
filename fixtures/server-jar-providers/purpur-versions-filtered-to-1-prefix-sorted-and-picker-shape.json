@@ -1,0 +1,83 @@
+{
+  "domain": "server-jar-providers",
+  "case": "purpur-versions-filtered-to-1-prefix-sorted-and-picker-shape",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PurpurDownloader.listVersions()",
+    "line": 313
+  },
+  "input": {
+    "function": "PurpurDownloader.listVersions",
+    "raw_response": {
+      "project": "purpur",
+      "metadata": {
+        "current": "26.2"
+      },
+      "versions": [
+        "1.14.1",
+        "1.14.2",
+        "1.14.3",
+        "1.14.4",
+        "1.15",
+        "1.15.1",
+        "1.15.2",
+        "1.16.1",
+        "1.16.2",
+        "1.16.3",
+        "1.16.4",
+        "1.16.5",
+        "1.17",
+        "1.17.1",
+        "1.18",
+        "1.18.1",
+        "1.18.2",
+        "1.19",
+        "1.19.1",
+        "1.19.2",
+        "1.19.3",
+        "1.19.4",
+        "1.20",
+        "1.20.1",
+        "1.20.2",
+        "1.20.4",
+        "1.20.6",
+        "1.21",
+        "1.21.1",
+        "1.21.3",
+        "1.21.4",
+        "1.21.5",
+        "1.21.6",
+        "1.21.7",
+        "1.21.8",
+        "1.21.9",
+        "1.21.10",
+        "1.21.11",
+        "26.1.2",
+        "26.2"
+      ]
+    }
+  },
+  "expected": {
+    "dropped_non_1_prefix": [
+      "26.1.2",
+      "26.2"
+    ],
+    "sorted_first_6": [
+      "1.21.11",
+      "1.21.10",
+      "1.21.9",
+      "1.21.8",
+      "1.21.7",
+      "1.21.6"
+    ],
+    "total_count": 38,
+    "every_entry": {
+      "buildLabel": null,
+      "isStable": true
+    }
+  },
+  "notes": "Purpur's own version list mixes experimental builds above the stable line (here, \"26.1.2\" and \"26.2\") with the real 1.x release track; unlike Vanilla (which has an explicit `type: \"release\"` field to filter on), Purpur has no such field, so `listVersions()` filters by a plain `hasPrefix(\"1.\")` string check (ServerJarProviders.swift:322) before sorting descending with the same compareMCVersions used elsewhere. Every resulting ServerVersionEntry carries `buildLabel: nil` and `isStable: true` unconditionally (line 324) -- the version list response has no per-entry build number at all, so there is nothing to derive either field from. Per phase7-scope.md, anywhere the product wants to show a Purpur server's \"current build\", the true source is the component-version domain's local-file read, never this catalog.",
+  "corpus_source": [
+    "purpur/project-purpur.json"
+  ]
+}

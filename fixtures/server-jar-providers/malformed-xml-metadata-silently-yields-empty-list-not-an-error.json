@@ -1,0 +1,40 @@
+{
+  "domain": "server-jar-providers",
+  "case": "malformed-xml-metadata-silently-yields-empty-list-not-an-error",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.listVersionPairs() / ForgeInstaller.parseMavenMetadata(_:) substring scrape on non-XML input",
+    "line": 52
+  },
+  "input": {
+    "cases": [
+      {
+        "provider": "neoforge",
+        "function": "NeoForgeInstaller.listVersionPairs",
+        "raw_metadata_xml": "this is not xml at all, just some text"
+      },
+      {
+        "provider": "forge",
+        "function": "ForgeInstaller.parseMavenMetadata",
+        "raw_metadata_xml": "<metadata><versioning><broken"
+      }
+    ]
+  },
+  "expected": {
+    "cases": [
+      {
+        "provider": "neoforge",
+        "result": "returns",
+        "value": [],
+        "reason": "no `<version>`/`</version>` substring pair is found by the scrape loop (lines 52-56), so `versions` ends up an empty array and `stable` (filtered from it) is also empty -- listVersionPairs then just returns an empty entries list, no throw"
+      },
+      {
+        "provider": "forge",
+        "result": "returns",
+        "value": [],
+        "reason": "same mechanism -- parseMavenMetadata is a pure string scrape (line 418-425), never a real XML parser, so truncated/garbled markup that contains no complete <version>...</version> pair simply yields zero mavenVersions and an empty result"
+      }
+    ]
+  },
+  "notes": "The one genuinely surprising failure-shape result in this whole fixture set: garbled/non-XML input for the NeoForge/Forge metadata endpoints is NOT a parse error at the listVersionPairs level, because there is no real XML parser in this code path to fail -- both `NeoForgeInstaller.listVersionPairs` (lines 52-56) and `ForgeInstaller.parseMavenMetadata` (lines 418-425) hand-scan the raw text for literal `<version>`/`</version>` substring pairs via `range(of:)`, completely indifferent to whether the surrounding document is well-formed XML. Malformed input that happens to contain zero complete `<version>...</version>` pairs silently produces an empty version list, not a thrown error -- `provider-corpus-check.py`'s own `.xml` well-formedness check (which DOES use a real XML parser, `xml.etree.ElementTree`) exists purely to keep the *recorded evidence* honest; it says nothing about what MSC 1's own scrape would do if fed something malformed. The one place this DOES surface as a thrown error is one level up: `NeoForgeInstaller.latestStableVersion` (a different function, not this one) turns an empty `stable` array into `.noStableVersion` via its `guard let best = stable.max(...)`, already covered by empty-version-list-rejected-not-unified-across-providers. `listVersionPairs` itself never reaches that guard -- an empty entries array is a perfectly valid return value for the picker."
+}

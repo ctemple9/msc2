@@ -1,0 +1,143 @@
+{
+  "domain": "server-jar-providers",
+  "case": "paper-versions-flattened-and-sorted-numerically-descending",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PaperDownloader.listVersions() flatten + sort",
+    "line": 141
+  },
+  "input": {
+    "function": "PaperDownloader.listVersions",
+    "raw_response": {
+      "project": {
+        "id": "paper",
+        "name": "Paper"
+      },
+      "versions": {
+        "26.2": [
+          "26.2",
+          "26.2-rc-2"
+        ],
+        "26.1": [
+          "26.1.2",
+          "26.1.1"
+        ],
+        "1.21": [
+          "1.21.11",
+          "1.21.11-rc3",
+          "1.21.11-rc2",
+          "1.21.11-rc1",
+          "1.21.11-pre5",
+          "1.21.11-pre4",
+          "1.21.11-pre3",
+          "1.21.10",
+          "1.21.9",
+          "1.21.9-rc1",
+          "1.21.9-pre4",
+          "1.21.9-pre3",
+          "1.21.9-pre2",
+          "1.21.8",
+          "1.21.7",
+          "1.21.6",
+          "1.21.5",
+          "1.21.4",
+          "1.21.3",
+          "1.21.1",
+          "1.21"
+        ],
+        "1.20": [
+          "1.20.6",
+          "1.20.5",
+          "1.20.4",
+          "1.20.2",
+          "1.20.1",
+          "1.20"
+        ],
+        "1.19": [
+          "1.19.4",
+          "1.19.3",
+          "1.19.2",
+          "1.19.1",
+          "1.19"
+        ],
+        "1.18": [
+          "1.18.2",
+          "1.18.1",
+          "1.18"
+        ],
+        "1.17": [
+          "1.17.1",
+          "1.17"
+        ],
+        "1.16": [
+          "1.16.5",
+          "1.16.4",
+          "1.16.3",
+          "1.16.2",
+          "1.16.1"
+        ],
+        "1.15": [
+          "1.15.2",
+          "1.15.1",
+          "1.15"
+        ],
+        "1.14": [
+          "1.14.4",
+          "1.14.3",
+          "1.14.2",
+          "1.14.1",
+          "1.14"
+        ],
+        "1.13": [
+          "1.13.2",
+          "1.13.1",
+          "1.13",
+          "1.13-pre7"
+        ],
+        "1.12": [
+          "1.12.2",
+          "1.12.1",
+          "1.12"
+        ],
+        "1.11": [
+          "1.11.2"
+        ],
+        "1.10": [
+          "1.10.2"
+        ],
+        "1.9": [
+          "1.9.4"
+        ],
+        "1.8": [
+          "1.8.8"
+        ],
+        "1.7": [
+          "1.7.10"
+        ]
+      }
+    }
+  },
+  "expected": {
+    "sorted_first_10": [
+      "26.2",
+      "26.1.2",
+      "26.1.1",
+      "26.2-rc-2",
+      "1.21.11",
+      "1.21.10",
+      "1.21.9",
+      "1.21.8",
+      "1.21.7",
+      "1.21.6"
+    ],
+    "sorted_last_2": [
+      "1.7.10",
+      "1.13-pre7"
+    ],
+    "total_count": 66
+  },
+  "notes": "The real v3 project response groups versions by minor line (\"1.21\": [...], \"26.2\": [...], ...); listVersions() flattens every group into one list, then sorts descending with compareMCVersions (ServerJarProviders.swift:123), which splits on \".\" and drops any component that isn't a bare integer -- it does NOT try to parse a trailing \"-rc-2\"/\"-pre7\" suffix as part of the number. That drop, not a special pre-release rule, is what produces two real surprises visible in this exact response: \"26.2-rc-2\" sorts as if its version were just \"26\" (its second component \"2-rc-2\" fails Int parsing and is dropped, so it's compared as [26] vs [26,1,1] and loses on the second slot), landing below the three real 26.x releases instead of near them; and \"1.13-pre7\" sorts as bare \"1\" for the same reason, landing dead last -- below even 1.7.10 -- despite looking like a 1.13 version to a human reader. Preserve this exact drop-non-numeric-component behavior in the Rust port; do not \"fix\" it by trying to parse pre-release suffixes, since nothing downstream depends on pre-release versions sorting sensibly and MSC 1 never attempted to.",
+  "corpus_source": [
+    "paper/projects-paper.json"
+  ]
+}

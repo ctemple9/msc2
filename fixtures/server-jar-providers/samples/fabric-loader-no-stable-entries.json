@@ -1,0 +1,30 @@
+[
+  {
+    "loader": {
+      "separator": ".",
+      "build": 2,
+      "maven": "net.fabricmc:fabric-loader:0.19.2-dev",
+      "version": "0.19.2-dev",
+      "stable": false
+    },
+    "intermediary": {
+      "maven": "net.fabricmc:intermediary:1.21.11",
+      "version": "1.21.11",
+      "stable": true
+    }
+  },
+  {
+    "loader": {
+      "separator": ".",
+      "build": 1,
+      "maven": "net.fabricmc:fabric-loader:0.19.1-dev",
+      "version": "0.19.1-dev",
+      "stable": false
+    },
+    "intermediary": {
+      "maven": "net.fabricmc:intermediary:1.21.11",
+      "version": "1.21.11",
+      "stable": true
+    }
+  }
+]

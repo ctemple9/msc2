@@ -1,0 +1,68 @@
+{
+  "domain": "server-jar-providers",
+  "case": "forge-version-pairs-sorted-mc-desc-then-forge-desc-same-mc-not-deduped",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.parseMavenMetadata(_:) sort + id-based dedup",
+    "line": 444
+  },
+  "input": {
+    "function": "ForgeInstaller.parseMavenMetadata",
+    "raw_metadata_xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<metadata>\n  <groupId>net.minecraftforge</groupId>\n  <artifactId>forge</artifactId>\n  <versioning>\n    <latest>1.21.5-55.1.13</latest>\n    <release>1.21.5-55.1.13</release>\n    <versions>\n      <version>1.20-46.0.14</version>\n      <version>1.20.1-47.4.5</version>\n      <version>1.20.4-49.2.0</version>\n      <version>1.20.6-50.2.1</version>\n      <version>1.21-51.0.33</version>\n      <version>1.21.1-52.1.2</version>\n      <version>1.21.11-61.0.0</version>\n      <version>1.21.5-55.0.24</version>\n      <version>1.21.5-55.1.13</version>\n    </versions>\n    <lastUpdated>20260815204212</lastUpdated>\n  </versioning>\n</metadata>\n"
+  },
+  "expected": {
+    "sorted_entries": [
+      {
+        "mcVersion": "1.21.11",
+        "loaderVersion": "61.0.0",
+        "id": "1.21.11—61.0.0"
+      },
+      {
+        "mcVersion": "1.21.5",
+        "loaderVersion": "55.1.13",
+        "id": "1.21.5—55.1.13"
+      },
+      {
+        "mcVersion": "1.21.5",
+        "loaderVersion": "55.0.24",
+        "id": "1.21.5—55.0.24"
+      },
+      {
+        "mcVersion": "1.21.1",
+        "loaderVersion": "52.1.2",
+        "id": "1.21.1—52.1.2"
+      },
+      {
+        "mcVersion": "1.21",
+        "loaderVersion": "51.0.33",
+        "id": "1.21—51.0.33"
+      },
+      {
+        "mcVersion": "1.20.6",
+        "loaderVersion": "50.2.1",
+        "id": "1.20.6—50.2.1"
+      },
+      {
+        "mcVersion": "1.20.4",
+        "loaderVersion": "49.2.0",
+        "id": "1.20.4—49.2.0"
+      },
+      {
+        "mcVersion": "1.20.1",
+        "loaderVersion": "47.4.5",
+        "id": "1.20.1—47.4.5"
+      },
+      {
+        "mcVersion": "1.20",
+        "loaderVersion": "46.0.14",
+        "id": "1.20—46.0.14"
+      }
+    ],
+    "every_entry_isstable": true,
+    "note": "isStable is true for all 9 here because none of these real Forge build strings contain a dash themselves; the field genuinely varies only when a pre-release Forge build (e.g. \"47.4.5-beta\") appears in the raw list, which this corpus snapshot doesn't happen to carry"
+  },
+  "notes": "The `mc—55.1.13` / `mc—55.0.24` pair from forge-maven-metadata-parsed-to-mc-forge-pairs both survive into the final sorted picker list as two separate rows with the SAME `displayLabel`/`mcVersion` (\"1.21.5\") but different `id`s -- deduplication is keyed on the combined `\"{mc}—{forge}\"` id (line 431-433), never on `mc` alone, precisely because modpacks pin exact non-recommended Forge builds and the picker must be able to offer both. Sort is descending MC version first, then descending Forge version within a tied MC (lines 444-448) -- this is why 55.1.13 (newer Forge build) lists above 55.0.24 for the same 1.21.5 line.",
+  "corpus_source": [
+    "forge/maven-metadata.xml"
+  ]
+}

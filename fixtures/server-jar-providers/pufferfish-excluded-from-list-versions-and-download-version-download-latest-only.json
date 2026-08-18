@@ -1,0 +1,33 @@
+{
+  "domain": "server-jar-providers",
+  "case": "pufferfish-excluded-from-list-versions-and-download-version-download-latest-only",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "ServerJarProvider.listVersions/downloadVersion default cases, PufferfishDownloader.downloadLatest",
+    "line": 76
+  },
+  "input": {
+    "flavor": "pufferfish",
+    "dispatcher_calls": [
+      "ServerJarProvider.listVersions(for: .pufferfish)",
+      "ServerJarProvider.downloadVersion(_:flavor: .pufferfish, to:)",
+      "ServerJarProvider.downloadLatest(flavor: .pufferfish, to:)"
+    ]
+  },
+  "expected": {
+    "listVersions": {
+      "result": [],
+      "reason": "falls into the `default: return []` case (ServerJarProviders.swift:76) -- .pufferfish has no case in this switch"
+    },
+    "downloadVersion": {
+      "result": "throws",
+      "error": "unsupportedFlavor(.pufferfish)",
+      "reason": "falls into `default: throw ServerJarProviderError.unsupportedFlavor(flavor)` (line 92)"
+    },
+    "downloadLatest": {
+      "result": "succeeds via PufferfishDownloader.downloadLatest",
+      "reason": "the ONE dispatcher with an explicit `.pufferfish` case (line 112-113); hits Jenkins CI (ci.pufferfish.host) directly, outside the six-family provider corpus this phase records"
+    }
+  },
+  "notes": "Not one of the six families Phase 7's create flow offers, so it is out of scope for the picker and version-change paths -- but per docs/msc2/families/phase7-scope.md's \"Spigot, Quilt, and Pufferfish\" section, it is the one excluded flavor with a real, working \"download latest\" implementation (`PufferfishDownloader`, ServerJarProviders.swift:520-563: resolves Jenkins's last-successful-build artifact, derives the MC version from the `reobf.jar` filename). That downloader hits `ci.pufferfish.host` rather than any of the six recorded providers, so this case documents the dispatch shape from source rather than citing a corpus response -- per the scope note, P7.4's fixture count is explicitly NOT meant to invent listVersions/downloadVersion coverage for Pufferfish beyond this. An imported Pufferfish server still launches exactly like Paper (`-jar <jar> --nogui`), characterized in P7.5, not here."
+}

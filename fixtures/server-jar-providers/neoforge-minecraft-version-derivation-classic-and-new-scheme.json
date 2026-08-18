@@ -1,0 +1,42 @@
+{
+  "domain": "server-jar-providers",
+  "case": "neoforge-minecraft-version-derivation-classic-and-new-scheme",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.minecraftVersion(forNeoForge:)",
+    "line": 224
+  },
+  "input": {
+    "function": "NeoForgeInstaller.minecraftVersion",
+    "cases": [
+      {
+        "neoforge_version": "20.4.237",
+        "note": "classic scheme, real corpus entry"
+      },
+      {
+        "neoforge_version": "21.1.248",
+        "note": "classic scheme, real corpus entry"
+      },
+      {
+        "neoforge_version": "26.1.2.95",
+        "note": "new scheme (major >= 26), real corpus entry, 4-part build number"
+      },
+      {
+        "neoforge_version": "26.2.0.61",
+        "note": "new scheme, minor == 0 within the new-scheme branch drops the trailing .0 down to just the major.minor pair anyway since minor here is 2, not 0 -- included to show the minor!=0 new-scheme path"
+      }
+    ]
+  },
+  "expected": {
+    "results": [
+      "1.20.4",
+      "1.21.1",
+      "26.1",
+      "26.2"
+    ]
+  },
+  "notes": "Two completely different derivation rules keyed on `major >= 26` (lines 224-231), both real in this corpus (the server has already crossed the scheme boundary MSC 1's own P7.3 findings noted for Minecraft itself). Classic (major < 26): `\"1.\\(major).\\(minor)\"`, or just `\"1.\\(major)\"` when minor == 0 -- always gets the \"1.\" prefix. New scheme (major >= 26): `\"\\(major).\\(minor)\"` with NO \"1.\" prefix, or just `\"\\(major)\"` when minor == 0. A build-number component beyond the first two (the third/fourth dotted segments, e.g. the \".0.61\" in \"26.2.0.61\") never appears in the derived Minecraft version at all -- only comps[0]/comps[1] are read (line 228).",
+  "corpus_source": [
+    "neoforge/maven-metadata.xml"
+  ]
+}

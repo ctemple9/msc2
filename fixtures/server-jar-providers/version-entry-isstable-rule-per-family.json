@@ -1,0 +1,44 @@
+{
+  "domain": "server-jar-providers",
+  "case": "version-entry-isstable-rule-per-family",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "ServerVersionEntry.isStable derivation, per provider",
+    "line": 24
+  },
+  "input": {
+    "family_isstable_rule": [
+      {
+        "family": "vanilla",
+        "rule": "true for every entry -- listVersions() only keeps type==\"release\" (snapshots dropped entirely, not just deprioritized)"
+      },
+      {
+        "family": "paper",
+        "rule": "true if the version's best build is on the STABLE channel; false if it only has a BETA/ALPHA fallback build; entries with no qualifying build at all are dropped, not marked unstable"
+      },
+      {
+        "family": "purpur",
+        "rule": "true unconditionally -- the version list carries no per-entry build/channel field to derive stability from"
+      },
+      {
+        "family": "fabric",
+        "rule": "true unconditionally -- listVersions() only keeps game-version entries whose own \"stable\" flag is true; unstable entries are filtered out before mapping, not carried through as isStable:false"
+      },
+      {
+        "family": "neoforge",
+        "rule": "true for every listed entry -- listVersionPairs() filters to non-hyphenated (stable) maven versions before building entries; there is no unstable-entry case to mark"
+      },
+      {
+        "family": "forge",
+        "rule": "computed per entry: isStable = !forgeVersion.contains(\"-\") -- Forge's own maven list is NOT pre-filtered to stable-only (unlike NeoForge), so this field actually varies row to row in the real picker"
+      }
+    ]
+  },
+  "expected": {
+    "family_isstable_always_true_except": [
+      "forge"
+    ],
+    "forge_is_the_only_family_where_isstable_varies_per_entry": true
+  },
+  "notes": "Six families, six different roads to the same boolean. Vanilla/Fabric filter unstable entries out before the picker ever sees them (isStable is trivially true because false rows never exist). Purpur has no signal to derive stability from at all, so it's hardcoded true (ServerJarProviders.swift:324). NeoForge pre-filters to non-hyphenated versions (line 57) the same way Vanilla/Fabric pre-filter, so it's trivially true too. Paper is the one family where isStable reflects a real per-version choice made at picker-build time (STABLE branch vs BETA/ALPHA fallback branch, lines 206-215). Forge is the only family whose isStable is a genuine per-row computed property on real heterogeneous data (parseMavenVersion, line 440) -- do not build a Rust ServerVersionEntry that assumes this field means the same thing across families."
+}

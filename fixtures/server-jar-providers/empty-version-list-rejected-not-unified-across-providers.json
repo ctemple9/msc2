@@ -1,0 +1,60 @@
+{
+  "domain": "server-jar-providers",
+  "case": "empty-version-list-rejected-not-unified-across-providers",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PaperDownloader.listVersions() empty-list guard vs NeoForge/Forge empty-after-filter guard",
+    "line": 159
+  },
+  "input": {
+    "cases": [
+      {
+        "provider": "paper",
+        "function": "PaperDownloader.listVersions",
+        "raw_versions_field": {}
+      },
+      {
+        "provider": "fabric",
+        "function": "FabricDownloader.firstStableVersion",
+        "raw_list": []
+      },
+      {
+        "provider": "neoforge",
+        "function": "NeoForgeInstaller.latestStableVersion",
+        "scraped_versions": []
+      },
+      {
+        "provider": "purpur",
+        "function": "PurpurDownloader.listVersions",
+        "raw_versions_field": []
+      }
+    ]
+  },
+  "expected": {
+    "cases": [
+      {
+        "provider": "paper",
+        "result": "throws",
+        "error": "invalidResponse",
+        "message": "Paper v3 versions list empty."
+      },
+      {
+        "provider": "fabric",
+        "result": "throws",
+        "error": "invalidResponse",
+        "message": "Fabric installer list empty."
+      },
+      {
+        "provider": "neoforge",
+        "result": "throws",
+        "error": "noStableVersion"
+      },
+      {
+        "provider": "purpur",
+        "result": "returns",
+        "value": []
+      }
+    ]
+  },
+  "notes": "Deliberately NOT unified, per P7.4's own instruction to characterize each provider's hand-rolled logic rather than paper over the differences. Paper's picker explicitly guards `!allVersions.isEmpty` (ServerJarProviders.swift:159-161) and throws a named error. Fabric's shared `firstStableVersion` helper guards the same way (line 509-511) since an empty list can never yield a version to pick. NeoForge's `latestStableVersion` has no explicit empty-list guard text at all -- it falls out naturally because `stable.max(by:)` on an empty array returns `nil`, which the `guard let best = ... else { throw .noStableVersion }` then catches (line 216-218); same effective outcome, different mechanism, worth a Rust port keeping the same shape (an `Option`/empty check vs a max-over-empty producing None) rather than a single early guard reused everywhere. Purpur's `listVersions` has no empty-list handling of any kind -- an empty (or 1.-prefix-filtered-to-empty) versions array simply produces a valid, empty `[ServerVersionEntry]` result, not an error; this is the one provider where an empty catalog is a legitimate, silent outcome rather than a failure."
+}

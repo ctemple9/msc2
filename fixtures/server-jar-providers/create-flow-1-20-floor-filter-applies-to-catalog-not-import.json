@@ -1,0 +1,44 @@
+{
+  "domain": "server-jar-providers",
+  "case": "create-flow-1-20-floor-filter-applies-to-catalog-not-import",
+  "source": {
+    "file": "docs/msc2/msc2-decisions.md",
+    "test": "D-014, applied as a Phase 7 addition on top of each provider's raw listVersions() output",
+    "line": 1
+  },
+  "input": {
+    "function": "Phase 7 floor filter (new, layered on top of every provider's listVersions())",
+    "example_provider": "vanilla",
+    "pre_filter_result": [
+      "26.2",
+      "26.1.2",
+      "1.21.11",
+      "1.20.1",
+      "1.20",
+      "1.19.4",
+      "1.16.5"
+    ],
+    "floor": "1.20"
+  },
+  "expected": {
+    "post_filter_result": [
+      "26.2",
+      "26.1.2",
+      "1.21.11",
+      "1.20.1",
+      "1.20"
+    ],
+    "dropped": [
+      "1.19.4",
+      "1.16.5"
+    ],
+    "kept_despite_no_1_dot_prefix": [
+      "26.2",
+      "26.1.2"
+    ]
+  },
+  "notes": "None of the six providers filter by a version floor themselves (Vanilla/Purpur only filter by `release`/`\"1.\"` prefix, for unrelated reasons); D-014's 1.20 cut is a Phase 7 addition layered uniformly on top of each provider's own raw list, applied to `GET /v1/versions/create` and `GET /v1/versions` only -- a below-floor server reached through raw or transfer import still lists, starts, and is fully manageable (D-014's own text: \"not carried in provisioning logic\", not \"blocked\"). The filter reuses the exact same numeric compareMCVersions comparator every provider already has (entry >= \"1.20\"), which is why the new YY.n-scheme versions (\"26.2\", \"26.1.2\") pass the floor and are kept even though they don't share Vanilla's own \"1.\"-prefix release filter or Purpur's `hasPrefix(\"1.\")` catalog filter -- major 26 numerically exceeds major 1, so no scheme-aware special case is needed here, the same way compareMCVersions already needed none for sorting.",
+  "corpus_source": [
+    "vanilla/version-manifest-v2.json"
+  ]
+}

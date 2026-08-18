@@ -1,0 +1,246 @@
+{
+  "domain": "server-jar-providers",
+  "case": "fabric-loader-and-installer-first-stable-selection",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "FabricDownloader.downloadLatest(to:) loader + firstStableVersion(from:what:) installer resolution",
+    "line": 431
+  },
+  "input": {
+    "loader_response_for_game_1_21_11": [
+      {
+        "loader": {
+          "separator": ".",
+          "build": 3,
+          "maven": "net.fabricmc:fabric-loader:0.19.3",
+          "version": "0.19.3",
+          "stable": true
+        },
+        "intermediary": {
+          "maven": "net.fabricmc:intermediary:1.21.11",
+          "version": "1.21.11",
+          "stable": true
+        },
+        "launcherMeta": {
+          "version": 2,
+          "min_java_version": 8,
+          "libraries": {
+            "client": [],
+            "common": [
+              {
+                "name": "org.ow2.asm:asm:9.10.1",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "9cb72080438acf27f2607002e1444a7b",
+                "sha1": "ada2141c0cc52ee8f5c48cd5fa4ce0e794f22236",
+                "sha256": "ed825d10ab1399c8c0cb669e688cf0c8c82629b4c8399b58352b68e92ca10fcb",
+                "sha512": "8db6efa37d4d569bf2b95d90931b8064f87ed928d20bbf8d8e7fa6182e9a11d32e6a2cc034a3d173a38ee70ce2ea9f20f52f9d8730d9401d2bc6060674c18928",
+                "size": 126151
+              },
+              {
+                "name": "org.ow2.asm:asm-analysis:9.10.1",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "6dd9011ec87f65e4b2e14e938c4118e4",
+                "sha1": "8d49f14d51f632cb1d87c88d1ceaf50db0d8af1b",
+                "sha256": "dede75a21306b65974ecd8f87114ff6970f09fb794157a4ca09ab25c888c2bfc",
+                "sha512": "0542a90be38f81e39ef43a9253630a2d59f82c17c24492f005c67619561308afbbd23bf8504d3e83b1d4cebe5746126da76037473ddac3071b028c2ae279296b",
+                "size": 35140
+              }
+            ],
+            "server": [],
+            "development": [
+              {
+                "name": "io.github.llamalad7:mixinextras-fabric:0.5.4",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "d5070aa9700de60274a740d4c2640b4d",
+                "sha1": "5e167154bcb9942111313a5e186e16cd7265f858",
+                "sha256": "bd79ddb2f54b39a08deeb50cb12439bba01481264dd5a9f5ea830551bfef31ff",
+                "sha512": "31b929374c2526ebb532185cd54b752c0a5ca7f56a48c99ed6a73f598a4155c9db88ab4c8ea5904fa2e2f78310424393238b2db6cd435c0f3ad87d1391ea3320",
+                "size": 727805
+              }
+            ]
+          },
+          "mainClass": {
+            "client": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+            "server": "net.fabricmc.loader.impl.launch.knot.KnotServer"
+          }
+        }
+      },
+      {
+        "loader": {
+          "separator": ".",
+          "build": 2,
+          "maven": "net.fabricmc:fabric-loader:0.19.2",
+          "version": "0.19.2",
+          "stable": false
+        },
+        "intermediary": {
+          "maven": "net.fabricmc:intermediary:1.21.11",
+          "version": "1.21.11",
+          "stable": true
+        },
+        "launcherMeta": {
+          "version": 2,
+          "min_java_version": 8,
+          "libraries": {
+            "client": [],
+            "common": [
+              {
+                "name": "org.ow2.asm:asm:9.9",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "6d1dd0482c03a6dc1807d9d004456021",
+                "sha1": "c29635c8a7afa03d74b33c1884df8abb2b3f3dcc",
+                "sha256": "03d99a74ad1ee5c71334ef67437f4ef4fe3488caa7c96d8645abc73c8e2017d4",
+                "sha512": "197a4fb3ecb34d05ac555c6a510e69affcb1e476f24c5e935ad513ecdabf74b45aa1b0e0b25dbe91224fc6db7959b2677ea5876ee49e7487265e2a29c560c21c",
+                "size": 126122
+              },
+              {
+                "name": "org.ow2.asm:asm-analysis:9.9",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "f07383cfbd50f097558341a03b8871e1",
+                "sha1": "0bf4fa6e66638851c1cd22c2caea0c3ee5d5f437",
+                "sha256": "6a15d28e8bd29ba4fd5bca4baf9b50e8fba2d7b51fbf78cfa0c875a7214c678b",
+                "sha512": "293fdf9ffd6858559d9bf4a2b68dfcfc58cb581d27e0fbcd2c2d0c540520498e9d587094534dd58d782ff5051b90f160971cfc388ea132e06eafa089bcc0bed7",
+                "size": 35149
+              }
+            ],
+            "server": [],
+            "development": [
+              {
+                "name": "io.github.llamalad7:mixinextras-fabric:0.5.4",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "d5070aa9700de60274a740d4c2640b4d",
+                "sha1": "5e167154bcb9942111313a5e186e16cd7265f858",
+                "sha256": "bd79ddb2f54b39a08deeb50cb12439bba01481264dd5a9f5ea830551bfef31ff",
+                "sha512": "31b929374c2526ebb532185cd54b752c0a5ca7f56a48c99ed6a73f598a4155c9db88ab4c8ea5904fa2e2f78310424393238b2db6cd435c0f3ad87d1391ea3320",
+                "size": 727805
+              }
+            ]
+          },
+          "mainClass": {
+            "client": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+            "server": "net.fabricmc.loader.impl.launch.knot.KnotServer"
+          }
+        }
+      },
+      {
+        "loader": {
+          "separator": ".",
+          "build": 1,
+          "maven": "net.fabricmc:fabric-loader:0.19.1",
+          "version": "0.19.1",
+          "stable": false
+        },
+        "intermediary": {
+          "maven": "net.fabricmc:intermediary:1.21.11",
+          "version": "1.21.11",
+          "stable": true
+        },
+        "launcherMeta": {
+          "version": 2,
+          "min_java_version": 8,
+          "libraries": {
+            "client": [],
+            "common": [
+              {
+                "name": "org.ow2.asm:asm:9.9",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "6d1dd0482c03a6dc1807d9d004456021",
+                "sha1": "c29635c8a7afa03d74b33c1884df8abb2b3f3dcc",
+                "sha256": "03d99a74ad1ee5c71334ef67437f4ef4fe3488caa7c96d8645abc73c8e2017d4",
+                "sha512": "197a4fb3ecb34d05ac555c6a510e69affcb1e476f24c5e935ad513ecdabf74b45aa1b0e0b25dbe91224fc6db7959b2677ea5876ee49e7487265e2a29c560c21c",
+                "size": 126122
+              },
+              {
+                "name": "org.ow2.asm:asm-analysis:9.9",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "f07383cfbd50f097558341a03b8871e1",
+                "sha1": "0bf4fa6e66638851c1cd22c2caea0c3ee5d5f437",
+                "sha256": "6a15d28e8bd29ba4fd5bca4baf9b50e8fba2d7b51fbf78cfa0c875a7214c678b",
+                "sha512": "293fdf9ffd6858559d9bf4a2b68dfcfc58cb581d27e0fbcd2c2d0c540520498e9d587094534dd58d782ff5051b90f160971cfc388ea132e06eafa089bcc0bed7",
+                "size": 35149
+              }
+            ],
+            "server": [],
+            "development": [
+              {
+                "name": "io.github.llamalad7:mixinextras-fabric:0.5.3",
+                "url": "https://maven.fabricmc.net/",
+                "md5": "b69f9aabf42ad4249d751ea894329312",
+                "sha1": "8ee5af001acbc9f7970e383bdf0944d063c80f63",
+                "sha256": "6f8d64297f42937c3e53985c7799ee5ea8aa3f6aa936426e83032eeb82d6839d",
+                "sha512": "9e984b698337027ab1449ac268bdf332ae871970bfba28b7b9941ca28a63cc234791a6d83e01691f229a0d71c819599e700a929e4bc33cbf2da7ca570752ceda",
+                "size": 726308
+              }
+            ]
+          },
+          "mainClass": {
+            "client": "net.fabricmc.loader.impl.launch.knot.KnotClient",
+            "server": "net.fabricmc.loader.impl.launch.knot.KnotServer"
+          }
+        }
+      }
+    ],
+    "installer_list_response": [
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.1.2/fabric-installer-1.1.2.jar",
+        "maven": "net.fabricmc:fabric-installer:1.1.2",
+        "version": "1.1.2",
+        "stable": true
+      },
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.1.1/fabric-installer-1.1.1.jar",
+        "maven": "net.fabricmc:fabric-installer:1.1.1",
+        "version": "1.1.1",
+        "stable": false
+      },
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.1.0/fabric-installer-1.1.0.jar",
+        "maven": "net.fabricmc:fabric-installer:1.1.0",
+        "version": "1.1.0",
+        "stable": false
+      },
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.0.3/fabric-installer-1.0.3.jar",
+        "maven": "net.fabricmc:fabric-installer:1.0.3",
+        "version": "1.0.3",
+        "stable": false
+      },
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.0.2/fabric-installer-1.0.2.jar",
+        "maven": "net.fabricmc:fabric-installer:1.0.2",
+        "version": "1.0.2",
+        "stable": false
+      },
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.0.1/fabric-installer-1.0.1.jar",
+        "maven": "net.fabricmc:fabric-installer:1.0.1",
+        "version": "1.0.1",
+        "stable": false
+      },
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/1.0.0/fabric-installer-1.0.0.jar",
+        "maven": "net.fabricmc:fabric-installer:1.0.0",
+        "version": "1.0.0",
+        "stable": false
+      },
+      {
+        "url": "https://maven.fabricmc.net/net/fabricmc/fabric-installer/0.11.2/fabric-installer-0.11.2.jar",
+        "maven": "net.fabricmc:fabric-installer:0.11.2",
+        "version": "0.11.2",
+        "stable": false
+      }
+    ]
+  },
+  "expected": {
+    "selected_loader_version": "0.19.3",
+    "selected_loader_build": 3,
+    "reason_loader_not_highest_build_number": "list[0] (build 3, version 0.19.3) is already the first entry with loader.stable == true, so it wins outright -- happens to also be the highest build here, but the selection rule is \"first stable\", not \"highest build\"",
+    "selected_installer_version": "1.1.2",
+    "reason_installer": "firstStableVersion(from:what:) (line 505-517) returns the first list entry whose own `stable` field is true, falling back to list[0] only when none are stable; 1.1.2 is both the first entry and the first stable one here"
+  },
+  "notes": "Two structurally different \"first stable\" scans feeding the same download. The loader list (`versions/loader/{game}`) is an array of `{loader: {...}, intermediary: {...}, launcherMeta: {...}}` objects; the code reads `((loaderEntry[\"loader\"] as? [String:Any])?[\"stable\"] as? Bool) == true` on the FIRST matching entry (ServerJarProviders.swift:438), not the max build number -- the two happen to coincide in this real response (build 3 / 0.19.3 is both first and highest), which the fixture notes explicitly so a Rust port isn't written to sort-by-build-descending instead of scan-for-first-stable, a change that would be invisible against this one response but wrong in general. The installer list is a flatter `{version, stable}` array and uses the shared private helper `firstStableVersion(from:what:)`, reused identically for the game-version resolution in `downloadLatest` (not separately fixtured here -- same helper, already covered by fabric-first-stable-version-falls-back-to-first-entry-when-none-stable for its fallback branch).",
+  "corpus_source": [
+    "fabric/loader-1.21.11.json",
+    "fabric/installer.json"
+  ]
+}

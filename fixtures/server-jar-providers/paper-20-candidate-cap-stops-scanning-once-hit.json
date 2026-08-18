@@ -1,0 +1,69 @@
+{
+  "domain": "server-jar-providers",
+  "case": "paper-20-candidate-cap-stops-scanning-once-hit",
+  "source": {
+    "file": "PaperDownloader.swift",
+    "test": "PaperDownloader.fetchAvailableVersions(includeExperimental:limit:) maxCandidates loop",
+    "line": 69
+  },
+  "input": {
+    "function": "PaperDownloader.fetchAvailableVersions",
+    "limit": 1,
+    "include_experimental": false,
+    "candidates_in_walk_order": [
+      "synthetic-v1",
+      "synthetic-v2",
+      "synthetic-v3",
+      "synthetic-v4",
+      "synthetic-v5",
+      "synthetic-v6",
+      "synthetic-v7",
+      "synthetic-v8",
+      "synthetic-v9",
+      "synthetic-v10",
+      "synthetic-v11",
+      "synthetic-v12",
+      "synthetic-v13",
+      "synthetic-v14",
+      "synthetic-v15",
+      "synthetic-v16",
+      "synthetic-v17",
+      "synthetic-v18",
+      "synthetic-v19",
+      "synthetic-v20",
+      "synthetic-v21",
+      "synthetic-v22"
+    ],
+    "has_qualifying_build": {
+      "synthetic-v1": false,
+      "synthetic-v2": false,
+      "synthetic-v3": false,
+      "synthetic-v4": false,
+      "synthetic-v5": false,
+      "synthetic-v6": false,
+      "synthetic-v7": false,
+      "synthetic-v8": false,
+      "synthetic-v9": false,
+      "synthetic-v10": false,
+      "synthetic-v11": false,
+      "synthetic-v12": false,
+      "synthetic-v13": false,
+      "synthetic-v14": false,
+      "synthetic-v15": false,
+      "synthetic-v16": false,
+      "synthetic-v17": false,
+      "synthetic-v18": false,
+      "synthetic-v19": false,
+      "synthetic-v20": false,
+      "synthetic-v21": true,
+      "synthetic-v22": true
+    }
+  },
+  "expected": {
+    "tried_count": 20,
+    "results_count": 0,
+    "reached_synthetic_v21": false,
+    "reason": "loop guard `tried < maxCandidates` (maxCandidates = 20, line 94-98) fails before synthetic-v21 is ever examined, even though it has a qualifying build and the caller only wanted 1 result"
+  },
+  "notes": "Pure algorithm property of `fetchAvailableVersions`'s walk loop (lines 93-107), independent of any real API response: it stops after 20 candidates are *tried* (`tried += 1` at line 99, checked against `maxCandidates = 20` at line 94) regardless of how few results have been collected -- the two guard conditions (`tried < maxCandidates`, `results.count < limit`) are ANDed, so hitting either one ends the walk. This is the mechanism the real fallback described in the function's own doc comment (lines 64-68, \"if a high version number has no STABLE builds, the selector automatically falls back to the next lower version\") relies on -- it only works because 20 is normally far more than enough candidates to reach a real stable version; a version list where the top 20 entries are all unreleased/broken would exhaust the cap and return nothing rather than walking further down. `paper-best-build-selection-stable-wins-beta-fallback-when-absent` exercises the shape of a single call inside this loop; this case exercises the loop's own termination rule."
+}

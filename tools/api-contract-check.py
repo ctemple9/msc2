@@ -17,7 +17,10 @@ P0.32 baseline plus P2.1/P2.2/P2.4/P2.5/P2.6's designs:
      phase6-api.md SS3): POST /v1/worlds/{update,delete,duplicate,copy,
      import,export,rename-active-world,convert}, GET /v1/worlds/{slotId}/
      thumbnail, POST /v1/backups/delete, POST /v1/staged-uploads,
-     PUT /v1/staged-uploads/{id}, GET /v1/staged-downloads/{id}
+     PUT /v1/staged-uploads/{id}, GET /v1/staged-downloads/{id}, plus
+     P6.34's POST /v1/worlds/replace-active-world, plus P7.9's
+     POST /v1/java-runtimes/install (docs/msc2/families/phase7-api.md,
+     D-006 addendum -- MSC 2 installs Java itself)
 
 Also checks that every non-2xx response resolves to ErrorDTO (P2.4 SS5-6's
 envelope unification), not the baseline's split Error/typed-DTO pattern.
@@ -30,7 +33,7 @@ import json
 import sys
 
 CONTRACT_PATH = "docs/msc2/api-contract/openapi.json"
-EXPECTED_TOTAL = 106  # 88 baseline (P0.23 --total) + 5 P2.8 + 12 P6.8 (copyWorldSlotContent removed post-review; folded into /v1/worlds/replace) + 1 P6.34 (POST /v1/worlds/replace-active-world, replaceActiveWorld)
+EXPECTED_TOTAL = 107  # 88 baseline (P0.23 --total) + 5 P2.8 + 12 P6.8 (copyWorldSlotContent removed post-review; folded into /v1/worlds/replace) + 1 P6.34 (POST /v1/worlds/replace-active-world, replaceActiveWorld) + 1 P7.9 (POST /v1/java-runtimes/install, installJavaRuntime, D-006 addendum)
 
 # helpid-contract.md SS4's table: schema -> field(s) that must carry helpId.
 HELPID_FIELDS = {

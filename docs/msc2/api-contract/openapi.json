@@ -21,7 +21,7 @@
         },
         "responses": {
           "200": {
-            "description": "Server created",
+            "description": "Server creation started (bedrock: capability_unavailable is returned as 409 instead, see x-notes)",
             "content": {
               "application/json": {
                 "schema": {
@@ -42,7 +42,7 @@
             "x-error-code": "invalid_body"
           },
           "409": {
-            "description": "create_failed",
+            "description": "create_failed / capability_unavailable (Bedrock create, refused rather than half-provisioned; Phase 10)",
             "content": {
               "application/json": {
                 "schema": {
@@ -64,7 +64,8 @@
             "x-error-code": "internal_error"
           }
         },
-        "x-notes": "Read from RemoteAPIServer+ComponentRoutes.swift handleCreateServer and RemoteAPIServer+HTTP.swift's serverMutationStatus. success/message/serverId/serverName/warnings come back on 200 even though the handler ultimately runs async via createServerProvider.",
+        "operationId": "createServer",
+        "x-notes": "P7.9 correction to this note's own P2.8-era wording: 'runs async via createServerProvider' described MSC 1's Swift-Task mechanism, not wire behavior -- MSC 1's own handleCreateServer holds the HTTP response open until createServerProvider fully returns (RemoteAPIServer+ComponentRoutes.swift:87-112), which blocks the connection for the real minutes a Forge/NeoForge install-step create can take (corpus/providers' captured installer runs, P7.3). Phase 7 corrects this under D-006's 'correction' clause: after name/type/flavor validation and (for Bedrock) the capability_unavailable refusal, the 200 response returns immediately with serverId/serverName (known synchronously -- folder derivation is a pure function of the trimmed name, families/phase7-scope.md SS 'Cross-family creation mechanics' step 2) and a populated operationId; warnings and final success/failure land on the operation's own terminal result (operation-model.md SS2), not on this response. A client that only reads success/message/serverId/serverName keeps working; one that wants progress or cancellation follows operationId. type: \"server-create\". A failed or cancelled operation leaves the server directory rolled back completely (this phase's working exit criteria), matching the create_failed 409 MSC 1 already returns for the synchronous validation failures that still happen before the operation is admitted.",
         "x-permission-category": "fleet"
       }
     },
@@ -915,7 +916,7 @@
         },
         "responses": {
           "200": {
-            "description": "Version change applied",
+            "description": "Version change started",
             "content": {
               "application/json": {
                 "schema": {
@@ -969,6 +970,8 @@
             "x-error-code": "internal_error"
           }
         },
+        "operationId": "changeVersion",
+        "x-notes": "MSC 1's own changeVersionProvider comment calls this 'authoritative-async (awaits the real result)' -- in wire terms that means the baseline HTTP handler blocks the connection until the download, or for NeoForge/Forge the full supervised installer subprocess (real minutes, P7.3's captured installer runs), finishes (AppViewModel+APIWiringAddons.swift:358-573). Phase 7 applies the same correction as /v1/servers/create: the 200 response returns as soon as the existing isDownloadingJar-equivalent admission check passes, carrying a populated operationId; success/failure/requiresRestart land on the operation's terminal result. type: \"version-change\". The existing download_in_progress 429 is preserved unchanged (D-006: preserve rate-limiting intent) as the same-server concurrent-request guard it always was -- a second request while one operation is already running for this server still gets 429, it just now names an operation instead of a raw in-flight download.",
         "x-permission-category": "addons"
       }
     },
@@ -3132,6 +3135,69 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/java-runtimes/install": {
+      "post": {
+        "summary": "Install a Java runtime the agent manages itself",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JavaRuntimeInstallRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Install started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JavaRuntimeInstallResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / invalid_major",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "429": {
+            "description": "download_in_progress (an install for this major is already running)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "rate_limited"
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "operationId": "installJavaRuntime",
+        "x-notes": "New route, P7.1's dated addendum to D-006 (Cameron's answer to 'Questions before P7.1': MSC 2 installs Java itself). No MSC 1 equivalent -- JavaInstaller.swift's installerURL/downloadInstaller fetch a macOS-only Temurin .pkg for a human to double-click (families/phase7-scope.md, 'Java runtime install'), which this route does not port. Request names only `major` (one of the four JavaInstaller.minecraftInstallOptions values, P7.7); OS/architecture are never client-supplied -- the agent always installs a runtime for its own host (D-009: MSC 2 owns its own runtime state). Always async: like POST /v1/worlds/convert, there is no synchronous variant, so operationId is required on the result rather than optional. type: \"java-download\" (the type name operation-model.md SS2 already anticipated). Unpacks under MSC's own runtimes directory, never a system Java location; an interrupted install leaves nothing behind (families/phase7-scope.md's rollback-discipline note). A second install request for a major already installing gets the same download_in_progress 429 vocabulary /v1/components/version uses, not a new code.",
+        "x-permission-category": "settings"
+      }
+    },
     "/v1/versions": {
       "get": {
         "summary": "Available server JAR versions for the active server's flavor",
@@ -5067,6 +5133,10 @@
           },
           "requiresRestart": {
             "type": "boolean"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Phase 7 addition (P7.9): operation id for progress polling or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, same pattern as ServerCreateResultDTO.operationId."
           }
         },
         "required": [
@@ -7138,6 +7208,38 @@
         },
         "required": [
           "runtimes"
+        ]
+      },
+      "JavaRuntimeInstallRequestDTO": {
+        "type": "object",
+        "properties": {
+          "major": {
+            "type": "integer",
+            "description": "One of JavaInstaller.minecraftInstallOptions' four majors (8/17/21/25, P7.7). OS/architecture are never client-supplied -- the agent always installs for its own host (D-009)."
+          }
+        },
+        "required": [
+          "major"
+        ]
+      },
+      "JavaRuntimeInstallResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Always populated -- this route has no synchronous variant, same as WorldConvertResultDTO.operationId."
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "operationId"
         ]
       },
       "VersionEntryDTO": {

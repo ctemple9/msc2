@@ -28,7 +28,7 @@ GET,/v1/components/client-export,,"Package selected components/add-ons for clien
 POST,/v1/components/install,,Install an add-on from the Modrinth catalog into the active server,addons,Planned,Planned,Planned,Planned,
 POST,/v1/components/remove,,Remove an installed Modrinth-tracked add-on,addons,Planned,Planned,Planned,Planned,
 POST,/v1/components/update,,Update a system component (paper/geyser/floodgate) or a Modrinth-tracked add-on,addons,Planned,Planned,Planned,Planned,
-POST,/v1/components/version,,Change the active server's JAR version/build,addons,Planned,Planned,Planned,Planned,
+POST,/v1/components/version,changeVersion,Change the active server's JAR version/build,addons,Planned,Planned,Planned,Planned,"P7.9: async correction, operationId added (phase7-api.md SS2)"
 GET,/v1/config/geyser,,Get the active server's Geyser config,none,Planned,Planned,Planned,Planned,
 POST,/v1/config/geyser,,Update the active server's Geyser config,settings,Planned,Planned,Planned,Planned,
 GET,/v1/config/java-runtime,,Get the global Java executable path override,none,Planned,Planned,Planned,Planned,
@@ -47,6 +47,7 @@ GET,/v1/health/problems,,"Startup problems detected for the active server (missi
 POST,/v1/health/repair,,Trigger a repair action for a diagnosed startup problem,settings,Planned,Planned,Planned,Planned,
 GET,/v1/help/{helpId},,Resolve an educational content topic,none,Planned,Planned,Planned,Planned,
 GET,/v1/java-runtimes,,Java runtimes detected on this host,none,Planned,Planned,Planned,Planned,
+POST,/v1/java-runtimes/install,installJavaRuntime,"Install a Java runtime the agent manages itself (Adoptium archive, checksum-verified, unpacked under MSC's own runtimes directory)",settings,Planned,Planned,Planned,Planned,"new route, D-006 addendum P7.1/P7.9 -- no MSC 1 equivalent (phase7-api.md SS3)"
 GET,/v1/me,,The calling token's own role and permissions,none,Planned,Planned,Planned,Planned,
 POST,/v1/operations,,Create a long-running operation,serverControl,Implemented,Planned,Planned,Planned,
 GET,/v1/operations/{id},,Read an operation's current state,none,Implemented,Planned,Implemented,Implemented,"iOS and CLI poll durable world, backup, conversion, and import operations"
@@ -67,7 +68,7 @@ POST,/v1/resourcepacks/remove,,Remove a resource pack from disk,addons,Planned,P
 POST,/v1/resourcepacks/seturl,,Set a custom resource-pack URL directly in server.properties,addons,Planned,Planned,Planned,Planned,
 POST,/v1/resourcepacks/toggle,,Enable/disable a Geyser resource pack,addons,Planned,Planned,Planned,Planned,
 GET,/v1/servers,,List all registered servers,none,Implemented,Planned,Implemented,Implemented,
-POST,/v1/servers/create,,Create a new server,fleet,Planned,Planned,Planned,Planned,
+POST,/v1/servers/create,createServer,Create a new server,fleet,Planned,Planned,Planned,Planned,"P7.9: async correction, operationId now actually used (phase7-api.md SS2); Bedrock refused with capability_unavailable"
 POST,/v1/servers/delete,,Delete a server,fleet,Planned,Planned,Planned,Planned,
 POST,/v1/servers/eula,,Accept the Minecraft EULA for a server,fleet,Planned,Planned,Planned,Planned,
 POST,/v1/servers/import,,"Scan, import, or rescan existing servers",fleet,Implemented,Planned,Implemented,Implemented,"P6.46: copied iOS follows accepted raw/ZIP and transfer imports to their durable terminal result"

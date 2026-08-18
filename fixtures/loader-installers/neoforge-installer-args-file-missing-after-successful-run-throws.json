@@ -1,0 +1,23 @@
+{
+  "domain": "loader-installers",
+  "case": "neoforge-installer-args-file-missing-after-successful-run-throws",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.install(into:javaPath:onLog:) -- args file guard after a successful exit",
+    "line": 126
+  },
+  "input": {
+    "function": "NeoForgeInstaller.install",
+    "exit_code": 0,
+    "version": "20.4.237",
+    "args_file_on_disk_at": "libraries/net/neoforged/neoforge/20.4.237/unix_args.txt",
+    "args_file_present": false
+  },
+  "expected": {
+    "throws": "NeoForgeError.argsFileMissing",
+    "cleanup_attempted": false,
+    "installer_jar_left_on_disk": true,
+    "installer_log_left_on_disk": true
+  },
+  "notes": "Same ordering as ForgeInstaller: `guard let argsRel = findArgsFile(...) else { throw NeoForgeError.argsFileMissing }` (line 126) runs after the exit-code guard but before both cleanup lines (130-131), so a 0-exit install that didn't produce `unix_args.txt` still fails and leaves both `neoforge-installer.jar` and `installer.log` behind. The real corpus (`neoforge/installer-evidence/unix_args.txt`, captured P7.3) proves this file is produced by a genuine 20.4.237 install; this fixture is the counterfactual where it isn't."
+}

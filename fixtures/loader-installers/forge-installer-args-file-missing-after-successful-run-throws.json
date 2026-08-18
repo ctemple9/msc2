@@ -1,0 +1,23 @@
+{
+  "domain": "loader-installers",
+  "case": "forge-installer-args-file-missing-after-successful-run-throws",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.install(into:javaPath:onLog:) -- args file guard after a successful exit",
+    "line": 355
+  },
+  "input": {
+    "function": "ForgeInstaller.install",
+    "exit_code": 0,
+    "mc_version": "1.20.1",
+    "forge_version": "47.4.5",
+    "args_file_on_disk_at": "libraries/net/minecraftforge/forge/1.20.1-47.4.5/unix_args.txt",
+    "args_file_present": false
+  },
+  "expected": {
+    "throws": "ForgeError.argsFileMissing",
+    "cleanup_attempted": false,
+    "installer_jar_left_on_disk": true
+  },
+  "notes": "`guard let argsRel = findArgsFile(...) else { throw ForgeError.argsFileMissing }` (line 355) runs *after* the exit-code guard succeeds but *before* the cleanup line (358) -- an installer that exits 0 without producing the expected `unix_args.txt` layout (e.g. a future Forge version restructuring its output) fails install() anyway, and leaves `forge-installer.jar` behind just like the exit-code failure path does. The real corpus (`forge/installer-evidence/unix_args.txt`, captured P7.3) proves this file *is* produced by a genuine 1.20.1-47.4.5 install -- this fixture is the counterfactual where it isn't."
+}

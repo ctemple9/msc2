@@ -1,0 +1,23 @@
+{
+  "domain": "loader-installers",
+  "case": "forge-installer-cleanup-removes-jar-only",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.install(into:javaPath:onLog:) -- post-success cleanup",
+    "line": 358
+  },
+  "input": {
+    "function": "ForgeInstaller.install",
+    "exit_code": 0,
+    "args_file_found": true
+  },
+  "expected": {
+    "removed": [
+      "forge-installer.jar"
+    ],
+    "not_removed": [
+      "installer.log"
+    ]
+  },
+  "notes": "Forge's success path has exactly one `try? FileManager.default.removeItem` call (line 358), for the installer jar. There is no `installer.log` removal anywhere in `ForgeInstaller` -- unlike `NeoForgeInstaller.install`, which removes both (see neoforge-installer-cleanup-removes-jar-and-installer-log). Both installers' `try?` swallows a failed removal silently either way; that failure path isn't in MSC 1's own tests and isn't a Phase 7 characterization target."
+}

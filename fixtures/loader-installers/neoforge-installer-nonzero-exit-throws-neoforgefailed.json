@@ -1,0 +1,21 @@
+{
+  "domain": "loader-installers",
+  "case": "neoforge-installer-nonzero-exit-throws-neoforgefailed",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.install(into:javaPath:onLog:) -- non-zero installer exit",
+    "line": 122
+  },
+  "input": {
+    "function": "NeoForgeInstaller.install",
+    "exit_code": 1
+  },
+  "expected": {
+    "throws": "NeoForgeError.installerFailed(1)",
+    "args_file_lookup_attempted": false,
+    "cleanup_attempted": false,
+    "installer_jar_left_on_disk": true,
+    "installer_log_left_on_disk": true
+  },
+  "notes": "Same guard-before-cleanup ordering as ForgeInstaller: `guard code == 0 else { throw NeoForgeError.installerFailed(code) }` (line 123) fires before the `findArgsFile` guard (line 126) and both `try? removeItem` cleanup lines (130-131) -- a failed run leaves both `neoforge-installer.jar` and `installer.log` on disk."
+}

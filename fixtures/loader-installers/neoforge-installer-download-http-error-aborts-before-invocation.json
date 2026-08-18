@@ -1,0 +1,19 @@
+{
+  "domain": "loader-installers",
+  "case": "neoforge-installer-download-http-error-aborts-before-invocation",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.install(into:javaPath:onLog:) -- non-200 installer download",
+    "line": 114
+  },
+  "input": {
+    "function": "NeoForgeInstaller.install",
+    "http_status": 404
+  },
+  "expected": {
+    "throws": "NeoForgeError.network(\"installer download returned status 404\")",
+    "installer_jar_written": false,
+    "java_process_invoked": false
+  },
+  "notes": "Same guard-before-write shape as ForgeInstaller: the status check (line 115-117) runs before `try data.write(...)`, so a non-200 response never touches disk and `runJavaInstaller` is never reached. Same behavior in the install(specificVersion:) overload (line 151-153). P7.3's findings note a real, transient 404 from a stale CDN cache on this exact endpoint -- this fixture is the synthetic version of that same failure shape."
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "loader-installers",
+  "case": "forge-installer-download-http-error-aborts-before-invocation",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.install(into:javaPath:onLog:) -- non-200 installer download",
+    "line": 346
+  },
+  "input": {
+    "function": "ForgeInstaller.install",
+    "http_status": 404
+  },
+  "expected": {
+    "throws": "ForgeError.network(\"installer download returned status 404\")",
+    "installer_jar_written": false,
+    "java_process_invoked": false
+  },
+  "notes": "The status-code guard (line 346-348) runs before `try data.write(...)` -- a non-200 response never touches disk and `runJavaInstaller` is never reached. Same guard shape and same behavior in the install(mcVersion:forgeVersion:) overload (line 380-382)."
+}

@@ -1,0 +1,22 @@
+{
+  "domain": "loader-installers",
+  "case": "neoforge-installer-url-construction",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.install(specificVersion:into:javaPath:onLog:) -- installer URL construction",
+    "line": 137
+  },
+  "input": {
+    "function": "NeoForgeInstaller.install",
+    "version": "20.4.237"
+  },
+  "expected": {
+    "installer_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/20.4.237/neoforge-20.4.237-installer.jar",
+    "installer_filename_in_server_dir": "neoforge-installer.jar"
+  },
+  "notes": "URL is `releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar` under maven.neoforged.net -- identical formula whether the version arrives explicit (this overload, line 137) or resolved by latestStableVersion() inside install(into:javaPath:onLog:) at line 100. This exact version (20.4.237) is the one P7.3 actually downloaded and ran (`corpus/providers/neoforge/installer-evidence/`).",
+  "corpus_source": [
+    "neoforge/installer-evidence/run.sh",
+    "neoforge/installer-evidence/unix_args.txt"
+  ]
+}

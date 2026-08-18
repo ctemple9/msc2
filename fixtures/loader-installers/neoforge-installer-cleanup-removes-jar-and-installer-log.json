@@ -1,0 +1,21 @@
+{
+  "domain": "loader-installers",
+  "case": "neoforge-installer-cleanup-removes-jar-and-installer-log",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.install(into:javaPath:onLog:) -- post-success cleanup",
+    "line": 130
+  },
+  "input": {
+    "function": "NeoForgeInstaller.install",
+    "exit_code": 0,
+    "args_file_found": true
+  },
+  "expected": {
+    "removed": [
+      "neoforge-installer.jar",
+      "installer.log"
+    ]
+  },
+  "notes": "NeoForge's success path makes two `try? FileManager.default.removeItem` calls (lines 130-131): the installer jar, then `serverDir/installer.log`. `ForgeInstaller.install` only removes the jar (see forge-installer-cleanup-removes-jar-only) -- a real asymmetry between the two installers, not a porting mistake to silently unify. The Rust port (P7.14) should keep whatever cleanup set is per-flavor rather than assuming a single shared cleanup list."
+}

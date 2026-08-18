@@ -1,0 +1,21 @@
+{
+  "domain": "loader-installers",
+  "case": "forge-installer-download-atomic-write",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.install(into:javaPath:onLog:) -- installer download",
+    "line": 331
+  },
+  "input": {
+    "function": "ForgeInstaller.install",
+    "server_dir": "/srv/mc/newserver",
+    "http_status": 200
+  },
+  "expected": {
+    "installer_jar_path": "/srv/mc/newserver/forge-installer.jar",
+    "write_mode": "atomic",
+    "log_line_before_write": "Downloading Forge installer...",
+    "write_happens_only_after": "200 status confirmed"
+  },
+  "notes": "`data.write(to: installerJar, options: [.atomic])` -- the downloaded bytes land in the server directory itself (not a temp dir elsewhere), under a fixed filename `forge-installer.jar`, so a second call before cleanup would overwrite rather than collide. The install(mcVersion:forgeVersion:) overload logs 'Downloading Forge {version} installer...' instead (version-specific), same write behavior otherwise."
+}

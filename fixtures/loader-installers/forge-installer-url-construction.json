@@ -1,0 +1,23 @@
+{
+  "domain": "loader-installers",
+  "case": "forge-installer-url-construction",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.install(mcVersion:forgeVersion:into:javaPath:onLog:) -- installer URL construction",
+    "line": 364
+  },
+  "input": {
+    "function": "ForgeInstaller.install",
+    "mc_version": "1.20.1",
+    "forge_version": "47.4.5"
+  },
+  "expected": {
+    "installer_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar",
+    "installer_filename_in_server_dir": "forge-installer.jar"
+  },
+  "notes": "URL is literally `net/minecraftforge/forge/{mc}-{forge}/forge-{mc}-{forge}-installer.jar` under maven.minecraftforge.net -- identical formula whether the pair arrives explicit (this overload, line 364) or resolved by latestRecommendedVersion() inside install(into:javaPath:onLog:) at line 331. This exact pair (1.20.1-47.4.5) is the one P7.3 actually downloaded and ran (`corpus/providers/forge/installer-evidence/`), so this fixture's expected URL is checkable against a real capture, not just the formula.",
+  "corpus_source": [
+    "forge/installer-evidence/run.sh",
+    "forge/installer-evidence/unix_args.txt"
+  ]
+}

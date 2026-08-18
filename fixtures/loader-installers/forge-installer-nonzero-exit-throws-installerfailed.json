@@ -1,0 +1,20 @@
+{
+  "domain": "loader-installers",
+  "case": "forge-installer-nonzero-exit-throws-installerfailed",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.install(into:javaPath:onLog:) -- non-zero installer exit",
+    "line": 352
+  },
+  "input": {
+    "function": "ForgeInstaller.install",
+    "exit_code": 1
+  },
+  "expected": {
+    "throws": "ForgeError.installerFailed(1)",
+    "args_file_lookup_attempted": false,
+    "cleanup_attempted": false,
+    "installer_jar_left_on_disk": true
+  },
+  "notes": "`guard code == 0 else { throw ForgeError.installerFailed(code) }` (line 353) fires before both the `findArgsFile` guard (line 355) and the `try? removeItem(installerJar)` cleanup (line 358) -- a failed installer run leaves `forge-installer.jar` sitting in the server directory with nothing cleaning it up. A retried install would need to tolerate (or explicitly clear) that leftover file."
+}

@@ -1,0 +1,25 @@
+{
+  "domain": "loader-installers",
+  "case": "shared-installer-invocation-absolute-java-path-argv",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "runJavaInstaller(javaPath:installerJar:cwd:onLog:) -- absolute java path argv shape",
+    "line": 261
+  },
+  "input": {
+    "function": "runJavaInstaller",
+    "java_path": "/usr/bin/java",
+    "installer_jar_path": "/srv/mc/newserver/forge-installer.jar",
+    "cwd": "/srv/mc/newserver"
+  },
+  "expected": {
+    "executable": "/usr/bin/java",
+    "arguments": [
+      "-jar",
+      "/srv/mc/newserver/forge-installer.jar",
+      "--installServer"
+    ],
+    "process_cwd": "/srv/mc/newserver"
+  },
+  "notes": "`runJavaInstaller` (line 258-260's MARK comment says explicitly: 'Used by both NeoForgeInstaller and ForgeInstaller, which share the same installer invocation pattern') is one private free function both installers call -- there is no per-family invocation code to characterize separately. When javaPath contains '/', it's used directly as executableURL (after `~` expansion) and the arguments are just `-jar <jar> --installServer`; cwd is always the server directory being installed into, never a temp dir."
+}

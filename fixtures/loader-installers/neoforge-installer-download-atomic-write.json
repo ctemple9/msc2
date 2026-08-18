@@ -1,0 +1,21 @@
+{
+  "domain": "loader-installers",
+  "case": "neoforge-installer-download-atomic-write",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.install(into:javaPath:onLog:) -- installer download",
+    "line": 100
+  },
+  "input": {
+    "function": "NeoForgeInstaller.install",
+    "server_dir": "/srv/mc/newserver",
+    "http_status": 200
+  },
+  "expected": {
+    "installer_jar_path": "/srv/mc/newserver/neoforge-installer.jar",
+    "write_mode": "atomic",
+    "log_line_before_write": "Downloading NeoForge installer...",
+    "write_happens_only_after": "200 status confirmed"
+  },
+  "notes": "Same shape as ForgeInstaller's download (`data.write(to:options:[.atomic])` into the server directory under a fixed filename), just `neoforge-installer.jar` instead of `forge-installer.jar`. The install(specificVersion:) overload logs 'Downloading NeoForge {version} installer...' instead, same write behavior otherwise."
+}

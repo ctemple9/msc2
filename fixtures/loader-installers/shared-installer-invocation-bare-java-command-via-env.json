@@ -1,0 +1,27 @@
+{
+  "domain": "loader-installers",
+  "case": "shared-installer-invocation-bare-java-command-via-env",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "runJavaInstaller(javaPath:installerJar:cwd:onLog:) -- bare command argv shape and merged stdout/stderr",
+    "line": 261
+  },
+  "input": {
+    "function": "runJavaInstaller",
+    "java_path": "java",
+    "installer_jar_path": "/srv/mc/newserver/neoforge-installer.jar",
+    "cwd": "/srv/mc/newserver"
+  },
+  "expected": {
+    "executable": "/usr/bin/env",
+    "arguments": [
+      "java",
+      "-jar",
+      "/srv/mc/newserver/neoforge-installer.jar",
+      "--installServer"
+    ],
+    "process_cwd": "/srv/mc/newserver",
+    "stdout_and_stderr": "merged into one Pipe, split on newlines, empty lines dropped, each line forwarded to onLog in the order the process wrote it"
+  },
+  "notes": "A bare command (no '/') can't be used as `executableURL` directly, so it's wrapped through `/usr/bin/env <cmd> ...` for PATH resolution -- the same 'has a slash vs. bare command' branch JavaServerLaunchHelper/JavaRuntimeManager use for the real server launch (P7.7), reused here for the installer subprocess. Separately: `process.standardOutput` and `process.standardError` are set to the *same* Pipe object (lines 279-280), so installer progress and any Java-level stderr warnings interleave into a single onLog stream in whatever order the OS delivers them -- there is no way to tell the two apart downstream, and the Rust port (P7.14) should preserve that merge rather than split them, or callers relying on stream separation will break."
+}

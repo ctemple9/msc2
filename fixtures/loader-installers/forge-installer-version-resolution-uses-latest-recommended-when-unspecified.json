@@ -1,0 +1,29 @@
+{
+  "domain": "loader-installers",
+  "case": "forge-installer-version-resolution-uses-latest-recommended-when-unspecified",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "ForgeInstaller.latestRecommendedVersion() -- called from install(into:) when no version is given",
+    "line": 506
+  },
+  "input": {
+    "function": "ForgeInstaller.install (no explicit mc/forge pair)",
+    "recommended_promo_keys": {
+      "1.21.5-recommended": "55.1.0",
+      "1.21.8-recommended": "58.1.0",
+      "1.21.10-recommended": "60.1.0",
+      "1.21.11-recommended": "61.2.0",
+      "26.1.2-recommended": "64.1.0",
+      "26.2-recommended": "65.1.0"
+    }
+  },
+  "expected": {
+    "resolved_mc_version": "26.2",
+    "resolved_forge_version": "65.1.0",
+    "installer_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/26.2-65.1.0/forge-26.2-65.1.0-installer.jar"
+  },
+  "notes": "Candidates are every `<mc>-recommended` promo key with the `-recommended` suffix stripped, compared as MC version numbers (`compareMCStrings`) -- *not* as Forge build numbers. The source comment at line 522-523 records this as a fix: comparing Forge numbers picked the wrong MC line. Verified independently in Python against the real, full 116-key `promotions-slim.json` (captured P7.3): the numerically highest `-recommended` MC key across the whole file is `26.2`, whose recommended build is `65.1.0` -- shown here as the trimmed subset actually relevant to the max, not the full 116-key file.",
+  "corpus_source": [
+    "forge/promotions-slim.json"
+  ]
+}

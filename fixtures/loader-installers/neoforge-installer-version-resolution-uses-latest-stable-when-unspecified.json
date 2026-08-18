@@ -1,0 +1,38 @@
+{
+  "domain": "loader-installers",
+  "case": "neoforge-installer-version-resolution-uses-latest-stable-when-unspecified",
+  "source": {
+    "file": "NeoForgeInstaller.swift",
+    "test": "NeoForgeInstaller.latestStableVersion() -- called from install(into:) when no version is given",
+    "line": 200
+  },
+  "input": {
+    "function": "NeoForgeInstaller.install (no explicit version)",
+    "raw_metadata_versions": [
+      "20.2.12-beta",
+      "20.2.86",
+      "20.4.237",
+      "21.1.248",
+      "21.4.154",
+      "26.1.2.95",
+      "26.2.0.61"
+    ]
+  },
+  "expected": {
+    "stable_filtered": [
+      "20.2.86",
+      "20.4.237",
+      "21.1.248",
+      "21.4.154",
+      "26.1.2.95",
+      "26.2.0.61"
+    ],
+    "resolved_version": "26.2.0.61",
+    "resolved_mc_version": "26.2",
+    "installer_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/26.2.0.61/neoforge-26.2.0.61-installer.jar"
+  },
+  "notes": "`stable = versions.filter { !$0.contains(\"-\") }` drops any version containing a hyphen (here just `20.2.12-beta`); the winner among what's left is picked by dotted-numeric compare (`compare`, line 233), which correctly ranks `26.2.0.61` above `26.1.2.95` since 2 > 1 at the second component -- a plain string sort would get this wrong the other direction depending on padding. `raw_metadata_versions` is the real, unmodified `<version>` list from `corpus/providers/neoforge/maven-metadata.xml` (captured P7.3, only 7 entries so no truncation needed here unlike Forge's list).",
+  "corpus_source": [
+    "neoforge/maven-metadata.xml"
+  ]
+}

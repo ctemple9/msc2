@@ -1,0 +1,18 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "create-time-java-path-nil-falls-back-to-global-config-default",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(..., javaPath: String? = nil) install-step java invocation",
+    "line": 144
+  },
+  "input": {
+    "function": "javaPath ?? configManager.config.javaPath",
+    "createRequestJavaPath": null,
+    "globalConfigJavaPath": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java"
+  },
+  "expected": {
+    "javaPathUsedForInstaller": "/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home/bin/java"
+  },
+  "notes": "The ordinary case: a create call with no explicit `javaPath` (the CLI/UI's normal path, since the parameter defaults to nil) falls through to `configManager.config.javaPath`, the same global default `AppViewModel+ServerControls.swift:121` uses for the start-time compatibility warning. This is the counterpart to the override case -- together they are the whole of 'per-server-then-global precedence' this step's What line names, since MSC 1 has no persisted per-server java path to fall back *from*."
+}

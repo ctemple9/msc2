@@ -1,0 +1,17 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "parse-major-zulu-banner",
+  "source": {
+    "file": "JavaRuntimeManager.swift",
+    "test": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "line": 90
+  },
+  "input": {
+    "function": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "output": "openjdk version \"17.0.11\" 2024-04-16 LTS\nOpenJDK Runtime Environment Zulu17.50+19-CA (build 17.0.11+9-LTS)\nOpenJDK 64-Bit Server VM Zulu17.50+19-CA (build 17.0.11+9-LTS, mixed mode, sharing)\n"
+  },
+  "expected": {
+    "major": 17
+  },
+  "notes": "No Zulu JDK was available on the dev machine to capture live, so this banner is Azul's publicly documented `-version` output shape for Zulu 17.0.11 (matches the vendor's own release notes text) rather than a fresh capture -- flagged here rather than presented as captured evidence. The case exists to prove parseMajor's first-quoted-token rule is vendor-agnostic: 'Zulu17.50+19-CA' never enters the parse."
+}

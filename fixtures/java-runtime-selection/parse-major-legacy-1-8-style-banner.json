@@ -1,0 +1,17 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "parse-major-legacy-1-8-style-banner",
+  "source": {
+    "file": "JavaRuntimeManager.swift",
+    "test": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "line": 90
+  },
+  "input": {
+    "function": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "output": "java version \"1.8.0_402\"\nJava(TM) SE Runtime Environment (build 1.8.0_402-b06)\nJava HotSpot(TM) 64-Bit Server VM (build 25.402-b06, mixed mode)\n"
+  },
+  "expected": {
+    "major": 8
+  },
+  "notes": "Exercises the legacy '1.x' branch (line 99-102): the quoted token splits on '.'/'_' into [1,8,0,402]; because the first component equals 1, parseMajor returns the *second* component (8) instead of the first -- the one banner shape where the naive 'take the first numeric component' reading would be wrong. This is the pre-Java-9 versioning scheme MSC 1's own doc comment calls out ('java version \"1.8.0_402\"')."
+}

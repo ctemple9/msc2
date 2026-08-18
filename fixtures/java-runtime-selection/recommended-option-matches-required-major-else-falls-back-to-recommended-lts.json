@@ -1,0 +1,27 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "recommended-option-matches-required-major-else-falls-back-to-recommended-lts",
+  "source": {
+    "file": "JavaInstaller.swift",
+    "test": "JavaInstaller.recommendedOption(forMinecraftVersion:)",
+    "line": 51
+  },
+  "input": {
+    "function": "JavaInstaller.recommendedOption",
+    "cases": [
+      { "minecraftVersion": "1.20.1", "note": "requiredJavaMajor -> 17, an exact match in minecraftInstallOptions" },
+      { "minecraftVersion": "1.21.4", "note": "requiredJavaMajor -> 21, an exact match" },
+      { "minecraftVersion": "26.2", "note": "requiredJavaMajor -> 25 (year-based scheme), an exact match" },
+      { "minecraftVersion": null, "note": "requiredJavaMajor's own unknown-version default is 25, still an exact match -- this case never actually reaches recommendedOption's own fallback" }
+    ]
+  },
+  "expected": {
+    "results": [
+      { "minecraftVersion": "1.20.1", "selectedMajor": 17 },
+      { "minecraftVersion": "1.21.4", "selectedMajor": 21 },
+      { "minecraftVersion": "26.2", "selectedMajor": 25 },
+      { "minecraftVersion": null, "selectedMajor": 25 }
+    ]
+  },
+  "notes": "recommendedOption (line 51-56) computes `major = JavaRuntimeManager.requiredJavaMajor(forMinecraftVersion:)` and looks it up in the table by exact major match first, falling back to `isRecommended` and then to `minecraftInstallOptions[0]` only if that also fails. Because requiredJavaMajor's own possible outputs (8/17/21/25, per fixtures/java-runtime-guards/required-java-major-mapping.json) are exactly the four majors minecraftInstallOptions offers, the first `first { $0.major == major }` lookup (line 53) always succeeds in practice -- the two `??` fallbacks at line 54-55 are unreachable with any real requiredJavaMajor output and exist only as defensive dead code, a finding worth flagging rather than a case this fixture can exercise honestly."
+}

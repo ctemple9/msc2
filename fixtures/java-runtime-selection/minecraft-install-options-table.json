@@ -1,0 +1,21 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "minecraft-install-options-table",
+  "source": {
+    "file": "JavaInstaller.swift",
+    "test": "JavaInstaller.minecraftInstallOptions",
+    "line": 37
+  },
+  "input": {
+    "function": "JavaInstaller.minecraftInstallOptions"
+  },
+  "expected": {
+    "options": [
+      { "major": 25, "title": "Java 25", "minecraftRange": "Minecraft 26.1 (latest) and newer", "isRecommended": true },
+      { "major": 21, "title": "Java 21", "minecraftRange": "Minecraft 1.20.5 – 1.21.x", "isRecommended": false },
+      { "major": 17, "title": "Java 17", "minecraftRange": "Minecraft 1.17 – 1.20.4", "isRecommended": false },
+      { "major": 8, "title": "Java 8", "minecraftRange": "Minecraft 1.16.5 and older", "isRecommended": false }
+    ]
+  },
+  "notes": "A fixed, hand-authored table (line 37-46), not derived from any API -- only these four majors are offered (8/17/21/25), deliberately excluding the rest of Adoptium's catalog (11/16/18/19/20/...) as noise per the doc comment at line 30-32. Exactly one entry has `isRecommended: true` (25), which `recommendedOption`'s fallback chain (characterized in the sibling fixture) depends on."
+}

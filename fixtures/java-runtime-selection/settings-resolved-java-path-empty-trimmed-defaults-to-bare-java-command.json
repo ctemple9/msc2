@@ -1,0 +1,18 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "settings-resolved-java-path-empty-trimmed-defaults-to-bare-java-command",
+  "source": {
+    "file": "AppViewModel+ServerSettings.swift",
+    "test": "resolvedJavaPath(_:)",
+    "line": 404
+  },
+  "input": {
+    "function": "resolvedJavaPath",
+    "trimmedInput": ""
+  },
+  "expected": {
+    "storedJavaPath": "java",
+    "normalizedFromRaw": "java"
+  },
+  "notes": "Settings' own resolvedJavaPath(_:) (distinct from the create-flow's `javaPath ?? configManager.config.javaPath` fallback characterized in the two sibling fixtures) is what actually writes `cfg.javaPath` when a user saves Preferences or the Setup Wizard (line 405: `let raw = trimmed.isEmpty ? \"java\" : trimmed`). An empty field is never stored as an empty string -- it becomes the bare command 'java', which `normalizedJavaExecutablePath` (already characterized in `fixtures/java-runtime-guards/normalization-bare-command-passes-through.json`) passes through unchanged since it contains no '/' and is resolved against PATH at launch time."
+}

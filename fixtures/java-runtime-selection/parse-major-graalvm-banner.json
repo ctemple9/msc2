@@ -1,0 +1,17 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "parse-major-graalvm-banner",
+  "source": {
+    "file": "JavaRuntimeManager.swift",
+    "test": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "line": 90
+  },
+  "input": {
+    "function": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "output": "java version \"21.0.2\" 2024-01-16 LTS\nJava(TM) SE Runtime Environment Oracle GraalVM 21.0.2+13.1 (build 21.0.2+13-LTS-jvmci-23.1-b30)\nJava HotSpot(TM) 64-Bit Server VM Oracle GraalVM 21.0.2+13.1 (build 21.0.2+13-LTS-jvmci-23.1-b30, mixed mode, sharing)\n"
+  },
+  "expected": {
+    "major": 21
+  },
+  "notes": "No GraalVM install was available on the dev machine to capture live, so this banner is Oracle's publicly documented GraalVM 21.0.2 `-version` output shape rather than a fresh capture -- flagged here rather than presented as captured evidence. GraalVM's banner leads with 'java version' (not 'openjdk version', unlike the Temurin/Zulu cases) -- parseMajor doesn't distinguish the two prefixes at all, it only looks for the first quoted token, so this case proves that indifference."
+}

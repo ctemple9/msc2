@@ -1,0 +1,17 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "parse-major-temurin-banner",
+  "source": {
+    "file": "JavaRuntimeManager.swift",
+    "test": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "line": 90
+  },
+  "input": {
+    "function": "JavaRuntimeManager.parseMajor(fromVersionOutput:)",
+    "output": "openjdk version \"25.0.3\" 2026-04-21 LTS\nOpenJDK Runtime Environment Temurin-25.0.3+9 (build 25.0.3+9-LTS)\nOpenJDK 64-Bit Server VM Temurin-25.0.3+9 (build 25.0.3+9-LTS, mixed mode)\n"
+  },
+  "expected": {
+    "major": 25
+  },
+  "notes": "Real banner captured live on the dev machine (`/usr/bin/java -version`, Temurin 25.0.3, 2026-08-18). parseMajor takes the first quoted token ('25.0.3'), splits on '.'/'_' into [25,0,3], and since the first component isn't 1 it returns that component directly -- the vendor name/build metadata around the quoted token is never consulted."
+}

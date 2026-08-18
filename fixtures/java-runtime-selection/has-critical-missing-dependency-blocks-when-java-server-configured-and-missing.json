@@ -1,0 +1,19 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "has-critical-missing-dependency-blocks-when-java-server-configured-and-missing",
+  "source": {
+    "file": "PrerequisitesView.swift",
+    "test": "hasCriticalMissingDependency(for:) / isJavaInstalled()",
+    "line": 556
+  },
+  "input": {
+    "function": "PrerequisitesView.hasCriticalMissingDependency",
+    "serverTypes": ["java"],
+    "whichJavaExitCode": 1,
+    "whichJavaOutput": ""
+  },
+  "expected": {
+    "hasCriticalMissingDependency": true
+  },
+  "notes": "isJavaInstalled() (line 570-584) is a second, independent `which java` probe from checkJavaOnPath's -- same shell command, separate implementation, not shared code. hasCriticalMissingDependency only calls it when `serverTypes.contains(.java)` (line 558); an empty `which` result makes isJavaInstalled() return false, so the launch-time auto-show-Prerequisites check trips."
+}

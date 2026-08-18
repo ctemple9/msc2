@@ -1,0 +1,53 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "adoptium-unpack-atomic-staged-download-and-interrupted-install-cleanup",
+  "source": {
+    "file": "docs/msc2/families/phase7-scope.md",
+    "test": "D-006 addendum -- Java runtime install, new agent-owned behavior with no MSC1 port target; unpack/rollback shape follows the same staged-download discipline P7.17/P7.18 already apply to server creation",
+    "line": 26
+  },
+  "input": {
+    "function": "Phase 7 managed-install unpack workflow (new)",
+    "scenarios": [
+      {
+        "name": "successful-install-mac",
+        "steps": [
+          "download OpenJDK25U-jdk_aarch64_mac_hotspot_25.0.4_7.tar.gz to a staging path outside the runtimes directory (e.g. <runtimes_root>/.staging/<uuid>.tar.gz)",
+          "verify SHA-256 against the checksum field the Adoptium response already carried",
+          "on match, extract into <runtimes_root>/temurin-25-mac-aarch64/",
+          "strip the archive's single top-level directory (e.g. 'jdk-25.0.4+7/') so the runtimes dir holds the JDK's own tree directly (Contents/Home/bin/java on mac, bin/java on linux/windows)",
+          "delete the staged archive"
+        ]
+      },
+      {
+        "name": "successful-install-windows",
+        "steps": [
+          "download the .zip variant instead of .tar.gz -- same staging/verify/extract/strip/cleanup shape, different unpack tool"
+        ]
+      },
+      {
+        "name": "checksum-mismatch",
+        "steps": [
+          "download completes but computed SHA-256 does not match the Adoptium-supplied checksum",
+          "delete the staged archive",
+          "do not extract anything into <runtimes_root>",
+          "surface a checksum-verification-failed error, not a silent partial install"
+        ]
+      },
+      {
+        "name": "interrupted-mid-download",
+        "steps": [
+          "process is killed/crashes while streaming the archive to the staging path",
+          "on next agent start, the orphaned .staging/<uuid>.tar.gz is either resumed or discarded -- never treated as a valid runtime",
+          "<runtimes_root>/temurin-25-mac-aarch64/ never exists in a partial state -- it is only created by the final extract step, after checksum verification, so a killed process leaves the staging file as the only trace"
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "invariant": "the final runtime directory under <runtimes_root> is only ever written after both the download completes AND its checksum verifies; every other path (mismatch, crash, cancel) leaves at most an orphaned file under <runtimes_root>/.staging, never a partially-unpacked or unverified runtime directory",
+    "runtimesRootIsAgentOwned": "MSC's own data directory, never the system Java location or a package-manager-managed path (D-009: MSC 2 owns its own runtime state)",
+    "archiveKindByOS": { "mac": "tar.gz", "linux": "tar.gz", "windows": "zip" }
+  },
+  "notes": "MSC 1 has nothing to port here -- JavaInstaller.swift hands a downloaded .pkg to macOS's Installer.app and the *user* runs the click-through install; there is no unpack step, no checksum step, and no interrupted-install state to characterize in the oracle at all (phase7-scope.md's D-006 addendum, line 27, is explicit that this is 'new agent-owned behavior... characterized fresh in P7.7 rather than characterized as a port'). This fixture pins the design this step is scoped to record (staged-then-atomic, checksum-gated, one archive format per OS matching the sibling fixture's real-captured `.tar.gz`/`.zip` asset names) so P7.16's Rust implementation has a concrete target; it does not claim these steps were observed running anywhere, unlike the sibling fixture's live-captured URLs/checksums."
+}

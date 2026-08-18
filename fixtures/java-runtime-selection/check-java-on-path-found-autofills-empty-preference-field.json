@@ -1,0 +1,20 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "check-java-on-path-found-autofills-empty-preference-field",
+  "source": {
+    "file": "SetupWizardView.swift",
+    "test": "checkJavaOnPath()",
+    "line": 1329
+  },
+  "input": {
+    "function": "checkJavaOnPath",
+    "whichJavaExitCode": 0,
+    "whichJavaOutput": "/opt/homebrew/opt/openjdk/bin/java\n",
+    "currentJavaPathField": ""
+  },
+  "expected": {
+    "javaStatus": "found(path: /opt/homebrew/opt/openjdk/bin/java)",
+    "javaPathField": "/opt/homebrew/opt/openjdk/bin/java"
+  },
+  "notes": "checkJavaOnPath runs `/usr/bin/which java` on a background queue; a non-empty trimmed stdout sets `.found(path:)` (line 1345). Line 1346-1348 only overwrites the preference field's `javaPath` binding if it was already empty when the check ran -- an explicit `if self.javaPath...isEmpty` guard, not an unconditional overwrite, so a user-entered custom path is never clobbered by this check (see the companion not-found case's counterpart, which confirms the field is left alone on failure too)."
+}

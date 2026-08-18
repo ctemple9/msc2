@@ -1,0 +1,18 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "create-time-java-path-override-takes-precedence-over-global-default",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "createNewServer(..., javaPath: String? = nil) install-step java invocation",
+    "line": 144
+  },
+  "input": {
+    "function": "javaPath ?? configManager.config.javaPath",
+    "createRequestJavaPath": "/opt/homebrew/opt/openjdk@21/bin/java",
+    "globalConfigJavaPath": "java"
+  },
+  "expected": {
+    "javaPathUsedForInstaller": "/opt/homebrew/opt/openjdk@21/bin/java"
+  },
+  "notes": "createNewServer's `javaPath` parameter (line 144, default nil) is threaded into every NeoForge/Forge installer invocation (e.g. line 204, 210, 225, 231) as `javaPath ?? configManager.config.javaPath`. There is no field on `ConfigServer` for a per-server java path -- this override is scoped to the one create call (e.g. a remote-API create request that specified `javaPath`, per `RemoteAPIServerDTOs.swift:147`), not persisted for later starts of that server. When present, it wins over the app-wide default."
+}

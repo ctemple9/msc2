@@ -1,0 +1,20 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "check-java-on-path-not-found-sets-status",
+  "source": {
+    "file": "SetupWizardView.swift",
+    "test": "checkJavaOnPath()",
+    "line": 1329
+  },
+  "input": {
+    "function": "checkJavaOnPath",
+    "whichJavaExitCode": 1,
+    "whichJavaOutput": "",
+    "currentJavaPathField": "/some/stale/custom/path"
+  },
+  "expected": {
+    "javaStatus": "notFound",
+    "javaPathField": "/some/stale/custom/path"
+  },
+  "notes": "Empty trimmed `which` output (or a thrown Process error, line 1353-1355) sets `.notFound` and never touches the `javaPath` preference field -- a stale custom path the user already typed is left exactly as-is rather than being cleared, since the auto-fill branch (line 1346-1348) only runs inside the found case."
+}

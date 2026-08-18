@@ -1,0 +1,17 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "validate-looks-like-java-accepts-hotspot-only-keyword",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "validateLooksLikeJava(executableURL:arguments:display:)",
+    "line": 154
+  },
+  "input": {
+    "function": "validateLooksLikeJava",
+    "capturedOutput": "picoclient 2.1.0 (custom embedded VM, not a real JDK)\nHotSpot-compatible mode: on\n"
+  },
+  "expected": {
+    "throws": false
+  },
+  "notes": "Hand-constructed to isolate one disjunct of the five-way OR at line 155-159: a banner with none of 'openjdk'/'java version'/'java(tm)'/'runtime environment' but that does contain 'hotspot' (case-insensitively, since the check lowercases first) still passes -- proving each of the five substrings is independently sufficient, not just tested in combination with the others as every real-vendor banner above does."
+}

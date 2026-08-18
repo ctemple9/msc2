@@ -1,0 +1,54 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "adoptium-archive-url-per-os-architecture-with-checksum-and-no-asset-fallback",
+  "source": {
+    "file": "docs/msc2/families/phase7-scope.md",
+    "test": "D-006 addendum -- Java runtime install, characterized fresh against a live Adoptium API capture rather than ported from JavaInstaller.swift (which is macOS/.pkg-only, hardcodes os=mac, and has no checksum step at all)",
+    "line": 19
+  },
+  "input": {
+    "function": "Phase 7 managed-install query, generalized from JavaInstaller.installerURL(forMajor:) (JavaInstaller.swift:75-106)",
+    "queryTemplate": "https://api.adoptium.net/v3/assets/latest/{major}/hotspot?os={os}&image_type=jdk&vendor=eclipse&architecture={arch}",
+    "requests": [
+      { "major": 21, "os": "linux", "arch": "x64" },
+      { "major": 25, "os": "mac", "arch": "aarch64" },
+      { "major": 21, "os": "windows", "arch": "x64" },
+      { "major": 17, "os": "windows", "arch": "aarch64" }
+    ]
+  },
+  "expected": {
+    "results": [
+      {
+        "request": { "major": 21, "os": "linux", "arch": "x64" },
+        "assetName": "OpenJDK21U-jdk_x64_linux_hotspot_21.0.12_8.tar.gz",
+        "downloadLink": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jdk_x64_linux_hotspot_21.0.12_8.tar.gz",
+        "sha256": "e4446ff06a276155697597cc0f1b15da004ff083f4964a35271ecee567177370",
+        "sizeBytes": 207486543,
+        "archiveKind": "tar.gz"
+      },
+      {
+        "request": { "major": 25, "os": "mac", "arch": "aarch64" },
+        "assetName": "OpenJDK25U-jdk_aarch64_mac_hotspot_25.0.4_7.tar.gz",
+        "downloadLink": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.4%2B7/OpenJDK25U-jdk_aarch64_mac_hotspot_25.0.4_7.tar.gz",
+        "sha256": "5a101c54abf5a9f16c0f70d8c38ba99e6567c1ba213378f0bb04497284f051bd",
+        "sizeBytes": 136352956,
+        "archiveKind": "tar.gz"
+      },
+      {
+        "request": { "major": 21, "os": "windows", "arch": "x64" },
+        "assetName": "OpenJDK21U-jdk_x64_windows_hotspot_21.0.12_8.zip",
+        "downloadLink": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.12%2B8/OpenJDK21U-jdk_x64_windows_hotspot_21.0.12_8.zip",
+        "sha256": "9ba963ee2371874a74185d18bc7bb2ab9407df7683300855ed7606e0662321d0",
+        "sizeBytes": 205069442,
+        "archiveKind": "zip"
+      },
+      {
+        "request": { "major": 17, "os": "windows", "arch": "aarch64" },
+        "assetName": null,
+        "result": "empty-asset-array",
+        "action": "reject with InstallError.noAsset-equivalent; do not fall back to a different architecture on Windows/Linux"
+      }
+    ]
+  },
+  "notes": "Live-captured 2026-08-18 against `https://api.adoptium.net/v3/assets/latest/...` (real HTTP responses, not invented -- see exact `curl` calls in this step's Actual result). MSC 1's own `installerURL(forMajor:)` is macOS-only: it hardcodes `os=mac` and reads `binary.installer.link` (a .pkg, for a human to double-click). Phase 7's managed install has no MSC 1 equivalent to port (per phase7-scope.md's D-006 addendum) so this fixture characterizes new behavior: generalizing `os=` to the host OS (mac/linux/windows) and reading `binary.package` (the plain archive Adoptium always publishes alongside the installer, and the same asset MSC 1's own .pkg is itself built from) instead of `binary.installer`. Two findings baked into `expected`: (1) the response embeds `checksum` (SHA-256) directly -- no separate checksum-file fetch is needed, unlike a naive `.sha256.txt` sidecar scheme; (2) asset availability is architecture- *and* major-dependent, not just OS-dependent -- Windows/aarch64 has no asset for major 17 (confirmed empty `[]` response) though it does for major 21, so 'no asset for this arch' is a real, live-verified failure mode, not a hypothetical. MSC 1's own arm64-Mac-only installer-fallback (`installerURL`'s `architectures = [\"aarch64\",\"x64\"]` under `#if arch(arm64)`, JavaInstaller.swift:76-80) is deliberately **not** generalized to Linux/Windows here: that fallback exists only because Java 8 lacks a native Apple Silicon build (JavaInstaller.swift:73-74 comment), a Mac-specific gap: the case above shows Windows/aarch64 has no such fallback and must simply fail, left for P7.16 to encode as the actual rule rather than silently assuming every OS behaves like Mac."
+}

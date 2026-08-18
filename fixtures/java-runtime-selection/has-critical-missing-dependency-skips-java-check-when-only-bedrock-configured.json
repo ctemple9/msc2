@@ -1,0 +1,19 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "has-critical-missing-dependency-skips-java-check-when-only-bedrock-configured",
+  "source": {
+    "file": "PrerequisitesView.swift",
+    "test": "hasCriticalMissingDependency(for:)",
+    "line": 556
+  },
+  "input": {
+    "function": "PrerequisitesView.hasCriticalMissingDependency",
+    "serverTypes": ["bedrock"],
+    "whichJavaExitCode": 1,
+    "whichJavaOutput": ""
+  },
+  "expected": {
+    "hasCriticalMissingDependency": false
+  },
+  "notes": "Line 558's `if serverTypes.contains(.java)` guard means isJavaInstalled() is never even called for a fleet with no Java servers configured -- a missing Java runtime is not 'critical' if nothing on the machine needs it yet. (The commented-out Docker/Bedrock branch at line 562-566 confirms Bedrock's own dependency check was never wired up in MSC 1; Phase 7 does not port a check that doesn't exist.)"
+}

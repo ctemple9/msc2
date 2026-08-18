@@ -1,0 +1,23 @@
+{
+  "domain": "java-runtime-selection",
+  "case": "validate-looks-like-java-rejects-non-java-binary-with-first-line-in-error",
+  "source": {
+    "file": "ServerProcessManager.swift",
+    "test": "validateLooksLikeJava(executableURL:arguments:display:)",
+    "line": 161
+  },
+  "input": {
+    "function": "validateLooksLikeJava",
+    "display": "/usr/bin/python3",
+    "capturedOutput": "Python 3.11.4\n"
+  },
+  "expected": {
+    "throws": true,
+    "errorType": "ServerProcessError.failedToStart",
+    "errorMessageContains": [
+      "does not appear to be a JVM: /usr/bin/python3",
+      "Output: Python 3.11.4"
+    ]
+  },
+  "notes": "Configuring a non-Java binary as the Java path (e.g. someone pastes python3's path by mistake) fails none of the five substring checks, so the guard at line 161 throws. The thrown message embeds `display` (the configured path, not the resolved binary name) and only the *first line* of captured output (line 162-166: split on newline, maxSplits 1) -- a multi-line non-Java banner would still surface just its first line in the error."
+}

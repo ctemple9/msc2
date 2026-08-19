@@ -42,7 +42,7 @@ used for their own corpora.
   sample).
 
 `tools/phase7/provider-corpus-check.py` (P7.2) is the dependency-free gate.
-It has two modes:
+It has three modes:
 
 ## Inventory mode
 
@@ -89,6 +89,39 @@ except `manifest.json` and `README.md`):
   at least one fixture — silently skipping one (e.g. never characterizing
   against a real Forge response) fails coverage even if every citation
   that *is* present is genuine.
+
+## Evidence mode (P7.28)
+
+`python3 tools/phase7/provider-corpus-check.py --evidence [DIR]` (default
+`DIR`: `docs/msc2/families/provisioning-evidence`). Independent of this
+corpus -- it checks the real-provisioning evidence P7.28 recorded there
+against the live internet, not against anything captured here. See that
+directory's own `README.md` for what was found. Requires exactly one
+`<family>.json` per family, `reached_ready: true` in every one, and the
+rest of the shape documented in the checker's own module docstring.
+
+## P7.28 findings
+
+Real provisioning against the live internet (2026-08-19, `docs/msc2/
+families/provisioning-evidence/`) confirmed every finding above still holds
+one day later against live data -- Forge's `maven-metadata.xml`
+under-report, the `26.2` `YY.n` release, Java 25 required -- and surfaced
+three more, live-data facts rather than corpus-shape gaps, so recorded here
+rather than in this corpus's own manifest:
+
+- **Checksum shape genuinely differs per real provider.** Mojang publishes
+  SHA-1 per version, Paper's fill v3 publishes SHA-256, Purpur's per-build
+  API publishes MD5 only, and Fabric's composed download endpoint plus
+  NeoForge's/Forge's Maven publish no checksum for the jar/installer they
+  serve at all.
+- **The Mojang EULA gate is real, live, and unbypassed.** A freshly
+  provisioned vanilla server's first real boot refuses to start until a
+  human flips `eula.txt`'s `eula=false` to `true` -- confirms MSC2 doesn't
+  (and shouldn't) auto-agree on the operator's behalf.
+- **Forge's and NeoForge's real installers delete their own installer jar
+  on success**, matching MSC 1's behavior -- a post-hoc checksum of
+  precisely the bytes MSC2 consumed isn't possible for those two families;
+  P7.28's evidence documents this rather than treating it as a gap.
 
 ## Directory convention
 

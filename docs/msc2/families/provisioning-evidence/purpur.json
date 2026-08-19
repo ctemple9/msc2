@@ -1,0 +1,19 @@
+{
+  "family": "purpur",
+  "captured": "2026-08-19",
+  "resolved_minecraft_version": "26.2",
+  "loader_version": null,
+  "server_build": "2620",
+  "download_url": "https://api.purpurmc.org/v2/purpur/26.2/latest/download",
+  "checksum": {
+    "algorithm": "md5",
+    "value": "88c11e58b141c2ce9e25bac52d57c8af",
+    "matches_provider_published": true
+  },
+  "byte_size": 64739265,
+  "launch_argv": "/usr/bin/java -Xms2048M -Xmx4096M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true -jar paper.jar --nogui",
+  "reached_ready": true,
+  "ready_line": "[13:30:33 INFO]: Done (12.023s)! For help, type \"help\"",
+  "install_seconds": 6,
+  "notes": "Purpur's own download URL always resolves to /v2/purpur/{version}/latest/download (no build-id path segment) -- the recorded server_build (2620) comes from a separate builds.latest metadata read. checksum.algorithm is md5 because that is the only hash Purpur's per-build API (/v2/purpur/{version}/{build}) actually publishes; verified against that, not sha256/sha1."
+}

@@ -1,0 +1,22 @@
+{
+  "family": "neoforge",
+  "captured": "2026-08-19",
+  "resolved_minecraft_version": "26.2",
+  "loader_version": "26.2.0.64",
+  "download_url": "https://maven.neoforged.net/releases/net/neoforged/neoforge/26.2.0.64/neoforge-26.2.0.64-installer.jar",
+  "checksum": {
+    "algorithm": "sha256",
+    "value": "614fa3510897c4a01c1a3bf39f869c59565ba89e5f60d476ae5d9bab550dc071",
+    "matches_provider_published": null
+  },
+  "byte_size": 3604191,
+  "installed_libraries_total_size_bytes": 140509184,
+  "installed_libraries_file_count": 72,
+  "args_file": "libraries/net/neoforged/neoforge/26.2.0.64/unix_args.txt",
+  "launch_argv": "/usr/bin/java -Xms3072M -Xmx6144M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true @libraries/net/neoforged/neoforge/26.2.0.64/unix_args.txt nogui",
+  "reached_ready": true,
+  "ready_line": "[13:34:59] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.271s)! For help, type \"help\"",
+  "install_seconds": 8,
+  "installer_log_confirms": "\"The server installed successfully\" (net.neoforged.installertools processor log, neoforge-installer.jar.log)",
+  "notes": "MSC2 deletes the installer jar itself after a successful real install (matching MSC 1 behavior), so it could not be hashed in place; checksum.value is from a fresh, independent re-download of the exact URL jar_provider.rs composes for this resolved loader_version, hashed separately -- not a hash of the file MSC2 actually consumed, hence matches_provider_published is null (NeoForge's Maven publishes no checksum to compare against either way). The launch argv confirms the P7.27 fix (build_launch_request dispatching on java_flavor to @<args-file> nogui for Forge/NeoForge) holds against a real install, not only the synthetic smoke."
+}

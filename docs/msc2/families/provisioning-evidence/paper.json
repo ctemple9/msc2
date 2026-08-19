@@ -1,0 +1,19 @@
+{
+  "family": "paper",
+  "captured": "2026-08-19",
+  "resolved_minecraft_version": "26.2",
+  "loader_version": null,
+  "server_build": "112",
+  "download_url": "https://fill-data.papermc.io/v1/objects/bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e/paper-26.2-112.jar",
+  "checksum": {
+    "algorithm": "sha256",
+    "value": "bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e",
+    "matches_provider_published": true
+  },
+  "byte_size": 61859678,
+  "launch_argv": "/usr/bin/java -Xms2048M -Xmx4096M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true -jar paper.jar --nogui",
+  "reached_ready": true,
+  "ready_line": "[13:28:24 INFO]: Done (11.679s)! For help, type \"help\"",
+  "install_seconds": 7,
+  "notes": "Download URL and checksum were independently re-derived from fill.papermc.io's own /versions/{version}/builds response for the resolved build id (112), the same lookup jar_provider.rs performs, and matched exactly against the on-disk jar."
+}

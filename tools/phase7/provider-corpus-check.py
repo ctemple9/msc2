@@ -45,11 +45,35 @@ and the provider corpus it should be characterized against:
     isn't complete coverage of the six-family boundary, even if every
     citation it does have is real.
 
+Evidence mode (P7.28) checks a real-provisioning evidence directory (default
+`docs/msc2/families/provisioning-evidence/`) -- the one Phase 7 step that
+uses the real internet, proving live providers still return what the fake
+providers/tests above were built to simulate:
+
+  - Exactly one `<family>.json` per family in `FAMILIES`, no more, no fewer
+    -- a family Cameron's own machine genuinely could not provision must
+    show up as a missing/failing file here, not be silently absent.
+  - Each file's own `family` field must match its filename -- a copy-paste
+    that never got its family field updated fails loudly rather than
+    silently miscounting which family that evidence is really for.
+  - Required fields, all non-empty: `resolved_minecraft_version`,
+    `download_url`, `checksum` (itself an object carrying non-empty
+    `algorithm`/`value` and a present, possibly-`null`,
+    `matches_provider_published` key -- `null` is how a family whose
+    provider publishes no checksum to compare against records that
+    honestly), `byte_size`, `launch_argv`, `install_seconds`.
+  - `reached_ready` must be the literal boolean `true` -- this is the one
+    field this mode refuses to accept any other value for, since a family
+    that never reached a ready state is exactly the "stop and report it"
+    case this step's own instructions call for, not something a checker
+    should wave through.
+
 Passing and deliberately failing self-tests (`--selftest`) prove each
-rejection fires, for both modes, against small synthetic fixtures under
-`tools/phase7/fixtures/` -- never against `corpus/providers/` itself, so
-nothing invented ends up in the real corpus. No network access anywhere in
-this tool.
+rejection fires, for all three modes, against small synthetic fixtures
+under `tools/phase7/fixtures/` -- never against `corpus/providers/` or
+`docs/msc2/families/provisioning-evidence/` themselves, so nothing invented
+ends up standing in for the real thing. No network access anywhere in this
+tool.
 
   provider-corpus-check.py --inventory [--providers DIR]
                                              check a provider corpus
@@ -59,7 +83,12 @@ this tool.
                                              check a fixture directory's
                                              citations against a provider
                                              corpus
-  provider-corpus-check.py --selftest       run both modes against the
+  provider-corpus-check.py --evidence [EVIDENCE_DIR]
+                                             check a real-provisioning
+                                             evidence directory (default:
+                                             docs/msc2/families/
+                                             provisioning-evidence)
+  provider-corpus-check.py --selftest       run all three modes against the
                                              fixtures in
                                              tools/phase7/fixtures/,
                                              proving the passing case
@@ -81,11 +110,25 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 DEFAULT_PROVIDERS_DIR = Path("corpus/providers")
+DEFAULT_EVIDENCE_DIR = Path("docs/msc2/families/provisioning-evidence")
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 FAMILIES = ("vanilla", "paper", "purpur", "fabric", "neoforge", "forge")
 
 REQUIRED_ENTRY_FIELDS = ("family", "source_url", "captured", "sha256", "byte_size")
+
+REQUIRED_EVIDENCE_FIELDS = (
+    "family",
+    "resolved_minecraft_version",
+    "download_url",
+    "checksum",
+    "byte_size",
+    "launch_argv",
+    "reached_ready",
+    "install_seconds",
+)
+
+REQUIRED_CHECKSUM_FIELDS = ("algorithm", "value")
 
 IGNORED_NAMES = {"manifest.json", "README.md"}
 
@@ -101,6 +144,11 @@ SELFTEST_CASES = [
     ("coverage", "coverage-pass", 0),
     ("coverage", "coverage-missing-family", 1),
     ("coverage", "coverage-dangling-citation", 1),
+    ("evidence", "evidence-pass", 0),
+    ("evidence", "evidence-missing-family", 1),
+    ("evidence", "evidence-family-mismatch", 1),
+    ("evidence", "evidence-not-ready", 1),
+    ("evidence", "evidence-missing-field", 1),
 ]
 
 
@@ -274,6 +322,84 @@ def run_coverage(fixture_dir: Path, providers_dir: Path) -> tuple[int, str]:
     return 0, message
 
 
+def check_evidence(evidence_dir: Path) -> str:
+    """Raises CheckError on the first gap found; returns an "ok" message
+    describing what passed otherwise. Independent of the provider corpus
+    (inventory mode already gates that separately) -- this only checks the
+    real-provisioning evidence directory's own shape."""
+    if not evidence_dir.is_dir():
+        raise CheckError(f"{evidence_dir}: evidence directory does not exist")
+
+    present = {
+        p.stem: p
+        for p in sorted(evidence_dir.glob("*.json"))
+        if p.name not in IGNORED_NAMES
+    }
+
+    missing = [f for f in FAMILIES if f not in present]
+    if missing:
+        raise CheckError(
+            f"{evidence_dir}: missing evidence for {', '.join(missing)} -- "
+            "a family that could not be provisioned must show up as a "
+            "missing/failing file, not be silently absent"
+        )
+
+    unknown = sorted(set(present) - set(FAMILIES))
+    if unknown:
+        raise CheckError(
+            f"{evidence_dir}: evidence file(s) for unknown family(ies) {unknown} "
+            f"(expected one of {', '.join(FAMILIES)})"
+        )
+
+    for family in FAMILIES:
+        file_path = present[family]
+        try:
+            entry = json.loads(file_path.read_text())
+        except json.JSONDecodeError as exc:
+            raise CheckError(f"{file_path}: malformed JSON ({exc})")
+
+        for field in REQUIRED_EVIDENCE_FIELDS:
+            if field not in entry or entry[field] in (None, ""):
+                raise CheckError(f"{file_path}: missing '{field}'")
+
+        if entry["family"] != family:
+            raise CheckError(
+                f"{file_path}: 'family' field is {entry['family']!r}, "
+                f"expected {family!r} to match its filename"
+            )
+
+        checksum = entry["checksum"]
+        if not isinstance(checksum, dict):
+            raise CheckError(f"{file_path}: 'checksum' must be an object")
+        for field in REQUIRED_CHECKSUM_FIELDS:
+            if not checksum.get(field):
+                raise CheckError(f"{file_path}: checksum missing '{field}'")
+        if "matches_provider_published" not in checksum:
+            raise CheckError(
+                f"{file_path}: checksum missing 'matches_provider_published' "
+                "(true/false when the provider publishes one to compare "
+                "against, null when it doesn't -- the key must still be "
+                "present either way)"
+            )
+
+        if entry["reached_ready"] is not True:
+            raise CheckError(
+                f"{file_path}: reached_ready is {entry['reached_ready']!r}, "
+                "not true -- a family that never reached a ready state must "
+                "be stopped and reported, not recorded as passing evidence"
+            )
+
+    return f"ok {evidence_dir} (all six families present, reached_ready true for each)"
+
+
+def run_evidence(evidence_dir: Path) -> tuple[int, str]:
+    try:
+        message = check_evidence(evidence_dir)
+    except CheckError as exc:
+        return 1, str(exc)
+    return 0, message
+
+
 def selftest() -> tuple[int, list[str]]:
     lines = []
     all_ok = True
@@ -281,8 +407,10 @@ def selftest() -> tuple[int, list[str]]:
         case_dir = FIXTURES_DIR / name
         if mode == "inventory":
             code, message = run_inventory(case_dir / "providers")
-        else:
+        elif mode == "coverage":
             code, message = run_coverage(case_dir / "fixtures", case_dir / "providers")
+        else:
+            code, message = run_evidence(case_dir / "evidence")
         ok = code == expected_code
         all_ok = all_ok and ok
         lines.append(f"{'pass' if ok else 'FAIL'} {mode}/{name}: expected={expected_code} got={code} ({message})")
@@ -294,6 +422,14 @@ def main() -> int:
     parser.add_argument("--providers", type=Path, default=DEFAULT_PROVIDERS_DIR)
     parser.add_argument("--inventory", action="store_true")
     parser.add_argument("--coverage", type=Path, default=None, metavar="FIXTURE_DIR")
+    parser.add_argument(
+        "--evidence",
+        type=Path,
+        nargs="?",
+        const=DEFAULT_EVIDENCE_DIR,
+        default=None,
+        metavar="EVIDENCE_DIR",
+    )
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
 
@@ -301,6 +437,11 @@ def main() -> int:
         code, lines = selftest()
         for line in lines:
             print(line)
+        return code
+
+    if args.evidence is not None:
+        code, message = run_evidence(args.evidence)
+        print(message)
         return code
 
     if args.coverage is not None:

@@ -1,0 +1,18 @@
+{
+  "family": "purpur",
+  "captured": "2026-08-19",
+  "resolved_minecraft_version": "26.2",
+  "loader_version": null,
+  "download_url": "https://example.invalid/purpur/server.jar",
+  "checksum": {
+    "algorithm": "sha256",
+    "value": "deadbeef",
+    "matches_provider_published": true
+  },
+  "byte_size": 12345,
+  "launch_argv": "/usr/bin/java -jar paper.jar --nogui",
+  "reached_ready": true,
+  "ready_line": "Done (1.0s)! For help, type \"help\"",
+  "install_seconds": 5,
+  "notes": null
+}

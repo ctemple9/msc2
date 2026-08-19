@@ -1,0 +1,22 @@
+{
+  "family": "forge",
+  "captured": "2026-08-19",
+  "resolved_minecraft_version": "26.2",
+  "loader_version": "65.1.0",
+  "download_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/26.2-65.1.0/forge-26.2-65.1.0-installer.jar",
+  "checksum": {
+    "algorithm": "sha256",
+    "value": "d23291591ee03408e39549d5509772f6c46280fef51044e1a706dd3da455dd74",
+    "matches_provider_published": null
+  },
+  "byte_size": 7855558,
+  "installed_libraries_total_size_bytes": 195890870,
+  "installed_libraries_file_count": 95,
+  "args_file": "libraries/net/minecraftforge/forge/26.2-65.1.0/unix_args.txt",
+  "launch_argv": "/usr/bin/java -Xms3072M -Xmx6144M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true @libraries/net/minecraftforge/forge/26.2-65.1.0/unix_args.txt nogui",
+  "reached_ready": true,
+  "ready_line": "[13:36:27] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.773s)! For help, type \"help\"",
+  "install_seconds": 16,
+  "installer_log_confirms": "\"The server installed successfully\" plus a self-verified patch checksum (forge-installer.jar.log: 'Checksum Validated: 9c84356c56bf3d2046c977d1ef703d519cd8d362')",
+  "notes": "Forge's own maven-metadata.xml <latest>/<release> tags under-report the newest version (P7.3's own finding, recorded in corpus/providers/README.md) -- MSC2's create flow reads promotions_slim.json for 'recommended' instead, which is what actually resolved here (65.1.0), confirming that P7.3-era finding still holds against live data. Same installer-jar-deleted-after-install caveat as NeoForge applies to checksum.value here."
+}

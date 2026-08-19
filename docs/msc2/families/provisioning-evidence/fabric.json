@@ -1,0 +1,19 @@
+{
+  "family": "fabric",
+  "captured": "2026-08-19",
+  "resolved_minecraft_version": "26.2",
+  "loader_version": "0.19.3",
+  "installer_version": "1.1.2",
+  "download_url": "https://meta.fabricmc.net/v2/versions/loader/26.2/0.19.3/1.1.2/server/jar",
+  "checksum": {
+    "algorithm": "sha256",
+    "value": "301f83aac36b23f2bc64cc58560edf98533cfaa30e53af002ba950c75f4100b4",
+    "matches_provider_published": null
+  },
+  "byte_size": 181838,
+  "launch_argv": "/usr/bin/java -Xms3072M -Xmx6144M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true -jar paper.jar --nogui",
+  "reached_ready": true,
+  "ready_line": "[13:32:38] [Server thread/INFO]: Done (2.588s)! For help, type \"help\"",
+  "install_seconds": 7,
+  "notes": "Fabric's meta API publishes no checksum for the composed loader/installer/server-jar endpoint (unlike Mojang/Paper/Purpur), so checksum.matches_provider_published is null -- there is nothing to compare against, only a locally computed sha256 for reference. The downloaded jar is Fabric's own small bootstrap jar (182 KB), not a full server jar; it resolves the rest of the classpath from its own embedded libraries at boot, which is why this Done time is close to vanilla's despite sharing the same resolved MC version."
+}

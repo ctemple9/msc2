@@ -274,6 +274,30 @@ final class DashboardViewModel: ObservableObject {
                 javaPath: javaPath
             )
             guard result.success else { return (friendlyServerManagementError(result.message), nil) }
+            // P7.9's own correction: this 200 only means "creation admitted
+            // and started," not "the server now exists" — poll the real
+            // operation to its terminal state before treating this as
+            // done, the same way `activateWorld`/`convertWorld` already do
+            // for their own long-running work.
+            if let operationId = result.operationId {
+                do {
+                    let operation = try await requireClient().pollOperationToTerminal(id: operationId)
+                    switch operation.state {
+                    case .failed:
+                        let message = operation.error?.message ?? "Server creation failed."
+                        return (message, nil)
+                    case .cancelled:
+                        return ("Server creation was cancelled.", nil)
+                    case .succeeded, .queued, .running:
+                        break
+                    }
+                } catch {
+                    // Inconclusive -- the poll itself failed (e.g. the app
+                    // lost connectivity mid-install), not the creation.
+                    // Fall through and refresh; the agent's own operation
+                    // record is the durable source of truth either way.
+                }
+            }
             if let fetched = try? await requireClient().getServers() { servers = fetched }
             if let fetchedStatus = try? await requireClient().getStatus() { status = fetchedStatus }
             return (nil, result.warnings)
@@ -1208,12 +1232,49 @@ final class DashboardViewModel: ObservableObject {
         return try? await client.getVersions()
     }
 
-    /// Downloads / installs the given version. Returns the result, or nil if inconclusive
-    /// (timeout — the download may still complete on the Mac).
-    func changeVersion(baseURL: URL, token: String, entry: VersionEntryDTO) async -> VersionChangeResultDTO? {
+    /// Downloads / installs the given version, polling the real operation
+    /// to a terminal state before reporting success. `server_running`/
+    /// `download_in_progress`/`no_active_server`/`not_supported` never
+    /// reach `.succeeded` or `.failed` here — the frozen contract refuses
+    /// those synchronously (a thrown `RemoteAPIError.httpStatus`, not a
+    /// `VersionChangeResultDTO`), so this method surfaces them as
+    /// `.refused(code:message:)` instead of the P7.26-found-stale
+    /// "check `result.message`" pattern this replaces.
+    enum VersionChangeOutcome {
+        case succeeded(VersionChangeResultDTO)
+        case refused(code: String?, message: String)
+        /// The request itself, or the follow-up operation poll, failed
+        /// inconclusively (e.g. the app lost connectivity) — the change
+        /// may still be running or have completed on the agent.
+        case inconclusive
+    }
+
+    func changeVersion(baseURL: URL, token: String, entry: VersionEntryDTO) async -> VersionChangeOutcome {
         updateCredentials(baseURL: baseURL, token: token)
-        guard let client = try? requireClient() else { return nil }
-        return try? await client.changeVersion(versionId: entry.id, loaderVersion: entry.loaderVersion)
+        guard let client = try? requireClient() else { return .inconclusive }
+        do {
+            let result = try await client.changeVersion(versionId: entry.id, loaderVersion: entry.loaderVersion)
+            guard let operationId = result.operationId else { return .succeeded(result) }
+            do {
+                let operation = try await client.pollOperationToTerminal(id: operationId)
+                switch operation.state {
+                case .succeeded:
+                    return .succeeded(result)
+                case .failed:
+                    return .refused(code: operation.error?.code, message: operation.error?.message ?? "Version change failed.")
+                case .cancelled:
+                    return .refused(code: nil, message: "Version change was cancelled.")
+                case .queued, .running:
+                    return .inconclusive
+                }
+            } catch {
+                return .inconclusive
+            }
+        } catch let err as RemoteAPIError {
+            return .refused(code: err.apiErrorCode, message: err.localizedDescription)
+        } catch {
+            return .inconclusive
+        }
     }
 
     func createBackupNow(baseURL: URL, token: String) async -> Bool {

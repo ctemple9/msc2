@@ -28,13 +28,13 @@ GET,/v1/components/client-export,,"Package selected components/add-ons for clien
 POST,/v1/components/install,,Install an add-on from the Modrinth catalog into the active server,addons,Planned,Planned,Planned,Planned,
 POST,/v1/components/remove,,Remove an installed Modrinth-tracked add-on,addons,Planned,Planned,Planned,Planned,
 POST,/v1/components/update,,Update a system component (paper/geyser/floodgate) or a Modrinth-tracked add-on,addons,Planned,Planned,Planned,Planned,
-POST,/v1/components/version,changeVersion,Change the active server's JAR version/build,addons,Planned,Planned,Planned,Planned,"P7.9: async correction, operationId added (phase7-api.md SS2)"
+POST,/v1/components/version,changeVersion,Change the active server's JAR version/build,addons,Implemented,Planned,Implemented,Implemented,"P7.9: async correction, operationId added (phase7-api.md SS2); P7.26 found and fixed iOS's VersionChangeResultDTO missing operationId and its error-code branch reading result.message instead of the thrown HTTP error's ErrorDTO.code"
 GET,/v1/config/geyser,,Get the active server's Geyser config,none,Planned,Planned,Planned,Planned,
 POST,/v1/config/geyser,,Update the active server's Geyser config,settings,Planned,Planned,Planned,Planned,
-GET,/v1/config/java-runtime,,Get the global Java executable path override,none,Planned,Planned,Planned,Planned,
-POST,/v1/config/java-runtime,,Set the global Java executable path override,settings,Planned,Planned,Planned,Planned,
-GET,/v1/config/ram,,Get the active server's RAM allocation,none,Planned,Planned,Planned,Planned,
-POST,/v1/config/ram,,Update the active server's RAM allocation,settings,Planned,Planned,Planned,Planned,
+GET,/v1/config/java-runtime,,Get the global Java executable path override,none,Implemented,Planned,Implemented,Implemented,"iOS: SettingsView.swift already wired against RemoteAPIClient.getJavaConfig; no shape mismatch found"
+POST,/v1/config/java-runtime,,Set the global Java executable path override,settings,Implemented,Planned,Implemented,Implemented,"iOS: SettingsView.swift already wired against RemoteAPIClient.setJavaConfig; no shape mismatch found"
+GET,/v1/config/ram,,Get the active server's RAM allocation,none,Implemented,Planned,Implemented,Implemented,"iOS: HealthView.swift already wired against RemoteAPIClient.getRAMConfig; no shape mismatch found"
+POST,/v1/config/ram,,Update the active server's RAM allocation,settings,Implemented,Planned,Implemented,Implemented,"iOS: HealthView.swift already wired against RemoteAPIClient.updateRAMConfig; request/result shape matches"
 GET,/v1/connectivity,,"Reachability summary: join address, method, playit/broadcast status",none,Planned,Planned,Planned,Planned,
 WS,/v1/console/stream,,console channel,none,Implemented,Planned,Implemented,Planned,"P0.24 baseline channel, versioned path (P2.7)"
 GET,/v1/console/tail,,"Last N console lines (query param n, default 200, clamped 1-2000)",none,Implemented,Planned,Implemented,Implemented,cli: `msc console tail`
@@ -42,12 +42,12 @@ GET,/v1/duckdns,,Get the configured DuckDNS hostname,none,Planned,Planned,Planne
 POST,/v1/duckdns,,Update the DuckDNS hostname,settings,Planned,Planned,Planned,Planned,
 GET,/v1/files,,Browse the active server's directory (admin-only; query param path). 409 reuses the same shape with note=no_active_server.,admin,Planned,Planned,Planned,Planned,
 GET,/v1/files/read,,"Read a previewable file's contents (admin-only; query param path, required)",admin,Planned,Planned,Planned,Planned,
-GET,/v1/health,,Diagnostic health cards for the active server,none,Implemented,Planned,Planned,Planned,
-GET,/v1/health/problems,,"Startup problems detected for the active server (missing deps, incompatible versions, ...)",none,Planned,Planned,Planned,Planned,
-POST,/v1/health/repair,,Trigger a repair action for a diagnosed startup problem,settings,Planned,Planned,Planned,Planned,
+GET,/v1/health,,Diagnostic health cards for the active server,none,Implemented,Planned,Implemented,Implemented,"P7.24 replaced the Phase 2 demo-card with real cards; P7.26 found and fixed a severity-string mismatch (this route emitted ok/warning/critical/unknown, but HealthView.swift.severityColor(_:) switches on literal green/yellow/red/gray -- every card silently rendered in the neutral fallback color until fixed)"
+GET,/v1/health/problems,,"Startup problems detected for the active server (missing deps, incompatible versions, ...)",none,Implemented,Planned,Implemented,Implemented,"P7.24: reads msc_application::diagnostics's last_startup_result.json disk record; nothing yet calls diagnose_unexpected_stop from the real LifecycleService stop path (flagged gap in routes/health.rs's own module doc), so this reports honestly empty until that lands"
+POST,/v1/health/repair,,Trigger a repair action for a diagnosed startup problem,settings,Implemented,Planned,Implemented,Implemented,"iOS: HealthView.swift already wired; DTO shapes match"
 GET,/v1/help/{helpId},,Resolve an educational content topic,none,Planned,Planned,Planned,Planned,
-GET,/v1/java-runtimes,,Java runtimes detected on this host,none,Planned,Planned,Planned,Planned,
-POST,/v1/java-runtimes/install,installJavaRuntime,"Install a Java runtime the agent manages itself (Adoptium archive, checksum-verified, unpacked under MSC's own runtimes directory)",settings,Planned,Planned,Planned,Planned,"new route, D-006 addendum P7.1/P7.9 -- no MSC 1 equivalent (phase7-api.md SS3)"
+GET,/v1/java-runtimes,,Java runtimes detected on this host,none,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift's create-server flow already wired against RemoteAPIClient.getJavaRuntimes; no shape mismatch found"
+POST,/v1/java-runtimes/install,installJavaRuntime,"Install a Java runtime the agent manages itself (Adoptium archive, checksum-verified, unpacked under MSC's own runtimes directory)",settings,Implemented,Planned,Planned,Implemented,"new route, D-006 addendum P7.1/P7.9 -- no MSC 1 equivalent (phase7-api.md SS3); iOS has no screen for this at all yet (nothing existing to point at the real agent) -- CLI (msc java install) is the only P7.25/26 client surface"
 GET,/v1/me,,The calling token's own role and permissions,none,Planned,Planned,Planned,Planned,
 POST,/v1/operations,,Create a long-running operation,serverControl,Implemented,Planned,Planned,Planned,
 GET,/v1/operations/{id},,Read an operation's current state,none,Implemented,Planned,Implemented,Implemented,"iOS and CLI poll durable world, backup, conversion, and import operations"
@@ -68,11 +68,11 @@ POST,/v1/resourcepacks/remove,,Remove a resource pack from disk,addons,Planned,P
 POST,/v1/resourcepacks/seturl,,Set a custom resource-pack URL directly in server.properties,addons,Planned,Planned,Planned,Planned,
 POST,/v1/resourcepacks/toggle,,Enable/disable a Geyser resource pack,addons,Planned,Planned,Planned,Planned,
 GET,/v1/servers,,List all registered servers,none,Implemented,Planned,Implemented,Implemented,
-POST,/v1/servers/create,createServer,Create a new server,fleet,Planned,Planned,Planned,Planned,"P7.9: async correction, operationId now actually used (phase7-api.md SS2); Bedrock refused with capability_unavailable"
-POST,/v1/servers/delete,,Delete a server,fleet,Planned,Planned,Planned,Planned,
-POST,/v1/servers/eula,,Accept the Minecraft EULA for a server,fleet,Planned,Planned,Planned,Planned,
+POST,/v1/servers/create,createServer,Create a new server,fleet,Implemented,Planned,Implemented,Implemented,"P7.9: async correction, operationId now actually used (phase7-api.md SS2); Bedrock refused with capability_unavailable; P7.26 found and fixed iOS's ServerCreateResultDTO missing operationId entirely -- DashboardViewModel.createFreshServer treated the immediate 200 as final and refreshed the server list before creation had actually finished"
+POST,/v1/servers/delete,,Delete a server,fleet,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift already wired against RemoteAPIClient.deleteServer; synchronous, no operationId in the frozen contract"
+POST,/v1/servers/eula,,Accept the Minecraft EULA for a server,fleet,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift already wired against RemoteAPIClient.acceptServerEULA; no shape mismatch found"
 POST,/v1/servers/import,,"Scan, import, or rescan existing servers",fleet,Implemented,Planned,Implemented,Implemented,"P6.46: copied iOS follows accepted raw/ZIP and transfer imports to their durable terminal result"
-POST,/v1/servers/rename,,Rename a server,fleet,Planned,Planned,Planned,Planned,
+POST,/v1/servers/rename,,Rename a server,fleet,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift already wired against RemoteAPIClient.renameServer; no shape mismatch found"
 GET,/v1/session-log,,Join/leave event history for the active server,none,Planned,Planned,Planned,Planned,
 GET,/v1/settings,,"Typed server.properties schema for the active server, as sections of fields",none,Implemented,Planned,Planned,Implemented,
 POST,/v1/settings,,"Apply a sparse set of settings changes (key -> string value), validated and clamped per field",settings,Implemented,Planned,Planned,Implemented,
@@ -82,14 +82,14 @@ PUT,/v1/staged-uploads/{id},uploadStagedBytes,Upload bytes into a previously beg
 POST,/v1/start,,Start the active server,serverControl,Implemented,Planned,Implemented,Implemented,
 GET,/v1/status,,"Current run status (active server, pid, running state)",none,Implemented,Planned,Implemented,Implemented,
 POST,/v1/stop,,Stop the active server,serverControl,Implemented,Planned,Implemented,Implemented,
-GET,/v1/templates,,List available Paper/plugin templates,none,Planned,Planned,Planned,Planned,
-POST,/v1/templates,,"Export the active server as a template, or create a server from one",fleet,Planned,Planned,Planned,Planned,
+GET,/v1/templates,,List available Paper/plugin templates,none,Implemented,Planned,Planned,Implemented,"iOS has no Templates screen at all yet (not one of the copied MSC 1 screens this phase's own scope names) -- CLI (msc template list/export/create) is the only P7.25/26 client surface"
+POST,/v1/templates,,"Export the active server as a template, or create a server from one",fleet,Implemented,Planned,Planned,Implemented,"iOS has no Templates screen at all yet -- see GET /v1/templates' own note"
 GET,/v1/users,,List named-access users,admin,Planned,Planned,Planned,Planned,
 POST,/v1/users,,Create a named-access user,admin,Planned,Planned,Planned,Planned,
 POST,/v1/users/revoke,,Revoke a named-access user,admin,Planned,Planned,Planned,Planned,
 POST,/v1/users/update,,Update a named-access user's label/role/permissions/expiry,admin,Planned,Planned,Planned,Planned,
-GET,/v1/versions,,Available server JAR versions for the active server's flavor,none,Planned,Planned,Planned,Planned,
-GET,/v1/versions/create,,"Available versions for the create-server flow (query params serverType, javaFlavor)",none,Planned,Planned,Planned,Planned,
+GET,/v1/versions,,Available server JAR versions for the active server's flavor,none,Implemented,Planned,Implemented,Implemented,"iOS: ServerVersionView.swift already wired against RemoteAPIClient.getVersions; no shape mismatch found"
+GET,/v1/versions/create,,"Available versions for the create-server flow (query params serverType, javaFlavor)",none,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift's create-server flow already wired against RemoteAPIClient.getCreateVersions; no shape mismatch found"
 POST,/v1/watchdog/disable,,Disable the watchdog,settings,Planned,Planned,Planned,Planned,
 POST,/v1/watchdog/enable,,Enable the watchdog,settings,Planned,Planned,Planned,Planned,
 GET,/v1/watchdog/status,,Get watchdog enabled status,none,Planned,Planned,Planned,Planned,

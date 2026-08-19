@@ -15,15 +15,22 @@ use msc_api::dto::{
     ActiveServerRequestDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
     BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
     BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, CommandRequestDto,
-    CommandResultDto, ErrorDto, OperationDto, OperationStateDto, RemoteApiStatus, ServerDto,
-    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
+    CommandResultDto, ErrorDto, HealthProblemsResponseDto, HealthRepairRequestDto,
+    HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto, JavaConfigSetRequestDto,
+    JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
+    OperationDto, OperationStateDto, RemoteApiStatus, ServerCreateRequestDto,
+    ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
+    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
+    ServerImportScanResponseDto, ServerRenameRequestDto, ServerRenameResultDto,
     SettingsResponseDto, SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
     StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
-    StagedUploadPurposeDto, WorldActivateRequestDto, WorldActivateResultDto,
-    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
-    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
-    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
-    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    StagedUploadPurposeDto, TemplateMutationRequestDto, TemplateMutationResultDto,
+    TemplatesResponseDto, VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto,
+    WorldActivateRequestDto, WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto,
+    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
+    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto, WorldRenameRequestDto,
+    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
+    WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -115,6 +122,28 @@ pub enum Command {
     Backup {
         #[command(subcommand)]
         command: BackupCommand,
+    },
+    /// List or change the active server's available/current JAR version.
+    Version {
+        #[command(subcommand)]
+        command: VersionCommand,
+    },
+    /// List Paper/plugin templates, export the active server as one, or
+    /// create a server from one.
+    Template {
+        #[command(subcommand)]
+        command: TemplateCommand,
+    },
+    /// List detected Java runtimes, or read/change/install one.
+    Java {
+        #[command(subcommand)]
+        command: JavaCommand,
+    },
+    /// Show the active server's health cards and startup problems, or
+    /// repair one.
+    Doctor {
+        #[command(subcommand)]
+        command: Option<DoctorCommand>,
     },
 }
 
@@ -212,6 +241,164 @@ pub enum ServerCommand {
     Stop { server: Option<String> },
     /// Restart the selected server, or the current active server if omitted.
     Restart { server: Option<String> },
+    /// Create a new Java server. Long-running for Forge/NeoForge (a real
+    /// supervised installer run); always operation-backed.
+    Create(ServerCreateArgs),
+    /// Delete a server. Refuses a running server.
+    Delete { server: String },
+    /// Rename a server's display name (not its on-disk folder).
+    Rename { server: String, name: String },
+    /// Accept the Minecraft EULA for a server (writes `eula.txt`).
+    Eula {
+        /// Select a server by id or display name. Defaults to the active
+        /// server.
+        #[arg(long)]
+        server: Option<String>,
+    },
+}
+
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Args)]
+pub struct ServerCreateArgs {
+    /// Display name for the new server.
+    name: String,
+    /// `java` (default) or `bedrock` — Bedrock is refused with
+    /// `capability_unavailable` until Phase 10.
+    #[arg(long = "type")]
+    server_type: Option<String>,
+    /// `paper` (default), `purpur`, `vanilla`, `fabric`, `neoforge`, or
+    /// `forge`.
+    #[arg(long)]
+    flavor: Option<String>,
+    /// Game port. Defaults to 25565.
+    #[arg(long)]
+    port: Option<u16>,
+    #[arg(long = "max-players")]
+    max_players: Option<i64>,
+    #[arg(long)]
+    difficulty: Option<String>,
+    #[arg(long)]
+    gamemode: Option<String>,
+    #[arg(long = "world-name")]
+    world_name: Option<String>,
+    #[arg(long = "world-seed")]
+    world_seed: Option<String>,
+    /// A specific version id from `msc version list --create --flavor
+    /// <flavor>`, or omit for the latest.
+    #[arg(long = "version-id")]
+    version_id: Option<String>,
+    #[arg(long = "loader-version")]
+    loader_version: Option<String>,
+    /// Accept the Minecraft EULA immediately after creation.
+    #[arg(long)]
+    accept_eula: bool,
+    #[arg(long = "cross-play")]
+    enable_cross_play: bool,
+    #[arg(long = "cross-play-bedrock-port")]
+    cross_play_bedrock_port: Option<u16>,
+    #[arg(long)]
+    playit: bool,
+    #[arg(long = "xbox-broadcast")]
+    xbox_broadcast: bool,
+    /// Override the Java executable used for this create only (Forge/
+    /// NeoForge installer runs).
+    #[arg(long = "java-path")]
+    java_path: Option<String>,
+    /// Print the operation id and return immediately instead of waiting
+    /// for creation to finish.
+    #[arg(long)]
+    no_wait: bool,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum VersionCommand {
+    /// List versions for the active server's flavor.
+    List,
+    /// List versions for the create flow, given a server type and Java
+    /// flavor (neither needs an existing server).
+    Create {
+        #[arg(long = "type", default_value = "java")]
+        server_type: String,
+        #[arg(long)]
+        flavor: Option<String>,
+    },
+    /// Change the active server's JAR version/build. Long-running for
+    /// Forge/NeoForge; always operation-backed.
+    Set {
+        version_id: String,
+        #[arg(long = "loader-version")]
+        loader_version: Option<String>,
+        /// Print the operation id and return immediately instead of
+        /// waiting for the change to finish.
+        #[arg(long)]
+        no_wait: bool,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum TemplateCommand {
+    /// List Paper and plugin templates.
+    List,
+    /// Export the active server as a template.
+    Export {
+        #[arg(long = "no-plugins")]
+        no_plugins: bool,
+    },
+    /// Create a new server from a template.
+    Create {
+        /// A template id from `msc template list`, e.g.
+        /// `paper:paper-1.21.4-build100.jar`.
+        template_id: String,
+        name: String,
+        #[arg(long)]
+        port: Option<u16>,
+        #[arg(long = "world-name")]
+        world_name: Option<String>,
+        #[arg(long)]
+        difficulty: Option<String>,
+        #[arg(long)]
+        gamemode: Option<String>,
+        #[arg(long = "world-seed")]
+        world_seed: Option<String>,
+        #[arg(long)]
+        accept_eula: bool,
+        #[arg(long = "cross-play")]
+        enable_cross_play: bool,
+        #[arg(long = "cross-play-bedrock-port")]
+        cross_play_bedrock_port: Option<u16>,
+        #[arg(long)]
+        playit: bool,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum JavaCommand {
+    /// List Java runtimes detected on this host.
+    List,
+    /// Show the global Java executable path override.
+    Get,
+    /// Set the global Java executable path override.
+    Set { path: String },
+    /// Install a Java runtime this agent manages itself. Always
+    /// operation-backed (no synchronous variant).
+    Install {
+        /// One of 8, 17, 21, 25.
+        major: i64,
+        /// Print the operation id and return immediately instead of
+        /// waiting for the install to finish.
+        #[arg(long)]
+        no_wait: bool,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum DoctorCommand {
+    /// Attempt a repair for a diagnosed startup problem.
+    Repair {
+        problem_id: String,
+        /// `disable` or `delete`.
+        action: String,
+    },
 }
 
 #[derive(Debug, Clone, Args)]
@@ -522,6 +709,10 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Settings { command } => run_settings(common, command).await,
         Command::World { command } => run_world(common, command).await,
         Command::Backup { command } => run_backup(common, command).await,
+        Command::Version { command } => run_version(common, command).await,
+        Command::Template { command } => run_template(common, command).await,
+        Command::Java { command } => run_java(common, command).await,
+        Command::Doctor { command } => run_doctor(common, command).await,
     }
 }
 
@@ -738,6 +929,96 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 print_json(&restart)?;
             } else {
                 print_restart_result(&restart);
+            }
+            Ok(())
+        }
+        ServerCommand::Create(args) => {
+            let no_wait = args.no_wait;
+            let body = ServerCreateRequestDto {
+                name: args.name,
+                server_type: args.server_type,
+                java_flavor: args.flavor,
+                port: args.port.map(i64::from),
+                max_players: args.max_players,
+                enable_cross_play: args.enable_cross_play.then_some(true),
+                cross_play_bedrock_port: args.cross_play_bedrock_port.map(i64::from),
+                enable_playit: args.playit.then_some(true),
+                enable_xbox_broadcast: args.xbox_broadcast.then_some(true),
+                difficulty: args.difficulty,
+                gamemode: args.gamemode,
+                world_name: args.world_name,
+                world_seed: args.world_seed,
+                version_id: args.version_id,
+                minecraft_version: None,
+                loader_version: args.loader_version,
+                accept_eula: args.accept_eula.then_some(true),
+                bedrock_version: None,
+                docker_image: None,
+                java_path: args.java_path,
+            };
+            let result: ServerCreateResultDto =
+                client.post_json("/v1/servers/create", &body).await?;
+            if !common.json {
+                println!("{}", result.message);
+                if let Some(name) = &result.server_name {
+                    println!("name: {name}");
+                }
+            }
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "server creation",
+            )
+            .await
+        }
+        ServerCommand::Delete { server } => {
+            let resolved = resolve_server(&client, &server).await?;
+            let body = ServerDeleteRequestDto {
+                server_id: resolved.id,
+            };
+            let result: ServerDeleteResultDto =
+                client.post_json("/v1/servers/delete", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            Ok(())
+        }
+        ServerCommand::Rename { server, name } => {
+            let resolved = resolve_server(&client, &server).await?;
+            let body = ServerRenameRequestDto {
+                server_id: resolved.id,
+                name,
+            };
+            let result: ServerRenameResultDto =
+                client.post_json("/v1/servers/rename", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            Ok(())
+        }
+        ServerCommand::Eula { server } => {
+            let server_id = if let Some(selector) = server.as_deref() {
+                Some(resolve_server(&client, selector).await?.id)
+            } else {
+                let status: RemoteApiStatus = client.get_json("/v1/status").await?;
+                Some(
+                    status
+                        .active_server_id
+                        .ok_or_else(|| CliError::usage("no active server; pass --server"))?,
+                )
+            };
+            let body = ServerEulaRequestDto { server_id };
+            let result: ServerEulaResultDto = client.post_json("/v1/servers/eula", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
             }
             Ok(())
         }
@@ -1245,6 +1526,298 @@ async fn poll_operation(
             cancel_sent = true;
         }
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    }
+}
+
+async fn run_version(common: CommonArgs, command: VersionCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        VersionCommand::List => {
+            let response: VersionsResponseDto = client.get_json("/v1/versions").await?;
+            if common.json {
+                print_json(&response)?;
+            } else {
+                print_versions(&response);
+            }
+            Ok(())
+        }
+        VersionCommand::Create {
+            server_type,
+            flavor,
+        } => {
+            let mut path = format!("/v1/versions/create?serverType={server_type}");
+            if let Some(flavor) = &flavor {
+                path.push_str(&format!("&javaFlavor={flavor}"));
+            }
+            let response: VersionsResponseDto = client.get_json(&path).await?;
+            if common.json {
+                print_json(&response)?;
+            } else {
+                print_versions(&response);
+            }
+            Ok(())
+        }
+        VersionCommand::Set {
+            version_id,
+            loader_version,
+            no_wait,
+        } => {
+            let body = VersionChangeRequestDto {
+                version_id,
+                loader_version,
+            };
+            let result: VersionChangeResultDto =
+                client.post_json("/v1/components/version", &body).await?;
+            if !common.json {
+                println!("{}", result.message);
+                println!("requires restart: {}", result.requires_restart);
+            }
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "version change",
+            )
+            .await
+        }
+    }
+}
+
+fn print_versions(response: &VersionsResponseDto) {
+    println!("flavor: {}", response.flavor_name);
+    println!("supports versions: {}", response.supports_versions);
+    if let Some(current) = &response.current_version {
+        println!("current: {current}");
+    }
+    if let Some(note) = &response.note {
+        println!("note: {note}");
+    }
+    for entry in &response.versions {
+        let latest = if entry.is_latest { " (latest)" } else { "" };
+        println!("{} {}{}", entry.id, entry.display_label, latest);
+    }
+}
+
+async fn run_template(common: CommonArgs, command: TemplateCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        TemplateCommand::List => {
+            let response: TemplatesResponseDto = client.get_json("/v1/templates").await?;
+            if common.json {
+                print_json(&response)?;
+            } else {
+                print_templates(&response);
+            }
+            Ok(())
+        }
+        TemplateCommand::Export { no_plugins } => {
+            let body = TemplateMutationRequestDto {
+                action: "exportServer".to_string(),
+                include_plugins: Some(!no_plugins),
+                ..Default::default()
+            };
+            let result: TemplateMutationResultDto =
+                client.post_json("/v1/templates", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            Ok(())
+        }
+        TemplateCommand::Create {
+            template_id,
+            name,
+            port,
+            world_name,
+            difficulty,
+            gamemode,
+            world_seed,
+            accept_eula,
+            enable_cross_play,
+            cross_play_bedrock_port,
+            playit,
+        } => {
+            let body = TemplateMutationRequestDto {
+                action: "createServer".to_string(),
+                template_id: Some(template_id),
+                name: Some(name),
+                port: port.map(i64::from),
+                world_name,
+                difficulty,
+                gamemode,
+                world_seed,
+                accept_eula: accept_eula.then_some(true),
+                enable_cross_play: enable_cross_play.then_some(true),
+                cross_play_bedrock_port: cross_play_bedrock_port.map(i64::from),
+                enable_playit: playit.then_some(true),
+                ..Default::default()
+            };
+            let result: TemplateMutationResultDto =
+                client.post_json("/v1/templates", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+                if let Some(id) = &result.created_server_id {
+                    println!("server id: {id}");
+                }
+            }
+            Ok(())
+        }
+    }
+}
+
+fn print_templates(response: &TemplatesResponseDto) {
+    println!("paper templates:");
+    for template in &response.paper_templates {
+        println!("  {} ({})", template.id, template.display_name);
+    }
+    println!("plugin templates:");
+    for template in &response.plugin_templates {
+        println!("  {} ({})", template.id, template.display_name);
+    }
+}
+
+async fn run_java(common: CommonArgs, command: JavaCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        JavaCommand::List => {
+            let response: JavaRuntimesResponseDto = client.get_json("/v1/java-runtimes").await?;
+            if common.json {
+                print_json(&response)?;
+            } else if response.runtimes.is_empty() {
+                println!("No Java runtimes detected.");
+            } else {
+                for runtime in &response.runtimes {
+                    let major = runtime
+                        .major_version
+                        .map(|major| major.to_string())
+                        .unwrap_or_else(|| "?".to_string());
+                    println!(
+                        "{} (java {major}) at {}",
+                        runtime.name, runtime.executable_path
+                    );
+                }
+            }
+            Ok(())
+        }
+        JavaCommand::Get => {
+            let response: JavaConfigResponseDto =
+                client.get_json("/v1/config/java-runtime").await?;
+            if common.json {
+                print_json(&response)?;
+            } else {
+                println!(
+                    "java path: {}",
+                    response.executable_path.as_deref().unwrap_or("(default)")
+                );
+            }
+            Ok(())
+        }
+        JavaCommand::Set { path } => {
+            let body = JavaConfigSetRequestDto {
+                executable_path: Some(path),
+            };
+            let response: JavaConfigResponseDto =
+                client.post_json("/v1/config/java-runtime", &body).await?;
+            if common.json {
+                print_json(&response)?;
+            } else {
+                println!(
+                    "java path: {}",
+                    response.executable_path.as_deref().unwrap_or("(default)")
+                );
+            }
+            Ok(())
+        }
+        JavaCommand::Install { major, no_wait } => {
+            let body = JavaRuntimeInstallRequestDto { major };
+            let result: JavaRuntimeInstallResultDto =
+                client.post_json("/v1/java-runtimes/install", &body).await?;
+            if !common.json {
+                println!("{}", result.message);
+            }
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                Some(result.operation_id),
+                "Java runtime install",
+            )
+            .await
+        }
+    }
+}
+
+async fn run_doctor(common: CommonArgs, command: Option<DoctorCommand>) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        None => {
+            let health: HealthResponseDto = client.get_json("/v1/health").await?;
+            let problems: HealthProblemsResponseDto =
+                client.get_json("/v1/health/problems").await?;
+            if common.json {
+                print_json(&serde_json::json!({ "health": health, "problems": problems }))?;
+            } else {
+                print_health(&health);
+                print_health_problems(&problems);
+            }
+            Ok(())
+        }
+        Some(DoctorCommand::Repair { problem_id, action }) => {
+            let body = HealthRepairRequestDto { problem_id, action };
+            let result: HealthRepairResultDto =
+                client.post_json("/v1/health/repair", &body).await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+                if let Some(updated) = &result.updated {
+                    print_health_problems(updated);
+                }
+            }
+            if result.success {
+                Ok(())
+            } else {
+                Err(CliError::usage(result.message))
+            }
+        }
+    }
+}
+
+fn print_health(response: &HealthResponseDto) {
+    println!(
+        "{} \"{}\" — overall: {}",
+        response.server_type, response.server_name, response.overall_severity
+    );
+    for card in &response.cards {
+        println!(
+            "  [{}] {}: {}",
+            card.severity,
+            card.title,
+            card.detail.as_deref().unwrap_or("")
+        );
+    }
+    if let Some(note) = &response.note {
+        println!("note: {note}");
+    }
+}
+
+fn print_health_problems(response: &HealthProblemsResponseDto) {
+    if response.problems.is_empty() {
+        println!("No startup problems.");
+        return;
+    }
+    for problem in &response.problems {
+        println!(
+            "{} [{}] {} — {}",
+            problem.id, problem.kind_title, problem.offender_name, problem.raw_excerpt
+        );
+        if !problem.available_actions.is_empty() {
+            println!("  actions: {}", problem.available_actions.join(", "));
+        }
     }
 }
 

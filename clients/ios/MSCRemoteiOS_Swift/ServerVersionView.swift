@@ -330,32 +330,37 @@ struct ServerVersionView: View {
         guard let entry = selectedEntry,
               let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
         isApplying = true
-        let result = await vm.changeVersion(baseURL: baseURL, token: token, entry: entry)
+        let outcome = await vm.changeVersion(baseURL: baseURL, token: token, entry: entry)
         isApplying = false
 
-        if let result {
-            if result.success {
-                didChange = true
-                showToast("Applied — restart the server to load the new version.")
-                scheduleAutoDismiss()
-            } else {
-                switch result.message {
-                case "server_running":
-                    showToast("Stop the server before changing versions.")
-                case "download_in_progress":
-                    showToast("A download is already in progress. Try again in a moment.")
-                case "no_active_server":
-                    showToast("No active server selected.")
-                case "backup_failed":
-                    showToast("Pre-downgrade backup failed. Resolve the backup issue on your Mac and try again.")
-                default:
-                    showToast(result.message)
-                }
-            }
-        } else {
-            // Inconclusive — the request timed out but the install may still be running on the Mac.
+        switch outcome {
+        case .succeeded:
             didChange = true
-            showToast("This is taking a while — check Components to confirm it landed, then restart.")
+            showToast("Applied — restart the server to load the new version.")
+            scheduleAutoDismiss()
+        case .refused(let code, let message):
+            // Refused synchronously (`server_running`/`download_in_progress`/
+            // `no_active_server`/`not_supported`) or the operation itself
+            // ended in `.failed`/`.cancelled` — `code` is `ErrorDTO.code`
+            // in the former case, nil in the latter (an operation failure
+            // has no equivalent typed code today).
+            switch code {
+            case "server_running":
+                showToast("Stop the server before changing versions.")
+            case "download_in_progress":
+                showToast("A download is already in progress. Try again in a moment.")
+            case "no_active_server":
+                showToast("No active server selected.")
+            case "not_supported":
+                showToast("This server's flavor doesn't support version changes.")
+            default:
+                showToast(message)
+            }
+        case .inconclusive:
+            // The request or the follow-up operation poll timed out, but
+            // the change may still be running or have completed on the agent.
+            didChange = true
+            showToast("This is taking a while — check back to confirm it landed, then restart.")
             scheduleAutoDismiss()
         }
     }

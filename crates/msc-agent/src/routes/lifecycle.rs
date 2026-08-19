@@ -535,6 +535,87 @@ impl LifecycleRoutesState {
         self.inner.operations.clone()
     }
 
+    /// The real, platform-selected `ProcessSupervisor` this agent starts
+    /// Java servers with — needed by Phase 7's provisioning routes
+    /// (`routes/servers.rs`) to run a Forge/NeoForge installer as a real
+    /// supervised subprocess, the same handle `LifecycleService` itself
+    /// already runs against.
+    pub fn process_supervisor(&self) -> &'static (dyn ProcessSupervisor + Send + Sync) {
+        self.inner.process
+    }
+
+    /// The full application config, cloned — Phase 7's provisioning/
+    /// version/template/java-runtime routes read `paper_template_dir`/
+    /// `plugin_template_dir`/`java_path`/`save_downloaded_jars`/
+    /// `default_banner_color_hex` off it directly rather than this type
+    /// growing one accessor per field.
+    pub fn app_config_snapshot(&self) -> AppConfig {
+        self.inner.app_config.snapshot()
+    }
+
+    /// Applies `update` to the durable `AppConfig` and persists it,
+    /// exactly like [`AgentAppConfigStore::mutate`] but for a caller
+    /// whose own mutation can itself fail (delete/rename/version-change/
+    /// RAM edits — every non-import fleet mutation this phase adds) —
+    /// see [`TryMutateError`]'s own doc for why a failed `update` never
+    /// reaches the save step at all.
+    pub fn try_mutate_config<T, E>(
+        &self,
+        update: impl FnOnce(&mut AppConfig) -> Result<T, E>,
+    ) -> Result<T, TryMutateError<E>> {
+        self.inner.app_config.try_mutate(update)
+    }
+
+    /// `fleet::delete_server` plus the bookkeeping the domain function
+    /// itself can't see: the running-server guard (this type's own
+    /// `active_server_id`/`status_snapshot`, not `AppConfig`'s), removing
+    /// the deleted id from the live reconciliation map, and re-selecting
+    /// whichever server `AppConfig.active_server_id` now names, if any.
+    ///
+    /// **Known gap, not silently worked around:** when the deleted server
+    /// was the *only* server, `fleet::delete_server` correctly leaves
+    /// `AppConfig.active_server_id` as `None`, but `LifecycleService`
+    /// (Phase 4) has no "deselect" primitive — only `select_active_server`
+    /// — so its own in-memory active pointer keeps naming the now-deleted
+    /// id until the next real selection. `AgentServerRegistry::get` looks
+    /// up fresh from `AppConfig` on every call, so this degrades to a
+    /// "not found" style failure rather than a crash, but a real deselect
+    /// primitive belongs to whichever later step touches `lifecycle.rs`
+    /// (Phase 4's `LifecycleService`) next.
+    pub fn delete_fleet_server(
+        &self,
+        server_id: &str,
+    ) -> Result<
+        msc_application::fleet::DeletedServer,
+        TryMutateError<msc_application::fleet::DeleteServerError>,
+    > {
+        let is_active_and_running =
+            self.active_server_id().as_deref() == Some(server_id) && self.status_snapshot().running;
+        let deleted = self.inner.app_config.try_mutate(|config| {
+            msc_application::fleet::delete_server(
+                &StdFileSystem,
+                config,
+                server_id,
+                is_active_and_running,
+            )
+        })?;
+        self.inner.reconciliation.lock().unwrap().remove(server_id);
+        if let Some(new_active) = &deleted.new_active_server_id {
+            let _ = self.select_active_server(new_active.clone());
+        }
+        Ok(deleted)
+    }
+
+    pub fn rename_fleet_server(
+        &self,
+        server_id: &str,
+        new_name: &str,
+    ) -> Result<(), TryMutateError<msc_application::fleet::RenameServerError>> {
+        self.inner
+            .app_config
+            .try_mutate(|config| msc_application::fleet::rename_server(config, server_id, new_name))
+    }
+
     /// See [`AgentConsoleSink`] / `ConsoleState::recent_lines` — the
     /// production `BackupConsole`'s read half.
     pub fn recent_console_lines(&self, count: usize) -> Vec<ConsoleLine> {
@@ -1149,6 +1230,41 @@ impl AgentAppConfigStore {
         }
         Ok(())
     }
+
+    /// [`Self::mutate`]'s fallible sibling: `update` gets a chance to
+    /// refuse before anything is saved (or even left mutated) — a
+    /// `DeleteServerError::ServerNotFound`, for instance, must never
+    /// reach `save_app_config` with a half-applied change sitting in the
+    /// guard. On `Ok`, behaves exactly like `mutate` (save, roll back the
+    /// in-memory guard on a save failure); on `Err`, the guard is rolled
+    /// back to `previous` and nothing is ever written to disk.
+    fn try_mutate<T, E>(
+        &self,
+        update: impl FnOnce(&mut AppConfig) -> Result<T, E>,
+    ) -> Result<T, TryMutateError<E>> {
+        let mut guard = self.config.lock().unwrap();
+        let previous = guard.clone();
+        match update(&mut guard) {
+            Ok(value) => {
+                if let Err(error) = save_app_config(self.fs, &self.path, &guard) {
+                    *guard = previous;
+                    return Err(TryMutateError::Save(AgentAppConfigError::from(error)));
+                }
+                Ok(value)
+            }
+            Err(domain_error) => {
+                *guard = previous;
+                Err(TryMutateError::Domain(domain_error))
+            }
+        }
+    }
+}
+
+/// See [`AgentAppConfigStore::try_mutate`].
+#[derive(Debug)]
+pub enum TryMutateError<E> {
+    Domain(E),
+    Save(AgentAppConfigError),
 }
 
 impl From<AppConfigLoadError> for AgentAppConfigError {

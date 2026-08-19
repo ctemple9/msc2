@@ -1,0 +1,120 @@
+//! P7.23: `ServerCreateRequestDTO`/`ServerCreateResultDTO`,
+//! `ServerDeleteRequestDTO`/`ServerDeleteResultDTO`,
+//! `ServerRenameRequestDTO`/`ServerRenameResultDTO`,
+//! `ServerEULARequestDTO`/`ServerEULAResultDTO` — `openapi.json`'s frozen
+//! shapes for `POST /v1/servers/create|delete|rename|eula`.
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerCreateRequestDto {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub java_flavor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub port: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_players: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_cross_play: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cross_play_bedrock_port: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_playit: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_xbox_broadcast: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub difficulty: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gamemode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_seed: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minecraft_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loader_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accept_eula: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bedrock_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub docker_image: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub java_path: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerCreateResultDto {
+    pub success: bool,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub warnings: Option<Vec<String>>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerDeleteRequestDto {
+    pub server_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerDeleteResultDto {
+    pub success: bool,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerRenameRequestDto {
+    pub server_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerRenameResultDto {
+    pub success: bool,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
+/// `serverId` is optional in the wire schema, but the real route treats
+/// an absent/empty one as `missing_server_id` — see `openapi.json`'s own
+/// `x-notes` on this DTO.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerEulaRequestDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerEulaResultDto {
+    pub success: bool,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accepted: Option<bool>,
+}

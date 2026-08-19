@@ -10,4 +10,6 @@ pub mod performance;
 pub mod servers;
 pub mod settings;
 pub mod status;
+pub mod templates;
+pub mod versions;
 pub mod worlds;

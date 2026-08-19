@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 #[cfg(test)]
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
@@ -13,26 +13,33 @@ use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
-    PermissionCategoryDto, ServerDto, ServerImportRequestDto, ServerImportResultDto,
-    ServerImportScanResponseDto, ServerImportWorldDto,
+    PermissionCategoryDto, ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto,
+    ServerDeleteResultDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
+    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
+    ServerImportWorldDto, ServerRenameRequestDto, ServerRenameResultDto,
 };
+use msc_application::fleet::{self, AcceptEulaError, DeleteServerError, RenameServerError};
 use msc_application::import::{
     DetectedWorld, RawImportError, RawImportOverrides, RawImportRequest, RawImportSource,
     ScannedServerInfo, StdRawImportFileSystem, import_raw_server, rescan_and_import_servers,
     scan_server_directory, scan_zip_source,
 };
+use msc_application::provisioning::{self, CreateServerError, NewServerRequest, WorldSource};
 use msc_application::transfer::{
     TransferApplyRequest, TransferApplyResult, TransferExportRequest, TransferExportServerInput,
     TransferInspection, apply_transfer_import, export_server_transfer, inspect_transfer_package,
 };
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
-use msc_domain::identity::ServerType;
+use msc_domain::identity::{JavaServerFlavor, ServerProvisioningKind, ServerType};
 use msc_domain::operation::OperationId;
+use msc_infrastructure::fs::{FileSystem, StdFileSystem};
+use msc_infrastructure::jar_provider::HttpTransport;
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
-    LifecycleRoutesState, error_response, invalid_body, require_permission,
+    LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
+use crate::routes::operations::operation_error_response;
 
 pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerDto>> {
     let servers: Vec<ServerDto> = state
@@ -1090,6 +1097,499 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     (y, m, d)
 }
 
+// ---------- P7.23: POST /v1/servers/create ----------
+//
+// MSC 1's own `handleCreateServer` blocks the HTTP connection until
+// `createServerProvider` fully returns — real minutes for a Forge/
+// NeoForge install-step create (P7.3's captured installer runs).
+// `openapi.json`'s own P7.9 `x-notes` on this route corrects that under
+// D-006's "correction" clause: this handler validates synchronously
+// (name/type/flavor, the Bedrock refusal, and a cheap pre-admission
+// folder-collision check), admits a `"server-create"` operation, and
+// returns 200 immediately with that `operationId` — the real jar
+// download/install/world-slot work runs in the background, and only the
+// operation's own terminal result carries the real `serverId`.
+//
+// **Correction to `openapi.json`'s own `x-notes`**, recorded rather than
+// silently applied: that note describes `serverId` as "known
+// synchronously... folder derivation is a pure function of the trimmed
+// name." The *folder name* genuinely is (`folder_name_from_safe_name`,
+// used below for the pre-admission collision check and the operation's
+// own exclusivity target) — but the *id* on `ConfigServer` is a fresh
+// `Uuid::new_v4()` minted deep inside `finish_server_creation`
+// (`msc_domain::provisioning::new_server_config_fields`), not a
+// deterministic function of anything the route has before the operation
+// runs. This handler follows the same "id arrives on the terminal
+// result" shape `POST /v1/servers/import` already established (P5.17)
+// rather than inventing a pre-assigned id scheme no other creation path
+// in this codebase uses.
+const INSTALLER_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+
+/// The six create-flow flavors this route accepts — `families/
+/// phase7-scope.md`'s own boundary, already enforced upstream by
+/// `create_flow_choices`/`filter_to_create_flow_floor` for version
+/// listing; this is the same filter applied to the flavor a create
+/// *request* names, since Pufferfish/Spigot/Quilt parse fine as a
+/// `JavaServerFlavor` but were never offered by MSC 1's own create flow
+/// (`isAvailableInCreateFlow`).
+pub(crate) fn is_create_flow_flavor(flavor: JavaServerFlavor) -> bool {
+    !matches!(
+        flavor,
+        JavaServerFlavor::Pufferfish | JavaServerFlavor::Spigot | JavaServerFlavor::Quilt
+    )
+}
+
+pub async fn create(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerCreateRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+
+    let Some(safe_name) = msc_domain::provisioning::trimmed_server_name(&body.name) else {
+        return invalid_body("name_required", "name is required.");
+    };
+
+    let server_type = match body.server_type.as_deref().map(str::trim) {
+        None | Some("") => ServerType::Java,
+        Some(raw) => match ServerType::from_raw_value(raw) {
+            Some(server_type) => server_type,
+            None => {
+                return invalid_body("invalid_server_type", "serverType must be java or bedrock.");
+            }
+        },
+    };
+    if server_type == ServerType::Bedrock {
+        return error_response(
+            StatusCode::CONFLICT,
+            "capability_unavailable",
+            "Bedrock server creation is not available until Phase 10.",
+        );
+    }
+
+    let flavor = match body.java_flavor.as_deref().map(str::trim) {
+        None | Some("") => JavaServerFlavor::Paper,
+        Some(raw) => {
+            match JavaServerFlavor::from_raw_value(raw).filter(|f| is_create_flow_flavor(*f)) {
+                Some(flavor) => flavor,
+                None => {
+                    return invalid_body(
+                        "invalid_java_flavor",
+                        "javaFlavor must be one of paper, purpur, vanilla, fabric, neoforge, forge.",
+                    );
+                }
+            }
+        }
+    };
+
+    let port: u16 = match body.port.unwrap_or(25565).try_into() {
+        Ok(port) => port,
+        Err(_) => return invalid_body("invalid_body", "port must be between 0 and 65535."),
+    };
+    let cross_play_bedrock_port = body
+        .cross_play_bedrock_port
+        .and_then(|port| u16::try_from(port).ok());
+
+    let cfg = state.app_config_snapshot();
+    let servers_root = state.servers_root();
+    let folder_name = msc_domain::provisioning::folder_name_from_safe_name(&safe_name);
+    let new_dir = servers_root.join("java").join(&folder_name);
+    if StdFileSystem.stat(&new_dir).is_ok() {
+        return error_response(
+            StatusCode::CONFLICT,
+            "create_failed",
+            &format!("A server folder named \"{folder_name}\" already exists."),
+        );
+    }
+
+    let operation_id = match state.operations().begin_lifecycle(
+        "server-create",
+        Some(folder_name),
+        "Creating server.",
+    ) {
+        Ok(id) => id,
+        Err(error) => return operation_error_response(error),
+    };
+
+    let difficulty = body.difficulty.clone().unwrap_or_default();
+    let gamemode = body.gamemode.clone().unwrap_or_default();
+    let world_seed = body.world_seed.clone();
+    let initial_world_name = body.world_name.clone();
+    let enable_cross_play = body.enable_cross_play.unwrap_or(false);
+    let enable_playit = body.enable_playit.unwrap_or(false);
+    let enable_xbox_broadcast = body.enable_xbox_broadcast.unwrap_or(false);
+    let java_path = body
+        .java_path
+        .clone()
+        .filter(|p| !p.trim().is_empty())
+        .unwrap_or_else(|| cfg.java_path.clone());
+    let accept_eula = body.accept_eula.unwrap_or(false);
+    let save_downloaded_jars = cfg.save_downloaded_jars;
+    let default_banner_color_hex = cfg.default_banner_color_hex.clone().unwrap_or_default();
+    let home_dir = agent_home_dir();
+    let paper_template_dir = PathBuf::from(&cfg.paper_template_dir);
+    let plugin_template_dir = PathBuf::from(&cfg.plugin_template_dir);
+    let response_server_name = safe_name.clone();
+
+    let worker_state = state.clone();
+    let worker_operation_id = operation_id.clone();
+    tokio::spawn(async move {
+        let failure_state = worker_state.clone();
+        let failure_operation_id = worker_operation_id.clone();
+        if let Err(error) = tokio::task::spawn_blocking(move || {
+            run_create_server(
+                worker_state,
+                worker_operation_id,
+                safe_name,
+                flavor,
+                port,
+                enable_cross_play,
+                cross_play_bedrock_port,
+                enable_playit,
+                enable_xbox_broadcast,
+                difficulty,
+                gamemode,
+                world_seed,
+                initial_world_name,
+                save_downloaded_jars,
+                default_banner_color_hex,
+                java_path,
+                accept_eula,
+                home_dir,
+                servers_root,
+                paper_template_dir,
+                plugin_template_dir,
+            )
+        })
+        .await
+        {
+            let _ = failure_state.finish_operation_failure(
+                &failure_operation_id,
+                "background_worker_failed",
+                error.to_string(),
+            );
+        }
+    });
+
+    Json(ServerCreateResultDto {
+        success: true,
+        message: "Server creation started.".to_string(),
+        operation_id: Some(operation_id.as_str().to_string()),
+        server_id: None,
+        server_name: Some(response_server_name),
+        warnings: None,
+    })
+    .into_response()
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_create_server(
+    state: LifecycleRoutesState,
+    operation_id: OperationId,
+    safe_name: String,
+    flavor: JavaServerFlavor,
+    port: u16,
+    enable_cross_play: bool,
+    cross_play_bedrock_port: Option<u16>,
+    enable_playit: bool,
+    enable_xbox_broadcast: bool,
+    difficulty: String,
+    gamemode: String,
+    world_seed: Option<String>,
+    initial_world_name: Option<String>,
+    save_downloaded_jars: bool,
+    default_banner_color_hex: String,
+    java_path: String,
+    accept_eula: bool,
+    home_dir: PathBuf,
+    servers_root: PathBuf,
+    paper_template_dir: PathBuf,
+    plugin_template_dir: PathBuf,
+) {
+    let should_cancel = state.operations().cancellation_check(&operation_id);
+    if should_cancel() {
+        let _ = state.operations().cancel(
+            &operation_id,
+            "Server creation cancelled before it started.",
+        );
+        return;
+    }
+    let now = iso8601_now();
+    let request = NewServerRequest {
+        name: &safe_name,
+        initial_world_name: initial_world_name.as_deref(),
+        flavor,
+        port,
+        enable_cross_play,
+        cross_play_bedrock_port,
+        enable_playit,
+        enable_xbox_broadcast,
+        difficulty: &difficulty,
+        gamemode: &gamemode,
+        world_seed: world_seed.as_deref(),
+        world_source: WorldSource::Fresh,
+        save_downloaded_jars,
+        default_banner_color_hex: &default_banner_color_hex,
+    };
+    let transport = HttpTransport::new();
+
+    let result = if flavor.provisioning_kind() == ServerProvisioningKind::InstallStep {
+        provisioning::create_install_step_server(
+            &StdFileSystem,
+            &transport,
+            state.process_supervisor(),
+            &home_dir,
+            &servers_root,
+            &plugin_template_dir,
+            &request,
+            &java_path,
+            INSTALLER_TIMEOUT,
+            &now,
+            &should_cancel,
+            |_stream, _bytes| {},
+            provisioning::real_unzip_world_backup,
+            provisioning::real_copy_existing_world_folder,
+        )
+    } else {
+        provisioning::create_download_and_go_server(
+            &StdFileSystem,
+            &transport,
+            &home_dir,
+            &servers_root,
+            &paper_template_dir,
+            &plugin_template_dir,
+            &request,
+            &now,
+            provisioning::real_unzip_world_backup,
+            provisioning::real_copy_existing_world_folder,
+        )
+    };
+
+    match result {
+        Ok(created) => {
+            let server_id = created.config.id.clone();
+            let server_name = created.config.display_name.clone();
+            let is_java = created.config.server_type == ServerType::Java;
+            match state.register_imported_config_servers(vec![created.config], false) {
+                Ok(statuses) => {
+                    let ready = statuses.iter().any(|(id, status)| {
+                        id == &server_id
+                            && matches!(
+                                status,
+                                crate::routes::lifecycle::ReconciliationStatus::Ready
+                            )
+                    });
+                    if accept_eula {
+                        let _ = fleet::accept_eula(
+                            &StdFileSystem,
+                            &state.app_config_snapshot(),
+                            &server_id,
+                        );
+                    }
+                    if is_java && ready {
+                        let _ = state.select_active_server(server_id.clone());
+                    }
+                    let mut result_map = BTreeMap::new();
+                    result_map.insert("serverId".to_string(), server_id);
+                    result_map.insert("serverName".to_string(), server_name.clone());
+                    result_map.insert("ready".to_string(), ready.to_string());
+                    let _ = state.finish_operation_success(
+                        &operation_id,
+                        &format!("Created {} server \"{server_name}\".", flavor.raw_value()),
+                        result_map,
+                    );
+                }
+                Err(error) => {
+                    let _ = state.finish_operation_failure(
+                        &operation_id,
+                        "internal_error",
+                        error.to_string(),
+                    );
+                }
+            }
+        }
+        Err(error) => {
+            let _ = state.finish_operation_failure(
+                &operation_id,
+                create_server_error_code(&error),
+                error.to_string(),
+            );
+        }
+    }
+}
+
+fn create_server_error_code(error: &CreateServerError) -> &'static str {
+    match error {
+        CreateServerError::EmptyName => "name_required",
+        CreateServerError::Cancelled => "cancelled",
+        _ => "create_failed",
+    }
+}
+
+// ---------- P7.23: POST /v1/servers/delete ----------
+
+pub async fn delete(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerDeleteRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body.server_id.trim().to_string();
+    if server_id.is_empty() {
+        return invalid_body("missing_server_id", "serverId is required.");
+    }
+
+    match state.delete_fleet_server(&server_id) {
+        Ok(deleted) => Json(ServerDeleteResultDto {
+            success: true,
+            message: format!("Deleted server \"{}\".", deleted.removed_display_name),
+            server_id: Some(server_id),
+        })
+        .into_response(),
+        Err(TryMutateError::Domain(error)) => delete_server_error_response(error),
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "delete_failed",
+            &error.to_string(),
+        ),
+    }
+}
+
+fn delete_server_error_response(error: DeleteServerError) -> Response {
+    match error {
+        DeleteServerError::EmptyServerId => {
+            invalid_body("missing_server_id", "serverId is required.")
+        }
+        DeleteServerError::ServerNotFound => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        ),
+        DeleteServerError::ServerRunning => {
+            error_response(StatusCode::CONFLICT, "server_running", "Server is running.")
+        }
+        DeleteServerError::DeleteFailed(io_error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "delete_failed",
+            &io_error.to_string(),
+        ),
+    }
+}
+
+// ---------- P7.23: POST /v1/servers/rename ----------
+
+pub async fn rename(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerRenameRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body.server_id.trim().to_string();
+    if server_id.is_empty() {
+        return invalid_body("missing_server_id", "serverId is required.");
+    }
+    if body.name.trim().is_empty() {
+        return invalid_body("name_required", "name is required.");
+    }
+
+    match state.rename_fleet_server(&server_id, &body.name) {
+        Ok(()) => Json(ServerRenameResultDto {
+            success: true,
+            message: "Server renamed.".to_string(),
+            server_id: Some(server_id),
+            name: Some(body.name.trim().to_string()),
+        })
+        .into_response(),
+        Err(TryMutateError::Domain(error)) => rename_server_error_response(error),
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
+    }
+}
+
+fn rename_server_error_response(error: RenameServerError) -> Response {
+    match error {
+        RenameServerError::EmptyServerId => {
+            invalid_body("missing_server_id", "serverId is required.")
+        }
+        RenameServerError::EmptyName => invalid_body("name_required", "name is required."),
+        RenameServerError::ServerNotFound => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        ),
+    }
+}
+
+// ---------- P7.23: POST /v1/servers/eula ----------
+
+pub async fn eula(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerEulaRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body
+        .server_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty());
+    let Some(server_id) = server_id else {
+        return invalid_body("missing_server_id", "serverId is required.");
+    };
+
+    let cfg = state.app_config_snapshot();
+    match fleet::accept_eula(&StdFileSystem, &cfg, server_id) {
+        Ok(()) => Json(ServerEulaResultDto {
+            success: true,
+            message: "EULA accepted.".to_string(),
+            server_id: Some(server_id.to_string()),
+            accepted: Some(true),
+        })
+        .into_response(),
+        Err(AcceptEulaError::ServerNotFound) => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        ),
+        Err(AcceptEulaError::UnsupportedServerType) => invalid_body(
+            "missing_server_id",
+            "EULA acceptance only applies to Java servers.",
+        ),
+        Err(AcceptEulaError::WriteFailed(io_error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "eula_write_failed",
+            &io_error.to_string(),
+        ),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2009,5 +2509,261 @@ mod tests {
             await_import(&restarted, call_import(&restarted, rescan_request()).await).await;
         assert_eq!(status, StatusCode::ACCEPTED);
         assert_eq!(operation_result_string(&second, "imported"), "0");
+    }
+
+    // ---------- P7.23: POST /v1/servers/create (synchronous validation) ----------
+    //
+    // The real jar-download/install path needs a fake `Transport` this
+    // route doesn't accept as an injectable parameter (it always builds a
+    // real `HttpTransport`, matching this phase's own "provisioning tests
+    // never touch the network... served by a fake provider" design that
+    // lives at the `msc-application`/`msc-infrastructure` layer instead —
+    // `crates/msc-application/tests/provisioning.rs` already covers that
+    // ground). These tests cover only the route's own synchronous
+    // validation, which runs and returns before any network call.
+
+    fn create_request(name: &str) -> ServerCreateRequestDto {
+        ServerCreateRequestDto {
+            name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    async fn call_create(state: &LifecycleRoutesState, body: ServerCreateRequestDto) -> Response {
+        create(
+            State(state.clone()),
+            Extension(transfer_credential()),
+            Ok(Json(body)),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn create_route_rejects_a_blank_name() {
+        let state = route_state();
+        let response = call_create(&state, create_request("   ")).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8(bytes.to_vec())
+                .unwrap()
+                .contains("name_required")
+        );
+    }
+
+    #[tokio::test]
+    async fn create_route_refuses_bedrock_with_capability_unavailable() {
+        let state = route_state();
+        let mut body = create_request("Bedrock Realm");
+        body.server_type = Some("bedrock".to_string());
+        let response = call_create(&state, body).await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8(bytes.to_vec())
+                .unwrap()
+                .contains("capability_unavailable")
+        );
+    }
+
+    #[tokio::test]
+    async fn create_route_rejects_a_flavor_outside_the_create_flow() {
+        let state = route_state();
+        let mut body = create_request("Spigot Realm");
+        body.java_flavor = Some("spigot".to_string());
+        let response = call_create(&state, body).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8(bytes.to_vec())
+                .unwrap()
+                .contains("invalid_java_flavor")
+        );
+    }
+
+    #[tokio::test]
+    async fn create_route_rejects_an_unrecognized_server_type() {
+        let state = route_state();
+        let mut body = create_request("Odd Realm");
+        body.server_type = Some("atari".to_string());
+        let response = call_create(&state, body).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        assert!(
+            String::from_utf8(bytes.to_vec())
+                .unwrap()
+                .contains("invalid_server_type")
+        );
+    }
+
+    // ---------- P7.23: POST /v1/servers/delete ----------
+
+    fn seeded_server(id: &str, dir: &Path) -> ConfigServer {
+        ConfigServer::new(
+            id,
+            format!("Server {id}"),
+            dir.to_string_lossy().into_owned(),
+            "",
+            2.0,
+            4.0,
+        )
+    }
+
+    async fn call_delete(state: &LifecycleRoutesState, server_id: &str) -> Response {
+        delete(
+            State(state.clone()),
+            Extension(transfer_credential()),
+            Ok(Json(ServerDeleteRequestDto {
+                server_id: server_id.to_string(),
+            })),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn delete_route_removes_a_registered_server() {
+        let state = route_state();
+        let dir = temp_dir("delete-route");
+        state
+            .register_imported_config_servers(vec![seeded_server("DEL-1", &dir)], false)
+            .unwrap();
+
+        let response = call_delete(&state, "DEL-1").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            !state.servers().iter().any(|s| s.id == "DEL-1"),
+            "deleted server should no longer be registered"
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_route_refuses_the_running_active_server() {
+        let state = route_state();
+        let dir = temp_dir("delete-route-running");
+        std::fs::write(dir.join("paper.jar"), b"fake jar").unwrap();
+        let mut server = seeded_server("DEL-2", &dir);
+        server.paper_jar_path = dir.join("paper.jar").to_string_lossy().into_owned();
+        state
+            .register_imported_config_servers(vec![server], false)
+            .unwrap();
+        state.select_active_server("DEL-2".to_string()).unwrap();
+        state.start_active_server().unwrap();
+
+        let response = call_delete(&state, "DEL-2").await;
+        assert_eq!(response.status(), StatusCode::CONFLICT);
+        assert!(
+            state.servers().iter().any(|s| s.id == "DEL-2"),
+            "a running server must not be deleted"
+        );
+    }
+
+    #[tokio::test]
+    async fn delete_route_reports_missing_server_id() {
+        let state = route_state();
+        let response = call_delete(&state, "").await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn delete_route_reports_server_not_found() {
+        let state = route_state();
+        let response = call_delete(&state, "does-not-exist").await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    // ---------- P7.23: POST /v1/servers/rename ----------
+
+    async fn call_rename(state: &LifecycleRoutesState, server_id: &str, name: &str) -> Response {
+        rename(
+            State(state.clone()),
+            Extension(transfer_credential()),
+            Ok(Json(ServerRenameRequestDto {
+                server_id: server_id.to_string(),
+                name: name.to_string(),
+            })),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn rename_route_updates_the_display_name() {
+        let state = route_state();
+        let dir = temp_dir("rename-route");
+        state
+            .register_imported_config_servers(vec![seeded_server("REN-1", &dir)], false)
+            .unwrap();
+
+        let response = call_rename(&state, "REN-1", "New Display Name").await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let renamed = state
+            .servers()
+            .into_iter()
+            .find(|s| s.id == "REN-1")
+            .unwrap();
+        assert_eq!(renamed.name, "New Display Name");
+    }
+
+    #[tokio::test]
+    async fn rename_route_rejects_a_blank_name() {
+        let state = route_state();
+        let dir = temp_dir("rename-route-blank");
+        state
+            .register_imported_config_servers(vec![seeded_server("REN-2", &dir)], false)
+            .unwrap();
+
+        let response = call_rename(&state, "REN-2", "   ").await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    // ---------- P7.23: POST /v1/servers/eula ----------
+
+    async fn call_eula(state: &LifecycleRoutesState, server_id: Option<&str>) -> Response {
+        eula(
+            State(state.clone()),
+            Extension(transfer_credential()),
+            Ok(Json(ServerEulaRequestDto {
+                server_id: server_id.map(str::to_string),
+            })),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn eula_route_writes_the_accepted_eula_file() {
+        let config_path = temp_dir("eula-route-config").join("server_config_swift.json");
+        let servers_root = temp_dir("eula-route-servers");
+        let server_dir = servers_root.join("java").join("eula-server");
+        std::fs::create_dir_all(&server_dir).unwrap();
+        let state = persistent_route_state(&config_path, &servers_root);
+        state
+            .register_imported_config_servers(vec![seeded_server("EULA-1", &server_dir)], false)
+            .unwrap();
+
+        let response = call_eula(&state, Some("EULA-1")).await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let written = std::fs::read_to_string(server_dir.join("eula.txt")).unwrap();
+        assert!(written.contains("eula=true"));
+    }
+
+    #[tokio::test]
+    async fn eula_route_reports_missing_server_id() {
+        let state = route_state();
+        let response = call_eula(&state, None).await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn eula_route_reports_server_not_found() {
+        let state = route_state();
+        let response = call_eula(&state, Some("does-not-exist")).await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 }

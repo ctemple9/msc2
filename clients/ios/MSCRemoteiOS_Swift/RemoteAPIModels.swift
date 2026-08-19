@@ -159,6 +159,13 @@ struct ServerDeleteResultDTO: Codable, Equatable {
 struct ServerCreateResultDTO: Codable, Equatable {
     let success: Bool
     let message: String
+    /// Populated on every successful create (P7.9's own correction to
+    /// MSC 1's blocking-connection behavior: the response returns before
+    /// the real jar download/install finishes) — poll
+    /// `pollOperationToTerminal(id:)` for the real `serverId` and any
+    /// failure, matching this same field's role on
+    /// `ServerImportResultDTO`.
+    let operationId: String?
     let serverId: String?
     let serverName: String?
     let warnings: [String]?
@@ -1127,6 +1134,14 @@ struct VersionChangeResultDTO: Codable, Equatable {
     let success: Bool
     let message: String
     let requiresRestart: Bool
+    /// Populated on every successful change (same P7.9 correction as
+    /// `ServerCreateResultDTO.operationId`) — poll
+    /// `pollOperationToTerminal(id:)` for the real outcome; a
+    /// `server_running`/`download_in_progress`/`no_active_server`
+    /// refusal never reaches this struct at all under the frozen
+    /// contract — it's a thrown `RemoteAPIError.httpStatus` with that
+    /// code instead (see that case's own doc).
+    let operationId: String?
 }
 
 // MARK: - Playit tunnel (P12)

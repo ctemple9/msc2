@@ -5,9 +5,26 @@ enum RemoteAPIError: LocalizedError {
     case insecureHTTPNotAllowed
     case insecureWebSocketNotAllowed
     case missingToken
-    case httpStatus(Int, String?)
+    /// `apiCode` is `ErrorDTO.code` (`"server_running"`, `"download_in_progress"`,
+    /// `"no_active_server"`, ...) when the body decoded as one — P7.26's own
+    /// finding: `ServerVersionView.applySelected()` already branches on
+    /// exactly these code strings (a pre-existing MSC 1-era assumption that
+    /// they'd arrive in a *successful* `VersionChangeResultDTO.message*),
+    /// but the frozen Phase 7 contract returns them as typed HTTP error
+    /// statuses instead (`openapi.json`'s own 409/429 responses) — this
+    /// case is what actually carries that code across the wire boundary
+    /// now, previously discarded entirely by `bestEffortErrorMessage`.
+    case httpStatus(Int, code: String?, message: String?)
     case decodingFailed
     case network(String)
+
+    /// Convenience accessor for `.httpStatus`'s `code` — the vocabulary a
+    /// caller wants to switch on (`"server_running"`, `"download_in_progress"`,
+    /// ...), never present for any other case.
+    var apiErrorCode: String? {
+        if case .httpStatus(_, let code, _) = self { return code }
+        return nil
+    }
 
     var errorDescription: String? {
         switch self {
@@ -19,9 +36,9 @@ enum RemoteAPIError: LocalizedError {
             return "Blocked: WS is only allowed for local/private addresses. Use LAN/VPN or WSS."
         case .missingToken:
             return "Token is missing."
-        case .httpStatus(let code, let body):
-            if let body, !body.isEmpty {
-                return "HTTP \(code): \(body)"
+        case .httpStatus(let code, _, let message):
+            if let message, !message.isEmpty {
+                return "HTTP \(code): \(message)"
             }
             return "HTTP \(code)."
         case .decodingFailed:
@@ -1132,7 +1149,8 @@ final class RemoteAPIClient {
 
             guard (200...299).contains(http.statusCode) else {
                 let body = bestEffortErrorMessage(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, body)
+                let code = bestEffortErrorCode(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: code, message: body)
             }
 
             do {
@@ -1170,7 +1188,8 @@ final class RemoteAPIClient {
 
             guard (200...299).contains(http.statusCode) else {
                 let body = bestEffortErrorMessage(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, body)
+                let code = bestEffortErrorCode(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: code, message: body)
             }
 
             do {
@@ -1206,7 +1225,8 @@ final class RemoteAPIClient {
 
             guard (200...299).contains(http.statusCode) else {
                 let responseBody = bestEffortErrorMessage(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, responseBody)
+                let responseCode = bestEffortErrorCode(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: responseCode, message: responseBody)
             }
 
             do {
@@ -1238,7 +1258,8 @@ final class RemoteAPIClient {
 
             guard (200...299).contains(http.statusCode) else {
                 let responseBody = bestEffortErrorMessage(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, responseBody)
+                let responseCode = bestEffortErrorCode(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: responseCode, message: responseBody)
             }
 
             return data
@@ -1281,5 +1302,9 @@ final class RemoteAPIClient {
             return envelope.message
         }
         return String(data: data, encoding: .utf8)
+    }
+
+    private func bestEffortErrorCode(from data: Data) -> String? {
+        (try? JSONDecoder().decode(ErrorEnvelope.self, from: data))?.code
     }
 }

@@ -23,7 +23,7 @@ extension DashboardViewModel {
             performanceErrorMessage = nil
         } catch let err as RemoteAPIError {
             switch err {
-            case .httpStatus(let code, _):
+            case .httpStatus(let code, _, _):
                 if code == 404 {
                     performanceErrorMessage = "Performance endpoint not available yet. (Update macOS Remote API to support /performance.)"
                 } else {
@@ -43,7 +43,7 @@ extension DashboardViewModel {
             let result = try await requireClient().getPlayers()
             players = result
         } catch let err as RemoteAPIError {
-            if case .httpStatus(404, _) = err { return }
+            if case .httpStatus(404, _, _) = err { return }
         } catch {
         }
     }

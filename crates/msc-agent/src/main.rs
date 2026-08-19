@@ -76,10 +76,6 @@ pub(crate) fn build_app() -> Router {
     let secret_store = auth::production_secret_store()
         .unwrap_or_else(|error| panic!("failed to initialize production secret store: {error}"));
 
-    // GET /v1/health is the one route the dev-mode auth gate does not
-    // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
-    let public = Router::new().route("/health", get(routes::health::health));
-
     // Shared by the HTTP operation-lifecycle routes and the
     // operation-progress WebSocket route below — both must observe the
     // same in-memory map, not two independent ones.
@@ -110,6 +106,15 @@ pub(crate) fn build_app() -> Router {
         app_config,
         auth_state.clone(),
     );
+
+    // GET /v1/health is the one route the dev-mode auth gate does not
+    // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
+    // P7.24 replaces its Phase 2 canned card with real health-card data,
+    // which needs the same `LifecycleRoutesState` every protected route
+    // reads.
+    let public = Router::new()
+        .route("/health", get(routes::health::health))
+        .with_state(lifecycle_state.clone());
 
     // P6.17: one scheduled-backup timer per configured server, started
     // from whatever `auto_backup_*` settings exist at boot. Leaked
@@ -143,10 +148,18 @@ pub(crate) fn build_app() -> Router {
         lifecycle: lifecycle_state.clone(),
         scheduler: backup_scheduler,
     });
+    // P7.23: the template routes get their own small `Router` (matching
+    // `worlds`/`backups`'s own precedent) since `GET /v1/templates` needs
+    // no route param but does need `LifecycleRoutesState`.
+    let templates = routes::templates::router(lifecycle_state.clone());
 
     let lifecycle = Router::new()
         .route("/servers", get(routes::servers::list))
         .route("/servers/import", post(routes::servers::import))
+        .route("/servers/create", post(routes::servers::create))
+        .route("/servers/delete", post(routes::servers::delete))
+        .route("/servers/rename", post(routes::servers::rename))
+        .route("/servers/eula", post(routes::servers::eula))
         .route("/active-server", post(routes::lifecycle::active_server))
         .route("/start", post(routes::lifecycle::start))
         .route("/stop", post(routes::lifecycle::stop))
@@ -157,6 +170,31 @@ pub(crate) fn build_app() -> Router {
             "/settings",
             get(routes::settings::get_settings).post(routes::settings::update_settings),
         )
+        // P7.24: version, Java runtime, and diagnostics routes.
+        .route("/versions", get(routes::versions::versions))
+        .route(
+            "/versions/create",
+            get(routes::versions::versions_for_create),
+        )
+        .route(
+            "/components/version",
+            post(routes::versions::change_version),
+        )
+        .route("/java-runtimes", get(routes::versions::java_runtimes))
+        .route(
+            "/java-runtimes/install",
+            post(routes::versions::install_java_runtime),
+        )
+        .route(
+            "/config/java-runtime",
+            get(routes::versions::get_java_config).post(routes::versions::set_java_config),
+        )
+        .route(
+            "/config/ram",
+            get(routes::versions::get_ram_config).post(routes::versions::set_ram_config),
+        )
+        .route("/health/problems", get(routes::health::health_problems))
+        .route("/health/repair", post(routes::health::health_repair))
         .with_state(lifecycle_state);
 
     // Every other route this phase wires runs behind the SecretStore-backed
@@ -172,6 +210,7 @@ pub(crate) fn build_app() -> Router {
         .merge(console)
         .merge(worlds)
         .merge(backups)
+        .merge(templates)
         .route_layer(axum::middleware::from_fn_with_state(
             auth_state,
             auth::require_bearer_token,

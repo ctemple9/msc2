@@ -5,6 +5,7 @@ pub mod java_launch;
 pub mod lifecycle;
 pub mod operations;
 pub mod output_reducer;
+pub mod provisioning;
 pub mod status;
 pub mod transfer;
 pub mod world_conversion;

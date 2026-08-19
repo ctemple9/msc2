@@ -830,7 +830,7 @@ fn infer_java_level_name_from_zip(zip_path: &Path) -> Option<String> {
 /// not ported until P6.15 — but only this one field is ever read back
 /// out at this call site, so this reads it directly via
 /// `serde_json::Value` rather than waiting on that port).
-fn read_sidecar_world_seed(zip_path: &Path) -> Option<String> {
+pub(crate) fn read_sidecar_world_seed(zip_path: &Path) -> Option<String> {
     let sidecar = zip_path.with_extension("meta.json");
     let bytes = std::fs::read(sidecar).ok()?;
     let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
@@ -1003,7 +1003,7 @@ pub fn set_slot_thumbnail(
 /// both are plain `key=value` text files at this level, so one reader
 /// serves both server types (the type-specific halves never actually
 /// diverge in shape, only in which file they read).
-fn read_properties_map(fs: &dyn FileSystem, path: &Path) -> BTreeMap<String, String> {
+pub(crate) fn read_properties_map(fs: &dyn FileSystem, path: &Path) -> BTreeMap<String, String> {
     let Ok(bytes) = fs.read(path) else {
         return BTreeMap::new();
     };
@@ -1027,7 +1027,7 @@ fn read_properties_map(fs: &dyn FileSystem, path: &Path) -> BTreeMap<String, Str
 /// blank lines from the original file don't survive, matching both
 /// source functions exactly. Best-effort is the caller's choice, not
 /// this function's — it returns the write's real result.
-fn write_properties_map(
+pub(crate) fn write_properties_map(
     fs: &dyn FileSystem,
     path: &Path,
     props: &BTreeMap<String, String>,
@@ -1052,7 +1052,7 @@ pub struct WorldIdentity {
     pub apply_seed: bool,
 }
 
-fn apply_world_identity(
+pub(crate) fn apply_world_identity(
     fs: &dyn FileSystem,
     server_dir: &Path,
     identity: &WorldIdentity,

@@ -707,6 +707,7 @@ dependencies = [
 name = "msc-application"
 version = "0.1.0"
 dependencies = [
+ "flate2",
  "msc-domain",
  "msc-infrastructure",
  "serde",

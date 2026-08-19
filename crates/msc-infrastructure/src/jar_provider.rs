@@ -235,6 +235,53 @@ pub fn purpur_download_version(
         .map_err(JarProviderError::Staging)
 }
 
+/// `PurpurDownloader.downloadLatest`'s own raw fetch (`ServerJarProviders
+/// .swift:268-274`): the **unfiltered** `versions` string array, unlike
+/// [`purpur_list_versions`]'s already-`"1."`-filtered, sorted,
+/// `ServerVersionEntry` output. [`msc_domain::server_versions::
+/// purpur_pick_target_version`]'s Paper-alignment containment check runs
+/// against this raw list in MSC 1 (P7.17 needs this half of "download
+/// latest," which P7.13 didn't build — only Vanilla got a complete
+/// latest-composite there).
+pub fn purpur_raw_version_list(transport: &dyn Transport) -> Result<Vec<String>, JarProviderError> {
+    let bytes = transport.get(PURPUR_PROJECT_URL, "Purpur project", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Purpur project")?;
+    let root: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
+        JarProviderError::Network(format!("Purpur project response was not valid JSON: {e}"))
+    })?;
+    let versions = root
+        .get("versions")
+        .and_then(serde_json::Value::as_array)
+        .ok_or_else(|| JarProviderError::Network("Purpur versions list missing.".to_string()))?;
+    Ok(versions
+        .iter()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::to_string)
+        .collect())
+}
+
+/// `PurpurDownloader.downloadLatest`'s build-label lookup
+/// (`ServerJarProviders.swift:291-302`): `GET .../purpur/{version}`, then
+/// `builds.latest` — a present-but-malformed/missing field falls back to
+/// the literal `"latest"` (source's own `else` branch), but a transport
+/// failure still propagates, matching source's `try ensureOK` before the
+/// soft field read.
+pub fn purpur_latest_build_label(
+    transport: &dyn Transport,
+    version: &str,
+) -> Result<String, JarProviderError> {
+    let url = format!("https://api.purpurmc.org/v2/purpur/{version}");
+    let bytes = transport.get(&url, "Purpur version", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Purpur version")?;
+    let value: serde_json::Value = serde_json::from_str(&body).unwrap_or(serde_json::Value::Null);
+    Ok(value
+        .get("builds")
+        .and_then(|b| b.get("latest"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| "latest".to_string()))
+}
+
 // ---------------------------------------------------------------------
 // Paper
 // ---------------------------------------------------------------------
@@ -278,6 +325,24 @@ pub fn paper_fetch_available_versions(
         paper_select_build(transport, v, include_experimental)
     });
     Ok(outcome.results)
+}
+
+/// `PaperDownloader.downloadLatestPaper`/`fetchLatestMetadata`'s shared
+/// first step (`PaperDownloader.swift:114-120,151-157`):
+/// `fetchAvailableVersions(includeExperimental: false, limit: 1).first`,
+/// kept paired with the version string [`paper_fetch_available_versions`]
+/// itself discards (see that function's own doc) since both the create
+/// flow's Paper download and Purpur's Paper-alignment check need it.
+/// `Ok(None)` mirrors source's own "no stable Paper builds found" case,
+/// not a transport failure.
+pub fn paper_resolve_latest_stable(
+    transport: &dyn Transport,
+) -> Result<Option<(String, server_versions::PaperBuildSelection)>, JarProviderError> {
+    let candidates = paper_flatten_and_sort_versions(transport)?;
+    let outcome = server_versions::paper_walk_candidates(&candidates, 1, |v| {
+        paper_select_build(transport, v, false).map(|sel| (v.to_string(), sel))
+    });
+    Ok(outcome.results.into_iter().next())
 }
 
 /// Downloads the given build's jar for `version`. `paper_select_build`
@@ -342,6 +407,42 @@ pub fn fabric_list_versions(
     Ok(server_versions::fabric_list_versions(&body)?)
 }
 
+/// `FabricDownloader.downloadLatest`'s first hop
+/// (`ServerJarProviders.swift:427-428`): `firstStableVersion(from:
+/// ".../versions/game", ...)` — genuinely different from
+/// [`fabric_list_versions`]'s picker output (see that function's own doc):
+/// this reads the **raw**, unfiltered game list and falls back to index 0
+/// when nothing is marked stable, rather than returning an empty result.
+/// P7.13 didn't build this half of "download latest" — only Vanilla got a
+/// complete latest-composite there.
+pub fn fabric_latest_stable_game_version(
+    transport: &dyn Transport,
+) -> Result<String, JarProviderError> {
+    let bytes = transport.get(FABRIC_GAME_URL, "Fabric game versions", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Fabric game versions")?;
+    Ok(server_versions::fabric_first_stable_version(
+        &body,
+        "Fabric game",
+    )?)
+}
+
+/// The no-pinned-loader half of [`fabric_download_version`]
+/// (`ServerJarProviders.swift:481-492`), split out so a caller resolving
+/// "download latest" can learn the loader version it resolved to (needed
+/// for `ConfigServer.loaderVersion`/`recordLoaderVersion` — Fabric is a
+/// modded-category flavor) without a second, redundant loader-list fetch:
+/// pass the result back into [`fabric_download_version`] as its own
+/// `pinned_loader_version`.
+pub fn fabric_resolve_loader(
+    transport: &dyn Transport,
+    mc_version: &str,
+) -> Result<String, JarProviderError> {
+    let loader_url = format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}");
+    let bytes = transport.get(&loader_url, "Fabric loader", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Fabric loader")?;
+    Ok(server_versions::fabric_select_loader(&body)?)
+}
+
 pub fn fabric_download_version(
     transport: &dyn Transport,
     fs: &dyn FileSystem,
@@ -393,6 +494,23 @@ pub fn neoforge_list_version_pairs(
     )?;
     let xml = bytes_to_utf8(bytes, "NeoForge metadata")?;
     Ok(server_versions::neoforge_build_entries(&xml))
+}
+
+/// `NeoForgeInstaller.latestStableVersion`'s network hop
+/// (`NeoForgeInstaller.swift:200-220`), delegating selection to the
+/// already-ported `msc_domain::server_versions::neoforge_latest_stable`
+/// (P7.10). P7.13 built the raw metadata fetch/parse
+/// ([`neoforge_list_version_pairs`]) but not this single-"latest stable
+/// version" composite — P7.18 (install-step creation) is this
+/// function's first caller.
+pub fn neoforge_latest_stable(transport: &dyn Transport) -> Result<String, JarProviderError> {
+    let bytes = transport.get(
+        NEOFORGE_METADATA_URL,
+        "NeoForge metadata",
+        CATALOG_MAX_BYTES,
+    )?;
+    let xml = bytes_to_utf8(bytes, "NeoForge metadata")?;
+    Ok(server_versions::neoforge_latest_stable(&xml)?)
 }
 
 /// Downloads (not runs — that's P7.14's `loader_installer`) the NeoForge

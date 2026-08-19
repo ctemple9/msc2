@@ -15,6 +15,7 @@ use msc_api::dto::{ActiveServerRequestDto, ErrorDto, PermissionCategoryDto, Simp
 use msc_application::import::ImportedPaperServer;
 use msc_application::java_launch::{
     PaperLaunchRequest, StdJavaLaunchFileSystem, ValidatedJavaLaunch, build_paper_launch_command,
+    find_forge_args_file, find_neoforge_args_file, jvm_flags,
 };
 use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
@@ -23,7 +24,6 @@ use msc_application::lifecycle::{
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 use msc_application::transfer::TransferExportServerInput;
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
-#[cfg(test)]
 use msc_domain::identity::JavaServerFlavor;
 use msc_domain::identity::ServerType;
 use msc_domain::operation::OperationId;
@@ -1439,11 +1439,60 @@ pub fn error_response(status: StatusCode, code: &str, message: &str) -> Response
         .into_response()
 }
 
+/// Dispatches on `registered.java_flavor` for the launch shape the port
+/// plan's later-audit clause names: Forge/NeoForge run `@<args-file>
+/// nogui` against whichever installed-loader directory the installer
+/// actually produced (P7.14's `run_loader_installer` already wrote it;
+/// this rediscovers it the same way `run_loader_installer` verifies it
+/// right after the installer exits), every other flavor keeps the
+/// existing `-jar <jar> --nogui` Paper-shaped path unchanged --
+/// `registered.paper_jar_path` already holds each download-and-go
+/// flavor's real staged jar (always named `paper.jar` on disk per
+/// `create_download_and_go_server`, regardless of flavor), so this
+/// branch never needed flavor-specific handling in the first place.
 fn build_launch_request(registered: &ConfigServer) -> Result<ProcessSpawnRequest, LifecycleError> {
     let java_path = std::env::var("MSC2_JAVA_PATH").unwrap_or_else(|_| "java".to_string());
+    let server_dir = PathBuf::from(&registered.server_dir);
+
+    if matches!(
+        registered.java_flavor,
+        JavaServerFlavor::Forge | JavaServerFlavor::NeoForge
+    ) {
+        let args_file = match registered.java_flavor {
+            JavaServerFlavor::NeoForge => find_neoforge_args_file(
+                &StdFileSystem,
+                &server_dir,
+                registered.loader_version.as_deref(),
+            ),
+            JavaServerFlavor::Forge => find_forge_args_file(
+                &StdFileSystem,
+                &server_dir,
+                registered.minecraft_version.as_deref(),
+                registered.loader_version.as_deref(),
+            ),
+            _ => unreachable!("matched to Forge|NeoForge above"),
+        }
+        .ok_or_else(|| {
+            LifecycleError::Process(format!(
+                "{:?} args file not found. Run the server once inside MSC to complete installation.",
+                registered.java_flavor
+            ))
+        })?;
+
+        let mut arguments = jvm_flags(registered.min_ram_gb, registered.max_ram_gb, "");
+        arguments.push(format!("@{args_file}"));
+        arguments.push("nogui".to_string());
+        return Ok(ProcessSpawnRequest {
+            executable_path: PathBuf::from(java_path),
+            arguments,
+            working_directory: server_dir,
+            environment: Vec::new(),
+        });
+    }
+
     let request = PaperLaunchRequest::new(
         ValidatedJavaLaunch::new(java_path, Vec::<String>::new()),
-        PathBuf::from(&registered.server_dir),
+        server_dir,
         PathBuf::from(&registered.paper_jar_path),
         registered.min_ram_gb,
         registered.max_ram_gb,

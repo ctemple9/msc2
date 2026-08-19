@@ -40,6 +40,20 @@ use crate::fs::FileSystem;
 
 const USER_AGENT: &str = "MinecraftServerController/2.0 (msc2 agent)";
 
+/// Reads a provider host override for P7.27's portable smoke -- a local
+/// fake HTTP server serving `corpus/providers/` responses, with no real
+/// network reachable. Defaults to the real host every existing caller
+/// already hardcoded, so nothing about real provisioning changes unless
+/// the env var is actually set. An empty value is treated the same as
+/// unset (a smoke harness that sets `FOO=""` by accident should still
+/// get the real host, not an empty base that turns every URL relative).
+fn provider_base(env_var: &str, default: &str) -> String {
+    std::env::var(env_var)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| default.to_string())
+}
+
 /// Catalog/metadata responses (JSON or XML) are small — bound generously
 /// but well below what a runaway/malicious response could exhaust memory
 /// with.
@@ -179,13 +193,24 @@ impl Transport for HttpTransport {
 // Vanilla
 // ---------------------------------------------------------------------
 
-const VANILLA_MANIFEST_URL: &str =
-    "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json";
+fn vanilla_manifest_url() -> String {
+    format!(
+        "{}/mc/game/version_manifest_v2.json",
+        provider_base(
+            "MSC2_PROVIDER_VANILLA_BASE",
+            "https://launchermeta.mojang.com"
+        )
+    )
+}
 
 pub fn vanilla_list_versions(
     transport: &dyn Transport,
 ) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
-    let bytes = transport.get(VANILLA_MANIFEST_URL, "Mojang manifest", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(
+        &vanilla_manifest_url(),
+        "Mojang manifest",
+        CATALOG_MAX_BYTES,
+    )?;
     let manifest = bytes_to_utf8(bytes, "Mojang manifest")?;
     Ok(server_versions::vanilla_list_versions(&manifest)?)
 }
@@ -222,8 +247,11 @@ fn vanilla_download(
     pinned_release_id: Option<&str>,
     dest: &Path,
 ) -> Result<CachedFile, JarProviderError> {
-    let manifest_bytes =
-        transport.get(VANILLA_MANIFEST_URL, "Mojang manifest", CATALOG_MAX_BYTES)?;
+    let manifest_bytes = transport.get(
+        &vanilla_manifest_url(),
+        "Mojang manifest",
+        CATALOG_MAX_BYTES,
+    )?;
     let manifest = bytes_to_utf8(manifest_bytes, "Mojang manifest")?;
     let (release_id, meta_url) =
         server_versions::vanilla_resolve_metadata_url(&manifest, pinned_release_id)?;
@@ -241,12 +269,18 @@ fn vanilla_download(
 // Purpur
 // ---------------------------------------------------------------------
 
-const PURPUR_PROJECT_URL: &str = "https://api.purpurmc.org/v2/purpur";
+fn purpur_base() -> String {
+    provider_base("MSC2_PROVIDER_PURPUR_BASE", "https://api.purpurmc.org")
+}
+
+fn purpur_project_url() -> String {
+    format!("{}/v2/purpur", purpur_base())
+}
 
 pub fn purpur_list_versions(
     transport: &dyn Transport,
 ) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
-    let bytes = transport.get(PURPUR_PROJECT_URL, "Purpur project", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(&purpur_project_url(), "Purpur project", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Purpur project")?;
     Ok(server_versions::purpur_list_versions(&body)?)
 }
@@ -257,7 +291,7 @@ pub fn purpur_download_version(
     version: &str,
     dest: &Path,
 ) -> Result<CachedFile, JarProviderError> {
-    let dl_url = format!("https://api.purpurmc.org/v2/purpur/{version}/latest/download");
+    let dl_url = format!("{}/v2/purpur/{version}/latest/download", purpur_base());
     let jar_bytes = transport.get(&dl_url, "Purpur download", JAR_MAX_BYTES)?;
     download_staging::stage_download(fs, dest, &jar_bytes, &dl_url, version, None)
         .map_err(JarProviderError::Staging)
@@ -272,7 +306,7 @@ pub fn purpur_download_version(
 /// latest," which P7.13 didn't build — only Vanilla got a complete
 /// latest-composite there).
 pub fn purpur_raw_version_list(transport: &dyn Transport) -> Result<Vec<String>, JarProviderError> {
-    let bytes = transport.get(PURPUR_PROJECT_URL, "Purpur project", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(&purpur_project_url(), "Purpur project", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Purpur project")?;
     let root: serde_json::Value = serde_json::from_str(&body).map_err(|e| {
         JarProviderError::Network(format!("Purpur project response was not valid JSON: {e}"))
@@ -298,7 +332,7 @@ pub fn purpur_latest_build_label(
     transport: &dyn Transport,
     version: &str,
 ) -> Result<String, JarProviderError> {
-    let url = format!("https://api.purpurmc.org/v2/purpur/{version}");
+    let url = format!("{}/v2/purpur/{version}", purpur_base());
     let bytes = transport.get(&url, "Purpur version", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Purpur version")?;
     let value: serde_json::Value = serde_json::from_str(&body).unwrap_or(serde_json::Value::Null);
@@ -314,12 +348,17 @@ pub fn purpur_latest_build_label(
 // Paper
 // ---------------------------------------------------------------------
 
-const PAPER_PROJECT_URL: &str = "https://fill.papermc.io/v3/projects/paper";
+fn paper_project_url() -> String {
+    format!(
+        "{}/v3/projects/paper",
+        provider_base("MSC2_PROVIDER_PAPER_BASE", "https://fill.papermc.io")
+    )
+}
 
 pub fn paper_flatten_and_sort_versions(
     transport: &dyn Transport,
 ) -> Result<Vec<String>, JarProviderError> {
-    let bytes = transport.get(PAPER_PROJECT_URL, "Paper project v3", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(&paper_project_url(), "Paper project v3", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Paper project v3")?;
     Ok(server_versions::paper_flatten_and_sort(&body)?)
 }
@@ -332,7 +371,7 @@ pub fn paper_select_build(
     version: &str,
     include_experimental: bool,
 ) -> Option<server_versions::PaperBuildSelection> {
-    let url = format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds");
+    let url = format!("{}/versions/{version}/builds", paper_project_url());
     let bytes = transport
         .get(&url, "Paper builds", CATALOG_MAX_BYTES)
         .ok()?;
@@ -386,7 +425,7 @@ pub fn paper_download_build(
     build_id: i64,
     dest: &Path,
 ) -> Result<CachedFile, JarProviderError> {
-    let builds_url = format!("https://fill.papermc.io/v3/projects/paper/versions/{version}/builds");
+    let builds_url = format!("{}/versions/{version}/builds", paper_project_url());
     let bytes = transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Paper builds")?;
     let jar_url = paper_build_download_url(&body, build_id).ok_or_else(|| {
@@ -441,7 +480,7 @@ pub fn paper_download_pinned_version(
     version: &str,
     dest: &Path,
 ) -> Result<(CachedFile, i64), JarProviderError> {
-    let builds_url = format!("{PAPER_PROJECT_URL}/versions/{version}/builds");
+    let builds_url = format!("{}/versions/{version}/builds", paper_project_url());
     let bytes = transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Paper builds")?;
     let (build_id, jar_url) = paper_highest_build_any_channel(&body).ok_or_else(|| {
@@ -498,7 +537,7 @@ pub fn paper_list_versions_for_picker(
     let versions = paper_flatten_and_sort_versions(transport)?;
     let mut entries = Vec::with_capacity(versions.len());
     for version in &versions {
-        let builds_url = format!("{PAPER_PROJECT_URL}/versions/{version}/builds");
+        let builds_url = format!("{}/versions/{version}/builds", paper_project_url());
         let entry = match transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES) {
             Ok(bytes) => match bytes_to_utf8(bytes, "Paper builds") {
                 Ok(body) => server_versions::paper_version_entry_from_builds(version, &body),
@@ -520,13 +559,26 @@ pub fn paper_list_versions_for_picker(
 // Fabric
 // ---------------------------------------------------------------------
 
-const FABRIC_GAME_URL: &str = "https://meta.fabricmc.net/v2/versions/game";
-const FABRIC_INSTALLER_URL: &str = "https://meta.fabricmc.net/v2/versions/installer";
+fn fabric_base() -> String {
+    provider_base("MSC2_PROVIDER_FABRIC_BASE", "https://meta.fabricmc.net")
+}
+
+fn fabric_game_url() -> String {
+    format!("{}/v2/versions/game", fabric_base())
+}
+
+fn fabric_installer_url() -> String {
+    format!("{}/v2/versions/installer", fabric_base())
+}
 
 pub fn fabric_list_versions(
     transport: &dyn Transport,
 ) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
-    let bytes = transport.get(FABRIC_GAME_URL, "Fabric game versions", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(
+        &fabric_game_url(),
+        "Fabric game versions",
+        CATALOG_MAX_BYTES,
+    )?;
     let body = bytes_to_utf8(bytes, "Fabric game versions")?;
     Ok(server_versions::fabric_list_versions(&body)?)
 }
@@ -542,7 +594,11 @@ pub fn fabric_list_versions(
 pub fn fabric_latest_stable_game_version(
     transport: &dyn Transport,
 ) -> Result<String, JarProviderError> {
-    let bytes = transport.get(FABRIC_GAME_URL, "Fabric game versions", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(
+        &fabric_game_url(),
+        "Fabric game versions",
+        CATALOG_MAX_BYTES,
+    )?;
     let body = bytes_to_utf8(bytes, "Fabric game versions")?;
     Ok(server_versions::fabric_first_stable_version(
         &body,
@@ -561,7 +617,7 @@ pub fn fabric_resolve_loader(
     transport: &dyn Transport,
     mc_version: &str,
 ) -> Result<String, JarProviderError> {
-    let loader_url = format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}");
+    let loader_url = format!("{}/v2/versions/loader/{mc_version}", fabric_base());
     let bytes = transport.get(&loader_url, "Fabric loader", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Fabric loader")?;
     Ok(server_versions::fabric_select_loader(&body)?)
@@ -580,21 +636,25 @@ pub fn fabric_download_version(
     {
         Some(pinned) => pinned.to_string(),
         None => {
-            let loader_url = format!("https://meta.fabricmc.net/v2/versions/loader/{mc_version}");
+            let loader_url = format!("{}/v2/versions/loader/{mc_version}", fabric_base());
             let bytes = transport.get(&loader_url, "Fabric loader", CATALOG_MAX_BYTES)?;
             let body = bytes_to_utf8(bytes, "Fabric loader")?;
             server_versions::fabric_select_loader(&body)?
         }
     };
 
-    let installer_bytes =
-        transport.get(FABRIC_INSTALLER_URL, "Fabric installer", CATALOG_MAX_BYTES)?;
+    let installer_bytes = transport.get(
+        &fabric_installer_url(),
+        "Fabric installer",
+        CATALOG_MAX_BYTES,
+    )?;
     let installer_body = bytes_to_utf8(installer_bytes, "Fabric installer")?;
     let installer =
         server_versions::fabric_first_stable_version(&installer_body, "Fabric installer")?;
 
     let dl_url = format!(
-        "https://meta.fabricmc.net/v2/versions/loader/{mc_version}/{loader}/{installer}/server/jar"
+        "{}/v2/versions/loader/{mc_version}/{loader}/{installer}/server/jar",
+        fabric_base()
     );
     let jar_bytes = transport.get(&dl_url, "Fabric server jar", JAR_MAX_BYTES)?;
     download_staging::stage_download(fs, dest, &jar_bytes, &dl_url, mc_version, None)
@@ -605,14 +665,25 @@ pub fn fabric_download_version(
 // NeoForge
 // ---------------------------------------------------------------------
 
-const NEOFORGE_METADATA_URL: &str =
-    "https://maven.neoforged.net/releases/net/neoforged/neoforge/maven-metadata.xml";
+fn neoforge_maven_base() -> String {
+    provider_base(
+        "MSC2_PROVIDER_NEOFORGE_MAVEN_BASE",
+        "https://maven.neoforged.net",
+    )
+}
+
+fn neoforge_metadata_url() -> String {
+    format!(
+        "{}/releases/net/neoforged/neoforge/maven-metadata.xml",
+        neoforge_maven_base()
+    )
+}
 
 pub fn neoforge_list_version_pairs(
     transport: &dyn Transport,
 ) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
     let bytes = transport.get(
-        NEOFORGE_METADATA_URL,
+        &neoforge_metadata_url(),
         "NeoForge metadata",
         CATALOG_MAX_BYTES,
     )?;
@@ -629,7 +700,7 @@ pub fn neoforge_list_version_pairs(
 /// function's first caller.
 pub fn neoforge_latest_stable(transport: &dyn Transport) -> Result<String, JarProviderError> {
     let bytes = transport.get(
-        NEOFORGE_METADATA_URL,
+        &neoforge_metadata_url(),
         "NeoForge metadata",
         CATALOG_MAX_BYTES,
     )?;
@@ -646,7 +717,8 @@ pub fn neoforge_download_installer(
     dest: &Path,
 ) -> Result<CachedFile, JarProviderError> {
     let url = format!(
-        "https://maven.neoforged.net/releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar"
+        "{}/releases/net/neoforged/neoforge/{version}/neoforge-{version}-installer.jar",
+        neoforge_maven_base()
     );
     let bytes = transport.get(&url, "NeoForge installer download", JAR_MAX_BYTES)?;
     download_staging::stage_download(fs, dest, &bytes, &url, version, None)
@@ -657,15 +729,30 @@ pub fn neoforge_download_installer(
 // Forge
 // ---------------------------------------------------------------------
 
-const FORGE_METADATA_URL: &str =
-    "https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml";
-const FORGE_PROMOTIONS_URL: &str =
-    "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
+fn forge_metadata_url() -> String {
+    format!(
+        "{}/net/minecraftforge/forge/maven-metadata.xml",
+        provider_base(
+            "MSC2_PROVIDER_FORGE_MAVEN_BASE",
+            "https://maven.minecraftforge.net"
+        )
+    )
+}
+
+fn forge_promotions_url() -> String {
+    format!(
+        "{}/net/minecraftforge/forge/promotions_slim.json",
+        provider_base(
+            "MSC2_PROVIDER_FORGE_FILES_BASE",
+            "https://files.minecraftforge.net"
+        )
+    )
+}
 
 pub fn forge_list_version_pairs(
     transport: &dyn Transport,
 ) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
-    let bytes = transport.get(FORGE_METADATA_URL, "Forge metadata", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(&forge_metadata_url(), "Forge metadata", CATALOG_MAX_BYTES)?;
     let xml = bytes_to_utf8(bytes, "Forge metadata")?;
     Ok(server_versions::forge_parse_maven_metadata(&xml))
 }
@@ -673,7 +760,11 @@ pub fn forge_list_version_pairs(
 pub fn forge_latest_recommended(
     transport: &dyn Transport,
 ) -> Result<(String, String), JarProviderError> {
-    let bytes = transport.get(FORGE_PROMOTIONS_URL, "Forge promotions", CATALOG_MAX_BYTES)?;
+    let bytes = transport.get(
+        &forge_promotions_url(),
+        "Forge promotions",
+        CATALOG_MAX_BYTES,
+    )?;
     let body = bytes_to_utf8(bytes, "Forge promotions")?;
     Ok(server_versions::forge_latest_recommended(&body)?)
 }
@@ -688,7 +779,11 @@ pub fn forge_download_installer(
     dest: &Path,
 ) -> Result<CachedFile, JarProviderError> {
     let url = format!(
-        "https://maven.minecraftforge.net/net/minecraftforge/forge/{mc_version}-{forge_version}/forge-{mc_version}-{forge_version}-installer.jar"
+        "{}/net/minecraftforge/forge/{mc_version}-{forge_version}/forge-{mc_version}-{forge_version}-installer.jar",
+        provider_base(
+            "MSC2_PROVIDER_FORGE_MAVEN_BASE",
+            "https://maven.minecraftforge.net"
+        )
     );
     let version_label = format!("{mc_version}-{forge_version}");
     let bytes = transport.get(&url, "Forge installer download", JAR_MAX_BYTES)?;

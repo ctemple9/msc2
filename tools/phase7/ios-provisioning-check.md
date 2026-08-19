@@ -105,16 +105,18 @@ actually taps through it. **Cameron still needs to run that part** — see
   known version-change codes now are. Left as-is; a cosmetic improvement,
   not a correctness gap.
 - **The interactive walkthrough itself**: pairing, actually tapping
-  through create/version/health/repair against a live agent. See
-  "Preconditions" above.
+  through create/version/health/repair against a live agent. **Deliberately
+  deferred, not forgotten** — scheduled to run alongside P7.28 (real
+  provisioning, also a hands-on session on Cameron's own machine) rather
+  than on its own. See `rolling-plan.md`'s unnumbered "iOS manual
+  walkthrough" block right after P7.28's own entry for the checklist, the
+  reasoning for deferring it there, and where to record the result.
 
 ## Record
 
-When the manual walkthrough runs, add a short result note to
-`docs/msc2/rolling-plan.md` under P7.26:
-
-- device or simulator used
-- whether pair, create (both a download-and-go and, if feasible, a Forge/
-  NeoForge install-step family), version change, health cards, and health
-  repair all passed
+The checklist and the place to record results both live in
+`docs/msc2/rolling-plan.md`'s "iOS manual walkthrough" block (right after
+P7.28) — this file is the technical build/precondition reference, that one
+is the tracked plan. Don't duplicate the checklist here; if it drifts,
+`rolling-plan.md` is the authority.
 - any bug found, with the exact screen and action that exposed it

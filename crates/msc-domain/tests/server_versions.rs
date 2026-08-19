@@ -584,3 +584,49 @@ fn server_versions_create_flow_1_20_floor_filter_applies_to_catalog_not_import()
         .collect();
     assert_eq!(post_filter, expected);
 }
+
+// --- paper_version_entry_from_builds (P7.19: version-listing picker,
+// `ServerJarProviders.swift`'s `paperVersionEntryV3` -- no dedicated
+// P7.4 fixture exists for this one-pass stable-or-beta selector, so
+// these cases are inline rather than filler additions to a fixture
+// count this phase's own note warns against inventing. ---
+
+#[test]
+fn server_versions_paper_version_entry_from_builds_prefers_stable_over_beta() {
+    let raw = json!([
+        {"id": 66, "channel": "BETA", "downloads": {"server:default": {"url": "https://x/66.jar"}}},
+        {"id": 132, "channel": "STABLE", "downloads": {"server:default": {"url": "https://x/132.jar"}}},
+        {"id": 130, "channel": "STABLE", "downloads": {"server:default": {"url": "https://x/130.jar"}}},
+    ])
+    .to_string();
+    let entry = paper_version_entry_from_builds("1.21.11", &raw);
+    assert_eq!(entry.id, "1.21.11");
+    assert_eq!(entry.mc_version, "1.21.11");
+    assert_eq!(entry.build_label.as_deref(), Some("build 132"));
+    assert!(entry.is_stable);
+}
+
+#[test]
+fn server_versions_paper_version_entry_from_builds_falls_back_to_beta_when_no_stable() {
+    let raw = json!([
+        {"id": 48, "channel": "ALPHA", "downloads": {"server:default": {"url": "https://x/48.jar"}}},
+        {"id": 66, "channel": "BETA", "downloads": {"server:default": {"url": "https://x/66.jar"}}},
+    ])
+    .to_string();
+    let entry = paper_version_entry_from_builds("26.2", &raw);
+    assert_eq!(entry.build_label.as_deref(), Some("build 66 \u{b7} beta"));
+    assert!(!entry.is_stable);
+}
+
+#[test]
+fn server_versions_paper_version_entry_from_builds_no_recognized_build_is_dropped_shape() {
+    // Matches source's `guard let (data, _) = try? await ...` fallback and
+    // `entry.buildLabel != nil` filter: the *caller* drops this shape from
+    // the returned list, this function just produces it honestly.
+    let entry = paper_version_entry_from_builds("1.7.10", "not json");
+    assert_eq!(entry.build_label, None);
+    assert!(!entry.is_stable);
+
+    let entry_empty = paper_version_entry_from_builds("1.7.10", "[]");
+    assert_eq!(entry_empty.build_label, None);
+}

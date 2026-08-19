@@ -228,16 +228,25 @@ pub struct CreatedServer {
 }
 
 /// What a jar acquisition resolved to — mirrors `ServerJarDownloadResult`
-/// (`ServerJarProviders.swift:42-46`).
-struct ResolvedJar {
-    version: String,
-    build: String,
-    loader_version: Option<String>,
+/// (`ServerJarProviders.swift:42-46`). `pub(crate)`: [`download_flavor_jar`]
+/// is now a same-crate `pub(crate)` boundary too (P7.19's `server_versions`
+/// module is its second caller), and a `pub(crate)` function can't return
+/// a private type.
+pub(crate) struct ResolvedJar {
+    pub(crate) version: String,
+    pub(crate) build: String,
+    pub(crate) loader_version: Option<String>,
 }
 
 /// `initialWorldSlotName(forServerName:requestedWorldName:)`
-/// (`AppViewModel+ServerCreation.swift:18-24`).
-fn initial_world_slot_name(server_name: &str, requested_world_name: Option<&str>) -> String {
+/// (`AppViewModel+ServerCreation.swift:18-24`). `pub(crate)`: P7.21's
+/// `templates::create_server_from_template` needs the identical
+/// slot-name derivation for its own, jar-source-swapped call into
+/// [`finish_server_creation`].
+pub(crate) fn initial_world_slot_name(
+    server_name: &str,
+    requested_world_name: Option<&str>,
+) -> String {
     let requested_trimmed = requested_world_name.unwrap_or("").trim();
     if !requested_trimmed.is_empty() {
         return requested_trimmed.to_string();
@@ -251,8 +260,12 @@ fn initial_world_slot_name(server_name: &str, requested_world_name: Option<&str>
 }
 
 /// `normalizedInitialWorldSeed(_:worldSource:)` (line 26-30): `None` for
-/// every source but `.fresh`.
-fn normalized_initial_world_seed(seed: Option<&str>, world_source: &WorldSource) -> Option<String> {
+/// every source but `.fresh`. `pub(crate)` for the same P7.21 reuse
+/// reason as [`initial_world_slot_name`].
+pub(crate) fn normalized_initial_world_seed(
+    seed: Option<&str>,
+    world_source: &WorldSource,
+) -> Option<String> {
     if !matches!(world_source, WorldSource::Fresh) {
         return None;
     }
@@ -311,7 +324,10 @@ fn imported_metadata_from_zip(zip_path: &Path, server_type: ServerType) -> Impor
 /// failure here must never break server creation. `now` is an already-
 /// formatted timestamp (the ISO-8601-`now`-threading convention every
 /// other function in this phase already uses), not computed internally.
-fn write_paper_version_sidecar(
+/// `pub(crate)`: P7.21's `templates::create_server_from_template` writes
+/// this same sidecar for its own `.template(url)` jar-source branch
+/// (`AppViewModel+ServerCreation.swift:249-253`).
+pub(crate) fn write_paper_version_sidecar(
     fs: &dyn FileSystem,
     server_dir: &Path,
     mc_version: &str,
@@ -363,8 +379,14 @@ fn try_paper_archive_hit(
 
 /// The real (non-archived) `ServerJarProvider.downloadLatest` dispatch
 /// (`ServerJarProviders.swift:98-117`), for the four download-and-go
-/// families this module provisions.
-fn download_flavor_jar(
+/// families this module provisions. `pub(crate)` (not `pub`) because
+/// P7.19's `server_versions::change_version` is a second, same-crate
+/// caller — source's own `changeVersionProvider` and `createNewServer`
+/// call the identical `ServerJarProvider.downloadLatest(flavor:to:)`
+/// dispatcher, so this port shares the one Rust composition rather than
+/// duplicating the Purpur-alignment/Fabric-loader-resolution logic a
+/// second time.
+pub(crate) fn download_flavor_jar(
     transport: &dyn Transport,
     fs: &dyn FileSystem,
     flavor: JavaServerFlavor,
@@ -642,8 +664,8 @@ pub fn create_download_and_go_server(
             &effective,
             &imported_metadata,
             &primary_jar_path,
-            &resolved.version,
-            &resolved.build,
+            Some(resolved.version.as_str()),
+            Some(resolved.build.as_str()),
             resolved.loader_version.as_deref(),
             now,
             unzip_world_backup,
@@ -664,8 +686,19 @@ pub fn create_download_and_go_server(
 /// persistent world slot. Everything before this point (jar acquisition
 /// vs. installer run) is genuinely different between the two
 /// provisioning kinds and stays in each caller.
+///
+/// `resolved_version`/`resolved_build` are `Option<&str>`, not `&str`:
+/// both download-and-go and install-step callers always have concrete
+/// values, but P7.21's `templates::create_server_from_template` doesn't
+/// — `ComponentVersionParsing.parsePaperJarFilename` only recognizes a
+/// `paper-*` filename (`ComponentVersionParsing.swift:29`), so a
+/// template whose name doesn't match (e.g. a Purpur template) leaves
+/// `resolvedVersion`/`resolvedBuild` `nil` in source too
+/// (`AppViewModel+ServerCreation.swift:249-253`'s `if let parsed = ...`
+/// has no `else`). `pub(crate)` for the same P7.21 reuse reason as
+/// [`initial_world_slot_name`].
 #[allow(clippy::too_many_arguments)]
-fn finish_server_creation(
+pub(crate) fn finish_server_creation(
     fs: &dyn FileSystem,
     home_dir: &Path,
     plugin_template_dir: &Path,
@@ -677,8 +710,8 @@ fn finish_server_creation(
     effective: &provisioning::EffectiveWorldSettings,
     imported_metadata: &ImportedWorldMetadata,
     primary_jar_path: &str,
-    resolved_version: &str,
-    resolved_build: &str,
+    resolved_version: Option<&str>,
+    resolved_build: Option<&str>,
     resolved_loader: Option<&str>,
     now: &str,
     unzip_world_backup: impl FnOnce(&Path, &Path) -> bool,
@@ -727,8 +760,8 @@ fn finish_server_creation(
         min_ram_gb,
         max_ram_gb,
         request.flavor,
-        Some(resolved_version),
-        Some(resolved_build),
+        resolved_version,
+        resolved_build,
         resolved_loader,
         request.default_banner_color_hex,
         request.enable_playit,
@@ -772,7 +805,7 @@ fn finish_server_creation(
 
     let should_record = provisioning::should_record_loader_version(
         request.flavor,
-        Some(resolved_version),
+        resolved_version,
         resolved_loader,
     );
 
@@ -968,8 +1001,8 @@ pub fn create_install_step_server(
             &effective,
             &imported_metadata,
             "",
-            &resolved_version,
-            &resolved_loader,
+            Some(resolved_version.as_str()),
+            Some(resolved_loader.as_str()),
             Some(&resolved_loader),
             now,
             unzip_world_backup,

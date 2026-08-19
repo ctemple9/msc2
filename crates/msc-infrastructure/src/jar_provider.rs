@@ -195,10 +195,38 @@ pub fn vanilla_download_latest(
     fs: &dyn FileSystem,
     dest: &Path,
 ) -> Result<CachedFile, JarProviderError> {
+    vanilla_download(transport, fs, None, dest)
+}
+
+/// `VanillaDownloader.downloadVersion(_:to:)` (`ServerJarProviders.swift:
+/// 391-414`): identical to [`vanilla_download_latest`] except the release
+/// id is pinned rather than resolved from `latest.release` — P7.19's
+/// version-change is this variant's first caller (P7.13/P7.17 only ever
+/// needed "latest"). `vanilla_resolve_metadata_url` already accepted an
+/// optional pin (`Some(pinned_release_id)` errors if the manifest has no
+/// matching entry, the same `No manifest entry for ...` shape source's own
+/// `guard let entry = versionList.first(where: ...)` produces), so this is
+/// the same composition, not a new algorithm.
+pub fn vanilla_download_version(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    release_id: &str,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
+    vanilla_download(transport, fs, Some(release_id), dest)
+}
+
+fn vanilla_download(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    pinned_release_id: Option<&str>,
+    dest: &Path,
+) -> Result<CachedFile, JarProviderError> {
     let manifest_bytes =
         transport.get(VANILLA_MANIFEST_URL, "Mojang manifest", CATALOG_MAX_BYTES)?;
     let manifest = bytes_to_utf8(manifest_bytes, "Mojang manifest")?;
-    let (release_id, meta_url) = server_versions::vanilla_resolve_metadata_url(&manifest, None)?;
+    let (release_id, meta_url) =
+        server_versions::vanilla_resolve_metadata_url(&manifest, pinned_release_id)?;
 
     let meta_bytes = transport.get(&meta_url, "Mojang version metadata", CATALOG_MAX_BYTES)?;
     let meta_text = bytes_to_utf8(meta_bytes, "Mojang version metadata")?;
@@ -390,6 +418,102 @@ fn paper_build_download_url(raw_builds_body: &str, build_id: i64) -> Option<Stri
         .and_then(|sd| sd.get("url"))
         .and_then(serde_json::Value::as_str)
         .map(str::to_string)
+}
+
+/// `PaperDownloader.downloadVersion(_:to:)` (`ServerJarProviders.swift:
+/// 218-254`): picks the **highest build id of any channel** for a pinned
+/// version, no STABLE/BETA/ALPHA preference at all — genuinely different
+/// from [`paper_download_build`] (needs a build id already known) and
+/// from [`paper_select_build`]/[`paper_version_entry_from_builds`] (both
+/// channel-aware). P7.19's version-change is this function's first
+/// caller; nothing in the create flow ever pins a specific Paper version
+/// (see `provisioning.rs`'s own "download latest only" scope note).
+/// Returns the staged jar alongside the resolved build id directly —
+/// P7.19's caller (`msc-application/src/server_versions.rs`) needs it
+/// separately for `ConfigServer.serverBuild`/the Paper sidecar, and
+/// re-deriving it from `CachedFile.version`'s combined `"{version}-
+/// {build_id}"` label (the same convention [`paper_download_build`]
+/// already uses) would mean assuming build ids never contain a `-`,
+/// true today but not a contract worth leaning on.
+pub fn paper_download_pinned_version(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    version: &str,
+    dest: &Path,
+) -> Result<(CachedFile, i64), JarProviderError> {
+    let builds_url = format!("{PAPER_PROJECT_URL}/versions/{version}/builds");
+    let bytes = transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES)?;
+    let body = bytes_to_utf8(bytes, "Paper builds")?;
+    let (build_id, jar_url) = paper_highest_build_any_channel(&body).ok_or_else(|| {
+        JarProviderError::Network(format!("No builds found for Paper {version}."))
+    })?;
+
+    let jar_bytes = transport.get(&jar_url, "Paper download", JAR_MAX_BYTES)?;
+    let cached = download_staging::stage_download(
+        fs,
+        dest,
+        &jar_bytes,
+        &jar_url,
+        &format!("{version}-{build_id}"),
+        None,
+    )
+    .map_err(JarProviderError::Staging)?;
+    Ok((cached, build_id))
+}
+
+fn paper_highest_build_any_channel(raw_builds_body: &str) -> Option<(i64, String)> {
+    let builds: serde_json::Value = serde_json::from_str(raw_builds_body).ok()?;
+    let builds = builds.as_array()?;
+    builds
+        .iter()
+        .filter_map(|entry| {
+            let id = entry.get("id").and_then(serde_json::Value::as_i64)?;
+            let url = entry
+                .get("downloads")
+                .and_then(|d| d.get("server:default"))
+                .and_then(|sd| sd.get("url"))
+                .and_then(serde_json::Value::as_str)?;
+            Some((id, url.to_string()))
+        })
+        .max_by_key(|(id, _)| *id)
+}
+
+/// `PaperDownloader.listVersions()` (`ServerJarProviders.swift:141-174`):
+/// the version-picker/version-change listing — every Paper version,
+/// newest first, no 20-candidate cap (that cap belongs to the "download
+/// latest" walk `paper_select_build`/[`msc_domain::server_versions::
+/// paper_walk_candidates`] compose, a genuinely different, capped walk).
+/// Source fetches every version's builds concurrently (`withTaskGroup`);
+/// this crate's `Transport` is a blocking, synchronous boundary (see this
+/// module's own doc), so the walk here is sequential — a real behavior
+/// difference in *latency*, not in the *result*, since source's task
+/// group already discards ordering and this function re-sorts by
+/// `compare_mc_versions` regardless (`paper_flatten_and_sort` already
+/// sorted its input the same way). An entry with no recognized build at
+/// all (`build_label: None`) is dropped, matching source's own
+/// `if entry.buildLabel != nil` filter.
+pub fn paper_list_versions_for_picker(
+    transport: &dyn Transport,
+) -> Result<Vec<server_versions::ServerVersionEntry>, JarProviderError> {
+    let versions = paper_flatten_and_sort_versions(transport)?;
+    let mut entries = Vec::with_capacity(versions.len());
+    for version in &versions {
+        let builds_url = format!("{PAPER_PROJECT_URL}/versions/{version}/builds");
+        let entry = match transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES) {
+            Ok(bytes) => match bytes_to_utf8(bytes, "Paper builds") {
+                Ok(body) => server_versions::paper_version_entry_from_builds(version, &body),
+                Err(_) => server_versions::paper_version_entry_from_builds(version, ""),
+            },
+            // A per-version fetch failure degrades to "no recognized build,"
+            // matching source's own `guard let (data, _) = try? await ...`
+            // — one bad version doesn't fail the whole listing.
+            Err(_) => server_versions::paper_version_entry_from_builds(version, ""),
+        };
+        if entry.build_label.is_some() {
+            entries.push(entry);
+        }
+    }
+    Ok(entries)
 }
 
 // ---------------------------------------------------------------------

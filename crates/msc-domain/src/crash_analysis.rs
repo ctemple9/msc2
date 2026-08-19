@@ -42,16 +42,26 @@ pub struct ModEntry {
     pub is_enabled: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// `#[serde]` derives: P7.22's `last_startup_result.json` persistence
+/// (`LastStartupResult.problems`, `writeLastStartupResult`) round-trips
+/// this type to/from disk; per-variant `rename` matches
+/// `StartupProblemKind: String, Codable`'s raw value exactly (a bare
+/// string in JSON, not `{"missingDependency": null}`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum StartupProblemKind {
     /// Offender needs something that isn't installed.
+    #[serde(rename = "missingDependency")]
     MissingDependency,
     /// Offender is built for a different MC/loader/mod version.
+    #[serde(rename = "incompatibleVersion")]
     IncompatibleVersion,
     /// Same mod present twice.
+    #[serde(rename = "duplicate")]
     Duplicate,
     /// Threw while loading.
+    #[serde(rename = "loadError")]
     LoadError,
+    #[serde(rename = "unknown")]
     Unknown,
 }
 
@@ -65,11 +75,40 @@ impl StartupProblemKind {
             Self::Unknown => "unknown",
         }
     }
+
+    /// `StartupProblemKind.title` (`StartupCrashAnalyzer.swift:24-32`).
+    /// P7.22's `diagnose_unexpected_stop` needs this for its fatal-error
+    /// summary fallback (`requirement ?? kind.title`); P7.23's
+    /// `StartupProblemDTO.kindTitle` needs the same value.
+    pub fn title(self) -> &'static str {
+        match self {
+            Self::MissingDependency => "Missing dependency",
+            Self::IncompatibleVersion => "Incompatible version",
+            Self::Duplicate => "Duplicate mod",
+            Self::LoadError => "Failed to load",
+            Self::Unknown => "Problem",
+        }
+    }
+
+    /// `StartupProblemKind.symbol` (`StartupCrashAnalyzer.swift:33-40`) —
+    /// an SF Symbols name. Not consumed by any P7.22 logic; exposed
+    /// alongside `title()` since `StartupProblemDTO.iconSystemName`
+    /// (P7.23) needs it and both come from the same source switch.
+    pub fn symbol(self) -> &'static str {
+        match self {
+            Self::MissingDependency => "puzzlepiece.extension",
+            Self::IncompatibleVersion => "exclamationmark.triangle.fill",
+            Self::Duplicate => "doc.on.doc",
+            Self::LoadError => "xmark.octagon.fill",
+            Self::Unknown => "questionmark.circle",
+        }
+    }
 }
 
 /// One parsed startup problem, attributed to an installed add-on when we
 /// can map it.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct StartupProblem {
     pub kind: StartupProblemKind,
     /// Display name of the mod that has the problem (the one we can
@@ -92,9 +131,12 @@ pub struct StartupProblem {
 }
 
 impl StartupProblem {
-    /// Mirrors MSC 1's `StartupProblem.id` (`Identifiable` conformance),
-    /// used only for de-duplicating problems parsed from the same text.
-    fn dedupe_id(&self) -> String {
+    /// Mirrors MSC 1's `StartupProblem.id` (`Identifiable` conformance,
+    /// `StartupCrashAnalyzer.swift:46`) — a computed, not stored, id.
+    /// `pub`: P7.22's diagnostics module and repair dispatch key
+    /// problems by this same id (`problemId` in `POST /v1/health/repair`),
+    /// not just this module's own within-parse de-duplication.
+    pub fn id(&self) -> String {
         format!(
             "{}|{}|{}",
             self.kind.raw_value(),
@@ -152,7 +194,7 @@ fn parse_fabric(text: &str, installed_mods: &[ModEntry]) -> Vec<StartupProblem> 
             && bullet.contains("requires")
             && !bullet.contains("recommends")
             && let Some(problem) = parse_requires_line(bullet, installed_mods)
-            && seen.insert(problem.dedupe_id())
+            && seen.insert(problem.id())
         {
             problems.push(problem);
         }
@@ -275,7 +317,7 @@ fn parse_forge(text: &str, installed_mods: &[ModEntry]) -> Vec<StartupProblem> {
         // start as an EarlyLoadingException — parse those before the
         // Forge dependency-line format.
         if let Some(problem) = parse_connector_entrypoint_failure(line, installed_mods) {
-            if seen.insert(problem.dedupe_id()) {
+            if seen.insert(problem.id()) {
                 problems.push(problem);
             }
             continue;
@@ -287,7 +329,7 @@ fn parse_forge(text: &str, installed_mods: &[ModEntry]) -> Vec<StartupProblem> {
             continue;
         }
         if let Some(problem) = parse_forge_dependency_line(line, installed_mods)
-            && seen.insert(problem.dedupe_id())
+            && seen.insert(problem.id())
         {
             problems.push(problem);
         }

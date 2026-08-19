@@ -206,6 +206,110 @@ fn jar_provider_paper_download_build_stages_bytes() {
     assert_eq!(cached.version, "1.21.11-132");
 }
 
+// --- P7.19: pinned (non-latest) version-change downloads ---
+
+#[test]
+fn jar_provider_vanilla_download_version_pins_release_id_not_latest() {
+    let transport = FakeTransport::new()
+        .with_file(
+            "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json",
+            "vanilla/version-manifest-v2.json",
+        )
+        .with_bytes(
+            "https://piston-meta.mojang.com/v1/packages/e846101ba6cf0b548e8b71624c7351b6458c5349/1.20.1.json",
+            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/fake/1.20.1-server.jar"}}}"#
+                .to_vec(),
+        )
+        .with_bytes(
+            "https://piston-data.mojang.com/fake/1.20.1-server.jar",
+            b"fake 1.20.1 server jar".to_vec(),
+        );
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("vanilla-download-pinned");
+    let dest = tmp.path().join("server.jar");
+
+    // 1.20.1 (not `latest.release`, which the real manifest puts at 26.2) --
+    // proves the pin actually threads through, not just that the two-hop
+    // resolution still works.
+    let cached = jar_provider::vanilla_download_version(&transport, &fs, "1.20.1", &dest).unwrap();
+    assert_eq!(cached.version, "1.20.1");
+}
+
+#[test]
+fn jar_provider_paper_download_pinned_version_picks_highest_id_any_channel_real_corpus() {
+    let transport = FakeTransport::new()
+        .with_file(
+            "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
+            "paper/builds-1.21.11.json",
+        )
+        .with_bytes(
+            "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+            b"fake paper jar bytes".to_vec(),
+        );
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("paper-download-pinned");
+    let dest = tmp.path().join("paper.jar");
+
+    let (cached, build_id) =
+        jar_provider::paper_download_pinned_version(&transport, &fs, "1.21.11", &dest).unwrap();
+    assert_eq!(cached.version, "1.21.11-132");
+    assert_eq!(build_id, 132);
+}
+
+#[test]
+fn jar_provider_paper_download_pinned_version_ignores_channel_picks_highest_id() {
+    // Real corpus's own highest id is always STABLE, so it can't tell
+    // "no channel filtering" apart from "prefers stable" -- this synthetic
+    // response puts the highest id on ALPHA to prove the distinction P7.5/
+    // this module's own doc names: `paper_download_pinned_version` has no
+    // channel preference at all, unlike `paper_select_build`.
+    let transport = FakeTransport::new()
+        .with_bytes(
+            "https://fill.papermc.io/v3/projects/paper/versions/26.2/builds",
+            br#"[
+                {"id": 5, "channel": "STABLE", "downloads": {"server:default": {"url": "https://x/5.jar"}}},
+                {"id": 9, "channel": "ALPHA", "downloads": {"server:default": {"url": "https://x/9.jar"}}}
+            ]"#
+            .to_vec(),
+        )
+        .with_bytes("https://x/9.jar", b"alpha build wins".to_vec());
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("paper-download-pinned-any-channel");
+    let dest = tmp.path().join("paper.jar");
+
+    let (cached, build_id) =
+        jar_provider::paper_download_pinned_version(&transport, &fs, "26.2", &dest).unwrap();
+    assert_eq!(cached.version, "26.2-9");
+    assert_eq!(build_id, 9);
+    assert_eq!(std::fs::read(&dest).unwrap(), b"alpha build wins");
+}
+
+#[test]
+fn jar_provider_paper_list_versions_for_picker_against_real_corpus() {
+    let transport = FakeTransport::new()
+        .with_file(
+            "https://fill.papermc.io/v3/projects/paper",
+            "paper/projects-paper.json",
+        )
+        .with_file(
+            "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
+            "paper/builds-1.21.11.json",
+        );
+    let entries = jar_provider::paper_list_versions_for_picker(&transport).unwrap();
+    let entry = entries
+        .iter()
+        .find(|e| e.id == "1.21.11")
+        .expect("1.21.11 present");
+    assert_eq!(entry.build_label.as_deref(), Some("build 132"));
+    assert!(entry.is_stable);
+    // Every other version in the real project listing has no registered
+    // builds response on this fake transport, so its per-version fetch
+    // fails and it's dropped -- proving the per-version-failure-tolerant
+    // path (source's own `guard let (data, _) = try? ...`), not just the
+    // happy path for the one version this test wired up.
+    assert!(!entries.iter().any(|e| e.id == "26.2"));
+}
+
 #[test]
 fn jar_provider_fabric_list_versions_against_real_corpus() {
     let transport = FakeTransport::new().with_file(

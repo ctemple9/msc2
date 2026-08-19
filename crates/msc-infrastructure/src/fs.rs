@@ -284,6 +284,26 @@ impl FakeFileSystem {
         self
     }
 
+    /// Sets an already-seeded file's modification time — P7.21's
+    /// `jar-summary-geyser-floodgate-pick-newest-by-modification-date`
+    /// fixture is the first case that needs one fake file to read as
+    /// newer than another (`msc-application/src/templates.rs`'s
+    /// `jar_summary`); the field's own doc comment is now out of date,
+    /// since a seeding builder exists. Panics if `path` wasn't already
+    /// seeded via [`Self::with_file`]/[`Self::from_tree`] — a modified
+    /// time on a file that doesn't exist is a test bug, not a case worth
+    /// silently ignoring.
+    pub fn with_modified(self, path: impl Into<PathBuf>, when: SystemTime) -> Self {
+        let path = path.into();
+        let mut files = self.files.lock().unwrap();
+        let entry = files
+            .get_mut(&path)
+            .unwrap_or_else(|| panic!("with_modified: {path:?} was never seeded with a file"));
+        entry.modified = when;
+        drop(files);
+        self
+    }
+
     /// Seed a single symlink, for tests that don't start from a fixture's
     /// `fsTree`.
     pub fn with_symlink(self, path: impl Into<PathBuf>, target: impl Into<PathBuf>) -> Self {
@@ -451,16 +471,36 @@ impl FileSystem for FakeFileSystem {
         Ok(())
     }
 
+    /// Removes a single stored file at `path` if one exists there;
+    /// otherwise removes every stored file nested under `path` as a
+    /// whole subtree, matching `StdFileSystem::remove`'s real
+    /// `remove_dir_all` branch — the same "not a single file, fall back
+    /// to a subtree walk" shape [`Self::rename`] already uses for its
+    /// own directory case. P7.20's `fleet::delete_server` (removing a
+    /// whole server directory that holds a real file, e.g. `paper.jar`)
+    /// is the first caller that needs this; before it, every `remove`
+    /// call in this codebase targeted a single already-known file.
     fn remove(&self, path: &Path) -> io::Result<()> {
         let mut files = self.files.lock().unwrap();
         if files.remove(path).is_some() {
-            Ok(())
-        } else {
-            Err(io::Error::new(
+            self.dirs.lock().unwrap().remove(path);
+            return Ok(());
+        }
+        let nested: Vec<PathBuf> = files
+            .keys()
+            .filter(|p| *p != path && p.starts_with(path))
+            .cloned()
+            .collect();
+        if nested.is_empty() && !self.dirs.lock().unwrap().remove(path) {
+            return Err(io::Error::new(
                 io::ErrorKind::NotFound,
                 path.display().to_string(),
-            ))
+            ));
         }
+        for p in nested {
+            files.remove(&p);
+        }
+        Ok(())
     }
 
     fn read_link(&self, path: &Path) -> io::Result<PathBuf> {

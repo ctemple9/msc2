@@ -443,6 +443,59 @@ pub fn paper_flatten_and_sort(raw_project_body: &str) -> Result<Vec<String>, Cat
     Ok(all_versions)
 }
 
+/// `paperVersionEntryV3(_:)` (`ServerJarProviders.swift:179-216`) — P7.19's
+/// version-listing needs this, not [`paper_select_build`]/[`PaperBuildSelection`]
+/// below: those port `PaperDownloader.swift`'s *different* `fetchBestBuild`
+/// (used by the "download latest" walk, two separate calls for
+/// stable-vs-experimental). This is `ServerJarProviders.swift`'s own
+/// `PaperDownloader.listVersions()` extension's per-version selector — one
+/// pass considers STABLE and BETA/ALPHA builds together: the highest STABLE
+/// id wins if any STABLE build exists at all, else the highest BETA/ALPHA
+/// id, else neither (`build_label: None`, `is_stable: false` — the version
+/// picker drops an entry in that shape, `entry.buildLabel != nil`, source
+/// line 170). Never errors: a malformed/non-array body degrades to the
+/// same "no build found" shape as an empty builds list, matching source's
+/// `guard let ... else { return ServerVersionEntry(... buildLabel: nil ...) }`.
+pub fn paper_version_entry_from_builds(version: &str, raw_builds_body: &str) -> ServerVersionEntry {
+    let mut best_stable: Option<i64> = None;
+    let mut best_beta: Option<i64> = None;
+    if let Ok(Value::Array(builds)) = serde_json::from_str::<Value>(raw_builds_body) {
+        for entry in &builds {
+            let Some(channel) = entry.get("channel").and_then(Value::as_str) else {
+                continue;
+            };
+            let channel_upper = channel.to_uppercase();
+            let Some(build_id) = entry.get("id").and_then(Value::as_i64) else {
+                continue;
+            };
+            if channel_upper == "STABLE" {
+                if best_stable.is_none_or(|b| build_id > b) {
+                    best_stable = Some(build_id);
+                }
+            } else if (channel_upper == "BETA" || channel_upper == "ALPHA")
+                && best_beta.is_none_or(|b| build_id > b)
+            {
+                best_beta = Some(build_id);
+            }
+        }
+    }
+    let (build_label, is_stable) = if let Some(best) = best_stable {
+        (Some(format!("build {best}")), true)
+    } else if let Some(best) = best_beta {
+        (Some(format!("build {best} \u{b7} beta")), false)
+    } else {
+        (None, false)
+    };
+    ServerVersionEntry {
+        id: version.to_string(),
+        display_label: version.to_string(),
+        mc_version: version.to_string(),
+        loader_version: None,
+        build_label,
+        is_stable,
+    }
+}
+
 /// One qualifying build, as `fetchBestBuild` (`PaperDownloader.swift:201-272`)
 /// selects it.
 #[derive(Debug, Clone, PartialEq, Eq)]

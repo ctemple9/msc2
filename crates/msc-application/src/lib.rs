@@ -1,12 +1,16 @@
 pub mod backups;
 pub mod commands;
+pub mod diagnostics;
+pub mod fleet;
 pub mod import;
 pub mod java_launch;
 pub mod lifecycle;
 pub mod operations;
 pub mod output_reducer;
 pub mod provisioning;
+pub mod server_versions;
 pub mod status;
+pub mod templates;
 pub mod transfer;
 pub mod world_conversion;
 pub mod worlds;

@@ -460,10 +460,14 @@ const FORGE_PROMOTIONS_URL: &str =
     "https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json";
 const FORGE_INSTALLER_URL: &str = "https://maven.minecraftforge.net/net/minecraftforge/forge/1.20.1-47.4.5/forge-1.20.1-47.4.5-installer.jar";
 
+/// 30s, not 10s: the identical spin-wait in `provisioning_install_step.rs`
+/// found 10s wasn't generous enough under heavy concurrent nextest load
+/// on GitHub's hosted CI runners (P7.29) -- a thread-scheduling false
+/// failure, not a real hang.
 fn wait_for_first_spawn(
     supervisor: &FakeProcessSupervisor,
 ) -> msc_infrastructure::process::ProcessId {
-    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let deadline = std::time::Instant::now() + Duration::from_secs(30);
     loop {
         if let Some((pid, _)) = supervisor.spawned_requests().into_iter().next() {
             return pid;

@@ -14,11 +14,15 @@ fn powershell(script: &str) -> ProcessSpawnRequest {
     ])
 }
 
+/// 30s, not 10s: P7.29's CI runs found real `powershell.exe` spawns here
+/// occasionally missed a 10s budget under heavy concurrent nextest load
+/// on GitHub's hosted `windows-latest` runners -- a real scheduling/
+/// startup-latency false failure under load, not a hang.
 fn drain_until_exit(
     supervisor: &WindowsJavaProcessSupervisor,
     pid: ProcessId,
 ) -> Vec<ProcessEvent> {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(30);
     let mut events = Vec::new();
     while Instant::now() < deadline {
         events.extend(supervisor.drain_events(pid).unwrap());
@@ -116,7 +120,7 @@ fn process_supervisor_real_job_object_terminates_child_process_tree() {
 }
 
 fn wait_for_child_pid(supervisor: &WindowsJavaProcessSupervisor, pid: ProcessId) -> u32 {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(30);
     let mut output = String::new();
     while Instant::now() < deadline {
         output.push_str(&stdout_text(&supervisor.drain_events(pid).unwrap()));
@@ -133,7 +137,7 @@ fn wait_for_child_pid(supervisor: &WindowsJavaProcessSupervisor, pid: ProcessId)
 }
 
 fn assert_child_process_is_gone(pid: u32) {
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + Duration::from_secs(30);
     while Instant::now() < deadline {
         let status = std::process::Command::new("powershell.exe")
             .args([

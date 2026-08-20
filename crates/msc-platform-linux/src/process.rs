@@ -192,11 +192,17 @@ mod tests {
         ProcessSpawnRequest::new("/bin/sh", std::env::temp_dir()).args(["-c", script])
     }
 
+    // 30s, not 5s: same real-process-spawn class as
+    // `msc-platform-windows/tests/job_object.rs`'s own `drain_until_exit`,
+    // which P7.29's CI runs found missing a 10s budget under heavy
+    // concurrent nextest load on GitHub's hosted runners. Raised here too
+    // for the same margin, even though this file hadn't been observed
+    // failing yet.
     fn drain_until_exit(
         supervisor: &LinuxJavaProcessSupervisor,
         pid: ProcessId,
     ) -> Vec<ProcessEvent> {
-        let deadline = Instant::now() + Duration::from_secs(5);
+        let deadline = Instant::now() + Duration::from_secs(30);
         let mut events = Vec::new();
         while Instant::now() < deadline {
             events.extend(supervisor.drain_events(pid).unwrap());

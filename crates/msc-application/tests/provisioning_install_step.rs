@@ -151,7 +151,12 @@ fn no_output(_stream: OutputStream, _bytes: &[u8]) {}
 /// call, but finite — so a regression upstream (e.g. `spawn` never
 /// called at all) fails this test loudly instead of hanging the whole
 /// suite, the way an earlier, unbounded version of these loops once did.
-const SPIN_WAIT_DEADLINE: Duration = Duration::from_secs(10);
+/// 10s wasn't actually generous enough: P7.29's CI runs found this file's
+/// own background `scope.spawn` thread repeatedly failed to get scheduled
+/// within 10s under heavy concurrent nextest load on GitHub's hosted
+/// runners (macOS reliably, Windows occasionally) — a real thread-
+/// scheduling-starvation false failure, not a regression. 30s.
+const SPIN_WAIT_DEADLINE: Duration = Duration::from_secs(30);
 
 /// Waits (spinning briefly — this is a test double, not real I/O) for
 /// `run_loader_installer`'s own `spawn` call to register.

@@ -122,6 +122,16 @@ jobs:
         shell: bash
         run: tools/phase6/phase6-gate-smoke.sh --synthetic
 
+      # P7.29: the six-family provisioning/launch smoke (P7.27) on all
+      # three platforms, same `shell: bash` / Git Bash arrangement as the
+      # Phase 6 smoke above. Windows is the leg that matters here per
+      # D-017: a real Forge/NeoForge args-file launch, a real hard-kill
+      # mid-install, and a Windows-built `msc.exe` all go through this
+      # leg for the first time.
+      - name: Phase 7 provisioning and launch smoke
+        shell: bash
+        run: tools/phase7/phase7-gate-smoke.sh --synthetic
+
       - name: Collect headless artifact
         shell: bash
         run: |

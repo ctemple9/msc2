@@ -2,6 +2,7 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     LifecycleState, ServerId,
 };
+use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::process::{
     FakeProcessSupervisor, OutputLineFramer, ProcessSpawnRequest, ProcessSupervisor,
 };
@@ -56,8 +57,9 @@ fn running_service<'deps>(
     repository: &'deps FakeRepository,
     process: &'deps FakeProcessSupervisor,
     console: &'deps FakeConsole,
+    fs: &'deps FakeFileSystem,
 ) -> RunningService<'deps> {
-    let mut service = LifecycleService::new(repository, process, console);
+    let mut service = LifecycleService::new(repository, process, console, fs);
     service
         .select_active_server(repository.server.id.clone())
         .unwrap();
@@ -91,7 +93,8 @@ fn java_stop_restart_graceful_stop_sends_stop_and_enters_stopping() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let RunningService { mut service, pid } = running_service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let RunningService { mut service, pid } = running_service(&repository, &process, &console, &fs);
 
     service.request_stop().unwrap();
 
@@ -115,14 +118,17 @@ fn java_stop_restart_graceful_stop_waits_for_process_exit() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let RunningService { mut service, pid } = running_service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let RunningService { mut service, pid } = running_service(&repository, &process, &console, &fs);
 
     service.request_stop().unwrap();
     assert_state(service.state(), &case["expected"]["stateBeforeExit"]);
 
     process.exit_normally(pid).unwrap();
     for event in process.drain_events(pid).unwrap() {
-        service.handle_process_event(pid, &event).unwrap();
+        service
+            .handle_process_event(pid, &event, "2024-01-01T00:00:00Z")
+            .unwrap();
     }
 
     assert_state(service.state(), &case["expected"]["stateAfterExit"]);
@@ -138,7 +144,8 @@ fn java_stop_restart_stop_write_failure_keeps_running() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let RunningService { mut service, pid } = running_service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let RunningService { mut service, pid } = running_service(&repository, &process, &console, &fs);
     process.fail_next_stdin(case["input"]["stdinFailure"].as_str().unwrap());
 
     let error = service
@@ -166,7 +173,8 @@ fn java_stop_restart_restart_sends_stop_and_defers_launch_until_exit() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let RunningService { mut service, pid } = running_service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let RunningService { mut service, pid } = running_service(&repository, &process, &console, &fs);
 
     service.restart_active_server(launch_request()).unwrap();
 
@@ -204,12 +212,15 @@ fn java_stop_restart_restart_starts_new_process_after_exit() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let RunningService { mut service, pid } = running_service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let RunningService { mut service, pid } = running_service(&repository, &process, &console, &fs);
 
     service.restart_active_server(launch_request()).unwrap();
     process.exit_normally(pid).unwrap();
     for event in process.drain_events(pid).unwrap() {
-        service.handle_process_event(pid, &event).unwrap();
+        service
+            .handle_process_event(pid, &event, "2024-01-01T00:00:00Z")
+            .unwrap();
     }
 
     assert_state(service.state(), &case["expected"]["stateAfterExit"]);
@@ -236,7 +247,8 @@ fn java_stop_restart_process_exit_flushes_trailing_console_line() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let RunningService { mut service, pid } = running_service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let RunningService { mut service, pid } = running_service(&repository, &process, &console, &fs);
     let mut framer = OutputLineFramer::new();
     service.request_stop().unwrap();
 
@@ -250,7 +262,9 @@ fn java_stop_restart_process_exit_flushes_trailing_console_line() {
     let mut lines = Vec::new();
     for event in process.drain_events(pid).unwrap() {
         lines.extend(framer.push_event(&event));
-        service.handle_process_event(pid, &event).unwrap();
+        service
+            .handle_process_event(pid, &event, "2024-01-01T00:00:00Z")
+            .unwrap();
     }
 
     let expected_lines = case["expected"]["flushedConsoleLines"]

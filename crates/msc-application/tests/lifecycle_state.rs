@@ -1,7 +1,10 @@
+use msc_application::diagnostics;
 use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     LifecycleState, ServerId,
 };
+use msc_domain::identity::JavaServerFlavor;
+use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::process::{FakeProcessSupervisor, ProcessSpawnRequest};
 use std::path::PathBuf;
 use std::sync::Mutex;
@@ -66,8 +69,9 @@ fn service<'deps>(
     repository: &'deps FakeRepository,
     process: &'deps FakeProcessSupervisor,
     console: &'deps FakeConsole,
+    fs: &'deps FakeFileSystem,
 ) -> LifecycleService<'deps> {
-    LifecycleService::new(repository, process, console)
+    LifecycleService::new(repository, process, console, fs)
 }
 
 #[test]
@@ -100,7 +104,8 @@ fn lifecycle_state_service_requires_an_active_server_before_starting() {
     let repository = FakeRepository::default();
     let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     assert_eq!(
         service.start_active_server(launch_request()),
@@ -117,7 +122,8 @@ fn lifecycle_state_start_uses_injected_repository_process_and_console() {
     };
     let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service
         .select_active_server(server.id.clone())
@@ -149,7 +155,8 @@ fn lifecycle_state_failed_process_start_keeps_server_stopped() {
     let process = FakeProcessSupervisor::default();
     process.fail_next_spawn("start failed");
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id).unwrap();
 
@@ -169,7 +176,8 @@ fn lifecycle_state_ready_line_moves_starting_server_to_running() {
     };
     let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
@@ -186,7 +194,8 @@ fn lifecycle_state_failed_stop_keeps_server_running() {
     };
     let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
@@ -209,12 +218,15 @@ fn lifecycle_state_unexpected_exit_marks_running_server_crashed() {
     };
     let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
     service.mark_ready(&server.id).unwrap();
-    service.mark_process_exited(&server.id).unwrap();
+    service
+        .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
+        .unwrap();
 
     assert_eq!(service.state(), LifecycleState::Crashed);
 }
@@ -227,7 +239,8 @@ fn lifecycle_state_requested_stop_delegates_and_exits_to_stopped() {
     };
     let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
@@ -240,7 +253,9 @@ fn lifecycle_state_requested_stop_delegates_and_exits_to_stopped() {
         &[msc_infrastructure::process::ProcessId::new(1000)]
     );
 
-    service.mark_process_exited(&server.id).unwrap();
+    service
+        .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
+        .unwrap();
     assert_eq!(service.state(), LifecycleState::Stopped);
 }
 
@@ -252,7 +267,8 @@ fn lifecycle_state_event_for_non_active_server_is_rejected() {
     };
     let process = FakeProcessSupervisor::default();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
     let other = ServerId::new("other-server");
 
     service.select_active_server(server.id.clone()).unwrap();
@@ -264,5 +280,181 @@ fn lifecycle_state_event_for_non_active_server_is_rejected() {
             expected: server.id,
             actual: other,
         })
+    );
+}
+
+// --- P7.32: real diagnose_unexpected_stop / write_last_startup_result wiring ---
+
+fn fabric_server() -> ImportedJavaServer {
+    ImportedJavaServer {
+        id: ServerId::new("fabric-1"),
+        name: "Modded".to_string(),
+        directory: PathBuf::from("/srv/fabric"),
+        flavor: JavaServerFlavor::Fabric,
+    }
+}
+
+#[test]
+fn lifecycle_state_unrequested_exit_before_ready_records_generic_startup_failure() {
+    let server = paper_server();
+    let repository = FakeRepository {
+        server: Some(server.clone()),
+    };
+    let process = FakeProcessSupervisor::default();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    service.start_active_server(launch_request()).unwrap();
+    service
+        .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
+        .unwrap();
+
+    assert_eq!(service.state(), LifecycleState::Crashed);
+    let record = diagnostics::read_last_startup_result(&fs, &server.directory)
+        .expect("an unrequested exit before ready should write a record");
+    assert!(!record.was_clean);
+    assert_eq!(
+        record.fatal_errors,
+        vec!["Server stopped before reaching ready state.".to_string()]
+    );
+    assert_eq!(record.problems, None);
+}
+
+#[test]
+fn lifecycle_state_unrequested_exit_after_ready_writes_nothing() {
+    let server = paper_server();
+    let repository = FakeRepository {
+        server: Some(server.clone()),
+    };
+    let process = FakeProcessSupervisor::default();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    service.start_active_server(launch_request()).unwrap();
+    service
+        .ingest_console_line("Done (1.234s)! For help, type \"help\"")
+        .unwrap();
+    service
+        .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
+        .unwrap();
+
+    assert_eq!(service.state(), LifecycleState::Crashed);
+    assert_eq!(
+        diagnostics::read_last_startup_result(&fs, &server.directory),
+        None,
+        "a crash after a clean boot must not overwrite/create a startup record \
+         (the documented gap diagnose_unexpected_stop preserves from the oracle)"
+    );
+}
+
+#[test]
+fn lifecycle_state_requested_stop_before_ready_records_generic_failure_without_crash_analysis() {
+    let server = fabric_server();
+    let repository = FakeRepository {
+        server: Some(server.clone()),
+    };
+    let process = FakeProcessSupervisor::default();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    service.start_active_server(launch_request()).unwrap();
+    service
+        .ingest_console_line("A mod requires a dependency that is missing:")
+        .unwrap();
+    service
+        .ingest_console_line(
+            "\t - Mod 'MyMod' (mymod) 1.0 requires any version of fabric api, which is missing!",
+        )
+        .unwrap();
+    service.request_stop().unwrap();
+    service
+        .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
+        .unwrap();
+
+    assert_eq!(service.state(), LifecycleState::Stopped);
+    let record = diagnostics::read_last_startup_result(&fs, &server.directory)
+        .expect("a user-requested stop before ready should still record the generic failure");
+    assert!(!record.was_clean);
+    assert_eq!(
+        record.fatal_errors,
+        vec!["Server stopped before reaching ready state.".to_string()]
+    );
+    assert_eq!(
+        record.problems, None,
+        "a user-requested stop must skip crash analysis entirely, even for a modded server"
+    );
+}
+
+#[test]
+fn lifecycle_state_requested_stop_after_ready_writes_nothing() {
+    let server = paper_server();
+    let repository = FakeRepository {
+        server: Some(server.clone()),
+    };
+    let process = FakeProcessSupervisor::default();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    service.start_active_server(launch_request()).unwrap();
+    service
+        .ingest_console_line("Done (1.234s)! For help, type \"help\"")
+        .unwrap();
+    service.request_stop().unwrap();
+    service
+        .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
+        .unwrap();
+
+    assert_eq!(service.state(), LifecycleState::Stopped);
+    assert_eq!(
+        diagnostics::read_last_startup_result(&fs, &server.directory),
+        None
+    );
+}
+
+#[test]
+fn lifecycle_state_unrequested_exit_before_ready_on_modded_server_attributes_crash_to_the_mod() {
+    let server = fabric_server();
+    let repository = FakeRepository {
+        server: Some(server.clone()),
+    };
+    let process = FakeProcessSupervisor::default();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    service.start_active_server(launch_request()).unwrap();
+    service
+        .ingest_console_line("A mod requires a dependency that is missing:")
+        .unwrap();
+    service
+        .ingest_console_line(
+            "\t - Mod 'MyMod' (mymod) 1.0 requires any version of fabric api, which is missing!",
+        )
+        .unwrap();
+    service
+        .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
+        .unwrap();
+
+    assert_eq!(service.state(), LifecycleState::Crashed);
+    let record = diagnostics::read_last_startup_result(&fs, &server.directory)
+        .expect("an unrequested exit before ready on a modded server should analyze the crash");
+    assert!(!record.was_clean);
+    let problems = record
+        .problems
+        .expect("crash analysis should attribute a problem");
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].offender_name, "MyMod");
+    assert_eq!(
+        record.fatal_errors,
+        vec!["MyMod: Requires any version of fabric api".to_string()]
     );
 }

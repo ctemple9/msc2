@@ -5,8 +5,9 @@
 //! dependencies, but it does not know about HTTP routes, CLI commands, iOS,
 //! or any other client surface.
 
-use msc_domain::identity::JavaServerFlavor;
+use msc_domain::identity::{AddOnKind, JavaServerFlavor};
 use msc_domain::tps;
+use msc_infrastructure::fs::FileSystem;
 use msc_infrastructure::metrics::{ProcessMetricsProvider, directory_size_mb};
 use msc_infrastructure::process::{
     ProcessError, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
@@ -14,8 +15,14 @@ use msc_infrastructure::process::{
 use std::fmt;
 use std::path::PathBuf;
 
+use crate::diagnostics;
 use crate::output_reducer::{JavaOutputReducer, OutputEvent};
 use crate::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
+
+/// `console.entries.filter { $0.source == .server }.suffix(120)`
+/// (`AppViewModel+OutputHandling.swift:196-198`) — the bound on how much
+/// recent server output `diagnoseUnexpectedStop`'s excerpt carries.
+const CONSOLE_EXCERPT_CAPACITY: usize = 120;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServerId(String);
@@ -179,6 +186,7 @@ pub struct LifecycleService<'deps> {
     repository: &'deps dyn JavaServerRepository,
     process_supervisor: &'deps dyn ProcessSupervisor,
     console: &'deps dyn ConsoleSink,
+    fs: &'deps dyn FileSystem,
     active_server: Option<ServerId>,
     active_process: Option<ProcessId>,
     active_ram_max_mb: Option<f64>,
@@ -186,6 +194,11 @@ pub struct LifecycleService<'deps> {
     output_reducer: JavaOutputReducer,
     latest_tps: Option<tps::Sample>,
     pending_restart: Option<ProcessSpawnRequest>,
+    /// Recent server console lines (ANSI already stripped, the only form
+    /// this service ever sees), capped at [`CONSOLE_EXCERPT_CAPACITY`] —
+    /// `diagnose_unexpected_stop`'s own `console_excerpt` input. Reset on
+    /// every new start, same lifetime as `output_reducer`.
+    recent_console_lines: Vec<String>,
 }
 
 impl<'deps> LifecycleService<'deps> {
@@ -193,11 +206,13 @@ impl<'deps> LifecycleService<'deps> {
         repository: &'deps dyn JavaServerRepository,
         process_supervisor: &'deps dyn ProcessSupervisor,
         console: &'deps dyn ConsoleSink,
+        fs: &'deps dyn FileSystem,
     ) -> Self {
         Self {
             repository,
             process_supervisor,
             console,
+            fs,
             active_server: None,
             active_process: None,
             active_ram_max_mb: None,
@@ -205,6 +220,7 @@ impl<'deps> LifecycleService<'deps> {
             output_reducer: JavaOutputReducer::new(),
             latest_tps: None,
             pending_restart: None,
+            recent_console_lines: Vec::new(),
         }
     }
 
@@ -287,6 +303,7 @@ impl<'deps> LifecycleService<'deps> {
         self.output_reducer = JavaOutputReducer::new();
         self.latest_tps = None;
         self.pending_restart = None;
+        self.recent_console_lines.clear();
         self.console
             .append_system_line(&id, &format!("Starting server: {}", server.name));
         Ok(pid)
@@ -339,6 +356,10 @@ impl<'deps> LifecycleService<'deps> {
 
     pub fn ingest_console_line(&mut self, clean: &str) -> Result<Vec<OutputEvent>, LifecycleError> {
         let id = self.active_server_id()?.clone();
+        self.recent_console_lines.push(clean.to_string());
+        if self.recent_console_lines.len() > CONSOLE_EXCERPT_CAPACITY {
+            self.recent_console_lines.remove(0);
+        }
         let events = self.output_reducer.process_line(clean);
         for event in &events {
             match event {
@@ -354,16 +375,19 @@ impl<'deps> LifecycleService<'deps> {
         Ok(events)
     }
 
-    pub fn mark_process_exited(&mut self, id: &ServerId) -> Result<(), LifecycleError> {
+    pub fn mark_process_exited(&mut self, id: &ServerId, now: &str) -> Result<(), LifecycleError> {
         self.require_active_server(id)?;
         self.active_process = None;
         self.active_ram_max_mb = None;
+        let was_user_requested_stop = self.state == LifecycleState::Stopping;
+        let reached_ready_state = self.output_reducer.reached_ready();
         let next = match self.state {
             LifecycleState::Stopping => LifecycleState::Stopped,
             LifecycleState::Starting | LifecycleState::Running => LifecycleState::Crashed,
             LifecycleState::Stopped | LifecycleState::Crashed => return Ok(()),
         };
         self.transition_to(next)?;
+        self.record_stop_diagnostics(id, now, was_user_requested_stop, reached_ready_state);
 
         if let Some(launch) = self.pending_restart.take() {
             self.start_active_server(launch)?;
@@ -372,17 +396,80 @@ impl<'deps> LifecycleService<'deps> {
         Ok(())
     }
 
+    /// `javaBackend.onDidTerminate`'s post-transition branch
+    /// (`AppViewModel.swift:1141-1175`): an unrequested stop always runs
+    /// `diagnoseUnexpectedStop` (crash analysis when modded and never
+    /// ready); a user-requested stop (`request_stop`/`restart_active_server`
+    /// — the only ways `Stopping` is ever entered) skips analysis entirely
+    /// and only records the generic "stopped before ready" fatal line when
+    /// the server never got there. Best-effort like
+    /// `write_last_startup_result` itself: a server the repository can no
+    /// longer load (deleted mid-run) simply skips the record rather than
+    /// failing the exit handling already committed above.
+    ///
+    /// **No mod-jar scanner exists in production yet** (P7.32's own scope
+    /// — none of this phase's `Files:` name one), so `installed_mods` is
+    /// always empty here. A missing-dependency problem (the log line
+    /// names what's absent, e.g. `fixtures/startup-crash-analyzer/fabric-
+    /// missing-dependency-parsed.json`) is unaffected — `parse_fabric`/
+    /// `parse_forge` find it from `console_excerpt` alone. What an empty
+    /// `installed_mods` loses is attribution: a problem that needs
+    /// matching a log's mod-id back to an installed jar to fill in
+    /// `installed_jar_stem` (the field [`diagnostics::available_actions`]
+    /// requires before it will offer disable/delete) currently finds no
+    /// match. Not a regression — nothing called this path in production
+    /// before this step — but tracked as a real gap rather than silently
+    /// worked around, the same language `health.rs`'s own module doc used
+    /// for this exact call before today.
+    fn record_stop_diagnostics(
+        &self,
+        id: &ServerId,
+        now: &str,
+        was_user_requested_stop: bool,
+        reached_ready_state: bool,
+    ) {
+        let Ok(server) = self.load_server(id) else {
+            return;
+        };
+        if was_user_requested_stop {
+            if !reached_ready_state {
+                diagnostics::write_last_startup_result(
+                    self.fs,
+                    &server.directory,
+                    now,
+                    false,
+                    vec!["Server stopped before reaching ready state.".to_string()],
+                    Vec::new(),
+                    Vec::new(),
+                );
+            }
+            return;
+        }
+        let is_modded = server.flavor.add_on_kind() == Some(AddOnKind::Mod);
+        diagnostics::diagnose_unexpected_stop(
+            self.fs,
+            &server.directory,
+            now,
+            reached_ready_state,
+            is_modded,
+            server.flavor.raw_value(),
+            &self.recent_console_lines,
+            &[],
+        );
+    }
+
     pub fn handle_process_event(
         &mut self,
         pid: ProcessId,
         event: &ProcessEvent,
+        now: &str,
     ) -> Result<(), LifecycleError> {
         self.require_active_process(pid)?;
         match event {
             ProcessEvent::Output { .. } => Ok(()),
             ProcessEvent::Exited(_) => {
                 let id = self.active_server_id()?.clone();
-                self.mark_process_exited(&id)
+                self.mark_process_exited(&id, now)
             }
         }
     }

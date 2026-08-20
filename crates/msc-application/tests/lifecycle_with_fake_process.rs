@@ -2,6 +2,7 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     LifecycleState, ServerId,
 };
+use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::process::{
     FakeProcessSupervisor, OutputLineFramer, ProcessEvent, ProcessSpawnRequest, ProcessSupervisor,
 };
@@ -41,8 +42,9 @@ fn service<'deps>(
     repository: &'deps FakeRepository,
     process: &'deps FakeProcessSupervisor,
     console: &'deps FakeConsole,
+    fs: &'deps FakeFileSystem,
 ) -> LifecycleService<'deps> {
-    LifecycleService::new(repository, process, console)
+    LifecycleService::new(repository, process, console, fs)
 }
 
 #[test]
@@ -53,7 +55,8 @@ fn lifecycle_with_fake_process_start_spawns_and_tracks_pid() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
@@ -74,7 +77,8 @@ fn lifecycle_with_fake_process_partial_ready_line_can_drive_running_state() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
     let mut framer = OutputLineFramer::new();
 
     service.select_active_server(server.id.clone()).unwrap();
@@ -87,7 +91,9 @@ fn lifecycle_with_fake_process_partial_ready_line_can_drive_running_state() {
     process.emit_stdout(pid, b", type \"help\"\n").unwrap();
 
     for event in process.drain_events(pid).unwrap() {
-        service.handle_process_event(pid, &event).unwrap();
+        service
+            .handle_process_event(pid, &event, "2024-01-01T00:00:00Z")
+            .unwrap();
         for line in framer.push_event(&event) {
             if line.starts_with("Done (") {
                 service.mark_ready(&server.id).unwrap();
@@ -106,7 +112,8 @@ fn lifecycle_with_fake_process_graceful_stop_waits_for_exit_before_stopped() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
@@ -118,7 +125,9 @@ fn lifecycle_with_fake_process_graceful_stop_waits_for_exit_before_stopped() {
 
     process.exit_normally(pid).unwrap();
     for event in process.drain_events(pid).unwrap() {
-        service.handle_process_event(pid, &event).unwrap();
+        service
+            .handle_process_event(pid, &event, "2024-01-01T00:00:00Z")
+            .unwrap();
     }
 
     assert_eq!(service.state(), LifecycleState::Stopped);
@@ -133,7 +142,8 @@ fn lifecycle_with_fake_process_crash_exit_marks_running_server_crashed() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
@@ -142,7 +152,9 @@ fn lifecycle_with_fake_process_crash_exit_marks_running_server_crashed() {
     process.crash(pid, 1).unwrap();
     for event in process.drain_events(pid).unwrap() {
         assert!(matches!(event, ProcessEvent::Exited(_)));
-        service.handle_process_event(pid, &event).unwrap();
+        service
+            .handle_process_event(pid, &event, "2024-01-01T00:00:00Z")
+            .unwrap();
     }
 
     assert_eq!(service.state(), LifecycleState::Crashed);

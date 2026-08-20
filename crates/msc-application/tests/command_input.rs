@@ -3,6 +3,7 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     ServerId,
 };
+use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::process::{FakeProcessSupervisor, ProcessSpawnRequest};
 use serde_json::Value;
 use std::path::PathBuf;
@@ -94,7 +95,8 @@ fn command_input_running_server_writes_to_process_stdin() {
     };
     let process = FakeProcessSupervisor::new();
     let console = NullConsole;
-    let mut service = LifecycleService::new(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = LifecycleService::new(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
@@ -118,7 +120,8 @@ fn command_input_stdin_write_failure_surfaces() {
     };
     let process = FakeProcessSupervisor::new();
     let console = NullConsole;
-    let mut service = LifecycleService::new(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = LifecycleService::new(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
@@ -146,7 +149,8 @@ fn command_input_stopped_server_refuses_command() {
     };
     let process = FakeProcessSupervisor::new();
     let console = NullConsole;
-    let mut service = LifecycleService::new(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = LifecycleService::new(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let error = service

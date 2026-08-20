@@ -2,6 +2,7 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     ServerId,
 };
+use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::metrics::{
     BoundedMetricHistory, ProcessMetricsProvider, ProcessResourceUsage,
 };
@@ -56,8 +57,9 @@ fn service<'deps>(
     repository: &'deps FakeRepository,
     process: &'deps FakeProcessSupervisor,
     console: &'deps FakeConsole,
+    fs: &'deps FakeFileSystem,
 ) -> LifecycleService<'deps> {
-    LifecycleService::new(repository, process, console)
+    LifecycleService::new(repository, process, console, fs)
 }
 
 #[test]
@@ -69,7 +71,8 @@ fn status_metrics_snapshot_reports_active_paper_process_state() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service
@@ -129,7 +132,8 @@ fn status_metrics_stopped_snapshot_does_not_invent_process_metrics() {
     };
     let process = FakeProcessSupervisor::new();
     let console = FakeConsole::default();
-    let mut service = service(&repository, &process, &console);
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
 
     service.select_active_server(server.id.clone()).unwrap();
     let metrics = FakeMetrics {

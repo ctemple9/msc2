@@ -7,19 +7,22 @@
 //! reading and mutating `msc_application::diagnostics`'s
 //! `last_startup_result.json` disk record for the active server —
 //! `diagnostics.rs`'s own module doc calls this "the disk-fallback half"
-//! it exposes [`read_last_startup_result`] for. **Flagged gap, not
-//! silently worked around:** nothing in this batch calls
-//! `diagnose_unexpected_stop`/`write_last_startup_result` from the real
-//! `LifecycleService` stop path yet — that's a Phase 4 `lifecycle.rs`
-//! integration (detecting *why* a stop happened, capturing a console
-//! excerpt, deciding "reached ready state") this step's own `Files:` list
-//! doesn't name, the same "no P7 step's Files: list names one" reasoning
-//! `provisioning.rs`'s own `should_record_loader_version` doc already
-//! used for a materially identical gap. Until that lands, these two
-//! routes serve real data from a real record whenever one exists (a
-//! test, a future lifecycle hook, or a hand-written file) and an honest
-//! "never started" `Gray` card / empty problem list otherwise — never a
-//! fabricated `ok`.
+//! it exposes [`read_last_startup_result`] for. **P7.32 closed the gap
+//! this doc used to flag here:** `LifecycleService::mark_process_exited`
+//! (`msc-application/src/lifecycle.rs`) now calls
+//! `diagnose_unexpected_stop`/`write_last_startup_result` for real, on
+//! every process exit the real `LifecycleService` stop path sees — not
+//! just from a test or a hand-written file. These two routes read
+//! whatever that real write produced (or an honest "never started" `Gray`
+//! card / empty problem list before the server has ever run) — never a
+//! fabricated `ok`. One real limitation remains, tracked in
+//! `lifecycle.rs`'s own `record_stop_diagnostics` doc rather than silently
+//! worked around: no mod-jar directory scanner exists in production yet,
+//! so a modded crash's `installed_mods` input is always empty — dependency
+//! problems (a log line naming what's missing) still get analyzed and
+//! recorded correctly, but a problem that needs matching against an
+//! installed jar to attribute an `installed_jar_stem` (enabling the
+//! disable/delete repair actions) cannot yet find one.
 
 use std::path::{Path, PathBuf};
 

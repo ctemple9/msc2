@@ -310,7 +310,8 @@ impl LifecycleRoutesState {
         let console = Box::leak(Box::new(AgentConsoleSink {
             console: console_state,
         }));
-        let mut lifecycle = LifecycleService::new(registry, process, console);
+        let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
+        let mut lifecycle = LifecycleService::new(registry, process, console, fs);
         if let Some(active) = app_config.active_server_id()
             && matches!(
                 reconciliation.get(&active),
@@ -949,12 +950,11 @@ impl LifecycleRoutesState {
                 }
             }
             let exited = matches!(event, ProcessEvent::Exited(_));
-            let _ = self
-                .inner
-                .lifecycle
-                .lock()
-                .unwrap()
-                .handle_process_event(pid, &event);
+            let _ = self.inner.lifecycle.lock().unwrap().handle_process_event(
+                pid,
+                &event,
+                &iso8601_now(),
+            );
             if exited {
                 self.finish_active_lifecycle_operation_failure(
                     "Java process exited before readiness.",

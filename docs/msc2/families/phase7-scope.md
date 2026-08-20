@@ -143,3 +143,97 @@ This note fixes the family boundary and the creation/rollback rules as MSC 1 act
 - **Exact staged-download integration** for P7.13's provider boundary (timeouts, size caps, retry policy) — this note fixes *what* each provider returns and *how* a version is identified, not the HTTP-boundary mechanics P7.13 owns.
 - **The managed Java-install unpack layout** beyond "MSC-owned runtimes directory, not system-owned" — P7.16's job to pin exactly.
 - Any other later step's design. Where a later step hits a genuine judgment call, it raises it as a question in the format `CLAUDE.md` requires rather than deciding it here.
+
+## Gate closure — P7.30 (2026-08-20)
+
+**Method:** every clause below was checked against the exact working tree at the head of `phase5-corrections` (P7.29's commits, `dc72f7f` and earlier), by reading the actual production call sites — not by re-reading step write-ups — plus running `provider-corpus-check.py --selftest`, `phase7-gate-smoke.sh --synthetic`, and `cargo nextest run --workspace`. Codex reviews this from scratch per this step's own instruction; what follows is Claude Code's own read, reported plainly rather than summarized as a pass.
+
+### Six families: created, launched, version-changeable, archivable, diagnosable
+
+| Family | Created | Launch shape | Version-changeable | Archivable | Diagnosable |
+|---|---|---|---|---|---|
+| Vanilla | holds — smoke + P7.28 real evidence + iOS walkthrough | holds — `-jar paper.jar --nogui`, proven synthetic and real | holds — `change_download_and_go` via staged download | holds — `archive_jar` (P7.15) | see "Startup diagnostics" finding below |
+| Paper | holds | holds | holds | holds | see below |
+| Purpur | holds | holds | holds | holds | see below |
+| Fabric | holds | holds | holds — `change_fabric` | holds | see below |
+| NeoForge | holds — smoke + P7.28 + iOS walkthrough (`neoforge1`) | holds — `@<args-file> nogui`, proven synthetic, real-network, and real-iOS | holds — `change_neoforge`, installer re-run | **N/A by design, not a gap** — `archive_jar` never archives install-step flavors; no such mechanism exists in the MSC 1 oracle either (P7.1's own correction to this file's original wording) | see below |
+| Forge | holds — same evidence as NeoForge, plus the imported-raw-Forge case the port plan's later-audit clause names | holds — same | holds — `change_forge` | N/A by design, same as NeoForge | see below |
+
+The "created/launched" and "version-changeable" columns are the best-evidenced part of this gate: synthetic smoke, real-network evidence (`docs/msc2/families/provisioning-evidence/`), and a live iOS walkthrough all agree, independently, for all six families. The port plan's later-audit clause — "Phase 7 must prove non-Paper Java servers are not merely classified but actually launchable with the correct family-specific startup shape" — is answered concretely: `phase7-gate-smoke.sh`'s `import a synthetic raw Forge-shaped server` step launches a Phase-5-imported (not Phase-7-created) Forge directory from its on-disk args file, and the real iOS session started a genuinely-created `forge1` and confirmed its host process argv directly (`ps aux`) matched `@libraries/.../unix_args.txt nogui`.
+
+### Startup diagnostics — does not hold as written
+
+The working exit criteria say: "startup diagnostics turn a real failed boot into attributed problems with repairs that MSC verifies before claiming success." Reading the actual call graph:
+
+- `msc_application::diagnostics::diagnose_unexpected_stop` and `write_last_startup_result` are built (P7.22) and unit-tested, but **are never called from `msc_application::lifecycle`'s real stop path** — confirmed by `grep -rn "diagnose_unexpected_stop" crates/`, which shows every call site is either the function's own definition or a test. `crates/msc-agent/src/routes/health.rs`'s own module doc already flags this plainly ("nothing in this batch calls `diagnose_unexpected_stop`/`write_last_startup_result` from the real `LifecycleService` stop path yet") and attributes it to a Phase 4 `lifecycle.rs` integration no P7 step's `Files:` list names.
+- The practical effect: `GET /v1/health/problems` serves real data only when a record already exists on disk (from a test, or a future hook) — a live agent whose Forge server actually crashes on boot today produces **no** attributed problem and no repair option. This is exactly item 8 of the iOS walkthrough ("not exercised... no real startup problem was manufactured"), and this audit's own read of the code shows *why* it couldn't have been exercised even if Cameron had tried: the wiring genuinely isn't there yet, not just untested.
+- This was flagged honestly at the time it was built (health.rs's doc comment, `client-capability-matrix.csv`'s own note on `GET /v1/health/problems`) — it is not a silently-introduced gap. But it is a real gap against this phase's own working exit criteria, not a documentation nicety.
+
+**"Diagnosable" holds for the mechanism (attribution logic, repair actions, health-card rendering — all built and fixture-proven) but does not hold for the live path** ("a real failed boot" → "attributed problems") for any of the six families, because nothing calls the attribution function when a real boot actually fails.
+
+### The required-major guard — does not hold
+
+The working exit criteria say: "Java runtime discovery, selection, and the required-major guard gate both creation and start, and report an unusable runtime instead of failing at launch."
+
+`msc_domain::java_runtime::required_java_major`, `compatibility_warning_text`, and `validate_looks_like_java` are ported and unit-tested at the domain layer (P7.12). Checked every call site in the workspace (`grep -rn` for each symbol, excluding `tests/`): **none of the three is called from `msc-application::provisioning` (creation), `msc-application::lifecycle` (start), or any `msc-agent` route.** `crates/msc-application/src/diagnostics.rs::check_java_runtime` (the `GET /v1/health` card) is the only production caller of the related `parse_major`, and that is a passive diagnostic card, not a gate — it is read after the fact, not consulted before a create or a start is allowed to proceed.
+
+Concretely: today, creating or starting a server with an incompatible or missing Java runtime is not refused by MSC 2 at all. It will fail however the JVM itself fails on a bad launch (a raw process-spawn error or a JVM version-mismatch stack trace), not with the "unusable runtime" typed report this criterion promises. No production code path returns anything resembling `UnusableRuntime` (confirmed absent by search). This gap was not flagged as deferred anywhere in P7.12's, P7.16's, P7.17's, or P7.18's own "Actual result" write-ups — it appears to have fallen through the domain/application boundary rather than being a deliberate scope call.
+
+### Rollback — holds for synchronous failures, one known gap for async ones
+
+"Every failed create rolls its directory back completely, leaving no half-provisioned server behind" holds for the two failure modes the smoke actually injects (download failure, installer failure — both proven to leave no directory). It does **not** hold for the async case already flagged in the 2026-08-19 amendment and left for this step to decide: an agent killed mid-Forge/NeoForge-install and restarted has its *operation* correctly reconciled to `failed` (`LifecycleOperations::reconcile_on_startup`, confirmed — journal-only), but the half-written server directory itself is never swept; `reconcile_on_startup` touches only the operation journal, not the filesystem or the server registry. Per Cameron's own 2026-08-19 call, this step's job was to accept this as documented residual behavior or scope a follow-up — recorded here as **still open, not decided by this report**; see "Questions" below.
+
+One smaller, related, previously-flagged-and-never-closed item: `phase7-scope.md`'s own P7.1 note recommended closing "the folder-name check-then-create race" (`fs.stat` then `fs.create_dir_all`, not an atomic claim) rather than reproducing it. Reading `provisioning.rs:645-652` today, the check-then-create shape is still exactly what was flagged — never closed by P7.17/P7.18. Narrow (only two concurrent creates of the identical server name), but real and still open.
+
+### Everything else in the working exit criteria — holds
+
+- **Version listing, version change, jar archiving through the staged-download path**: `server_versions.rs::change_version` composes `jar_provider.rs` functions for every family (verified by reading `change_download_and_go`/`change_fabric`/`change_neoforge`/`change_forge`), all of which route through P7.13's `Transport` + `download_staging::stage_download`. Holds.
+- **Provider outages / malformed catalogs / absent networks degrade honestly**: `routes/versions.rs::fetch_versions_response` returns an empty version list with a `note` string on any transport or join error — never a fabricated list. Holds.
+- **Bedrock creation refused, not faked**: `routes/servers.rs:1168` returns `capability_unavailable` before any directory is touched. Holds. Confirmed live in the iOS walkthrough (item 3).
+- **Deferrals** (components route, Geyser/Floodgate downloads, help-content resolver, the other three health cards, desktop/web screens, modpack-driven creation, Spigot/Quilt/Pufferfish exclusion from the create-flow catalog): every one checked against the actual code (no `routes/components.rs`, no `downloadLatestGeyser/Floodgate` call, no `/v1/help/{helpId}` route, `not_yet_implemented_card` used for the other four health cards, no desktop/web route implementations, no modpack import source). All still true, still honestly advertised (matrix/route absence matches documentation), still owned by their named later phase. Holds.
+
+### Verdict
+
+**This gate does not fully close as written.** Four of its clauses hold with strong, independently-cross-checked evidence (creation, launch shape, version change, honest degradation, the Bedrock refusal, and every deferral). Two do not: the required-major guard does not gate creation or start in production code at all, and startup diagnostics cannot attribute a real failed boot because nothing calls `diagnose_unexpected_stop` outside a test. A third — orphaned-directory cleanup after a mid-install kill — is a known, smaller gap Cameron already asked this step to explicitly resolve one way or the other, not silently carry forward again.
+
+Per this step's own instruction, this report fixes nothing and closes nothing; Codex reviews Phase 7 next, since Claude Code planned and built it.
+
+### Questions for Cameron
+
+```
+QUESTION — How should the two unwired Java-runtime/diagnostics gaps be closed, and what happens to the orphaned-directory gap?
+
+What it is:      Two things this phase promised are built but not connected to the live
+                 path: (1) MSC 2 doesn't actually check whether a server's Java runtime
+                 is compatible before creating or starting it — an incompatible JVM just
+                 fails however it fails, instead of MSC 2 catching it first with a clear
+                 message. (2) When a server's boot genuinely fails, nothing currently
+                 writes down what went wrong, so the Health screen's problem list and
+                 repair button stay empty even for a real crash. A third, smaller item:
+                 if MSC 2 is killed mid-install and restarted, the operation is correctly
+                 marked failed, but the half-installed server folder itself is left on
+                 disk rather than cleaned up.
+
+The choice:      (a) Treat all three as new Phase 7 steps (P7.31+) before the gate closes
+                     — wire the guard into create/start, wire the real stop path into
+                     diagnostics, and sweep orphaned directories on reconciliation.
+                 (b) Close Phase 7 now with these three recorded as known, load-bearing
+                     gaps, and pick them up explicitly in a later phase or a dedicated
+                     hardening pass.
+
+Why it matters:  (a) keeps Phase 7's own promises fully true before the gate closes, at
+                 the cost of more steps before Phase 8 starts. (b) lets Phase 8 begin
+                 sooner, but ships Phase 7 with two of its named working exit criteria
+                 not actually true in the running agent — someone hits a real crash or a
+                 wrong-Java server today and gets a raw failure, not the attributed
+                 report/refusal this phase advertises.
+
+If unsure:       (a) for the two unwired guards — they're small, self-contained wiring
+                 gaps against code that already exists and is already tested (the guard
+                 is one call in `provisioning.rs`/`lifecycle.rs`; the diagnostics hook is
+                 one call in the real stop path), not new design. (b) is more defensible
+                 for the orphaned-directory sweep specifically, since Phase 6 built a
+                 comparable reconciler for world activation/restore as its own scoped
+                 step rather than folding it into whatever step found the gap — the same
+                 precedent would suggest a dedicated step here too, not a rushed fix.
+```

@@ -504,20 +504,53 @@ fn change_version_error_code(error: &ChangeVersionError) -> &'static str {
 
 // ---------- GET /v1/java-runtimes ----------
 
-pub async fn java_runtimes() -> Response {
+pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Response {
     let home_dir = agent_home_dir();
     let host = current_host_os();
-    let outcome = tokio::task::spawn_blocking(move || {
+    let detected = tokio::task::spawn_blocking(move || {
         let mut roots = vec![runtimes_root().to_string_lossy().into_owned()];
         roots.extend(default_java_runtime_search_roots(host, &home_dir));
         java_runtime_detection::detect_installed_java_runtimes(&StdFileSystem, &roots)
     })
-    .await;
-    let runtimes = outcome.unwrap_or_default();
+    .await
+    .unwrap_or_default();
+
+    // P7.31: corroborate each entry's path-inferred `major_version` (a
+    // regex-over-directory-name guess) with a real probe -- the same
+    // mechanism the required-major guard itself runs against the
+    // *configured* runtime, applied here to every *discovered* one.
+    let supervisor = state.process_supervisor();
+    let runtimes = tokio::task::spawn_blocking(move || {
+        detected
+            .into_iter()
+            .map(|runtime| with_probed_major_version(supervisor, runtime))
+            .collect::<Vec<_>>()
+    })
+    .await
+    .unwrap_or_default();
+
     axum::Json(JavaRuntimesResponseDto {
         runtimes: runtimes.into_iter().map(detected_runtime_to_dto).collect(),
     })
     .into_response()
+}
+
+/// A probe failure (spawn error, unparseable banner) leaves the path-
+/// inferred guess in place rather than blanking out a value this route
+/// already had -- the probe only ever *improves* on the guess, never
+/// regresses to less information than before.
+fn with_probed_major_version(
+    supervisor: &'static (dyn msc_infrastructure::process::ProcessSupervisor + Send + Sync),
+    mut runtime: DetectedJavaRuntime,
+) -> DetectedJavaRuntime {
+    let probe =
+        java_runtime_detection::run_java_version_probe(supervisor, &runtime.executable_path);
+    if let msc_domain::java_runtime::JavaVersionProbe::Captured { output } = &probe
+        && let Some(major) = msc_domain::java_runtime::parse_major(output)
+    {
+        runtime.major_version = Some(major);
+    }
+    runtime
 }
 
 fn detected_runtime_to_dto(runtime: DetectedJavaRuntime) -> JavaRuntimeDto {
@@ -1004,5 +1037,57 @@ mod tests {
 
         let get_again = get_java_config(State(state)).await;
         assert!(response_body(get_again).await.contains("/usr/bin/java"));
+    }
+
+    // ---------------------------------------------------------------------
+    // P7.31: `GET /v1/java-runtimes` now corroborates its path-inferred
+    // `major_version` guess with a real probe -- proven against
+    // `with_probed_major_version` directly, since `java_runtimes` itself
+    // scans the real host filesystem/`$HOME` with no injectable roots.
+    // ---------------------------------------------------------------------
+
+    fn guessed_runtime(major_guess: i64) -> DetectedJavaRuntime {
+        DetectedJavaRuntime {
+            name: "guessed".to_string(),
+            executable_path: "/opt/jdk/bin/java".to_string(),
+            home_path: "/opt/jdk".to_string(),
+            major_version: Some(major_guess),
+        }
+    }
+
+    #[test]
+    fn java_runtime_probed_major_version_overrides_path_inferred_guess() {
+        let supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor = Box::leak(
+            Box::new(msc_infrastructure::process::FakeProcessSupervisor::new()),
+        );
+        let driver = std::thread::spawn(move || {
+            loop {
+                if let Some((pid, _)) = supervisor.spawned_requests().into_iter().next() {
+                    let _ = supervisor
+                        .emit_stdout(pid, b"openjdk version \"21.0.1\" 2023-10-17\n".to_vec());
+                    let _ = supervisor.exit_normally(pid);
+                    return;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+        });
+
+        // Directory name suggested 17; the real probe says 21.
+        let updated = with_probed_major_version(supervisor, guessed_runtime(17));
+        driver.join().unwrap();
+
+        assert_eq!(updated.major_version, Some(21));
+    }
+
+    #[test]
+    fn java_runtime_probed_major_version_falls_back_to_guess_when_probe_fails() {
+        let supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor = Box::leak(
+            Box::new(msc_infrastructure::process::FakeProcessSupervisor::new()),
+        );
+        supervisor.fail_next_spawn("no such executable");
+
+        let updated = with_probed_major_version(supervisor, guessed_runtime(17));
+
+        assert_eq!(updated.major_version, Some(17));
     }
 }

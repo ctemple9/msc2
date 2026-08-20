@@ -9,11 +9,12 @@
 //! name, not file/binary name) selects all of them.
 
 use msc_domain::identity::ServerType;
+use msc_domain::java_runtime::JavaVersionProbe;
 use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::java_runtime_detection::{
     JavaOnPathStatus, check_java_on_path, detect_installed_java_runtimes,
     has_critical_missing_dependency, is_java_installed, java_on_path_field_autofill,
-    normalized_java_executable_path,
+    normalized_java_executable_path, run_java_version_probe,
 };
 use msc_infrastructure::process::FakeProcessSupervisor;
 use serde_json::Value;
@@ -413,4 +414,53 @@ fn java_runtime_detection_has_critical_missing_dependency_skips_java_check_when_
         supervisor.spawned_requests().is_empty(),
         "which java must not be spawned when no Java server is configured"
     );
+}
+
+// ---------------------------------------------------------------------
+// P7.31: `run_java_version_probe`, the create/start-time counterpart to
+// `run_which_java` above -- proves the real spawn/poll/combine wiring
+// `msc_domain::java_runtime::evaluate_java_runtime_guard` is fed from,
+// not the guard's own pure decision logic (already covered by
+// `msc-domain`'s inline `java_runtime::guard_tests`).
+// ---------------------------------------------------------------------
+
+#[test]
+fn java_runtime_detection_run_java_version_probe_captures_combined_output() {
+    let supervisor = Arc::new(FakeProcessSupervisor::new());
+    drive_which_java(&supervisor, "openjdk version \"21.0.1\" 2023-10-17\n", 0);
+
+    let probe = run_java_version_probe(supervisor.as_ref(), "/usr/bin/java");
+
+    assert_eq!(
+        probe,
+        JavaVersionProbe::Captured {
+            output: "openjdk version \"21.0.1\" 2023-10-17\n".to_string()
+        }
+    );
+}
+
+#[test]
+fn java_runtime_detection_run_java_version_probe_not_found_on_spawn_failure() {
+    let supervisor = FakeProcessSupervisor::new();
+    supervisor.fail_next_spawn("no such file or directory");
+
+    let probe = run_java_version_probe(&supervisor, "/nonexistent/java");
+
+    assert_eq!(probe, JavaVersionProbe::NotFound);
+}
+
+#[test]
+fn java_runtime_detection_run_java_version_probe_spawns_the_dash_version_flag() {
+    let supervisor = Arc::new(FakeProcessSupervisor::new());
+    drive_which_java(&supervisor, "openjdk version \"21.0.1\"\n", 0);
+
+    let _ = run_java_version_probe(supervisor.as_ref(), "/usr/bin/java");
+
+    let requests = supervisor.spawned_requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        requests[0].1.executable_path,
+        PathBuf::from("/usr/bin/java")
+    );
+    assert_eq!(requests[0].1.arguments, vec!["-version".to_string()]);
 }

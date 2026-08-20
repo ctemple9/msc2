@@ -34,6 +34,7 @@ use msc_domain::identity::{JavaServerFlavor, ServerProvisioningKind, ServerType}
 use msc_domain::operation::OperationId;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::HttpTransport;
+use msc_infrastructure::java_runtime_detection;
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
@@ -1372,10 +1373,40 @@ fn run_create_server(
     };
 
     match result {
-        Ok(created) => {
+        Ok(mut created) => {
+            // P7.31: `create_install_step_server` already ran this guard
+            // itself (before its own installer subprocess), so this only
+            // gates the four download-and-go families, which never spawn
+            // Java at create time at all -- this is their one chance to
+            // refuse before the server is registered into the fleet and
+            // becomes something a caller could try to start.
+            if flavor.provisioning_kind() != ServerProvisioningKind::InstallStep {
+                let probe = java_runtime_detection::run_java_version_probe(
+                    state.process_supervisor(),
+                    &java_path,
+                );
+                match msc_domain::java_runtime::evaluate_java_runtime_guard(
+                    &java_path,
+                    created.config.minecraft_version.as_deref(),
+                    &probe,
+                ) {
+                    Ok(warning) => created.java_compatibility_warning = warning,
+                    Err(unusable) => {
+                        let _ = StdFileSystem.remove(Path::new(&created.config.server_dir));
+                        let _ = state.finish_operation_failure(
+                            &operation_id,
+                            "unusable_java_runtime",
+                            unusable.to_string(),
+                        );
+                        return;
+                    }
+                }
+            }
+
             let server_id = created.config.id.clone();
             let server_name = created.config.display_name.clone();
             let is_java = created.config.server_type == ServerType::Java;
+            let java_compatibility_warning = created.java_compatibility_warning.clone();
             match state.register_imported_config_servers(vec![created.config], false) {
                 Ok(statuses) => {
                     let ready = statuses.iter().any(|(id, status)| {
@@ -1399,6 +1430,9 @@ fn run_create_server(
                     result_map.insert("serverId".to_string(), server_id);
                     result_map.insert("serverName".to_string(), server_name.clone());
                     result_map.insert("ready".to_string(), ready.to_string());
+                    if let Some(warning) = java_compatibility_warning {
+                        result_map.insert("javaCompatibilityWarning".to_string(), warning);
+                    }
                     let _ = state.finish_operation_success(
                         &operation_id,
                         &format!("Created {} server \"{server_name}\".", flavor.raw_value()),
@@ -1428,6 +1462,7 @@ fn create_server_error_code(error: &CreateServerError) -> &'static str {
     match error {
         CreateServerError::EmptyName => "name_required",
         CreateServerError::Cancelled => "cancelled",
+        CreateServerError::UnusableJavaRuntime(_) => "unusable_java_runtime",
         _ => "create_failed",
     }
 }
@@ -1602,6 +1637,30 @@ mod tests {
     use msc_infrastructure::fs::{FileSystem, StdFileSystem};
     use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
     use std::sync::Arc;
+
+    /// P7.31's own required-major guard now spawns `<java> -version`
+    /// before any real server process (create's own download-and-go
+    /// guard, and `start_active_server`'s own start-time guard) --
+    /// `FakeProcessSupervisor` has no automatic responder, so a test that
+    /// exercises either path has to drive it from a background thread the
+    /// same way `routes::lifecycle`'s own test module's identically-named
+    /// helper does. Answers with a Java 25 banner, comfortably above
+    /// every possible `required_java_major` result.
+    fn drive_java_version_probe_once(
+        supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor,
+    ) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || {
+            loop {
+                if let Some((pid, _)) = supervisor.spawned_requests().into_iter().next() {
+                    let _ = supervisor
+                        .emit_stdout(pid, b"openjdk version \"25.0.1\" 2025-01-01\n".to_vec());
+                    let _ = supervisor.exit_normally(pid);
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        })
+    }
 
     // ---------- P5.16: replace-all backup ordering ----------
 
@@ -2646,7 +2705,10 @@ mod tests {
 
     #[tokio::test]
     async fn delete_route_refuses_the_running_active_server() {
-        let state = route_state();
+        let (state, supervisor) = LifecycleRoutesState::with_fake_process_capturing_supervisor(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
         let dir = temp_dir("delete-route-running");
         std::fs::write(dir.join("paper.jar"), b"fake jar").unwrap();
         let mut server = seeded_server("DEL-2", &dir);
@@ -2655,7 +2717,9 @@ mod tests {
             .register_imported_config_servers(vec![server], false)
             .unwrap();
         state.select_active_server("DEL-2".to_string()).unwrap();
+        let probe_driver = drive_java_version_probe_once(supervisor);
         state.start_active_server().unwrap();
+        probe_driver.join().unwrap();
 
         let response = call_delete(&state, "DEL-2").await;
         assert_eq!(response.status(), StatusCode::CONFLICT);

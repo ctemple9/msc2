@@ -134,6 +134,31 @@ pub trait ProcessSupervisor: Send + Sync {
     fn drain_events(&self, pid: ProcessId) -> Result<Vec<ProcessEvent>, ProcessError>;
 }
 
+/// Lets a shared reference to a concrete supervisor (e.g. `&'static
+/// FakeProcessSupervisor`) be boxed as `Box<dyn ProcessSupervisor + Send +
+/// Sync>` without giving up the caller's own concrete handle -- P7.31's
+/// own test doubles need to keep driving a `FakeProcessSupervisor`'s
+/// inherent (non-trait) `spawned_requests`/`emit_stdout`/`exit_normally`
+/// methods after handing a copy of the same reference to something that
+/// only wants the trait.
+impl<T: ProcessSupervisor + ?Sized> ProcessSupervisor for &T {
+    fn spawn(&self, request: ProcessSpawnRequest) -> Result<ProcessId, ProcessError> {
+        (*self).spawn(request)
+    }
+
+    fn write_stdin(&self, pid: ProcessId, bytes: &[u8]) -> Result<(), ProcessError> {
+        (*self).write_stdin(pid, bytes)
+    }
+
+    fn force_terminate(&self, pid: ProcessId) -> Result<(), ProcessError> {
+        (*self).force_terminate(pid)
+    }
+
+    fn drain_events(&self, pid: ProcessId) -> Result<Vec<ProcessEvent>, ProcessError> {
+        (*self).drain_events(pid)
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct OutputLineFramer {
     inner: ConsoleLineFramer,

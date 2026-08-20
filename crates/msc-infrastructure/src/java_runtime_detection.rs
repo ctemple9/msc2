@@ -31,6 +31,7 @@ use crate::process::{
     OutputStream, ProcessError, ProcessEvent, ProcessSpawnRequest, ProcessSupervisor,
 };
 use msc_domain::identity::ServerType;
+use msc_domain::java_runtime::JavaVersionProbe;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
@@ -412,6 +413,62 @@ pub fn java_on_path_field_autofill(
 /// what stays separate is the two callers' own pass/fail semantics).
 pub fn is_java_installed(supervisor: &dyn ProcessSupervisor) -> bool {
     matches!(run_which_java(supervisor), Ok(output) if !output.is_empty())
+}
+
+/// `-version`'s own timeout: generous for a real cold JVM start (which
+/// `run_which_java`'s 5s budget, tuned for `/usr/bin/which`, isn't), but
+/// still finite so a genuinely broken executable degrades honestly (per
+/// this phase's own "honest degradation" requirement) instead of hanging
+/// creation or start forever.
+const JAVA_VERSION_PROBE_TIMEOUT: Duration = Duration::from_secs(10);
+
+/// P7.31's own probe: the create/start-time counterpart to
+/// [`run_which_java`], spawning `<executable_path> -version` through the
+/// same testable [`ProcessSupervisor`] boundary rather than the
+/// unsupervised `std::process::Command` `GET /v1/health`'s own
+/// `run_java_version_probe` uses -- this one feeds
+/// [`msc_domain::java_runtime::evaluate_java_runtime_guard`], which
+/// creation and start both call before committing to a launch. Combines
+/// stdout+stderr in event order (`java -version` traditionally writes to
+/// stderr) the same way a captured terminal session would show them. A
+/// spawn failure, a `drain_events` error, or a timeout all collapse to
+/// [`JavaVersionProbe::NotFound`] -- the same "can't tell, treat as
+/// absent" catch-all [`run_which_java`] already uses.
+pub fn run_java_version_probe(
+    supervisor: &dyn ProcessSupervisor,
+    executable_path: &str,
+) -> JavaVersionProbe {
+    let request = ProcessSpawnRequest::new(executable_path, ".").arg("-version");
+    let Ok(pid) = supervisor.spawn(request) else {
+        return JavaVersionProbe::NotFound;
+    };
+    let mut combined = Vec::new();
+    let deadline = Instant::now() + JAVA_VERSION_PROBE_TIMEOUT;
+
+    loop {
+        let Ok(events) = supervisor.drain_events(pid) else {
+            return JavaVersionProbe::NotFound;
+        };
+        let mut exited = false;
+        for event in events {
+            match event {
+                ProcessEvent::Output { bytes, .. } => combined.extend_from_slice(&bytes),
+                ProcessEvent::Exited(_) => exited = true,
+            }
+        }
+        if exited {
+            break;
+        }
+        if Instant::now() >= deadline {
+            let _ = supervisor.force_terminate(pid);
+            break;
+        }
+        std::thread::sleep(WHICH_JAVA_POLL_INTERVAL);
+    }
+
+    JavaVersionProbe::Captured {
+        output: String::from_utf8_lossy(&combined).into_owned(),
+    }
 }
 
 /// `PrerequisitesView.hasCriticalMissingDependency(for:)` (source line

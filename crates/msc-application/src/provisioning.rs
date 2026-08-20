@@ -51,6 +51,7 @@ use msc_domain::{nbt, server_versions};
 use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::fs::{FileSystem, join_forward_slash};
 use msc_infrastructure::jar_provider::{self, JarProviderError, Transport};
+use msc_infrastructure::java_runtime_detection;
 use msc_infrastructure::loader_installer::{
     self, LoaderInstallRequest, LoaderInstallerError, LoaderTarget,
 };
@@ -108,6 +109,13 @@ pub enum CreateServerError {
     /// "nothing long-running touched yet" boundaries
     /// `world_conversion::convert_world` already uses.
     Cancelled,
+    /// P7.31: the required-major Java guard refused the resolved
+    /// executable before the loader installer (Forge/NeoForge only —
+    /// download-and-go never spawns Java at create time, so this variant
+    /// is only ever raised by [`create_install_step_server`]) got a
+    /// chance to run against it and produce an opaque process failure
+    /// instead.
+    UnusableJavaRuntime(msc_domain::java_runtime::UnusableJavaRuntime),
 }
 
 impl fmt::Display for CreateServerError {
@@ -140,6 +148,7 @@ impl fmt::Display for CreateServerError {
             CreateServerError::WorldSlot(e) => write!(f, "{e}"),
             CreateServerError::LoaderInstaller(e) => write!(f, "{e}"),
             CreateServerError::Cancelled => write!(f, "creation was cancelled"),
+            CreateServerError::UnusableJavaRuntime(e) => write!(f, "{e}"),
         }
     }
 }
@@ -188,6 +197,32 @@ impl From<LoaderInstallerError> for CreateServerError {
     }
 }
 
+impl From<msc_domain::java_runtime::UnusableJavaRuntime> for CreateServerError {
+    fn from(e: msc_domain::java_runtime::UnusableJavaRuntime) -> Self {
+        CreateServerError::UnusableJavaRuntime(e)
+    }
+}
+
+/// Runs P7.31's required-major guard against `java_executable_path`,
+/// probing it for real through `supervisor` (the same handle the loader
+/// installer itself spawns against) rather than trusting it unchecked.
+/// `Ok(Some(warning))` is the above-required-but-Java-17-era case;
+/// callers thread it into [`CreatedServer::java_compatibility_warning`]
+/// rather than blocking on it.
+pub(crate) fn check_java_runtime_guard(
+    supervisor: &dyn ProcessSupervisor,
+    java_executable_path: &str,
+    minecraft_version: Option<&str>,
+) -> Result<Option<String>, CreateServerError> {
+    let probe = java_runtime_detection::run_java_version_probe(supervisor, java_executable_path);
+    msc_domain::java_runtime::evaluate_java_runtime_guard(
+        java_executable_path,
+        minecraft_version,
+        &probe,
+    )
+    .map_err(CreateServerError::from)
+}
+
 /// `AppViewModel.createNewServer`'s parameters, minus `specificVersion`
 /// (no `fixtures/server-creation` case exercises pinning a non-latest
 /// version at create time — this module only builds "download latest,"
@@ -225,6 +260,13 @@ pub struct CreatedServer {
     /// — see this module's own doc for why the write itself isn't built
     /// here.
     pub should_record_loader_version: bool,
+    /// P7.31's required-major guard's own above-required-but-Java-17-era
+    /// warning (`msc_domain::java_runtime::compatibility_warning_text`),
+    /// when the resolved executable triggered one. `None` on a clean bill
+    /// of health — set by each caller after [`finish_server_creation`]
+    /// returns, not by that shared tail itself (it has no java-executable
+    /// argument to run the guard's own probe against).
+    pub java_compatibility_warning: Option<String>,
 }
 
 /// What a jar acquisition resolved to — mirrors `ServerJarDownloadResult`
@@ -826,6 +868,7 @@ pub(crate) fn finish_server_creation(
         config: apply_fields(fields),
         world_slot: slot,
         should_record_loader_version: should_record,
+        java_compatibility_warning: None,
     })
 }
 
@@ -933,11 +976,21 @@ pub fn create_install_step_server(
     }
     fs.create_dir_all(&new_dir)?;
 
+    let mut java_compatibility_warning: Option<String> = None;
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {
         let (resolved_version, resolved_loader) = match request.flavor {
             JavaServerFlavor::NeoForge => {
                 let version = jar_provider::neoforge_latest_stable(transport)?;
                 let mc_version = server_versions::neoforge_minecraft_version(&version);
+                // P7.31: refuse an unusable Java executable before the
+                // installer -- which itself needs to spawn
+                // `java_executable_path` -- gets a chance to fail with an
+                // opaque process error instead. Checked as soon as
+                // `mc_version` is known, before the (larger) installer
+                // download, so a bad runtime is never worth the network
+                // cost of finding out.
+                java_compatibility_warning =
+                    check_java_runtime_guard(supervisor, java_executable_path, Some(&mc_version))?;
                 let installer_jar_name = "neoforge-installer.jar".to_string();
                 jar_provider::neoforge_download_installer(
                     transport,
@@ -974,6 +1027,10 @@ pub fn create_install_step_server(
             JavaServerFlavor::Forge => {
                 let (mc_version, forge_version) =
                     jar_provider::forge_latest_recommended(transport)?;
+                // P7.31: same guard, same reasoning as the NeoForge arm
+                // above.
+                java_compatibility_warning =
+                    check_java_runtime_guard(supervisor, java_executable_path, Some(&mc_version))?;
                 let installer_jar_name = "forge-installer.jar".to_string();
                 jar_provider::forge_download_installer(
                     transport,
@@ -1028,6 +1085,10 @@ pub fn create_install_step_server(
             unzip_world_backup,
             copy_existing_world_folder,
         )
+        .map(|mut created| {
+            created.java_compatibility_warning = java_compatibility_warning.take();
+            created
+        })
     })();
 
     if outcome.is_err() {

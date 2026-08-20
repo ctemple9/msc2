@@ -227,6 +227,146 @@ pub fn resolve_create_time_java_path<'a>(
     create_request_java_path.unwrap_or(global_config_java_path)
 }
 
+// ---------------------------------------------------------------------
+// P7.31: the required-major guard itself, composed from the pieces
+// above. Neither `required_java_major` nor `validate_looks_like_java`
+// had any production caller before this — P7.30's gate-closure audit
+// found both ported and unit-tested but never wired into creation or
+// start. This is that wiring's pure half: given one already-resolved
+// Java executable's captured `-version` probe (the I/O half stays in
+// `msc-infrastructure`/`msc-agent`, per this module's own no-I/O rule),
+// decide refuse / warn / proceed.
+// ---------------------------------------------------------------------
+
+/// What create/start-time's own `-version` probe of the resolved Java
+/// executable found -- the single-candidate counterpart to
+/// `msc-application::diagnostics::JavaCandidateProbe`'s multi-candidate
+/// health-card list (create/start have already committed to one java
+/// path via [`resolve_create_time_java_path`]/the stored global default,
+/// not a candidate list to fall through).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum JavaVersionProbe {
+    /// The executable could not be spawned at all: not found, not
+    /// executable, or the process supervisor's own spawn call failed.
+    NotFound,
+    /// It spawned; this is its combined stdout+stderr.
+    Captured { output: String },
+}
+
+/// Why [`evaluate_java_runtime_guard`] refused a Java executable outright
+/// rather than only warning about it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnusableJavaRuntimeReason {
+    NotFound,
+    NotAJavaBinary { first_output_line: String },
+    BelowRequiredMajor,
+}
+
+/// The typed "unusable runtime" error this phase's working exit criteria
+/// promises in place of letting the JVM itself fail at launch
+/// (`docs/msc2/rolling-plan.md`'s P7.31 entry).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnusableJavaRuntime {
+    pub java_path: String,
+    pub minecraft_version: Option<String>,
+    pub required_major: i64,
+    pub detected_major: Option<i64>,
+    pub reason: UnusableJavaRuntimeReason,
+}
+
+impl fmt::Display for UnusableJavaRuntime {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let version_text = match &self.minecraft_version {
+            Some(v) => format!("Minecraft {v}"),
+            None => "this Minecraft version".to_string(),
+        };
+        match &self.reason {
+            UnusableJavaRuntimeReason::NotFound => write!(
+                f,
+                "No usable Java runtime found at \"{}\". {version_text} needs Java {}. \
+Install it (e.g. Temurin/Adoptium) and set it in Preferences.",
+                self.java_path, self.required_major
+            ),
+            UnusableJavaRuntimeReason::NotAJavaBinary { first_output_line } => write!(
+                f,
+                "\"{}\" does not appear to be a Java executable.\n\nOutput: {first_output_line}",
+                self.java_path
+            ),
+            UnusableJavaRuntimeReason::BelowRequiredMajor => write!(
+                f,
+                "{version_text} needs Java {}, but the configured Java at \"{}\" is version {}. \
+Install Java {} (e.g. Temurin/Adoptium) and set it in Preferences, or choose an older Minecraft version.",
+                self.required_major,
+                self.java_path,
+                self.detected_major
+                    .map(|m| m.to_string())
+                    .unwrap_or_else(|| "unknown".to_string()),
+                self.required_major
+            ),
+        }
+    }
+}
+
+impl std::error::Error for UnusableJavaRuntime {}
+
+/// Combines [`required_java_major`], [`validate_looks_like_java`],
+/// [`parse_major`], and [`compatibility_warning_text`] against one
+/// already-resolved Java executable's probe result. `Ok(Some(warning))`
+/// is the above-required-but-`<=17` case (creation/start proceeds, the
+/// caller surfaces the warning); `Ok(None)` is a clean bill of health;
+/// `Err` is a refusal. A version banner that looks like a JVM but whose
+/// major couldn't be parsed is treated the same way
+/// `diagnostics::check_java_runtime` treats it -- unusual, but not a
+/// reason to block a server that might well work.
+pub fn evaluate_java_runtime_guard(
+    java_path: &str,
+    minecraft_version: Option<&str>,
+    probe: &JavaVersionProbe,
+) -> Result<Option<String>, UnusableJavaRuntime> {
+    let required = required_java_major(minecraft_version);
+    let unusable =
+        |reason: UnusableJavaRuntimeReason, detected_major: Option<i64>| UnusableJavaRuntime {
+            java_path: java_path.to_string(),
+            minecraft_version: minecraft_version.map(str::to_string),
+            required_major: required,
+            detected_major,
+            reason,
+        };
+
+    let output = match probe {
+        JavaVersionProbe::NotFound => {
+            return Err(unusable(UnusableJavaRuntimeReason::NotFound, None));
+        }
+        JavaVersionProbe::Captured { output } => output,
+    };
+
+    if let Err(not_java) = validate_looks_like_java(java_path, output) {
+        return Err(unusable(
+            UnusableJavaRuntimeReason::NotAJavaBinary {
+                first_output_line: not_java.first_output_line,
+            },
+            None,
+        ));
+    }
+
+    let Some(detected) = parse_major(output) else {
+        return Ok(None);
+    };
+
+    if detected < required {
+        return Err(unusable(
+            UnusableJavaRuntimeReason::BelowRequiredMajor,
+            Some(detected),
+        ));
+    }
+
+    Ok(compatibility_warning_text(
+        minecraft_version,
+        required,
+        detected,
+    ))
+}
+
 /// Settings' own `resolvedJavaPath(_:)` (`AppViewModel+ServerSettings.swift:404-405`,
 /// distinct from [`resolve_create_time_java_path`]'s create-flow fallback):
 /// what actually gets written to `cfg.javaPath` when Preferences or the
@@ -237,4 +377,73 @@ pub fn resolve_create_time_java_path<'a>(
 /// (writing stored config, not resolving a launch).
 pub fn resolved_settings_java_path(trimmed_input: &str) -> String {
     crate::launch_shape::effective_java_command(trimmed_input)
+}
+
+#[cfg(test)]
+mod guard_tests {
+    use super::*;
+
+    #[test]
+    fn refuses_when_executable_not_found() {
+        let err = evaluate_java_runtime_guard(
+            "/opt/java8/bin/java",
+            Some("1.21.4"),
+            &JavaVersionProbe::NotFound,
+        )
+        .unwrap_err();
+        assert_eq!(err.reason, UnusableJavaRuntimeReason::NotFound);
+        assert_eq!(err.required_major, 21);
+        assert_eq!(err.detected_major, None);
+    }
+
+    #[test]
+    fn refuses_when_output_does_not_look_like_java() {
+        let probe = JavaVersionProbe::Captured {
+            output: "zsh: command not found\n".to_string(),
+        };
+        let err =
+            evaluate_java_runtime_guard("/usr/bin/not-java", Some("1.21.4"), &probe).unwrap_err();
+        assert!(matches!(
+            err.reason,
+            UnusableJavaRuntimeReason::NotAJavaBinary { .. }
+        ));
+    }
+
+    #[test]
+    fn refuses_below_required_major() {
+        let probe = JavaVersionProbe::Captured {
+            output: "openjdk version \"17.0.9\" 2023-10-17\n".to_string(),
+        };
+        let err = evaluate_java_runtime_guard("/usr/bin/java", Some("1.21.4"), &probe).unwrap_err();
+        assert_eq!(err.reason, UnusableJavaRuntimeReason::BelowRequiredMajor);
+        assert_eq!(err.required_major, 21);
+        assert_eq!(err.detected_major, Some(17));
+    }
+
+    #[test]
+    fn warns_above_required_but_java17_era() {
+        let probe = JavaVersionProbe::Captured {
+            output: "openjdk version \"21.0.1\" 2023-10-17\n".to_string(),
+        };
+        let warning = evaluate_java_runtime_guard("/usr/bin/java", Some("1.20.1"), &probe).unwrap();
+        assert!(warning.unwrap().contains("Java 17"));
+    }
+
+    #[test]
+    fn clean_bill_of_health_when_major_matches() {
+        let probe = JavaVersionProbe::Captured {
+            output: "openjdk version \"21.0.1\" 2023-10-17\n".to_string(),
+        };
+        let warning = evaluate_java_runtime_guard("/usr/bin/java", Some("1.21.4"), &probe).unwrap();
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn unparseable_major_does_not_block() {
+        let probe = JavaVersionProbe::Captured {
+            output: "openjdk version weird banner with no quotes\n".to_string(),
+        };
+        let warning = evaluate_java_runtime_guard("/usr/bin/java", Some("1.21.4"), &probe).unwrap();
+        assert_eq!(warning, None);
+    }
 }

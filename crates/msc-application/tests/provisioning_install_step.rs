@@ -158,22 +158,56 @@ fn no_output(_stream: OutputStream, _bytes: &[u8]) {}
 /// scheduling-starvation false failure, not a regression. 30s.
 const SPIN_WAIT_DEADLINE: Duration = Duration::from_secs(30);
 
-/// Waits (spinning briefly — this is a test double, not real I/O) for
-/// `run_loader_installer`'s own `spawn` call to register.
-fn wait_for_first_spawn(
+/// Waits (spinning briefly — this is a test double, not real I/O) for a
+/// spawn request matching `matches` to register.
+fn wait_for_spawn(
     supervisor: &FakeProcessSupervisor,
+    matches: impl Fn(&msc_infrastructure::process::ProcessSpawnRequest) -> bool,
+    what: &str,
 ) -> msc_infrastructure::process::ProcessId {
     let deadline = std::time::Instant::now() + SPIN_WAIT_DEADLINE;
     loop {
-        if let Some((pid, _)) = supervisor.spawned_requests().into_iter().next() {
+        if let Some((pid, _)) = supervisor
+            .spawned_requests()
+            .into_iter()
+            .find(|(_, request)| matches(request))
+        {
             return pid;
         }
         assert!(
             std::time::Instant::now() < deadline,
-            "no process was spawned within {SPIN_WAIT_DEADLINE:?}"
+            "no {what} process was spawned within {SPIN_WAIT_DEADLINE:?}"
         );
         std::thread::sleep(Duration::from_millis(5));
     }
+}
+
+fn is_version_probe(request: &msc_infrastructure::process::ProcessSpawnRequest) -> bool {
+    request.arguments.iter().any(|arg| arg == "-version")
+}
+
+/// P7.31's own required-major guard now spawns `<java> -version` through
+/// this same supervisor before the loader installer -- driven here so
+/// every caller below still sees exactly the installer's own spawn/output/
+/// exit sequence it drove before this guard existed. A real, parseable
+/// Java 21 banner: comfortably above every fixture's `1.20.x`-era
+/// `required_java_major` (17), so this never itself triggers a refusal or
+/// even the above-required warning path in a way a test here asserts
+/// against.
+fn drive_fake_java_version_probe(supervisor: &FakeProcessSupervisor) {
+    let pid = wait_for_spawn(supervisor, is_version_probe, "java -version probe");
+    supervisor
+        .emit_stdout(pid, b"openjdk version \"21.0.1\" 2023-10-17\n")
+        .unwrap();
+    supervisor.exit_normally(pid).unwrap();
+}
+
+/// Waits for `run_loader_installer`'s own `spawn` call to register --
+/// i.e. any spawn that isn't the `-version` probe above.
+fn wait_for_first_spawn(
+    supervisor: &FakeProcessSupervisor,
+) -> msc_infrastructure::process::ProcessId {
+    wait_for_spawn(supervisor, |r| !is_version_probe(r), "installer")
 }
 
 /// `after_spawn` runs once the fake installer has actually been spawned
@@ -191,6 +225,7 @@ fn wait_for_first_spawn(
 /// `FolderAlreadyExists` and so never spawned anything) rather than the
 /// cause.
 fn drive_fake_installer_to_success(supervisor: &FakeProcessSupervisor, after_spawn: impl FnOnce()) {
+    drive_fake_java_version_probe(supervisor);
     let pid = wait_for_first_spawn(supervisor);
     after_spawn();
     supervisor.emit_stdout(pid, b"Installing...\n").unwrap();
@@ -198,6 +233,7 @@ fn drive_fake_installer_to_success(supervisor: &FakeProcessSupervisor, after_spa
 }
 
 fn drive_fake_installer_to_crash(supervisor: &FakeProcessSupervisor, code: i32) {
+    drive_fake_java_version_probe(supervisor);
     let pid = wait_for_first_spawn(supervisor);
     supervisor.crash(pid, code).unwrap();
 }
@@ -315,6 +351,58 @@ fn provisioning_install_step_forge_end_to_end() {
 
     let server_dir = PathBuf::from(&created.config.server_dir);
     assert!(!server_dir.join("forge-installer.jar").exists());
+}
+
+// ---------------------------------------------------------------------
+// P7.31: the required-major guard actually refuses install-step
+// creation before the installer ever runs, rather than only passing
+// through cleanly the way every test above now does (each drives the
+// probe with a comfortably-above-everything Java 21 banner).
+// ---------------------------------------------------------------------
+
+#[test]
+fn java_runtime_guard_refuses_neoforge_create_below_required_major() {
+    let tmp = TempDir::new("neoforge-bad-java");
+    let transport = neoforge_transport();
+    let supervisor = FakeProcessSupervisor::new();
+    let request = base_request(JavaServerFlavor::NeoForge, WorldSource::Fresh);
+
+    let err = std::thread::scope(|scope| {
+        let supervisor_ref = &supervisor;
+        scope.spawn(move || {
+            let pid = wait_for_spawn(supervisor_ref, is_version_probe, "java -version probe");
+            // NeoForge 20.4.237 resolves to Minecraft 1.20.4, which needs
+            // Java 17 -- this is below it.
+            supervisor_ref
+                .emit_stdout(pid, b"openjdk version \"8.0.392\" 2023-10-17\n")
+                .unwrap();
+            supervisor_ref.exit_normally(pid).unwrap();
+        });
+
+        provisioning::create_install_step_server(
+            &StdFileSystem,
+            &transport,
+            &supervisor,
+            tmp.path(),
+            tmp.path(),
+            &tmp.path().join("templates/plugin"),
+            &request,
+            "/usr/bin/java",
+            Duration::from_secs(5),
+            "2026-08-18T00:00:00Z",
+            &never_cancelled,
+            no_output,
+            always_ok2,
+            always_ok3,
+        )
+        .unwrap_err()
+    });
+
+    assert!(matches!(err, CreateServerError::UnusableJavaRuntime(_)));
+    // Refused before the (network-downloading, large) installer was ever
+    // spawned -- only the probe shows up.
+    assert_eq!(supervisor.spawned_requests().len(), 1);
+    assert!(!tmp.path().join("java").join("modded_server").exists());
 }
 
 // ---------------------------------------------------------------------

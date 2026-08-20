@@ -34,6 +34,7 @@ use msc_infrastructure::config_repository::{
 };
 use msc_infrastructure::console_buffer::ConsoleLine;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
+use msc_infrastructure::java_runtime_detection;
 use msc_infrastructure::metrics::PsProcessMetricsProvider;
 use msc_infrastructure::process::{
     OutputLineFramer, OutputStream, ProcessEvent, ProcessId, ProcessSpawnRequest, ProcessSupervisor,
@@ -339,6 +340,21 @@ impl LifecycleRoutesState {
 
     #[cfg(test)]
     pub fn with_fake_process(console_state: ConsoleState, operations: OperationsState) -> Self {
+        Self::with_fake_process_capturing_supervisor(console_state, operations).0
+    }
+
+    /// [`with_fake_process`]'s own sibling, for a test that needs to keep
+    /// driving the fake supervisor after construction -- see
+    /// [`with_fake_process_and_app_config_capturing_supervisor`]'s own doc
+    /// for why `process_supervisor()` alone can't do this.
+    #[cfg(test)]
+    pub fn with_fake_process_capturing_supervisor(
+        console_state: ConsoleState,
+        operations: OperationsState,
+    ) -> (
+        Self,
+        &'static msc_infrastructure::process::FakeProcessSupervisor,
+    ) {
         let test_root = std::env::temp_dir().join(format!(
             "msc2-agent-test-state-{}-{}",
             std::process::id(),
@@ -358,7 +374,11 @@ impl LifecycleRoutesState {
         let app_config = Box::leak(Box::new(
             AgentAppConfigStore::load(fs, config_path, servers_root).unwrap(),
         ));
-        Self::with_fake_process_and_app_config(console_state, operations, app_config)
+        Self::with_fake_process_and_app_config_capturing_supervisor(
+            console_state,
+            operations,
+            app_config,
+        )
     }
 
     #[cfg(test)]
@@ -367,8 +387,40 @@ impl LifecycleRoutesState {
         operations: OperationsState,
         app_config: &'static AgentAppConfigStore,
     ) -> Self {
-        let process = Box::new(msc_infrastructure::process::FakeProcessSupervisor::new());
-        Self::with_dependencies(console_state, operations, app_config, process, None)
+        Self::with_fake_process_and_app_config_capturing_supervisor(
+            console_state,
+            operations,
+            app_config,
+        )
+        .0
+    }
+
+    /// [`with_fake_process_and_app_config`]'s own sibling, for a test that
+    /// needs to keep driving the fake supervisor after construction (e.g.
+    /// P7.31's own `-version` probe, which has no automatic responder) --
+    /// `process_supervisor()` alone can't do this, since it only ever
+    /// hands back the type-erased `dyn ProcessSupervisor` trait object,
+    /// not `FakeProcessSupervisor`'s own inherent test-double methods.
+    #[cfg(test)]
+    pub fn with_fake_process_and_app_config_capturing_supervisor(
+        console_state: ConsoleState,
+        operations: OperationsState,
+        app_config: &'static AgentAppConfigStore,
+    ) -> (
+        Self,
+        &'static msc_infrastructure::process::FakeProcessSupervisor,
+    ) {
+        let supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor = Box::leak(
+            Box::new(msc_infrastructure::process::FakeProcessSupervisor::new()),
+        );
+        let state = Self::with_dependencies(
+            console_state,
+            operations,
+            app_config,
+            Box::new(supervisor),
+            None,
+        );
+        (state, supervisor)
     }
 
     #[cfg(test)]
@@ -754,7 +806,33 @@ impl LifecycleRoutesState {
                         .operations
                         .fail(&operation_id, "lifecycle_error", error.to_string());
             })?;
-        let launch = build_launch_request(&registered).inspect_err(|error| {
+        // P7.31: resolve the effective Java executable and run the
+        // required-major guard before spawning it, the start-time
+        // counterpart to `create_install_step_server`'s own create-time
+        // guard call. Global `cfg.java_path` only -- MSC 1 has no
+        // persisted per-server override to resolve here (see
+        // `msc_domain::java_runtime::resolve_create_time_java_path`'s own
+        // doc); `MSC2_JAVA_PATH` stays a same-priority override on top of
+        // it so `tools/phase5/cli-smoke.sh`'s fake-java test hook keeps
+        // working unchanged.
+        let configured_java_path = self.app_config_snapshot().java_path;
+        let java_path = std::env::var("MSC2_JAVA_PATH").unwrap_or(configured_java_path);
+        let probe =
+            java_runtime_detection::run_java_version_probe(self.process_supervisor(), &java_path);
+        if let Err(unusable) = msc_domain::java_runtime::evaluate_java_runtime_guard(
+            &java_path,
+            registered.minecraft_version.as_deref(),
+            &probe,
+        ) {
+            let _ = self.inner.operations.fail(
+                &operation_id,
+                "unusable_java_runtime",
+                unusable.to_string(),
+            );
+            return Err(LifecycleRouteError::UnusableJavaRuntime(unusable));
+        }
+
+        let launch = build_launch_request(&registered, &java_path).inspect_err(|error| {
             let _ = self
                 .inner
                 .operations
@@ -925,6 +1003,7 @@ impl LifecycleRoutesState {
     }
 }
 
+#[derive(Debug)]
 pub struct LifecycleActionResult {
     pub active_server_id: Option<String>,
     pub operation_id: Option<String>,
@@ -934,6 +1013,9 @@ pub struct LifecycleActionResult {
 pub enum LifecycleRouteError {
     Lifecycle(LifecycleError),
     Operation(msc_application::operations::LifecycleOperationError),
+    /// P7.31: the required-major Java guard refused the resolved
+    /// executable before a process was ever spawned.
+    UnusableJavaRuntime(msc_domain::java_runtime::UnusableJavaRuntime),
 }
 
 impl From<LifecycleError> for LifecycleRouteError {
@@ -1396,6 +1478,11 @@ pub fn lifecycle_route_error_response(error: LifecycleRouteError) -> Response {
     match error {
         LifecycleRouteError::Lifecycle(error) => lifecycle_error_response(error),
         LifecycleRouteError::Operation(error) => operation_error_response(error),
+        LifecycleRouteError::UnusableJavaRuntime(error) => error_response(
+            StatusCode::CONFLICT,
+            "unusable_java_runtime",
+            &error.to_string(),
+        ),
     }
 }
 
@@ -1450,8 +1537,11 @@ pub fn error_response(status: StatusCode, code: &str, message: &str) -> Response
 /// flavor's real staged jar (always named `paper.jar` on disk per
 /// `create_download_and_go_server`, regardless of flavor), so this
 /// branch never needed flavor-specific handling in the first place.
-fn build_launch_request(registered: &ConfigServer) -> Result<ProcessSpawnRequest, LifecycleError> {
-    let java_path = std::env::var("MSC2_JAVA_PATH").unwrap_or_else(|_| "java".to_string());
+fn build_launch_request(
+    registered: &ConfigServer,
+    java_path: &str,
+) -> Result<ProcessSpawnRequest, LifecycleError> {
+    let java_path = java_path.to_string();
     let server_dir = PathBuf::from(&registered.server_dir);
 
     if matches!(
@@ -1632,6 +1722,44 @@ mod tests {
         ))
     }
 
+    /// P7.31's own required-major guard now spawns `<java> -version`
+    /// (through the same `FakeProcessSupervisor` `start_active_server`
+    /// itself launches against) before the real server process -- driven
+    /// here on a background OS thread since the guard's own call blocks
+    /// the calling thread polling for it, the same "the fake has no
+    /// automatic responder" shape `provisioning_install_step.rs`'s
+    /// `drive_fake_java_version_probe` already established. Answers with
+    /// a Java 25 banner, comfortably above every possible
+    /// `required_java_major` result, so this never itself trips a
+    /// refusal or warning a test here isn't asserting about. Only drives
+    /// the *first* spawn (the probe) to completion -- the real launch
+    /// spawn that follows it is fire-and-forget, matching how these
+    /// tests behaved before this guard existed.
+    fn drive_java_version_probe_once(
+        supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor,
+    ) -> std::thread::JoinHandle<()> {
+        drive_java_version_probe_with_banner(supervisor, "openjdk version \"25.0.1\" 2025-01-01\n")
+    }
+
+    /// [`drive_java_version_probe_once`]'s own parameterized sibling, for
+    /// a test that needs the guard to see a *specific* major version
+    /// rather than a comfortably-above-everything one.
+    fn drive_java_version_probe_with_banner(
+        supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor,
+        banner: &'static str,
+    ) -> std::thread::JoinHandle<()> {
+        std::thread::spawn(move || {
+            loop {
+                if let Some((pid, _)) = supervisor.spawned_requests().into_iter().next() {
+                    let _ = supervisor.emit_stdout(pid, banner.as_bytes().to_vec());
+                    let _ = supervisor.exit_normally(pid);
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        })
+    }
+
     fn temp_server_dir(tag: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!(
             "msc2-durable-server-state-{tag}-{}-{}",
@@ -1711,7 +1839,7 @@ mod tests {
 
     #[tokio::test]
     async fn phase4_lifecycle_routes_state_selects_starts_and_stops_active_server() {
-        let state = LifecycleRoutesState::with_fake_process(
+        let (state, supervisor) = LifecycleRoutesState::with_fake_process_capturing_supervisor(
             ConsoleState::default(),
             OperationsState::fake_journaled(),
         );
@@ -1731,16 +1859,74 @@ mod tests {
             "paper-1"
         );
 
+        let probe_driver = drive_java_version_probe_once(supervisor);
         let active = state.start_active_server().unwrap();
+        probe_driver.join().unwrap();
         assert_eq!(active.active_server_id.as_deref(), Some("paper-1"));
         assert!(active.operation_id.is_some());
         let status = state.status_snapshot();
         assert!(status.running);
         assert_eq!(status.active_server_id.as_deref(), Some("paper-1"));
-        assert_eq!(status.pid, Some(1000));
+        assert_eq!(status.pid, Some(1001));
 
         let active = state.stop_active_server().unwrap();
         assert_eq!(active.as_deref(), Some("paper-1"));
+
+        std::fs::remove_dir_all(server_dir).unwrap();
+    }
+
+    // ---------------------------------------------------------------------
+    // P7.31: the required-major guard actually refuses `start`, rather
+    // than only proceeding cleanly on a comfortable Java (the case every
+    // other `start_active_server` test above now drives past).
+    // ---------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn java_runtime_guard_start_refuses_below_required_major() {
+        let (state, supervisor) = LifecycleRoutesState::with_fake_process_capturing_supervisor(
+            ConsoleState::default(),
+            OperationsState::fake_journaled(),
+        );
+        let server_dir = std::env::temp_dir().join(format!(
+            "msc2-agent-lifecycle-routes-java-guard-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&server_dir);
+        std::fs::create_dir_all(&server_dir).unwrap();
+        std::fs::write(server_dir.join("paper.jar"), b"fake jar").unwrap();
+
+        let mut server = ConfigServer::new(
+            "paper-bad-java",
+            "Needs Java 21",
+            server_dir.to_string_lossy().into_owned(),
+            server_dir.join("paper.jar").to_string_lossy().into_owned(),
+            1.0,
+            2.0,
+        );
+        server.server_type = ServerType::Java;
+        server.java_flavor = JavaServerFlavor::Paper;
+        // 1.21.4 needs Java 21 (`required_java_major`); the probe below
+        // answers with Java 17.
+        server.minecraft_version = Some("1.21.4".to_string());
+        state
+            .register_imported_config_servers(vec![server], false)
+            .unwrap();
+        state
+            .select_active_server("paper-bad-java".to_string())
+            .unwrap();
+
+        let probe_driver = drive_java_version_probe_with_banner(
+            supervisor,
+            "openjdk version \"17.0.9\" 2023-10-17\n",
+        );
+        let err = state.start_active_server().unwrap_err();
+        probe_driver.join().unwrap();
+
+        assert!(matches!(err, LifecycleRouteError::UnusableJavaRuntime(_)));
+        // Refused before the real launch was ever spawned -- only the
+        // probe itself shows up.
+        assert_eq!(supervisor.spawned_requests().len(), 1);
+        assert!(!state.status_snapshot().running);
 
         std::fs::remove_dir_all(server_dir).unwrap();
     }
@@ -1773,15 +1959,18 @@ mod tests {
         assert!(on_disk.contains("paper-1"));
 
         let second_store = app_config_store(fs, config_path, servers_root);
-        let second = LifecycleRoutesState::with_fake_process_and_app_config(
-            ConsoleState::default(),
-            OperationsState::fake_journaled(),
-            second_store,
-        );
+        let (second, second_supervisor) =
+            LifecycleRoutesState::with_fake_process_and_app_config_capturing_supervisor(
+                ConsoleState::default(),
+                OperationsState::fake_journaled(),
+                second_store,
+            );
 
         assert_eq!(second.servers().len(), 1);
         assert_eq!(second.active_server_id().as_deref(), Some("paper-1"));
+        let probe_driver = drive_java_version_probe_once(second_supervisor);
         let active = second.start_active_server().unwrap();
+        probe_driver.join().unwrap();
         assert_eq!(active.active_server_id.as_deref(), Some("paper-1"));
 
         std::fs::remove_dir_all(server_dir).unwrap();

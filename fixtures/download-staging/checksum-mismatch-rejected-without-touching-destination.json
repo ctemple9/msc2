@@ -14,12 +14,12 @@
     "bytesUtf8": "plugin-jar-contents-v1",
     "originUrl": "https://api.modrinth.com/plugin.jar",
     "version": "1.2.3",
-    "expectedSha1Hex": "0000000000000000000000000000000000000000"
+    "expectedChecksum": { "algorithm": "sha1", "hex": "0000000000000000000000000000000000000000" }
   },
   "expected": {
     "error": "checksum_mismatch",
     "destinationContents": "plugin-jar-contents-v0",
     "tempFileExists": false
   },
-  "notes": "expectedSha1Hex is deliberately wrong (all zeros) against the real SHA1 of 'plugin-jar-contents-v1' (d1434be5db668fbf3bfcc1887e9d9354e29428ef, from the sibling successful-stage fixture). stage_download verifies the checksum against the in-memory bytes before writing anything, so a mismatch never creates a temp file to begin with — tempFileExists is false not because a temp file was cleaned up, but because one was never staged. The pre-existing destination (a prior, different plugin.jar) is asserted unchanged, matching msc2-engineering.md §7's 'moved into active use only after validation.'"
+  "notes": "expectedChecksum.hex is deliberately wrong (all zeros) against the real SHA1 of 'plugin-jar-contents-v1' (d1434be5db668fbf3bfcc1887e9d9354e29428ef, from the sibling successful-stage fixture). stage_download verifies the checksum against the in-memory bytes before writing anything, so a mismatch never creates a temp file to begin with — tempFileExists is false not because a temp file was cleaned up, but because one was never staged. The pre-existing destination (a prior, different plugin.jar) is asserted unchanged, matching msc2-engineering.md §7's 'moved into active use only after validation.' P7.35 amendment: field renamed from 'expectedSha1Hex' to the algorithm-aware 'expectedChecksum' object — see the sibling sha256/md5 mismatch fixtures this amendment added, proving the same refusal for every published algorithm, not just SHA-1."
 }

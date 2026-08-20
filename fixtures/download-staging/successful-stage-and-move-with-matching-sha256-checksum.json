@@ -1,0 +1,30 @@
+{
+  "domain": "download-staging",
+  "case": "successful-stage-and-move-with-matching-sha256-checksum",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PaperDownloader.downloadLatestPaper",
+    "line": 1
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/servers/demo/.keep", "contents": "" }
+    ],
+    "dest": "/srv/app/servers/demo/paper.jar",
+    "bytesUtf8": "paper-jar-contents-v1",
+    "originUrl": "https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar",
+    "version": "1.21.11-132",
+    "expectedChecksum": { "algorithm": "sha256", "hex": "b3faad1deb89239b64768afe94a3697018bd47786bbb81017165fb1ddc8aeca0" }
+  },
+  "expected": {
+    "error": null,
+    "destinationContents": "paper-jar-contents-v1",
+    "tempFileExists": false,
+    "cachedFile": {
+      "path": "/srv/app/servers/demo/paper.jar",
+      "originUrl": "https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar",
+      "version": "1.21.11-132"
+    }
+  },
+  "notes": "P7.35 amendment: proves the primitive's algorithm-aware contract against SHA-256, not just SHA-1. 'b3faad1deb89239b64768afe94a3697018bd47786bbb81017165fb1ddc8aeca0' is the real SHA-256 of the literal bytes 'paper-jar-contents-v1' (independently computed via Python's hashlib, not invented) — chosen because Paper's real fill v3 API publishes SHA-256 for a build's server:default download (corpus/providers/paper/builds-1.21.11.json's own recorded shape; corpus/providers/README.md's P7.28 finding), the provider this algorithm is actually verified against in jar_provider.rs's paper_download_build/paper_download_pinned_version."
+}

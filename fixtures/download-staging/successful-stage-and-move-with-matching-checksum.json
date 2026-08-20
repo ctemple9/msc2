@@ -14,7 +14,7 @@
     "bytesUtf8": "plugin-jar-contents-v1",
     "originUrl": "https://api.modrinth.com/plugin.jar",
     "version": "1.2.3",
-    "expectedSha1Hex": "d1434be5db668fbf3bfcc1887e9d9354e29428ef"
+    "expectedChecksum": { "algorithm": "sha1", "hex": "d1434be5db668fbf3bfcc1887e9d9354e29428ef" }
   },
   "expected": {
     "error": null,
@@ -26,5 +26,5 @@
       "version": "1.2.3"
     }
   },
-  "notes": "No MSC 1 test file exercises a checksum-verified download — downloadLatestForPlugin, downloadLatestPaperTemplate, and downloadOrUpdateXboxBroadcastJar all repeat the same temp-then-move shape (streams to a temp file, moveItem's it over the final name once the download succeeds) but none of them checksum-verify what they downloaded. Characterized from msc2-engineering.md §7's requirement instead, using ResourcePackManager.sha1Hex's own hex-SHA1 shape as the checksum format precedent (the nearest thing MSC 1 has to a download checksum), since it's the same primitive family. 'd1434be5db668fbf3bfcc1887e9d9354e29428ef' is the real SHA1 of the literal bytes 'plugin-jar-contents-v1' (independently computed via Python's hashlib, not invented)."
+  "notes": "No MSC 1 test file exercises a checksum-verified download — downloadLatestForPlugin, downloadLatestPaperTemplate, and downloadOrUpdateXboxBroadcastJar all repeat the same temp-then-move shape (streams to a temp file, moveItem's it over the final name once the download succeeds) but none of them checksum-verify what they downloaded. Characterized from msc2-engineering.md §7's requirement instead, using ResourcePackManager.sha1Hex's own hex-SHA1 shape as the checksum format precedent (the nearest thing MSC 1 has to a download checksum), since it's the same primitive family. 'd1434be5db668fbf3bfcc1887e9d9354e29428ef' is the real SHA1 of the literal bytes 'plugin-jar-contents-v1' (independently computed via Python's hashlib, not invented). P7.35 amendment: 'expectedSha1Hex' is now the algorithm-aware 'expectedChecksum' object (real Phase 7 provider evidence showed SHA-1 isn't the only algorithm a provider publishes — see the sibling sha256/md5 fixtures this amendment added) — this case's own value and expectation are otherwise unchanged."
 }

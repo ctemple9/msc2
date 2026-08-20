@@ -123,6 +123,29 @@ rather than in this corpus's own manifest:
   precisely the bytes MSC2 consumed isn't possible for those two families;
   P7.28's evidence documents this rather than treating it as a gap.
 
+## P7.35 findings
+
+Codex's 2026-08-20 Phase 7 review found the checksum shape difference
+recorded above was never actually enforced -- every real `jar_provider.rs`
+download call passed `None` as `stage_download`'s expected checksum, so
+corrupt or substituted bytes from Mojang/Paper/Purpur were accepted and
+installed. Closing that gap needed one more piece of live evidence this
+corpus didn't have yet: `purpur/build-latest-1.21.11.json`, captured
+2026-08-20 from `https://api.purpurmc.org/v2/purpur/1.21.11/latest` --
+Purpur's real per-build API, confirming its published digest is a
+top-level `md5` field (not nested, not multiple algorithms) for build
+2568, the same build `purpur/version-1.21.11.json`'s own `builds.latest`
+already names. MSC 1 never calls this endpoint (`PurpurDownloader
+.downloadVersion` goes straight from a version string to
+`.../latest/download`), so it wasn't part of P7.3's original sweep --
+`jar_provider::purpur_download_version` now calls it as an extra hop
+this family's own download URL never needed before, specifically to get
+the digest to verify against. Mojang's `downloads.server.sha1` and
+Paper's `downloads."server:default".checksums.sha256` needed no new
+evidence -- both already ride along in the exact response
+`vanilla_download`/`paper_download_build` already fetch to find the
+download URL itself.
+
 ## Directory convention
 
 `<family>/<descriptive-name>.<ext>` for a single recorded response (e.g.

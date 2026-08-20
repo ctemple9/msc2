@@ -14,7 +14,7 @@
     "bytesUtf8": "plugin-jar-contents-v3",
     "originUrl": "https://api.modrinth.com/plugin.jar",
     "version": "3.0.0",
-    "expectedSha1Hex": "701458f5ddd51359a447f68ea55eba5ccb60e73f"
+    "expectedChecksum": { "algorithm": "sha1", "hex": "701458f5ddd51359a447f68ea55eba5ccb60e73f" }
   },
   "expected": {
     "error": null,
@@ -26,5 +26,5 @@
       "version": "3.0.0"
     }
   },
-  "notes": "'.plugin.jar.tmp' (atomic_write::temp_path_for's own naming rule for dest 'plugin.jar') is seeded with unrelated leftover bytes, simulating a prior attempt that crashed before its rename step — the same cleanup-on-failure gap downloadLatestPaperTemplate's own catch block (line 57-58, 'Cleanup temp file on failure') exists to guard against, but here nothing ran that cleanup. Retrying stage_download must not append to or otherwise be corrupted by that stale temp file: FileSystem::write always replaces a file's full contents (fs.rs), so the retry's atomic_write call overwrites the stale temp file outright before renaming it into place, landing the destination at exactly the new download's bytes."
+  "notes": "'.plugin.jar.tmp' (atomic_write::temp_path_for's own naming rule for dest 'plugin.jar') is seeded with unrelated leftover bytes, simulating a prior attempt that crashed before its rename step — the same cleanup-on-failure gap downloadLatestPaperTemplate's own catch block (line 57-58, 'Cleanup temp file on failure') exists to guard against, but here nothing ran that cleanup. Retrying stage_download must not append to or otherwise be corrupted by that stale temp file: FileSystem::write always replaces a file's full contents (fs.rs), so the retry's atomic_write call overwrites the stale temp file outright before renaming it into place, landing the destination at exactly the new download's bytes. P7.35 amendment: field renamed from 'expectedSha1Hex' to the algorithm-aware 'expectedChecksum' object; this case's own algorithm and value are unchanged."
 }

@@ -16,6 +16,7 @@
 //! going down, changing shape, or costing rate-limit budget in CI) --
 //! nothing here ever leaves the loopback interface.
 
+use msc_infrastructure::download_staging::{md5_hex, sha256_hex};
 use msc_infrastructure::jar_provider::{
     self, HttpTransport, JarProviderError, Transport, fabric_list_versions,
     forge_latest_recommended, forge_list_version_pairs, neoforge_list_version_pairs,
@@ -120,14 +121,21 @@ fn jar_provider_vanilla_list_versions_against_real_corpus_manifest() {
 
 #[test]
 fn jar_provider_vanilla_download_latest_two_hop_against_real_corpus() {
+    // The manifest hop is real corpus (resolves "26.2" -> the per-version
+    // metadata URL below). The per-version metadata itself is overridden
+    // with a synthetic body -- P7.35 wired checksum enforcement to that
+    // response's own `downloads.server.sha1` field, and the real corpus
+    // file's real sha1 (823e2250...) is for a real 60 MB jar this test
+    // can't ship; a synthetic body with a sha1 matching this test's own
+    // fake bytes proves the same two-hop mechanism without that.
     let transport = FakeTransport::new()
         .with_file(
             "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json",
             "vanilla/version-manifest-v2.json",
         )
-        .with_file(
+        .with_bytes(
             "https://piston-meta.mojang.com/v1/packages/c75d82e7fa6eca5a043dab0c6cf77cb8317644f4/26.2.json",
-            "vanilla/version-26.2.json",
+            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar","sha1":"59989014812f106c69aab2e4a52d79c4aea03f45"}}}"#.to_vec(),
         )
         .with_bytes(
             "https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar",
@@ -143,6 +151,48 @@ fn jar_provider_vanilla_download_latest_two_hop_against_real_corpus() {
 }
 
 #[test]
+fn jar_provider_vanilla_download_latest_refuses_sha1_mismatch_and_leaves_destination_untouched() {
+    // P7.35: the same real corpus manifest as the test above, but the
+    // per-version metadata's published sha1 doesn't match the bytes the
+    // "server" actually returns -- proves the real production call path
+    // (not just the generic download_staging primitive) refuses and never
+    // touches a pre-existing destination.
+    let transport = FakeTransport::new()
+        .with_file(
+            "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json",
+            "vanilla/version-manifest-v2.json",
+        )
+        .with_bytes(
+            "https://piston-meta.mojang.com/v1/packages/c75d82e7fa6eca5a043dab0c6cf77cb8317644f4/26.2.json",
+            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar","sha1":"0000000000000000000000000000000000000000"}}}"#.to_vec(),
+        )
+        .with_bytes(
+            "https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar",
+            b"corrupted vanilla server jar bytes".to_vec(),
+        );
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("vanilla-download-checksum-refused");
+    let dest = tmp.path().join("server.jar");
+    std::fs::write(&dest, b"pre-existing server.jar").unwrap();
+
+    let result = vanilla_download_latest(&transport, &fs, &dest);
+    assert!(
+        matches!(
+            result,
+            Err(JarProviderError::Staging(
+                msc_infrastructure::download_staging::DownloadStagingError::ChecksumMismatch { .. }
+            ))
+        ),
+        "expected a checksum mismatch, got {result:?}"
+    );
+    assert_eq!(
+        std::fs::read(&dest).unwrap(),
+        b"pre-existing server.jar",
+        "destination must be untouched by a refused download"
+    );
+}
+
+#[test]
 fn jar_provider_purpur_list_versions_against_real_corpus() {
     let transport = FakeTransport::new().with_file(
         "https://api.purpurmc.org/v2/purpur",
@@ -154,16 +204,94 @@ fn jar_provider_purpur_list_versions_against_real_corpus() {
 
 #[test]
 fn jar_provider_purpur_download_version_stages_bytes() {
-    let transport = FakeTransport::new().with_bytes(
-        "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
-        b"fake purpur jar".to_vec(),
-    );
+    // P7.35: purpur_download_version now fetches the per-build metadata
+    // hop (real corpus shape: corpus/providers/purpur/
+    // build-latest-1.21.11.json) before downloading, to get the md5 to
+    // verify against.
+    let transport = FakeTransport::new()
+        .with_bytes(
+            "https://api.purpurmc.org/v2/purpur/1.21.11/latest",
+            format!(r#"{{"md5":"{}"}}"#, md5_hex(b"fake purpur jar")).into_bytes(),
+        )
+        .with_bytes(
+            "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
+            b"fake purpur jar".to_vec(),
+        );
     let fs = msc_infrastructure::fs::StdFileSystem;
     let tmp = TempDir::new("purpur-download");
     let dest = tmp.path().join("purpur.jar");
 
     let cached = jar_provider::purpur_download_version(&transport, &fs, "1.21.11", &dest).unwrap();
     assert_eq!(cached.version, "1.21.11");
+}
+
+#[test]
+fn jar_provider_purpur_download_version_reads_md5_from_real_corpus_build_metadata_shape() {
+    // The real recorded per-build response (corpus/providers/purpur/
+    // build-latest-1.21.11.json) publishes md5 "b8d5402ef8e38bf60cabc6ee
+    // ddb3fa18" for the real build 2568 jar -- this test can't ship that
+    // ~65 MB real jar as a fixture (and can't invert MD5 to find bytes
+    // that hash to it), so it proves the *shape* is read correctly the
+    // other direction: the real corpus response's md5 does not match this
+    // test's own fake bytes, so the real production call path refuses,
+    // exactly as it must for a genuinely corrupted or substituted
+    // download from this exact real API response shape.
+    let transport = FakeTransport::new()
+        .with_file(
+            "https://api.purpurmc.org/v2/purpur/1.21.11/latest",
+            "purpur/build-latest-1.21.11.json",
+        )
+        .with_bytes(
+            "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
+            b"not the real build 2568 jar".to_vec(),
+        );
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("purpur-download-real-corpus-shape");
+    let dest = tmp.path().join("purpur.jar");
+
+    let result = jar_provider::purpur_download_version(&transport, &fs, "1.21.11", &dest);
+    assert!(
+        matches!(
+            result,
+            Err(JarProviderError::Staging(
+                msc_infrastructure::download_staging::DownloadStagingError::ChecksumMismatch { .. }
+            ))
+        ),
+        "expected a checksum mismatch, got {result:?}"
+    );
+}
+
+#[test]
+fn jar_provider_purpur_download_version_refuses_md5_mismatch_and_leaves_destination_untouched() {
+    let transport = FakeTransport::new()
+        .with_bytes(
+            "https://api.purpurmc.org/v2/purpur/1.21.11/latest",
+            br#"{"md5":"00000000000000000000000000000000"}"#.to_vec(),
+        )
+        .with_bytes(
+            "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
+            b"corrupted purpur jar".to_vec(),
+        );
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("purpur-download-checksum-refused");
+    let dest = tmp.path().join("purpur.jar");
+    std::fs::write(&dest, b"pre-existing purpur.jar").unwrap();
+
+    let result = jar_provider::purpur_download_version(&transport, &fs, "1.21.11", &dest);
+    assert!(
+        matches!(
+            result,
+            Err(JarProviderError::Staging(
+                msc_infrastructure::download_staging::DownloadStagingError::ChecksumMismatch { .. }
+            ))
+        ),
+        "expected a checksum mismatch, got {result:?}"
+    );
+    assert_eq!(
+        std::fs::read(&dest).unwrap(),
+        b"pre-existing purpur.jar",
+        "destination must be untouched by a refused download"
+    );
 }
 
 #[test]
@@ -188,13 +316,21 @@ fn jar_provider_paper_flatten_and_select_build_against_real_corpus() {
 
 #[test]
 fn jar_provider_paper_download_build_stages_bytes() {
+    // P7.35: the real corpus builds file's own real sha256 (for a real
+    // build 132 jar this test can't ship) is overridden with a synthetic
+    // builds response -- same shape (id 132, STABLE, server:default), a
+    // sha256 that actually matches this test's own fake bytes.
     let transport = FakeTransport::new()
-        .with_file(
+        .with_bytes(
             "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
-            "paper/builds-1.21.11.json",
+            format!(
+                r#"[{{"id":132,"channel":"STABLE","downloads":{{"server:default":{{"url":"https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar","checksums":{{"sha256":"{}"}}}}}}}}]"#,
+                sha256_hex(b"fake paper jar bytes")
+            )
+            .into_bytes(),
         )
         .with_bytes(
-            "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+            "https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar",
             b"fake paper jar bytes".to_vec(),
         );
     let fs = msc_infrastructure::fs::StdFileSystem;
@@ -204,6 +340,68 @@ fn jar_provider_paper_download_build_stages_bytes() {
     let cached =
         jar_provider::paper_download_build(&transport, &fs, "1.21.11", 132, &dest).unwrap();
     assert_eq!(cached.version, "1.21.11-132");
+}
+
+#[test]
+fn jar_provider_paper_download_build_against_real_corpus_checksum_shape_refuses_mismatch() {
+    // The real recorded builds response (corpus/providers/paper/
+    // builds-1.21.11.json) publishes a real sha256 for a real build 132
+    // jar this test can't ship (same reasoning as Purpur's own real-corpus
+    // shape test above) -- proves the real production call path reads
+    // that field and refuses bytes that don't match it.
+    let transport = FakeTransport::new()
+        .with_file(
+            "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
+            "paper/builds-1.21.11.json",
+        )
+        .with_bytes(
+            "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+            b"not the real build 132 jar".to_vec(),
+        );
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("paper-download-real-corpus-shape");
+    let dest = tmp.path().join("paper.jar");
+
+    let result = jar_provider::paper_download_build(&transport, &fs, "1.21.11", 132, &dest);
+    assert!(
+        matches!(
+            result,
+            Err(JarProviderError::Staging(
+                msc_infrastructure::download_staging::DownloadStagingError::ChecksumMismatch { .. }
+            ))
+        ),
+        "expected a checksum mismatch, got {result:?}"
+    );
+}
+
+#[test]
+fn jar_provider_paper_download_build_refuses_sha256_mismatch_and_leaves_destination_untouched() {
+    let transport = FakeTransport::new()
+        .with_bytes(
+            "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
+            br#"[{"id":132,"channel":"STABLE","downloads":{"server:default":{"url":"https://x/paper.jar","checksums":{"sha256":"0000000000000000000000000000000000000000000000000000000000000000"}}}}]"#.to_vec(),
+        )
+        .with_bytes("https://x/paper.jar", b"corrupted paper jar".to_vec());
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("paper-download-checksum-refused");
+    let dest = tmp.path().join("paper.jar");
+    std::fs::write(&dest, b"pre-existing paper.jar").unwrap();
+
+    let result = jar_provider::paper_download_build(&transport, &fs, "1.21.11", 132, &dest);
+    assert!(
+        matches!(
+            result,
+            Err(JarProviderError::Staging(
+                msc_infrastructure::download_staging::DownloadStagingError::ChecksumMismatch { .. }
+            ))
+        ),
+        "expected a checksum mismatch, got {result:?}"
+    );
+    assert_eq!(
+        std::fs::read(&dest).unwrap(),
+        b"pre-existing paper.jar",
+        "destination must be untouched by a refused download"
+    );
 }
 
 // --- P7.19: pinned (non-latest) version-change downloads ---
@@ -237,13 +435,20 @@ fn jar_provider_vanilla_download_version_pins_release_id_not_latest() {
 
 #[test]
 fn jar_provider_paper_download_pinned_version_picks_highest_id_any_channel_real_corpus() {
+    // P7.35: same synthetic-checksum override as
+    // jar_provider_paper_download_build_stages_bytes -- the real corpus
+    // file's real sha256 doesn't match this test's own fake bytes.
     let transport = FakeTransport::new()
-        .with_file(
+        .with_bytes(
             "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
-            "paper/builds-1.21.11.json",
+            format!(
+                r#"[{{"id":132,"channel":"STABLE","downloads":{{"server:default":{{"url":"https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar","checksums":{{"sha256":"{}"}}}}}}}}]"#,
+                sha256_hex(b"fake paper jar bytes")
+            )
+            .into_bytes(),
         )
         .with_bytes(
-            "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+            "https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar",
             b"fake paper jar bytes".to_vec(),
         );
     let fs = msc_infrastructure::fs::StdFileSystem;

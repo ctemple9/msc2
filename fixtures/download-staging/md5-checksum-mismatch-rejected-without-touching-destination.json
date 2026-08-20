@@ -1,0 +1,25 @@
+{
+  "domain": "download-staging",
+  "case": "md5-checksum-mismatch-rejected-without-touching-destination",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PurpurDownloader.downloadVersion",
+    "line": 1
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/servers/demo/purpur.jar", "contents": "purpur-jar-contents-v0" }
+    ],
+    "dest": "/srv/app/servers/demo/purpur.jar",
+    "bytesUtf8": "purpur-jar-contents-v1",
+    "originUrl": "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
+    "version": "1.21.11",
+    "expectedChecksum": { "algorithm": "md5", "hex": "00000000000000000000000000000000" }
+  },
+  "expected": {
+    "error": "checksum_mismatch",
+    "destinationContents": "purpur-jar-contents-v0",
+    "tempFileExists": false
+  },
+  "notes": "P7.35 amendment: the MD5 counterpart to checksum-mismatch-rejected-without-touching-destination.json — corrupted/substituted bytes from a provider that publishes MD5 only (Purpur's real per-build API) must be refused the same way a bad SHA-1 already was, and the pre-existing destination (a prior, different purpur.jar) must stay untouched. expectedChecksum.hex is deliberately wrong (all zeros) against the real MD5 of 'purpur-jar-contents-v1' (7363e08691b6e72d5f2547a9795ff343, from the sibling md5-success fixture)."
+}

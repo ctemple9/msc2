@@ -1,0 +1,1 @@
+{"project":"purpur","version":"1.21.11","build":"2568","result":"SUCCESS","timestamp":1775341335566,"duration":370299,"commits":[{"author":"noreply","email":"noreply@github.com","description":"Fix axolotl dying after 300 ticks (#1769)\n","hash":"f57bd8659b5c3cbaf03984ee5a8ecdcc0849040a","timestamp":1775341325000}],"metadata":{},"md5":"b8d5402ef8e38bf60cabc6eeddb3fa18"}

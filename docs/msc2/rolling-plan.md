@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 is closed. Phase 7 is planned (34 steps, P7.1–P7.34, P7.31–P7.34 added 2026-08-20). QUESTION 1 is answered. P7.1 through P7.29 are DONE (per Cameron's own status update to P7.29). P7.30 (the gate-closure audit) is still awaiting Cameron's own verification — **its finding was that the gate did not fully close**: the required-major Java guard and startup diagnostics were not wired into production code, plus two smaller previously-known gaps. Cameron answered P7.30's own question with **(a)**: close all three as new Phase 7 steps before the gate closes, rather than accept them as recorded gaps. P7.31 (the required-major Java guard) is DONE. P7.32 (startup diagnostics wired into the real lifecycle stop path) is DONE (per Cameron's own status update). P7.33 (orphaned-directory sweep and the check-then-create race) is still awaiting Cameron's own verification. P7.34 (re-checking the gate after P7.31–P7.33) is now built and awaiting Cameron's own verification — **its finding is that the gate now holds**: all three of P7.30's real gaps have confirmed production callers, plus one independent manual reproduction for the directory sweep specifically.
-> **Next move:** Verify — P7.34 is built and awaiting Cameron's own verification (status is awaiting verification, not DONE); Verify command is `python3 tools/phase7/provider-corpus-check.py --selftest && bash tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run --workspace` (15/15 self-test cases, smoke green, 1123/1123 workspace tests, as of this commit). Its full re-check record is the new "Re-check — P7.34" addendum at the end of `docs/msc2/families/phase7-scope.md`'s "Gate closure — P7.30" section (the original P7.30 report is left unedited above it). P7.30 and P7.33 are also still awaiting Cameron's own verification; P7.30's full clause-by-clause record is that same file's "Gate closure — P7.30" section. Per P7.30's own instruction, Codex reviews Phase 7 next, unchanged by P7.34's re-check. P7.28: all six families (Vanilla, Paper, Purpur, Fabric, NeoForge, Forge) were created, started, reached a genuine `Done` ready line, and stopped against the real live PaperMC/Mojang/PurpurMC/FabricMC/NeoForge-Maven/Forge-Maven endpoints, with no `MSC2_PROVIDER_*_BASE` override set; see `docs/msc2/families/provisioning-evidence/README.md` for the full result and what this run found live (checksum shape genuinely differs per provider, the Mojang EULA gate is real and unbypassed, Forge/NeoForge delete their own installer jar on success). P7.29: the P7.27 smoke now runs in CI on all three platforms, all green — getting there found and fixed four real, previously-unverified gaps (the smoke script's missing executable bit, a Windows mixed-separator bug in the real server-creation path — in both the download-and-go and install-step creation functions, a Windows-only JDK limitation in the smoke's own launch-shape probe, and a genuine race condition in `provisioning_install_step.rs`'s own test harness that had been misdiagnosed as a too-short timeout) — full detail in P7.29's own "Actual result" below. **The iOS manual walkthrough deferred from P7.26 is recorded** — see the unnumbered "iOS manual walkthrough" block right after P7.28's entry for the checklist and results.
+> ## STATUS: Phase 6 is closed. Phase 7 remains open after Codex's 2026-08-20 REVIEW found two gate gaps: publisher checksums are not consumed by server-jar downloads, and startup diagnostics are incomplete on the live Paper-soft-failure/add-on-attribution/verified-repair path. P7.1–P7.34 are DONE per Cameron; corrective steps P7.35–P7.37 are planned and not started.
+> **Next move:** Read — Cameron reviews P7.35–P7.37 below. If accepted, EXECUTE starts with P7.35 only. P7.35 closes checksum integrity and amends Phase 3; P7.36 closes the complete diagnostics vertical slice and amends Phase 1; P7.37 produces the exact-candidate smoke, live-provider, full-suite, and tri-platform CI evidence for the independent REVIEW.
 > **Repo:** https://github.com/ctemple9/msc2 · `main` is fast-forwarded to `8568dea` (`P6.51: validate backup archives in one process`), the exact commit Codex's review checked (GitHub Actions run [32068857631](https://github.com/ctemple9/msc2/actions/runs/32068857631), fully green). Review detail: `rolling-plan-archive.md`'s Amendments log, "2026-08-18 — Codex Phase 6 review: gate holds."
 > **Last updated:** 2026-08-20
 
@@ -60,7 +60,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 4 | Java lifecycle vertical slice | complete |
 | 5 | Configuration and migration | complete |
 | **6** | Worlds and backups | complete |
-| **7** | Server families and provisioning | **in progress — P7.1–P7.29 DONE (iOS manual walkthrough recorded); P7.30 (gate-closure audit) built and awaiting Cameron's own verification, found the gate did not fully hold; Cameron answered (a) — P7.31 (required-major Java guard) DONE; P7.32 (startup-diagnostics wiring) DONE; P7.33 (orphaned-directory sweep and the check-then-create race) built and awaiting Cameron's own verification; P7.34 (gate re-check) planned, not started** |
+| **7** | Server families and provisioning | **in progress — P7.1–P7.34 DONE; independent review found two remaining gate gaps; P7.35–P7.37 planned** |
 | 8 | Mods, plugins, modpacks | not started |
 | 9 | Networking and helpers | not started |
 | 10 | Bedrock runtimes | not started |
@@ -87,7 +87,7 @@ All 51 steps (P6.1–P6.51) are `DONE`, and Codex's gate review (2026-08-18) con
 
 `POST /v1/servers/create` · `POST /v1/servers/delete` · `POST /v1/servers/rename` · `POST /v1/servers/eula` · `GET /v1/versions` · `GET /v1/versions/create` · `POST /v1/components/version` · `GET /v1/templates` · `POST /v1/templates` · `GET /v1/java-runtimes` · `GET /v1/config/java-runtime` · `POST /v1/config/java-runtime` · `GET /v1/config/ram` · `POST /v1/config/ram` · `GET /v1/health/problems` · `POST /v1/health/repair` · and the real replacement for `GET /v1/health`'s Phase 2 placeholder card.
 
-34 steps, eight groups (P7.31–P7.34 added 2026-08-20, after P7.30's own gate-closure audit found the gate did not fully hold — Cameron's call, per that step's question, was (a): close the real gaps as new Phase 7 steps rather than close the phase with them outstanding):
+37 steps, nine groups (P7.31–P7.34 were the first gate-hardening pass; P7.35–P7.37 were added after the independent review found the checksum and live-diagnostics gaps that pass missed):
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -99,8 +99,9 @@ All 51 steps (P6.1–P6.51) are `DONE`, and Codex's gate review (2026-08-18) con
 | Public clients | P7.23–P7.26 | routes, CLI, copied iOS |
 | Proof and gate | P7.27–P7.30 | portable six-family smoke, real provisioning evidence, tri-platform CI, literal gate check |
 | Gate hardening | P7.31–P7.34 | wire the required-major Java guard into creation/start, wire startup diagnostics into the real stop path, sweep orphaned server directories left by an interrupted install, re-check the literal gate |
+| Independent-review corrections | P7.35–P7.37 | publisher-checksum enforcement, complete live startup diagnostics and verified repairs, exact-candidate portable/live/CI proof |
 
-**Planned batch ranges:** after the preceding solo step is verified, `P7.10–P7.12`, `P7.15–P7.16`, `P7.17–P7.18`, `P7.19–P7.22`, and `P7.23–P7.26` may each run as one BATCH EXECUTE conversation. P7.13 and P7.14 are each `stop-after` and start no range — they build the two boundaries where MSC 2 first touches the network and first runs a third-party installer, and both want looking at before anything is stacked on them. Every `stop-after` step ends its range. No batch crosses a failed Verify. **P7.31–P7.34 are each `stop-after` or `solo` and form no batch range** — each changes what MSC 2 actually refuses or reports for real, live safety-relevant behavior (a bad Java runtime, a real crash, a swept directory), and P7.30's own finding was exactly that this class of gap can go unflagged when steps aren't looked at individually.
+**Planned batch ranges:** after the preceding solo step is verified, `P7.10–P7.12`, `P7.15–P7.16`, `P7.17–P7.18`, `P7.19–P7.22`, and `P7.23–P7.26` may each run as one BATCH EXECUTE conversation. P7.13 and P7.14 are each `stop-after` and start no range — they build the two boundaries where MSC 2 first touches the network and first runs a third-party installer, and both want looking at before anything is stacked on them. Every `stop-after` step ends its range. No batch crosses a failed Verify. **P7.31–P7.37 are each `stop-after` or `solo` and form no batch range.** The three new steps are already the minimum coherent execution boundaries: integrity, diagnostics, and proof.
 
 **Fixture counts in the Verify lines are planned targets, not measurements.** A characterization step that finds the oracle yields a different number of genuine cases records the real count and the reason in its own "Actual result", and amends its Verify in the same commit. Inventing filler cases to hit a planned number is the failure this note exists to prevent.
 
@@ -639,7 +640,7 @@ Added 2026-08-20, after P7.30's own gate-closure audit found the gate did not fu
 **Batch:** solo
 
 ### P7.34 — Re-check the Phase 7 exit gate after P7.31–P7.33
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/families/phase7-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Re-run P7.30's own clause-by-clause check against the new commits — not a fresh audit from scratch, an update to it. Confirm the required-major guard and startup diagnostics now hold against real production call sites (not just new tests passing), and that a mid-install kill no longer leaves a directory behind. Update the existing "Gate closure — P7.30" section in `phase7-scope.md` with a dated addendum recording the re-check, rather than rewriting it — the original report stays as the record of what P7.30 actually found. If everything now holds, say so as plainly as P7.30 said it didn't; if something still doesn't, report that as plainly too. Codex reviews Phase 7 next either way, per P7.30's own instruction.
 **Actual result:** Re-ran all three of P7.30's failing clauses against the working tree at the head of `phase5-corrections` (through P7.33's commits), by reading production call sites directly rather than trusting P7.31–P7.33's own "Actual result" write-ups. **All three now hold, and the gate closes.** (1) The required-major guard: `grep -rn "evaluate_java_runtime_guard" crates/` (excluding `tests/`) now shows three real production callers — `provisioning.rs:218` (Forge/NeoForge create), `routes/lifecycle.rs:823` (start), `routes/servers.rs:1478` (download-and-go families' post-stage check) — where P7.30 found zero. (2) Startup diagnostics: `diagnose_unexpected_stop`'s one production caller is now `lifecycle.rs:449` inside `record_stop_diagnostics`, itself called from `mark_process_exited` (`lifecycle.rs:390`), which is reached by `handle_process_event` (`lifecycle.rs:472`) — which `routes/lifecycle.rs:953` calls from the real process-event pump every process exit already flows through. One limitation P7.32 itself already flagged, not re-derived here: no mod-jar scanner exists yet, so a modded crash's `installed_mods` is always empty (loses jar-stem attribution for disable/delete, not missing-dependency detection). (3) The orphaned-directory sweep: confirmed two ways. By code, `OperationsState::default()` — what `main.rs:82` actually constructs — delegates to `default_journaled()`, which passes `Some(default_servers_root())`, the real non-test path that enables `LifecycleOperations::reconcile_on_startup`'s sweep. By running it: built the real `msc`/`msc-agent` binaries and ran a scratch copy of `phase7-gate-smoke.sh` with one added assertion (`[[ -e "${KILL_DIR}" ]]` after the existing kill-mid-install-and-restart sequence) — confirmed the directory is actually gone after restart, not just that the operation journal reconciles (all the *committed* script currently checks). The committed smoke script itself was not touched — out of this step's own `Files:` list; see "anything noticed but not acted on" below and the amendments log. The folder-name check-then-create race (P7.33's other half, not one of P7.30's two headline gaps) is also confirmed closed: `claim_new_server_directory` now uses `FileSystem::create_dir_exclusive`, proven non-racing by a 16-iteration two-thread test. Full addendum, with exact grep output and line numbers, written as a new "Re-check — P7.34" subsection at the end of `phase7-scope.md`'s existing "Gate closure — P7.30" section (the original P7.30 report left unedited above it, per this step's own instruction). Verification run in full: `provider-corpus-check.py --selftest` (15/15), `phase7-gate-smoke.sh --synthetic` (green, unmodified script), `cargo nextest run --workspace` (1123/1123, ~21.5 min), `cargo fmt --all -- --check` (clean), `cargo clippy --workspace --all-targets -- -D warnings` (clean).
@@ -649,9 +650,114 @@ Added 2026-08-20, after P7.30's own gate-closure audit found the gate did not fu
 
 ---
 
+### Independent-review corrections
+
+These three steps correspond to three outcomes, not every internal subtask: integrity, diagnostics,
+and proof. P7.35 and P7.36 close the two implementation gaps found by the review. P7.37 proves those
+changes on the exact candidate. The independent REVIEW—not the implementing agent—then decides
+whether the gate holds.
+
+### P7.35 — Verify every publisher checksum the server providers expose
+**Status:** awaiting verification
+**Files:** `crates/msc-infrastructure/src/download_staging.rs`, `crates/msc-infrastructure/src/jar_provider.rs`, their tests, `fixtures/download-staging/`, `corpus/providers/`, `docs/msc2/substrate/phase3-scope.md`. Also touched, beyond this step's own list (see "Actual result"): `crates/msc-infrastructure/src/java_runtime_install.rs` (its own hand-rolled `sha256_hex` moved into `download_staging.rs` and re-exported, rather than a second copy); `crates/msc-application/tests/provisioning.rs` and `crates/msc-application/tests/server_version_change.rs` (fake `Transport` doubles that download a real-corpus-checksummed jar, forced to grow a matching digest by this step's own production change).
+**What:** Amend Phase 3's SHA-1-only staging contract into an algorithm-aware checksum contract covering MD5, SHA-1, and SHA-256. Extract the expected digest from the exact provider response already used to choose the download: Mojang's per-version metadata, Paper's `server:default` object/URL identity, and Purpur's per-build metadata. Pass that digest through every create and version-change download path and refuse a mismatch before any destination, archive, config, or server registration changes. Keep Fabric, NeoForge, and Forge explicitly unverified only because the recorded endpoints publish no digest. Add provider-level tests that corrupt otherwise-valid bytes for all three published algorithms and prove the old destination remains untouched; a unit test of the hash helper alone is insufficient. Record this as the explicit P3.14 amendment the review required.
+**Actual result:** `download_staging::stage_download`'s contract widened from `Option<&str>` (bare SHA-1 hex) to `Option<&ExpectedChecksum>`, where `ExpectedChecksum { algorithm: ChecksumAlgorithm, hex: String }` names which of `Sha1`/`Sha256`/`Md5` the digest is in — `None` still means exactly what it always meant (no digest, staged unverified). All three hash functions are hand-rolled, no new crate dependency: `sha1_hex` (unchanged), a new `md5_hex` (RFC 1321), and `sha256_hex` — moved here from `java_runtime_install.rs` (P7.16 had already hand-written one for Adoptium's own SHA-256-published archives) rather than writing a second copy, with `java_runtime_install` re-exporting it so its own public API and test file are unaffected. **Every Vanilla/Paper/Purpur download call site in `jar_provider.rs` now extracts and passes a real digest:** `vanilla_download`'s two-hop resolution reads `downloads.server.sha1` from the same per-version metadata response it already fetches for the download URL; `paper_download_build`/`paper_download_pinned_version` read `downloads."server:default".checksums.sha256` from the same builds response they already fetch; `purpur_download_version` needed one genuinely new hop this family's own `.../latest/download` URL never needed before — Purpur's per-build API (`/v2/purpur/{version}/latest`, confirmed live 2026-08-20, not something MSC 1 ever calls) publishes `md5` only, so a new `purpur_latest_build_md5` fetches it first. A present-but-unparseable digest field degrades to `None` (unverified), the same soft-field convention this file already used for Purpur's `builds.latest` fallback — a transport failure or malformed body on a family that normally publishes a digest is *not* silently downgraded to "skip verification," it surfaces as the same typed network error every other fetch in this file already produces. Fabric/NeoForge/Forge are unchanged (`None`, matching their real endpoints publishing no digest at all). New real corpus evidence: `corpus/providers/purpur/build-latest-1.21.11.json`, captured live 2026-08-20 from `https://api.purpurmc.org/v2/purpur/1.21.11/latest` (24th evidence file; `corpus/providers/README.md` gained a "P7.35 findings" section). `fixtures/download-staging/` grew from 4 to 8 cases — the existing 4 renamed `expectedSha1Hex` → algorithm-aware `expectedChecksum`, plus a matching-checksum and a corrupted-mismatch case each for SHA-256 (Paper's own algorithm) and MD5 (Purpur's own algorithm), values computed out-of-band via Python's `hashlib`, not invented. `tests/jar_provider.rs` gained 7 new cases proving the *production call path* (not just the generic primitive) refuses a real mismatch and leaves a pre-existing destination untouched, for all three algorithms — including two cases that read the real corpus checksum fields directly (`vanilla/version-26.2.json`'s real sha1, `purpur/build-latest-1.21.11.json`'s real md5) against bytes that don't hash to them, since this test file can't ship the real, multi-megabyte preimages. Fixing 4 *existing* tests that had used real-corpus catalog responses (whose real digests don't match this file's small fake jar bytes) required overriding the metadata response with a synthetic body carrying a matching digest, same technique in two more `msc-application` test files whose fake `Transport` doubles hit the same real-corpus-digest mismatch (`server_version_change.rs`'s Paper/Vanilla-upgrade cases) or the new Purpur metadata hop with no response registered at all (`provisioning.rs`'s `purpur_transport()`, `server_version_change.rs`'s Purpur-pinned case). Full verification: `cargo fmt --all -- --check` clean, `cargo clippy --workspace --all-targets -- -D warnings` clean, `cargo nextest run -p msc-infrastructure download_staging` 8/8, `cargo nextest run -p msc-infrastructure jar_provider` 24/24, `cargo nextest run -p msc-application provisioning server_version_change` 45/45 (1 pre-existing leaky test, unrelated).
+
+**Noticed but not acted on — the committed `tools/phase7/phase7-gate-smoke.sh` now fails on Vanilla/Paper/Purpur, exactly as P7.37's own step text anticipates.** Ran the unmodified smoke script against a freshly built `msc`/`msc-agent` binary: Vanilla's create now fails with `sha1 checksum mismatch: expected 823e2250d24b3ddac457a60c92a6a941943fcd6a, got 5bc160977204e5d736bb98588c52cb16677ffaae` — the fake provider (`tools/phase7/fixtures/fake-provisioning/fake_provider_server.py`) serves real corpus metadata (a real published digest) for Vanilla/Paper alongside a locally-built *fake* server jar, and has no route at all for Purpur's new per-build metadata hop. This is confirmation the checksum enforcement is real end-to-end (CLI → route → provisioning → jar_provider → download_staging), not a bug in this step's own change — `tools/phase7/phase7-gate-smoke.sh` and `tools/phase7/fixtures/fake-provisioning/` are in **P7.37's** own `Files:` list, not this step's, and P7.37's own text already names exactly this: "bad Mojang SHA-1, Paper SHA-256, and Purpur MD5 payloads are refused without live mutation." Left untouched here rather than scope-creeping into P7.37's job. **This means the Phase 7 smoke job will fail in CI on any commit between this one and P7.37's** — Cameron may want to sequence P7.36/P7.37 promptly, or hold pushing this commit's branch through CI until P7.37 lands, since CI runs the committed script as-is.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/download-staging --expect 8 && cargo nextest run -p msc-infrastructure -E 'test(/download_staging|jar_provider/)'`
+**Commit:** `P7.35: enforce published server download checksums`
+**Batch:** stop-after
+
+### P7.36 — Complete the live startup-diagnostics and repair path
+**Status:** not started
+**Files:** `fixtures/paper-plugin-crash-analysis/`, `fixtures/installed-addons/`, `crates/msc-domain/src/crash_analysis.rs`, its tests, `crates/msc-application/src/add_on_inventory.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/src/diagnostics.rs`, their tests, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/tests/runtime_diagnostics_routes.rs`, `docs/msc2/families/phase7-scope.md`, `docs/msc2/audit/msc2-symbol-ledger.csv`, `docs/msc2/client-capability-matrix.csv`
+**What:** Close the diagnostics gap as one end-to-end behavior. First characterize and port MSC 1's `StartupCrashAnalyzer.analyzePaperPlugins` from cited Swift or recorded-log evidence, covering offender identity, jar stem, raw excerpt, multiple failures, noise, and no-match behavior. Build the local `mods/`/`plugins/` inventory the analyzers need, including enabled/disabled jars, metadata fallback, malformed archives, duplicates, and path containment. Feed that inventory into real hard-failed boots; run the Paper/plugin-family soft-failure analyzer once after ready; and persist both through the existing diagnostics record. Make diagnosed disable/delete repairs run only while stopped, verify the filesystem result, and remove only the repaired problem after verification; preserve it on failure. Keep update/install explicitly unavailable until Phase 8. Amend Phase 1's omitted analyzer in the scope/ledger and correct the capability matrix only after the production path exists.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/paper-plugin-crash-analysis && python3 tools/fixture-runner/run.py --validate-dir fixtures/installed-addons && cargo nextest run -p msc-domain -p msc-application -p msc-agent -E 'test(/crash_analysis|add_on_inventory|diagnostics|lifecycle_state|runtime_diagnostics_routes/)'`
+**Commit:** `P7.36: complete startup diagnostics and verified repairs`
+**Batch:** stop-after
+
+### P7.37 — Produce the exact-candidate Phase 7 gate evidence
+**Status:** not started
+**Files:** `tools/phase7/phase7-gate-smoke.sh`, `tools/phase7/fixtures/fake-provisioning/`, `tools/phase7/provider-corpus-check.py`, `docs/msc2/families/provisioning-evidence/`, `docs/msc2/families/phase7-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Strengthen the committed synthetic smoke with the review-sensitive public paths: the interrupted-create directory is absent after restart; bad Mojang SHA-1, Paper SHA-256, and Purpur MD5 payloads are refused without live mutation; no-checksum providers still work; hard mod and successful-start Paper plugin failures appear through `GET /v1/health/problems`; and verified disable/delete repairs change the jar and remove only the repaired persisted problem. Add failing checker self-tests so those assertions cannot silently disappear. Then repeat P7.28 through the ordinary CLI with all provider overrides absent, creating, reaching ready, and stopping all six families. Record equality between each publisher digest and the exact bytes production consumed for Mojang/Paper/Purpur, and explicitly record no published digest for Fabric/NeoForge/Forge. Run the full workspace suite and commit this evidence as the exact candidate. Cameron then pushes that commit and requires its own GitHub Actions run—not an earlier run—to show green macOS, Linux, and Windows Phase 7 smoke jobs before requesting the independent REVIEW. This step assembles evidence; it does not pre-empt the reviewer's gate verdict.
+**Verify:** `python3 tools/phase7/provider-corpus-check.py --selftest && python3 tools/phase7/provider-corpus-check.py --evidence docs/msc2/families/provisioning-evidence && bash tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run --workspace && gh run view "$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId')" --json conclusion,jobs` → `conclusion` is `success`, and the jobs include green macOS, Linux, and Windows Phase 7 smoke legs for this exact `HEAD`
+**Commit:** `P7.37: produce corrected Phase 7 gate evidence`
+**Batch:** solo
+
+---
+
 ## Amendments log
 
 Every amendment from Phase 7 onward is recorded here. Earlier phases' amendments are in `rolling-plan-archive.md`.
+
+### 2026-08-20 — Corrective plan replanned around outcomes, not subtasks
+
+P7.35–P7.37 replace the initial, unexecuted seven-step P7.35–P7.41 draft. No gate requirement was
+removed: the same checksum work, Paper analyzer, add-on inventory, lifecycle wiring, verified
+repairs, committed smoke assertions, refreshed six-family evidence, full suite, and exact-commit
+tri-platform CI proof remain required. The change is execution shape. Checksum integrity is one
+step, the complete diagnostic vertical slice is one step, and final evidence is one step. The
+implementer's redundant gate-recheck step was removed because the next move after verified evidence
+is already the independent REVIEW. These are planning changes only; none is implemented or DONE.
+
+### 2026-08-20 — Codex Phase 7 review: gate does not fully hold
+
+Codex reviewed Phase 7 as a gate check, not a step-compliance check, and did not implement this
+phase. The literal `msc2-port-plan.md` Phase 7 scope and later-audit clause were checked against the
+working tree at `d989ecf` plus Cameron's uncommitted P7.34 `DONE` status change. The gate does not
+fully hold.
+
+What holds: all six named families create and launch with the correct family-specific shape;
+Forge/NeoForge run their supervised installers and launch from the generated args file; a Phase
+5-imported raw Forge server launches through the real lifecycle path; the Java required-major
+guard gates both creation shapes and start; synchronous failure rollback, restart reconciliation,
+orphan-directory cleanup, and exclusive directory claiming are implemented; version
+listing/change and archive behavior dispatch correctly by family; the 1.20 provisioning floor is
+applied without blocking management of older imports; provider failures degrade honestly; and
+Bedrock creation is refused with `capability_unavailable`. Evidence checked: all six real-provider
+records under `docs/msc2/families/provisioning-evidence/`; the production call graphs; MSC 1's
+relevant Swift oracle; `provider-corpus-check.py --selftest` (15/15); the committed synthetic Phase
+7 smoke (passed); and an elevated full workspace run (1123/1123 passed, 0 skipped, 7 leaky). The
+first workspace attempt hit a sandbox-only macOS process-permission denial; the elevated rerun
+passed completely.
+
+Two gate gaps remain. First, server-jar downloads do not verify publisher checksums. The live
+evidence records publisher hashes for Mojang (SHA-1), Paper (SHA-256), and Purpur (MD5), but every
+corresponding `jar_provider.rs` production call passes `None` as `stage_download`'s expected
+checksum. Corrupt or substituted bytes from those providers are therefore accepted and installed,
+contradicting `msc2-engineering.md` section 7's requirement to checksum-verify wherever the
+provider publishes one and this phase's working exit criterion. Existing `jar_provider` tests
+prove staging but cannot catch the omission because production never extracts or supplies the
+publisher hash.
+
+Second, startup diagnostics are only partly live. Hard failed boots now reach
+`diagnose_unexpected_stop`, but `scan_paper_soft_failures` has no production caller and its required
+`analyzePaperPlugins` parser was never ported. Real modded-crash diagnosis also always supplies an
+empty installed-add-on inventory, so it cannot attach the jar stem required for its implemented
+disable/delete repairs. Missing-dependency diagnosis still works, but its `install` action remains
+Phase 8. Cameron explicitly accepted the missing scanner as a documented gap, but the authoritative
+Phase 7 gate still says `startup diagnostics`; it was never narrowed, and the Phase 0 symbol ledger
+explicitly assigns the Paper soft-failure workflow to the agent diagnostics domain.
+
+Vision drift: the missing publisher verification is direct drift from the engineering safety
+guarantee. The incomplete diagnostics path is drift from the Phase 7 scope and the MSC 1
+compatibility oracle. One tracking note is also stale: the capability-matrix row for
+`GET /v1/health/problems` still says nothing calls the real lifecycle diagnostics path, although
+P7.32 now does. No Phase 7 drift was found in the six-family boundary, 1.20 floor, Bedrock
+deferral, headless model, or client-capability tracking.
+
+Later audit: Phase 8 must explicitly cover installed mod/plugin inventory, the Paper plugin
+soft-failure analyzer and successful-start path, real reachability of update/install/disable/delete
+repairs, and removal of a repaired problem from persisted/API state only after verification. It
+should also re-check imported Pufferfish/Quilt/Spigot behavior. A later client-parity audit must
+cover Java installation and templates on iOS; both remain honestly marked `Planned`.
+
+Earlier phases need amendment. Phase 3 P3.14's SHA-1-specific staging interface needs an
+algorithm-aware expected-checksum contract so Phase 7 can verify Mojang SHA-1, Paper SHA-256, and
+Purpur MD5 while using no expected digest only for providers that publish none. Phase 1 must either
+restore the omitted pure Paper plugin soft-failure analyzer or the port plan must explicitly
+reassign that behavior to Phase 8. Phase 7 remains open until these gate gaps are implemented or
+Cameron explicitly amends the authoritative gate.
 
 **2026-08-20 — P7.34: the Phase 7 gate re-check finds all three of P7.30's real gaps now closed.** Re-ran P7.30's own three failing clauses against the working tree through P7.33's commits, reading production call sites directly rather than trusting P7.31–P7.33's own write-ups: the required-major guard now has three confirmed production callers (`provisioning.rs:218`, `routes/lifecycle.rs:823`, `routes/servers.rs:1478`), startup diagnostics' one production caller (`lifecycle.rs:449`) is reached from the real process-event pump, and the orphaned-directory sweep was confirmed two ways — by code (`OperationsState::default()` → `default_journaled()` passes the real `servers_root`) and by an independent manual reproduction (a scratch copy of `phase7-gate-smoke.sh` with one added filesystem assertion after the existing mid-install-kill sequence, confirming the swept directory is actually gone, not just that the operation reconciles). Did not add that assertion to the *committed* smoke script — `tools/phase7/` isn't in this step's own `Files:` list, so it stays a manual, one-off check; flagged as noticed-but-not-acted-on rather than silently left for someone else to rediscover. Full clause-by-clause addendum in a new "Re-check — P7.34" subsection at the end of `phase7-scope.md`'s "Gate closure — P7.30" section, leaving the original report unedited. `provider-corpus-check.py --selftest` 15/15; `phase7-gate-smoke.sh --synthetic` green; `cargo nextest run --workspace` 1123/1123; `fmt`/`clippy --workspace -D warnings` clean.
 

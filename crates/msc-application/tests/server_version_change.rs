@@ -219,14 +219,18 @@ fn server_version_change_upgrade_does_not_trigger_backup() {
     // A move to a *newer* version, or to "latest," must never call the
     // backup closure -- proven by making the closure panic if invoked.
     let tmp = TempDir::new("upgrade-no-backup");
+    // P7.35: the per-version metadata's own real sha1 (for a real 60 MB
+    // jar this test can't ship) is overridden with a synthetic body whose
+    // sha1 matches this test's own fake bytes -- same reasoning as
+    // jar_provider.rs's own real-corpus tests.
     let transport = FakeTransport::new()
         .with_file(
             "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json",
             "vanilla/version-manifest-v2.json",
         )
-        .with_file(
+        .with_bytes(
             "https://piston-meta.mojang.com/v1/packages/c75d82e7fa6eca5a043dab0c6cf77cb8317644f4/26.2.json",
-            "vanilla/version-26.2.json",
+            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar","sha1":"59989014812f106c69aab2e4a52d79c4aea03f45"}}}"#.to_vec(),
         )
         .with_bytes(
             "https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar",
@@ -260,17 +264,20 @@ fn server_version_change_upgrade_does_not_trigger_backup() {
 #[test]
 fn server_version_change_paper_latest_download() {
     let tmp = TempDir::new("paper-latest");
+    // P7.35: the real corpus builds file's own real sha256 (for a real
+    // build 132 jar this test can't ship) is overridden with a synthetic
+    // builds response whose sha256 matches this test's own fake bytes.
     let transport = FakeTransport::new()
         .with_file(
             "https://fill.papermc.io/v3/projects/paper",
             "paper/projects-paper.json",
         )
-        .with_file(
+        .with_bytes(
             "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
-            "paper/builds-1.21.11.json",
+            br#"[{"id":132,"channel":"STABLE","downloads":{"server:default":{"url":"https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar","checksums":{"sha256":"081ed9e93594efaed9a6c74f108d39902fa8a7245cd365fb157ddcf513af52c1"}}}}]"#.to_vec(),
         )
         .with_bytes(
-            "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+            "https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar",
             b"fake paper jar".to_vec(),
         );
     let supervisor = FakeProcessSupervisor::new();
@@ -301,13 +308,15 @@ fn server_version_change_paper_latest_download() {
 #[test]
 fn server_version_change_paper_pinned_downloads_dest_url_when_paper_jar_path_empty() {
     let tmp = TempDir::new("paper-pinned-default-dest");
+    // P7.35: same synthetic-checksum override as
+    // server_version_change_paper_latest_download above.
     let transport = FakeTransport::new()
-        .with_file(
+        .with_bytes(
             "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
-            "paper/builds-1.21.11.json",
+            br#"[{"id":132,"channel":"STABLE","downloads":{"server:default":{"url":"https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar","checksums":{"sha256":"081ed9e93594efaed9a6c74f108d39902fa8a7245cd365fb157ddcf513af52c1"}}}}]"#.to_vec(),
         )
         .with_bytes(
-            "https://fill-data.papermc.io/v1/objects/5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba/paper-1.21.11-132.jar",
+            "https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar",
             b"fake paper jar".to_vec(),
         );
     let supervisor = FakeProcessSupervisor::new();
@@ -341,10 +350,17 @@ fn server_version_change_purpur_pinned_reports_build_latest_literal() {
     // build number -- it reports the literal string `"latest"`, unlike
     // the `downloadLatest` path (`ServerJarProviders.swift:327-333`).
     let tmp = TempDir::new("purpur-pinned");
-    let transport = FakeTransport::new().with_bytes(
-        "https://api.purpurmc.org/v2/purpur/1.21.4/latest/download",
-        b"fake purpur jar".to_vec(),
-    );
+    // P7.35: purpur_download_version now fetches this per-build metadata
+    // hop for its published md5 before downloading.
+    let transport = FakeTransport::new()
+        .with_bytes(
+            "https://api.purpurmc.org/v2/purpur/1.21.4/latest",
+            br#"{"md5":"461af2b8c9f06bef4b424c2b1001e002"}"#.to_vec(),
+        )
+        .with_bytes(
+            "https://api.purpurmc.org/v2/purpur/1.21.4/latest/download",
+            b"fake purpur jar".to_vec(),
+        );
     let supervisor = FakeProcessSupervisor::new();
     let mut request = base_request(JavaServerFlavor::Purpur, tmp.path());
     request.version_id = "1.21.4";

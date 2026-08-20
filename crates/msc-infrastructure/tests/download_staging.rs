@@ -5,7 +5,9 @@
 //! fixtures were characterized directly from `msc2-engineering.md` §7 and
 //! the three real download workflows it names.
 
-use msc_infrastructure::download_staging::{sha1_hex, stage_download};
+use msc_infrastructure::download_staging::{
+    ChecksumAlgorithm, ExpectedChecksum, md5_hex, sha1_hex, sha256_hex, stage_download,
+};
 use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
 use serde_json::Value;
 use std::path::{Path, PathBuf};
@@ -41,6 +43,29 @@ fn build_fs(input: &Value) -> FakeFileSystem {
     fs
 }
 
+/// P7.35 amendment: `expectedSha1Hex` (a bare string or JSON null) became
+/// `expectedChecksum` (an `{algorithm, hex}` object or JSON null) — the
+/// same shape [`stage_download`]'s own signature now takes.
+fn parse_expected_checksum(value: &Value) -> Option<ExpectedChecksum> {
+    if value.is_null() {
+        return None;
+    }
+    let algorithm = match value["algorithm"]
+        .as_str()
+        .expect("expectedChecksum.algorithm")
+    {
+        "sha1" => ChecksumAlgorithm::Sha1,
+        "sha256" => ChecksumAlgorithm::Sha256,
+        "md5" => ChecksumAlgorithm::Md5,
+        other => panic!("unknown expectedChecksum.algorithm {other:?}"),
+    };
+    let hex = value["hex"]
+        .as_str()
+        .expect("expectedChecksum.hex")
+        .to_string();
+    Some(ExpectedChecksum { algorithm, hex })
+}
+
 fn temp_path_for(dest: &Path) -> PathBuf {
     let file_name = dest.file_name().expect("dest has a file name");
     dest.with_file_name(format!(".{}.tmp", file_name.to_string_lossy()))
@@ -60,9 +85,16 @@ fn run(case: &str) {
         .as_bytes();
     let origin_url = fixture.input["originUrl"].as_str().expect("originUrl");
     let version = fixture.input["version"].as_str().expect("version");
-    let expected_sha1 = fixture.input["expectedSha1Hex"].as_str();
+    let expected_checksum = parse_expected_checksum(&fixture.input["expectedChecksum"]);
 
-    let result = stage_download(&fs, &dest, bytes, origin_url, version, expected_sha1);
+    let result = stage_download(
+        &fs,
+        &dest,
+        bytes,
+        origin_url,
+        version,
+        expected_checksum.as_ref(),
+    );
 
     match fixture.expected["error"].as_str() {
         None => {
@@ -155,4 +187,45 @@ fn download_staging_no_checksum_published_still_stages_unverified() {
 #[test]
 fn download_staging_interrupted_download_partial_temp_file_is_safely_retried() {
     run("interrupted-download-partial-temp-file-is-safely-retried");
+}
+
+// --- P7.35: the algorithm-aware checksum contract, proven against every
+// algorithm a real Phase 7 provider publishes (Mojang SHA-1 already
+// covered above; Paper SHA-256 and Purpur MD5 below), not just SHA-1. ---
+
+#[test]
+fn download_staging_successful_stage_and_move_with_matching_sha256_checksum() {
+    run("successful-stage-and-move-with-matching-sha256-checksum");
+
+    // Same reasoning as the SHA-1 test's own folded-in assertions: these
+    // are the published FIPS 180-4 test vectors, checked directly against
+    // sha256_hex here rather than as a separate #[test].
+    assert_eq!(
+        sha256_hex(b""),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    );
+    assert_eq!(
+        sha256_hex(b"abc"),
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    );
+}
+
+#[test]
+fn download_staging_sha256_checksum_mismatch_rejected_without_touching_destination() {
+    run("sha256-checksum-mismatch-rejected-without-touching-destination");
+}
+
+#[test]
+fn download_staging_successful_stage_and_move_with_matching_md5_checksum() {
+    run("successful-stage-and-move-with-matching-md5-checksum");
+
+    // Same reasoning again — the published RFC 1321 test vectors, checked
+    // directly against md5_hex here rather than as a separate #[test].
+    assert_eq!(md5_hex(b""), "d41d8cd98f00b204e9800998ecf8427e");
+    assert_eq!(md5_hex(b"abc"), "900150983cd24fb0d6963f7d28e17f72");
+}
+
+#[test]
+fn download_staging_md5_checksum_mismatch_rejected_without_touching_destination() {
+    run("md5-checksum-mismatch-rejected-without-touching-destination");
 }

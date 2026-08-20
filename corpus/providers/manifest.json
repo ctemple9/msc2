@@ -34,6 +34,15 @@
       "byte_size": 306
     },
     {
+      "path": "purpur/build-latest-1.21.11.json",
+      "family": "purpur",
+      "source_url": "https://api.purpurmc.org/v2/purpur/1.21.11/latest",
+      "captured": "2026-08-20",
+      "sha256": "bc625125c0c33f85e289ba86a717674454b20162d64a1e3c3b3e921e4a3f6d1d",
+      "byte_size": 371,
+      "note": "P7.35: not part of P7.3's original six-family sweep -- MSC 1 never calls this endpoint (PurpurDownloader.downloadVersion goes straight from a version string to .../latest/download, no per-build metadata hop). Captured for P7.35's checksum-verification amendment, which needed to confirm what Purpur's per-build API actually publishes: this response's top-level md5 field, matching build 2568 -- the same build version-1.21.11.json's own builds.latest already names."
+    },
+    {
       "path": "vanilla/version-manifest-v2.json",
       "family": "vanilla",
       "source_url": "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json",

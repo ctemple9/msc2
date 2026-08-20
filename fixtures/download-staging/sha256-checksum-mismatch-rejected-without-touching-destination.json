@@ -1,0 +1,25 @@
+{
+  "domain": "download-staging",
+  "case": "sha256-checksum-mismatch-rejected-without-touching-destination",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PaperDownloader.downloadLatestPaper",
+    "line": 1
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/servers/demo/paper.jar", "contents": "paper-jar-contents-v0" }
+    ],
+    "dest": "/srv/app/servers/demo/paper.jar",
+    "bytesUtf8": "paper-jar-contents-v1",
+    "originUrl": "https://fill-data.papermc.io/v1/objects/example/paper-1.21.11-132.jar",
+    "version": "1.21.11-132",
+    "expectedChecksum": { "algorithm": "sha256", "hex": "0000000000000000000000000000000000000000000000000000000000000000" }
+  },
+  "expected": {
+    "error": "checksum_mismatch",
+    "destinationContents": "paper-jar-contents-v0",
+    "tempFileExists": false
+  },
+  "notes": "P7.35 amendment: the SHA-256 counterpart to checksum-mismatch-rejected-without-touching-destination.json — corrupted/substituted bytes from a provider that publishes SHA-256 (Paper's real fill v3 API) must be refused the same way a bad SHA-1 already was, and the pre-existing destination (a prior, different paper.jar) must stay untouched. expectedChecksum.hex is deliberately wrong (all zeros) against the real SHA-256 of 'paper-jar-contents-v1' (b3faad1deb89239b64768afe94a3697018bd47786bbb81017165fb1ddc8aeca0, from the sibling sha256-success fixture)."
+}

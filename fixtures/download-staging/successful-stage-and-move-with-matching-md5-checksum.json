@@ -1,0 +1,30 @@
+{
+  "domain": "download-staging",
+  "case": "successful-stage-and-move-with-matching-md5-checksum",
+  "source": {
+    "file": "ServerJarProviders.swift",
+    "test": "PurpurDownloader.downloadVersion",
+    "line": 1
+  },
+  "input": {
+    "existingFiles": [
+      { "path": "/srv/app/servers/demo/.keep", "contents": "" }
+    ],
+    "dest": "/srv/app/servers/demo/purpur.jar",
+    "bytesUtf8": "purpur-jar-contents-v1",
+    "originUrl": "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
+    "version": "1.21.11",
+    "expectedChecksum": { "algorithm": "md5", "hex": "7363e08691b6e72d5f2547a9795ff343" }
+  },
+  "expected": {
+    "error": null,
+    "destinationContents": "purpur-jar-contents-v1",
+    "tempFileExists": false,
+    "cachedFile": {
+      "path": "/srv/app/servers/demo/purpur.jar",
+      "originUrl": "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
+      "version": "1.21.11"
+    }
+  },
+  "notes": "P7.35 amendment: proves the primitive's algorithm-aware contract against MD5, not just SHA-1. '7363e08691b6e72d5f2547a9795ff343' is the real MD5 of the literal bytes 'purpur-jar-contents-v1' (independently computed via Python's hashlib, not invented) — chosen because Purpur's real per-build API (/v2/purpur/{version}/{build}) publishes MD5 only (corpus/providers/purpur/build-latest-1.21.11.json's own recorded shape, captured live 2026-08-20; corpus/providers/README.md's P7.28/P7.35 findings), the provider this algorithm is actually verified against in jar_provider.rs's purpur_download_version."
+}

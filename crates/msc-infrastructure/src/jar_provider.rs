@@ -28,6 +28,18 @@
 //! — *running* the installer is P7.14's `loader_installer`, not this step's
 //! job; this step only fetches the installer jar itself, the same as it
 //! fetches any other family's jar).
+//!
+//! **P7.35:** Vanilla, Paper, and Purpur's download functions now extract
+//! the publisher-published digest from the exact response already used to
+//! choose the download (Mojang's `downloads.server.sha1`, Paper's
+//! `downloads."server:default".checksums.sha256`, Purpur's per-build
+//! `md5` — the one extra hop Purpur's own download URL never needed
+//! before) and pass it to [`crate::download_staging::stage_download`] as
+//! an [`crate::download_staging::ExpectedChecksum`], refusing a mismatch
+//! before any destination, archive, config, or server registration
+//! changes. Fabric, NeoForge, and Forge still pass `None` — their real
+//! endpoints publish no digest at all for the jar/installer they serve
+//! (`corpus/providers/README.md`'s P7.28 finding).
 
 use std::fmt;
 use std::path::Path;
@@ -35,7 +47,7 @@ use std::time::Duration;
 
 use msc_domain::server_versions::{self, CatalogError};
 
-use crate::download_staging::{self, CachedFile, DownloadStagingError};
+use crate::download_staging::{self, CachedFile, DownloadStagingError, ExpectedChecksum};
 use crate::fs::FileSystem;
 
 const USER_AGENT: &str = "MinecraftServerController/2.0 (msc2 agent)";
@@ -259,10 +271,38 @@ fn vanilla_download(
     let meta_bytes = transport.get(&meta_url, "Mojang version metadata", CATALOG_MAX_BYTES)?;
     let meta_text = bytes_to_utf8(meta_bytes, "Mojang version metadata")?;
     let jar_url = server_versions::vanilla_server_download_url(&meta_text, &release_id)?;
+    let expected_checksum = vanilla_server_sha1(&meta_text).map(ExpectedChecksum::sha1);
 
     let jar_bytes = transport.get(&jar_url, "Vanilla download", JAR_MAX_BYTES)?;
-    download_staging::stage_download(fs, dest, &jar_bytes, &jar_url, &release_id, None)
-        .map_err(JarProviderError::Staging)
+    download_staging::stage_download(
+        fs,
+        dest,
+        &jar_bytes,
+        &jar_url,
+        &release_id,
+        expected_checksum.as_ref(),
+    )
+    .map_err(JarProviderError::Staging)
+}
+
+/// `downloads.server.sha1` from the same per-version metadata response
+/// [`vanilla_server_download_url`] already reads the download URL from
+/// (`corpus/providers/vanilla/version-26.2.json`'s own recorded shape) —
+/// P7.35's checksum contract, extracted from the exact response already
+/// used to choose the download rather than a second fetch. `None` on any
+/// parse/shape failure, matching this file's own established soft-field
+/// convention (e.g. [`purpur_latest_build_label`]'s `builds.latest`
+/// fallback) — a missing digest here degrades to unverified, the same as
+/// a provider that never publishes one, rather than refusing a real
+/// download over a field this function doesn't strictly need.
+fn vanilla_server_sha1(meta_text: &str) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(meta_text).ok()?;
+    value
+        .get("downloads")
+        .and_then(|d| d.get("server"))
+        .and_then(|s| s.get("sha1"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
 }
 
 // ---------------------------------------------------------------------
@@ -291,10 +331,45 @@ pub fn purpur_download_version(
     version: &str,
     dest: &Path,
 ) -> Result<CachedFile, JarProviderError> {
+    let expected_checksum = purpur_latest_build_md5(transport, version).map(ExpectedChecksum::md5);
+
     let dl_url = format!("{}/v2/purpur/{version}/latest/download", purpur_base());
     let jar_bytes = transport.get(&dl_url, "Purpur download", JAR_MAX_BYTES)?;
-    download_staging::stage_download(fs, dest, &jar_bytes, &dl_url, version, None)
-        .map_err(JarProviderError::Staging)
+    download_staging::stage_download(
+        fs,
+        dest,
+        &jar_bytes,
+        &dl_url,
+        version,
+        expected_checksum.as_ref(),
+    )
+    .map_err(JarProviderError::Staging)
+}
+
+/// Purpur's per-build API (`/v2/purpur/{version}/{build}`, `latest`
+/// accepted as a build id — confirmed live 2026-08-20, real response
+/// recorded at `corpus/providers/purpur/build-latest-1.21.11.json`)
+/// publishes a top-level `md5` field for exactly the jar
+/// [`purpur_download_version`]'s own `.../latest/download` URL serves —
+/// P7.35's checksum contract, one extra hop this family's own download
+/// URL never needed before (unlike Vanilla/Paper, whose digest already
+/// rides along in a response the download path already fetched). A
+/// transport failure or malformed body degrades to `None` (unverified),
+/// the same soft-field convention [`purpur_latest_build_label`] already
+/// established for this same endpoint's `builds.latest` field — this
+/// function reads a sibling field on a request that endpoint doesn't
+/// itself issue, so it can't share that call.
+fn purpur_latest_build_md5(transport: &dyn Transport, version: &str) -> Option<String> {
+    let url = format!("{}/v2/purpur/{version}/latest", purpur_base());
+    let bytes = transport
+        .get(&url, "Purpur build", CATALOG_MAX_BYTES)
+        .ok()?;
+    let body = bytes_to_utf8(bytes, "Purpur build").ok()?;
+    let value: serde_json::Value = serde_json::from_str(&body).ok()?;
+    value
+        .get("md5")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string)
 }
 
 /// `PurpurDownloader.downloadLatest`'s own raw fetch (`ServerJarProviders
@@ -428,7 +503,7 @@ pub fn paper_download_build(
     let builds_url = format!("{}/versions/{version}/builds", paper_project_url());
     let bytes = transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Paper builds")?;
-    let jar_url = paper_build_download_url(&body, build_id).ok_or_else(|| {
+    let (jar_url, expected_checksum) = paper_build_download(&body, build_id).ok_or_else(|| {
         JarProviderError::Network(format!(
             "No download found for Paper {version} build {build_id}."
         ))
@@ -441,22 +516,44 @@ pub fn paper_download_build(
         &jar_bytes,
         &jar_url,
         &format!("{version}-{build_id}"),
-        None,
+        expected_checksum.as_ref(),
     )
     .map_err(JarProviderError::Staging)
 }
 
-fn paper_build_download_url(raw_builds_body: &str, build_id: i64) -> Option<String> {
+/// `entry.downloads."server:default"`'s `url` plus, when present, its
+/// `checksums.sha256` (Paper's fill v3 own published shape —
+/// `corpus/providers/paper/builds-1.21.11.json`'s real recorded entries)
+/// — P7.35's checksum contract, extracted from the exact `entry` this
+/// build id already resolved to rather than a second fetch. A present but
+/// unparseable `checksums.sha256` degrades to `None` (unverified) rather
+/// than failing the whole lookup, the same soft-field convention this
+/// file already uses elsewhere; the `url` itself staying required (an
+/// `Option` on the whole tuple) is unchanged from before this amendment.
+fn paper_build_download(
+    raw_builds_body: &str,
+    build_id: i64,
+) -> Option<(String, Option<ExpectedChecksum>)> {
     let builds: serde_json::Value = serde_json::from_str(raw_builds_body).ok()?;
     let builds = builds.as_array()?;
-    builds
+    let entry = builds
         .iter()
-        .find(|entry| entry.get("id").and_then(serde_json::Value::as_i64) == Some(build_id))
-        .and_then(|entry| entry.get("downloads"))
-        .and_then(|d| d.get("server:default"))
-        .and_then(|sd| sd.get("url"))
+        .find(|entry| entry.get("id").and_then(serde_json::Value::as_i64) == Some(build_id))?;
+    paper_entry_download(entry)
+}
+
+fn paper_entry_download(entry: &serde_json::Value) -> Option<(String, Option<ExpectedChecksum>)> {
+    let server_default = entry.get("downloads")?.get("server:default")?;
+    let url = server_default
+        .get("url")
+        .and_then(serde_json::Value::as_str)?
+        .to_string();
+    let checksum = server_default
+        .get("checksums")
+        .and_then(|c| c.get("sha256"))
         .and_then(serde_json::Value::as_str)
-        .map(str::to_string)
+        .map(ExpectedChecksum::sha256);
+    Some((url, checksum))
 }
 
 /// `PaperDownloader.downloadVersion(_:to:)` (`ServerJarProviders.swift:
@@ -483,9 +580,10 @@ pub fn paper_download_pinned_version(
     let builds_url = format!("{}/versions/{version}/builds", paper_project_url());
     let bytes = transport.get(&builds_url, "Paper builds", CATALOG_MAX_BYTES)?;
     let body = bytes_to_utf8(bytes, "Paper builds")?;
-    let (build_id, jar_url) = paper_highest_build_any_channel(&body).ok_or_else(|| {
-        JarProviderError::Network(format!("No builds found for Paper {version}."))
-    })?;
+    let (build_id, jar_url, expected_checksum) = paper_highest_build_any_channel(&body)
+        .ok_or_else(|| {
+            JarProviderError::Network(format!("No builds found for Paper {version}."))
+        })?;
 
     let jar_bytes = transport.get(&jar_url, "Paper download", JAR_MAX_BYTES)?;
     let cached = download_staging::stage_download(
@@ -494,27 +592,25 @@ pub fn paper_download_pinned_version(
         &jar_bytes,
         &jar_url,
         &format!("{version}-{build_id}"),
-        None,
+        expected_checksum.as_ref(),
     )
     .map_err(JarProviderError::Staging)?;
     Ok((cached, build_id))
 }
 
-fn paper_highest_build_any_channel(raw_builds_body: &str) -> Option<(i64, String)> {
+fn paper_highest_build_any_channel(
+    raw_builds_body: &str,
+) -> Option<(i64, String, Option<ExpectedChecksum>)> {
     let builds: serde_json::Value = serde_json::from_str(raw_builds_body).ok()?;
     let builds = builds.as_array()?;
     builds
         .iter()
         .filter_map(|entry| {
             let id = entry.get("id").and_then(serde_json::Value::as_i64)?;
-            let url = entry
-                .get("downloads")
-                .and_then(|d| d.get("server:default"))
-                .and_then(|sd| sd.get("url"))
-                .and_then(serde_json::Value::as_str)?;
-            Some((id, url.to_string()))
+            let (url, checksum) = paper_entry_download(entry)?;
+            Some((id, url, checksum))
         })
-        .max_by_key(|(id, _)| *id)
+        .max_by_key(|(id, _, _)| *id)
 }
 
 /// `PaperDownloader.listVersions()` (`ServerJarProviders.swift:141-174`):

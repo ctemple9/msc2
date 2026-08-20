@@ -401,8 +401,17 @@ assert_launch_argv_shape() {
   # $1 = server display name that was just started. $2 = "args-file"
   # (Forge/NeoForge: `@<file> nogui`, no `-jar`) or "jar" (the other
   # four: `-jar <jar> --nogui`, no `@`).
+  #
+  # FakeServer.java/FakeInstaller.java print `sun.java.command`, not the
+  # raw OS command line (see their own doc comments: `ProcessHandle`'s
+  # Windows implementation never populates it -- JDK-8176725, found by
+  # this step's own Windows CI leg). By the time `sun.java.command` is
+  # built, `-jar`/`@<args-file>` are already gone -- it reads
+  # "<jar> <args>" for a jar launch and "<MainClass> <args>" for an
+  # args-file launch -- so the shape check below is on the first token's
+  # `.jar` suffix instead of the literal flag.
   local name="$1" want="$2"
-  local argv
+  local argv first_token
   argv="$(console_lines_since_start "${name}" | python3 -c '
 import json, sys
 lines = json.load(sys.stdin)
@@ -412,12 +421,11 @@ for line in lines:
         break
 ')"
   [[ -n "${argv}" ]] || fail "no LAUNCH_ARGV console line found since ${name} started"
+  first_token="${argv%% *}"
   if [[ "${want}" == "args-file" ]]; then
-    [[ "${argv}" == *" @"* ]] || fail "expected @<args-file> launch shape, got: ${argv}"
-    [[ "${argv}" != *" -jar "* ]] || fail "expected no -jar in args-file launch, got: ${argv}"
+    [[ "${first_token}" != *.jar ]] || fail "expected an args-file (class-name) launch, got a jar launch: ${argv}"
   else
-    [[ "${argv}" == *" -jar "* ]] || fail "expected -jar launch shape, got: ${argv}"
-    [[ "${argv}" != *" @"* ]] || fail "expected no @<args-file> in jar launch, got: ${argv}"
+    [[ "${first_token}" == *.jar ]] || fail "expected a jar launch, got: ${argv}"
   fi
   echo "launch argv (${want} shape): ${argv}"
 }

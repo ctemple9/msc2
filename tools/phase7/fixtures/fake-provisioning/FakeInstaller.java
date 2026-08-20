@@ -15,7 +15,10 @@
 //                                                 "--installServer")
 public class FakeInstaller {
     public static void main(String[] args) throws Exception {
-        System.out.println("LAUNCH_ARGV:" + ProcessHandle.current().info().commandLine().orElse("?"));
+        // sun.java.command, not ProcessHandle -- see FakeServer.java's own
+        // doc comment for why (JDK-8176725, found by P7.29's Windows leg).
+        String command = System.getProperty("sun.java.command");
+        System.out.println("LAUNCH_ARGV:" + (command != null ? command : "?"));
         System.out.flush();
 
         boolean installMode = args.length > 0 && args[0].equals("--installServer");

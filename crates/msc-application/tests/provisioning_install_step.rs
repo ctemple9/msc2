@@ -176,8 +176,23 @@ fn wait_for_first_spawn(
     }
 }
 
-fn drive_fake_installer_to_success(supervisor: &FakeProcessSupervisor) {
+/// `after_spawn` runs once the fake installer has actually been spawned
+/// (i.e. once `create_install_step_server` has already created `new_dir`
+/// and invoked the installer) -- every caller uses it to write the args
+/// file the installer would have produced. This ordering matters: writing
+/// that file (which lives under `new_dir`) any earlier races
+/// `create_install_step_server`'s own `new_dir`-already-exists check
+/// (`provisioning.rs`, checked before anything else) against this
+/// background thread's own filesystem write, and can lose that race under
+/// heavy CI load -- found by P7.29's own CI runs, which had been
+/// misdiagnosed as a too-short spin-wait deadline until the "no process
+/// was spawned" panic was read closely enough to see it was reporting a
+/// *symptom* (the main thread had already failed with
+/// `FolderAlreadyExists` and so never spawned anything) rather than the
+/// cause.
+fn drive_fake_installer_to_success(supervisor: &FakeProcessSupervisor, after_spawn: impl FnOnce()) {
     let pid = wait_for_first_spawn(supervisor);
+    after_spawn();
     supervisor.emit_stdout(pid, b"Installing...\n").unwrap();
     supervisor.exit_normally(pid).unwrap();
 }
@@ -203,16 +218,17 @@ fn provisioning_install_step_neoforge_end_to_end() {
         let args_dir = server_dir.join("libraries/net/neoforged/neoforge/20.4.237");
         let supervisor_ref = &supervisor;
         scope.spawn(move || {
-            // Real disk write so `run_loader_installer`'s post-exit scan
-            // (a real `StdFileSystem`, same as the whole call below)
-            // finds it once the fake installer "exits."
-            fs::create_dir_all(&args_dir).unwrap();
-            fs::write(
-                args_dir.join("unix_args.txt"),
-                b"@user_jvm_args.txt\nnogui\n",
-            )
-            .unwrap();
-            drive_fake_installer_to_success(supervisor_ref);
+            drive_fake_installer_to_success(supervisor_ref, || {
+                // Real disk write so `run_loader_installer`'s post-exit
+                // scan (a real `StdFileSystem`, same as the whole call
+                // below) finds it once the fake installer "exits."
+                fs::create_dir_all(&args_dir).unwrap();
+                fs::write(
+                    args_dir.join("unix_args.txt"),
+                    b"@user_jvm_args.txt\nnogui\n",
+                )
+                .unwrap();
+            });
         });
 
         provisioning::create_install_step_server(
@@ -262,13 +278,14 @@ fn provisioning_install_step_forge_end_to_end() {
         let args_dir = server_dir.join("libraries/net/minecraftforge/forge/1.20.1-47.4.5");
         let supervisor_ref = &supervisor;
         scope.spawn(move || {
-            fs::create_dir_all(&args_dir).unwrap();
-            fs::write(
-                args_dir.join("unix_args.txt"),
-                b"@user_jvm_args.txt\nnogui\n",
-            )
-            .unwrap();
-            drive_fake_installer_to_success(supervisor_ref);
+            drive_fake_installer_to_success(supervisor_ref, || {
+                fs::create_dir_all(&args_dir).unwrap();
+                fs::write(
+                    args_dir.join("unix_args.txt"),
+                    b"@user_jvm_args.txt\nnogui\n",
+                )
+                .unwrap();
+            });
         });
 
         provisioning::create_install_step_server(
@@ -437,13 +454,14 @@ fn provisioning_install_step_fresh_world_slot_created() {
         let args_dir = server_dir.join("libraries/net/neoforged/neoforge/20.4.237");
         let supervisor_ref = &supervisor;
         scope.spawn(move || {
-            fs::create_dir_all(&args_dir).unwrap();
-            fs::write(
-                args_dir.join("unix_args.txt"),
-                b"@user_jvm_args.txt\nnogui\n",
-            )
-            .unwrap();
-            drive_fake_installer_to_success(supervisor_ref);
+            drive_fake_installer_to_success(supervisor_ref, || {
+                fs::create_dir_all(&args_dir).unwrap();
+                fs::write(
+                    args_dir.join("unix_args.txt"),
+                    b"@user_jvm_args.txt\nnogui\n",
+                )
+                .unwrap();
+            });
         });
 
         provisioning::create_install_step_server(

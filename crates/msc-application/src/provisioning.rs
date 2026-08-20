@@ -916,7 +916,14 @@ pub fn create_install_step_server(
     let initial_level_name = world::sanitized_world_level_name(&initial_slot_name, "world");
 
     let folder_name = provisioning::folder_name_from_safe_name(&safe_name);
-    let new_dir = servers_root.join("java").join(&folder_name);
+    // Same Windows mixed-separator gap as `create_download_and_go_server`'s
+    // own `new_dir` above -- this function has its own separate copy of
+    // the same construction, found needing the same fix while tracing
+    // this file's own `provisioning_install_step` CI race (P7.29).
+    let new_dir = join_forward_slash(
+        &join_forward_slash(servers_root, std::ffi::OsStr::new("java")),
+        folder_name.as_ref(),
+    );
 
     if fs.stat(&new_dir).is_ok() {
         return Err(CreateServerError::FolderAlreadyExists {

@@ -87,12 +87,20 @@ jobs:
       # The Phase 6 restart-sensitive smoke (P6.25) compiles a small real
       # fake-Paper jar with javac/jar and runs it with java, on all three
       # platforms — pin a JDK explicitly rather than trust whatever a
-      # runner image happens to have on PATH.
-      - name: Install JDK (Phase 6 fake Paper server)
+      # runner image happens to have on PATH. Also backs the Phase 7
+      # smoke below. 25, not 21: P7.31 wired MSC 2's own required-major
+      # Java guard into real creation/start, and the real Vanilla catalog
+      # this smoke resolves "latest" against now needs Java 25
+      # (Minecraft's year-based version scheme, 26.x) — 21 would make the
+      # guard correctly refuse every family's creation here. Cameron's
+      # call, P7.31's own flagged question: match CI to what MSC 2
+      # actually promises today rather than pin the smoke to an older
+      # target.
+      - name: Install JDK (Phase 6/7 smokes)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "25"
 
       - name: Report toolchain
         run: |

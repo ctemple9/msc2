@@ -4,9 +4,11 @@
 //! detection, standing in for Phase 3/4 substrate work.
 
 use axum::{Extension, Json};
-use msc_api::dto::{BedrockSupportDto, CapabilitiesDto, HelpersDto, HostOsDto, ServerTypesDto};
+use msc_api::dto::{
+    BedrockSupportDto, CapabilitiesDto, HelpersDto, HostOsDto, MeResponseDto, ServerTypesDto,
+};
 
-use crate::auth::AuthenticatedCredential;
+use crate::auth::{AuthenticatedCredential, CredentialRole, role_to_string};
 
 /// v1's fixed major/minor, per `versioning-and-errors.md` §2.
 const API_MAJOR: u32 = 1;
@@ -37,6 +39,19 @@ pub async fn capabilities(
             duckdns: false,
             geyser: false,
         },
+    })
+}
+
+/// `GET /v1/me` — the calling token's own role/name/permissions, read
+/// straight off the `AuthenticatedCredential` the auth middleware already
+/// attached to the request. No lookup of its own: every field here was
+/// already computed once, at auth time.
+pub async fn me(Extension(credential): Extension<AuthenticatedCredential>) -> Json<MeResponseDto> {
+    Json(MeResponseDto {
+        role: role_to_string(credential.role),
+        name: credential.label,
+        permissions: credential.permissions,
+        is_named_token: matches!(credential.role, CredentialRole::Named),
     })
 }
 

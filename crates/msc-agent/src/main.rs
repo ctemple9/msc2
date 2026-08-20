@@ -205,6 +205,7 @@ pub(crate) fn build_app() -> Router {
     let protected = Router::new()
         .merge(lifecycle)
         .route("/capabilities", get(routes::capabilities::capabilities))
+        .route("/me", get(routes::capabilities::me))
         .merge(operations)
         .merge(operation_progress)
         .merge(console)

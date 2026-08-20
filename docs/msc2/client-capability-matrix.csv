@@ -48,7 +48,7 @@ POST,/v1/health/repair,,Trigger a repair action for a diagnosed startup problem,
 GET,/v1/help/{helpId},,Resolve an educational content topic,none,Planned,Planned,Planned,Planned,
 GET,/v1/java-runtimes,,Java runtimes detected on this host,none,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift's create-server flow already wired against RemoteAPIClient.getJavaRuntimes; no shape mismatch found"
 POST,/v1/java-runtimes/install,installJavaRuntime,"Install a Java runtime the agent manages itself (Adoptium archive, checksum-verified, unpacked under MSC's own runtimes directory)",settings,Implemented,Planned,Planned,Implemented,"new route, D-006 addendum P7.1/P7.9 -- no MSC 1 equivalent (phase7-api.md SS3); iOS has no screen for this at all yet (nothing existing to point at the real agent) -- CLI (msc java install) is the only P7.25/26 client surface"
-GET,/v1/me,,The calling token's own role and permissions,none,Planned,Planned,Planned,Planned,
+GET,/v1/me,,The calling token's own role and permissions,none,Implemented,Planned,Implemented,Planned,iOS's DashboardViewModel already called getMe() before this route existed on the agent — found live pairing against a real P7 agent during the deferred iOS walkthrough; wired the agent route to match.
 POST,/v1/operations,,Create a long-running operation,serverControl,Implemented,Planned,Planned,Planned,
 GET,/v1/operations/{id},,Read an operation's current state,none,Implemented,Planned,Implemented,Implemented,"iOS and CLI poll durable world, backup, conversion, and import operations"
 POST,/v1/operations/{id}/cancel,,Request cancellation of an operation,serverControl,Implemented,Planned,Implemented,Implemented,"iOS conversion UI and CLI polling request cooperative cancellation"

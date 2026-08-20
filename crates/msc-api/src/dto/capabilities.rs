@@ -78,6 +78,19 @@ pub struct HelpersDto {
     pub geyser: bool,
 }
 
+/// `GET /v1/me`'s response shape (`openapi.json`'s `MeResponseDTO`): the
+/// calling token's own role/name/permissions, echoed back from the
+/// `AuthenticatedCredential` the auth middleware already attached to the
+/// request — no lookup of its own.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MeResponseDto {
+    pub role: String,
+    pub name: String,
+    pub permissions: Vec<PermissionCategoryDto>,
+    pub is_named_token: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapabilitiesDto {

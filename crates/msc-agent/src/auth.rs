@@ -821,7 +821,7 @@ fn entry_to_record(entry: CredentialRegistryEntry) -> Option<(String, Credential
     ))
 }
 
-fn role_to_string(role: CredentialRole) -> String {
+pub(crate) fn role_to_string(role: CredentialRole) -> String {
     serde_json::to_value(role)
         .ok()
         .and_then(|value| value.as_str().map(str::to_string))

@@ -7,6 +7,7 @@ struct DashboardServerCard: View {
     let activeServerType: ServerType
     let isPaired: Bool
     let isRunning: Bool
+    let isLoading: Bool
     @Binding var selectedServerId: String
     let manageAction: () -> Void
     let startAction: () -> Void
@@ -18,63 +19,83 @@ struct DashboardServerCard: View {
             MSCSectionHeader(title: "Active Server")
                 .padding(.bottom, MSCRemoteStyle.spaceMD)
 
-            if servers.isEmpty {
-                Text(isPaired ? "Loading servers…" : "Pair to load servers.")
+            if !isPaired {
+                Text("Pair to load servers.")
                     .font(.system(size: 13))
                     .foregroundStyle(MSCRemoteStyle.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.bottom, MSCRemoteStyle.spaceMD)
             } else {
                 HStack(spacing: MSCRemoteStyle.spaceSM) {
-                    Menu {
-                        ForEach(servers, id: \.id) { server in
-                            Button {
-                                selectedServerId = server.id
-                            } label: {
-                                if server.id == activeServerId {
-                                    Label(server.name, systemImage: "checkmark")
-                                } else {
-                                    Label(server.name, systemImage: server.resolvedServerType.iconName)
-                                }
+                    if servers.isEmpty {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(isLoading ? "Loading servers…" : "No servers yet")
+                                .font(.system(size: 15, weight: .medium, design: .rounded))
+                                .foregroundStyle(MSCRemoteStyle.textPrimary)
+                            if !isLoading {
+                                Text("Tap the gear to create one")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(MSCRemoteStyle.textTertiary)
                             }
-                        }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(activeServerNameText)
-                                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                                    .foregroundStyle(MSCRemoteStyle.textPrimary)
-                                HStack(spacing: 5) {
-                                    Image(systemName: activeServerType.iconName)
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(MSCRemoteStyle.textTertiary)
-                                    Text(activeServerType.displayName)
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(MSCRemoteStyle.textTertiary)
-                                    Text("·")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(MSCRemoteStyle.textTertiary)
-                                    Text("Tap to switch server")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(MSCRemoteStyle.textTertiary)
-                                }
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(MSCRemoteStyle.textTertiary)
                         }
                         .padding(MSCRemoteStyle.spaceMD)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         .background(MSCRemoteStyle.bgElevated)
                         .clipShape(RoundedRectangle(cornerRadius: MSCRemoteStyle.radiusSM, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: MSCRemoteStyle.radiusSM, style: .continuous)
                                 .strokeBorder(MSCRemoteStyle.borderMid, lineWidth: 1)
                         )
+                    } else {
+                        Menu {
+                            ForEach(servers, id: \.id) { server in
+                                Button {
+                                    selectedServerId = server.id
+                                } label: {
+                                    if server.id == activeServerId {
+                                        Label(server.name, systemImage: "checkmark")
+                                    } else {
+                                        Label(server.name, systemImage: server.resolvedServerType.iconName)
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(activeServerNameText)
+                                        .font(.system(size: 15, weight: .medium, design: .rounded))
+                                        .foregroundStyle(MSCRemoteStyle.textPrimary)
+                                    HStack(spacing: 5) {
+                                        Image(systemName: activeServerType.iconName)
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(MSCRemoteStyle.textTertiary)
+                                        Text(activeServerType.displayName)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(MSCRemoteStyle.textTertiary)
+                                        Text("·")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(MSCRemoteStyle.textTertiary)
+                                        Text("Tap to switch server")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(MSCRemoteStyle.textTertiary)
+                                    }
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(MSCRemoteStyle.textTertiary)
+                            }
+                            .padding(MSCRemoteStyle.spaceMD)
+                            .background(MSCRemoteStyle.bgElevated)
+                            .clipShape(RoundedRectangle(cornerRadius: MSCRemoteStyle.radiusSM, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: MSCRemoteStyle.radiusSM, style: .continuous)
+                                    .strokeBorder(MSCRemoteStyle.borderMid, lineWidth: 1)
+                            )
+                        }
+                        .accessibilityLabel("Active server: \(activeServerNameText)")
+                        .accessibilityHint("Double tap to choose a different server")
                     }
-                    .disabled(!isPaired)
-                    .accessibilityLabel("Active server: \(activeServerNameText)")
-                    .accessibilityHint("Double tap to choose a different server")
 
                     Button(action: manageAction) {
                         Image(systemName: "gearshape")
@@ -89,7 +110,6 @@ struct DashboardServerCard: View {
                             )
                         }
                     .buttonStyle(.plain)
-                    .disabled(!isPaired)
                     .accessibilityLabel("Manage Servers")
                 }
                 .padding(.bottom, MSCRemoteStyle.spaceMD)

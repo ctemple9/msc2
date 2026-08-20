@@ -35,6 +35,7 @@ use msc_domain::operation::OperationId;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::HttpTransport;
 use msc_infrastructure::java_runtime_detection;
+use msc_infrastructure::process::ProcessSupervisor;
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
@@ -1381,14 +1382,10 @@ fn run_create_server(
             // refuse before the server is registered into the fleet and
             // becomes something a caller could try to start.
             if flavor.provisioning_kind() != ServerProvisioningKind::InstallStep {
-                let probe = java_runtime_detection::run_java_version_probe(
+                match evaluate_download_and_go_java_guard(
                     state.process_supervisor(),
                     &java_path,
-                );
-                match msc_domain::java_runtime::evaluate_java_runtime_guard(
-                    &java_path,
                     created.config.minecraft_version.as_deref(),
-                    &probe,
                 ) {
                     Ok(warning) => created.java_compatibility_warning = warning,
                     Err(unusable) => {
@@ -1456,6 +1453,29 @@ fn run_create_server(
             );
         }
     }
+}
+
+/// P7.31's download-and-go half of the required-major guard.
+/// `create_install_step_server` already runs its own copy of this same
+/// composition (`msc_infrastructure::java_runtime_detection::
+/// run_java_version_probe` + `msc_domain::java_runtime::
+/// evaluate_java_runtime_guard`) against Forge/NeoForge's own installer-
+/// spawning Java before this route ever sees a result
+/// (`provisioning::check_java_runtime_guard`, `pub(crate)` to that
+/// crate); this is the four download-and-go families' own gate, since
+/// they never spawn Java at create time at all. Split out from
+/// `run_create_server`'s own match arm so it's directly testable against
+/// a `FakeProcessSupervisor` — the guard itself never touches the
+/// network; only *reaching* a `Created` server via this route's own
+/// hardcoded `HttpTransport` does, which is why P7.31's own report
+/// flagged this as untested and this follow-up closes that.
+fn evaluate_download_and_go_java_guard(
+    supervisor: &dyn ProcessSupervisor,
+    java_path: &str,
+    minecraft_version: Option<&str>,
+) -> Result<Option<String>, msc_domain::java_runtime::UnusableJavaRuntime> {
+    let probe = java_runtime_detection::run_java_version_probe(supervisor, java_path);
+    msc_domain::java_runtime::evaluate_java_runtime_guard(java_path, minecraft_version, &probe)
 }
 
 fn create_server_error_code(error: &CreateServerError) -> &'static str {
@@ -1649,17 +1669,92 @@ mod tests {
     fn drive_java_version_probe_once(
         supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor,
     ) -> std::thread::JoinHandle<()> {
+        drive_java_version_probe_with_banner(supervisor, "openjdk version \"25.0.1\" 2025-01-01\n")
+    }
+
+    /// [`drive_java_version_probe_once`]'s own parameterized sibling, for
+    /// a test that needs the guard to see a *specific* major version
+    /// rather than a comfortably-above-everything one.
+    fn drive_java_version_probe_with_banner(
+        supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor,
+        banner: &'static str,
+    ) -> std::thread::JoinHandle<()> {
         std::thread::spawn(move || {
             loop {
                 if let Some((pid, _)) = supervisor.spawned_requests().into_iter().next() {
-                    let _ = supervisor
-                        .emit_stdout(pid, b"openjdk version \"25.0.1\" 2025-01-01\n".to_vec());
+                    let _ = supervisor.emit_stdout(pid, banner.as_bytes().to_vec());
                     let _ = supervisor.exit_normally(pid);
                     return;
                 }
                 std::thread::sleep(Duration::from_millis(1));
             }
         })
+    }
+
+    // ---------------------------------------------------------------------
+    // P7.31 follow-up: `evaluate_download_and_go_java_guard`, tested
+    // directly against a `FakeProcessSupervisor` rather than through a
+    // real, network-backed `create_download_and_go_server` call — the
+    // guard itself never touches the network, only *reaching* a
+    // `Created` server via this route's own hardcoded `HttpTransport`
+    // does. Closes the gap P7.31's own "Actual result" flagged.
+    // ---------------------------------------------------------------------
+
+    #[test]
+    fn java_runtime_guard_download_and_go_refuses_below_required_major() {
+        let supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor = Box::leak(
+            Box::new(msc_infrastructure::process::FakeProcessSupervisor::new()),
+        );
+        let driver = drive_java_version_probe_with_banner(
+            supervisor,
+            "openjdk version \"17.0.9\" 2023-10-17\n",
+        );
+
+        // 1.21.4 needs Java 21; the probe above answers with Java 17.
+        let err = evaluate_download_and_go_java_guard(supervisor, "/usr/bin/java", Some("1.21.4"))
+            .unwrap_err();
+        driver.join().unwrap();
+
+        assert_eq!(
+            err.reason,
+            msc_domain::java_runtime::UnusableJavaRuntimeReason::BelowRequiredMajor
+        );
+        assert_eq!(err.required_major, 21);
+        assert_eq!(err.detected_major, Some(17));
+        // Only the probe was ever spawned.
+        assert_eq!(supervisor.spawned_requests().len(), 1);
+    }
+
+    #[test]
+    fn java_runtime_guard_download_and_go_proceeds_when_java_is_sufficient() {
+        let supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor = Box::leak(
+            Box::new(msc_infrastructure::process::FakeProcessSupervisor::new()),
+        );
+        let driver = drive_java_version_probe_once(supervisor);
+
+        let warning =
+            evaluate_download_and_go_java_guard(supervisor, "/usr/bin/java", Some("1.21.4"))
+                .unwrap();
+        driver.join().unwrap();
+
+        assert_eq!(warning, None);
+    }
+
+    #[test]
+    fn java_runtime_guard_download_and_go_refuses_when_java_not_found() {
+        let supervisor: &'static msc_infrastructure::process::FakeProcessSupervisor = Box::leak(
+            Box::new(msc_infrastructure::process::FakeProcessSupervisor::new()),
+        );
+        supervisor.fail_next_spawn("no such executable");
+
+        let err =
+            evaluate_download_and_go_java_guard(supervisor, "/nonexistent/java", Some("1.21.4"))
+                .unwrap_err();
+
+        assert_eq!(
+            err.reason,
+            msc_domain::java_runtime::UnusableJavaRuntimeReason::NotFound
+        );
     }
 
     // ---------- P5.16: replace-all backup ordering ----------

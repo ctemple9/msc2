@@ -49,7 +49,7 @@ use msc_domain::provisioning::{self, ImportedWorldMetadata};
 use msc_domain::world::{self, WorldSlot};
 use msc_domain::{nbt, server_versions};
 use msc_infrastructure::archive::{self, ArchiveError};
-use msc_infrastructure::fs::FileSystem;
+use msc_infrastructure::fs::{FileSystem, join_forward_slash};
 use msc_infrastructure::jar_provider::{self, JarProviderError, Transport};
 use msc_infrastructure::loader_installer::{
     self, LoaderInstallRequest, LoaderInstallerError, LoaderTarget,
@@ -628,7 +628,20 @@ pub fn create_download_and_go_server(
     let initial_level_name = world::sanitized_world_level_name(&initial_slot_name, "world");
 
     let folder_name = provisioning::folder_name_from_safe_name(&safe_name);
-    let new_dir = servers_root.join("java").join(&folder_name);
+    // `join_forward_slash` rather than `Path::join`: `servers_root` is
+    // written in this codebase's forward-slash fixture convention, but
+    // `Path::join` inserts `MAIN_SEPARATOR` (a backslash on Windows) for
+    // each new component, so a bare `.join("java").join(&folder_name)`
+    // produces a path that's forward-slash for its root and backslash for
+    // everything appended -- fine for file I/O (Windows accepts both
+    // interchangeably) but wrong once `.to_string_lossy()`'d into the
+    // durable `server_directory`/`paper_jar_path` config fields below,
+    // found by P7.29's own Windows CI leg. Same fix `java_launch.rs`
+    // already applies to the launch-command jar path.
+    let new_dir = join_forward_slash(
+        &join_forward_slash(servers_root, std::ffi::OsStr::new("java")),
+        folder_name.as_ref(),
+    );
 
     if fs.stat(&new_dir).is_ok() {
         return Err(CreateServerError::FolderAlreadyExists {
@@ -639,7 +652,7 @@ pub fn create_download_and_go_server(
     fs.create_dir_all(&new_dir)?;
 
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {
-        let jar_dest = new_dir.join("paper.jar");
+        let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new("paper.jar"));
         let resolved = acquire_jar(
             transport,
             fs,

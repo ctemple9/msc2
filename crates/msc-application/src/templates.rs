@@ -40,7 +40,7 @@ use crate::provisioning::{self, CreateServerError, CreatedServer, NewServerReque
 use msc_domain::identity::JavaServerFlavor;
 use msc_domain::provisioning::ImportedWorldMetadata;
 use msc_domain::version::parse_paper_jar_filename;
-use msc_infrastructure::fs::FileSystem;
+use msc_infrastructure::fs::{FileSystem, join_forward_slash};
 use msc_infrastructure::path_safety;
 use msc_infrastructure::template_store::{self, TemplateStoreError};
 use std::path::{Path, PathBuf};
@@ -433,7 +433,13 @@ pub fn create_server_from_template(
         msc_domain::world::sanitized_world_level_name(&initial_slot_name, "world");
 
     let folder_name = msc_domain::provisioning::folder_name_from_safe_name(&safe_name);
-    let new_dir = servers_root.join("java").join(&folder_name);
+    // See the matching comment in `provisioning.rs::create_new_server` --
+    // same Windows mixed-separator gap in the same `new_dir`/`jar_dest`
+    // shape, found by P7.29's own Windows CI leg.
+    let new_dir = join_forward_slash(
+        &join_forward_slash(servers_root, std::ffi::OsStr::new("java")),
+        folder_name.as_ref(),
+    );
 
     if fs.stat(&new_dir).is_ok() {
         return Err(CreateServerError::FolderAlreadyExists {
@@ -444,7 +450,7 @@ pub fn create_server_from_template(
     fs.create_dir_all(&new_dir)?;
 
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {
-        let jar_dest = new_dir.join("paper.jar");
+        let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new("paper.jar"));
         let bytes = fs.read(template_path)?;
         let dest = path_safety::safe_path(fs, &new_dir, Some("paper.jar"), home_dir)?;
         fs.write(&dest, &bytes)?;

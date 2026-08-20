@@ -279,11 +279,17 @@ fn provisioning_name_trimmed_and_folder_derived() {
     .expect("create should succeed");
 
     assert_eq!(created.config.display_name, "My Cool SMP");
+    // Forward slash, not `std::path::MAIN_SEPARATOR`: `server_dir` is a
+    // config-stored path, and this codebase's convention for those is
+    // always `/` regardless of host OS (`msc_domain::app_config_schema
+    // ::join_path`, `msc_infrastructure::fs::join_forward_slash`) -- not
+    // the native separator `tmp.path()`'s own real, native-Windows temp
+    // directory happens to use. Found needing this by P7.29's Windows CI
+    // leg: this test's real `StdFileSystem`/`TempDir` combination had
+    // never run on Windows before, so the MAIN_SEPARATOR assumption here
+    // had never been checked against it.
     assert!(
-        created
-            .config
-            .server_dir
-            .ends_with(&format!("java{}my_cool_smp", std::path::MAIN_SEPARATOR)),
+        created.config.server_dir.ends_with("java/my_cool_smp"),
         "server_dir was {}",
         created.config.server_dir
     );

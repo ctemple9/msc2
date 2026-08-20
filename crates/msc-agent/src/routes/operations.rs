@@ -47,8 +47,21 @@ pub struct OperationsState {
 }
 
 impl OperationsState {
-    pub fn new(fs: &'static dyn FileSystem, dir: impl Into<PathBuf>) -> Self {
-        let operations = LifecycleOperations::new(fs, dir);
+    /// `servers_root` is new in P7.33: when set, it enables
+    /// `LifecycleOperations::reconcile_on_startup`'s orphaned-server-
+    /// directory sweep — see that method's own doc. Every caller but
+    /// [`Self::default_journaled`] passes `None`, reproducing this
+    /// constructor's pre-P7.33 behavior exactly: the journal still
+    /// reconciles, nothing on disk is swept.
+    pub fn new(
+        fs: &'static dyn FileSystem,
+        dir: impl Into<PathBuf>,
+        servers_root: Option<PathBuf>,
+    ) -> Self {
+        let mut operations = LifecycleOperations::new(fs, dir);
+        if let Some(servers_root) = servers_root {
+            operations = operations.with_servers_root(servers_root);
+        }
         let _ = operations.reconcile_on_startup();
         Self {
             operations: Arc::new(operations),
@@ -60,7 +73,11 @@ impl OperationsState {
         std::fs::create_dir_all(&dir)
             .unwrap_or_else(|error| panic!("failed to create {}: {error}", dir.display()));
         let fs = Box::leak(Box::new(StdFileSystem));
-        Self::new(fs, dir)
+        Self::new(
+            fs,
+            dir,
+            Some(msc_infrastructure::config_repository::default_servers_root()),
+        )
     }
 
     #[cfg(test)]
@@ -70,7 +87,7 @@ impl OperationsState {
             Vec::new(),
             false,
         )));
-        Self::new(fs, "/srv/agent/operations")
+        Self::new(fs, "/srv/agent/operations", None)
     }
 
     pub fn begin_lifecycle(

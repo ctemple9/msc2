@@ -220,6 +220,9 @@ impl FileSystem for FailWriteAt {
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
         self.inner.create_dir_all(path)
     }
+    fn create_dir_exclusive(&self, path: &Path) -> io::Result<()> {
+        self.inner.create_dir_exclusive(path)
+    }
     fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
         self.inner.read_link(path)
     }

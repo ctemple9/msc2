@@ -1,6 +1,7 @@
 use msc_application::operations::{LifecycleOperationError, LifecycleOperations, lifecycle_error};
+use msc_application::provisioning::CREATE_OPERATION_TYPE;
 use msc_domain::operation::{OperationId, OperationState};
-use msc_infrastructure::fs::FakeFileSystem;
+use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
 use std::sync::{Arc, Barrier};
 
 const DIR: &str = "/srv/agent/operations";
@@ -245,6 +246,88 @@ fn lifecycle_operations_cancel_and_terminal_race_has_only_atomic_outcomes() {
             other => panic!("unexpected cancellation race outcome: {other:?}"),
         }
     }
+}
+
+/// P7.33: a `"server-create"` operation still `running` when the agent
+/// restarts is reconciled to `Failed` exactly as before, but now also
+/// sweeps the half-provisioned server directory it named — the gap
+/// `docs/msc2/families/phase7-scope.md`'s P7.1 note flagged and P7.30's
+/// gate audit confirmed was still open.
+#[test]
+fn lifecycle_operations_reconcile_sweeps_orphaned_create_directory() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{DIR}/.keep"), Vec::new(), false)
+        .with_dir("/servers/java/orphaned_server");
+    let operations = LifecycleOperations::new(&fs, DIR).with_servers_root("/servers");
+    let id = operations
+        .begin_running(
+            CREATE_OPERATION_TYPE,
+            Some("orphaned_server".to_string()),
+            "Creating server.",
+        )
+        .unwrap();
+
+    let reconciled = operations.reconcile_on_startup().unwrap();
+
+    assert_eq!(reconciled.len(), 1);
+    assert_eq!(reconciled[0].id, id);
+    assert_eq!(reconciled[0].to, OperationState::Failed);
+    assert!(
+        fs.stat(std::path::Path::new("/servers/java/orphaned_server"))
+            .is_err(),
+        "the half-provisioned directory should have been swept"
+    );
+}
+
+/// Without `with_servers_root`, reconciliation still corrects the
+/// operation but never touches the filesystem — the exact pre-P7.33
+/// behavior, preserved for every operation store that has no server
+/// directory to sweep (world/backup-only stores, the `demo-install`
+/// ticker).
+#[test]
+fn lifecycle_operations_reconcile_without_servers_root_leaves_directory_untouched() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{DIR}/.keep"), Vec::new(), false)
+        .with_dir("/servers/java/orphaned_server");
+    let operations = make_operations(&fs);
+    operations
+        .begin_running(
+            CREATE_OPERATION_TYPE,
+            Some("orphaned_server".to_string()),
+            "Creating server.",
+        )
+        .unwrap();
+
+    operations.reconcile_on_startup().unwrap();
+
+    assert!(
+        fs.stat(std::path::Path::new("/servers/java/orphaned_server"))
+            .is_ok(),
+        "no servers_root configured -- the directory must be left alone"
+    );
+}
+
+/// Only a reconciled `"server-create"` operation triggers the sweep — a
+/// different operation type that happens to share a target string (e.g.
+/// a `world-activate` against a server whose folder name matches) must
+/// never have its own directory removed.
+#[test]
+fn lifecycle_operations_reconcile_only_sweeps_server_create_operations() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{DIR}/.keep"), Vec::new(), false)
+        .with_dir("/servers/java/paper-1");
+    let operations = LifecycleOperations::new(&fs, DIR).with_servers_root("/servers");
+    operations
+        .begin_running("world-activate", Some("paper-1".to_string()), "Working.")
+        .unwrap();
+
+    operations.reconcile_on_startup().unwrap();
+
+    assert!(
+        fs.stat(std::path::Path::new("/servers/java/paper-1"))
+            .is_ok(),
+        "a non-server-create operation must never sweep its target's directory"
+    );
 }
 
 #[test]

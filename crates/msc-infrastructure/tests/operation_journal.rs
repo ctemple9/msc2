@@ -131,6 +131,8 @@ fn operation_journal_running_entry_is_reconciled_to_failed() {
 
     assert_eq!(records.len(), 1);
     assert_eq!(records[0].id, running.id);
+    assert_eq!(records[0].operation_type, "modpack-install");
+    assert_eq!(records[0].target.as_deref(), Some("survival2"));
     assert_eq!(records[0].from, OperationState::Running);
     assert_eq!(records[0].to, OperationState::Failed);
     assert_eq!(records[0].reason, "agent restarted mid-operation");

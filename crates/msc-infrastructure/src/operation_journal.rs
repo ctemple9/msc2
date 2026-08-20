@@ -59,10 +59,16 @@ pub struct JournalEntry {
 /// What [`OperationJournal::reconcile_on_startup`] did to one entry —
 /// returned so the caller can explain it (to the audit log, to a client
 /// polling `GET /v1/operations/{id}`) rather than let the reconciliation
-/// happen silently.
+/// happen silently. `operation_type`/`target` are the reconciled entry's
+/// own values, carried through unchanged — a P7.33 addition so a caller
+/// (`msc_application::operations::LifecycleOperations::reconcile_on_startup`'s
+/// own orphaned-server-directory sweep) can act on *which* operation this
+/// was without a second `load` call back into the journal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReconciliationRecord {
     pub id: OperationId,
+    pub operation_type: String,
+    pub target: Option<String>,
     pub from: OperationState,
     pub to: OperationState,
     pub reason: String,
@@ -251,13 +257,13 @@ impl<'fs> OperationJournal<'fs> {
             let Some(mut entry) = entry_from_value(&value) else {
                 continue;
             };
-            let Some(target) = reconciliation_target(entry.state) else {
+            let Some(to_state) = reconciliation_target(entry.state) else {
                 continue; // already terminal, inert
             };
 
             let from = entry.state;
             entry.state = from
-                .transition_to(target)
+                .transition_to(to_state)
                 .expect("reconciliation_target only ever names a legal transition");
             if entry.state == OperationState::Failed {
                 entry.error = Some(OperationError {
@@ -271,8 +277,10 @@ impl<'fs> OperationJournal<'fs> {
             self.record(&entry)?;
             records.push(ReconciliationRecord {
                 id: entry.id,
+                operation_type: entry.operation_type,
+                target: entry.target,
                 from,
-                to: target,
+                to: to_state,
                 reason: RESTART_REASON.to_string(),
             });
         }

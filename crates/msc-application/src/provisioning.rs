@@ -223,6 +223,73 @@ pub(crate) fn check_java_runtime_guard(
     .map_err(CreateServerError::from)
 }
 
+/// The operation-journal `operation_type` every real server-create
+/// operation is journaled under (`routes/servers.rs`'s own
+/// `begin_lifecycle("server-create", ...)` call). Shared here, rather
+/// than left as a bare string literal on both sides, so
+/// `msc_application::operations::LifecycleOperations::reconcile_on_startup`'s
+/// P7.33 orphaned-directory sweep recognizes a reconciled entry as this
+/// domain's without the two call sites being able to drift apart.
+pub const CREATE_OPERATION_TYPE: &str = "server-create";
+
+/// Atomically claims `new_dir` for a brand-new server, closing the
+/// check-then-create race `docs/msc2/families/phase7-scope.md`'s P7.1
+/// note flagged and P7.30's gate audit confirmed was still open: the
+/// previous `fs.stat` (check) then `fs.create_dir_all` (create) were two
+/// separate filesystem calls, so two concurrent creates of the same
+/// server name could both observe "nothing there yet" before either had
+/// created anything. `fs.create_dir_exclusive` is the single call that
+/// actually makes the claim — only one caller can ever see it succeed
+/// for a given `new_dir`; the loser gets the same
+/// [`CreateServerError::FolderAlreadyExists`] this function always
+/// returned for the non-racing case, not a new error shape.
+fn claim_new_server_directory(
+    fs: &dyn FileSystem,
+    new_dir: &Path,
+    folder_name: &str,
+) -> Result<(), CreateServerError> {
+    if let Some(parent) = new_dir.parent() {
+        fs.create_dir_all(parent)?;
+    }
+    fs.create_dir_exclusive(new_dir).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            CreateServerError::FolderAlreadyExists {
+                folder_name: folder_name.to_string(),
+                path: new_dir.to_path_buf(),
+            }
+        } else {
+            CreateServerError::Io(error)
+        }
+    })
+}
+
+/// Best-effort removal of a `"server-create"` operation's half-provisioned
+/// server directory, called by
+/// [`crate::operations::LifecycleOperations::reconcile_on_startup`] once
+/// it reconciles that operation to `Failed` after an interrupted install
+/// (agent killed or crashed mid-create, so the operation journal was left
+/// `running`). Before P7.33 this case was reconciled at the *operation*
+/// level only — `<servers_root>/java/<folder_name>` itself was never
+/// swept, the second of the two gaps this step's own scope note named. A
+/// create that fails in-process already rolls its own directory back
+/// (`create_download_and_go_server`/`create_install_step_server`'s own
+/// `let _ = fs.remove(&new_dir);`) before this could ever run; this sweep
+/// only ever finds something to remove when the process died before that
+/// cleanup had a chance to. Silently does nothing if the directory is
+/// already gone, for exactly that reason — not a symptom worth
+/// surfacing.
+pub fn sweep_orphaned_server_directory(
+    fs: &dyn FileSystem,
+    servers_root: &Path,
+    folder_name: &str,
+) {
+    let dir = join_forward_slash(
+        &join_forward_slash(servers_root, std::ffi::OsStr::new("java")),
+        std::ffi::OsStr::new(folder_name),
+    );
+    let _ = fs.remove(&dir);
+}
+
 /// `AppViewModel.createNewServer`'s parameters, minus `specificVersion`
 /// (no `fixtures/server-creation` case exercises pinning a non-latest
 /// version at create time — this module only builds "download latest,"
@@ -685,13 +752,7 @@ pub fn create_download_and_go_server(
         folder_name.as_ref(),
     );
 
-    if fs.stat(&new_dir).is_ok() {
-        return Err(CreateServerError::FolderAlreadyExists {
-            folder_name,
-            path: new_dir,
-        });
-    }
-    fs.create_dir_all(&new_dir)?;
+    claim_new_server_directory(fs, &new_dir, &folder_name)?;
 
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {
         let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new("paper.jar"));
@@ -968,13 +1029,7 @@ pub fn create_install_step_server(
         folder_name.as_ref(),
     );
 
-    if fs.stat(&new_dir).is_ok() {
-        return Err(CreateServerError::FolderAlreadyExists {
-            folder_name,
-            path: new_dir,
-        });
-    }
-    fs.create_dir_all(&new_dir)?;
+    claim_new_server_directory(fs, &new_dir, &folder_name)?;
 
     let mut java_compatibility_warning: Option<String> = None;
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {

@@ -143,3 +143,51 @@ fn fake_file_system_list_returns_forward_slash_paths() {
 
     assert_eq!(as_strings, vec!["/srv/app/audit/audit-2023-10-15.jsonl"]);
 }
+
+/// P7.33: `create_dir_exclusive` succeeds once, then refuses cleanly with
+/// `AlreadyExists` on a second call against the same path — the atomic
+/// claim `msc-application::provisioning`'s creation functions now use
+/// instead of a `stat`-then-`create_dir_all` two-step.
+#[test]
+fn std_file_system_create_dir_exclusive_refuses_second_claim() {
+    let dir = temp_dir("std-create-dir-exclusive");
+    let claimed = dir.join("claimed");
+    let fs = StdFileSystem;
+
+    fs.create_dir_exclusive(&claimed).expect("first claim");
+    assert!(fs.stat(&claimed).expect("stat").is_dir);
+
+    let error = fs
+        .create_dir_exclusive(&claimed)
+        .expect_err("second claim of the same path must fail");
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
+fn fake_file_system_create_dir_exclusive_refuses_second_claim() {
+    let fs = FakeFileSystem::new();
+    let claimed = PathBuf::from("/servers/java/new-server");
+
+    fs.create_dir_exclusive(&claimed).expect("first claim");
+    assert!(fs.stat(&claimed).expect("stat").is_dir);
+
+    let error = fs
+        .create_dir_exclusive(&claimed)
+        .expect_err("second claim of the same path must fail");
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+}
+
+/// A path that already holds a stored file counts as taken too — not
+/// just one previously claimed via `create_dir_exclusive`/`create_dir_all`
+/// itself.
+#[test]
+fn fake_file_system_create_dir_exclusive_refuses_path_already_a_file() {
+    let fs = FakeFileSystem::new().with_file("/servers/java/existing", "eula=false", false);
+
+    let error = fs
+        .create_dir_exclusive(std::path::Path::new("/servers/java/existing"))
+        .expect_err("a stored file already occupies this path");
+    assert_eq!(error.kind(), std::io::ErrorKind::AlreadyExists);
+}

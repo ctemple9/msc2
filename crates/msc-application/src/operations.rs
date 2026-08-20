@@ -80,6 +80,13 @@ impl From<JournalError> for LifecycleOperationError {
 
 pub struct LifecycleOperations<'fs> {
     journal: OperationJournal<'fs>,
+    fs: &'fs dyn FileSystem,
+    /// Set via [`Self::with_servers_root`]; enables
+    /// [`Self::reconcile_on_startup`]'s orphaned-server-directory sweep.
+    /// `None` for every operation store that isn't the real production
+    /// one (world/backup-only test setups, the `demo-install` ticker),
+    /// which have no server directory to sweep in the first place.
+    servers_root: Option<PathBuf>,
     records: Mutex<HashMap<OperationId, OperationRecord>>,
     /// One cooperative-cancellation flag per operation, created alongside
     /// its record in [`Self::begin_running`] and never removed (the same
@@ -94,11 +101,41 @@ impl<'fs> LifecycleOperations<'fs> {
     pub fn new(fs: &'fs dyn FileSystem, dir: impl Into<PathBuf>) -> Self {
         Self {
             journal: OperationJournal::new(fs, dir),
+            fs,
+            servers_root: None,
             records: Mutex::new(HashMap::new()),
             cancel_flags: Mutex::new(HashMap::new()),
         }
     }
 
+    /// Enables [`Self::reconcile_on_startup`]'s orphaned-server-directory
+    /// sweep — see that method's own doc for what it does and why.
+    /// Without this, a `"server-create"` operation reconciled to `Failed`
+    /// still leaves its half-provisioned directory behind, exactly as
+    /// before P7.33.
+    pub fn with_servers_root(mut self, servers_root: impl Into<PathBuf>) -> Self {
+        self.servers_root = Some(servers_root.into());
+        self
+    }
+
+    /// Reconciles every non-terminal journaled operation left over from a
+    /// prior run — see [`OperationJournal::reconcile_on_startup`]'s own
+    /// doc for the running/queued → failed/cancelled rule itself.
+    ///
+    /// **P7.33 addition:** when a reconciled entry is both a
+    /// `"server-create"` operation (crate::provisioning::CREATE_OPERATION_TYPE)
+    /// and lands on `Failed` — i.e. the agent was killed or crashed while
+    /// a create was actually in flight — this also sweeps the
+    /// half-provisioned server directory it left behind, via
+    /// [`crate::provisioning::sweep_orphaned_server_directory`], if
+    /// [`Self::with_servers_root`] was configured. Before this, restart
+    /// reconciliation only ever rewrote the *operation* journal; the
+    /// directory itself stayed on disk forever, the gap
+    /// `docs/msc2/families/phase7-scope.md`'s P7.1 note first flagged and
+    /// P7.30's gate audit confirmed was still open. A create that fails
+    /// while the process is still alive already rolls its own directory
+    /// back before this ever runs (see that function's own doc); the
+    /// sweep here only ever finds something when the process died first.
     pub fn reconcile_on_startup(
         &self,
     ) -> Result<Vec<ReconciliationRecord>, LifecycleOperationError> {
@@ -110,6 +147,17 @@ impl<'fs> LifecycleOperations<'fs> {
                 if record.to == OperationState::Failed {
                     existing.error = Some(interrupted_error(&record.reason));
                 }
+            }
+            if record.to == OperationState::Failed
+                && record.operation_type == crate::provisioning::CREATE_OPERATION_TYPE
+                && let (Some(servers_root), Some(folder_name)) =
+                    (&self.servers_root, &record.target)
+            {
+                crate::provisioning::sweep_orphaned_server_directory(
+                    self.fs,
+                    servers_root,
+                    folder_name,
+                );
             }
         }
         Ok(records)

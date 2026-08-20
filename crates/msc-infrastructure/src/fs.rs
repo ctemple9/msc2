@@ -54,6 +54,20 @@ pub trait FileSystem: Send + Sync {
     /// a brand-new slot's `world_slots/{id}/` has no other reason to
     /// exist yet.
     fn create_dir_all(&self, path: &Path) -> io::Result<()>;
+    /// Creates `path` itself, succeeding only if nothing was there
+    /// already — `io::ErrorKind::AlreadyExists` otherwise. Not recursive:
+    /// callers ensure `path`'s parent already exists first (typically via
+    /// [`Self::create_dir_all`] on the parent), the same division of
+    /// labor `std::fs::create_dir`/`create_dir_all` already draw. This is
+    /// the atomic counterpart to `create_dir_all`'s deliberate
+    /// already-exists tolerance: right for a directory two independent
+    /// operations might both legitimately want to exist first
+    /// (`world_slots/`), wrong for claiming a brand-new server's own
+    /// directory, where a `stat`-then-`create_dir_all` two-step lets two
+    /// concurrent creates of the same name both "win" the check before
+    /// either creates anything — the P7.1-flagged, P7.33-closed race
+    /// `msc-application::provisioning`'s creation functions used to have.
+    fn create_dir_exclusive(&self, path: &Path) -> io::Result<()>;
     /// The immediate target of `path`, if it's a symlink. Errors the same
     /// way `std::fs::read_link` does for a path that doesn't exist or
     /// isn't a symlink — P3.5's `path_safety` module treats that error as
@@ -114,6 +128,10 @@ impl FileSystem for StdFileSystem {
 
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
         std::fs::create_dir_all(path)
+    }
+
+    fn create_dir_exclusive(&self, path: &Path) -> io::Result<()> {
+        std::fs::create_dir(path)
     }
 }
 
@@ -514,6 +532,27 @@ impl FileSystem for FakeFileSystem {
 
     fn create_dir_all(&self, path: &Path) -> io::Result<()> {
         self.dirs.lock().unwrap().insert(path.to_path_buf());
+        Ok(())
+    }
+
+    /// Existence check and claim happen under one continuous hold of both
+    /// locks (`files` first, then `dirs` — [`Self::stat`]'s own order, so
+    /// this can never deadlock against it) so nothing else stored by this
+    /// fake can observe a gap between the two, the in-memory equivalent
+    /// of `std::fs::create_dir`'s real atomicity.
+    fn create_dir_exclusive(&self, path: &Path) -> io::Result<()> {
+        let files = self.files.lock().unwrap();
+        let mut dirs = self.dirs.lock().unwrap();
+        let exists = files.contains_key(path)
+            || files.keys().any(|p| p != path && p.starts_with(path))
+            || dirs.contains(path);
+        if exists {
+            return Err(io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                path.display().to_string(),
+            ));
+        }
+        dirs.insert(path.to_path_buf());
         Ok(())
     }
 }

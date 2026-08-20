@@ -12,13 +12,13 @@ use msc_application::provisioning::{
     real_unzip_world_backup,
 };
 use msc_domain::identity::JavaServerFlavor;
-use msc_infrastructure::fs::StdFileSystem;
+use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::{JarProviderError, Transport};
 use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Barrier, Mutex};
 use zip::ZipWriter;
 use zip::write::SimpleFileOptions;
 
@@ -358,6 +358,90 @@ fn provisioning_pre_existing_folder_refused_with_message() {
         "message was: {message}"
     );
     assert!(message.contains("Choose a different name, or remove that folder."));
+}
+
+// ---------------------------------------------------------------------
+// P7.33: closing the check-then-create race
+// `docs/msc2/families/phase7-scope.md`'s P7.1 note flagged (and P7.30's
+// gate audit confirmed was still open) -- two concurrent creates of the
+// same server name must never both "win" the old `fs.stat`-then-
+// `fs.create_dir_all` two-step.
+// ---------------------------------------------------------------------
+
+#[test]
+fn provisioning_concurrent_creates_of_same_name_never_both_succeed() {
+    for attempt in 0..16 {
+        let tmp = TempDir::new(&format!("race-{attempt}"));
+        let transport = vanilla_transport();
+        let mut request = base_request(JavaServerFlavor::Vanilla, WorldSource::Fresh);
+        request.name = "Race";
+        let barrier = Barrier::new(2);
+        let tmp_path = tmp.path();
+
+        let run = || {
+            barrier.wait();
+            provisioning::create_download_and_go_server(
+                &StdFileSystem,
+                &transport,
+                tmp_path,
+                tmp_path,
+                &tmp_path.join("templates/paper"),
+                &tmp_path.join("templates/plugin"),
+                &request,
+                "2026-08-20T00:00:00Z",
+                always_ok2,
+                always_ok3,
+            )
+        };
+
+        let (first, second) = std::thread::scope(|scope| {
+            let a = scope.spawn(run);
+            let b = scope.spawn(run);
+            (a.join().unwrap(), b.join().unwrap())
+        });
+
+        let outcomes = [&first, &second];
+        let successes = outcomes.iter().filter(|r| r.is_ok()).count();
+        let already_exists = outcomes
+            .iter()
+            .filter(|r| matches!(r, Err(CreateServerError::FolderAlreadyExists { .. })))
+            .count();
+        assert_eq!(
+            successes, 1,
+            "exactly one concurrent create should win, attempt {attempt}: {first:?} / {second:?}"
+        );
+        assert_eq!(
+            already_exists, 1,
+            "the loser must see FolderAlreadyExists, not silently overwrite, attempt {attempt}"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------
+// P7.33: `sweep_orphaned_server_directory`, used by
+// `msc_application::operations::LifecycleOperations::reconcile_on_startup`
+// after an interrupted create reconciles to `Failed` on restart.
+// ---------------------------------------------------------------------
+
+#[test]
+fn provisioning_sweep_orphaned_server_directory_removes_it() {
+    let tmp = TempDir::new("sweep-present");
+    let dir = tmp.path().join("java").join("orphaned");
+    fs::create_dir_all(&dir).unwrap();
+
+    provisioning::sweep_orphaned_server_directory(&StdFileSystem, tmp.path(), "orphaned");
+
+    assert!(StdFileSystem.stat(&dir).is_err());
+}
+
+#[test]
+fn provisioning_sweep_orphaned_server_directory_is_a_no_op_when_already_gone() {
+    let tmp = TempDir::new("sweep-absent");
+
+    // No panic, no error surfaced -- a normal in-process rollback already
+    // beat the restart to it, the common case this function's own doc
+    // describes.
+    provisioning::sweep_orphaned_server_directory(&StdFileSystem, tmp.path(), "never-existed");
 }
 
 // ---------------------------------------------------------------------

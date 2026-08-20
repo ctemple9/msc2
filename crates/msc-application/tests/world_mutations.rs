@@ -111,6 +111,10 @@ impl FileSystem for FailPropertiesWriteFileSystem {
         StdFileSystem.create_dir_all(path)
     }
 
+    fn create_dir_exclusive(&self, path: &Path) -> io::Result<()> {
+        StdFileSystem.create_dir_exclusive(path)
+    }
+
     fn read_link(&self, path: &Path) -> io::Result<PathBuf> {
         StdFileSystem.read_link(path)
     }

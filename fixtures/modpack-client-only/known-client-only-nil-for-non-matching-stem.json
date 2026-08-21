@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "known-client-only-nil-for-non-matching-stem",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "knownClientOnlyReason(forJarStem:) no-match fall-through",
+    "line": 50
+  },
+  "input": {
+    "jarStem": "sodium-fabric-0.5.8"
+  },
+  "expected": {
+    "reason_is_nil": true,
+    "reason": "Line 50: `return nil` -- Sodium is the Fabric-native equivalent of these Forge-only renderers and is NOT in the Tier 0 list (it's a real server-safe optimization mod on Fabric, unlike its Forge counterparts Rubidium/Embeddium); no prefix in the list matches its stem."
+  }
+}

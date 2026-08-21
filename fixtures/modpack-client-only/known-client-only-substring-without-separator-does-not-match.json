@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "known-client-only-substring-without-separator-does-not-match",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "knownClientOnlyReason(forJarStem:) substring-without-separator negative case",
+    "line": 42
+  },
+  "input": {
+    "jarStem": "irisshaders-companion-mod"
+  },
+  "expected": {
+    "reason_is_nil": true,
+    "reason": "The prefix rules are `lower == prefix` or `hasPrefix(prefix + separator)` for one of exactly three separators (`-`, `_`, `+`) -- a jar stem where \"iris\" is immediately followed by more letters with NO separator (\"irisshaders\", not \"iris-shaders\") matches none of the four conditions in the loop and correctly falls through to nil, avoiding an over-eager substring match against an unrelated project that merely starts with the same letters."
+  }
+}

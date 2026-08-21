@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-client-only",
+  "case": "known-client-only-exact-stem-match",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "knownClientOnlyReason(forJarStem:) exact match",
+    "line": 43
+  },
+  "input": {
+    "jarStem": "oculus"
+  },
+  "expected": {
+    "reason_is_nil": false,
+    "reason_contains": "Known client-only shader/renderer mod",
+    "reason": "Lines 40-51: Tier 0's hardcoded blocklist (`oculus`/`mekalus`/`rubidium`/`embeddium`/`iris`/`optifine`/`optifabric`) matches when the lowercased jar stem equals a prefix exactly, with no version suffix at all."
+  }
+}

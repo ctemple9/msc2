@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "known-client-only-plus-separator",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "knownClientOnlyReason(forJarStem:) plus separator",
+    "line": 46
+  },
+  "input": {
+    "jarStem": "optifine+H2"
+  },
+  "expected": {
+    "reason_is_nil": false,
+    "reason": "Line 46: `lower.hasPrefix(prefix + \"+\")` -- a `+`-separated build-suffix filename variant (common for OptiFine's own build-letter naming) is also matched."
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "per-dependency-failure-logs-and-continues-not-fatal",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) catch block",
+    "line": 315
+  },
+  "input": {
+    "dependencies": [
+      {
+        "projectId": "WILL_THROW",
+        "dependencyType": "required"
+      },
+      {
+        "projectId": "WILL_SUCCEED",
+        "dependencyType": "required"
+      }
+    ]
+  },
+  "expected": {
+    "WILL_SUCCEED_processed": true,
+    "whole_function_threw": false,
+    "reason": "Lines 314-316: the entire per-dependency body (project fetch, version list, download, recurse) is wrapped in a `do/catch` inside the `for dep in required` loop -- a thrown error (network failure, decode failure, download failure) for ONE dependency logs and lets the loop continue to the next sibling dependency, matching the same all-log-no-abort shape as MSC 1's modpack import (see phase8-scope.md's rollback summary table)."
+  },
+  "workflow": "modrinth-deps"
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "already-installed-by-mod-id-match-skipped-not-redownloaded",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) installedModIds check",
+    "line": 295
+  },
+  "input": {
+    "dependency_project_slug": "fabric-api",
+    "installedModIds": [
+      "fabric-api",
+      "sodium"
+    ]
+  },
+  "expected": {
+    "downloaded": false,
+    "reason": "Line 293-295: `installedModIds` is a snapshot of `discoveredMods.compactMap { $0.modId }` taken once before the loop; if the dependency's resolved `project.slug` is already in that set (matched from an installed jar's own embedded fabric.mod.json/mods.toml mod ID), the dependency is skipped via `continue` before any version lookup or download."
+  },
+  "workflow": "modrinth-deps"
+}

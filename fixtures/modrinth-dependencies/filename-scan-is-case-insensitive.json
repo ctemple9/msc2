@@ -1,0 +1,20 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "filename-scan-is-case-insensitive",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) filename scan casing",
+    "line": 298
+  },
+  "input": {
+    "dependency_project_slug": "cloth-config",
+    "filesOnDisk": [
+      "Cloth-Config-API-11.1.118.jar"
+    ]
+  },
+  "expected": {
+    "downloaded": false,
+    "reason": "Line 298: `$0.lowercased().contains(project.slug.lowercased())` -- both sides are lowercased before the substring check, so a jar with unusual capitalization still counts as already-present."
+  },
+  "workflow": "modrinth-deps"
+}

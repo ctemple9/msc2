@@ -1,0 +1,19 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "msc1-baseline-warns-but-never-gates-contrast",
+  "source": {
+    "file": "AddonUpdateSheet.swift",
+    "test": "showPackManagedAlert confirmation dialog (MSC 1's actual behavior, for contrast)",
+    "line": 272
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "updateAddons (MSC 1's real, ungated code path)"
+  },
+  "expected": {
+    "MSC1_actual_behavior": "shows a confirmation sheet with warning text, but the destructive action proceeds unconditionally once confirmed -- and confirming is the only path forward, there is no silent no-op",
+    "refused_by_msc1": false,
+    "reason": "Lines 272-277 (AddonUpdateSheet.swift) and DetailsComponentsTabView.swift:1148-1157 are the ONLY two production call sites that read `packManaged` anywhere in MSC 1 -- both change confirmation-dialog COPY, neither blocks the underlying `removeMod`/`removePlugin`/`updateAddons` call. This fixture exists purely as the contrast baseline: every other fixture in this file characterizes Phase 8's NEW decided policy, which this finding is exactly what motivates."
+  },
+  "notes": "Cited from the actual oracle UI file (not phase8-scope.md) since this one fixture IS describing genuine, already-observed MSC 1 behavior, unlike the rest of this batch."
+}

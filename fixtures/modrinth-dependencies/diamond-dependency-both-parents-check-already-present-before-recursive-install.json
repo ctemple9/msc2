@@ -1,0 +1,21 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "diamond-dependency-both-parents-check-already-present-before-recursive-install",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) diamond dependency shape",
+    "line": 295
+  },
+  "input": {
+    "scenario": "primary mod requires B and C; both B and C require D",
+    "install_order": [
+      "B (recurses, installs D)",
+      "C (recurses, checks D)"
+    ]
+  },
+  "expected": {
+    "D_downloaded_count": 1,
+    "reason": "phase8-scope.md's own finding: the depth-3 cap alone does not prevent installing D twice for a genuinely non-cyclic diamond shape (A needs B and C, both need D) -- what actually prevents the duplicate download is the SAME already-installed checks (mod-ID match at line 295, filename-slug scan at line 297-299) that run before every recursive call, independent of the depth cap. By the time C's recursive call reaches D, D is already on disk (installed via B's branch) and the mod-ID/filename checks skip it."
+  },
+  "workflow": "modrinth-deps"
+}

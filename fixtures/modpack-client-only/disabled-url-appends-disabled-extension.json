@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "disabled-url-appends-disabled-extension",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "disabledURL(forActiveJar:)",
+    "line": 122
+  },
+  "input": {
+    "jarURL": "file:///servers/pack1/mods/sodium-fabric-0.5.8.jar"
+  },
+  "expected": {
+    "disabledURL": "file:///servers/pack1/mods/sodium-fabric-0.5.8.jar.disabled",
+    "reason": "Line 122-124: `jarURL.appendingPathExtension(\"disabled\")` -- a pure, filesystem-free computation of the sibling disabled path. This is the function `disableJar(at:fm:)` (already covered by three existing fixtures in this directory) calls internally, but it has no test of its own on the MSC 1 side -- one of this phase's two ledgered gaps (phase8-scope.md, ModpackClientOnlyClassifier.swift row)."
+  }
+}

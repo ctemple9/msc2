@@ -1,0 +1,17 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "health-repair-update-install-actions-also-subject-to-guard",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- P8.23 health-repair implication",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "POST /v1/health/repair with action=update or action=install targeting a pack-managed add-on"
+  },
+  "expected": {
+    "refused": true,
+    "reason": "P8.23's own rolling-plan.md text commits health-repair's Update/Install actions to route \"through the exact same verified add-on mutation paths P8.17 builds for ordinary install/update, not a parallel implementation\" -- since those ARE the same gated mutation paths, a repair action against a pack-managed add-on is refused by the identical guard, not a separate check health-repair invents for itself."
+  }
+}

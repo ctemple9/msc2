@@ -1,0 +1,17 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-managed-refuses-individual-toggle",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- new-policy mutation matrix",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "toggleMod / togglePlugin (enable/disable)"
+  },
+  "expected": {
+    "refused": true,
+    "reason": "Enable/disable is a mutation of the pack's installed-file state exactly like install/remove -- covered by the same \"refuse individual mutation\" contract, not carved out as a lesser change."
+  }
+}

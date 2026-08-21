@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "disabled-url-appends-rather-than-replaces-jar-extension",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "disabledURL(forActiveJar:) appendingPathExtension semantics",
+    "line": 123
+  },
+  "input": {
+    "jarURL": "file:///mods/example.jar"
+  },
+  "expected": {
+    "disabledURL_lastPathComponent": "example.jar.disabled",
+    "reason": "`appendingPathExtension` ADDS a new extension component rather than replacing the existing one -- the result is \"example.jar.disabled\" (both extensions present, matching the app-wide `.jar.disabled` convention referenced throughout AddonUpdateResolver/refreshDiscoveredPlugins), never \"example.disabled\"."
+  }
+}

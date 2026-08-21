@@ -1,0 +1,18 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "depth-cap-terminates-a-b-a-cycle-by-depth-not-by-cycle-awareness",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) depth guard vs true cycle detection",
+    "line": 275
+  },
+  "input": {
+    "scenario": "A requires B (depth 0->1), B requires A (depth 1->2), A requires B again (depth 2->3, guard fires)"
+  },
+  "expected": {
+    "terminates_at_depth": 3,
+    "via_mechanism": "depth cap, not visited-project-id tracking",
+    "reason": "The resolver has no `Set<projectId>` of already-visited projects in this recursion chain -- it genuinely cannot tell 'this is a cycle' from 'this dependency tree happens to be 3 levels deep'. A real A<->B cycle only stops because depth eventually hits 3, coincidentally, not because either project ID is recognized as already being resolved in this call stack. A length-4 legitimate (non-cyclic) dependency chain would be truncated at exactly the same depth."
+  },
+  "workflow": "modrinth-deps"
+}

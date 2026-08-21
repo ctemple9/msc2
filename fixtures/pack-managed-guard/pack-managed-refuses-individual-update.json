@@ -1,0 +1,17 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-managed-refuses-individual-update",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- new-policy mutation matrix",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "updateAddon (single add-on)"
+  },
+  "expected": {
+    "refused": true,
+    "reason": "Updating one pack-managed add-on to a newer Modrinth build individually is refused -- this is the exact concern the MSC 1 UI's confirmation-dialog wording already gestures at (AddonUpdateSheet.swift's showPackManagedAlert: \"Updating individual mods may break the pack's tested version set\") without ever actually preventing it. Phase 8 turns that warning into a real refusal."
+  }
+}

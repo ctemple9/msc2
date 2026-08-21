@@ -1,0 +1,18 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "depth-cap-guard-stops-recursion-at-depth-3",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) depth guard",
+    "line": 275
+  },
+  "input": {
+    "depth": 3
+  },
+  "expected": {
+    "function_returns_immediately": true,
+    "reason": "Line 275: `guard depth < 3 else { return }`, with the inline comment \"guard against dependency cycles\" -- this is a flat recursion-depth cap, not a visited-project-ID cycle detector (phase8-scope.md's own finding). A genuine A->B->A cycle is only stopped because the recursion happens to bottom out at depth 3."
+  },
+  "notes": "P8.12's domain port builds a REAL visited-set cycle detector as a deliberate strengthening -- this fixture characterizes MSC 1's actual (weaker) depth-cap behavior for oracle-faithfulness, it does not describe what the Rust port should do.",
+  "workflow": "modrinth-deps"
+}

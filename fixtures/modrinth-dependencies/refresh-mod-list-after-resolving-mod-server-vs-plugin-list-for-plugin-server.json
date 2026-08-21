@@ -1,0 +1,18 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "refresh-mod-list-after-resolving-mod-server-vs-plugin-list-for-plugin-server",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) post-loop refresh dispatch",
+    "line": 320
+  },
+  "input": {
+    "addOn_kind": "mod"
+  },
+  "expected": {
+    "refreshDiscoveredMods_called": true,
+    "refreshDiscoveredPlugins_called": false,
+    "reason": "Lines 319-323: `if addOn == .mod { refreshDiscoveredMods() } else { refreshDiscoveredPlugins() }` runs once after the ENTIRE required-dependency loop at this recursion level completes -- not once per downloaded dependency -- and dispatches to whichever discovery list matches the server's add-on kind."
+  },
+  "workflow": "modrinth-deps"
+}

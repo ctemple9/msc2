@@ -1,0 +1,36 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "only-required-dependency-type-installed-optional-skipped",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) type filter",
+    "line": 276
+  },
+  "input": {
+    "dependencies": [
+      {
+        "projectId": "P1",
+        "dependencyType": "required"
+      },
+      {
+        "projectId": "P2",
+        "dependencyType": "optional"
+      },
+      {
+        "projectId": "P3",
+        "dependencyType": "incompatible"
+      },
+      {
+        "projectId": "P4",
+        "dependencyType": "embedded"
+      }
+    ]
+  },
+  "expected": {
+    "processed_project_ids": [
+      "P1"
+    ],
+    "reason": "Line 276: `version.dependencies.filter { $0.dependencyType == \"required\" }` -- only \"required\" survives; \"optional\"/\"incompatible\"/\"embedded\" are never auto-installed, matching rolling-plan.md's own \"Optional dependencies remain explanatory, not silently installed\"."
+  },
+  "workflow": "modrinth-deps"
+}

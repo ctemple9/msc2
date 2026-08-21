@@ -1,0 +1,18 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-managed-refuses-individual-remove",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- new-policy mutation matrix",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "removeMod / removePlugin",
+    "target": "a jar that IS part of the imported pack"
+  },
+  "expected": {
+    "refused": true,
+    "reason": "Same decided-contract source as the install case: removing a single pack-managed add-on individually is refused; the only sanctioned path to change the pack's mod set is a whole-pack replacement (re-import)."
+  }
+}

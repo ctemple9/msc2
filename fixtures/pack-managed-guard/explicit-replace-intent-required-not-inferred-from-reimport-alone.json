@@ -1,0 +1,18 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "explicit-replace-intent-required-not-inferred-from-reimport-alone",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- explicit-intent requirement",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "an import call that happens to target an already-pack-managed server, WITHOUT an explicit replace flag/intent"
+  },
+  "expected": {
+    "refused": true,
+    "reason": "Because MSC 1's importer has zero re-import guard of any kind (phase8-scope.md's own words: \"no such guard exists to port\"), Phase 8 cannot simply reuse 'this is a pack-import call' as the signal that whole-pack replacement was intended -- an accidental or ambiguous re-import against a pack-managed server without an explicit replace intent should be refused the same as any other individual-looking mutation, not silently treated as an authorized replace."
+  },
+  "notes": "This is a design requirement, not an MSC 1 behavior -- recorded so P8.9's contract and P8.21's implementation don't treat 'targets a pack-managed server' and 'explicit replace' as the same signal."
+}

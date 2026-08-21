@@ -1,0 +1,19 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "no-compatible-version-found-logs-and-continues-not-fatal",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) no-version guard",
+    "line": 302
+  },
+  "input": {
+    "dependency_project_slug": "some-1-16-only-mod",
+    "projectVersions_result": []
+  },
+  "expected": {
+    "loop_continues_to_next_dependency": true,
+    "entire_function_aborted": false,
+    "reason": "Lines 302-305: `guard let best = versions.first, let file = best.primaryFile else { logAppMessage(...); continue }` -- a dependency with no build for this server's loader/MC version logs a message and moves on to the NEXT required dependency; it does not abort the whole installRequiredDependencies call for the sibling dependencies still to be processed."
+  },
+  "workflow": "modrinth-deps"
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "known-client-only-is-case-insensitive",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "knownClientOnlyReason(forJarStem:) casing",
+    "line": 41
+  },
+  "input": {
+    "jarStem": "Iris-Fabric-1.8.14"
+  },
+  "expected": {
+    "reason_is_nil": false,
+    "reason": "Line 41: `let lower = stem.lowercased()` runs before every comparison -- an uppercase-leading filename (\"Iris-...\") still matches the lowercase \"iris\" prefix."
+  }
+}

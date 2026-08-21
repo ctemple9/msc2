@@ -1,0 +1,18 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "empty-required-list-returns-immediately",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) empty guard",
+    "line": 277
+  },
+  "input": {
+    "dependencies": []
+  },
+  "expected": {
+    "function_returns_immediately": true,
+    "network_requests_made": 0,
+    "reason": "Line 277: `guard !required.isEmpty else { return }` -- a version with no required dependencies (the common case) short-circuits before even checking the server's addOnKind or building a folder URL."
+  },
+  "workflow": "modrinth-deps"
+}

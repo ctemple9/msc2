@@ -1,0 +1,17 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-managed-allows-explicit-whole-pack-replacement",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- whole-pack escape hatch",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "re-run the pack importer against this server with an explicit replace intent"
+  },
+  "expected": {
+    "refused": false,
+    "reason": "The decided contract's escape hatch: an EXPLICIT whole-pack replacement (the same pack importer P8.19/P8.20 build, re-run deliberately against an already-pack-managed server) is allowed even though every individual mutation is refused. phase8-scope.md flags this has no MSC 1 precedent at all -- `importModpack`/CurseForge import run unconditionally today regardless of `packManaged`, so \"replace\" and \"first import\" are literally the same unguarded code path in the oracle; Phase 8 must build the distinction between an explicit replace and an accidental one, not just permit the existing unconditional path."
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-client-only",
+  "case": "disabled-url-is-pure-no-filesystem-access",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "disabledURL(forActiveJar:) purity",
+    "line": 122
+  },
+  "input": {
+    "jarURL": "file:///nonexistent/path/does-not-exist.jar"
+  },
+  "expected": {
+    "disabledURL": "file:///nonexistent/path/does-not-exist.jar.disabled",
+    "threw": false,
+    "filesystem_touched": false,
+    "reason": "Unlike `disableJar(at:fm:)`, `disabledURL(forActiveJar:)` takes no `FileManager` parameter and performs no existence check or I/O -- it computes the same result whether or not the input jar (or anything on that path) actually exists on disk, which is what makes it independently unit-testable without a temp directory."
+  }
+}

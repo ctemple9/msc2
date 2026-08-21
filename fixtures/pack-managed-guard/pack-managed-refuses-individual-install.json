@@ -1,0 +1,19 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "pack-managed-refuses-individual-install",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- new-policy mutation matrix",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": true,
+    "operation": "installModrinthAddon",
+    "target": "a single new add-on not part of the pack"
+  },
+  "expected": {
+    "refused": true,
+    "reason": "rolling-plan.md's Phase 8 working exit criteria (line 88): \"Pack-managed servers refuse individual mutation while still allowing an explicit whole-pack replacement path.\" MSC 1 itself never gates this call (phase8-scope.md's own finding: `installModrinthAddon`/`removeMod`/`removePlugin`/`toggleMod`/`togglePlugin` and the remote API's install/remove/update handlers check `packManaged` nowhere in production code) -- this is new agent-owned policy P8.12 must build, characterized here against the DECIDED contract, not a port."
+  },
+  "notes": "This entire fixture set characterizes Phase 8's own decided policy, not MSC 1 behavior -- MSC 1's actual behavior (always allow, warn in English via DetailsComponentsTabView.swift:1148-1157 and AddonUpdateSheet.swift:272-277) is the contrast case in msc1-baseline-warns-but-never-gates-contrast.json below."
+}

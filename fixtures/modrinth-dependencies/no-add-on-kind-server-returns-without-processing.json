@@ -1,0 +1,18 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "no-add-on-kind-server-returns-without-processing",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) addOnKind guard",
+    "line": 279
+  },
+  "input": {
+    "javaFlavor_addOnKind": null
+  },
+  "expected": {
+    "function_returns_immediately": true,
+    "refresh_called": false,
+    "reason": "Line 279: `guard let addOn = cfg.javaFlavor.addOnKind else { return }` -- a server flavor with neither a mods/ nor plugins/ folder concept (e.g. a proxy) can never reach the download loop at all, checked AFTER the depth/required-list guards but before any folder path is built."
+  },
+  "workflow": "modrinth-deps"
+}

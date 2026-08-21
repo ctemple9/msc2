@@ -1,0 +1,17 @@
+{
+  "domain": "pack-managed-guard",
+  "case": "non-pack-managed-server-mutations-proceed-normally",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "Pack-managed guard section -- non-pack-managed contrast",
+    "line": 89
+  },
+  "input": {
+    "server_packManaged": false,
+    "operation": "installModrinthAddon / removeMod / toggleMod / updateAddon"
+  },
+  "expected": {
+    "refused": false,
+    "reason": "The guard is conditioned entirely on `packManaged == true`; a server that was never imported from a pack (packManaged false/nil, the common case) is completely unaffected -- every existing individual-mutation behavior for non-pack servers is unchanged by this phase."
+  }
+}

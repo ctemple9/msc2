@@ -1,0 +1,18 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "successful-install-recurses-for-transitive-dependencies",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) recursion",
+    "line": 313
+  },
+  "input": {
+    "depth": 0,
+    "installed_dependency_has_own_required_deps": true
+  },
+  "expected": {
+    "recursive_call_depth": 1,
+    "reason": "Line 313: `await installRequiredDependencies(of: best, into: cfg, depth: depth + 1)` -- after a dependency downloads successfully, its OWN required dependencies (from the just-downloaded version's `dependencies` array) are resolved transitively, one recursion level deeper, using the newly-downloaded version's metadata rather than re-fetching the parent."
+  },
+  "workflow": "modrinth-deps"
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "already-present-by-filename-slug-scan-skipped",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) filename scan",
+    "line": 297
+  },
+  "input": {
+    "dependency_project_slug": "cloth-config",
+    "filesOnDisk": [
+      "cloth-config-api-11.1.118-fabric.jar",
+      "sodium-fabric-0.5.8.jar"
+    ]
+  },
+  "expected": {
+    "downloaded": false,
+    "reason": "Lines 296-299: a second, independent check scans the raw folder listing for any filename whose lowercased text CONTAINS the dependency's lowercased slug -- this catches mods installed manually or through a path that never registered a modId match (e.g. a jar MSC didn't parse metadata from), running as a fallback ahead of the mod-ID check's blind spots."
+  },
+  "workflow": "modrinth-deps"
+}

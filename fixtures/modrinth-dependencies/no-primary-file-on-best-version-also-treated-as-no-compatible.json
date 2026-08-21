@@ -1,0 +1,23 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "no-primary-file-on-best-version-also-treated-as-no-compatible",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) primaryFile guard",
+    "line": 302
+  },
+  "input": {
+    "dependency_project_slug": "weird-mod",
+    "projectVersions_result": [
+      {
+        "id": "v1",
+        "files": []
+      }
+    ]
+  },
+  "expected": {
+    "loop_continues_to_next_dependency": true,
+    "reason": "Line 302's guard combines TWO conditions with a single `else`: `versions.first` succeeding is not enough on its own -- `best.primaryFile` (files.first(where: primary) ?? files.first, per ModrinthVersionInfo's own computed property) must also resolve. A version entry that decoded with an empty `files` array hits the same continue-not-fatal path as no version existing at all."
+  },
+  "workflow": "modrinth-deps"
+}

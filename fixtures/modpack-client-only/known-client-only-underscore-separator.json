@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "known-client-only-underscore-separator",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "knownClientOnlyReason(forJarStem:) underscore separator",
+    "line": 45
+  },
+  "input": {
+    "jarStem": "embeddium_0.3.31"
+  },
+  "expected": {
+    "reason_is_nil": false,
+    "reason": "Line 45: `lower.hasPrefix(prefix + \"_\")` -- an underscore-separated filename variant is also matched, not just hyphen."
+  }
+}

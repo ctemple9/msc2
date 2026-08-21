@@ -1,0 +1,29 @@
+{
+  "domain": "modrinth-dependencies",
+  "case": "dependency-without-project-id-skipped",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "installRequiredDependencies(of:into:depth:) projectId guard",
+    "line": 290
+  },
+  "input": {
+    "dependencies": [
+      {
+        "projectId": null,
+        "versionId": "V1",
+        "dependencyType": "required"
+      },
+      {
+        "projectId": "P2",
+        "dependencyType": "required"
+      }
+    ]
+  },
+  "expected": {
+    "processed_project_ids": [
+      "P2"
+    ],
+    "reason": "Line 290: `guard let projectId = dep.projectId else { continue }` -- a required dependency expressed only as a `versionId` (no `projectId`) is silently skipped, not resolved through the version ID as an alternate lookup path."
+  },
+  "workflow": "modrinth-deps"
+}

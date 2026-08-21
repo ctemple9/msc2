@@ -1,0 +1,16 @@
+{
+  "domain": "modpack-client-only",
+  "case": "known-client-only-hyphen-separator-with-version-suffix",
+  "source": {
+    "file": "ModpackClientOnlyClassifier.swift",
+    "test": "knownClientOnlyReason(forJarStem:) hyphen separator",
+    "line": 44
+  },
+  "input": {
+    "jarStem": "rubidium-0.7.1"
+  },
+  "expected": {
+    "reason_is_nil": false,
+    "reason": "Line 44: `lower.hasPrefix(prefix + \"-\")` -- the common real-world filename shape (name-version) matches via the hyphen separator rule."
+  }
+}

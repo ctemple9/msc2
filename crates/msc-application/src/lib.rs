@@ -9,6 +9,7 @@ pub mod fleet;
 pub mod import;
 pub mod java_launch;
 pub mod lifecycle;
+pub mod modpacks;
 pub mod operations;
 pub mod output_reducer;
 pub mod provisioning;

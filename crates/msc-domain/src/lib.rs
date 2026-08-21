@@ -10,6 +10,7 @@ pub mod identity;
 pub mod java_runtime;
 pub mod launch_shape;
 pub mod modpack;
+pub mod modpack_manifest;
 pub mod nbt;
 pub mod network_safety;
 pub mod operation;

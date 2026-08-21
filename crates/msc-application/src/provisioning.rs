@@ -45,9 +45,11 @@
 
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::{JavaServerFlavor, ServerType};
+use msc_domain::modpack_manifest;
 use msc_domain::provisioning::{self, ImportedWorldMetadata};
 use msc_domain::world::{self, WorldSlot};
 use msc_domain::{nbt, server_versions};
+use msc_infrastructure::addon_provider::AddonTransport;
 use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::fs::{FileSystem, join_forward_slash};
 use msc_infrastructure::jar_provider::{self, JarProviderError, Transport};
@@ -57,12 +59,14 @@ use msc_infrastructure::loader_installer::{
 };
 use msc_infrastructure::path_safety::{self, PathSafetyError};
 use msc_infrastructure::process::{OutputStream, ProcessSupervisor};
+use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::template_store::{self, TemplateStoreError};
 use msc_infrastructure::world_store;
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use crate::modpacks::{self, ModpackInspection};
 use crate::worlds::{self, WorldError, WorldIdentity};
 
 /// `AppViewModel.WorldSource` (`AppViewModel+ServerCreation.swift:12-16`).
@@ -1150,6 +1154,468 @@ pub fn create_install_step_server(
         let _ = fs.remove(&new_dir);
     }
     outcome
+}
+
+// ---------------------------------------------------------------------
+// P8.21: create a server from a staged, already-inspected modpack
+// ---------------------------------------------------------------------
+
+/// `applyStagedAddOn`'s `.mrpackFile`/`.curseForgeFile` cases
+/// (`AppViewModel+ServerCreation.swift:700-707`) call into the same
+/// `importModpack` used for an already-existing server — source has no
+/// dedicated "create from pack" primitive at all
+/// (`docs/msc2/addons/phase8-scope.md`'s own "Modpack create/import
+/// boundary" finding). This section's own working exit criterion goes
+/// further than that oracle behavior on purpose (`rolling-plan.md`'s own
+/// gate text: "create a correctly pinned Fabric/Forge/NeoForge server as
+/// a durable, cancellable operation"): rather than requiring the caller
+/// to guess a matching flavor up front the way MSC 1's wizard UI does,
+/// the loader flavor, Minecraft version, and loader build are all derived
+/// from the pack's own pin — [`PackServerRequest`] has no flavor field at
+/// all.
+#[derive(Debug)]
+pub enum CreateFromPackError {
+    Create(CreateServerError),
+    /// The pack pins no loader at all, or pins one this codebase has no
+    /// installer for (Quilt — confirmed by grep that no Quilt install
+    /// path exists anywhere in this crate; Phase 7 never provisioned it
+    /// either).
+    UnsupportedLoader,
+    /// A `.mrpack` manifest with no `"minecraft"` dependency entry —
+    /// legal per `mrpack_metadata`'s own doc, but nothing this function
+    /// can provision a server from.
+    MissingMinecraftVersion,
+    /// The pinned Forge `{mc}-{build}` pair isn't a real entry in Forge's
+    /// own Maven metadata — checked before spending a download on a
+    /// build that would just 404, using the same parser
+    /// `fixtures/modpack-pinning/forge-maven-*` already characterizes.
+    PinnedForgeBuildNotFound {
+        mc_version: String,
+        forge_version: String,
+    },
+    /// [`modpacks::import_mrpack`]/[`modpacks::import_curseforge`] itself
+    /// refused before writing anything (never `PackManaged` here — a
+    /// brand-new server is never already pack-managed — but
+    /// `NoAddOnKind`/`MissingApiKey`/`Provider` all apply). The whole
+    /// `new_dir` is rolled back the same as every other failure in this
+    /// function.
+    Import(String),
+    Cancelled,
+}
+
+impl fmt::Display for CreateFromPackError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Create(e) => write!(f, "{e}"),
+            Self::UnsupportedLoader => {
+                write!(f, "this pack's loader isn't supported for server creation")
+            }
+            Self::MissingMinecraftVersion => {
+                write!(f, "this pack doesn't pin a Minecraft version")
+            }
+            Self::PinnedForgeBuildNotFound {
+                mc_version,
+                forge_version,
+            } => write!(
+                f,
+                "Forge build {forge_version} for Minecraft {mc_version} was not found"
+            ),
+            Self::Import(m) => write!(f, "{m}"),
+            Self::Cancelled => write!(f, "creation was cancelled"),
+        }
+    }
+}
+
+impl std::error::Error for CreateFromPackError {}
+
+impl From<CreateServerError> for CreateFromPackError {
+    fn from(e: CreateServerError) -> Self {
+        CreateFromPackError::Create(e)
+    }
+}
+
+/// [`NewServerRequest`] minus `flavor` (derived from the pack — see this
+/// section's own doc) and `save_downloaded_jars` (a pack-driven create has
+/// no single downloaded "the jar" to archive as a reusable template the
+/// way a download-and-go create does).
+#[derive(Debug, Clone)]
+pub struct PackServerRequest<'a> {
+    pub name: &'a str,
+    pub initial_world_name: Option<&'a str>,
+    pub port: u16,
+    pub enable_cross_play: bool,
+    pub cross_play_bedrock_port: Option<u16>,
+    pub enable_playit: bool,
+    pub enable_xbox_broadcast: bool,
+    pub difficulty: &'a str,
+    pub gamemode: &'a str,
+    pub world_seed: Option<&'a str>,
+    pub world_source: WorldSource<'a>,
+    pub default_banner_color_hex: &'a str,
+}
+
+/// Either pack-apply report [`modpacks::import_mrpack`]/
+/// [`modpacks::import_curseforge`] can produce — kept as the real,
+/// detailed type rather than flattened, so a caller can report
+/// `failed_files`/`blocked_files` exactly as those functions already
+/// characterize them.
+#[derive(Debug)]
+pub enum PackApplyReport {
+    Mrpack(crate::modpacks::MrpackImportReport),
+    CurseForge(crate::modpacks::CurseForgeImportReport),
+}
+
+#[derive(Debug)]
+pub struct CreatedFromPack {
+    pub created: CreatedServer,
+    pub pack_report: PackApplyReport,
+}
+
+/// The pinned `(loader flavor, Minecraft version, loader version)` triple
+/// a manifest declares — `MissingMinecraftVersion`/`UnsupportedLoader`
+/// cover every case where that pin doesn't fully identify a provisionable
+/// server (see each variant's own doc).
+fn pack_loader_pin(
+    format: &modpacks::InspectedFormat,
+) -> Result<(modpack_manifest::LoaderFlavor, String, String), CreateFromPackError> {
+    match format {
+        modpacks::InspectedFormat::Mrpack(manifest) => {
+            let meta = modpack_manifest::mrpack_metadata(manifest);
+            let mc_version = meta
+                .minecraft_version
+                .ok_or(CreateFromPackError::MissingMinecraftVersion)?;
+            let flavor = meta
+                .loader_flavor
+                .ok_or(CreateFromPackError::UnsupportedLoader)?;
+            let loader_version = meta
+                .loader_version
+                .ok_or(CreateFromPackError::UnsupportedLoader)?;
+            Ok((flavor, mc_version, loader_version))
+        }
+        modpacks::InspectedFormat::CurseForge(metadata) => {
+            let flavor = metadata
+                .loader_flavor
+                .ok_or(CreateFromPackError::UnsupportedLoader)?;
+            let loader_version = metadata
+                .loader_version
+                .clone()
+                .ok_or(CreateFromPackError::UnsupportedLoader)?;
+            Ok((flavor, metadata.minecraft_version.clone(), loader_version))
+        }
+        modpacks::InspectedFormat::PlainJarZip { .. } => {
+            Err(CreateFromPackError::UnsupportedLoader)
+        }
+    }
+}
+
+fn loader_flavor_to_java_flavor(
+    flavor: modpack_manifest::LoaderFlavor,
+) -> Result<JavaServerFlavor, CreateFromPackError> {
+    match flavor {
+        modpack_manifest::LoaderFlavor::Forge => Ok(JavaServerFlavor::Forge),
+        modpack_manifest::LoaderFlavor::NeoForge => Ok(JavaServerFlavor::NeoForge),
+        modpack_manifest::LoaderFlavor::Fabric => Ok(JavaServerFlavor::Fabric),
+        modpack_manifest::LoaderFlavor::Quilt => Err(CreateFromPackError::UnsupportedLoader),
+    }
+}
+
+/// Provisions a brand-new Fabric/Forge/NeoForge server pinned exactly to
+/// `inspection`'s own manifest, then applies that pack's mod list —
+/// composing this module's existing [`finish_server_creation`] tail with
+/// P8.19/P8.20's [`modpacks::import_mrpack`]/[`modpacks::import_curseforge`].
+/// Nothing is published (the caller's registry insert — the same boundary
+/// this module's own doc already draws for every other create function)
+/// until loader provisioning, the shared tail, AND the pack apply itself
+/// all return successfully — on any of those three failing, or on
+/// `should_cancel` firing at any of this function's checkpoints (entry,
+/// after loader provisioning, before the shared tail, before pack apply),
+/// the whole `new_dir` is removed, the same single rollback every other
+/// function in this module already uses.
+/// `inspection.staged_dir` is removed unconditionally before returning —
+/// once the pack's files are either merged into `new_dir` or already
+/// downloaded independently via the manifest's own URLs, nothing further
+/// reads it, so no staging residue survives either a successful or a
+/// failed create.
+#[allow(clippy::too_many_arguments)]
+pub fn create_server_from_pack(
+    fs: &dyn FileSystem,
+    jar_transport: &dyn Transport,
+    addon_transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    supervisor: &dyn ProcessSupervisor,
+    home_dir: &Path,
+    servers_root: &Path,
+    plugin_template_dir: &Path,
+    request: &PackServerRequest,
+    inspection: &ModpackInspection,
+    java_executable_path: &str,
+    installer_timeout: Duration,
+    now: &str,
+    should_cancel: &dyn Fn() -> bool,
+    on_output: impl FnMut(OutputStream, &[u8]),
+    unzip_world_backup: impl FnOnce(&Path, &Path) -> bool,
+    copy_existing_world_folder: impl FnOnce(&Path, &Path, &str) -> bool,
+) -> Result<CreatedFromPack, CreateFromPackError> {
+    let (loader_flavor, mc_version, loader_version) = pack_loader_pin(&inspection.format)?;
+    let flavor = loader_flavor_to_java_flavor(loader_flavor)?;
+
+    let safe_name =
+        provisioning::trimmed_server_name(request.name).ok_or(CreateServerError::EmptyName)?;
+    if should_cancel() {
+        return Err(CreateFromPackError::Cancelled);
+    }
+
+    let initial_slot_name = initial_world_slot_name(&safe_name, request.initial_world_name);
+    let normalized_world_seed =
+        normalized_initial_world_seed(request.world_seed, &request.world_source);
+    let imported_metadata = match &request.world_source {
+        WorldSource::Fresh => ImportedWorldMetadata::default(),
+        WorldSource::BackupZip(zip_path) => imported_metadata_from_zip(zip_path, ServerType::Java),
+        WorldSource::ExistingFolder(folder) => {
+            imported_metadata_from_folder(folder, ServerType::Java)
+        }
+    };
+    let effective = provisioning::effective_world_settings(
+        request.difficulty,
+        request.gamemode,
+        normalized_world_seed.as_deref(),
+        &imported_metadata,
+    );
+    let initial_level_name = world::sanitized_world_level_name(&initial_slot_name, "world");
+
+    let folder_name = provisioning::folder_name_from_safe_name(&safe_name);
+    let new_dir = join_forward_slash(
+        &join_forward_slash(servers_root, std::ffi::OsStr::new("java")),
+        folder_name.as_ref(),
+    );
+
+    claim_new_server_directory(fs, &new_dir, &folder_name)?;
+
+    let mut java_compatibility_warning: Option<String> = None;
+    let outcome = (|| -> Result<CreatedFromPack, CreateFromPackError> {
+        let (resolved_build, resolved_loader, primary_jar_path) = match flavor {
+            JavaServerFlavor::Fabric => {
+                let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new("paper.jar"));
+                jar_provider::fabric_download_version(
+                    jar_transport,
+                    fs,
+                    &mc_version,
+                    Some(&loader_version),
+                    &jar_dest,
+                )
+                .map_err(CreateServerError::from)?;
+                (
+                    format!("fabric {loader_version}"),
+                    loader_version.clone(),
+                    jar_dest.to_string_lossy().into_owned(),
+                )
+            }
+            JavaServerFlavor::Forge => {
+                let entries = jar_provider::forge_list_version_pairs(jar_transport)
+                    .map_err(CreateServerError::from)?;
+                let id = format!("{mc_version}\u{2014}{loader_version}");
+                if !entries.iter().any(|e| e.id == id) {
+                    return Err(CreateFromPackError::PinnedForgeBuildNotFound {
+                        mc_version: mc_version.clone(),
+                        forge_version: loader_version.clone(),
+                    });
+                }
+                java_compatibility_warning =
+                    check_java_runtime_guard(supervisor, java_executable_path, Some(&mc_version))
+                        .map_err(CreateFromPackError::from)?;
+                let installer_jar_name = "forge-installer.jar".to_string();
+                jar_provider::forge_download_installer(
+                    jar_transport,
+                    fs,
+                    &mc_version,
+                    &loader_version,
+                    &new_dir.join(&installer_jar_name),
+                )
+                .map_err(CreateServerError::from)?;
+                if should_cancel() {
+                    return Err(CreateFromPackError::Cancelled);
+                }
+                loader_installer::run_loader_installer(
+                    supervisor,
+                    fs,
+                    &LoaderInstallRequest {
+                        java_executable_path: java_executable_path.to_string(),
+                        installer_jar_name: installer_jar_name.clone(),
+                        server_dir: new_dir.clone(),
+                        timeout: installer_timeout,
+                        target: LoaderTarget::Forge {
+                            mc_version: Some(mc_version.clone()),
+                            forge_version: Some(loader_version.clone()),
+                        },
+                    },
+                    should_cancel,
+                    on_output,
+                )
+                .map_err(CreateServerError::from)?;
+                let _ = fs.remove(&new_dir.join(&installer_jar_name));
+                (
+                    loader_version.clone(),
+                    loader_version.clone(),
+                    String::new(),
+                )
+            }
+            JavaServerFlavor::NeoForge => {
+                java_compatibility_warning =
+                    check_java_runtime_guard(supervisor, java_executable_path, Some(&mc_version))
+                        .map_err(CreateFromPackError::from)?;
+                let installer_jar_name = "neoforge-installer.jar".to_string();
+                jar_provider::neoforge_download_installer(
+                    jar_transport,
+                    fs,
+                    &loader_version,
+                    &new_dir.join(&installer_jar_name),
+                )
+                .map_err(CreateServerError::from)?;
+                if should_cancel() {
+                    return Err(CreateFromPackError::Cancelled);
+                }
+                loader_installer::run_loader_installer(
+                    supervisor,
+                    fs,
+                    &LoaderInstallRequest {
+                        java_executable_path: java_executable_path.to_string(),
+                        installer_jar_name: installer_jar_name.clone(),
+                        server_dir: new_dir.clone(),
+                        timeout: installer_timeout,
+                        target: LoaderTarget::NeoForge {
+                            specific_version: Some(loader_version.clone()),
+                        },
+                    },
+                    should_cancel,
+                    on_output,
+                )
+                .map_err(CreateServerError::from)?;
+                let _ = fs.remove(&new_dir.join(&installer_jar_name));
+                let _ = fs.remove(&new_dir.join("installer.log"));
+                (
+                    loader_version.clone(),
+                    loader_version.clone(),
+                    String::new(),
+                )
+            }
+            other => {
+                return Err(CreateFromPackError::Create(
+                    CreateServerError::UnsupportedFlavor(other),
+                ));
+            }
+        };
+
+        if should_cancel() {
+            return Err(CreateFromPackError::Cancelled);
+        }
+
+        let created = finish_server_creation(
+            fs,
+            home_dir,
+            plugin_template_dir,
+            &new_dir,
+            &NewServerRequest {
+                name: request.name,
+                initial_world_name: request.initial_world_name,
+                flavor,
+                port: request.port,
+                enable_cross_play: request.enable_cross_play,
+                cross_play_bedrock_port: request.cross_play_bedrock_port,
+                enable_playit: request.enable_playit,
+                enable_xbox_broadcast: request.enable_xbox_broadcast,
+                difficulty: request.difficulty,
+                gamemode: request.gamemode,
+                world_seed: request.world_seed,
+                world_source: request.world_source.clone(),
+                save_downloaded_jars: false,
+                default_banner_color_hex: request.default_banner_color_hex,
+            },
+            &safe_name,
+            &initial_slot_name,
+            &initial_level_name,
+            &effective,
+            &imported_metadata,
+            &primary_jar_path,
+            Some(mc_version.as_str()),
+            Some(resolved_build.as_str()),
+            Some(resolved_loader.as_str()),
+            now,
+            unzip_world_backup,
+            copy_existing_world_folder,
+        )
+        .map_err(CreateFromPackError::from)?;
+
+        if should_cancel() {
+            return Err(CreateFromPackError::Cancelled);
+        }
+
+        let pack_report = match &inspection.format {
+            modpacks::InspectedFormat::Mrpack(manifest) => {
+                let report = modpacks::import_mrpack(
+                    addon_transport,
+                    fs,
+                    &new_dir,
+                    flavor,
+                    manifest,
+                    &inspection.staged_dir,
+                    home_dir,
+                    false,
+                    false,
+                    should_cancel,
+                )
+                .map_err(|e| CreateFromPackError::Import(e.to_string()))?;
+                if report.cancelled {
+                    return Err(CreateFromPackError::Cancelled);
+                }
+                PackApplyReport::Mrpack(report)
+            }
+            modpacks::InspectedFormat::CurseForge(metadata) => {
+                let report = modpacks::import_curseforge(
+                    addon_transport,
+                    secrets,
+                    fs,
+                    &new_dir,
+                    flavor,
+                    metadata,
+                    &inspection.staged_dir,
+                    false,
+                    false,
+                    should_cancel,
+                )
+                .map_err(|e| CreateFromPackError::Import(e.to_string()))?;
+                if report.cancelled {
+                    return Err(CreateFromPackError::Cancelled);
+                }
+                PackApplyReport::CurseForge(report)
+            }
+            modpacks::InspectedFormat::PlainJarZip { .. } => {
+                unreachable!("pack_loader_pin already rejected PlainJarZip")
+            }
+        };
+
+        let (pack_name, pack_version) = match &pack_report {
+            PackApplyReport::Mrpack(r) => (r.pack_name.clone(), r.pack_version.clone()),
+            PackApplyReport::CurseForge(r) => (r.pack_name.clone(), r.pack_version.clone()),
+        };
+        let mut created = created;
+        created.config.pack_managed = true;
+        created.config.pack_name = Some(pack_name);
+        created.config.pack_version = Some(pack_version);
+
+        Ok(CreatedFromPack {
+            created,
+            pack_report,
+        })
+    })();
+
+    let _ = fs.remove(&inspection.staged_dir);
+    if outcome.is_err() {
+        let _ = fs.remove(&new_dir);
+    }
+    outcome.map(|mut result| {
+        result.created.java_compatibility_warning = java_compatibility_warning.take();
+        result
+    })
 }
 
 /// `ConfigServer(id:...)` plus its per-field assignments (source lines

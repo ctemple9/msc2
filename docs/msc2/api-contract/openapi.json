@@ -65,7 +65,7 @@
           }
         },
         "operationId": "createServer",
-        "x-notes": "P7.9 correction to this note's own P2.8-era wording: 'runs async via createServerProvider' described MSC 1's Swift-Task mechanism, not wire behavior -- MSC 1's own handleCreateServer holds the HTTP response open until createServerProvider fully returns (RemoteAPIServer+ComponentRoutes.swift:87-112), which blocks the connection for the real minutes a Forge/NeoForge install-step create can take (corpus/providers' captured installer runs, P7.3). Phase 7 corrects this under D-006's 'correction' clause: after name/type/flavor validation and (for Bedrock) the capability_unavailable refusal, the 200 response returns immediately with serverId/serverName (known synchronously -- folder derivation is a pure function of the trimmed name, families/phase7-scope.md SS 'Cross-family creation mechanics' step 2) and a populated operationId; warnings and final success/failure land on the operation's own terminal result (operation-model.md SS2), not on this response. A client that only reads success/message/serverId/serverName keeps working; one that wants progress or cancellation follows operationId. type: \"server-create\". A failed or cancelled operation leaves the server directory rolled back completely (this phase's working exit criteria), matching the create_failed 409 MSC 1 already returns for the synchronous validation failures that still happen before the operation is admitted.",
+        "x-notes": "P7.9 correction to this note's own P2.8-era wording: 'runs async via createServerProvider' described MSC 1's Swift-Task mechanism, not wire behavior -- MSC 1's own handleCreateServer holds the HTTP response open until createServerProvider fully returns (RemoteAPIServer+ComponentRoutes.swift:87-112), which blocks the connection for the real minutes a Forge/NeoForge install-step create can take (corpus/providers' captured installer runs, P7.3). Phase 7 corrects this under D-006's 'correction' clause: after name/type/flavor validation and (for Bedrock) the capability_unavailable refusal, the 200 response returns immediately with serverId/serverName (known synchronously -- folder derivation is a pure function of the trimmed name, families/phase7-scope.md SS 'Cross-family creation mechanics' step 2) and a populated operationId; warnings and final success/failure land on the operation's own terminal result (operation-model.md SS2), not on this response. A client that only reads success/message/serverId/serverName keeps working; one that wants progress or cancellation follows operationId. type: \"server-create\". A failed or cancelled operation leaves the server directory rolled back completely (this phase's working exit criteria), matching the create_failed 409 MSC 1 already returns for the synchronous validation failures that still happen before the operation is admitted. P8.9: stagedModpackUploadId is additive and optional -- when present, this same durable create operation also pins the loader/Minecraft version from the pack and applies its mod list (P8.21), and does not publish the server registry entry until pack application succeeds too, extending the existing create-rollback discipline to a failure class MSC 1's own creation flow could never roll back from (phase8-scope.md, \"Modpack create/import boundary\"). type stays \"server-create\".",
         "x-permission-category": "fleet"
       }
     },
@@ -702,7 +702,7 @@
     "/v1/components/update": {
       "post": {
         "summary": "Update a system component (paper/geyser/floodgate) or a Modrinth-tracked add-on",
-        "x-notes": "Three request shapes share one endpoint (RemoteAPIServer+ComponentRoutes.swift handleUpdateComponent): updateAll=true updates every add-on with an available update; jarStem updates one specific add-on; the legacy path (component=paper|geyser|floodgate) updates a system component. The two add-on paths return AddonUpdateResultDTO; the legacy path returns ComponentUpdateResultDTO.",
+        "x-notes": "Seven request shapes now share one endpoint (RemoteAPIServer+ComponentRoutes.swift's own handleUpdateComponent precedent, extended per P8.9): updateAll=true updates every add-on with an available update (async, 202); jarStem alone updates one specific add-on (async, 202); jarStem+enabled toggles it (sync, 200, togglePlugin/toggleMod); jarStem+linkProjectId manually links it to a Modrinth project (sync, 200, manuallyLinkAddon); jarStem+sourceUrl sets/replaces its plugin source (sync, 200, setPluginSource); jarStem+removeSource removes one (sync, 200, removePluginSource); the legacy component=paper|geyser|floodgate path updates a system component (sync, 200, ComponentUpdateResultDTO). All six add-on shapes are refused (409 conflict, code pack_managed) against a pack-managed server; the explicit escape hatch is POST /v1/modpacks/import {action: \"replace\"}, not any shape of this route.",
         "requestBody": {
           "required": true,
           "content": {
@@ -715,7 +715,7 @@
         },
         "responses": {
           "200": {
-            "description": "updateAll/jarStem paths return AddonUpdateResultDTO; the legacy component path returns ComponentUpdateResultDTO",
+            "description": "Synchronous shapes only (toggle/link/source-set/source-remove): updateAll/jarStem-update shapes instead return 202 (see below) once request shape and the pack-managed guard pass.",
             "content": {
               "application/json": {
                 "schema": {
@@ -727,6 +727,16 @@
                       "$ref": "#/components/schemas/ComponentUpdateResultDTO"
                     }
                   ]
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "updateAll/jarStem-update shapes only: update admitted and started. result/count land on the operation's terminal AddonUpdateResultDTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddonUpdateResultDTO"
                 }
               }
             }
@@ -754,7 +764,7 @@
             "x-error-code": "not_found"
           },
           "409": {
-            "description": "not_supported (jarStem path)",
+            "description": "not_supported (jarStem path) / pack_managed (ErrorDTO.details carries packName/packVersion; applies to every shape below except the legacy component=paper|geyser|floodgate path, which never touches an add-on)",
             "content": {
               "application/json": {
                 "schema": {
@@ -865,8 +875,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Install attempted (including a 'no compatible version' outcome, which is 200 not an error)",
+          "202": {
+            "description": "Install admitted and started (including a local-JAR install via stagedUploadId). success/message/count/installedDependencies land on the operation's terminal result; a client that ignores operationId and only reads the body still gets a truthful in-flight message, not a final result.",
             "content": {
               "application/json": {
                 "schema": {
@@ -887,7 +897,7 @@
             "x-error-code": "invalid_body"
           },
           "409": {
-            "description": "not_supported / no_active_server",
+            "description": "not_supported / no_active_server / pack_managed (ErrorDTO.details carries packName/packVersion)",
             "content": {
               "application/json": {
                 "schema": {
@@ -898,7 +908,9 @@
             "x-error-code": "conflict"
           }
         },
-        "x-permission-category": "addons"
+        "x-permission-category": "addons",
+        "operationId": "installComponent",
+        "x-notes": "Corrected per P8.9 (D-006 point 3, same class of correction P7.9 applied to servers/create and components/version): a catalog install can cost real Modrinth network time, and P8.15's dependency-aware batch install can cost several. The 202 response returns once request shape, staged-upload redemption (if stagedUploadId was used), and the pack-managed guard all pass; operation type: \"addon-install\"."
       }
     },
     "/v1/components/version": {
@@ -973,6 +985,224 @@
         "operationId": "changeVersion",
         "x-notes": "MSC 1's own changeVersionProvider comment calls this 'authoritative-async (awaits the real result)' -- in wire terms that means the baseline HTTP handler blocks the connection until the download, or for NeoForge/Forge the full supervised installer subprocess (real minutes, P7.3's captured installer runs), finishes (AppViewModel+APIWiringAddons.swift:358-573). Phase 7 applies the same correction as /v1/servers/create: the 200 response returns as soon as the existing isDownloadingJar-equivalent admission check passes, carrying a populated operationId; success/failure/requiresRestart land on the operation's terminal result. type: \"version-change\". The existing download_in_progress 429 is preserved unchanged (D-006: preserve rate-limiting intent) as the same-server concurrent-request guard it always was -- a second request while one operation is already running for this server still gets 429, it just now names an operation instead of a raw in-flight download.",
         "x-permission-category": "addons"
+      }
+    },
+    "/v1/modpacks/inspect": {
+      "post": {
+        "summary": "Inspect a staged modpack archive (.mrpack or CurseForge) without mutating any server",
+        "operationId": "inspectModpack",
+        "x-permission-category": "none",
+        "x-notes": "Redeems nothing -- the one deliberate exception to 'a staging slot can only be redeemed by the route it was created for once' (worlds.rs's own doc comment): inspect peeks at a modpack-archive-purpose staged upload without marking it consumed, so the same upload can be inspected and then imported (POST /v1/modpacks/import) or carried into server creation (ServerCreateRequestDTO.stagedModpackUploadId) without a second upload round-trip. The upload still expires on its ordinary expiresAt -- inspecting it does not extend its lifetime.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "stagedUploadId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "stagedUploadId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inspection result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModpackInspectionResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / unrecognized_archive / malformed_manifest / unsafe_archive_path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "staged upload not found, expired, or not purpose modpack-archive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          }
+        }
+      }
+    },
+    "/v1/modpacks/import": {
+      "post": {
+        "summary": "Import a staged modpack archive into the active server, or explicitly replace an already pack-managed server's pack",
+        "operationId": "importModpack",
+        "x-permission-category": "addons",
+        "x-notes": "Redeems the staged upload (purpose modpack-archive) for real -- unlike inspect, above. Returns 202 as soon as the upload is verified, the archive is re-validated, and (for action=replace) the pack-managed check passes; downloading, overrides-merge, and classification continue in a background worker, type: \"modpack-import\". Author-blocked CurseForge files pause this operation at a checkpoint (state stays running, ModpackImportResultDTO.pendingManualFiles/statusLine name what's pending) until every one is resolved via POST /v1/modpacks/{operationId}/manual-file (D-027) -- there is no separate paused state in operation-model.md's closed state machine, so this is running with a checkpoint, not a new state.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModpackImportRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Import admitted and started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModpackImportResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_staged_upload_id / missing_action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "staged upload not found, expired, or not purpose modpack-archive",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "409": {
+            "description": "no_active_server / pack_managed (action=import against an already pack-managed server, or action=replace against one that isn't -- ErrorDTO.details carries packName/packVersion)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        }
+      }
+    },
+    "/v1/modpacks/{operationId}/manual-file": {
+      "post": {
+        "summary": "Complete one pending author-blocked CurseForge file for a running modpack-import operation (D-027)",
+        "operationId": "completeModpackManualFile",
+        "x-permission-category": "addons",
+        "x-notes": "The one manual-file completion route this phase's D-027 answer (option 1, msc2-decisions.md) commits to: the client downloads the blocked file itself from CurseForge's own web page, stages it (POST /v1/staged-uploads {purpose: curseforge-manual-file, operationId, fileId}), then calls this route to bind and verify it against the pending operation's own expected file identity/size before the background worker resumes. Synchronous -- binding and verifying one already-uploaded file is a local check, not a download; the modpack-import operation itself keeps running in the background once every pending file is resolved.",
+        "parameters": [
+          {
+            "name": "operationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModpackManualFileRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "File bound and verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModpackManualFileResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_file_id / missing_staged_upload_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "unknown operationId, operation not a pending modpack-import, unknown fileId, or staged upload not found/expired/wrong purpose",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "409": {
+            "description": "wrong file for this fileId (hash/size/name mismatch against CurseForge's own recorded metadata -- ErrorDTO.details carries expectedFileId/expectedFileName/expectedByteSize)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        }
       }
     },
     "/v1/backups/now": {
@@ -1549,7 +1779,17 @@
         },
         "responses": {
           "200": {
-            "description": "Repair attempted, echoes fresh problem list",
+            "description": "action=disable|delete only (synchronous rename/removal). action=update|install instead returns 202 (see below).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthRepairResultDTO"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "action=update|install only: repair admitted and started through the same verified add-on mutation path ordinary install/update use (P8.23). success/message/updated land on the operation's terminal HealthRepairResultDTO.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1603,7 +1843,8 @@
             "x-error-code": "internal_error"
           }
         },
-        "x-permission-category": "settings"
+        "x-permission-category": "settings",
+        "x-notes": "P8.23: action=update|install are real, not action_unavailable placeholders, and route through the same verified add-on mutation paths as ordinary install/update -- so they cost the same real download time and get the same async treatment (202 + operationId), unlike action=disable|delete's existing synchronous rename/removal."
       }
     },
     "/v1/playit": {
@@ -3096,7 +3337,8 @@
             "x-error-code": "conflict"
           }
         },
-        "x-permission-category": "none"
+        "x-permission-category": "none",
+        "x-notes": "Corrected per P8.9 (D-006 point 3): the frozen baseline originally carried an inline zipBase64 field for exportKind=zip, but this route has never actually been implemented in Rust (still Planned as of this commit), so there is no shipped client depending on that shape to preserve. P8.22's own working exit criteria explicitly rule out base64 for a new large-payload route -- a modded server's client export can be many megabytes, and base64 would send roughly 33% more bytes than necessary in one JSON response. exportKind=zip now returns ClientExportResponseDTO.stagedDownloadId, redeemed via GET /v1/staged-downloads/{id} (P6.8's existing staged-download primitive -- POST /v1/worlds/export already uses the identical pattern). exportKind=links (Paper-like servers) is unaffected -- shareText was always plain text, never base64, and needs no staged download."
       }
     },
     "/v1/catalog/search": {
@@ -3114,7 +3356,8 @@
             }
           }
         },
-        "x-permission-category": "none"
+        "x-permission-category": "none",
+        "x-notes": "Always 200. note conveys two distinct honest-failure states, both non-fatal: an unsupported add-on kind for this server (supportsAddons=false), and a reachable-server-but-unreachable-Modrinth provider failure (supportsAddons stays true, results is empty, code provider_unavailable is not surfaced here since this route never errors -- only note explains it). A client branches on supportsAddons/results.length, never on note's text."
       }
     },
     "/v1/java-runtimes": {
@@ -4331,7 +4574,7 @@
       "post": {
         "summary": "Begin a bounded staged upload",
         "operationId": "beginStagedUpload",
-        "x-permission-category": "worlds",
+        "x-permission-category": "none",
         "requestBody": {
           "required": true,
           "content": {
@@ -4365,14 +4608,14 @@
             "x-error-code": "invalid_body"
           }
         },
-        "x-notes": "SS4: staged upload/download replaces an arbitrary remote path with a short-lived, purpose-bound, size-bound token. Approved-root enforcement and request-size limits are P6.21 wiring, not designed further here."
+        "x-notes": "SS4: staged upload/download replaces an arbitrary remote path with a short-lived, purpose-bound, size-bound token. Approved-root enforcement and request-size limits are P6.21 wiring, not designed further here. P8.9 correction: x-permission-category was worlds (Phase 6, the only domain that existed yet); moved to none. Staging bytes alone commits nothing -- each purpose's redemption route already enforces its own correct category (worlds for world-import/active-world-replace, addons for modpack-archive/addon-local-file/curseforge-manual-file) -- so a single fixed category on the shared begin/upload routes was already wrong the moment a second domain needed the same primitive; an addons-only token could stage nothing at all under the old category. Redemption-side enforcement is unchanged."
       }
     },
     "/v1/staged-uploads/{id}": {
       "put": {
         "summary": "Upload bytes into a previously begun staging slot",
         "operationId": "uploadStagedBytes",
-        "x-permission-category": "worlds",
+        "x-permission-category": "none",
         "requestBody": {
           "required": true,
           "content": {
@@ -4417,7 +4660,8 @@
             },
             "x-error-code": "conflict"
           }
-        }
+        },
+        "x-notes": "P8.9 correction: x-permission-category was worlds (Phase 6, the only domain that existed yet); moved to none. Staging bytes alone commits nothing -- each purpose's redemption route already enforces its own correct category (worlds for world-import/active-world-replace, addons for modpack-archive/addon-local-file/curseforge-manual-file) -- so a single fixed category on the shared begin/upload routes was already wrong the moment a second domain needed the same primitive; an addons-only token could stage nothing at all under the old category. Redemption-side enforcement is unchanged."
       }
     },
     "/v1/staged-downloads/{id}": {
@@ -4528,6 +4772,10 @@
           },
           "javaPath": {
             "type": "string"
+          },
+          "stagedModpackUploadId": {
+            "type": "string",
+            "description": "A staged upload (purpose modpack-archive) already inspected via POST /v1/modpacks/inspect. When present, provisioning pins the loader/Minecraft version from the pack and applies its mod list as part of this same create operation (P8.21) -- MSC 1 has no separate create-from-pack primitive; this mirrors createNewServer + applyStagedAddOn composed into one durable operation instead of two."
           }
         },
         "required": [
@@ -4997,6 +5245,22 @@
           },
           "updateAll": {
             "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "With jarStem and no updateAll/component: enable/disable that add-on (togglePlugin/toggleMod)."
+          },
+          "linkProjectId": {
+            "type": "string",
+            "description": "With jarStem: manually link this add-on to a Modrinth project id (manuallyLinkAddon). Sets AddonLinkProvenance.nameGuess."
+          },
+          "sourceUrl": {
+            "type": "string",
+            "description": "With jarStem: set/replace this add-on's plugin source (GitHub/Hangar/direct URL, classified the same way PluginSourceDetector.detect does). setPluginSource."
+          },
+          "removeSource": {
+            "type": "boolean",
+            "description": "With jarStem: remove a previously-set plugin source (removePluginSource)."
           }
         },
         "required": []
@@ -5033,6 +5297,10 @@
           },
           "count": {
             "type": "integer"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Present only for the update-triggering shapes (updateAll, jarStem update) -- these download real bytes and run async. Absent for toggle/link/source-set/source-remove, which stay synchronous (a config or filesystem-rename change, no network fetch)."
           }
         },
         "required": [
@@ -5081,13 +5349,13 @@
           },
           "title": {
             "type": "string"
+          },
+          "stagedUploadId": {
+            "type": "string",
+            "description": "Install from a staged local JAR (purpose addon-local-file) instead of the catalog. Exactly one of {projectId+slug+title} or stagedUploadId must be given -- not both, not neither."
           }
         },
-        "required": [
-          "projectId",
-          "slug",
-          "title"
-        ]
+        "required": []
       },
       "CatalogInstallResultDTO": {
         "type": "object",
@@ -5100,6 +5368,17 @@
           },
           "projectId": {
             "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Operation id for progress polling (GET /v1/operations/{id}) or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it."
+          },
+          "installedDependencies": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "jarStems of required dependencies installed alongside the requested add-on (P8.15's bounded dependency installer). Empty when the add-on had none."
           }
         },
         "required": [
@@ -5691,6 +5970,10 @@
           },
           "updated": {
             "$ref": "#/components/schemas/HealthProblemsResponseDTO"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Present only when action is update/install (P8.23 -- these route through the same verified add-on mutation paths as ordinary install/update, so they cost the same real download time). Absent for disable/delete, which stay the existing synchronous rename/removal."
           }
         },
         "required": [
@@ -6840,6 +7123,10 @@
           },
           "updatable": {
             "type": "boolean"
+          },
+          "note": {
+            "type": "string",
+            "description": "Set for a component this build honestly cannot check yet (e.g. Geyser/Floodgate update checks stay Phase 9) instead of a fabricated isUpToDate/updatable value."
           }
         },
         "required": [
@@ -7028,11 +7315,12 @@
           "zipFileName": {
             "type": "string"
           },
-          "zipBase64": {
-            "type": "string"
-          },
           "note": {
             "type": "string"
+          },
+          "stagedDownloadId": {
+            "type": "string",
+            "description": "Set only for exportKind=zip. Redeem via GET /v1/staged-downloads/{id} (P6.8's staged-download primitive), the same mechanism POST /v1/worlds/export already uses -- not inline base64, which would roughly double a large modded pack's response size."
           }
         },
         "required": [
@@ -7098,6 +7386,10 @@
           },
           "packName": {
             "type": "string"
+          },
+          "note": {
+            "type": "string",
+            "description": "Set when a provider was unreachable during this resolve pass (provider_unavailable) -- addons still reflect last-known persisted state, not a fabricated fresh result."
           }
         },
         "required": [
@@ -8228,11 +8520,22 @@
             "type": "string",
             "enum": [
               "world-import",
-              "active-world-replace"
+              "active-world-replace",
+              "modpack-archive",
+              "addon-local-file",
+              "curseforge-manual-file"
             ]
           },
           "contentType": {
             "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Required, curseforge-manual-file only: the pending modpack-import operation this upload resumes. The agent looks up the expected file's own reported byte size/name from CurseForge's file metadata already recorded against that operation -- maxBytes on the result is sized to that exact file, not a flat ceiling."
+          },
+          "fileId": {
+            "type": "string",
+            "description": "Required, curseforge-manual-file only: which of the operation's pending blocked files this upload is for."
           }
         },
         "required": [
@@ -8291,6 +8594,176 @@
         },
         "required": [
           "backupId"
+        ]
+      },
+      "ModpackManualFileEntryDTO": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "fileName"
+        ]
+      },
+      "ModpackInspectionResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "mrpack",
+              "curseforge"
+            ],
+            "description": "Unrecognized archives are a 400, not a 200 with a format value -- there is no third case to represent here."
+          },
+          "packName": {
+            "type": "string"
+          },
+          "packVersion": {
+            "type": "string"
+          },
+          "minecraftVersion": {
+            "type": "string"
+          },
+          "loaderName": {
+            "type": "string"
+          },
+          "loaderVersion": {
+            "type": "string"
+          },
+          "fileCount": {
+            "type": "integer"
+          },
+          "clientOnlyFileCount": {
+            "type": "integer",
+            "description": "Files this pack's own precedence chain (manifest/Modrinth/embedded-jar/known-list, phase8-scope.md) will skip or disable -- reported so a client can show 'N files' vs 'N will actually install' before committing to import."
+          },
+          "manualFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModpackManualFileEntryDTO"
+            },
+            "description": "CurseForge files this pack references whose authors block API distribution (D-027). Empty for an mrpack, or a CurseForge pack with no blocked files."
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "format",
+          "fileCount",
+          "manualFiles"
+        ]
+      },
+      "ModpackImportRequestDTO": {
+        "type": "object",
+        "properties": {
+          "stagedUploadId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "import",
+              "replace"
+            ],
+            "description": "import: the active server is not yet pack-managed. replace: an explicit whole-pack replacement of an already pack-managed server. Sending import against an already pack-managed server, or replace against one that isn't, is refused as ambiguous (409 conflict) -- the client must know and say which case this is, never guessed server-side."
+          }
+        },
+        "required": [
+          "stagedUploadId",
+          "action"
+        ]
+      },
+      "ModpackImportResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "pendingManualFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModpackManualFileEntryDTO"
+            },
+            "description": "Populated once the operation reaches its blocked-file checkpoint (statusLine names it too); resolve each via POST /v1/modpacks/{operationId}/manual-file. Empty when the pack has no blocked files."
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "operationId"
+        ]
+      },
+      "ModpackManualFileRequestDTO": {
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string"
+          },
+          "stagedUploadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "stagedUploadId"
+        ]
+      },
+      "ModpackManualFileResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "remainingManualFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModpackManualFileEntryDTO"
+            }
+          },
+          "allFilesResolved": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "operationId",
+          "remainingManualFiles",
+          "allFilesResolved"
         ]
       }
     }

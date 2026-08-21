@@ -139,6 +139,7 @@ fn dest_preserving_disabled_state(folder: &Path, filename: &str, was_enabled: bo
 // Install
 // ---------------------------------------------------------------------
 
+#[derive(Debug)]
 pub struct InstallOutcome {
     pub installed_path: PathBuf,
     pub dependencies: DependencyInstallReport,

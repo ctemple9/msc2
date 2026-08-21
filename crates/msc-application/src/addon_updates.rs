@@ -385,3 +385,253 @@ impl AddonPlanCache {
         self.order.push(server_id.to_string());
     }
 }
+
+// ---------------------------------------------------------------------
+// P8.23: `update`/`install` health repairs — real mutations through the
+// exact same verified paths (`crate::addons`/`crate::addon_dependencies`)
+// every other add-on mutation already uses, never a second, parallel
+// implementation. Unlike `diagnostics::repair_problem`'s pure disable/
+// delete, both of these genuinely touch the network (a resolve pass for
+// `update`, a Modrinth search for `install`) — appropriate here because
+// `POST /v1/health/repair` sits behind the `Settings` permission, unlike
+// the network-free `GET /v1/health` card `diagnostics.rs`'s own doc
+// explains stays offline.
+// ---------------------------------------------------------------------
+
+#[derive(Debug)]
+pub enum HealthRepairError {
+    ServerRunning,
+    /// This server's flavor has no add-on folder (Vanilla) — neither
+    /// repair has anything to act on.
+    NoAddOnKind,
+    /// The problem carries no `installed_jar_stem` (`update`) or no
+    /// `missing_dependency` (`install`) to act on.
+    ActionUnavailable,
+    /// `update` was asked to repair an item that isn't in this pass's own
+    /// `UpdateAvailable` bucket (already up to date, unlinked, or
+    /// genuinely incompatible — none of which "update" can fix).
+    NoUpdateAvailable,
+    /// `install` found no Modrinth project whose title or slug matches
+    /// `missing_dependency` confidently enough to install automatically
+    /// (see [`find_confident_dependency_match`]'s own doc on why this
+    /// never guesses).
+    NoConfidentMatch,
+    Mutation(crate::addons::AddonMutationError),
+}
+
+impl std::fmt::Display for HealthRepairError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ServerRunning => write!(f, "server is running"),
+            Self::NoAddOnKind => write!(f, "this server flavor has no add-on folder"),
+            Self::ActionUnavailable => write!(f, "no repair target for this problem"),
+            Self::NoUpdateAvailable => write!(f, "no update is available for this add-on"),
+            Self::NoConfidentMatch => write!(
+                f,
+                "could not confidently identify this dependency on Modrinth"
+            ),
+            Self::Mutation(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+impl std::error::Error for HealthRepairError {}
+
+impl From<crate::addons::AddonMutationError> for HealthRepairError {
+    fn from(e: crate::addons::AddonMutationError) -> Self {
+        Self::Mutation(e)
+    }
+}
+
+/// The `update` repair action: re-resolves the whole folder (the same
+/// [`resolve_addon_updates`] pass `GET /v1/addons` itself runs — a fresh
+/// pass rather than a cached one, since a repair must act on current
+/// reality, not a possibly-stale cache slot) and, if `problem`'s own
+/// `installed_jar_stem` names an item genuinely in the `UpdateAvailable`
+/// bucket, updates it through [`crate::addons::update_one`] — the exact
+/// same verified-write path an ordinary `/v1/components/update` call
+/// uses, not a second one.
+#[allow(clippy::too_many_arguments)]
+pub fn repair_update(
+    transport: &dyn AddonTransport,
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    flavor: JavaServerFlavor,
+    minecraft_version: Option<&str>,
+    persisted_links: &HashMap<String, AddonLink>,
+    plugin_sources: &HashMap<String, PluginSourceConfig>,
+    pack_managed: bool,
+    problem: &msc_domain::crash_analysis::StartupProblem,
+    is_running: bool,
+    should_cancel: &dyn Fn() -> bool,
+) -> Result<crate::addons::InstallOutcome, HealthRepairError> {
+    if is_running {
+        return Err(HealthRepairError::ServerRunning);
+    }
+    let add_on_kind = flavor.add_on_kind().ok_or(HealthRepairError::NoAddOnKind)?;
+    let stem = problem
+        .installed_jar_stem
+        .as_deref()
+        .ok_or(HealthRepairError::ActionUnavailable)?;
+    let add_on_dir = server_dir.join(add_on_kind.folder_name());
+
+    let plan = resolve_addon_updates(
+        transport,
+        fs,
+        &add_on_dir,
+        flavor,
+        minecraft_version,
+        persisted_links,
+        plugin_sources,
+    );
+    let item = plan
+        .items
+        .iter()
+        .find(|i| i.jar_stem == stem)
+        .ok_or(HealthRepairError::ActionUnavailable)?;
+    if item.bucket != AddonUpdateBucket::UpdateAvailable || item.available_version.is_none() {
+        return Err(HealthRepairError::NoUpdateAvailable);
+    }
+    let installed_mod_ids: Vec<String> = plan
+        .items
+        .iter()
+        .filter_map(|i| i.project_id.clone())
+        .collect();
+
+    crate::addons::update_one(
+        transport,
+        fs,
+        server_dir,
+        flavor,
+        item,
+        minecraft_version,
+        &installed_mod_ids,
+        pack_managed,
+        should_cancel,
+    )
+    .map_err(HealthRepairError::from)
+}
+
+/// A confident, name-based Modrinth project match for a crash-analyzer-
+/// extracted dependency name (e.g. `"fabric api"` from `"...requires any
+/// version of fabric api, which is missing!"` —
+/// `msc_domain::crash_analysis`'s own doc on `missing_dependency`) —
+/// genuinely new, agent-owned policy: MSC 1 never implements an `install`
+/// repair at all, so there is no oracle behavior to port here. Matches
+/// only on a normalized (lowercased, alphanumeric-only) exact match of a
+/// search hit's `title` or `slug` — deliberately NOT a fuzzy/best-effort
+/// pick of the top search result, since silently installing the wrong mod
+/// from a loosely-matched name would be worse than refusing. Returns
+/// `None` (never a low-confidence guess) when nothing matches this
+/// exactly.
+pub fn find_confident_dependency_match(
+    missing_dependency: &str,
+    hits: &[msc_domain::addon_provider::ModrinthSearchHit],
+) -> Option<String> {
+    let normalized = normalize_dependency_name(missing_dependency);
+    if normalized.is_empty() {
+        return None;
+    }
+    hits.iter()
+        .find(|hit| {
+            normalize_dependency_name(&hit.title) == normalized
+                || normalize_dependency_name(&hit.slug) == normalized
+        })
+        .map(|hit| hit.project_id.clone())
+}
+
+fn normalize_dependency_name(s: &str) -> String {
+    s.to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric())
+        .collect()
+}
+
+/// The `install` repair action: searches Modrinth for `problem`'s own
+/// `missing_dependency` name, requires a [`find_confident_dependency_match`]
+/// hit, picks that project's best version for this server's own
+/// loader/Minecraft version (`modrinth_project_versions`'s first result —
+/// the same "server already filtered it, first is best" convention
+/// [`crate::addon_dependencies::install_required_dependencies`] already
+/// established), and installs it through
+/// [`crate::addons::install_from_catalog`] — the exact same verified
+/// install-and-chase-dependencies path an ordinary catalog install uses.
+#[allow(clippy::too_many_arguments)]
+pub fn repair_install_missing_dependency(
+    transport: &dyn AddonTransport,
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    flavor: JavaServerFlavor,
+    minecraft_version: Option<&str>,
+    pack_managed: bool,
+    problem: &msc_domain::crash_analysis::StartupProblem,
+    is_running: bool,
+    should_cancel: &dyn Fn() -> bool,
+) -> Result<crate::addons::InstallOutcome, HealthRepairError> {
+    if is_running {
+        return Err(HealthRepairError::ServerRunning);
+    }
+    let add_on_kind = flavor.add_on_kind().ok_or(HealthRepairError::NoAddOnKind)?;
+    let name = problem
+        .missing_dependency
+        .as_deref()
+        .ok_or(HealthRepairError::ActionUnavailable)?;
+
+    let loaders: Vec<String> = flavor
+        .modrinth_loader_facets()
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let project_type = match add_on_kind {
+        AddOnKind::Mod => "mod",
+        AddOnKind::Plugin => "plugin",
+    };
+    let search = provider::modrinth_search(
+        transport,
+        name,
+        project_type,
+        &loaders,
+        minecraft_version,
+        5,
+        0,
+    )
+    .map_err(|e| {
+        HealthRepairError::Mutation(crate::addons::AddonMutationError::Provider(e.to_string()))
+    })?;
+    let project_id = find_confident_dependency_match(name, &search.hits)
+        .ok_or(HealthRepairError::NoConfidentMatch)?;
+
+    let versions =
+        provider::modrinth_project_versions(transport, &project_id, &loaders, minecraft_version)
+            .map_err(|e| {
+                HealthRepairError::Mutation(crate::addons::AddonMutationError::Provider(
+                    e.to_string(),
+                ))
+            })?;
+    let version = versions
+        .first()
+        .ok_or(HealthRepairError::NoConfidentMatch)?;
+
+    let add_on_dir = server_dir.join(add_on_kind.folder_name());
+    let installed_mod_ids: Vec<String> = if add_on_kind == AddOnKind::Mod {
+        crate::add_on_inventory::scan_mods(fs, &add_on_dir)
+            .into_iter()
+            .filter_map(|m| m.mod_id)
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    crate::addons::install_from_catalog(
+        transport,
+        fs,
+        server_dir,
+        flavor,
+        version,
+        minecraft_version,
+        &installed_mod_ids,
+        pack_managed,
+        should_cancel,
+    )
+    .map_err(HealthRepairError::from)
+}

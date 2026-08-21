@@ -109,6 +109,7 @@ fn health_card_title(id: &str) -> String {
         "java" => "Java Runtime",
         "ram" => "RAM Allocation",
         "lastStartup" => "Last Startup",
+        "componentJars" => "Add-on Jars",
         _ => id,
     }
     .to_string()
@@ -120,6 +121,7 @@ fn health_card_short_label(id: &str) -> String {
         "java" => "Java",
         "ram" => "RAM",
         "lastStartup" => "Startup",
+        "componentJars" => "Add-ons",
         _ => id,
     }
     .to_string()
@@ -134,6 +136,12 @@ fn health_card_icon(id: &str, status: HealthStatus) -> String {
             HealthStatus::Green => "checkmark.circle",
             HealthStatus::Yellow => "exclamationmark.triangle",
             HealthStatus::Red => "xmark.octagon",
+            HealthStatus::Gray => "questionmark.circle",
+        },
+        "componentJars" => match status {
+            HealthStatus::Green => "checkmark.seal",
+            HealthStatus::Yellow => "exclamationmark.triangle",
+            HealthStatus::Red => "xmark.seal",
             HealthStatus::Gray => "questionmark.circle",
         },
         _ => "questionmark.circle",
@@ -249,6 +257,26 @@ fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
         .map(|record| record.started_at.clone())
         .unwrap_or_default();
     let last_startup = diagnostics::check_last_startup(last_startup_record.as_ref(), &started_at);
+    let add_on_kind = server.java_flavor.add_on_kind();
+    let installed_count = add_on_kind
+        .map(|kind| {
+            let add_on_dir = Path::new(&server.server_dir).join(kind.folder_name());
+            match kind {
+                msc_domain::identity::AddOnKind::Mod => {
+                    msc_application::add_on_inventory::scan_mods(&StdFileSystem, &add_on_dir).len()
+                }
+                msc_domain::identity::AddOnKind::Plugin => {
+                    msc_application::add_on_inventory::scan_plugins(&StdFileSystem, &add_on_dir)
+                        .len()
+                }
+            }
+        })
+        .unwrap_or(0);
+    let problems = last_startup_record
+        .as_ref()
+        .and_then(|record| record.problems.clone())
+        .unwrap_or_default();
+    let component_jars = diagnostics::check_component_jars(add_on_kind, installed_count, &problems);
 
     let mut cards: Vec<HealthCardDto> = vec![
         card_result_to_dto(directory),
@@ -256,7 +284,7 @@ fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
         card_result_to_dto(ram),
         card_result_to_dto(last_startup),
         not_yet_implemented_card("portReachability", "Port Reachability", "Port"),
-        not_yet_implemented_card("componentJars", "Add-on Jars", "Add-ons"),
+        card_result_to_dto(component_jars),
     ];
     if server.server_type == ServerType::Bedrock {
         cards.push(not_yet_implemented_card(
@@ -398,6 +426,77 @@ pub async fn health_problems(State(state): State<LifecycleRoutesState>) -> Respo
 
 // ---------- POST /v1/health/repair ----------
 
+/// P8.23: `update`/`install` join `disable`/`delete` as real repair kinds
+/// — see `msc_application::addon_updates`'s own
+/// `repair_update`/`repair_install_missing_dependency` doc for what each
+/// actually does. Both are real network-touching mutations (a resolve
+/// pass, a Modrinth search), appropriate here since this whole route sits
+/// behind the `Settings` permission — unlike `GET /v1/health`'s own
+/// `componentJars` card, which `diagnostics.rs`'s doc explains stays
+/// offline on purpose.
+enum RepairKind {
+    Disable,
+    Delete,
+    Update,
+    Install,
+}
+
+fn health_repair_error_response(error: &RepairFailure) -> Response {
+    use msc_application::addon_updates::HealthRepairError;
+    match error {
+        RepairFailure::Diagnostics(RepairError::ServerRunning)
+        | RepairFailure::Update(HealthRepairError::ServerRunning) => {
+            error_response(StatusCode::CONFLICT, "server_running", "Server is running.")
+        }
+        RepairFailure::Diagnostics(RepairError::ActionUnavailable)
+        | RepairFailure::Update(HealthRepairError::NoAddOnKind)
+        | RepairFailure::Update(HealthRepairError::ActionUnavailable) => {
+            invalid_body("action_unavailable", "No repair target for this problem.")
+        }
+        RepairFailure::Diagnostics(RepairError::Io(e)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &e.to_string(),
+        ),
+        RepairFailure::Diagnostics(RepairError::VerificationFailed) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "The repair did not produce the expected on-disk state.",
+        ),
+        RepairFailure::Update(HealthRepairError::NoUpdateAvailable) => invalid_body(
+            "no_update_available",
+            "No update is available for this add-on.",
+        ),
+        RepairFailure::Update(HealthRepairError::NoConfidentMatch) => invalid_body(
+            "no_confident_match",
+            "Could not confidently identify this dependency on Modrinth.",
+        ),
+        RepairFailure::Update(HealthRepairError::Mutation(
+            msc_application::addons::AddonMutationError::PackManaged,
+        )) => error_response(
+            StatusCode::CONFLICT,
+            "conflict",
+            "This server is managed by a modpack.",
+        ),
+        RepairFailure::Update(HealthRepairError::Mutation(mutation_error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &mutation_error.to_string(),
+        ),
+        RepairFailure::JoinFailed => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "The repair task failed to run to completion.",
+        ),
+    }
+}
+
+enum RepairFailure {
+    Diagnostics(RepairError),
+    Update(msc_application::addon_updates::HealthRepairError),
+    JoinFailed,
+}
+
 pub async fn health_repair(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -413,16 +512,17 @@ pub async fn health_repair(
     if body.problem_id.trim().is_empty() {
         return invalid_body("missing_problem_id", "problemId is required.");
     }
-    let action = match body.action.as_str() {
-        "disable" => RepairAction::Disable,
-        "delete" => RepairAction::Delete,
-        "update" | "install" => {
+    let kind = match body.action.as_str() {
+        "disable" => RepairKind::Disable,
+        "delete" => RepairKind::Delete,
+        "update" => RepairKind::Update,
+        "install" => RepairKind::Install,
+        _ => {
             return invalid_body(
-                "action_unavailable",
-                "This repair action is not implemented yet.",
+                "invalid_action",
+                "action must be disable, delete, update, or install.",
             );
         }
-        _ => return invalid_body("invalid_action", "action must be disable or delete."),
     };
     let Some(server) = state.active_config_server() else {
         return error_response(
@@ -464,7 +564,63 @@ pub async fn health_repair(
     };
     let add_on_dir: PathBuf = server_dir.join(add_on_kind.folder_name());
 
-    match diagnostics::repair_problem(&StdFileSystem, &add_on_dir, &problem, action, is_running) {
+    let repair_outcome: Result<(), RepairFailure> = match kind {
+        RepairKind::Disable | RepairKind::Delete => {
+            let action = if matches!(kind, RepairKind::Disable) {
+                RepairAction::Disable
+            } else {
+                RepairAction::Delete
+            };
+            diagnostics::repair_problem(&StdFileSystem, &add_on_dir, &problem, action, is_running)
+                .map_err(RepairFailure::Diagnostics)
+        }
+        RepairKind::Update | RepairKind::Install => {
+            let server = server.clone();
+            let problem = problem.clone();
+            let join_result = tokio::task::spawn_blocking(move || {
+                use msc_infrastructure::addon_provider::HttpTransport;
+                use msc_infrastructure::fs::StdFileSystem as Fs;
+                let transport = HttpTransport::new();
+                let server_dir = Path::new(&server.server_dir);
+                if matches!(kind, RepairKind::Update) {
+                    msc_application::addon_updates::repair_update(
+                        &transport,
+                        &Fs,
+                        server_dir,
+                        server.java_flavor,
+                        server.minecraft_version.as_deref(),
+                        &server.addon_links.clone().unwrap_or_default(),
+                        &server.plugin_sources.clone().unwrap_or_default(),
+                        server.pack_managed,
+                        &problem,
+                        is_running,
+                        &|| false,
+                    )
+                    .map(|_| ())
+                } else {
+                    msc_application::addon_updates::repair_install_missing_dependency(
+                        &transport,
+                        &Fs,
+                        server_dir,
+                        server.java_flavor,
+                        server.minecraft_version.as_deref(),
+                        server.pack_managed,
+                        &problem,
+                        is_running,
+                        &|| false,
+                    )
+                    .map(|_| ())
+                }
+            })
+            .await;
+            match join_result {
+                Ok(inner) => inner.map_err(RepairFailure::Update),
+                Err(_) => Err(RepairFailure::JoinFailed),
+            }
+        }
+    };
+
+    match repair_outcome {
         Ok(()) => {
             // P7.36: MSC 1 keeps a session-local `startupProblems` array
             // and drops the repaired one there; this agent has no such
@@ -498,22 +654,7 @@ pub async fn health_repair(
             })
             .into_response()
         }
-        Err(RepairError::ServerRunning) => {
-            error_response(StatusCode::CONFLICT, "server_running", "Server is running.")
-        }
-        Err(RepairError::ActionUnavailable) => {
-            invalid_body("action_unavailable", "No repair target for this problem.")
-        }
-        Err(RepairError::Io(error)) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            &error.to_string(),
-        ),
-        Err(RepairError::VerificationFailed) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "internal_error",
-            "The repair did not produce the expected on-disk state.",
-        ),
+        Err(ref failure) => health_repair_error_response(failure),
     }
 }
 
@@ -603,7 +744,12 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health_repair_route_reports_update_and_install_as_unavailable() {
+    async fn health_repair_route_accepts_update_and_install_as_valid_actions() {
+        // P8.23: `update`/`install` are now real repair kinds, not a
+        // hardcoded `action_unavailable` — with no active server, both
+        // reach the same `no_active_server` guard `disable`/`delete`
+        // already do, proving the action itself parsed successfully
+        // rather than being rejected by the `invalid_action` guard.
         let state = route_state();
         for action in ["update", "install"] {
             let response = call_repair(
@@ -614,8 +760,8 @@ mod tests {
                 },
             )
             .await;
-            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-            assert!(response_body(response).await.contains("action_unavailable"));
+            assert_eq!(response.status(), StatusCode::CONFLICT);
+            assert!(response_body(response).await.contains("no_active_server"));
         }
     }
 

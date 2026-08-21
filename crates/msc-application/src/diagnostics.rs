@@ -51,11 +51,14 @@
 //! - The generic "Server Stopped Unexpectedly" alert `diagnoseUnexpectedStop`
 //!   shows when analysis finds nothing is UI presentation with no agent
 //!   equivalent; not built here.
-//! - `update`/`install` repairs stay Phase 8 (`action_unavailable`, per
-//!   P7.9's own contract narrowing) — [`available_actions`] still lists
-//!   them when the oracle's conditions say they'd be offered (schema
-//!   completeness), but [`repair_problem`] only implements
-//!   `Disable`/`Delete`.
+//! - `update`/`install` repairs are real as of P8.23, but not built in
+//!   *this* module: both need real Modrinth network access
+//!   (`crate::addon_updates::repair_update`/
+//!   `repair_install_missing_dependency`), unlike [`repair_problem`]'s own
+//!   pure-filesystem `Disable`/`Delete`, which stays exactly as it was.
+//!   [`available_actions`] still lists all four uniformly (schema
+//!   completeness); the route layer dispatches `update`/`install` to
+//!   `addon_updates.rs` instead of here.
 //! - The stateful "in-memory problems vs. disk-reconstructed problems,
 //!   keyed by the selected server" reconciliation
 //!   `healthProblemsProvider`/`repairHealthProblemProvider` do, and the
@@ -64,10 +67,30 @@
 //!   exposes [`read_last_startup_result`] for the disk-fallback half and
 //!   pure [`available_actions`]/[`repair_problem`] for a caller that has
 //!   already resolved which `StartupProblem` is being acted on.
-//! - The port-reachability and component-jar cards stay Phase 9/8 per
-//!   this phase's own "Not in this phase" list.
+//! - The port-reachability card stays Phase 9 per this phase's own "Not
+//!   in this phase" list.
+//!
+//! **P8.23: the "Add-on Jars" (`componentJars`) card is real add-on data,
+//! not a network probe.** [`check_component_jars`] reports the same two
+//! signals this route already has on hand for free — a real disk count of
+//! installed mods/plugins ("folder" findings) and the already-persisted
+//! `last_startup_result.json` problem list's own `IncompatibleVersion`/
+//! `MissingDependency` counts ("version"/"dependency" findings), which
+//! `crash_analysis::analyze` already computes on every real server exit
+//! (P7.32/P7.36). Deliberately NOT a live Modrinth resolve: `GET /v1/health`
+//! is this agent's one route that runs outside the bearer-auth gate and is
+//! expected to answer fast and offline — giving it an outbound network
+//! dependency (`addon_updates::resolve_addon_updates`) would be a real,
+//! undiscussed behavior change to an unauthenticated endpoint, not a
+//! faithful reading of "add-on folder/version/dependency findings." The
+//! *mutating* half of this step — `update`/`install` health repairs — DOES
+//! call Modrinth for real, but only from the already-authenticated
+//! (`Settings` permission) `POST /v1/health/repair` (`addon_updates.rs`'s
+//! own [`crate::addon_updates::repair_update`]/
+//! [`crate::addon_updates::repair_install_missing_dependency`]).
 
 use msc_domain::crash_analysis::{self, ModEntry, StartupProblem, StartupProblemKind};
+use msc_domain::identity::AddOnKind;
 use msc_infrastructure::fs::FileSystem;
 use std::fmt;
 use std::path::Path;
@@ -539,6 +562,83 @@ fn ram_gb_label(value: f64) -> String {
     } else {
         let s = format!("{value}");
         s
+    }
+}
+
+/// P8.23: the real "Add-on Jars" card — see this module's own doc for why
+/// this is disk-plus-persisted-record only, never a live provider call.
+/// `add_on_kind` is `None` for Vanilla (no add-on folder at all — `Gray`,
+/// nothing to report). `installed_count` is a real `add_on_inventory::
+/// scan_mods`/`scan_plugins` length; `problems` is the same
+/// `LastStartupResult.problems` list `check_last_startup`/
+/// `health_problems` already read.
+pub fn check_component_jars(
+    add_on_kind: Option<AddOnKind>,
+    installed_count: usize,
+    problems: &[StartupProblem],
+) -> HealthCardResult {
+    if add_on_kind.is_none() {
+        return HealthCardResult {
+            id: "componentJars",
+            status: HealthStatus::Gray,
+            detected_value: "This server has no add-on folder.".to_string(),
+            action_label: None,
+            action_type: None,
+            help_id: "health.component-jars",
+        };
+    }
+    if installed_count == 0 {
+        return HealthCardResult {
+            id: "componentJars",
+            status: HealthStatus::Gray,
+            detected_value: "No mods or plugins installed.".to_string(),
+            action_label: None,
+            action_type: None,
+            help_id: "health.component-jars",
+        };
+    }
+
+    let incompatible = problems
+        .iter()
+        .filter(|p| p.kind == StartupProblemKind::IncompatibleVersion)
+        .count();
+    let missing_dependency = problems
+        .iter()
+        .filter(|p| p.kind == StartupProblemKind::MissingDependency)
+        .count();
+
+    let noun = |n: usize| if n == 1 { "add-on" } else { "add-ons" };
+    if incompatible > 0 || missing_dependency > 0 {
+        let mut parts = Vec::new();
+        if incompatible > 0 {
+            parts.push(format!(
+                "{incompatible} {} incompatible",
+                noun(incompatible)
+            ));
+        }
+        if missing_dependency > 0 {
+            parts.push(format!("{missing_dependency} missing a dependency"));
+        }
+        return HealthCardResult {
+            id: "componentJars",
+            status: HealthStatus::Red,
+            detected_value: format!(
+                "{installed_count} add-on(s) installed. {}.",
+                parts.join("; ")
+            ),
+            action_label: Some("Diagnose Add-ons"),
+            action_type: Some("diagnoseStartup"),
+            help_id: "health.component-jars",
+        };
+    }
+
+    HealthCardResult {
+        id: "componentJars",
+        status: HealthStatus::Green,
+        detected_value: format!("{installed_count} add-on(s) installed. No known problems."),
+        action_label: None,
+        action_type: None,
+        help_id: "health.component-jars",
     }
 }
 

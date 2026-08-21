@@ -879,3 +879,73 @@ fn remove_repaired_problem_is_a_no_op_when_no_record_exists() {
     .unwrap();
     assert!(!removed);
 }
+
+// --- P8.23: checkComponentJars (real add-on folder/version/dependency
+// findings — see `diagnostics.rs`'s own doc on why this stays disk/
+// persisted-record only, never a live provider call) ---
+
+#[test]
+fn check_component_jars_no_add_on_kind_is_gray() {
+    let card = diagnostics::check_component_jars(None, 0, &[]);
+    assert_eq!(card.status, HealthStatus::Gray);
+    assert_eq!(card.id, "componentJars");
+}
+
+#[test]
+fn check_component_jars_no_installed_add_ons_is_gray() {
+    let card =
+        diagnostics::check_component_jars(Some(msc_domain::identity::AddOnKind::Mod), 0, &[]);
+    assert_eq!(card.status, HealthStatus::Gray);
+    assert!(card.detected_value.contains("No mods or plugins"));
+}
+
+#[test]
+fn check_component_jars_no_problems_is_green() {
+    let card =
+        diagnostics::check_component_jars(Some(msc_domain::identity::AddOnKind::Mod), 12, &[]);
+    assert_eq!(card.status, HealthStatus::Green);
+    assert!(card.detected_value.contains("12"));
+    assert!(card.action_label.is_none());
+}
+
+#[test]
+fn check_component_jars_incompatible_version_problem_is_red() {
+    let mut p = problem(StartupProblemKind::IncompatibleVersion, "Sodium");
+    p.installed_jar_stem = Some("sodium-0.4.0".to_string());
+    let card = diagnostics::check_component_jars(
+        Some(msc_domain::identity::AddOnKind::Mod),
+        5,
+        std::slice::from_ref(&p),
+    );
+    assert_eq!(card.status, HealthStatus::Red);
+    assert!(card.detected_value.contains("1"));
+    assert_eq!(card.action_type, Some("diagnoseStartup"));
+}
+
+#[test]
+fn check_component_jars_missing_dependency_problem_is_red() {
+    let mut p = problem(StartupProblemKind::MissingDependency, "SomeMod");
+    p.missing_dependency = Some("fabric-api".to_string());
+    let card = diagnostics::check_component_jars(
+        Some(msc_domain::identity::AddOnKind::Plugin),
+        3,
+        std::slice::from_ref(&p),
+    );
+    assert_eq!(card.status, HealthStatus::Red);
+    assert!(card.detected_value.contains("missing a dependency"));
+}
+
+#[test]
+fn check_component_jars_non_actionable_problem_kinds_stay_green() {
+    // A Duplicate/LoadError problem doesn't affect this card's own
+    // incompatible/missing-dependency counters -- neither is something
+    // `update`/`install` can repair, so this card shouldn't claim a
+    // version/dependency issue exists.
+    let p = problem(StartupProblemKind::LoadError, "BadPlugin");
+    let card = diagnostics::check_component_jars(
+        Some(msc_domain::identity::AddOnKind::Plugin),
+        4,
+        std::slice::from_ref(&p),
+    );
+    assert_eq!(card.status, HealthStatus::Green);
+}

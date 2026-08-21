@@ -465,3 +465,327 @@ fn addon_plan_cache_bounded_evicts_least_recently_used() {
         "server-0 should have been evicted, forcing a recompute"
     );
 }
+
+// ---------------------------------------------------------------------
+// P8.23: `update`/`install` health repairs
+// ---------------------------------------------------------------------
+
+fn startup_problem(
+    kind: msc_domain::crash_analysis::StartupProblemKind,
+    installed_jar_stem: Option<&str>,
+    missing_dependency: Option<&str>,
+) -> msc_domain::crash_analysis::StartupProblem {
+    msc_domain::crash_analysis::StartupProblem {
+        kind,
+        offender_name: "SomeMod".to_string(),
+        offender_id: None,
+        installed_file: installed_jar_stem.map(|s| format!("{s}.jar")),
+        installed_jar_stem: installed_jar_stem.map(str::to_string),
+        requirement: None,
+        missing_dependency: missing_dependency.map(str::to_string),
+        raw_excerpt: String::new(),
+    }
+}
+
+/// A transport that panics on any call — used to prove a guard fires
+/// before any network request, the same "no fake response registered"
+/// panic-as-proof convention this phase's other tests already use.
+struct PanicTransport;
+impl AddonTransport for PanicTransport {
+    fn get(
+        &self,
+        url: &str,
+        what: &str,
+        _headers: &[(&str, &str)],
+        _max_bytes: u64,
+    ) -> Result<RawResponse, TransportError> {
+        panic!("{what}: unexpected GET {url}");
+    }
+    fn post_json(
+        &self,
+        url: &str,
+        what: &str,
+        _body: &serde_json::Value,
+        _headers: &[(&str, &str)],
+        _max_bytes: u64,
+    ) -> Result<RawResponse, TransportError> {
+        panic!("{what}: unexpected POST {url}");
+    }
+}
+
+fn never_cancel() -> bool {
+    false
+}
+
+#[test]
+fn repair_update_refuses_while_running() {
+    let fs = FakeFileSystem::new();
+    let problem = startup_problem(
+        msc_domain::crash_analysis::StartupProblemKind::IncompatibleVersion,
+        Some("sodium-0.4.0"),
+        None,
+    );
+    let err = addon_updates::repair_update(
+        &PanicTransport,
+        &fs,
+        Path::new("/servers/java/box"),
+        JavaServerFlavor::Fabric,
+        None,
+        &HashMap::new(),
+        &HashMap::new(),
+        false,
+        &problem,
+        true,
+        &never_cancel,
+    )
+    .expect_err("running refused");
+    assert!(matches!(
+        err,
+        addon_updates::HealthRepairError::ServerRunning
+    ));
+}
+
+#[test]
+fn repair_update_no_add_on_kind_for_vanilla() {
+    let fs = FakeFileSystem::new();
+    let problem = startup_problem(
+        msc_domain::crash_analysis::StartupProblemKind::IncompatibleVersion,
+        Some("sodium-0.4.0"),
+        None,
+    );
+    let err = addon_updates::repair_update(
+        &PanicTransport,
+        &fs,
+        Path::new("/servers/java/box"),
+        JavaServerFlavor::Vanilla,
+        None,
+        &HashMap::new(),
+        &HashMap::new(),
+        false,
+        &problem,
+        false,
+        &never_cancel,
+    )
+    .expect_err("vanilla has no add-on folder");
+    assert!(matches!(err, addon_updates::HealthRepairError::NoAddOnKind));
+}
+
+#[test]
+fn repair_update_action_unavailable_without_jar_stem() {
+    let fs = FakeFileSystem::new();
+    let problem = startup_problem(
+        msc_domain::crash_analysis::StartupProblemKind::IncompatibleVersion,
+        None,
+        None,
+    );
+    let err = addon_updates::repair_update(
+        &PanicTransport,
+        &fs,
+        Path::new("/servers/java/box"),
+        JavaServerFlavor::Fabric,
+        None,
+        &HashMap::new(),
+        &HashMap::new(),
+        false,
+        &problem,
+        false,
+        &never_cancel,
+    )
+    .expect_err("no jar stem to act on");
+    assert!(matches!(
+        err,
+        addon_updates::HealthRepairError::ActionUnavailable
+    ));
+}
+
+#[test]
+fn repair_update_no_update_available_for_unlinked_item() {
+    let fs = FakeFileSystem::new();
+    let dir = Path::new("/server/mods");
+    write_jar(&fs, dir, "sodium-0.4.0.jar", b"jar-bytes");
+    // Empty identify/latest responses -> the item resolves as Unlinked,
+    // never UpdateAvailable.
+    let transport = FakeTransport::new();
+    let problem = startup_problem(
+        msc_domain::crash_analysis::StartupProblemKind::IncompatibleVersion,
+        Some("sodium-0.4.0"),
+        None,
+    );
+    let err = addon_updates::repair_update(
+        &transport,
+        &fs,
+        Path::new("/server"),
+        JavaServerFlavor::Fabric,
+        None,
+        &HashMap::new(),
+        &HashMap::new(),
+        false,
+        &problem,
+        false,
+        &never_cancel,
+    )
+    .expect_err("unlinked item has no update available");
+    assert!(matches!(
+        err,
+        addon_updates::HealthRepairError::NoUpdateAvailable
+    ));
+}
+
+#[test]
+fn repair_install_missing_dependency_refuses_while_running() {
+    let fs = FakeFileSystem::new();
+    let problem = startup_problem(
+        msc_domain::crash_analysis::StartupProblemKind::MissingDependency,
+        None,
+        Some("fabric api"),
+    );
+    let err = addon_updates::repair_install_missing_dependency(
+        &PanicTransport,
+        &fs,
+        Path::new("/servers/java/box"),
+        JavaServerFlavor::Fabric,
+        None,
+        false,
+        &problem,
+        true,
+        &never_cancel,
+    )
+    .expect_err("running refused");
+    assert!(matches!(
+        err,
+        addon_updates::HealthRepairError::ServerRunning
+    ));
+}
+
+#[test]
+fn repair_install_missing_dependency_action_unavailable_without_name() {
+    let fs = FakeFileSystem::new();
+    let problem = startup_problem(
+        msc_domain::crash_analysis::StartupProblemKind::MissingDependency,
+        None,
+        None,
+    );
+    let err = addon_updates::repair_install_missing_dependency(
+        &PanicTransport,
+        &fs,
+        Path::new("/servers/java/box"),
+        JavaServerFlavor::Fabric,
+        None,
+        false,
+        &problem,
+        false,
+        &never_cancel,
+    )
+    .expect_err("no dependency name to act on");
+    assert!(matches!(
+        err,
+        addon_updates::HealthRepairError::ActionUnavailable
+    ));
+}
+
+struct SearchTransport {
+    hits: Vec<serde_json::Value>,
+}
+impl AddonTransport for SearchTransport {
+    fn get(
+        &self,
+        url: &str,
+        what: &str,
+        _headers: &[(&str, &str)],
+        _max_bytes: u64,
+    ) -> Result<RawResponse, TransportError> {
+        if url.contains("/v2/search") {
+            let body = serde_json::json!({ "hits": self.hits, "total_hits": self.hits.len() });
+            return Ok(RawResponse {
+                status: 200,
+                body: serde_json::to_vec(&body).unwrap(),
+            });
+        }
+        panic!("{what}: unexpected GET {url}");
+    }
+    fn post_json(
+        &self,
+        url: &str,
+        what: &str,
+        _body: &serde_json::Value,
+        _headers: &[(&str, &str)],
+        _max_bytes: u64,
+    ) -> Result<RawResponse, TransportError> {
+        panic!("{what}: unexpected POST {url}");
+    }
+}
+
+#[test]
+fn repair_install_missing_dependency_no_confident_match_refuses_to_guess() {
+    let fs = FakeFileSystem::new();
+    let transport = SearchTransport {
+        hits: vec![serde_json::json!({
+            "project_id": "abc123",
+            "slug": "totally-unrelated-mod",
+            "title": "Totally Unrelated Mod",
+        })],
+    };
+    let problem = startup_problem(
+        msc_domain::crash_analysis::StartupProblemKind::MissingDependency,
+        None,
+        Some("fabric api"),
+    );
+    let err = addon_updates::repair_install_missing_dependency(
+        &transport,
+        &fs,
+        Path::new("/servers/java/box"),
+        JavaServerFlavor::Fabric,
+        None,
+        false,
+        &problem,
+        false,
+        &never_cancel,
+    )
+    .expect_err("no confident match should ever install the wrong thing");
+    assert!(matches!(
+        err,
+        addon_updates::HealthRepairError::NoConfidentMatch
+    ));
+}
+
+#[test]
+fn find_confident_dependency_match_exact_title_match() {
+    let hits = vec![msc_domain::addon_provider::ModrinthSearchHit {
+        project_id: "P1".to_string(),
+        slug: "fabric-api".to_string(),
+        title: "Fabric API".to_string(),
+        server_side: None,
+    }];
+    assert_eq!(
+        addon_updates::find_confident_dependency_match("fabric api", &hits),
+        Some("P1".to_string())
+    );
+}
+
+#[test]
+fn find_confident_dependency_match_exact_slug_match() {
+    let hits = vec![msc_domain::addon_provider::ModrinthSearchHit {
+        project_id: "P2".to_string(),
+        slug: "fabric-api".to_string(),
+        title: "A Completely Different Display Name".to_string(),
+        server_side: None,
+    }];
+    assert_eq!(
+        addon_updates::find_confident_dependency_match("Fabric-API", &hits),
+        Some("P2".to_string())
+    );
+}
+
+#[test]
+fn find_confident_dependency_match_no_hit_returns_none() {
+    let hits = vec![msc_domain::addon_provider::ModrinthSearchHit {
+        project_id: "P3".to_string(),
+        slug: "sodium".to_string(),
+        title: "Sodium".to_string(),
+        server_side: None,
+    }];
+    assert_eq!(
+        addon_updates::find_confident_dependency_match("fabric api", &hits),
+        None
+    );
+}

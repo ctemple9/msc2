@@ -241,6 +241,32 @@ fn looks_like_version_component(s: &str) -> bool {
 
 type ModManifest = (Option<String>, Option<String>, Option<String>); // (mod_id, display_name, version)
 
+/// P8.16 amendment: `AddonUpdateResolver`'s own unlinked-item display-name
+/// fallback (`fixtures/addon-update-resolution/
+/// unlinked-item-prefers-embedded-jar-metadata-over-filename-heuristic.json`)
+/// reads a Paper/Bukkit plugin's `plugin.yml` `name:` key — this scanner's
+/// own `scan_plugins` deliberately doesn't (this module's own top-of-file
+/// doc explains why: crash-analysis discovery is filename-heuristic only
+/// for plugins). Exposed as its own function, not folded into
+/// `scan_plugins`, so P8.16's `addon_updates.rs` can read it only where
+/// the oracle actually does. A bare `name:` top-level key scan, not a real
+/// YAML parser — the same "not more capable than the oracle" precedent
+/// this module's own `parse_mods_toml` already set for `.toml`.
+pub fn plugin_yml_name(jar_path: &Path) -> Option<String> {
+    let bytes = archive::read_entry_bytes(jar_path, "plugin.yml").ok()??;
+    let text = String::from_utf8(bytes).ok()?;
+    for line in text.split('\n') {
+        let trimmed = line.trim_end_matches('\r');
+        if let Some(rest) = trimmed.strip_prefix("name:") {
+            let value = rest.trim().trim_matches('"').trim_matches('\'');
+            if !value.is_empty() {
+                return Some(value.to_string());
+            }
+        }
+    }
+    None
+}
+
 /// `ModJarMetadataParser.parse(jarURL:)` (`ModJarMetadataParser.swift:
 /// 28-32`): Fabric first, then Forge/NeoForge. `jar_path` must be a real
 /// path on disk — see this module's own doc on why `archive::

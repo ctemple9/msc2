@@ -1,0 +1,19 @@
+{
+  "domain": "phase8-selftest",
+  "case": "mods",
+  "source": {
+    "file": "phase8-check-selftest",
+    "test": "self-test placeholder -- not a real characterization case",
+    "line": 1
+  },
+  "input": {
+    "placeholder": true
+  },
+  "expected": {
+    "placeholder": true
+  },
+  "workflow": "mods",
+  "corpus_source": [
+    "github/releases-latest.json"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "sample.mrpack",
+      "pack_format": "mrpack",
+      "source_url": "https://cdn.modrinth.com/data/example/versions/1.0.0/example.mrpack",
+      "captured": "2026-08-21",
+      "sha256": "eefea39f8ec71d8d7416ff28faaeaaaeec6a9393dfacae6d638dddcdc55bf3bd",
+      "byte_size": 634
+    },
+    {
+      "path": "sample-curseforge.zip",
+      "pack_format": "curseforge",
+      "source_url": "https://www.curseforge.com/minecraft/modpacks/example/files/1",
+      "captured": "2026-08-21",
+      "sha256": "752c23fb3f592c33f6e9efccbca1479a40ea2742ec500cc0a9aaa5869c40259d",
+      "byte_size": 806
+    }
+  ]
+}

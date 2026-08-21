@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "recorded.json",
+      "provider": "modrinth",
+      "purpose": "search",
+      "source_url": "https://api.modrinth.com/v2/search",
+      "captured": "2026-08-21",
+      "sha256": "12b34da73b0c67a0319e6eddbd3582af66e3b558b4d44e4a6860e0cec20d726f",
+      "byte_size": 17
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "nomanifest.mrpack",
+      "pack_format": "mrpack",
+      "source_url": "https://example.invalid/nomanifest.mrpack",
+      "captured": "2026-08-21",
+      "sha256": "a5f4088170ae762388676567c3a2babb0e90bfa5d44de6929b3d21aec54cd930",
+      "byte_size": 171
+    }
+  ]
+}

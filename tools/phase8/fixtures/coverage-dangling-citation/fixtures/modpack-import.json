@@ -1,0 +1,19 @@
+{
+  "domain": "phase8-selftest",
+  "case": "modpack-import",
+  "source": {
+    "file": "phase8-check-selftest",
+    "test": "self-test placeholder -- not a real characterization case",
+    "line": 1
+  },
+  "input": {
+    "placeholder": true
+  },
+  "expected": {
+    "placeholder": true
+  },
+  "workflow": "modpack-import",
+  "corpus_source": [
+    "curseforge/files-batch.json"
+  ]
+}

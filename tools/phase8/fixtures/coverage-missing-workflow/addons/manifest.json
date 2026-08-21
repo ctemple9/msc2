@@ -1,0 +1,49 @@
+{
+  "files": [
+    {
+      "path": "modrinth/version-file-hash.json",
+      "provider": "modrinth",
+      "purpose": "version_file_hash",
+      "source_url": "https://api.modrinth.com/v2/version_file/abc",
+      "captured": "2026-08-21",
+      "sha256": "846c865590173ff250ae92403668df31c49ee82a12d965a2d91c5413234bfdb3",
+      "byte_size": 29
+    },
+    {
+      "path": "hangar/latest-release.json",
+      "provider": "hangar",
+      "purpose": "latest_release",
+      "source_url": "https://hangar.papermc.io/api/v1/projects/example/latestrelease",
+      "captured": "2026-08-21",
+      "sha256": "90cd3a23aa44c3136ad50eccaf531375d4cdeeeb6a3ed0ee9fbb0e76ea1659dc",
+      "byte_size": 51
+    },
+    {
+      "path": "curseforge/files-batch.json",
+      "provider": "curseforge",
+      "purpose": "files_batch",
+      "source_url": "https://api.curseforge.com/v1/mods/files",
+      "captured": "2026-08-21",
+      "sha256": "3b459147c8170c320545247d8ba79c22d55408311adafa4ad737f02c7aa78700",
+      "byte_size": 17
+    },
+    {
+      "path": "github/releases-latest.json",
+      "provider": "github",
+      "purpose": "releases_latest",
+      "source_url": "https://api.github.com/repos/example/plugin/releases/latest",
+      "captured": "2026-08-21",
+      "sha256": "3ff5f36c9d4b232659ddd88f4d22f3f01d313884e5a22190bda7a07a235333fa",
+      "byte_size": 19
+    },
+    {
+      "path": "direct/download-header.json",
+      "provider": "direct",
+      "purpose": "direct_download",
+      "source_url": "https://example.invalid/plugin.jar",
+      "captured": "2026-08-21",
+      "sha256": "fd4fd1548883e92ddd72b35602e914ff0d15c858f0372896c91ce276a63baafe",
+      "byte_size": 49
+    }
+  ]
+}

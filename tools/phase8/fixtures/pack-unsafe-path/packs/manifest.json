@@ -1,0 +1,12 @@
+{
+  "files": [
+    {
+      "path": "evil.mrpack",
+      "pack_format": "mrpack",
+      "source_url": "https://example.invalid/evil.mrpack",
+      "captured": "2026-08-21",
+      "sha256": "d737b92b5a874a157d5020a2056eda0b23fa6992f7546e9a3f1e9d199e6b599d",
+      "byte_size": 585
+    }
+  ]
+}

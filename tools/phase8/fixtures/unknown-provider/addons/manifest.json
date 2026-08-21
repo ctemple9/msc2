@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "response.json",
+      "provider": "spigot",
+      "purpose": "search",
+      "source_url": "https://api.spiget.org/v2/search/resources/example",
+      "captured": "2026-08-21",
+      "sha256": "90f58907ac7379da8b39c909ffaecd8fba611be6ffd45cb91c6ec1ee37ba62cd",
+      "byte_size": 27
+    }
+  ]
+}

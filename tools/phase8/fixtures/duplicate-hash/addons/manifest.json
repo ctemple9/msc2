@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "path": "copy-a.json",
+      "provider": "modrinth",
+      "purpose": "search",
+      "source_url": "https://api.modrinth.com/v2/search?q=a",
+      "captured": "2026-08-21",
+      "sha256": "2f69e1fe5f4ff1f9b77350d83cea8ebb3ad2db22b07e04b90588daba49315022",
+      "byte_size": 24
+    },
+    {
+      "path": "copy-b.json",
+      "provider": "modrinth",
+      "purpose": "search",
+      "source_url": "https://api.modrinth.com/v2/search?q=b",
+      "captured": "2026-08-21",
+      "sha256": "2f69e1fe5f4ff1f9b77350d83cea8ebb3ad2db22b07e04b90588daba49315022",
+      "byte_size": 24
+    }
+  ]
+}

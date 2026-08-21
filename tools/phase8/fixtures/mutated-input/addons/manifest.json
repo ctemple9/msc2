@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "mutated.json",
+      "provider": "github",
+      "purpose": "releases_latest",
+      "source_url": "https://api.github.com/repos/example/plugin/releases/latest",
+      "captured": "2026-08-21",
+      "sha256": "4b8894d57dfa621e534ef4eb25263e8f00254cbcb4327f1f98796314ac279dde",
+      "byte_size": 19
+    }
+  ]
+}

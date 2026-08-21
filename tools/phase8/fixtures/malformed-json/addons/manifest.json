@@ -1,0 +1,13 @@
+{
+  "files": [
+    {
+      "path": "broken.json",
+      "provider": "curseforge",
+      "purpose": "files_batch",
+      "source_url": "https://api.curseforge.com/v1/mods/files",
+      "captured": "2026-08-21",
+      "sha256": "92072df399cb74703f8e86f450d552bc0bb01eeeb98a90985a1b7772c8fd0016",
+      "byte_size": 9
+    }
+  ]
+}

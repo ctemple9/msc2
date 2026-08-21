@@ -1,0 +1,22 @@
+{
+  "files": [
+    {
+      "path": "modrinth-search-sodium.json",
+      "provider": "modrinth",
+      "purpose": "search",
+      "source_url": "https://api.modrinth.com/v2/search?query=sodium",
+      "captured": "2026-08-21",
+      "sha256": "e8ed2387308fbc1bbb9fd9503c06829303fed4675985e9b8789a434b8ff340f3",
+      "byte_size": 87
+    },
+    {
+      "path": "hangar-latest-viaversion.json",
+      "provider": "hangar",
+      "purpose": "latest_release",
+      "source_url": "https://hangar.papermc.io/api/v1/projects/ViaVersion/latestrelease",
+      "captured": "2026-08-21",
+      "sha256": "402c153c0456ca0a27367623a5985c342c080a45eebdfd5c34c3d02e7fd0340d",
+      "byte_size": 87
+    }
+  ]
+}

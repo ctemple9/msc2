@@ -1,0 +1,20 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "bucket-up-to-date-when-latest-version-id-matches-installed",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) bucket assignment",
+    "line": 217
+  },
+  "input": {
+    "installed_version_id": "v1",
+    "latest_version_id": "v1"
+  },
+  "expected": {
+    "bucket": "upToDate",
+    "availableVersion": null,
+    "availableVersionId": null,
+    "reason": "Lines 217-221: when the latest-compatible build's ID equals what's already installed, the item is upToDate and both available-version fields are nil rather than echoing the current version back."
+  },
+  "workflow": "addon-updates"
+}

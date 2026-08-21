@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "provenance-hash-detected-on-fresh-match-else-falls-back-to-persisted-links-own-provenance",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) provenance ternary",
+    "line": 182
+  },
+  "input": {
+    "case_a_fresh_hash": true,
+    "case_b_persisted_only_prior_provenance": "userLinked"
+  },
+  "expected": {
+    "case_a_provenance": "hashDetected",
+    "case_b_provenance": "userLinked",
+    "reason": "Line 182: `idVersion != nil ? .hashDetected : (link?.provenance ?? .userLinked)` -- provenance surfaced to the UI always reflects THIS pass's identification method for a fresh hit, but preserves whatever the persisted link already recorded (installed/userLinked/nameGuess) when this pass didn't independently re-confirm it by hash."
+  },
+  "workflow": "addon-updates"
+}

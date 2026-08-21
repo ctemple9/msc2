@@ -1,0 +1,18 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "sha1-declared-as-fallback-algorithm-but-resolver-never-calls-it",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.sha1Hex(of:) vs AddonUpdateResolver usage",
+    "line": 356
+  },
+  "input": {
+    "grep_scope": "AddonUpdateResolver.swift"
+  },
+  "expected": {
+    "sha1Hex_call_sites_in_resolver": 0,
+    "sha512Hex_call_sites_in_resolver": 1,
+    "reason": "ModrinthAPI.swift:356 declares `sha1Hex(of:)` as a fallback hashing algorithm, but AddonUpdateResolver.swift's only hashing call (line 143) is `ModrinthAPI.sha512Hex(of:)` -- sha1Hex exists in the provider layer but is dead code from the resolver's perspective. P8.10/P8.16's port should not invent a SHA-1 fallback path the resolver never actually exercises."
+  },
+  "workflow": "addon-updates"
+}

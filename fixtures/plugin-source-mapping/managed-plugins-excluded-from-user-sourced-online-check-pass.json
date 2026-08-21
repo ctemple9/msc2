@@ -1,0 +1,32 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "managed-plugins-excluded-from-user-sourced-online-check-pass",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "checkUserSourcedPluginsOnline() tier filter",
+    "line": 238
+  },
+  "input": {
+    "discoveredPlugins": [
+      {
+        "jarStem": "geyser-spigot",
+        "tier": "managed"
+      },
+      {
+        "jarStem": "LuckPerms-Bukkit",
+        "tier": "userSourced"
+      },
+      {
+        "jarStem": "SomePlugin",
+        "tier": "unmanaged"
+      }
+    ]
+  },
+  "expected": {
+    "plugins_checked": [
+      "LuckPerms-Bukkit"
+    ],
+    "reason": "Line 238: `discoveredPlugins.filter { $0.tier == .userSourced }` -- only userSourced-tier plugins go through the per-plugin fetchOnlineVersion concurrency group; managed (Geyser/Floodgate) and unmanaged plugins are never included in this pass at all."
+  },
+  "workflow": "plugin-management"
+}

@@ -1,0 +1,26 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "merge-discovered-links-client-server-side-refresh-falls-back-to-prior-when-discovered-nil",
+  "source": {
+    "file": "AppViewModel+AddonUpdates.swift",
+    "test": "mergeDiscoveredLinks(_:into:) clientSide/serverSide fallback",
+    "line": 66
+  },
+  "input": {
+    "prior_link": {
+      "provenance": "userLinked",
+      "clientSide": "required",
+      "serverSide": "required"
+    },
+    "discovered_link": {
+      "clientSide": null,
+      "serverSide": null
+    }
+  },
+  "expected": {
+    "merged_clientSide": "required",
+    "merged_serverSide": "required",
+    "reason": "Line 66-67: `discovered.clientSide ?? prior.clientSide` -- if this pass's discovered link couldn't determine clientSide/serverSide (e.g. the bulk project-metadata fetch failed or the project was unlisted), the prior persisted value is kept rather than being wiped to nil."
+  },
+  "workflow": "addon-updates"
+}

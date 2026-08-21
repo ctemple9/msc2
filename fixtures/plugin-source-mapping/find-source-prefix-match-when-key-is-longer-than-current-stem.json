@@ -1,0 +1,23 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "find-source-prefix-match-when-key-is-longer-than-current-stem",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "findSource(for:in:) prefix match, key longer",
+    "line": 214
+  },
+  "input": {
+    "jarStem": "LuckPerms",
+    "sources": {
+      "LuckPerms-Bukkit-5.4.141": {
+        "url": "https://modrinth.com/plugin/luckperms",
+        "type": "modrinth"
+      }
+    }
+  },
+  "expected": {
+    "matched_source_url": "https://modrinth.com/plugin/luckperms",
+    "reason": "Line 214's OR is symmetric: `kl.hasPrefix(lower)` -- the reverse direction, where the RECORDED key is longer than the current stem (the jar was renamed to drop its version/loader suffix), also matches."
+  },
+  "workflow": "plugin-management"
+}

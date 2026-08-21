@@ -1,0 +1,26 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "set-plugin-source-creates-new-entry",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "setPluginSource(jarStem:url:type:)",
+    "line": 214
+  },
+  "input": {
+    "jarStem": "NewPlugin-1.0",
+    "url": "https://modrinth.com/plugin/newplugin",
+    "type": "modrinth",
+    "existing_sources": {}
+  },
+  "expected": {
+    "sources_after": {
+      "NewPlugin-1.0": {
+        "url": "https://modrinth.com/plugin/newplugin",
+        "type": "modrinth"
+      }
+    },
+    "config_saved": true,
+    "reason": "Lines 214-229: builds/loads the server's `pluginSources` map (defaulting to `[:]` if nil), writes `sources[jarStem] = PluginSourceConfig(url:type:)`, persists, and logs -- the create and replace cases share this exact same code path."
+  },
+  "workflow": "plugin-management"
+}

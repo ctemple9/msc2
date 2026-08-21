@@ -1,0 +1,34 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "sort-order-managed-before-user-sourced-before-unmanaged",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins() entries.sort tier ordering",
+    "line": 189
+  },
+  "input": {
+    "entries": [
+      {
+        "displayName": "Zeta Unmanaged",
+        "tier": "unmanaged"
+      },
+      {
+        "displayName": "Alpha UserSourced",
+        "tier": "userSourced"
+      },
+      {
+        "displayName": "Beta Managed (not geyser/floodgate-named)",
+        "tier": "managed"
+      }
+    ]
+  },
+  "expected": {
+    "ordered_display_names": [
+      "Beta Managed (not geyser/floodgate-named)",
+      "Alpha UserSourced",
+      "Zeta Unmanaged"
+    ],
+    "reason": "Lines 188-196: `PluginTier` is `Comparable` by raw value (managed=0 < userSourced=1 < unmanaged=2, `AppModels.swift:65-71`); `if a.tier != b.tier { return a.tier < b.tier }` sorts by that rank FIRST, overriding alphabetical order across tier boundaries."
+  },
+  "workflow": "plugin-management"
+}

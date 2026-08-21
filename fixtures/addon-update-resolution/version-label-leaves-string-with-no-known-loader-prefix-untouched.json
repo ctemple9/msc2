@@ -1,0 +1,17 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "version-label-leaves-string-with-no-known-loader-prefix-untouched",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "cleanVersionLabel(_:) no-prefix-match path",
+    "line": 298
+  },
+  "input": {
+    "raw": "1.8.14-beta.1+1.21.1-fabric"
+  },
+  "expected": {
+    "cleaned": "1.8.14-beta.1+1.21.1-fabric",
+    "reason": "None of the 12 known loader prefixes match a string that doesn't start with `<loader>-` at all -- the loop (line 302-309) simply exhausts without a `return`, and the function falls through to `return s` (line 311) unchanged."
+  },
+  "workflow": "addon-updates"
+}

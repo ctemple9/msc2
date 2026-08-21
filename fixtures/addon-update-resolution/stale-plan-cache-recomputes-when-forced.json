@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "stale-plan-cache-recomputes-when-forced",
+  "source": {
+    "file": "AppViewModel+AddonUpdates.swift",
+    "test": "resolveAddonUpdates(for:force:) force bypass",
+    "line": 27
+  },
+  "input": {
+    "addonPlanServerId": "server-A",
+    "cfg_id": "server-A",
+    "force": true
+  },
+  "expected": {
+    "recompute_started": true,
+    "reason": "The same `!force && ...` guard short-circuits (via `!force` being false) whenever force is true -- every mutation path calls `invalidateAddonPlan()` then re-resolves with force:true, per `phase8-scope.md`'s own note on this being the explicit cache-bust mechanism."
+  },
+  "workflow": "addon-updates"
+}

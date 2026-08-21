@@ -1,0 +1,25 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "identity-falls-back-to-persisted-installed-filename-as-last-resort",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) projectId resolution, clause 3",
+    "line": 177
+  },
+  "input": {
+    "file_sha512": "ccc...",
+    "identified_hash_lookup": {},
+    "persisted_addon_links": {
+      "PROJ_Y": {
+        "installedHash": "old-hash-not-ccc",
+        "installedFileName": "SamePlugin-1.0.jar"
+      }
+    },
+    "current_filename": "SamePlugin-1.0.jar"
+  },
+  "expected": {
+    "resolved_project_id": "PROJ_Y",
+    "reason": "Line 177: the last-resort match is by exact `installedFileName` string equality -- used when the file's hash changed (e.g. an out-of-band jar swap that MSC didn't perform) but the filename on disk is unchanged from what was last recorded. This is the weakest of the three checks: a coincidental filename collision between two different plugins would misidentify the file."
+  },
+  "workflow": "addon-updates"
+}

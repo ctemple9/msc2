@@ -1,0 +1,29 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "sort-alphabetical-by-display-name-within-tier",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins() entries.sort alphabetical fallback",
+    "line": 195
+  },
+  "input": {
+    "entries": [
+      {
+        "displayName": "Zeta Plugin",
+        "tier": "userSourced"
+      },
+      {
+        "displayName": "alpha plugin",
+        "tier": "userSourced"
+      }
+    ]
+  },
+  "expected": {
+    "ordered_display_names": [
+      "alpha plugin",
+      "Zeta Plugin"
+    ],
+    "reason": "Line 195: `a.displayName.lowercased() < b.displayName.lowercased()` -- the final tie-break within an equal tier is case-insensitive alphabetical."
+  },
+  "workflow": "plugin-management"
+}

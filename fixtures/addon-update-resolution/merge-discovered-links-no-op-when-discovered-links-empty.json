@@ -1,0 +1,17 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "merge-discovered-links-no-op-when-discovered-links-empty",
+  "source": {
+    "file": "AppViewModel+AddonUpdates.swift",
+    "test": "mergeDiscoveredLinks(_:into:) empty guard",
+    "line": 59
+  },
+  "input": {
+    "discovered_links": {}
+  },
+  "expected": {
+    "config_saved": false,
+    "reason": "Line 59: `guard !links.isEmpty, ... else { return }` -- a resolve pass that identified zero add-ons by fresh hash (everything was persisted-fallback or unlinked) never writes to configManager at all, avoiding a needless save on every read-only Components-tab appearance."
+  },
+  "workflow": "addon-updates"
+}

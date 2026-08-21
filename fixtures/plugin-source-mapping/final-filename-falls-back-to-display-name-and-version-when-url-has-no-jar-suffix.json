@@ -1,0 +1,19 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "final-filename-falls-back-to-display-name-and-version-when-url-has-no-jar-suffix",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "downloadLatestForPlugin(entry:) finalName derivation, fallback branch",
+    "line": 337
+  },
+  "input": {
+    "downloadURL": "https://hangar.papermc.io/api/v1/projects/EssentialsX/Essentials/versions/2.22.0/PAPER/download",
+    "entry_displayName": "Essentials",
+    "entry_onlineVersion": "2.22.0"
+  },
+  "expected": {
+    "finalName": "Essentials-2.22.0.jar",
+    "reason": "Line 337: `\"\\(entry.displayName)-\\(entry.onlineVersion ?? \"latest\").jar\"` -- Hangar's computed download-redirect endpoint (see fixtures/addon-providers/fetch-latest-real-response-falls-back-to-computed-endpoint-when-api-url-absent.json) has no .jar-suffixed path itself, so the final filename is synthesized from the entry's own display name and fetched version string, falling back to the literal word \"latest\" if onlineVersion is somehow nil."
+  },
+  "workflow": "plugin-management"
+}

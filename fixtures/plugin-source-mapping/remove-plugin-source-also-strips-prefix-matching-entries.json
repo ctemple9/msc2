@@ -1,0 +1,23 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "remove-plugin-source-also-strips-prefix-matching-entries",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "removePluginSource(jarStem:) prefix sweep",
+    "line": 240
+  },
+  "input": {
+    "jarStem": "LuckPerms-5.5.0",
+    "existing_sources": {
+      "LuckPerms-5.4.141": {
+        "url": "https://stale",
+        "type": "modrinth"
+      }
+    }
+  },
+  "expected": {
+    "sources_after": {},
+    "reason": "Lines 240-243: after the exact removeValue, the SAME prefix filter used by setPluginSource runs again -- so removing a source for the current filename also sweeps out any stale prefix-related leftover key, not just an exact match."
+  },
+  "workflow": "plugin-management"
+}

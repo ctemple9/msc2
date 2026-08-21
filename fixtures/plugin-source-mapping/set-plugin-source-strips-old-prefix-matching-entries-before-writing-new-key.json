@@ -1,0 +1,30 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "set-plugin-source-strips-old-prefix-matching-entries-before-writing-new-key",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "setPluginSource(jarStem:url:type:) stale-prefix cleanup",
+    "line": 221
+  },
+  "input": {
+    "jarStem": "LuckPerms-5.5.0",
+    "existing_sources": {
+      "LuckPerms-5.4.141": {
+        "url": "https://old-url",
+        "type": "modrinth"
+      }
+    },
+    "url": "https://new-url",
+    "type": "modrinth"
+  },
+  "expected": {
+    "sources_after": {
+      "LuckPerms-5.5.0": {
+        "url": "https://new-url",
+        "type": "modrinth"
+      }
+    },
+    "reason": "Lines 221-224: BEFORE writing the new key, `sources = sources.filter { !(sl.hasPrefix(kl) || kl.hasPrefix(sl)) }` removes any entry whose key is prefix-related to the NEW jarStem -- so a version bump that changes the filename stem doesn't leave two source entries (an old stale one plus the new one) both pointing at what's really the same plugin."
+  },
+  "workflow": "plugin-management"
+}

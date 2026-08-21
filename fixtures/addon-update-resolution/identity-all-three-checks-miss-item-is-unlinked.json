@@ -1,0 +1,20 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "identity-all-three-checks-miss-item-is-unlinked",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) unlinked fallback",
+    "line": 250
+  },
+  "input": {
+    "file_sha512": "ddd...",
+    "identified_hash_lookup": {},
+    "persisted_addon_links": {}
+  },
+  "expected": {
+    "bucket": "unlinked",
+    "projectId": null,
+    "reason": "Line 250: only when hash-identify, persisted-hash, and persisted-filename all miss does `if let projectId` fail and the `else` branch build an `.unlinked` item with a best-effort `nameGuess` derived from embedded jar metadata or filename heuristics (line 251-253)."
+  },
+  "workflow": "addon-updates"
+}

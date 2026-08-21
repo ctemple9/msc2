@@ -1,0 +1,17 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "version-label-strips-known-loader-prefix-when-remainder-is-version-shaped",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "cleanVersionLabel(_:)",
+    "line": 302
+  },
+  "input": {
+    "raw": "bukkit-2.6.20"
+  },
+  "expected": {
+    "cleaned": "2.6.20",
+    "reason": "Lines 299-310: for each of 12 known loader prefixes (bukkit/spigot/paper/purpur/folia/fabric/forge/neoforge/quilt/velocity/bungeecord/waterfall), if the lowercased string starts with `<loader>-` AND what remains starts with a digit (or `v` followed by a digit), the loader prefix is stripped -- \"bukkit-2.6.20\" becomes \"2.6.20\" so plugin and mod versions read consistently regardless of which loader variant Modrinth's version_number happened to encode."
+  },
+  "workflow": "addon-updates"
+}

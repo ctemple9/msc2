@@ -1,0 +1,23 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "find-source-returns-nil-when-no-match",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "findSource(for:in:) no-match fall-through",
+    "line": 216
+  },
+  "input": {
+    "jarStem": "TotallyDifferentPlugin",
+    "sources": {
+      "LuckPerms-Bukkit-5.4.141": {
+        "url": "https://x",
+        "type": "modrinth"
+      }
+    }
+  },
+  "expected": {
+    "matched_source_url": null,
+    "reason": "Line 216: `return nil` -- neither an exact key nor a prefix relationship in either direction exists, so the plugin has no source and (per tier derivation) falls to `.unmanaged`."
+  },
+  "workflow": "plugin-management"
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "self-healing-link-recorded-only-on-fresh-hash-match-not-persisted-fallback",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) discoveredLinks recording guard",
+    "line": 185
+  },
+  "input": {
+    "case_a_fresh_hash_match": true,
+    "case_b_persisted_fallback_only": true
+  },
+  "expected": {
+    "case_a_discoveredLinks_has_entry": true,
+    "case_b_discoveredLinks_has_entry": false,
+    "reason": "Line 185: `if let idVersion, idVersion.projectId == projectId { result.discoveredLinks[projectId] = AddonLink(...) }` -- a self-healing link write only happens off a genuine fresh hash identify hit. An item resolved purely through the persisted-installedHash or persisted-installedFileName fallback clauses produces NO discoveredLinks entry, since idVersion is nil in that path -- the existing persisted link is left exactly as it was, not re-written with (potentially stale) data."
+  },
+  "workflow": "addon-updates"
+}

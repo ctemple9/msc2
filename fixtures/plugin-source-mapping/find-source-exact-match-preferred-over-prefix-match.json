@@ -1,0 +1,27 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "find-source-exact-match-preferred-over-prefix-match",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "findSource(for:in:) exact-match short-circuit",
+    "line": 209
+  },
+  "input": {
+    "jarStem": "LuckPerms-Bukkit-5.4.141",
+    "sources": {
+      "LuckPerms-Bukkit-5.4.141": {
+        "url": "https://modrinth.com/plugin/luckperms-exact",
+        "type": "modrinth"
+      },
+      "LuckPerms": {
+        "url": "https://modrinth.com/plugin/luckperms-prefix",
+        "type": "modrinth"
+      }
+    }
+  },
+  "expected": {
+    "matched_source_url": "https://modrinth.com/plugin/luckperms-exact",
+    "reason": "Line 209: `if let exact = sources[jarStem] { return exact }` is checked and returned before the prefix-match loop (line 210-215) ever runs -- an exact key match always wins even when a shorter prefix key also happens to exist for the same plugin."
+  },
+  "workflow": "plugin-management"
+}

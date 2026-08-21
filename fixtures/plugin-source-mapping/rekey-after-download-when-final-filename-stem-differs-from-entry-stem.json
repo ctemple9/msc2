@@ -1,0 +1,23 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "rekey-after-download-when-final-filename-stem-differs-from-entry-stem",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "downloadLatestForPlugin(entry:) source-key rekey",
+    "line": 356
+  },
+  "input": {
+    "entry_jarStem": "LuckPerms-Bukkit-5.4.141",
+    "final_filename": "LuckPerms-Bukkit-5.5.0.jar",
+    "entry_sourceConfig": {
+      "url": "https://modrinth.com/plugin/luckperms",
+      "type": "modrinth"
+    }
+  },
+  "expected": {
+    "new_source_key_written": "LuckPerms-Bukkit-5.5.0",
+    "old_source_key_removed": "LuckPerms-Bukkit-5.4.141",
+    "reason": "Lines 355-368: after a successful download, `let newStem = finalURL.deletingPathExtension().lastPathComponent`; if `newStem != entry.jarStem`, `setPluginSource(jarStem: newStem, ...)` writes a fresh entry under the new stem, then the OLD key is explicitly removed via `pluginSources?.removeValue(forKey: entry.jarStem)` -- two separate writes/saves, not one atomic rename, but both run inside the same MainActor.run block before downloadingPlugins is cleared."
+  },
+  "workflow": "plugin-management"
+}

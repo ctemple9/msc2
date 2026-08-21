@@ -1,0 +1,17 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "final-filename-derived-from-download-url-last-path-component-when-it-ends-in-jar",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "downloadLatestForPlugin(entry:) finalName derivation, URL branch",
+    "line": 336
+  },
+  "input": {
+    "downloadURL": "https://cdn.modrinth.com/data/xyz/versions/abc/luckperms-bukkit-5.5.0.jar"
+  },
+  "expected": {
+    "finalName": "luckperms-bukkit-5.5.0.jar",
+    "reason": "Lines 335-337: `downloadURL.lastPathComponent.hasSuffix(\".jar\") ? downloadURL.lastPathComponent : ...` -- when the download URL's own last path segment already ends in .jar, that exact filename (including its casing) is used verbatim as the final on-disk name."
+  },
+  "workflow": "plugin-management"
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "hash-identify-and-latest-lookup-are-concurrent-not-sequential",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) concurrent async let",
+    "line": 154
+  },
+  "input": {
+    "folder_jar_count": 30
+  },
+  "expected": {
+    "modrinth_requests_made": 2,
+    "reason": "Lines 153-158: `async let idTask = ...versionsFromHashes(hashes)` and `async let latestTask = ...latestVersionsForHashes(...)` run concurrently, both awaited after being started -- a folder of 30 add-ons costs exactly 2 Modrinth requests total (one batch identify, one batch latest-compatible), not 2 requests per file and not even 2 sequential requests."
+  },
+  "workflow": "addon-updates"
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "tier-unmanaged-when-no-source-config-and-not-managed",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins() tier derivation",
+    "line": 159
+  },
+  "input": {
+    "jarStem": "SomeRandomPlugin-1.0",
+    "pluginSources": {}
+  },
+  "expected": {
+    "tier": "unmanaged",
+    "reason": "Line 158-159: `else { tier = .unmanaged }` -- a jar that's neither Geyser/Floodgate nor has any matching source entry is unmanaged: on disk, but MSC has no online-update path for it beyond manual replacement."
+  },
+  "workflow": "plugin-management"
+}

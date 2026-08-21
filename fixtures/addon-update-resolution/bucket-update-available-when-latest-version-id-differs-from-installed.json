@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "bucket-update-available-when-latest-version-id-differs-from-installed",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) bucket assignment",
+    "line": 211
+  },
+  "input": {
+    "installed_version_id": "v1",
+    "latest_version_id": "v2"
+  },
+  "expected": {
+    "bucket": "updateAvailable",
+    "availableVersionId": "v2",
+    "reason": "Lines 211-216: `latestVersion` is present and `latestVersion.id != (idVersion?.id ?? link?.installedVersionId)` -- a genuinely different latest-compatible build ID means an update is available."
+  },
+  "workflow": "addon-updates"
+}

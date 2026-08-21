@@ -1,0 +1,39 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "deterministic-ordering-bucket-rank-then-alphabetical-within-bucket",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) result.items.sort",
+    "line": 275
+  },
+  "input": {
+    "items": [
+      {
+        "displayName": "Zeta Mod",
+        "bucket": "unlinked"
+      },
+      {
+        "displayName": "Beta Plugin",
+        "bucket": "updateAvailable"
+      },
+      {
+        "displayName": "Alpha Plugin",
+        "bucket": "updateAvailable"
+      },
+      {
+        "displayName": "Gamma Mod",
+        "bucket": "noCompatibleVersion"
+      }
+    ]
+  },
+  "expected": {
+    "ordered_display_names": [
+      "Alpha Plugin",
+      "Beta Plugin",
+      "Gamma Mod",
+      "Zeta Mod"
+    ],
+    "reason": "Lines 275-278 and the private `AddonUpdateBucket.sortRank` extension (line 283-291): sort primarily by bucket rank (updateAvailable=0, noCompatibleVersion=1, upToDate=2, unlinked=3), and only within an equal rank by case-insensitive displayName ascending -- so updates-available items always lead the list regardless of alphabetical position."
+  },
+  "workflow": "addon-updates"
+}

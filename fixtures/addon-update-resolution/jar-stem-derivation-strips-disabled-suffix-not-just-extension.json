@@ -1,0 +1,23 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "jar-stem-derivation-strips-disabled-suffix-not-just-extension",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) DiskFile.jarStem",
+    "line": 120
+  },
+  "input": {
+    "filenames": [
+      "LuckPerms-Bukkit-5.4.141.jar",
+      "LuckPerms-Bukkit-5.4.141.jar.disabled"
+    ]
+  },
+  "expected": {
+    "jar_stems": [
+      "LuckPerms-Bukkit-5.4.141",
+      "LuckPerms-Bukkit-5.4.141"
+    ],
+    "reason": "Lines 120-126: an enabled file uses `deletingPathExtension()` (strips only `.jar`), but a disabled file uses `String(filename.dropLast(\".jar.disabled\".count))` -- a plain deletingPathExtension() on `X.jar.disabled` would only strip `.disabled` and leave `X.jar`, which is why the disabled branch is handled with an explicit drop-suffix instead. Both paths converge on the identical stem regardless of enabled state, which is what lets the same jarStem key be used across enable/disable/update."
+  },
+  "workflow": "addon-updates"
+}

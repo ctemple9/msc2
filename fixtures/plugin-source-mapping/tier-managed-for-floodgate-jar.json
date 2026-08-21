@@ -1,0 +1,17 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "tier-managed-for-floodgate-jar",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins() tier derivation",
+    "line": 153
+  },
+  "input": {
+    "jarStem": "floodgate-spigot"
+  },
+  "expected": {
+    "tier": "managed",
+    "reason": "Line 152: `let isFloodgate = jarStem.lowercased().contains(\"floodgate\")` -- same substring-contains check as Geyser, case-insensitive."
+  },
+  "workflow": "plugin-management"
+}

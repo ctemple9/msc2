@@ -1,0 +1,24 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "geyser-floodgate-excluded-on-plugin-servers-only",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) plugin-server exclusion",
+    "line": 133
+  },
+  "input": {
+    "add_on_kind": "plugin",
+    "jar_stems": [
+      "geyser-spigot",
+      "floodgate-spigot",
+      "LuckPerms-Bukkit-5.4.141"
+    ]
+  },
+  "expected": {
+    "resolved_jar_stems": [
+      "LuckPerms-Bukkit-5.4.141"
+    ],
+    "reason": "Lines 129-138: `if addOn == .plugin { files = files.filter { !stem.contains(\"geyser\") && !stem.contains(\"floodgate\") } }` -- Geyser/Floodgate are installed and updated through a dedicated GeyserMC CDN path (Phase 9's PluginDownloader), not Modrinth hash resolution, so hash-resolving them here would be unreliable."
+  },
+  "workflow": "addon-updates"
+}

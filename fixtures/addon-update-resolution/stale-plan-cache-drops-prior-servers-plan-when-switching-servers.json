@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "stale-plan-cache-drops-prior-servers-plan-when-switching-servers",
+  "source": {
+    "file": "AppViewModel+AddonUpdates.swift",
+    "test": "resolveAddonUpdates(for:force:) stale-plan drop",
+    "line": 29
+  },
+  "input": {
+    "addonPlanServerId": "server-A",
+    "cfg_id": "server-B",
+    "prior_addonUpdatePlan_nonEmpty": true
+  },
+  "expected": {
+    "addonUpdatePlan_cleared_before_resolve": true,
+    "reason": "Line 29: `if addonPlanServerId != cfg.id { addonUpdatePlan = [] }` -- switching to a different server clears the array BEFORE the async resolve completes, so the UI never shows server A's stale add-on list labeled as server B's while the new resolve is in flight."
+  },
+  "workflow": "addon-updates"
+}

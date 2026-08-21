@@ -1,0 +1,18 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "rekey-no-op-when-final-filename-stem-matches-entry-stem",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "downloadLatestForPlugin(entry:) rekey skip",
+    "line": 357
+  },
+  "input": {
+    "entry_jarStem": "LuckPerms-Bukkit-5.4.141",
+    "final_filename": "LuckPerms-Bukkit-5.4.141.jar"
+  },
+  "expected": {
+    "setPluginSource_called": false,
+    "reason": "Line 357: `if newStem != entry.jarStem, ...` -- when a re-download produces the exact same stem (same version re-fetched, or a filename convention that doesn't encode version), the rekey branch is skipped entirely and the existing source entry is left as-is."
+  },
+  "workflow": "plugin-management"
+}

@@ -1,0 +1,31 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "sort-managed-tier-geyser-before-floodgate-by-convention",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins() entries.sort managed sub-order",
+    "line": 191
+  },
+  "input": {
+    "entries": [
+      {
+        "jarStem": "floodgate-spigot",
+        "displayName": "Floodgate",
+        "tier": "managed"
+      },
+      {
+        "jarStem": "geyser-spigot",
+        "displayName": "Geyser",
+        "tier": "managed"
+      }
+    ]
+  },
+  "expected": {
+    "ordered_display_names": [
+      "Geyser",
+      "Floodgate"
+    ],
+    "reason": "Lines 190-194: within the managed tier specifically, Geyser sorts before Floodgate by a dedicated jarStem-contains-\"geyser\" check (`if aG != bG { return aG }`) -- NOT alphabetically (Floodgate would otherwise sort before Geyser, F<G); this is a hardcoded display convention independent of the two names' actual alphabetical order."
+  },
+  "workflow": "plugin-management"
+}

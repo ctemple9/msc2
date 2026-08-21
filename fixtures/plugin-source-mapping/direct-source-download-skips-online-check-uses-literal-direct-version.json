@@ -1,0 +1,20 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "direct-source-download-skips-online-check-uses-literal-direct-version",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "downloadPluginWithSourceCheck(entry:) .direct short-circuit",
+    "line": 263
+  },
+  "input": {
+    "entry_sourceConfig_type": "direct",
+    "entry_sourceConfig_url": "https://download.luckperms.net/1664/bukkit/loader/LuckPerms-Bukkit-5.5.77.jar"
+  },
+  "expected": {
+    "fetchOnlineVersion_called": false,
+    "onlineVersion_set_to": "(direct)",
+    "download_started_immediately": true,
+    "reason": "Lines 262-270: for `.direct` sources, `downloadPluginWithSourceCheck` skips the whole fetchOnlineVersion/provider-dispatch path entirely -- it validates the URL parses, sets `onlineVersion = \"(direct)\"` inline, and calls `downloadLatestForPlugin` immediately. Every other source type goes through the async fetchOnlineVersion check first (lines 271-296) before a download can start."
+  },
+  "workflow": "plugins"
+}

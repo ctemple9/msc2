@@ -1,0 +1,29 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "merge-discovered-links-overwrites-non-user-linked-entry-wholesale",
+  "source": {
+    "file": "AppViewModel+AddonUpdates.swift",
+    "test": "mergeDiscoveredLinks(_:into:) non-userLinked branch",
+    "line": 72
+  },
+  "input": {
+    "prior_link": {
+      "projectId": "P1",
+      "title": "Old Guessed Title",
+      "provenance": "nameGuess"
+    },
+    "discovered_link": {
+      "projectId": "P1",
+      "title": "Real Title",
+      "provenance": "hashDetected"
+    }
+  },
+  "expected": {
+    "merged_link": {
+      "title": "Real Title",
+      "provenance": "hashDetected"
+    },
+    "reason": "Line 71-72's `else` branch: `existing[projectId] = discovered` replaces the ENTIRE entry wholesale when the prior provenance was anything other than userLinked (installed/hashDetected/nameGuess) -- a nameGuess link, being untrusted, is fully superseded the moment a real hash match confirms the project."
+  },
+  "workflow": "addon-updates"
+}

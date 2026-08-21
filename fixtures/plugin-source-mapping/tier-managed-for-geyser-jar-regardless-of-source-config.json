@@ -1,0 +1,18 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "tier-managed-for-geyser-jar-regardless-of-source-config",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins() tier derivation",
+    "line": 154
+  },
+  "input": {
+    "jarStem": "geyser-spigot",
+    "has_matching_source_config": true
+  },
+  "expected": {
+    "tier": "managed",
+    "reason": "Lines 151-159: `isGeyser || isFloodgate` is checked BEFORE the `findSource(...) != nil` check -- a Geyser jar is always `.managed` even if a `pluginSources` entry happens to exist for it, because the managed check short-circuits tier assignment first."
+  },
+  "workflow": "plugin-management"
+}

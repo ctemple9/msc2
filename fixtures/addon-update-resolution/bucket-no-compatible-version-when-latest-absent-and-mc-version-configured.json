@@ -1,0 +1,18 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "bucket-no-compatible-version-when-latest-absent-and-mc-version-configured",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) bucket assignment",
+    "line": 222
+  },
+  "input": {
+    "latestVersion": null,
+    "cfg_minecraftVersion": "1.21.1"
+  },
+  "expected": {
+    "bucket": "noCompatibleVersion",
+    "reason": "Lines 222-226: the item IS linked to a known Modrinth project, but the batch `/version_files/update` lookup returned no entry for this hash under the server's configured Minecraft version -- a real known project with nothing built for this MC version."
+  },
+  "workflow": "addon-updates"
+}

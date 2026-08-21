@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "bucket-up-to-date-when-latest-absent-and-no-mc-version-configured",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) bucket assignment",
+    "line": 227
+  },
+  "input": {
+    "latestVersion": null,
+    "cfg_minecraftVersion": null
+  },
+  "expected": {
+    "bucket": "upToDate",
+    "reason": "Lines 227-231: when the server has no configured `minecraftVersion` at all AND there's no latest-compatible hit, the item is reported upToDate rather than noCompatibleVersion -- the resolver can't distinguish 'nothing compatible with this unset version' from 'we don't know what version to check against', and picks the less-alarming label. Worth flagging: this can under-report a genuinely available update when a server's MC version simply isn't recorded."
+  },
+  "notes": "A server whose minecraftVersion field is unset will never surface noCompatibleVersion for any linked add-on, only upToDate or updateAvailable -- P8.16's port should preserve this exact fallback rather than treat it as a bug to silently fix.",
+  "workflow": "addon-updates"
+}

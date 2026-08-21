@@ -1,0 +1,17 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "version-label-leaves-non-version-shaped-remainder-untouched",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "cleanVersionLabel(_:) negative guard",
+    "line": 306
+  },
+  "input": {
+    "raw": "forge-recommended"
+  },
+  "expected": {
+    "cleaned": "forge-recommended",
+    "reason": "Line 306's guard `f.isNumber || (f == \"v\" && rest.dropFirst().first?.isNumber == true)` fails for \"recommended\" (not digit-or-v-digit shaped), so the function's own doc comment's promise holds: \"Only strips when what remains looks like a version, so project names aren't mangled\" -- the string is returned completely unchanged, prefix and all."
+  },
+  "workflow": "addon-updates"
+}

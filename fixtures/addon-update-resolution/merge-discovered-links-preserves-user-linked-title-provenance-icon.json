@@ -1,0 +1,42 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "merge-discovered-links-preserves-user-linked-title-provenance-icon",
+  "source": {
+    "file": "AppViewModel+AddonUpdates.swift",
+    "test": "mergeDiscoveredLinks(_:into:) userLinked branch",
+    "line": 62
+  },
+  "input": {
+    "prior_link": {
+      "projectId": "P1",
+      "title": "My Custom Title",
+      "provenance": "userLinked",
+      "slug": "my-slug",
+      "iconURL": "https://old-icon"
+    },
+    "discovered_link": {
+      "projectId": "P1",
+      "title": "Modrinth's Title",
+      "provenance": "hashDetected",
+      "installedVersionId": "v2",
+      "installedFileName": "new.jar",
+      "installedHash": "newhash",
+      "clientSide": "required",
+      "serverSide": "required"
+    }
+  },
+  "expected": {
+    "merged_link": {
+      "title": "My Custom Title",
+      "provenance": "userLinked",
+      "slug": "my-slug",
+      "installedVersionId": "v2",
+      "installedFileName": "new.jar",
+      "installedHash": "newhash",
+      "clientSide": "required",
+      "serverSide": "required"
+    },
+    "reason": "Lines 60-70: when the prior persisted link's provenance is `.userLinked`, the merge keeps `title`/`slug`/`provenance`/base `iconURL` from the PRIOR entry untouched, and only overwrites `installedVersionId`/`installedFileName`/`installedHash`/`clientSide`/`serverSide` from the freshly discovered link -- a user's manual project choice is never silently retitled by a later hash-detect pass, but the installed-file bookkeeping still stays current."
+  },
+  "workflow": "addon-updates"
+}

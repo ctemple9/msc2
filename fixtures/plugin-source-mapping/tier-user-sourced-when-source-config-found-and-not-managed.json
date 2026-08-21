@@ -1,0 +1,23 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "tier-user-sourced-when-source-config-found-and-not-managed",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins() tier derivation",
+    "line": 157
+  },
+  "input": {
+    "jarStem": "LuckPerms-Bukkit-5.4.141",
+    "pluginSources": {
+      "LuckPerms-Bukkit-5.4.141": {
+        "url": "https://modrinth.com/plugin/luckperms",
+        "type": "modrinth"
+      }
+    }
+  },
+  "expected": {
+    "tier": "userSourced",
+    "reason": "Lines 156-158: `else if findSource(for: jarStem, in: sources) != nil { tier = .userSourced }` -- a non-managed jar with a matching source entry (exact or prefix) is userSourced."
+  },
+  "workflow": "plugin-management"
+}

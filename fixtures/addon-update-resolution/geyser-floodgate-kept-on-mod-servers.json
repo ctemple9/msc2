@@ -1,0 +1,26 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "geyser-floodgate-kept-on-mod-servers",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) mod-server non-exclusion",
+    "line": 133
+  },
+  "input": {
+    "add_on_kind": "mod",
+    "jar_stems": [
+      "geyser-fabric",
+      "floodgate-fabric",
+      "sodium-fabric-0.5.8"
+    ]
+  },
+  "expected": {
+    "resolved_jar_stems": [
+      "geyser-fabric",
+      "floodgate-fabric",
+      "sodium-fabric-0.5.8"
+    ],
+    "reason": "Line 133's `if addOn == .plugin` guard means mod servers never filter Geyser/Floodgate out -- the comment at line 131-132 explains why: Fabric/NeoForge builds of Geyser/Floodgate have no dedicated updater, so hash resolution through Modrinth is the ONLY update path available for them on a mod server."
+  },
+  "workflow": "addon-updates"
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "unlinked-item-prefers-embedded-jar-metadata-over-filename-heuristic",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) unlinked nameGuess",
+    "line": 252
+  },
+  "input": {
+    "embedded_metadata_displayName": "Real Plugin Name",
+    "filename_heuristic_displayName": "real-plugin-1-0"
+  },
+  "expected": {
+    "nameGuess": "Real Plugin Name",
+    "reason": "Line 252-253: `ModJarMetadataParser.parseAny(jarURL:)?.displayName ?? PluginNameParser.extractDisplayName(from: jarStem)` -- an unlinked jar's embedded fabric.mod.json/plugin.yml/mods.toml name (when parseable) is trusted over the cruder dash/version-stripping filename heuristic."
+  },
+  "workflow": "addon-updates"
+}

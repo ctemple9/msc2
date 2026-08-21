@@ -1,0 +1,23 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "remove-plugin-source-sets-map-to-nil-when-empty-after-removal",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "removePluginSource(jarStem:) empty-map collapse",
+    "line": 244
+  },
+  "input": {
+    "jarStem": "OnlyPlugin",
+    "existing_sources": {
+      "OnlyPlugin": {
+        "url": "https://x",
+        "type": "modrinth"
+      }
+    }
+  },
+  "expected": {
+    "pluginSources_after": null,
+    "reason": "Line 244: `configManager.config.servers[idx].pluginSources = sources.isEmpty ? nil : sources` -- removing the last remaining source entry stores nil for the whole field rather than an empty dictionary, keeping the persisted config's optional field genuinely absent when unused."
+  },
+  "workflow": "plugin-management"
+}

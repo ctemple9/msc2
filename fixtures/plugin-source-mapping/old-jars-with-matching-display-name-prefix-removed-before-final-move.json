@@ -1,0 +1,28 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "old-jars-with-matching-display-name-prefix-removed-before-final-move",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "downloadLatestForPlugin(entry:) stale-jar cleanup sweep",
+    "line": 344
+  },
+  "input": {
+    "pluginsDir_contents": [
+      "LuckPerms-Bukkit-5.4.141.jar",
+      "LuckPerms-Bukkit-OLD.jar.disabled",
+      "unrelated-plugin.jar"
+    ],
+    "entry_displayName": "LuckPerms-Bukkit"
+  },
+  "expected": {
+    "removed_before_move": [
+      "LuckPerms-Bukkit-5.4.141.jar",
+      "LuckPerms-Bukkit-OLD.jar.disabled"
+    ],
+    "kept": [
+      "unrelated-plugin.jar"
+    ],
+    "reason": "Lines 343-352: BEFORE moving the freshly-downloaded temp file into its final name, every existing file whose lowercased name has the entry's lowercased displayName as a PREFIX, and is either a `.jar` or ends `.jar.disabled`, is removed -- this deliberately sweeps both the enabled AND disabled prior copies of the same plugin, not just the currently-active one, so an update doesn't leave an orphaned disabled duplicate of the old version behind."
+  },
+  "workflow": "plugin-management"
+}

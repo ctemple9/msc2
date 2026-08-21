@@ -1,0 +1,28 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "identity-hash-match-wins-over-persisted-link",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) projectId resolution, clause 1",
+    "line": 175
+  },
+  "input": {
+    "file_sha512": "aaa...",
+    "identified_hash_lookup": {
+      "aaa...": {
+        "projectId": "PROJ_FRESH"
+      }
+    },
+    "persisted_addon_links": {
+      "PROJ_STALE": {
+        "installedHash": "aaa...",
+        "installedFileName": "x.jar"
+      }
+    }
+  },
+  "expected": {
+    "resolved_project_id": "PROJ_FRESH",
+    "reason": "Line 174-177's three-way `??` chain tries `idVersion?.projectId` FIRST -- a fresh exact-hash Modrinth match always wins over whatever a persisted link says, even if a (now-stale) persisted link happens to reference a different project for a file with the same hash or filename."
+  },
+  "workflow": "addon-updates"
+}

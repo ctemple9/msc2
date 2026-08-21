@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "bucket-up-to-date-compares-against-persisted-installed-version-id-when-no-fresh-hash-hit",
+  "source": {
+    "file": "AddonUpdateResolver.swift",
+    "test": "AddonUpdateResolver.resolve(for:) bucket comparison fallback",
+    "line": 212
+  },
+  "input": {
+    "idVersion": null,
+    "persisted_installedVersionId": "v1",
+    "latest_version_id": "v1"
+  },
+  "expected": {
+    "bucket": "upToDate",
+    "reason": "Line 212: `latestVersion.id != (idVersion?.id ?? link?.installedVersionId)` -- when this pass had no fresh hash-identify hit (idVersion nil, item resolved via a persisted-hash/filename fallback), the comparison falls back to the PERSISTED installedVersionId rather than treating the item as having no known current version. This is what lets a manually-linked add-on Modrinth doesn't independently confirm still get a real up-to-date/available verdict instead of a false noCompatibleVersion."
+  },
+  "workflow": "addon-updates"
+}

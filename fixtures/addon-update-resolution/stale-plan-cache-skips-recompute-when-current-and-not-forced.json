@@ -1,0 +1,19 @@
+{
+  "domain": "addon-update-resolution",
+  "case": "stale-plan-cache-skips-recompute-when-current-and-not-forced",
+  "source": {
+    "file": "AppViewModel+AddonUpdates.swift",
+    "test": "resolveAddonUpdates(for:force:) cache-hit guard",
+    "line": 27
+  },
+  "input": {
+    "addonPlanServerId": "server-A",
+    "cfg_id": "server-A",
+    "force": false
+  },
+  "expected": {
+    "recompute_started": false,
+    "reason": "Line 27: `if !force && addonPlanServerId == cfg.id { return }` -- calling resolveAddonUpdates on every Components-tab appearance for the SAME already-resolved server is a no-op, per the function's own doc comment: \"Resolve-once-with-cache ... so calling it on every screen appearance is cheap.\""
+  },
+  "workflow": "addon-updates"
+}

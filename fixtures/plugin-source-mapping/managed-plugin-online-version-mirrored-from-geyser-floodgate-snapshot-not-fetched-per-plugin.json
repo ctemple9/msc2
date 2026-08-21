@@ -1,0 +1,29 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "managed-plugin-online-version-mirrored-from-geyser-floodgate-snapshot-not-fetched-per-plugin",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "updateManagedPluginOnlineVersions(geyserOnline:floodgateOnline:)",
+    "line": 220
+  },
+  "input": {
+    "geyserOnline": "2.5.0",
+    "floodgateOnline": "2.2.3-SNAPSHOT",
+    "discoveredPlugins": [
+      {
+        "jarStem": "geyser-spigot",
+        "tier": "managed"
+      },
+      {
+        "jarStem": "floodgate-spigot",
+        "tier": "managed"
+      }
+    ]
+  },
+  "expected": {
+    "geyser_entry_onlineVersion": "2.5.0",
+    "floodgate_entry_onlineVersion": "2.2.3-SNAPSHOT",
+    "reason": "Lines 220-232: managed-tier entries never call any provider API for their own onlineVersion at all -- they're mirrored from whatever the Components tab's existing Geyser/Floodgate build-check snapshot already computed (`entry.tier == .managed` gate, then a geyser/floodgate name-contains dispatch), reusing that separately-maintained state instead of an independent per-plugin fetch."
+  },
+  "workflow": "plugin-management"
+}

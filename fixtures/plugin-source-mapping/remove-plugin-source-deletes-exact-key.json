@@ -1,0 +1,23 @@
+{
+  "domain": "plugin-source-mapping",
+  "case": "remove-plugin-source-deletes-exact-key",
+  "source": {
+    "file": "AppViewModel+PluginManagement.swift",
+    "test": "removePluginSource(jarStem:)",
+    "line": 232
+  },
+  "input": {
+    "jarStem": "LuckPerms-Bukkit-5.4.141",
+    "existing_sources": {
+      "LuckPerms-Bukkit-5.4.141": {
+        "url": "https://x",
+        "type": "modrinth"
+      }
+    }
+  },
+  "expected": {
+    "sources_after": {},
+    "reason": "Lines 232-245: `sources.removeValue(forKey: jarStem)` removes the exact key first."
+  },
+  "workflow": "plugin-management"
+}

@@ -62,7 +62,7 @@ pub const MAX_CACHED_PLANS: usize = 16;
 /// server) source tier — the `/v1/addons` response's own per-item shape
 /// (P8.24's job to wire into the actual DTO; this is the application
 /// layer's typed result).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct AddonUpdateItem {
     pub filename: String,
     pub jar_stem: String,
@@ -74,9 +74,17 @@ pub struct AddonUpdateItem {
     pub bucket: AddonUpdateBucket,
     pub available_version_id: Option<String>,
     pub available_version_label: Option<String>,
+    /// P8.17 amendment: the full latest-compatible Modrinth version (files
+    /// included) when `bucket == UpdateAvailable` — the exact response
+    /// this pass's own `modrinth_latest_versions_for_hashes` call already
+    /// fetched. Carried through rather than dropped down to just an id/
+    /// label, so `addons::update_one`/`update_all` can install directly
+    /// from it without a second, redundant Modrinth request for data this
+    /// resolve pass already has in hand.
+    pub available_version: Option<ModrinthVersionInfo>,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct AddonUpdatePlan {
     pub items: Vec<AddonUpdateItem>,
     /// Self-healing links discovered this pass, keyed by project id —
@@ -220,6 +228,7 @@ pub fn resolve_addon_updates(
                 bucket: AddonUpdateBucket::Unlinked,
                 available_version_id: None,
                 available_version_label: None,
+                available_version: None,
             });
             continue;
         };
@@ -263,11 +272,15 @@ pub fn resolve_addon_updates(
             current_version_id,
             mc_version_configured,
         );
-        let available_version_label = if bucket == AddonUpdateBucket::UpdateAvailable {
-            latest_v.map(|v| addon_update::clean_version_label(&v.version_number))
-        } else {
-            None
-        };
+        let (available_version_label, available_version) =
+            if bucket == AddonUpdateBucket::UpdateAvailable {
+                (
+                    latest_v.map(|v| addon_update::clean_version_label(&v.version_number)),
+                    latest_v.cloned(),
+                )
+            } else {
+                (None, None)
+            };
 
         items.push(AddonUpdateItem {
             filename: entry.filename.clone(),
@@ -280,6 +293,7 @@ pub fn resolve_addon_updates(
             bucket,
             available_version_id,
             available_version_label,
+            available_version,
         });
     }
 

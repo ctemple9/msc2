@@ -1,6 +1,7 @@
 pub mod add_on_inventory;
 pub mod addon_dependencies;
 pub mod addon_updates;
+pub mod addons;
 pub mod backups;
 pub mod commands;
 pub mod diagnostics;

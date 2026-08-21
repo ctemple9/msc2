@@ -268,8 +268,36 @@ pub fn extract_zip_with_limits(
         }
         let mut out = fs::File::create(&dest).map_err(ArchiveError::Io)?;
         io::copy(&mut entry, &mut out).map_err(ArchiveError::Io)?;
+        drop(out);
+        apply_executable_bit(&dest, entry.unix_mode())?;
     }
 
+    Ok(())
+}
+
+/// P8.14: preserves an entry's executable bit on the extracted file when
+/// the archive declares one — a `.mrpack`/CurseForge override can
+/// legitimately include a script (`start.sh`) that needs it, unlike a
+/// world archive's own contents, which is why this is additive to
+/// [`extract_zip_with_limits`] rather than a P6.5 gap. Read permission
+/// bits aren't otherwise carried over: this crate's own `fs::Metadata`
+/// already treats "executable" as the one permission bit callers act on
+/// (`FileSystem::write_executable`'s own 0o755, not an arbitrary mode
+/// number), so that's the one bit this extraction path preserves too,
+/// for consistency with every other writer in this crate.
+#[cfg(unix)]
+fn apply_executable_bit(path: &Path, unix_mode: Option<u32>) -> Result<(), ArchiveError> {
+    use std::os::unix::fs::PermissionsExt;
+    if !matches!(unix_mode, Some(mode) if mode & 0o111 != 0) {
+        return Ok(());
+    }
+    let mut perms = fs::metadata(path).map_err(ArchiveError::Io)?.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms).map_err(ArchiveError::Io)
+}
+
+#[cfg(not(unix))]
+fn apply_executable_bit(_path: &Path, _unix_mode: Option<u32>) -> Result<(), ArchiveError> {
     Ok(())
 }
 

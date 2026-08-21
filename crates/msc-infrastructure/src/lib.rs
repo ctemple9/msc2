@@ -1,4 +1,5 @@
 pub mod addon_provider;
+pub mod addon_store;
 pub mod archive;
 pub mod atomic_write;
 pub mod audit_log;

@@ -809,7 +809,7 @@ fn remove_repaired_problem_drops_only_the_matching_problem_preserves_the_rest() 
         vec![kept.clone(), repaired.clone()],
     );
 
-    let removed = diagnostics::remove_repaired_problem(&fs, server_dir, &repaired.id());
+    let removed = diagnostics::remove_repaired_problem(&fs, server_dir, &repaired.id()).unwrap();
     assert!(removed);
 
     let record = diagnostics::read_last_startup_result(&fs, server_dir).unwrap();
@@ -835,11 +835,7 @@ fn remove_repaired_problem_clears_to_null_not_empty_array_when_it_was_the_last_o
         vec![only.clone()],
     );
 
-    assert!(diagnostics::remove_repaired_problem(
-        &fs,
-        server_dir,
-        &only.id()
-    ));
+    assert!(diagnostics::remove_repaired_problem(&fs, server_dir, &only.id()).unwrap());
 
     let bytes = fs
         .read(&server_dir.join("last_startup_result.json"))
@@ -865,7 +861,8 @@ fn remove_repaired_problem_is_a_no_op_when_the_id_is_not_present() {
         vec![kept.clone()],
     );
 
-    let removed = diagnostics::remove_repaired_problem(&fs, server_dir, "no-such-problem-id");
+    let removed =
+        diagnostics::remove_repaired_problem(&fs, server_dir, "no-such-problem-id").unwrap();
     assert!(!removed);
     let record = diagnostics::read_last_startup_result(&fs, server_dir).unwrap();
     assert_eq!(record.problems, Some(vec![kept]));
@@ -878,6 +875,7 @@ fn remove_repaired_problem_is_a_no_op_when_no_record_exists() {
         &fs,
         Path::new("/servers/java/never-started"),
         "anything",
-    );
+    )
+    .unwrap();
     assert!(!removed);
 }

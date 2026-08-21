@@ -156,27 +156,31 @@ pub fn read_last_startup_result(
 /// is preserved byte-for-byte; only the matching problem is dropped from
 /// `problems`, `None` again if that empties the list, matching
 /// [`write_last_startup_result`]'s own `problems.isEmpty() -> null` rule.
-/// Returns `false` (no-op) when there's no persisted record or `problem_id`
-/// isn't present in it.
-pub fn remove_repaired_problem(fs: &dyn FileSystem, server_dir: &Path, problem_id: &str) -> bool {
+/// Returns `Ok(false)` when there's no persisted record or `problem_id`
+/// isn't present in it. A failed persistence write is returned to the
+/// caller so the API cannot claim the complete repair state was saved.
+pub fn remove_repaired_problem(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    problem_id: &str,
+) -> Result<bool, std::io::Error> {
     let Some(mut record) = read_last_startup_result(fs, server_dir) else {
-        return false;
+        return Ok(false);
     };
     let Some(problems) = record.problems.as_mut() else {
-        return false;
+        return Ok(false);
     };
     let before = problems.len();
     problems.retain(|p| p.id() != problem_id);
     if problems.len() == before {
-        return false;
+        return Ok(false);
     }
     if problems.is_empty() {
         record.problems = None;
     }
-    if let Ok(bytes) = serde_json::to_vec(&record) {
-        let _ = fs.write(&server_dir.join(LAST_STARTUP_RESULT_FILENAME), &bytes);
-    }
-    true
+    let bytes = serde_json::to_vec(&record).map_err(std::io::Error::other)?;
+    fs.write(&server_dir.join(LAST_STARTUP_RESULT_FILENAME), &bytes)?;
+    Ok(true)
 }
 
 // ---------------------------------------------------------------------

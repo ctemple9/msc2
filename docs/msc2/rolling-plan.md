@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 6 is closed. Phase 7 remains open after Codex's 2026-08-20 REVIEW found two gate gaps: publisher checksums are not consumed by server-jar downloads, and startup diagnostics are incomplete on the live Paper-soft-failure/add-on-attribution/verified-repair path. P7.1–P7.34 are DONE per Cameron; corrective steps P7.35, P7.36, and P7.37 are all implemented and **awaiting Cameron's verification**, not yet DONE.
-> **Next move:** Verify — Cameron runs P7.35/P7.36/P7.37's own `Verify:` commands (P7.37's own final `gh run view` clause needs Cameron to push this commit first, per that step's own "What"). Once all three verify and Cameron marks them DONE, the next move is the independent REVIEW (Codex) re-checking the Phase 7 gate — not this agent, which implemented these three steps.
+> ## STATUS: Phase 6 is closed. Phase 7 remains open after Codex's 2026-08-20 REVIEW found two gate gaps: publisher checksums are not consumed by server-jar downloads, and startup diagnostics are incomplete on the live Paper-soft-failure/add-on-attribution/verified-repair path. P7.1–P7.34 are DONE per Cameron; corrective steps P7.35–P7.38 are implemented and **awaiting Cameron's verification**, not yet DONE. P7.38 closes three exact-boundary discrepancies found while checking P7.35–P7.37: missing/malformed checksum metadata could still fail open, Paper's source-accurate 400-line scan was truncated to 120 lines, and a failed repaired-problem persistence write could still return success.
+> **Next move:** Verify — Cameron runs P7.35–P7.38's own `Verify:` commands. Once all four verify and Cameron marks them DONE, the next move is the independent REVIEW under the repo loop, against the exact pushed candidate.
 > **Repo:** https://github.com/ctemple9/msc2 · `main` is fast-forwarded to `8568dea` (`P6.51: validate backup archives in one process`), the exact commit Codex's review checked (GitHub Actions run [32068857631](https://github.com/ctemple9/msc2/actions/runs/32068857631), fully green). Review detail: `rolling-plan-archive.md`'s Amendments log, "2026-08-18 — Codex Phase 6 review: gate holds."
-> **Last updated:** 2026-08-20
+> **Last updated:** 2026-08-21
 
 **Previous phases (Setup, Phase 0 through Phase 6) and their amendments log have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status, active work, and every amendment from Phase 7 onward stay here.
 
@@ -60,7 +60,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 4 | Java lifecycle vertical slice | complete |
 | 5 | Configuration and migration | complete |
 | **6** | Worlds and backups | complete |
-| **7** | Server families and provisioning | **in progress — P7.1–P7.34 DONE; independent review found two remaining gate gaps; P7.35–P7.37 implemented, awaiting Cameron's verification** |
+| **7** | Server families and provisioning | **in progress — P7.1–P7.34 DONE; independent review corrections P7.35–P7.38 implemented, awaiting Cameron's verification** |
 | 8 | Mods, plugins, modpacks | not started |
 | 9 | Networking and helpers | not started |
 | 10 | Bedrock runtimes | not started |
@@ -87,7 +87,7 @@ All 51 steps (P6.1–P6.51) are `DONE`, and Codex's gate review (2026-08-18) con
 
 `POST /v1/servers/create` · `POST /v1/servers/delete` · `POST /v1/servers/rename` · `POST /v1/servers/eula` · `GET /v1/versions` · `GET /v1/versions/create` · `POST /v1/components/version` · `GET /v1/templates` · `POST /v1/templates` · `GET /v1/java-runtimes` · `GET /v1/config/java-runtime` · `POST /v1/config/java-runtime` · `GET /v1/config/ram` · `POST /v1/config/ram` · `GET /v1/health/problems` · `POST /v1/health/repair` · and the real replacement for `GET /v1/health`'s Phase 2 placeholder card.
 
-37 steps, nine groups (P7.31–P7.34 were the first gate-hardening pass; P7.35–P7.37 were added after the independent review found the checksum and live-diagnostics gaps that pass missed):
+38 steps, nine groups (P7.31–P7.34 were the first gate-hardening pass; P7.35–P7.38 close and prove the checksum and live-diagnostics gaps found by the independent review):
 
 | Group | Steps | Deliverable |
 |---|---|---|
@@ -99,9 +99,9 @@ All 51 steps (P6.1–P6.51) are `DONE`, and Codex's gate review (2026-08-18) con
 | Public clients | P7.23–P7.26 | routes, CLI, copied iOS |
 | Proof and gate | P7.27–P7.30 | portable six-family smoke, real provisioning evidence, tri-platform CI, literal gate check |
 | Gate hardening | P7.31–P7.34 | wire the required-major Java guard into creation/start, wire startup diagnostics into the real stop path, sweep orphaned server directories left by an interrupted install, re-check the literal gate |
-| Independent-review corrections | P7.35–P7.37 | publisher-checksum enforcement, complete live startup diagnostics and verified repairs, exact-candidate portable/live/CI proof |
+| Independent-review corrections | P7.35–P7.38 | fail-closed publisher-checksum enforcement, source-accurate live startup diagnostics and durable verified repairs, exact-candidate portable/live/CI proof |
 
-**Planned batch ranges:** after the preceding solo step is verified, `P7.10–P7.12`, `P7.15–P7.16`, `P7.17–P7.18`, `P7.19–P7.22`, and `P7.23–P7.26` may each run as one BATCH EXECUTE conversation. P7.13 and P7.14 are each `stop-after` and start no range — they build the two boundaries where MSC 2 first touches the network and first runs a third-party installer, and both want looking at before anything is stacked on them. Every `stop-after` step ends its range. No batch crosses a failed Verify. **P7.31–P7.37 are each `stop-after` or `solo` and form no batch range.** The three new steps are already the minimum coherent execution boundaries: integrity, diagnostics, and proof.
+**Planned batch ranges:** after the preceding solo step is verified, `P7.10–P7.12`, `P7.15–P7.16`, `P7.17–P7.18`, `P7.19–P7.22`, and `P7.23–P7.26` may each run as one BATCH EXECUTE conversation. P7.13 and P7.14 are each `stop-after` and start no range — they build the two boundaries where MSC 2 first touches the network and first runs a third-party installer, and both want looking at before anything is stacked on them. Every `stop-after` step ends its range. No batch crosses a failed Verify. **P7.31–P7.38 are each `stop-after` or `solo` and form no batch range.**
 
 **Fixture counts in the Verify lines are planned targets, not measurements.** A characterization step that finds the oracle yields a different number of genuine cases records the real count and the reason in its own "Actual result", and amends its Verify in the same commit. Inventing filler cases to hit a planned number is the failure this note exists to prevent.
 
@@ -694,11 +694,24 @@ whether the gate holds.
 **Commit:** `P7.37: produce corrected Phase 7 gate evidence`
 **Batch:** solo
 
+### P7.38 — Close the final checksum and diagnostics boundaries
+**Status:** awaiting verification
+**Files:** `crates/msc-infrastructure/src/jar_provider.rs`, `crates/msc-infrastructure/tests/jar_provider.rs`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-application/src/diagnostics.rs`, `crates/msc-application/tests/diagnostics.rs`, `crates/msc-application/tests/lifecycle_state.rs`, `crates/msc-application/tests/provisioning.rs`, `crates/msc-application/tests/server_version_change.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-platform-macos/src/secret_store.rs`, `crates/msc-platform-windows/src/service.rs`, `docs/msc2/substrate/phase3-scope.md`, `docs/msc2/families/phase7-scope.md`, `docs/msc2/rolling-plan.md`.
+**What:** Close only the production-boundary discrepancies found while checking the completed P7.35–P7.37 candidate. For Vanilla, Paper, and Purpur, refuse downloads when the provider's normally-published digest is missing, malformed, or cannot be fetched; only Fabric, NeoForge, and Forge may use the explicitly unverified path. Preserve MSC 1's separate diagnostic windows: the latest 400 console lines for Paper soft failures and the latest 120 for hard-crash analysis. After a filesystem repair is verified, report success only if removal of that repaired problem is also durably persisted; surface a persistence failure instead of claiming the repair is complete.
+**Actual result:** `jar_provider.rs` now validates the exact hex length and characters for Mojang SHA-1, Paper SHA-256, and Purpur MD5 metadata and propagates missing, malformed, and transport failures; no checksum-bearing provider can silently downgrade to an unverified download. Paper build selection now refuses an entry without a usable URL and digest instead of selecting it unverified. `LifecycleService` retains 400 recent console lines for the ready-time Paper scan while slicing the final 120 for hard-crash diagnosis, preserving both MSC 1 source boundaries. `remove_repaired_problem` now returns write/serialization failures, and `health_repair` returns an internal error unless the verified disk repair's problem record is actually removed and saved. Added focused regressions for all three checksum-provider failure shapes and for a Paper failure more than 120 but fewer than 400 lines before ready. Verification run by the implementing agent: focused provider/download tests 35/35; lifecycle/health tests 25/25; diagnostics 43/43; provisioning/version-change 45/45; synthetic Phase 7 gate smoke passed; `cargo fmt --all -- --check` and `cargo clippy --workspace --all-targets -- -D warnings` clean; final `cargo nextest run --workspace` 1157/1157 passed (one pre-existing leaky test, zero failures). The first exact-commit CI attempt then exposed Rust 1.98's new constant-`chunks_exact` Clippy lint in pre-existing macOS and Windows helpers; both two-byte loops were mechanically expressed with the lint's equivalent `as_chunks::<2>()` iterator and folded into this same commit so all three required platform gates can run.
+**Verify:** `bash tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run --workspace`
+**Commit:** `P7.38: close final checksum and diagnostics gaps`
+**Batch:** solo
+
 ---
 
 ## Amendments log
 
 Every amendment from Phase 7 onward is recorded here. Earlier phases' amendments are in `rolling-plan-archive.md`.
+
+### 2026-08-21 — P7.38 closes exact-boundary discrepancies without expanding Phase 7
+
+Checking the P7.35–P7.37 implementation itself exposed three production discrepancies inside the two already-approved review boundaries, so they are one corrective step rather than another multi-step plan. P7.35's `Actual result` said a present-but-unparseable digest degraded to `None`; P7.38 explicitly supersedes that behavior because a provider known to publish a digest must fail closed when its digest is missing or unusable. P7.36 reused P7.32's 120-line hard-crash buffer for Paper's soft-failure scan even though MSC 1 uses 400 lines there; P7.38 retains 400 and passes only the last 120 to hard-crash analysis. P7.36 also removed repaired problems after checking disk state but swallowed persistence errors; P7.38 makes persistence part of the success boundary. No new provider, route, client feature, or Phase 8 add-on-management behavior was added.
 
 ### 2026-08-20 — Corrective plan replanned around outcomes, not subtasks
 

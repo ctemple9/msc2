@@ -88,7 +88,7 @@ fn vanilla_transport() -> FakeTransport {
         )
         .with(
             "https://meta/1.21.4.json",
-            br#"{"downloads":{"server":{"url":"https://dl/vanilla-1.21.4.jar"}}}"#.to_vec(),
+            br#"{"downloads":{"server":{"url":"https://dl/vanilla-1.21.4.jar","sha1":"37eca23153ab9d806451264be85d0d931a08c35d"}}}"#.to_vec(),
         )
         .with("https://dl/vanilla-1.21.4.jar", b"FAKE-VANILLA-JAR".to_vec())
 }
@@ -101,7 +101,7 @@ fn paper_transport() -> FakeTransport {
         )
         .with(
             "https://fill.papermc.io/v3/projects/paper/versions/1.21.4/builds",
-            br#"[{"id":231,"channel":"STABLE","downloads":{"server:default":{"url":"https://dl/paper-1.21.4-231.jar"}}}]"#.to_vec(),
+            br#"[{"id":231,"channel":"STABLE","downloads":{"server:default":{"url":"https://dl/paper-1.21.4-231.jar","checksums":{"sha256":"b90451bf06476ab0348852d0af747a6962e6b648e9a20ba261501e12e0d7b321"}}}}]"#.to_vec(),
         )
         .with("https://dl/paper-1.21.4-231.jar", b"FAKE-PAPER-JAR".to_vec())
 }
@@ -833,7 +833,7 @@ fn provisioning_paper_archive_first_shortcut_hit() {
         )
         .with(
             "https://fill.papermc.io/v3/projects/paper/versions/1.21.4/builds",
-            br#"[{"id":231,"channel":"STABLE","downloads":{"server:default":{"url":"https://dl/paper-1.21.4-231.jar"}}}]"#.to_vec(),
+            br#"[{"id":231,"channel":"STABLE","downloads":{"server:default":{"url":"https://dl/paper-1.21.4-231.jar","checksums":{"sha256":"b90451bf06476ab0348852d0af747a6962e6b648e9a20ba261501e12e0d7b321"}}}}]"#.to_vec(),
         );
 
     let mut request = base_request(JavaServerFlavor::Paper, WorldSource::Fresh);

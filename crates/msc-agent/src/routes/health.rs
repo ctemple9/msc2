@@ -471,7 +471,26 @@ pub async fn health_repair(
             // cache, so `last_startup_result.json` itself must lose the
             // problem or a fresh read here (and every read after) would
             // keep reporting a repair that already verified as done.
-            diagnostics::remove_repaired_problem(&StdFileSystem, server_dir, &body.problem_id);
+            match diagnostics::remove_repaired_problem(&StdFileSystem, server_dir, &body.problem_id)
+            {
+                Ok(true) => {}
+                Ok(false) => {
+                    return error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "internal_error",
+                        "The repair succeeded on disk, but its problem record was not updated.",
+                    );
+                }
+                Err(error) => {
+                    return error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "internal_error",
+                        &format!(
+                            "The repair succeeded on disk, but its problem record could not be saved: {error}"
+                        ),
+                    );
+                }
+            }
             Json(HealthRepairResultDto {
                 success: true,
                 message: "Repair applied.".to_string(),

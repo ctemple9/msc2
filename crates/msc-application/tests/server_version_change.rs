@@ -393,7 +393,7 @@ fn server_version_change_vanilla_pinned_release_id() {
         )
         .with_bytes(
             "https://piston-meta.mojang.com/v1/packages/e846101ba6cf0b548e8b71624c7351b6458c5349/1.20.1.json",
-            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/fake/1.20.1-server.jar"}}}"#.to_vec(),
+            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/fake/1.20.1-server.jar","sha1":"a9b71f2fa06a3f2f390336382511a17a5301e197"}}}"#.to_vec(),
         )
         .with_bytes(
             "https://piston-data.mojang.com/fake/1.20.1-server.jar",

@@ -189,6 +189,55 @@ fn lifecycle_state_ready_line_moves_starting_server_to_running() {
 }
 
 #[test]
+fn lifecycle_state_paper_soft_failure_keeps_source_accurate_400_line_window() {
+    let server = paper_server();
+    let repository = FakeRepository {
+        server: Some(server.clone()),
+    };
+    let process = FakeProcessSupervisor::default();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new().with_file(
+        "/srv/paper/plugins/BrokenPlugin-1.0.jar",
+        b"jar".to_vec(),
+        false,
+    );
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    service.start_active_server(launch_request()).unwrap();
+    service
+        .ingest_console_line(
+            "Error occurred while enabling BrokenPlugin v1.0 (Is it up to date?)",
+            "2026-08-20T00:00:00Z",
+        )
+        .unwrap();
+    for index in 0..200 {
+        service
+            .ingest_console_line(
+                &format!("ordinary startup line {index}"),
+                "2026-08-20T00:00:00Z",
+            )
+            .unwrap();
+    }
+    service
+        .ingest_console_line(
+            "Done (1.234s)! For help, type \"help\"",
+            "2026-08-20T00:00:00Z",
+        )
+        .unwrap();
+
+    let record = diagnostics::read_last_startup_result(&fs, &server.directory)
+        .expect("the early plugin failure must remain in Paper's 400-line window");
+    let problems = record.problems.expect("soft failure should be structured");
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].offender_name, "BrokenPlugin");
+    assert_eq!(
+        problems[0].installed_jar_stem.as_deref(),
+        Some("BrokenPlugin-1.0")
+    );
+}
+
+#[test]
 fn lifecycle_state_failed_stop_keeps_server_running() {
     let server = paper_server();
     let repository = FakeRepository {

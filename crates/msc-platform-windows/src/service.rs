@@ -421,7 +421,7 @@ fn decode_hex(encoded: &str) -> Result<String, ServiceError> {
 
     let mut bytes = Vec::with_capacity(encoded.len() / 2);
     let raw = encoded.as_bytes();
-    for chunk in raw.chunks_exact(2) {
+    for chunk in raw.as_chunks::<2>().0 {
         let text = std::str::from_utf8(chunk).map_err(|err| {
             ServiceError::InvalidDefinition(format!(
                 "Windows service metadata hex is not valid UTF-8: {err}"

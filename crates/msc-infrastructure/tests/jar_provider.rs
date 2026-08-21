@@ -193,6 +193,27 @@ fn jar_provider_vanilla_download_latest_refuses_sha1_mismatch_and_leaves_destina
 }
 
 #[test]
+fn jar_provider_vanilla_download_refuses_missing_published_checksum() {
+    let transport = FakeTransport::new()
+        .with_file(
+            "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json",
+            "vanilla/version-manifest-v2.json",
+        )
+        .with_bytes(
+            "https://piston-meta.mojang.com/v1/packages/c75d82e7fa6eca5a043dab0c6cf77cb8317644f4/26.2.json",
+            br#"{"downloads":{"server":{"url":"https://x/server.jar"}}}"#.to_vec(),
+        )
+        .with_bytes("https://x/server.jar", b"must not be accepted".to_vec());
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("vanilla-missing-checksum-refused");
+    let dest = tmp.path().join("server.jar");
+
+    let result = vanilla_download_latest(&transport, &fs, &dest);
+    assert!(matches!(result, Err(JarProviderError::Network(_))));
+    assert!(!dest.exists());
+}
+
+#[test]
 fn jar_provider_purpur_list_versions_against_real_corpus() {
     let transport = FakeTransport::new().with_file(
         "https://api.purpurmc.org/v2/purpur",
@@ -292,6 +313,21 @@ fn jar_provider_purpur_download_version_refuses_md5_mismatch_and_leaves_destinat
         b"pre-existing purpur.jar",
         "destination must be untouched by a refused download"
     );
+}
+
+#[test]
+fn jar_provider_purpur_download_refuses_failed_checksum_metadata_request() {
+    let transport = FakeTransport::new().with_bytes(
+        "https://api.purpurmc.org/v2/purpur/1.21.11/latest/download",
+        b"must not be accepted".to_vec(),
+    );
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("purpur-checksum-request-failed");
+    let dest = tmp.path().join("purpur.jar");
+
+    let result = jar_provider::purpur_download_version(&transport, &fs, "1.21.11", &dest);
+    assert!(matches!(result, Err(JarProviderError::Network(_))));
+    assert!(!dest.exists());
 }
 
 #[test]
@@ -404,6 +440,23 @@ fn jar_provider_paper_download_build_refuses_sha256_mismatch_and_leaves_destinat
     );
 }
 
+#[test]
+fn jar_provider_paper_download_refuses_malformed_published_checksum() {
+    let transport = FakeTransport::new()
+        .with_bytes(
+            "https://fill.papermc.io/v3/projects/paper/versions/1.21.11/builds",
+            br#"[{"id":132,"downloads":{"server:default":{"url":"https://x/paper.jar","checksums":{"sha256":"not-a-digest"}}}}]"#.to_vec(),
+        )
+        .with_bytes("https://x/paper.jar", b"must not be accepted".to_vec());
+    let fs = msc_infrastructure::fs::StdFileSystem;
+    let tmp = TempDir::new("paper-malformed-checksum-refused");
+    let dest = tmp.path().join("paper.jar");
+
+    let result = jar_provider::paper_download_build(&transport, &fs, "1.21.11", 132, &dest);
+    assert!(matches!(result, Err(JarProviderError::Network(_))));
+    assert!(!dest.exists());
+}
+
 // --- P7.19: pinned (non-latest) version-change downloads ---
 
 #[test]
@@ -415,7 +468,7 @@ fn jar_provider_vanilla_download_version_pins_release_id_not_latest() {
         )
         .with_bytes(
             "https://piston-meta.mojang.com/v1/packages/e846101ba6cf0b548e8b71624c7351b6458c5349/1.20.1.json",
-            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/fake/1.20.1-server.jar"}}}"#
+            br#"{"downloads":{"server":{"url":"https://piston-data.mojang.com/fake/1.20.1-server.jar","sha1":"a9b71f2fa06a3f2f390336382511a17a5301e197"}}}"#
                 .to_vec(),
         )
         .with_bytes(
@@ -472,8 +525,8 @@ fn jar_provider_paper_download_pinned_version_ignores_channel_picks_highest_id()
         .with_bytes(
             "https://fill.papermc.io/v3/projects/paper/versions/26.2/builds",
             br#"[
-                {"id": 5, "channel": "STABLE", "downloads": {"server:default": {"url": "https://x/5.jar"}}},
-                {"id": 9, "channel": "ALPHA", "downloads": {"server:default": {"url": "https://x/9.jar"}}}
+                {"id": 5, "channel": "STABLE", "downloads": {"server:default": {"url": "https://x/5.jar", "checksums": {"sha256": "0000000000000000000000000000000000000000000000000000000000000000"}}}},
+                {"id": 9, "channel": "ALPHA", "downloads": {"server:default": {"url": "https://x/9.jar", "checksums": {"sha256": "636da614b46bc99813f2bbf75b87045730d5618a1a5de1b9b4e330ed800ba623"}}}}
             ]"#
             .to_vec(),
         )

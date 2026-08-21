@@ -275,7 +275,7 @@ fn decode_hex_key(encoded: &str) -> Result<[u8; KEY_LEN]> {
         )));
     }
     let mut key = [0u8; KEY_LEN];
-    for (index, chunk) in encoded.as_bytes().chunks_exact(2).enumerate() {
+    for (index, chunk) in encoded.as_bytes().as_chunks::<2>().0.iter().enumerate() {
         let high = hex_value(chunk[0])?;
         let low = hex_value(chunk[1])?;
         key[index] = (high << 4) | low;

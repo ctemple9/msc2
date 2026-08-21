@@ -20,10 +20,11 @@ use crate::diagnostics;
 use crate::output_reducer::{JavaOutputReducer, OutputEvent};
 use crate::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 
-/// `console.entries.filter { $0.source == .server }.suffix(120)`
-/// (`AppViewModel+OutputHandling.swift:196-198`) — the bound on how much
-/// recent server output `diagnoseUnexpectedStop`'s excerpt carries.
-const CONSOLE_EXCERPT_CAPACITY: usize = 120;
+/// Paper soft-failure analysis uses `suffix(400)` in MSC 1
+/// (`AppViewModel+OutputHandling.swift:258`). The hard-crash analyzer
+/// below still receives only its own source-accurate last 120 lines.
+const RECENT_CONSOLE_CAPACITY: usize = 400;
+const CRASH_EXCERPT_CAPACITY: usize = 120;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ServerId(String);
@@ -196,7 +197,7 @@ pub struct LifecycleService<'deps> {
     latest_tps: Option<tps::Sample>,
     pending_restart: Option<ProcessSpawnRequest>,
     /// Recent server console lines (ANSI already stripped, the only form
-    /// this service ever sees), capped at [`CONSOLE_EXCERPT_CAPACITY`] —
+    /// this service ever sees), capped at [`RECENT_CONSOLE_CAPACITY`] —
     /// `diagnose_unexpected_stop`'s own `console_excerpt` input. Reset on
     /// every new start, same lifetime as `output_reducer`.
     recent_console_lines: Vec<String>,
@@ -398,7 +399,7 @@ impl<'deps> LifecycleService<'deps> {
     ) -> Result<Vec<OutputEvent>, LifecycleError> {
         let id = self.active_server_id()?.clone();
         self.recent_console_lines.push(clean.to_string());
-        if self.recent_console_lines.len() > CONSOLE_EXCERPT_CAPACITY {
+        if self.recent_console_lines.len() > RECENT_CONSOLE_CAPACITY {
             self.recent_console_lines.remove(0);
         }
         let events = self.output_reducer.process_line(clean);
@@ -448,20 +449,9 @@ impl<'deps> LifecycleService<'deps> {
     /// longer load (deleted mid-run) simply skips the record rather than
     /// failing the exit handling already committed above.
     ///
-    /// **No mod-jar scanner exists in production yet** (P7.32's own scope
-    /// — none of this phase's `Files:` name one), so `installed_mods` is
-    /// always empty here. A missing-dependency problem (the log line
-    /// names what's absent, e.g. `fixtures/startup-crash-analyzer/fabric-
-    /// missing-dependency-parsed.json`) is unaffected — `parse_fabric`/
-    /// `parse_forge` find it from `console_excerpt` alone. What an empty
-    /// `installed_mods` loses is attribution: a problem that needs
-    /// matching a log's mod-id back to an installed jar to fill in
-    /// `installed_jar_stem` (the field [`diagnostics::available_actions`]
-    /// requires before it will offer disable/delete) currently finds no
-    /// match. Not a regression — nothing called this path in production
-    /// before this step — but tracked as a real gap rather than silently
-    /// worked around, the same language `health.rs`'s own module doc used
-    /// for this exact call before today.
+    /// P7.36's local add-on inventory supplies installed mod identity so
+    /// the analyzer can map a log id back to the jar stem required by
+    /// verified disable/delete repairs.
     fn record_stop_diagnostics(
         &self,
         id: &ServerId,
@@ -493,6 +483,10 @@ impl<'deps> LifecycleService<'deps> {
         } else {
             Vec::new()
         };
+        let crash_excerpt_start = self
+            .recent_console_lines
+            .len()
+            .saturating_sub(CRASH_EXCERPT_CAPACITY);
         diagnostics::diagnose_unexpected_stop(
             self.fs,
             &server.directory,
@@ -500,7 +494,7 @@ impl<'deps> LifecycleService<'deps> {
             reached_ready_state,
             is_modded,
             server.flavor.raw_value(),
-            &self.recent_console_lines,
+            &self.recent_console_lines[crash_excerpt_start..],
             &installed_mods,
         );
     }

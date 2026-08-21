@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.4 · **Date:** 2026-07-30
+**Revision:** 1.5 · **Date:** 2026-08-21
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -593,7 +593,7 @@ closed.
 
 ## D-027 — The CurseForge manual-download workflow has no home once agent and client are different machines
 
-**Status:** **Open** · **Origin:** Symbol-ledger audit (P0.27, flagged UNSURE; formalized in P0.31) · **Approved by:** —
+**Status:** **Approved**, option 1 (client-side download, then explicit upload to the agent) · **Origin:** Symbol-ledger audit (P0.27, flagged UNSURE; formalized in P0.31) · **Approved by:** Cameron Temple · **Date:** 2026-08-21
 
 **Context.** Some CurseForge mods disable third-party API distribution, so MSC 1 can't download them itself. `CurseForgeManualDownloadSheet.swift` handles this by opening each mod's direct download page in the user's default browser (correct loader/version pre-selected), then watching a local folder — `~/Downloads` by default, user-changeable — for newly-appeared files. It matches new files against the pending list by exact filename, then by macOS's " (1)" duplicate-suffix pattern, then by a last-resort single-remaining-file/single-new-file fallback, and moves each match straight into the server's `mods/` directory.
 
@@ -606,9 +606,11 @@ Every step of that sequence — the browser, the watched folder, and the server'
 3. **Degrade gracefully to same-machine-only.** Keep something like today's mechanism, but explicitly scoped to "works when your client and your agent are the same box" (e.g. a local desktop client managing a `localhost` agent), and tell the user plainly when it isn't available otherwise. Simplest to build; narrows a capability MSC 1 users have today.
 4. **Do nothing special — tell the user to place the file manually.** The agent exposes a "drop the file at this server-visible path" instruction (relevant given `GET /files` already exists as an admin-only server-side file browser, P0.30) and the user is responsible for getting it there by whatever means their setup allows (SFTP, a shared folder, physically local). Least engineering, worst experience, and pushes a solved-for-MSC-1 problem back onto the user.
 
-**Why this is Open, not Proposed.** It's a product-shape decision — how much of this convenience MSC 2 keeps, and for which client/agent topologies — not something that falls out of reading MSC 1's code or applying the deletion test. It surfaced while doing ledger bookkeeping (P0.27/P0.31), which is exactly the kind of call that work should record and hand up, not make quietly.
+**Why this was Open, not Proposed, before Phase 8.** It's a product-shape decision — how much of this convenience MSC 2 keeps, and for which client/agent topologies — not something that falls out of reading MSC 1's code or applying the deletion test. It surfaced while doing ledger bookkeeping (P0.27/P0.31), which is exactly the kind of call that work should record and hand up, not make quietly.
 
-**Revisit if:** Phase 8 (mods, plugins, modpacks) is reached and a CurseForge modpack import path is being designed — this blocks a real decision there, not just documentation.
+**Decision, 2026-08-21 (P8.1).** Cameron chose **option 1**: the client (not the agent) downloads the blocked file and uploads it through MSC's bounded staged-upload path (`POST /v1/staged-uploads`, Phase 6); the agent verifies the expected file identity against the pending pack operation and resumes it. This is the closest behavioral match to MSC 1's own convenience (open the file's page, get it onto the right machine, don't make the user hunt for a manual path) while working uniformly whether the client is a phone, a laptop, or a headless CLI against a remote agent — it does not require the client and agent to share a filesystem the way MSC 1's Downloads-folder watch does. Consequences for Phase 8's step list are recorded in `docs/msc2/addons/phase8-scope.md`'s "D-027: the CurseForge manual-download workflow, decided" section — in short: one or more new purpose-bound `StagedUploadPurposeDto` cases (P8.9), each upload bound to its own pending operation, expected file identity, and a one-use size ceiling (P8.20), never a general arbitrary-path upload.
+
+**Revisit if:** a future client/agent topology makes even a client-side download infeasible (e.g., a CLI-only client with no browser of its own) — not expected to arise in v1's supported clients (desktop/web, iOS, CLI all run somewhere with a browser reachable to the user).
 
 ---
 
@@ -638,6 +640,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.5 | 2026-08-21 | D-027 moved from Open to Approved (P8.1): Cameron chose option 1 (client-side download, agent-side staged-upload verification) for the CurseForge manual-download workflow. Detail moved to `docs/msc2/addons/phase8-scope.md`. |
 | 1.0 | 2026-07-29 | Initial register, 20 entries. |
 | 1.4 | 2026-07-30 | Added D-026 (educational content is served data, not client code) after the owner identified that MSC 1's teaching material — its largest distinctive asset — had no home in the MSC 2 architecture. |
 | 1.3 | 2026-07-29 | Third Codex review: symbol-ledger contradiction removed everywhere; Phase 0 scoped to what MSC 1 can demonstrate and split from per-domain characterization; product permissions description corrected to name scoped tokens; D-024 (power management, two policies) and D-025 (service identity and privilege boundaries, Open) added; unmeasured memory figure and the "can never drift" claim softened. |

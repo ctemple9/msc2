@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 7 is closed on exact candidate `79d5044`. Phase 8 has not been planned yet.
-> **Next move:** PLAN — read the vision, port plan, current rolling plan, Phase 7 handoff/audit notes, and the MSC 1 oracle; then write Phase 8's complete step list here. No Phase 8 code in the PLAN move.
+> ## STATUS: Phase 7 is closed on exact candidate `79d5044`. Phase 8 is planned and awaiting Cameron's READ.
+> **Next move:** READ — Cameron reviews the Phase 8 boundary, QUESTION 1, step list, Verify commands, and batch ranges before any Phase 8 implementation begins.
 > **Repo:** https://github.com/ctemple9/msc2 · Phase 7 candidate branch `phase7-corrections` at `79d5044`; GitHub Actions run [32448912726](https://github.com/ctemple9/msc2/actions/runs/32448912726) is fully green across repo invariants, macOS, Linux, Windows, both Phase 6/7 smokes, and the headless no-GUI link check.
 > **Last updated:** 2026-08-21
 
@@ -61,7 +61,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | 5 | Configuration and migration | complete |
 | **6** | Worlds and backups | complete |
 | **7** | Server families and provisioning | complete |
-| **8** | Mods, plugins, modpacks | **not started — PLAN next** |
+| **8** | Mods, plugins, modpacks | **planned — READ next** |
 | 9 | Networking and helpers | not started |
 | 10 | Bedrock runtimes | not started |
 | 11 | Desktop and web clients | not started |
@@ -83,7 +83,322 @@ All 38 steps (P7.1–P7.38) are `DONE` per Cameron. The final exact candidate is
 
 ## Phase 8 — Mods, plugins, modpacks
 
-Not planned yet. The next conversation is the Phase 8 **PLAN** move: write the complete step list here with all five required fields (`Status`, `Files`, `What`, `Verify`, `Batch`) and no implementation.
+**Gate** (`msc2-port-plan.md` §3): "Modrinth / Hangar / CurseForge providers · metadata parsing · dependency resolution · client-only classification · pack-managed guards · import · update · client export."
+
+**Working exit criteria:** a supported Java server can discover its installed mods or plugins, identify exact Modrinth projects by SHA-512, report compatible updates, install/remove/enable/disable/update one add-on or a dependency-aware batch through the public API and CLI, and preserve disabled state and user-linked provenance across replacement. Modrinth catalog search is filtered to the active server's Minecraft version, loader, and add-on kind. GitHub, Modrinth, Hangar, and direct-URL plugin sources resolve without guessing. A staged `.mrpack` or CurseForge archive can be inspected and used to create a correctly pinned Fabric/Forge/NeoForge server as a durable, cancellable operation; archive traversal, corrupt downloads, interruption, dependency cycles, and failed overrides leave no half-created server. Manifest, Modrinth metadata, embedded JAR metadata, and the known client-only list are applied in the MSC 1 precedence order. Pack-managed servers refuse individual mutation while still allowing an explicit whole-pack replacement path. CurseForge files whose authors block API distribution follow Cameron's answer to QUESTION 1. Client export produces links for Paper-like servers and a portable ZIP for modded servers without shelling out to macOS-only tools. Phase 7's `update`/`install` health repairs become real and are only reported successful after the filesystem and persisted problem record both verify. The copied iOS components/catalog/export flows, CLI, synthetic smoke, and macOS/Linux/Windows CI all exercise the same public contract. Provider failure is reported honestly; no test except the explicit real-evidence step uses the public network.
+
+**Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`, read-only. Primary files: `AddonUpdateResolver.swift`, `ModrinthAPI.swift`, `CurseForgeAPI.swift`, `CurseForgeModpack.swift`, `HangarAPI.swift`, `PluginSourceDetector.swift`, `PluginDownloader.swift`, `ModJarMetadataParser.swift`, `ModpackClientOnlyClassifier.swift`, `AppViewModel+AddonUpdates.swift`, `AppViewModel+ModManagement.swift`, `AppViewModel+PluginManagement.swift`, `AppViewModel+ComponentsVersions.swift`, `AppViewModel+ClientExport.swift`, `AppViewModel+ServerCreation.swift` (`applyStagedAddOn`), `AppViewModel+APIWiringAddons.swift`, `AppViewModel+APIWiringContent.swift`, `RemoteAPIServer+ComponentRoutes.swift`, `CurseForgeManualDownloadSheet.swift`, and the copied iOS `ComponentsView.swift`, `CatalogBrowserView.swift`, `HealthView.swift`, `DashboardViewModel.swift`, `RemoteAPIClient.swift`, and `RemoteAPIModels.swift`.
+
+**Existing routes this phase makes real:** `GET /v1/addons` · `GET /v1/catalog/search` · `GET /v1/components` · `GET /v1/components/client-export` · `POST /v1/components/install` · `POST /v1/components/remove` · the add-on forms of `POST /v1/components/update` · and the `update`/`install` actions of `POST /v1/health/repair`. `POST /v1/components/version` remains Phase 7 behavior. P8.9 may add only the staged-upload-backed inspection/import and manual-file endpoints needed to expose MSC 1 capabilities that have no baseline route; it must reuse `/v1/staged-uploads` rather than accepting an arbitrary client path or base64-encoding large uploads.
+
+30 steps, eight groups:
+
+| Group | Steps | Deliverable |
+|---|---|---|
+| Scope and evidence | P8.1–P8.3 | authoritative boundary and D-027 answer, self-tested corpus checker, real pack/provider evidence |
+| Characterization and contract | P8.4–P8.9 | source/update, dependency/classification, modpack/rollback, export/manual-download fixtures, reconciled API and operation model |
+| Pure domain | P8.10–P8.12 | provider/source models, update resolver, dependency/client-only/pack policy |
+| Infrastructure | P8.13–P8.15 | fakeable providers, verified add-on replacement, bounded dependency resolver |
+| Application services | P8.16–P8.23 | inventory/update state, mutations, modpack inspection/import/create, export, health repair |
+| Public clients | P8.24–P8.26 | routes, CLI, copied iOS |
+| Proof | P8.27–P8.29 | one synthetic public-path smoke, real provider/pack evidence, exact-candidate tri-platform CI |
+| Gate | P8.30 | one literal Phase 8 gate check and the phase's only full-workspace test run |
+
+**Planned batch ranges:** after P8.3 is verified, P8.4–P8.8 may run together and stop at P8.8; after P8.9 is verified, P8.10–P8.12 may run together; P8.13 ends its batch because it is the first network-provider boundary; P8.14–P8.15 may run together and stop at P8.15; P8.16–P8.19 may run together; P8.20 ends its batch because it implements Cameron's D-027 choice and CurseForge's partial-download behavior; P8.21–P8.23 may run together and stop at P8.23; P8.24–P8.26 may run together. P8.27–P8.30 are each solo or stop-after. No batch crosses a failed Verify.
+
+**Verification budget:** steps use only their focused fixture directory, crate, route module, client build, or Phase 8 smoke. Do not add `cargo nextest run --workspace` to any step. The full workspace suite appears exactly once, in P8.30, because that step is the phase gate. P8.29 checks CI rather than repeating the suite locally.
+
+**Not in this phase**, deferred on purpose:
+
+- Geyser/Floodgate downloads and updates, Playit, resource-pack hosting, DuckDNS, Xbox Broadcast, notifications, and helper lifecycle stay Phase 9. `GET /v1/components` may report their installed state but must label unavailable updates honestly.
+- Bedrock add-ons and packs stay Phase 10. Phase 8 supports the Java add-on folders and Java loader/runtime shapes already proven in Phase 7.
+- Desktop/web screens and serving help content stay Phase 11. Phase 8 exposes the complete agent contract and keeps those matrix cells `Planned`.
+- CurseForge browsing is not invented. The named provider is used for CurseForge modpack metadata/files and the author-blocked download workflow; MSC 1's searchable in-app catalog remains Modrinth.
+- A general remote file browser is not built here. Add-on/modpack input reuses the bounded, purpose-tagged staged-upload primitive from Phase 6.
+- Whole-pack marketplace updating is limited to replacing from an explicitly supplied pack archive. Automatic discovery of "the next version" of an arbitrary imported pack is not promised by MSC 1 and is not inferred.
+
+### Question before P8.1
+
+**Answered by Cameron Temple, 2026-08-21:** option **(a)** — the client downloads an author-blocked CurseForge file and uploads it through MSC's bounded staged-upload path; the agent verifies it and resumes the pending pack operation. P8.1 records this as the D-027 decision.
+
+```
+QUESTION 1 — How should blocked CurseForge files reach a headless server?
+
+What it is:      Some CurseForge authors forbid API downloads. MSC 1 opens each file's
+                 web page, watches the Mac's Downloads folder, matches the filename,
+                 and moves it into that same Mac's server. A remote/headless agent has
+                 no browser or relationship to the client's Downloads folder.
+
+The choice:      (a) The client downloads the file, then uploads it through MSC's bounded
+                     staged-upload path; the agent verifies the expected filename/file ID
+                     and finishes the pending pack operation.
+                 (b) Keep the convenience only when client and agent are the same machine,
+                     and otherwise tell the user to place the file manually on the host.
+
+Why it matters:  This decides whether CurseForge pack import works coherently from a phone,
+                 laptop, or CLI against a headless host, and whether P8.9 adds a small
+                 purpose-bound manual-file completion endpoint. It does not permit a
+                 general arbitrary-path upload.
+
+If unsure:       (a). Phase 6 already built bounded staged uploads, so this preserves MSC 1's
+                 convenience without assuming the browser and Minecraft server share a disk.
+```
+
+### Scope and evidence
+
+### P8.1 — Scope Phase 8 and settle the D-027 workflow
+**Status:** awaiting verification
+**Files:** `docs/msc2/addons/phase8-scope.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/audit/msc2-symbol-ledger.csv`
+**What:** Read every Phase 8 oracle symbol against the current Rust inventory, Phase 7 handoff, frozen routes, and staged-upload primitive. Record the exact provider purposes, add-on identity/update precedence, pack-managed rule, modpack create/import boundary, rollback/cancellation contract, client-export behavior, Phase 9 exclusions, and every owned ledger row (`addon-updates`, `components`/`components-versions` only where not Phase 9, `modpack-client-only`, `modpack-import`, `modpacks`, `modrinth-deps`, `mods`, `plugin-management`, `plugins`, and `applyStagedAddOn`). Record Cameron's answer to QUESTION 1 as a dated D-027 decision. Write no Rust.
+**Verify:** `python3 -c "from pathlib import Path; s=Path('docs/msc2/addons/phase8-scope.md').read_text().lower(); required=['modrinth','hangar','curseforge','dependency','client-only','pack-managed','rollback','staged upload','client export','phase 9','d-027']; missing=[x for x in required if x not in s]; assert not missing, missing; print('OK')"`
+**Commit:** `P8.1: scope Phase 8 add-ons and modpacks`
+**Batch:** solo
+
+**Actual result:** Read all nine core oracle files in full (`AddonUpdateResolver.swift`, `ModrinthAPI.swift`, `CurseForgeAPI.swift`, `CurseForgeModpack.swift`, `HangarAPI.swift`, `PluginSourceDetector.swift`, `PluginDownloader.swift`, `ModJarMetadataParser.swift`, `ModpackClientOnlyClassifier.swift`) plus the relevant slices of `AppViewModel+AddonUpdates.swift`, `AppViewModel+ModManagement.swift`, `AppViewModel+PluginManagement.swift`, `AppViewModel+ClientExport.swift`, `AppViewModel+ServerCreation.swift` (`applyStagedAddOn`), `RemoteAPIServer+ComponentRoutes.swift`, `CurseForgeManualDownloadSheet.swift`, `GitHubReleaseChecker.swift`, `AppViewModel+ComponentsVersions.swift`, `AppViewModel+HealthCards.swift`, `AppViewModel+ServerInfo.swift`, `AppConfig.swift`, and `AppModels.swift`, against the current Rust workspace (`crates/msc-application/src/add_on_inventory.rs`'s existing P7.36 scanner, `msc-domain`'s opaque `plugin_sources`/`addon_links` pass-through), Phase 7's own handoff (`phase7-scope.md`), the frozen `openapi.json` routes, and Phase 6's staged-upload primitive (`crates/msc-agent/src/routes/worlds.rs`). Wrote `docs/msc2/addons/phase8-scope.md` (provider purposes table, add-on identity/update precedence, dependency depth-guard-vs-cycle-detection distinction, the two-different-precedence-chains finding for client-only classification, the pack-managed-guard finding, the modpack create/import boundary, a rollback/cancellation summary table, client-export behavior, Phase 9 exclusions, and the 35-row symbol-ledger table). Updated `msc2-decisions.md`'s D-027 from Open to Approved (option 1, dated 2026-08-21) and bumped the register to rev 1.5. Five findings worth flagging beyond the step's own checklist: (1) **the pack-managed guard does not exist in MSC 1 today** — `packManaged` gates only SwiftUI confirmation-dialog wording in two files, never a mutation; every install/remove/update call site proceeds unconditionally regardless of the flag, so Phase 8's "refuse individual mutation" criterion is new agent-owned policy, not a port. (2) **MSC 1 has no pack-driven server-creation primitive** — `importModpack`/CurseForge import both take an *already-existing* `ConfigServer`; the wizard's "create from pack" experience is an ordinary create followed by `applyStagedAddOn` calling the same in-place importer, and because that importer never `throw`s, the outer create rollback is structurally unreachable from a pack-import failure today — Phase 8's transactional-create guarantee is new rollback discipline, not a port. (3) **Client-only classification runs two different tier orders depending on path** — manifest-listed `.mrpack` files skip the Tier 0 hardcoded blocklist entirely (Tier 1 → 2 → 3), while override/CurseForge jars skip Tier 1 (Tier 0 → 2 → 3); `rolling-plan.md`'s working exit criteria describe one shared precedence, which only matches the second path. (4) **The dependency "cycle guard" is a flat recursion-depth cap of 3, not cycle detection** — a real visited-set detector is new work for P8.12, not a faithful port. (5) **`GET /v1/components`/`components-versions`'s 4 already-ledgered rows were fully ported by Phase 7's P7.19**, and the ledger's separate 9-row `components` domain (Paper-jar/Bedrock health cards, cross-play templates) is not Phase 8 material at all — it's Phase 7's still-open "jar" health-card gap and Phase 10 Bedrock territory; neither set is re-scoped to Phase 8 by this note. Verify command passes (`OK`). No Rust written, no other file touched.
+
+### P8.2 — Build the Phase 8 corpus and gate checker first
+**Status:** not started
+**Files:** `tools/phase8/phase8-check.py`, `tools/phase8/fixtures/`, `corpus/addons/README.md`, `corpus/packs/README.md`
+**What:** Build one dependency-free checker before collecting evidence. Inventory mode verifies provenance, capture time, source URL, byte size, SHA-256, provider/purpose, and archive immutability; pack mode validates a real `.mrpack` and CurseForge archive contain their genuine manifest and referenced override roots without extracting outside a temporary root; fixture-coverage mode requires every Phase 8 provider and workflow named in P8.1. Add passing and deliberately failing self-tests for missing evidence, mutation, malformed JSON/archive, duplicate hash, unsafe path, absent family, and missing provider coverage. No network access.
+**Verify:** `python3 tools/phase8/phase8-check.py --selftest`
+**Commit:** `P8.2: build the Phase 8 evidence checker`
+**Batch:** solo
+
+### P8.3 — Record real provider responses and modpack archives
+**Status:** not started
+**Files:** `corpus/addons/`, `corpus/addons/README.md`, `corpus/packs/`, `corpus/packs/README.md`
+**What:** Capture the smallest complete real response set used by MSC 1: Modrinth search/project/version/hash/update/dependency responses, Hangar latest-release metadata, CurseForge files/mods responses including one author-blocked file, and the GitHub/direct-source shapes used by plugin updates. Add one real `.mrpack` and one real CurseForge-format pack with their original bytes kept outside git when licensing or size requires it and a manifest/provenance record in git. If any provider or required pack evidence is unavailable, record the exact gap and stop; do not fabricate it.
+**Verify:** `python3 tools/phase8/phase8-check.py --inventory corpus/addons --packs corpus/packs`
+**Commit:** `P8.3: record Phase 8 provider and pack evidence`
+**Batch:** stop-after
+
+### Characterization and contract
+
+### P8.4 — Characterize provider parsing and plugin-source resolution
+**Status:** not started
+**Files:** `fixtures/addon-providers/`, `fixtures/plugin-source-resolution/`, `docs/msc2/addons/phase8-scope.md`
+**What:** Extract MSC 1 expectations for Modrinth search/facets, project/version/file/hash metadata, primary-file choice, CurseForge file/mod metadata and missing download URLs, Hangar platform/version selection, GitHub release assets, direct URLs, and URL-to-source parsing. Cover malformed responses and honest provider failure. Cite source lines or recorded evidence in every fixture.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/addon-providers && python3 tools/fixture-runner/run.py --validate-dir fixtures/plugin-source-resolution`
+**Commit:** `P8.4: characterize add-on providers and sources`
+**Batch:** safe
+
+### P8.5 — Characterize add-on identity, update planning, and source persistence
+**Status:** not started
+**Files:** `fixtures/addon-update-resolution/`, `fixtures/plugin-source-mapping/`, `docs/msc2/addons/phase8-scope.md`
+**What:** Characterize SHA-512 exact identity, persisted-link fallbacks, Geyser/Floodgate exclusion on plugin servers, compatible-version selection, all four update buckets, enabled/disabled filename handling, discovered-link merge precedence, user-linked preservation, stale-plan caching, plugin tier/source matching, source-key rekeying after versioned filename changes, and deterministic ordering.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/addon-update-resolution && python3 tools/fixture-runner/run.py --validate-dir fixtures/plugin-source-mapping`
+**Commit:** `P8.5: characterize add-on update resolution`
+**Batch:** safe
+
+### P8.6 — Characterize dependencies, client-only precedence, and pack guards
+**Status:** not started
+**Files:** `fixtures/modrinth-dependencies/`, `fixtures/modpack-client-only/`, `fixtures/pack-managed-guard/`, `docs/msc2/addons/phase8-scope.md`
+**What:** Fill the two ledgered client-only gaps (`knownClientOnlyReason`, disabled-path derivation), then characterize required vs optional dependencies, installed-dependency matching, transitive ordering, missing and circular graphs, the depth cap, manifest → Modrinth → embedded-JAR → known-list precedence, and every mutation the pack-managed guard refuses or permits. Extend existing fixture directories rather than duplicate their covered cases.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/modrinth-dependencies && python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-client-only && python3 tools/fixture-runner/run.py --validate-dir fixtures/pack-managed-guard`
+**Commit:** `P8.6: characterize dependency and pack policies`
+**Batch:** safe
+
+### P8.7 — Characterize modpack inspection, import, interruption, and rollback
+**Status:** not started
+**Files:** `fixtures/modpack-import/`, `fixtures/modpack-archive-safety/`, `fixtures/modpack-pinning/`, `fixtures/curseforge-modpack/`, `fixtures/mrpack-extraction/`, `docs/msc2/addons/phase8-scope.md`
+**What:** Characterize `.mrpack`/CurseForge detection and pinning, file hashes, optional/client-only skips, Modrinth 100-ID metadata chunks, overrides then server-overrides precedence and permission bits, existing active/disabled JAR skips, CurseForge API-key absence and blocked-file pending state, plain top-level-JAR ZIP behavior, hostile paths/symlinks, corrupt archives/downloads, cancellation, partial override failure, and complete new-server rollback. Record explicit D-006 corrections where MSC 1 leaves partial files instead of inventing parity.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-import && python3 tools/fixture-runner/run.py --validate-dir fixtures/modpack-archive-safety`
+**Commit:** `P8.7: characterize safe modpack import`
+**Batch:** safe
+
+### P8.8 — Characterize client export and manual-file completion
+**Status:** not started
+**Files:** `fixtures/client-addon-export/`, `fixtures/curseforge-manual-download/`, `docs/msc2/addons/phase8-scope.md`
+**What:** Characterize export classification and ordering, default selection, Paper-like link text, modded ZIP contents and filenames, disabled JAR handling, empty/unsupported results, and deterministic portable archive bytes. Characterize the three-tier CurseForge filename matcher and translate Cameron's D-027 choice into purpose-bound staged-upload acceptance/rejection cases, including wrong file, expired token, duplicate browser suffix, and one-file fallback.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/client-addon-export && python3 tools/fixture-runner/run.py --validate-dir fixtures/curseforge-manual-download`
+**Commit:** `P8.8: characterize export and manual downloads`
+**Batch:** stop-after
+
+### P8.9 — Reconcile the Phase 8 API, operations, and capability surface
+**Status:** not started
+**Files:** `docs/msc2/addons/phase8-api.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-api/tests/phase8_conformance.rs`
+**What:** Reconcile every existing route with the oracle and working gate, then add only the missing staged-upload-backed contract for pack inspection/import, local JAR install, and—if selected—CurseForge manual-file completion. Long installs, updates, pack replacement, and pack-backed create return `202` with durable operation IDs; reads remain synchronous. Specify cancellation, pack-managed conflicts, provider errors, upload purpose/size limits, typed results, audit events, and `helpId`s. Keep Phase 9 component update shapes unavailable rather than pretending they work, and update matrix rows only for contract availability, not implementation.
+**Verify:** `cargo nextest run -p msc-api --test phase8_conformance`
+**Commit:** `P8.9: freeze the Phase 8 public contract`
+**Batch:** solo
+
+### Pure domain
+
+### P8.10 — Port provider metadata and plugin-source rules
+**Status:** not started
+**Files:** `crates/msc-domain/src/addon_provider.rs`, `crates/msc-domain/src/plugin_source.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/addon_providers.rs`, `crates/msc-domain/tests/plugin_source_resolution.rs`
+**What:** Port provider response models, primary-file selection, loader/add-on-kind facets, version labels, author-blocked classification, and GitHub/Modrinth/Hangar/direct URL parsing against P8.4. Keep transport out of the domain crate.
+**Verify:** `cargo nextest run -p msc-domain -E 'test(/addon_provider|plugin_source/)'`
+**Commit:** `P8.10: port add-on provider rules`
+**Batch:** safe
+
+### P8.11 — Port add-on identity and update planning
+**Status:** not started
+**Files:** `crates/msc-domain/src/addon_update.rs`, `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/addon_update_resolution.rs`, `crates/msc-domain/tests/plugin_source_mapping.rs`
+**What:** Replace opaque `AddonLink`/`PluginSourceConfig` config pass-through with typed, unknown-field-preserving records, then port exact-hash identity, fallback precedence, update buckets, merge/rekey policy, and ordering. Preserve user-linked provenance while refreshing installed-file bookkeeping.
+**Verify:** `cargo nextest run -p msc-domain -E 'test(/addon_update|plugin_source_mapping|app_config_schema/)'`
+**Commit:** `P8.11: port add-on update planning`
+**Batch:** safe
+
+### P8.12 — Port dependency, client-only, and pack-managed policy
+**Status:** not started
+**Files:** `crates/msc-domain/src/addon_dependency.rs`, `crates/msc-domain/src/modpack.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/addon_dependency.rs`, `crates/msc-domain/tests/modpack_policy.rs`
+**What:** Port dependency graph decisions, client-only precedence including the Tier 0 list, manifest/archive metadata and version pinning, disabled-path rules, manual-download matching, and the pack-managed mutation matrix. The domain layer returns decisions and typed errors only; it does not download or mutate files.
+**Verify:** `cargo nextest run -p msc-domain -E 'test(/addon_dependency|modpack_policy/)'`
+**Commit:** `P8.12: port dependency and modpack policy`
+**Batch:** safe
+
+### Infrastructure
+
+### P8.13 — Build fakeable Modrinth, Hangar, CurseForge, and plugin-source providers
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/addon_provider.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/addon_provider.rs`, `corpus/addons/`
+**What:** Build transport adapters behind one fakeable provider trait using configurable base URLs. Enforce status/body limits, timeouts, pagination/chunk caps, API-key lookup through `SecretStore`, and provider-specific response validation. Tests use only recorded corpus responses and a local fake HTTP server. This step fetches metadata; all payload installation waits for P8.14.
+**Verify:** `cargo nextest run -p msc-infrastructure --test addon_provider`
+**Commit:** `P8.13: build add-on provider adapters`
+**Batch:** stop-after
+
+### P8.14 — Build verified add-on staging and atomic replacement
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/addon_store.rs`, `crates/msc-infrastructure/src/archive.rs`, `crates/msc-infrastructure/src/download_staging.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/addon_store.rs`
+**What:** Reuse Phase 3 download staging to stream into an operation-owned temporary area, enforce the publisher hash when present, reject hostile archive paths/symlinks, preserve executable/read permission bits where the pack supplies them, and atomically install/replace/remove/toggle JARs without clobbering an existing `.disabled` target. Provide interruption cleanup and rollback material; use Rust ZIP support, never `ditto` or `/usr/bin/zip`.
+**Verify:** `cargo nextest run -p msc-infrastructure --test addon_store`
+**Commit:** `P8.14: build verified add-on storage`
+**Batch:** safe
+
+### P8.15 — Build the bounded dependency installer
+**Status:** not started
+**Files:** `crates/msc-application/src/addon_dependencies.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/addon_dependencies.rs`
+**What:** Resolve and install required dependencies through the provider/store boundaries, skip already-installed identities, preserve deterministic parent-before-child progress, reject or terminate cycles without duplicate downloads, honor cancellation between files, and roll back this operation's newly installed files on terminal failure. Optional dependencies remain explanatory, not silently installed.
+**Verify:** `cargo nextest run -p msc-application --test addon_dependencies`
+**Commit:** `P8.15: build dependency-aware add-on installs`
+**Batch:** stop-after
+
+### Application services
+
+### P8.16 — Build durable add-on inventory and update resolution
+**Status:** not started
+**Files:** `crates/msc-application/src/add_on_inventory.rs`, `crates/msc-application/src/addon_updates.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/addon_updates.rs`
+**What:** Extend Phase 7's real JAR inventory with provider/source tiers, SHA-512 identity, compatible latest versions, pack provenance, cache invalidation, and durable self-healing links. Return the `/v1/addons` model without holding global state across network awaits, and bound cached plans per D-021.
+**Verify:** `cargo nextest run -p msc-application --test addon_updates`
+**Commit:** `P8.16: build add-on update resolution`
+**Batch:** safe
+
+### P8.17 — Implement add-on install, update, toggle, remove, and source linking
+**Status:** not started
+**Files:** `crates/msc-application/src/addons.rs`, `crates/msc-application/src/addon_updates.rs`, `crates/msc-application/tests/addons.rs`
+**What:** Implement catalog and staged-local install, one/all update, enable/disable, remove, manual Modrinth link, and plugin-source set/remove/update. Preserve disabled suffixes and source records across replacement, enforce stopped-server and pack-managed rules where required, serialize same-server mutations, verify the result before success, and audit each mutation. Leave Geyser/Floodgate/Broadcast special follow-up actions to Phase 9.
+**Verify:** `cargo nextest run -p msc-application --test addons`
+**Commit:** `P8.17: implement add-on lifecycle operations`
+**Batch:** safe
+
+### P8.18 — Implement safe modpack inspection and extraction
+**Status:** not started
+**Files:** `crates/msc-application/src/modpacks.rs`, `crates/msc-infrastructure/src/addon_store.rs`, `crates/msc-application/tests/modpack_inspection.rs`
+**What:** Redeem a purpose-bound staged upload, identify `.mrpack`, CurseForge, or supported plain-JAR ZIP, parse and validate its manifest, report pinned Minecraft/loader versions and manual-file requirements, and extract into an operation-owned staging tree with traversal/symlink/size/count limits. Inspection never mutates a server and cleans up expired or invalid uploads.
+**Verify:** `cargo nextest run -p msc-application --test modpack_inspection`
+**Commit:** `P8.18: implement safe modpack inspection`
+**Batch:** safe
+
+### P8.19 — Import Modrinth packs transactionally
+**Status:** not started
+**Files:** `crates/msc-application/src/modpacks.rs`, `crates/msc-application/tests/modrinth_pack_import.rs`
+**What:** Implement the `.mrpack` pipeline: verify manifest hashes, filter client-only entries, fetch project metadata in bounded chunks, download server files, merge `overrides/` then `server-overrides/`, classify override JARs, preserve permission bits, record pack provenance, and support cancellation/restart recovery. Failure restores the exact prior tree or removes a not-yet-published new server.
+**Verify:** `cargo nextest run -p msc-application --test modrinth_pack_import`
+**Commit:** `P8.19: import Modrinth packs transactionally`
+**Batch:** safe
+
+### P8.20 — Import CurseForge packs and complete blocked files
+**Status:** not started
+**Files:** `crates/msc-application/src/modpacks.rs`, `crates/msc-application/src/curseforge_manual.rs`, `crates/msc-application/tests/curseforge_pack_import.rs`, `crates/msc-application/tests/curseforge_manual.rs`
+**What:** Implement CurseForge file resolution through the secret-backed API key, overrides, classification, provenance, and the exact partial/pending behavior for author-blocked files. Implement Cameron's D-027 choice: for the recommended upload path, bind each pending file to its operation, expected file identity/name, size ceiling, one-use staged-upload purpose, and final hash/JAR validation before resuming. Wrong or missing files leave the operation honestly pending/failed and never publish a half-server.
+**Verify:** `cargo nextest run -p msc-application -E 'test(/curseforge_pack_import|curseforge_manual/)'`
+**Commit:** `P8.20: import CurseForge packs and blocked files`
+**Batch:** stop-after
+
+### P8.21 — Integrate staged add-ons and packs into server creation
+**Status:** not started
+**Files:** `crates/msc-application/src/provisioning.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/tests/modpack_server_creation.rs`, `crates/msc-application/tests/provisioning.rs`
+**What:** Carry inspected pack metadata into Phase 7 provisioning, select the exact loader build, apply staged JAR/URL/ZIP/pack inputs in source order, and make the whole create one durable cancellable operation. Do not publish the server registry entry until loader provisioning, pack application, initial world setup, and pack provenance all succeed; rollback the directory and staged artifacts on every failure or restart.
+**Verify:** `cargo nextest run -p msc-application -E 'test(/modpack_server_creation|provisioning/)'`
+**Commit:** `P8.21: create servers from staged modpacks`
+**Batch:** safe
+
+### P8.22 — Build portable client export
+**Status:** not started
+**Files:** `crates/msc-application/src/client_export.rs`, `crates/msc-application/tests/client_export.rs`
+**What:** Build export items from live inventory and persisted provider links, exclude managed server-only plugins, apply classification and default-selection rules, return link text for Paper-like servers, and generate a deterministic ZIP for modded servers with Rust archive code. Enforce selection/path bounds and avoid base64 for any new large-payload route; preserve the baseline JSON response only where compatibility requires it and document the size ceiling.
+**Verify:** `cargo nextest run -p msc-application --test client_export`
+**Commit:** `P8.22: build portable client add-on export`
+**Batch:** safe
+
+### P8.23 — Complete component health and add-on repairs
+**Status:** not started
+**Files:** `crates/msc-application/src/diagnostics.rs`, `crates/msc-application/src/addon_updates.rs`, `crates/msc-application/tests/diagnostics.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/components.rs`
+**What:** Replace the Phase 7 placeholder component-health portion with real add-on folder/version/dependency findings. Implement `update` and `install` repairs through the same verified operation paths as ordinary add-on mutations, keep Phase 9 components explicitly unavailable, require stopped state where replacement demands it, and remove only the repaired persisted problem after both disk and record writes succeed.
+**Verify:** `cargo nextest run -p msc-application --test diagnostics && cargo nextest run -p msc-agent -E 'test(/health|components/)'`
+**Commit:** `P8.23: complete add-on diagnostics and repairs`
+**Batch:** stop-after
+
+### Public clients
+
+### P8.24 — Wire Phase 8 routes through real services
+**Status:** not started
+**Files:** `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/mod.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/phase8_routes.rs`, `docs/msc2/client-capability-matrix.csv`
+**What:** Wire the existing add-on/catalog/components/export routes plus P8.9's staged pack/manual-file additions to the real services with authentication, `addons`/`fleet` permissions, request limits, audit records, operation IDs, typed errors, and capability degradation. Test through the HTTP router with fake providers and disk-backed state across restart. Mark Agent cells Implemented only after the public path passes.
+**Verify:** `cargo nextest run -p msc-agent --test phase8_routes`
+**Commit:** `P8.24: wire Phase 8 agent routes`
+**Batch:** safe
+
+### P8.25 — Add complete Phase 8 CLI commands
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/cli_phase8.rs`, `docs/msc2/client-capability-matrix.csv`
+**What:** Add scriptable commands for inventory, catalog search, install from catalog/local file, update one/all, enable/disable/remove, source link management, pack inspect/create/replace/manual-file completion, health repair, and client export. Local inputs upload through staged uploads, long operations poll/cancel using the shared operation commands, JSON output stays machine-readable, and noninteractive use never prompts unexpectedly.
+**Verify:** `cargo nextest run -p msc-agent --test cli_phase8`
+**Commit:** `P8.25: add Phase 8 CLI commands`
+**Batch:** safe
+
+### P8.26 — Repoint and prove the copied iOS add-on workflows
+**Status:** not started
+**Files:** `clients/ios/MSCRemoteiOS_Swift/ComponentsView.swift`, `clients/ios/MSCRemoteiOS_Swift/CatalogBrowserView.swift`, `clients/ios/MSCRemoteiOS_Swift/HealthView.swift`, `clients/ios/MSCRemoteiOS_Swift/DashboardViewModel.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIClient.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOSTests/`, `docs/msc2/client-capability-matrix.csv`
+**What:** Repoint the existing components/add-ons/catalog/update/remove/export/repair flows to `/v1`, generated/frozen DTO shapes, typed errors, and operation polling. Add document-picker upload for modpack/local-JAR/manual CurseForge completion if the existing copied UI exposes those workflows; otherwise record the still-Planned screen without claiming parity. Preserve per-host state and show pack-managed/provider-unavailable explanations plainly.
+**Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test`
+**Commit:** `P8.26: repoint iOS add-on workflows`
+**Batch:** safe
+
+### Proof and gate
+
+### P8.27 — Build one portable Phase 8 public-path smoke
+**Status:** not started
+**Files:** `tools/phase8/phase8-gate-smoke.sh`, `tools/phase8/fake-provider-server.py`, `tools/phase8/fixtures/`, `.github/workflows/ci.yml`
+**What:** Build one synthetic smoke, not a collection of overlapping scripts. Through ordinary CLI/HTTP paths and local fake providers, create a modded server from a tiny pack, search/install/update/disable/enable/remove an add-on, resolve dependencies and a cycle, refuse a corrupt hash and hostile archive, resume a manual CurseForge file, enforce pack-managed refusal, perform client export, complete health repairs, cancel/restart an interrupted pack operation, and prove no staging/orphan residue. Add this same smoke as macOS/Linux/Windows CI legs.
+**Verify:** `bash tools/phase8/phase8-gate-smoke.sh --synthetic`
+**Commit:** `P8.27: build the Phase 8 gate smoke`
+**Batch:** solo
+
+### P8.28 — Exercise real providers and real packs
+**Status:** not started
+**Files:** `docs/msc2/addons/provider-evidence/`, `docs/msc2/addons/modpack-evidence/`, `docs/msc2/addons/phase8-scope.md`
+**What:** With all provider overrides absent, use the ordinary CLI to search Modrinth, resolve one Hangar-backed plugin source, inspect/import the recorded `.mrpack` and CurseForge pack, complete one author-blocked file if the evidence contains one, reach a real server ready line, export its client package, and stop it. Record exact provider URLs, versions, checksums, operation outcomes, pack file disposition counts, and any unavailable evidence. This is the phase's only live-network verification step.
+**Verify:** `python3 tools/phase8/phase8-check.py --evidence docs/msc2/addons/provider-evidence --modpack-evidence docs/msc2/addons/modpack-evidence`
+**Commit:** `P8.28: record real Phase 8 evidence`
+**Batch:** stop-after
+
+### P8.29 — Prove the exact candidate on all three platforms
+**Status:** not started
+**Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`
+**What:** Push the exact candidate containing P8.27/P8.28, require its own GitHub Actions run—not an earlier run—to pass repo invariants plus macOS, Linux, and Windows Phase 8 smoke legs and the headless no-GUI check, and record the run/candidate in the scope evidence. Fix nothing in this step; if CI fails, stop and plan a correction step for the actual failure.
+**Verify:** `gh run view "$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId')" --json conclusion,jobs` → `conclusion` is `success`, with green macOS, Linux, and Windows Phase 8 smoke jobs for this exact `HEAD`
+**Commit:** `P8.29: prove Phase 8 across platforms`
+**Batch:** solo
+
+### P8.30 — Close the Phase 8 exit gate
+**Status:** not started
+**Files:** `tools/phase8/phase8-gate-smoke.sh`, `tools/phase8/phase8-check.py`, `docs/msc2/addons/phase8-scope.md`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/rolling-plan.md`
+**What:** Check the literal port-plan gate and every working exit criterion against one exact candidate: provider parsing, dependency resolution, client-only precedence, pack guards, transactional imports/updates, D-027 behavior, client export, public API/CLI/iOS paths, real evidence, cancellation/restart recovery, and tri-platform CI. Run the full workspace suite once here. Report gaps honestly; do not mark the phase complete or pre-empt the other agent's REVIEW.
+**Verify:** `python3 tools/phase8/phase8-check.py --gate && bash tools/phase8/phase8-gate-smoke.sh --synthetic && cargo nextest run --workspace`
+**Commit:** `P8.30: close the Phase 8 gate`
+**Batch:** solo
 
 ---
 

@@ -140,6 +140,12 @@ jobs:
         shell: bash
         run: tools/phase7/phase7-gate-smoke.sh --synthetic
 
+      # P8.27: add-on/modpack public-path smoke. Like the Phase 6/7
+      # scripts, run the committed Bash driver on Git Bash for Windows.
+      - name: Phase 8 add-on and modpack smoke
+        shell: bash
+        run: tools/phase8/phase8-gate-smoke.sh --synthetic
+
       - name: Collect headless artifact
         shell: bash
         run: |

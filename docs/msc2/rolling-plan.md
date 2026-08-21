@@ -498,7 +498,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 ### Proof and gate
 
 ### P8.27 — Build one portable Phase 8 public-path smoke
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase8/phase8-gate-smoke.sh`, `tools/phase8/fake-provider-server.py`, `tools/phase8/fixtures/`, `.github/workflows/ci.yml`
 **What:** Build one synthetic smoke, not a collection of overlapping scripts. Through ordinary CLI/HTTP paths and local fake providers, create a modded server from a tiny pack, search/install/update/disable/enable/remove an add-on, resolve dependencies and a cycle, refuse a corrupt hash and hostile archive, resume a manual CurseForge file, enforce pack-managed refusal, perform client export, complete health repairs, cancel/restart an interrupted pack operation, and prove no staging/orphan residue. Add this same smoke as macOS/Linux/Windows CI legs.
 **Verify:** `bash tools/phase8/phase8-gate-smoke.sh --synthetic`

@@ -1,0 +1,11 @@
+{
+  "formatVersion": 1,
+  "game": "minecraft",
+  "versionId": "1.20.1",
+  "name": "Phase 8 synthetic pack",
+  "dependencies": {
+    "minecraft": "1.20.1",
+    "fabric-loader": "0.15.11"
+  },
+  "files": []
+}

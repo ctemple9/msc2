@@ -1,3 +1,4 @@
+pub mod addon_dependency;
 pub mod addon_provider;
 pub mod addon_update;
 pub mod app_config_schema;
@@ -8,6 +9,7 @@ pub mod crash_analysis;
 pub mod identity;
 pub mod java_runtime;
 pub mod launch_shape;
+pub mod modpack;
 pub mod nbt;
 pub mod network_safety;
 pub mod operation;

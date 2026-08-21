@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "fabulously-optimized-v13.3.0.mrpack",
+      "source_url": "https://cdn.modrinth.com/data/1KVo5zza/versions/Jng8txuM/Fabulously.Optimized-v13.3.0.mrpack",
+      "captured": "2026-08-21",
+      "sha256": "76cea28e48b4e0da5a80216b1e0784c85cf8b3e333dd4849db84f2588b83349c",
+      "byte_size": 156062,
+      "pack_format": "mrpack"
+    },
+    {
+      "path": "fabulously-optimized-v13.3.0-curseforge.zip",
+      "source_url": "https://edge.forgecdn.net/files/8439/77/Fabulously.Optimized-13.3.0.zip (CurseForge file 8439077, mod 396246)",
+      "captured": "2026-08-21",
+      "sha256": "847fbdba35b7c0f36bf7dc0ff654b3a90f19f57f6aab4fbabb86f5e857a7d755",
+      "byte_size": 149805,
+      "pack_format": "curseforge"
+    }
+  ]
+}

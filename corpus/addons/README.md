@@ -1,10 +1,48 @@
-See `../README.md`. **Not yet populated** — P8.3 records real Modrinth,
-Hangar, CurseForge, and GitHub Releases responses here (plus one
-author-blocked CurseForge file, per `docs/msc2/addons/phase8-scope.md`'s
-D-027 finding). This note (P8.2) fixed the shape that evidence must arrive
-in, and the checker that gates it, before any of it was collected — the
-same ordering `tools/phase7/provider-corpus-check.py` and
+See `../README.md`. Populated by P8.3 with real, live-captured Modrinth,
+Hangar, GitHub Releases, direct-download, and CurseForge responses
+(captured 2026-08-21). This note (P8.2) fixed the shape that evidence must
+arrive in, and the checker that gates it, before any of it was collected —
+the same ordering `tools/phase7/provider-corpus-check.py` and
 `tools/phase6/corpus-check.py` used for their own corpora.
+
+## What's recorded (P8.3, captured 2026-08-21)
+
+- **`modrinth/`** — `search-sodium.json` (a real `/v2/search` call),
+  `project-iris.json` (`/v2/project/iris`), `dependencies-iris.json`
+  (`/v2/project/{id}/dependencies` — Iris genuinely requires Sodium, a real
+  `required`-type dependency edge), `version-list-iris-fabric-1.21.1.json`
+  (`/v2/project/{id}/version` filtered by loader/game-version, the shape
+  update-checking reads), and `version-file-hash-iris.json`
+  (`/v2/version_file/{sha512}` — the exact-identity lookup, resolved from a
+  hash taken out of the version-list response above).
+- **`hangar/`** — `project-essentials.json` and
+  `versions-latest-essentials.json`, both real responses for the
+  EssentialsX project (`hangar.papermc.io`, project slug `Essentials`).
+- **`github/`** — `releases-latest-essentialsx.json`, a real
+  `/repos/{owner}/{repo}/releases/latest` response (asset-name shapes for
+  the GitHub add-on source).
+- **`direct/`** — `luckperms-bukkit-direct-download.json`. Unlike the other
+  four, "direct" isn't a JSON API — `PluginSourceDetector.detect` only
+  classifies a URL string (any `http(s)` or `.jar`-suffixed URL not
+  matching the three named domains), and the actual byte transfer is Phase
+  9's `PluginDownloader`. This file instead records a real captured HEAD
+  response (status, `content-type`, `content-length`, filename) against a
+  genuine direct-download URL (LuckPerms' own download host), so the
+  direct-source shape is evidence-backed rather than invented.
+- **`curseforge/`** — captured with a real, Cameron-supplied CurseForge
+  Core API key (`x-api-key`), same as `CurseForgeAPI.swift`'s own gate.
+  `mods-files-blocked-entityculling.json` is a real `POST /v1/mods/files`
+  response for a genuinely author-blocked file (Entity Culling
+  Fabric/Forge, modId `448233`, `allowModDistribution: false`, file
+  `8287121`) — `downloadUrl` is `null` while `isAvailable` is `true`,
+  exactly the shape the D-027 pending-file workflow needs to characterize
+  against. `mods-metadata-entityculling.json` is the matching
+  `POST /v1/mods` response for that same mod (name/slug/`websiteUrl`, used
+  to build the manual-download list). `mods-files-resolvable-fabulously-
+  optimized-pack.json` is a real, non-blocked `POST /v1/mods/files`
+  response (modId `396246`, file `8439077`) for contrast — an ordinary
+  resolvable `downloadUrl`, the common case the blocked case is the
+  exception to.
 
 `tools/phase8/phase8-check.py` (P8.2) is the dependency-free gate. It has
 three modes; this directory is what its **inventory** and **coverage**

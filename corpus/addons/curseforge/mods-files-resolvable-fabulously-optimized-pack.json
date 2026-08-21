@@ -1,0 +1,67 @@
+{
+  "data": [
+    {
+      "id": 8439077,
+      "gameId": 432,
+      "modId": 396246,
+      "isAvailable": true,
+      "displayName": "13.3.0 for 26.1.2",
+      "fileName": "Fabulously.Optimized-13.3.0.zip",
+      "releaseType": 1,
+      "fileStatus": 4,
+      "hashes": [
+        {
+          "value": "a4f9837628fdcfcda52840f1dace7af8955b94be",
+          "algo": 1
+        },
+        {
+          "value": "14844da757ed734635f8a5bdd1b84066",
+          "algo": 2
+        }
+      ],
+      "fileDate": "2026-07-15T17:45:17.067Z",
+      "fileLength": 149805,
+      "downloadCount": 85465,
+      "fileSizeOnDisk": 256458,
+      "downloadUrl": "https://edge.forgecdn.net/files/8439/77/Fabulously.Optimized-13.3.0.zip",
+      "gameVersions": [
+        "Fabric",
+        "26.1.2"
+      ],
+      "sortableGameVersions": [
+        {
+          "gameVersionName": "Fabric",
+          "gameVersionPadded": "0",
+          "gameVersion": "",
+          "gameVersionReleaseDate": "2022-09-01T00:00:00Z",
+          "gameVersionTypeId": 68441
+        },
+        {
+          "gameVersionName": "26.1.2",
+          "gameVersionPadded": "0000000026.0000000001.0000000002",
+          "gameVersion": "26.1.2",
+          "gameVersionReleaseDate": "2026-04-09T11:39:54.243Z",
+          "gameVersionTypeId": 83806
+        }
+      ],
+      "dependencies": [],
+      "alternateFileId": 0,
+      "isServerPack": false,
+      "fileFingerprint": 1892389401,
+      "modules": [
+        {
+          "name": "manifest.json",
+          "fingerprint": 2499459780
+        },
+        {
+          "name": "modlist.html",
+          "fingerprint": 271975222
+        },
+        {
+          "name": "overrides",
+          "fingerprint": 981083954
+        }
+      ]
+    }
+  ]
+}

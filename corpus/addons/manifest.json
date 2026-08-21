@@ -1,0 +1,112 @@
+{
+  "files": [
+    {
+      "path": "modrinth/search-sodium.json",
+      "provider": "modrinth",
+      "purpose": "search",
+      "source_url": "https://api.modrinth.com/v2/search?query=sodium&facets=[[\"project_type:mod\"],[\"categories:fabric\"]]&limit=5",
+      "captured": "2026-08-21",
+      "sha256": "c2dd25819e3772a9fb496b516cb1990ab9237052d121db47509a7da4cfb641f7",
+      "byte_size": 10554
+    },
+    {
+      "path": "modrinth/project-iris.json",
+      "provider": "modrinth",
+      "purpose": "project_metadata",
+      "source_url": "https://api.modrinth.com/v2/project/iris",
+      "captured": "2026-08-21",
+      "sha256": "b6f1eb2a2f96ce0112b261bcaecf890b47eb3b8f25926811dd3446d797328d34",
+      "byte_size": 9043
+    },
+    {
+      "path": "modrinth/dependencies-iris.json",
+      "provider": "modrinth",
+      "purpose": "dependencies",
+      "source_url": "https://api.modrinth.com/v2/project/YL57xq9U/dependencies",
+      "captured": "2026-08-21",
+      "sha256": "5417341c234fa197674e4f9c558bb82f56fa6265e7ac8c9fcbe5e4de8c63f71d",
+      "byte_size": 194355
+    },
+    {
+      "path": "modrinth/version-list-iris-fabric-1.21.1.json",
+      "provider": "modrinth",
+      "purpose": "version_list_update_check",
+      "source_url": "https://api.modrinth.com/v2/project/YL57xq9U/version?loaders=[\"fabric\"]&game_versions=[\"1.21.1\"]",
+      "captured": "2026-08-21",
+      "sha256": "9fe88d1e19c51ab29d0603939da52ea220aca08c616aecf1d5e059eee97d672c",
+      "byte_size": 17981
+    },
+    {
+      "path": "modrinth/version-file-hash-iris.json",
+      "provider": "modrinth",
+      "purpose": "version_file_hash",
+      "source_url": "https://api.modrinth.com/v2/version_file/a7fbb629793c52f0be8b049f787cb598879239b1ad8e1de62e103c8b9efff140e3232b93ef1f14e505d262897d8cf9505b1126396429ad4056bff969c8674e52?algorithm=sha512",
+      "captured": "2026-08-21",
+      "sha256": "1739627f5c30d7fec88ebb620f1d97535372e11193a422ff1c409b923b0a5f10",
+      "byte_size": 1243
+    },
+    {
+      "path": "hangar/project-essentials.json",
+      "provider": "hangar",
+      "purpose": "project_metadata",
+      "source_url": "https://hangar.papermc.io/api/v1/projects/Essentials",
+      "captured": "2026-08-21",
+      "sha256": "487856d83290807dd9b50f2668973c602cc813991bec04f349bf1611a2a1a4cb",
+      "byte_size": 3826
+    },
+    {
+      "path": "hangar/versions-latest-essentials.json",
+      "provider": "hangar",
+      "purpose": "releases_latest",
+      "source_url": "https://hangar.papermc.io/api/v1/projects/Essentials/versions?limit=1&offset=0",
+      "captured": "2026-08-21",
+      "sha256": "9fdb818fb84554ca4405595a925e3f2c85b5f083128a8bb29d44912eb8eada85",
+      "byte_size": 23945
+    },
+    {
+      "path": "github/releases-latest-essentialsx.json",
+      "provider": "github",
+      "purpose": "releases_latest",
+      "source_url": "https://api.github.com/repos/EssentialsX/Essentials/releases/latest",
+      "captured": "2026-08-21",
+      "sha256": "005abd1bd5fce1bc60054631a6a276179f70e0c968d159a2b3cabcea973216f5",
+      "byte_size": 40806
+    },
+    {
+      "path": "direct/luckperms-bukkit-direct-download.json",
+      "provider": "direct",
+      "purpose": "direct_download_headers",
+      "source_url": "https://download.luckperms.net/1664/bukkit/loader/LuckPerms-Bukkit-5.5.77.jar",
+      "captured": "2026-08-21",
+      "sha256": "8a9a4415160e377478ff179dfe29ce97d2603f151046e02a31af36c0870cfbed",
+      "byte_size": 1177
+    },
+    {
+      "path": "curseforge/mods-files-blocked-entityculling.json",
+      "provider": "curseforge",
+      "purpose": "files_batch_author_blocked",
+      "source_url": "https://api.curseforge.com/v1/mods/files (POST, fileIds=[8287121] -- Entity Culling Fabric/Forge, modId 448233, allowModDistribution=false)",
+      "captured": "2026-08-21",
+      "sha256": "2d66041a9f423c7f748bdbb0a0a4d3f3f616887ab65a0b9a0d8e33b2d273130b",
+      "byte_size": 2447
+    },
+    {
+      "path": "curseforge/mods-files-resolvable-fabulously-optimized-pack.json",
+      "provider": "curseforge",
+      "purpose": "files_batch",
+      "source_url": "https://api.curseforge.com/v1/mods/files (POST, fileIds=[8439077] -- Fabulously.Optimized-13.3.0.zip pack file, modId 396246)",
+      "captured": "2026-08-21",
+      "sha256": "51aa514c95550dd7ac1a240af569c3122cb8b345d7c8ef6bc67030e7a7c3a874",
+      "byte_size": 1732
+    },
+    {
+      "path": "curseforge/mods-metadata-entityculling.json",
+      "provider": "curseforge",
+      "purpose": "mods_batch_manual_download_metadata",
+      "source_url": "https://api.curseforge.com/v1/mods (POST, modIds=[448233] -- Entity Culling Fabric/Forge)",
+      "captured": "2026-08-21",
+      "sha256": "20807e3693e3488d8605adfb6d37d2d1191741860ce53ba320e186f91f6c0594",
+      "byte_size": 44381
+    }
+  ]
+}

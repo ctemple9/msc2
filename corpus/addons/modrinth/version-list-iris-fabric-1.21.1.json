@@ -1,0 +1,536 @@
+[
+  {
+    "game_versions": [
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric"
+    ],
+    "environment": "client_only",
+    "id": "bAo1Qhte",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8.14 Beta 1 for Fabric 1.21.1",
+    "version_number": "1.8.14-beta.1+1.21.1-fabric",
+    "changelog": "Updates to Sodium 0.8, and fixes a few old bugs.",
+    "changelog_url": null,
+    "date_published": "2026-06-13T15:56:42.633700Z",
+    "downloads": 1408822,
+    "version_type": "beta",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "iGKkHSZY",
+        "hashes": {
+          "sha512": "a7fbb629793c52f0be8b049f787cb598879239b1ad8e1de62e103c8b9efff140e3232b93ef1f14e505d262897d8cf9505b1126396429ad4056bff969c8674e52",
+          "sha1": "6776c0340845887477bfa463acc736ce7fcb6de5"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/bAo1Qhte/iris-fabric-1.8.14-beta.1%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.14-beta.1+mc1.21.1.jar",
+        "primary": true,
+        "size": 2791343,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "s7adptIg",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "zsoi0dso",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8.8 for Fabric 1.21.1",
+    "version_number": "1.8.8+1.21.1-fabric",
+    "changelog": "Fixes a crash with some packs",
+    "changelog_url": null,
+    "date_published": "2025-02-20T15:04:02.182924Z",
+    "downloads": 18628927,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "szkSgPz2",
+        "hashes": {
+          "sha512": "2e6ba2ffa1e1a6799288245a7e0ac68ee8df1d41b98362189df58f535cae34fa9277801e4136633467341b7dae5be0e5c698011b480b3d91b66d3dd4f7567aa6",
+          "sha1": "4e0df4011503b4b36ba69877ea7247c1a47fea00"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/zsoi0dso/iris-fabric-1.8.8%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.8+mc1.21.1.jar",
+        "primary": true,
+        "size": 2690177,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": null,
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric"
+    ],
+    "environment": "client_only",
+    "id": "A99vfwJc",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8.7 for Fabric 1.21.1",
+    "version_number": "1.8.7+1.21.1-fabric",
+    "changelog": "This updates to the latest Sodium, fixing many texture bugs.",
+    "changelog_url": null,
+    "date_published": "2025-02-20T02:12:38.262442Z",
+    "downloads": 98479,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "HfqBvgKJ",
+        "hashes": {
+          "sha1": "68d009b24b21970635ecf203d367477706601da1",
+          "sha512": "b4b806f151f5bd46e409e0d27e611a0444a98bbcef72e52163e6f989e90a3097d9dea8ee45fbb7e4f41d517eeaab4a62d18f7502032c3f8d66ff9e4ee5dd18f9"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/A99vfwJc/iris-fabric-1.8.7%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.7+mc1.21.1.jar",
+        "primary": true,
+        "size": 2690171,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "26nVNc41",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "IzngD3Cy",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8.1 for Fabric 1.21.1",
+    "version_number": "1.8.1+1.21.1-fabric",
+    "changelog": "Update to Sodium 0.6.1.",
+    "changelog_url": null,
+    "date_published": "2024-12-02T23:16:42.985387Z",
+    "downloads": 2439631,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "rRX9gSnj",
+        "hashes": {
+          "sha1": "292dd61803e8e7c0f18db77a11b1aaaaa6b07ccc",
+          "sha512": "9d4f5f923a08266831b33facf7b6f9f0080c906c652dfa1aca363f3bb4ca03ebb49aba98712820a9cc47df8ef80c7868f883d9f24aefc5449b96d67d83286ddb"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/IzngD3Cy/iris-fabric-1.8.1%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.1+mc1.21.1.jar",
+        "primary": true,
+        "size": 2677842,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "r9o9ggVu",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "MA2sKKaG",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8 for Fabric 1.21.1",
+    "version_number": "1.8.0+1.21.1-fabric",
+    "changelog": "## One of the biggest releases ever, Iris 1.8 and Sodium 0.6 are now out of beta. \n\nWith new functionality like translucency sorting, support for NeoForge and the Fabric Rendering API, and better mod compatibility, this 1.21.x release has all you could wish for. Shaders now have better mod support and slightly better performance, with improved visuals thanks to updates in Sodium.",
+    "changelog_url": null,
+    "date_published": "2024-11-17T05:55:36.290304Z",
+    "downloads": 466693,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "ENw4geDc",
+        "hashes": {
+          "sha512": "9feafdd697118f9fb22be78857c7e4a4367bea93e63affe65da4795ad383de68653569d99d5839aa9db8d4d93589a30cb48f74a074db004ccc089a7b0b55a766",
+          "sha1": "261f47a680c4d7afbff3d38c7bd9c01dd2d5fc64"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/MA2sKKaG/iris-fabric-1.8.0%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.0+mc1.21.1.jar",
+        "primary": true,
+        "size": 2675365,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "b70slbHV",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "NqWJ1KIA",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8 Beta 8 for Fabric 1.21.1",
+    "version_number": "1.8.0-beta.8+1.21.1-fabric",
+    "changelog": "This is a hotfix to fix critical issues with shadows.",
+    "changelog_url": null,
+    "date_published": "2024-11-08T02:28:55.466328Z",
+    "downloads": 275207,
+    "version_type": "beta",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "reaKP3Mk",
+        "hashes": {
+          "sha512": "d606334478327a5ebc838de572ae63626967dbb225b3f70ac446e90c52c683a848052599d5d57162a333bde597a938a12d50413c408f329254fd1bd53923d548",
+          "sha1": "245e60897e37e1d7058670a25c9ac0c179316b59"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/NqWJ1KIA/iris-fabric-1.8.0-beta.8%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.0-beta.8+mc1.21.1.jar",
+        "primary": true,
+        "size": 2674980,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "zJZY6GYO",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "RyzH5mIp",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8 Beta 7 for Fabric 1.21.1",
+    "version_number": "1.8.0-beta.7+1.21.1-fabric",
+    "changelog": "This comes with many fixes for 1.21.2, and fixes for shadow texture handling. A new debug groups feature is present for shader developers.",
+    "changelog_url": null,
+    "date_published": "2024-11-03T23:52:47.563975Z",
+    "downloads": 142729,
+    "version_type": "beta",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "MbUtxz3S",
+        "hashes": {
+          "sha1": "61ca8bf8badfe83bffe46a170b5b44cd5a606147",
+          "sha512": "7ca1a24e477d3fec1529afe1c6db588fde0ceca8325cfe0c1247a9c64c4fa7fe20257ae7a1506a15aa4ad7fb44fe46830db673c0659e53f57e8b00d85020701c"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/RyzH5mIp/iris-fabric-1.8.0-beta.7%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.0-beta.7+mc1.21.1.jar",
+        "primary": true,
+        "size": 2674831,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "zJZY6GYO",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "u9KvDA4s",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": false,
+    "name": "Iris 1.8 Beta 4 for Fabric 1.21(.1)",
+    "version_number": "1.8.0-beta.4+1.21-fabric",
+    "changelog": "This is a major bug fix release for Iris 1.8, fixing quite a few bugs:\n\n- Shader packs are now able to disable the stars and sky\n- VRAM usage has been improved on some shader packs\n- A bug where packs would randomly fail to load with Distant Horizons has been fixed\n- A bug where packs such as KappaPT would have light leaking has been fixed\n- Block ID's are now unsigned excluding -1 (this may break a small amount of packs)\n- New shadow programs have been added: `shadow_cutout`, `shadow_translucent`, `shadow_entities`, `shadow_block`, and `shadow_solid`\n- Distant Horizons + Iris does not instantly crash your Mac (it still does not yet work correctly)",
+    "changelog_url": null,
+    "date_published": "2024-09-15T18:48:23.136139Z",
+    "downloads": 1144932,
+    "version_type": "beta",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "tkApHcbw",
+        "hashes": {
+          "sha1": "6481f2b12ec0d4040424b5f78d4b56faaf862ad5",
+          "sha512": "b177007cc1b5e1bb045b094d84fb38513c53f0ecc03ea5e90f57964c3bc8f70bd5e97d3e933a2e40359d84314ede94c883f17add6672b4eda5e6bb5cffb97187"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/u9KvDA4s/iris-fabric-1.8.0-beta.4%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.0-beta.4+mc1.21.1.jar",
+        "primary": true,
+        "size": 2659716,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "CcIWi5Av",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "Kdz76qQt",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": true,
+    "name": "Iris 1.8 Beta 3 for Fabric",
+    "version_number": "1.8.0-beta.3+1.21-fabric",
+    "changelog": "",
+    "changelog_url": null,
+    "date_published": "2024-08-25T22:31:23.296002Z",
+    "downloads": 585041,
+    "version_type": "beta",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "uzSyzpOR",
+        "hashes": {
+          "sha512": "59703c5910d9cbf38ff991dbbb94a2230048523490a772312f8fff8eda18217c6bef1489895c2534e017a7ffb29d2a28025fe28ed0be8ad74cc9e447ff1fc1d7",
+          "sha1": "2ea864566788d077b56a0d3448cdfe2562ebd7a1"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/Kdz76qQt/iris-fabric-1.8.0-beta.3%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.0-beta.3+mc1.21.1.jar",
+        "primary": true,
+        "size": 2655475,
+        "file_type": null
+      }
+    ],
+    "dependencies": []
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "di7sM681",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": true,
+    "name": "Iris 1.8 Beta 2 for Fabric 1.21",
+    "version_number": "1.8.0-beta.2+1.21-fabric",
+    "changelog": "Fixes a crash bug in Beta 1.",
+    "changelog_url": null,
+    "date_published": "2024-08-23T02:20:26.666149Z",
+    "downloads": 215771,
+    "version_type": "beta",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "chXGZCLw",
+        "hashes": {
+          "sha512": "8685c3180e834e255609a7ffad4bd441f00d829a546df08abe95a9712b1a55a94d0650c9b9aa8a910e9e76e5fbcd72e0939e8ca2e044272996f5b3d9d6598720",
+          "sha1": "7bca39a0721161d56b3d23a31ba8414136797f82"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/di7sM681/iris-fabric-1.8.0-beta.2%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.0-beta.2+mc1.21.1.jar",
+        "primary": true,
+        "size": 2654063,
+        "file_type": null
+      }
+    ],
+    "dependencies": []
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "81XVWegK",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": true,
+    "name": "Iris 1.8 Beta 1 for Fabric 1.21",
+    "version_number": "1.8.0-beta.1+1.21-fabric",
+    "changelog": "# Iris 1.8 and Sodium 0.6 are now in beta for Minecraft 1.21!\n\nThis is a major release for everyone; special thanks to douira and the rest of the team at CaffeineMC, as well as all the testers.\n\nFirst, the (admittedly minor) changes in Iris 1.8 standalone:\n- (Better) support for tags in shader packs! This allows shader packs to more easily support modded blocks should they wish.\n- Support for **Distant Horizons 2.2**. This will officially release this weekend; any older versions will not work.\n- Fixed support for some packs that did not work correctly on Iris 1.7.x. (Some packs such as KappaPT are currently broken for an unknown reason; this is being investigated.)\n\nNow, for the big part.\n# The changes in Sodium 0.6:\n\n## - Translucency sorting! \n   - No more weird bugs with putting stained glass in front of water or water through itself; it will all be handled by an advanced algorithm.\n## - Support for the Fabric Rendering API (FRAPI)!\n   - This will allow mods like Continuity, LambdaBetterGrass and Distant Horizons to work **without Indium**.\n## - Both Iris and Sodium now support NeoForge.\n   - Yes, that's correct; You will be able to use the official releases of both Iris and Sodium on your favorite NeoForge packs, such as All the Mods 10.",
+    "changelog_url": null,
+    "date_published": "2024-08-22T23:11:54.656243Z",
+    "downloads": 28904,
+    "version_type": "beta",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "k5uhIsb1",
+        "hashes": {
+          "sha512": "99ff78b7cda77131932334b7383487bb4120052c7e2526969b583b148d0f011ecaa2b61cf59b69adf59c6065558d34b14b35c84aea585a2c2c684eeb89139e85",
+          "sha1": "f275bf60e246f97b1e187ef4130403aa535a8d13"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/81XVWegK/iris-fabric-1.8.0-beta.1%2Bmc1.21.1.jar",
+        "filename": "iris-fabric-1.8.0-beta.1+mc1.21.1.jar",
+        "primary": true,
+        "size": 2654046,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": "oZOSEhyy",
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  },
+  {
+    "game_versions": [
+      "1.21",
+      "1.21.1"
+    ],
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "environment": "client_only",
+    "id": "kuOV4Ece",
+    "project_id": "YL57xq9U",
+    "author_id": "DzLrfrbK",
+    "featured": true,
+    "name": "Iris 1.7.3 for Minecraft 1.21",
+    "version_number": "1.7.3+1.21",
+    "changelog": "This release fixes a critical bug relating to name tag crashes, as well as a less critical bug related to the dragon death animation.",
+    "changelog_url": null,
+    "date_published": "2024-07-01T00:12:05.988508Z",
+    "downloads": 6749559,
+    "version_type": "release",
+    "status": "listed",
+    "requested_status": null,
+    "files": [
+      {
+        "id": "tDn86UWl",
+        "hashes": {
+          "sha512": "bcd9b4f5cef1521c00b59cc9409725556922a077c60f62ba834dca680e29f334660a7c68150ff827779fb888585042b1ba687dfce6fd4d650507d9c59f023703",
+          "sha1": "1b4e44a74c850d407518bc5cbe33eec9577ad9e9"
+        },
+        "url": "https://cdn.modrinth.com/data/YL57xq9U/versions/kuOV4Ece/iris-1.7.3%2Bmc1.21.jar",
+        "filename": "iris-1.7.3+mc1.21.jar",
+        "primary": true,
+        "size": 2707610,
+        "file_type": null
+      }
+    ],
+    "dependencies": [
+      {
+        "version_id": null,
+        "project_id": "AANobbMI",
+        "file_name": null,
+        "dependency_type": "required"
+      }
+    ]
+  }
+]

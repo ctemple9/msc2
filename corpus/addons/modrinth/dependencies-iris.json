@@ -1,0 +1,3199 @@
+{
+  "projects": [
+    {
+      "client_side": "required",
+      "server_side": "unsupported",
+      "game_versions": [
+        "1.16.3",
+        "1.16.4",
+        "1.16.5",
+        "1.17",
+        "1.17.1",
+        "1.18",
+        "1.18.1",
+        "1.18.2",
+        "1.19",
+        "1.19.1",
+        "1.19.2",
+        "1.19.3",
+        "1.19.4",
+        "1.20",
+        "1.20.1",
+        "1.20.2",
+        "1.20.3",
+        "1.20.4",
+        "1.20.5",
+        "1.20.6",
+        "1.21",
+        "1.21.1",
+        "1.21.2",
+        "1.21.3",
+        "1.21.4",
+        "1.21.5",
+        "1.21.6",
+        "1.21.7",
+        "1.21.8",
+        "1.21.9",
+        "1.21.10",
+        "1.21.11",
+        "26.1",
+        "26.1.1",
+        "26.1.2",
+        "26.2-rc-1",
+        "26.2-rc-2",
+        "26.2"
+      ],
+      "environment": [
+        "client_only"
+      ],
+      "id": "AANobbMI",
+      "slug": "sodium",
+      "project_type": "mod",
+      "team": "4reLOAKe",
+      "organization": "LjcZDkRW",
+      "title": "Sodium",
+      "description": "A high-performance rendering engine replacement for Minecraft, which greatly improves frame rates and reduces micro-stutter.",
+      "body": "**Latest News (June 16, 2026)** - Sodium 0.9.x is now available for Minecraft 26.2, **_with early support for Vulkan!_** The performance of the Vulkan backend is already in a good place (even faster than before on many devices), and we expect to be able to improve it even further with future updates.\n\n---\n\n**This mod is the result of thousands of hours of development, and is made possible thanks to players like you.** If you would like to show a token of your appreciation for my work, and help support the development of Sodium in the process, then consider [buying me a coffee](https://caffeinemc.net/donate).\n\n[![Buy me a coffee](https://cdn.modrinth.com/data/cached_images/b888841adf2a7d4d76c5274d634c205ee88e9e20.png)](https://caffeinemc.net/donate)\n[![Join us on Discord](https://cdn.modrinth.com/data/cached_images/de7f2f606702569cd98fc1f6a0b29dbf817dd870.png)](https://caffeinemc.net/discord)\n\n---\n\n<center>\n <img src=\"https://cdn.modrinth.com/data/AANobbMI/images/5ca2e8f6c72f3d543dd3dc95b706964c5678d80e.png\" alt=\"Sodium 0.4 Comparison\"></img>\n <p>\n   <!-- This paragraph is load bearing, and ensures a margin is added before the following Markdown -->\n </p>\n</center>\n\nSodium is a powerful optimization mod for the Minecraft client, which greatly improves frame rates and micro-stutter, while fixing many graphical issues in Minecraft.\n\nUnlike other rendering-focused mods, it boasts wide compatibility with the wider modding ecosystem. And it does so without compromising on how the game looks, giving you that authentic block game feel.\n\n[![Available on Fabric](https://cdn.modrinth.com/data/cached_images/513035d1231a86dff137c74e04a5e64633593f10.png)](https://modrinth.com/mod/sodium/versions?l=fabric)\n[![Available on Quilt](https://cdn.modrinth.com/data/cached_images/a9ee492fd1a5fcbcc14d4105aa27be63f2518529.png)](https://modrinth.com/mod/sodium/versions?l=quilt)\n[![Available on NeoForge](https://cdn.modrinth.com/data/cached_images/b9ae07fbc26c08220b4856cb244f86904d0c172c.png)](https://modrinth.com/mod/sodium/versions?l=neoforge)\n\n<h1 id=\"installation\">\ud83d\udce5 Installation Guide</h1>\n\nSodium is available for multiple mod loaders, but we recommend using [Fabric Loader](https://fabricmc.net/use) for the most simple and lightweight experience. If you are using a third-party launcher, it probably has built-in functionality to automatically install mod loaders. Once you have installed your mod loader, you can simply place Sodium into your _mods folder_ like anything else.\n\n**Not sure if you installed the mod correctly?** Check your _Video Settings_ screen in Minecraft, which should show our new and improved user interface for changing settings.\n\n**Not sure how to configure the mod?** Don't worry, you probably don't need to. By default, Sodium will enable all optimizations which are supported on your system, giving you the best experience possible. You should generally only change video settings related to performance and other advanced features if you are experiencing issues.\n\n**Need even more performance?** By design, Sodium only optimizes the rendering code of Minecraft. You should also install our other mods, such as [Lithium](https://modrinth.com/mod/lithium) (for MC 1.15+) and [Phosphor](https://modrinth.com/mod/phosphor) (for MC <1.19), to optimize the other parts of your game. This is done so that players can pick and choose which mods they want to use, but we generally recommend using [our entire collection](https://modrinth.com/user/jellysquid3).\n\n<h1 id=\"hardware-compatibility\">\u2705 Hardware Compatibility</h1>\n\n**Android devices (and some Windows-on-ARM devices) which use OpenGL translation layers (such as GL4ES, ANGLE, GLonD3D12 etc) are not supported and will have severe performance issues.**\n\nWe only provide official support for desktop graphics cards which have up-to-date drivers compatible with OpenGL 4.5 or newer. Most graphics cards released in the past 12 years will meet these requirements, including the following:\n\n- INTEL HD Graphics 500 Series (Skylake) or newer\n- NVIDIA GeForce 400 Series (Fermi) or newer\n- AMD Radeon HD 7000 Series (GCN 1) or newer\n\n**Nearly all desktop graphics cards that are already compatible with Minecraft (which requires OpenGL 3.3) should also work with Sodium.** But our team cannot ensure compatibility or provide support for older graphics cards, and they may not work with future versions of Sodium.\n\n**If you are running into problems, you should [make sure that your graphics drivers are up-to-date](https://github.com/CaffeineMC/sodium/wiki/Driver-Compatibility).** Out-of-date graphics drivers are often the reason for most crashes, rendering bugs, and performance issues.\n\n# \ud83d\udc1b How to Report Issues\n\nPlease use the [issue tracker](https://github.com/CaffeineMC/sodium/issues) linked at the top of the page to report bugs, crashes, and other issues. Make sure you include information about the mods you are using, and attach any crash/log files you have.\n\n---\n\n_**Note:** The level of performance you see while using the Sodium mod will vary depending on exact hardware and software configuration. For all performance comparisons provided on this page, we used a computer with integrated graphics which we believe to be representative of the casual player._\n\n<sup>_**Hardware configuration:** Intel Core i7-1165G7 (4c/8t, up to 4.70 GHz) with Intel Xe Graphics (96 EUs, up to 1.30 GHz), 2x16 GB DDR4-3200._</sup>\n<sup>_**Software configuration:** Fedora 41, Linux 6.12.4, Mesa 24.3.4, Prism Launcher 9.1, OpenJDK 21.0.7 runtime (as packaged by distribution), Fabric Loader 0.16.10._</sup>",
+      "body_url": null,
+      "published": "2021-01-03T00:53:34.185936Z",
+      "updated": "2026-08-07T00:57:37.975432Z",
+      "approved": "2021-01-03T00:53:34.185936Z",
+      "queued": null,
+      "status": "approved",
+      "requested_status": null,
+      "moderator_message": null,
+      "license": {
+        "id": "LicenseRef-Polyform-Shield-1.0.0",
+        "name": "",
+        "url": "https://github.com/CaffeineMC/sodium/blob/dev/LICENSE.md"
+      },
+      "downloads": 211128830,
+      "followers": 40068,
+      "categories": [
+        "optimization"
+      ],
+      "additional_categories": [],
+      "loaders": [
+        "fabric",
+        "neoforge",
+        "quilt"
+      ],
+      "versions": [
+        "yaoBL9D9",
+        "YAGZ1cCS",
+        "1b0GhKHj",
+        "80jYkEVr",
+        "xuWxRZPd",
+        "3JJvf9Kn",
+        "6YGRDUVT",
+        "Fz37KqRh",
+        "5JyduDNN",
+        "74Y5Z8fo",
+        "Yp8wLY1P",
+        "F79MzDJD",
+        "rAfhHfow",
+        "mnEhtGuH",
+        "Nr39FOaS",
+        "ObtU68vj",
+        "oYfJQ6lR",
+        "idtcaIVT",
+        "b4hTi3mo",
+        "vgceLbdH",
+        "hiO9bwqc",
+        "OkwCNtFH",
+        "6SSPmLc9",
+        "4OZL6q9h",
+        "bbP1qBMr",
+        "lhZYeXLf",
+        "zPwAvKCF",
+        "InGKdfel",
+        "pmgeU5yX",
+        "rUXIwGKA",
+        "xNJ0Mpbx",
+        "umKbm1Rp",
+        "Wzzjm5lQ",
+        "mhZtY2lR",
+        "4GyXKCLd",
+        "hLV8Q8uu",
+        "IZskON6d",
+        "qhg37WBD",
+        "dNHeFokL",
+        "QHGZ9XSU",
+        "dEpHs0Hg",
+        "ygf8cVZg",
+        "OwLQelEI",
+        "RncWhTxD",
+        "rcNehRIZ",
+        "oZOSEhyy",
+        "vO5IVg3V",
+        "CcIWi5Av",
+        "YWD36TtF",
+        "yExcQU0x",
+        "r0Cvb6jf",
+        "zJZY6GYO",
+        "bSL0wBSW",
+        "HCEjRjK4",
+        "frbpSbY2",
+        "hBlmTLJR",
+        "SzAjFUSx",
+        "7zeY2C2J",
+        "b70slbHV",
+        "Ci7BTU2N",
+        "gXZfuKxx",
+        "V26EsYch",
+        "r9o9ggVu",
+        "uc2dogCv",
+        "6b5IXmYv",
+        "2eDS46kO",
+        "xy8qdzcb",
+        "KAzyah9L",
+        "joBzVWtR",
+        "fOY6Lk1h",
+        "Hd6ChVqe",
+        "rS9B5M5H",
+        "qufJMFlM",
+        "PoLJlR6Z",
+        "iPRNybGo",
+        "cQxHrxZR",
+        "lzNrocQS",
+        "yh7wTLt0",
+        "8gvU5X0Y",
+        "ldExj4cr",
+        "8yyQEk3d",
+        "WhPNIBJU",
+        "EoNKHoLH",
+        "zBRij2cH",
+        "dsw736d2",
+        "uk3Xx4Zv",
+        "aHtQZyzN",
+        "oTFUUvpt",
+        "tu8qILqH",
+        "FI3Xu3s3",
+        "AxSdcDcP",
+        "XurfNSst",
+        "fRVuPyyt",
+        "8HOyt4KQ",
+        "IIO7jQ3j",
+        "UIdko9JY",
+        "LL4puCl1",
+        "X0u6q01a",
+        "26nVNc41",
+        "I9RMZOOH",
+        "Hp1g50Pm",
+        "FpkDJuDz",
+        "QuV9hMgB",
+        "GUEd3mz0",
+        "ryOMVRuG",
+        "FRXt5xaI",
+        "mTW3oi85",
+        "OihdIimA",
+        "JV9BubzL",
+        "jv9JbDp8",
+        "fVbw1C7i",
+        "FbKAFCUM",
+        "u1OEbNKx",
+        "Pb3OXVqC",
+        "rLBgU2jc",
+        "M0CXIL7c",
+        "c3YkZvne",
+        "XgEfENfn",
+        "DA250htH",
+        "dfyNHRhw",
+        "ND4ROcMQ",
+        "ihzX2Dvy",
+        "AQpu5aS1",
+        "24jH02Sf",
+        "1LjoeVdt",
+        "VTidoe6U",
+        "pJRT8Zxt",
+        "lgWRGiHv",
+        "h30oKQW3",
+        "7pwil2dy",
+        "q6wdZywr",
+        "sFfidWgd",
+        "PdQpfqPZ",
+        "MLXdfyIk",
+        "k5Rs4Eru",
+        "2IxKzI1o",
+        "z88JSh9S",
+        "8jueyeK2",
+        "59wygFUQ",
+        "W5UZgZ6L",
+        "3PnHeviJ",
+        "1OWNgWVR",
+        "B0QEOpLx",
+        "ZPWbiWXz",
+        "ZK3jHJgK",
+        "Amr4VcZo",
+        "UddlN6L4",
+        "pXyXLdlT",
+        "uGvVQBnw",
+        "Fg5Mk6Y3",
+        "qyD7aF0i",
+        "SIrB5bCM",
+        "ff7xUQLH",
+        "QZUUceyk",
+        "CL53p97Z",
+        "aUG2WqLW",
+        "yUMbbGVC",
+        "tLByymK0",
+        "UXLJGXZx",
+        "IG1eAHBT",
+        "s0gEbAOZ",
+        "TDDIPBCi",
+        "p8rn2ZbI",
+        "hjgWF0Ll",
+        "N36IhsfU",
+        "Uif0LEOw",
+        "2NVD70pK",
+        "lTkSfJmh",
+        "Gv1UmlKg",
+        "hSgrV2wa",
+        "8kVO74iE",
+        "x0XUezGL",
+        "XSQwpkzX",
+        "g6p4rAa4",
+        "8l4Yx5Q1",
+        "775xoFNg",
+        "eRJU33Hp",
+        "NFkjnzWE",
+        "ylHOo4fY",
+        "tVLDCyrm",
+        "uheoPKxU",
+        "kNdUCPfo",
+        "Ar8m5Oi9",
+        "tQHKoffZ",
+        "pBzGpoaN",
+        "iw5APcWy",
+        "s7adptIg",
+        "9LayGURz",
+        "1Zzoi12t",
+        "I6y5LD6f",
+        "1rha2U1D",
+        "5dWEDeL4",
+        "3QgJXuSK",
+        "wpTNXtBM",
+        "9nutuIup",
+        "B5nxF2dz",
+        "NPVnpcnt",
+        "CTr1wDrZ",
+        "paat5Nz2",
+        "7XOIgnrf",
+        "JjCVwmVA",
+        "jvfEutyx",
+        "u9zPxyVL",
+        "XH7tn3tc",
+        "FVHjuQxV",
+        "YHaAktjP",
+        "al82slgf",
+        "3gOEYetK",
+        "rU20oO6s",
+        "HWi9uk6d",
+        "dcg8zoBg",
+        "S3DUMfBo",
+        "KIRFiWG4",
+        "fyQ1HOA0",
+        "Ny3XyYle",
+        "2Yom1N68",
+        "KHPycol7",
+        "UETw0GTI",
+        "vf7UgZpC",
+        "tey73iIl",
+        "UWnjjQpJ",
+        "TWu15sHW",
+        "9TOXkS1s",
+        "lYTPBqRz",
+        "5EEI3Guz",
+        "iwperv3m",
+        "7R6RLnxd",
+        "yGgvfqMn",
+        "bDYxMrp3",
+        "CAZAVb0n",
+        "StFfQ110",
+        "YZNHS9YH",
+        "7XdPQMOk",
+        "Db4rYqXN",
+        "a9YZH3ip",
+        "5FMvNu0I",
+        "VR1WBv3l",
+        "QV48eyCs",
+        "jfHZ5pyN",
+        "vqUoGREs",
+        "l42iw17I"
+      ],
+      "icon_url": "https://cdn.modrinth.com/data/AANobbMI/295862f4724dc3f78df3447ad6072b2dcd3ef0c9_96.webp",
+      "raw_icon_url": "https://cdn.modrinth.com/data/AANobbMI/icon.png",
+      "issues_url": "https://github.com/CaffeineMC/sodium/issues",
+      "source_url": "https://github.com/CaffeineMC/sodium",
+      "wiki_url": "https://github.com/CaffeineMC/sodium/wiki",
+      "discord_url": "https://caffeinemc.net/discord",
+      "donation_urls": [
+        {
+          "id": "ko-fi",
+          "platform": "Ko-fi",
+          "url": "https://caffeinemc.net/donate"
+        }
+      ],
+      "gallery": [
+        {
+          "url": "https://cdn.modrinth.com/data/AANobbMI/images/d84313e6f57dc9e7896961dbd2dfc2689d482758_350.webp",
+          "raw_url": "https://cdn.modrinth.com/data/AANobbMI/images/d84313e6f57dc9e7896961dbd2dfc2689d482758.webp",
+          "featured": false,
+          "title": "Underwater Lighting Improvements",
+          "description": "Sodium fixes many graphical issues with smooth lighting while underwater.",
+          "created": "2023-06-25T21:35:39.891789Z",
+          "ordering": 0
+        },
+        {
+          "url": "https://cdn.modrinth.com/data/AANobbMI/images/6b0e58705156ba67a6d97a74b9f9ac05da69f502_350.webp",
+          "raw_url": "https://cdn.modrinth.com/data/AANobbMI/images/6b0e58705156ba67a6d97a74b9f9ac05da69f502.webp",
+          "featured": false,
+          "title": "Biome Blending Improvements",
+          "description": "Sodium improves biome blending to use gradients across each block, making the effect look much smoother.",
+          "created": "2023-06-25T21:32:36.805733Z",
+          "ordering": 1
+        },
+        {
+          "url": "https://cdn.modrinth.com/data/AANobbMI/images/b681a9e87daa53a0e85336a894db70427007149b_350.webp",
+          "raw_url": "https://cdn.modrinth.com/data/AANobbMI/images/b681a9e87daa53a0e85336a894db70427007149b.webp",
+          "featured": false,
+          "title": "Fluid Rendering Improvements",
+          "description": "Sodium implements smooth lighting for all fluids, fixing a long-standing issue in Minecraft.",
+          "created": "2023-06-25T21:34:46.764479Z",
+          "ordering": 10
+        },
+        {
+          "url": "https://cdn.modrinth.com/data/AANobbMI/images/56c4599efcb529a19aed0e118caad4178d7fd540.webp",
+          "raw_url": "https://cdn.modrinth.com/data/AANobbMI/images/56c4599efcb529a19aed0e118caad4178d7fd540.webp",
+          "featured": false,
+          "title": "Block Shading Improvements",
+          "description": "Sodium greatly improves the shading of blocks, fixing a number of bugs while making block shadows look more smooth and consistent.",
+          "created": "2023-06-25T21:36:48.985787Z",
+          "ordering": 30
+        },
+        {
+          "url": "https://cdn.modrinth.com/data/AANobbMI/images/5ca2e8f6c72f3d543dd3dc95b706964c5678d80e_350.webp",
+          "raw_url": "https://cdn.modrinth.com/data/AANobbMI/images/5ca2e8f6c72f3d543dd3dc95b706964c5678d80e.png",
+          "featured": false,
+          "title": "Sodium 0.5.2",
+          "description": "Sodium greatly optimizes the game's renderer to be faster and more efficient, which can often result in FPS improvements of 300% or more.",
+          "created": "2023-08-19T17:00:08.788447Z",
+          "ordering": 999
+        },
+        {
+          "url": "https://cdn.modrinth.com/data/AANobbMI/images/c39debea7fc623306e9c45148084585399fc59ee.webp",
+          "raw_url": "https://cdn.modrinth.com/data/AANobbMI/images/c39debea7fc623306e9c45148084585399fc59ee.webp",
+          "featured": false,
+          "title": "Sodium 0.4.1",
+          "description": "Sodium greatly optimizes the game's renderer to be faster and more efficient, which can often result in FPS improvements of 300% or more.",
+          "created": "2023-06-25T21:30:34.663388Z",
+          "ordering": 1000
+        }
+      ],
+      "color": 8703084,
+      "thread_id": "AANobbMI",
+      "monetization_status": "monetized"
+    }
+  ],
+  "versions": [
+    {
+      "game_versions": [
+        "26.1.2"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "vf7UgZpC",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.9.1 for Fabric 26.1.2",
+      "version_number": "mc26.1.2-0.9.1-fabric",
+      "changelog": "Sodium 0.9.1 for Minecraft 26.1.2 introduces asynchronous occlusion culling alongside other small improvements and fixes for crashes to improve stability.\n\nThis generally improves performance and avoids the frame rate dropping when the camera is moved, especially at high render distances. This feature has been in the works for a long time now, and together with the release for Minecraft 26.2, we've decided to release it. More work is planned, including improvements to the task scheduling system and optimizations to improve responsiveness.\n\n- Implementation of Asynchronous Graph Culling and Frame-Independent Task Scheduling ([#2887](https://github.com/CaffeineMC/sodium/pull/2887))\n- Fix rare issues with chunk fading\n- Fix crash when using `-Dmixin.debug=true` ([#3689](https://github.com/CaffeineMC/sodium/pull/3689))\n- Only make environment changes if the early window will create a gl context early ([#3697](https://github.com/CaffeineMC/sodium/pull/3697))\n- Improve the presentation and wording of some video options ([#3700](https://github.com/CaffeineMC/sodium/pull/3700))\n- Fix water color handling\n- Fix broken block tinting by not incorrectly converting to the wrong color format\n- Fix fluid color overrides not being applied ([#3729](https://github.com/CaffeineMC/sodium/pull/3729))\n- Fix crash \"getResources is null\" ([#3752](https://github.com/CaffeineMC/sodium/pull/3752))\n- Fix crash \"centroid is null,\" \"allQuads is null,\" and \"geometryPlanes is null\" ([#3757](https://github.com/CaffeineMC/sodium/pull/3757), [#3805](https://github.com/CaffeineMC/sodium/pull/3805))\n- Fix crashes resulting from unsafe concurrency in async culling \"ArrayIndexOutOfBoundsException\" ([#3756](https://github.com/CaffeineMC/sodium/pull/3756))\n- Improved mod compatibility by using occlusion culling from camera render state ([#3764](https://github.com/CaffeineMC/sodium/pull/3764))\n- Optimize checks for immediate presentation in RSM ([#3768](https://github.com/CaffeineMC/sodium/pull/3768))\n- Cache max draw size in MultiDrawBatch instead of scanning every frame ([#3773](https://github.com/CaffeineMC/sodium/pull/3773))\n- Fix crash \"sorter is null\" ([#3787](https://github.com/CaffeineMC/sodium/pull/3787))\n- Internal code quality improvements and cleanup\n- Remove extra ABGR conversion to fix incorrect falling block coloration ([#3798](https://github.com/CaffeineMC/sodium/pull/3798))\n- Fix non-terrain block lighting ([#3800](https://github.com/CaffeineMC/sodium/pull/3800))\n- Fix command line not being restored after NeoForge early window init ([#3803](https://github.com/CaffeineMC/sodium/pull/3803))\n\nIris versions 1.11.1 and older are not compatible, and you will need to download an appropriate version from Modrinth, or if no such version is available there, from the Iris Discord server.",
+      "changelog_url": null,
+      "date_published": "2026-07-08T21:04:04.955260Z",
+      "downloads": 1659062,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "cUemnLM4",
+          "hashes": {
+            "sha512": "bf7e242a4df5a70be567ad58e262eea7db54b92333994331b57dc13f2ed36e22d1cf6609e4e76582d3173d5ffdcde9534441164bc9b70560f3d764affcc16ad3",
+            "sha1": "cdb5ab59dc05840c5fc762c3821570c6fa02a8dc"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vf7UgZpC/sodium-fabric-0.9.1%2Bmc26.1.2.jar",
+          "filename": "sodium-fabric-0.9.1+mc26.1.2.jar",
+          "primary": true,
+          "size": 1889595,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "26.2"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "2Yom1N68",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.9.1 for Fabric 26.2",
+      "version_number": "mc26.2-0.9.1-fabric",
+      "changelog": "Sodium 0.9.1 for Minecraft 26.2 improves stability by fixing a number of crashes and other bugs.\n\n- Fix hand rendering glitches that happened in specific cases ([#3751](https://github.com/CaffeineMC/sodium/pull/3751))\n- Fix crash \"getResources is null\" ([#3752](https://github.com/CaffeineMC/sodium/pull/3752))\n- Fix panorama screenshots crashing ([#3761](https://github.com/CaffeineMC/sodium/pull/3761))\n- Fix crash \"centroid is null,\" \"allQuads is null,\" and \"geometryPlanes is null\" ([#3757](https://github.com/CaffeineMC/sodium/pull/3757), [#3805](https://github.com/CaffeineMC/sodium/pull/3805))\n- Fix crashes resulting from unsafe concurrency in async culling \"ArrayIndexOutOfBoundsException\" ([#3756](https://github.com/CaffeineMC/sodium/pull/3756))\n- Fix incorrect GlyphVertex\n- Improved mod compatibility by using occlusion culling from camera render state ([#3764](https://github.com/CaffeineMC/sodium/pull/3764))\n- Optimize checks for immediate presentation in RSM ([#3768](https://github.com/CaffeineMC/sodium/pull/3768))\n- Cache max draw size in MultiDrawBatch instead of scanning every frame ([#3773](https://github.com/CaffeineMC/sodium/pull/3773))\n- Reimplement enhanced entity sorting. The option was ineffective as of 26.2, but should now work again.\n- Fix sections getting stuck fully \"faded\" as the color of the sky, often after explosions ([#3785](https://github.com/CaffeineMC/sodium/pull/3785))\n- Fix crash \"sorter is null\" ([#3787](https://github.com/CaffeineMC/sodium/pull/3787))\n- Internal code quality improvements and cleanup\n- Fix non-terrain block lighting ([#3800](https://github.com/CaffeineMC/sodium/pull/3800), [#3795](https://github.com/CaffeineMC/sodium/pull/3795))\n- Remove extra ABGR conversion to fix incorrect falling block coloration ([#3798](https://github.com/CaffeineMC/sodium/pull/3798))\n- Fix crash when rendering very many sections on Vulkan by making the indirect context ring buffer dynamically sized\n- Fix command line not being restored after NeoForge early window init ([#3803](https://github.com/CaffeineMC/sodium/pull/3803))\n\nIris 1.11.1 is not compatible, and you will need to download an appropriate version from Modrinth, or if no such version is available there, from the Iris Discord server.",
+      "changelog_url": null,
+      "date_published": "2026-07-08T20:58:18.553231Z",
+      "downloads": 5172269,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "unQhiKkL",
+          "hashes": {
+            "sha1": "14f3388694fa77f870d28262f74562de67eabcbe",
+            "sha512": "627fbf9625a4b94693c789c84a0686ffe558c0b1ecbeccf2602a903caafa9e126548b644282aa9c391dc798930d378724a383bea6b4397c5294d59ba5c0a6936"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/2Yom1N68/sodium-fabric-0.9.1%2Bmc26.2.jar",
+          "filename": "sodium-fabric-0.9.1+mc26.2.jar",
+          "primary": true,
+          "size": 1834384,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "26.2"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "3QgJXuSK",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.9.0 for Fabric 26.2",
+      "version_number": "mc26.2-0.9.0-fabric",
+      "changelog": "Sodium 0.9.0 for Minecraft 26.2 updates to Minecraft 26.2, and adds asynchronous occlusion culling. \n\nThis is the first version to *experimentally* support Vulkan. To access it, use the Graphics API option in video settings.\n\n- Updated to Minecraft 26.2\n- Moved all rendering to Mojang's Blaze3D API\n- Added Asynchronous Graph Culling and Frame-Independent Task Scheduling ([#2887](https://github.com/CaffeineMC/sodium/pull/2887))\n- Improve the presentation and wording of some video options ([#3700](https://github.com/CaffeineMC/sodium/pull/3700))",
+      "changelog_url": null,
+      "date_published": "2026-06-16T16:48:58.826896Z",
+      "downloads": 3159249,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "eEeeX3eQ",
+          "hashes": {
+            "sha1": "924dc2b779b7b7cd2d1d2464b863b00aa9fea797",
+            "sha512": "cff27e97d179ec1d3bcbcfc49820ec62b04fd101c98c2922cbcf426a3a0d3b32cd73e2d4cbefe0e291c9074484fbfdfa9d53b8cf0dc8783b015f33b2e21126a3"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/3QgJXuSK/sodium-fabric-0.9.0%2Bmc26.2.jar",
+          "filename": "sodium-fabric-0.9.0+mc26.2.jar",
+          "primary": true,
+          "size": 1830648,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "s7adptIg",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.8.12-beta.1 for Fabric 1.21.1",
+      "version_number": "mc1.21.1-0.8.12-beta.1-fabric",
+      "changelog": "### Overview\nSodium 0.8.12-beta.1 is a backport of modern Sodium 0.8 to Minecraft 1.21.1.\n\n- Significantly improved the performance of rendering the world (up to +115%) on some computers.\n- Greatly improved the rendering of transparent objects with complex models, especially when submerged in water.\n- Lots and lots of improvements to the user experience in the Video Settings menu.\n- Reduced latency and micro-stutter when updating chunks in the world.\n- Slightly faster entity rendering, especially for transparent mobs and particles.\n- Improvements for hardware and mod compatibility.\n- ...And many more bug fixes and improvements...\n\n### Using and Testing This Release\nIt includes the backport of our Config API and other conventions that will hopefully make it easier for mods to interact with Sodium across multiple versions. This release series doesn't get released at the same cadence as our current releases for Minecraft 26.1 and 1.21.11, and doesn't follow the same alpha/beta numbering. Mod developers can find our artifacts, such as the Config API, on [our Maven repository](https://maven.caffeinemc.net/).\n\nPlease participate in testing this release, coordinating on mod compatibility, and giving feedback on [our discord server](https://caffeinemc.net/discord). In the thread in #testing-builds we have more information. Report any issues you may have in the thread.\n\nKnown incompatibilities at the time of this release:\n- Create Aeronautics works as of 1.3.0\n- Sable works as of 2.0.0\n- Veil works as of 4.1.2\n- Iris works as of 1.8.13 (unreleased on platforms at the time of this release)\n- Voxy does not work\n- sodiumleafculling does not work\n- EBE animations don\u2019t work\n\n### Alpha Series Changelog\n- Fix BufferBuilderMixin conflicting with Iris' MixinBufferBuilder_SeparateAo when requireOverwriteAnnotations is enabled ([#3658](https://github.com/CaffeineMC/sodium/pull/3658))\n- Potentially fix issues with publishing by making the buildscript more similar to that used in 1.21.11\n- Fix the corrupted config screen to show up properly\n- Revert \"Update texture light coords math to match Vanilla (#3311)\" as this was mistakenly applied to 1.21.1\n\n### Beta Series Changelog\n- Added the display of fps percentiles. This gives a more accurate idea of the typical frame rate and lets you identify how smooth it is.\n- Fix crash when using `-Dmixin.debug=true` ([#3689](https://github.com/CaffeineMC/sodium/pull/3689))\n- Added checks to prevent crashes when using the vertex writing fast path ([#3716](https://github.com/CaffeineMC/sodium/pull/3716))\n- Only make environment changes if the early window will create a gl context early ([#3697](https://github.com/CaffeineMC/sodium/pull/3697))\n- Improve the presentation and wording of some video options ([#3700](https://github.com/CaffeineMC/sodium/pull/3700))",
+      "changelog_url": null,
+      "date_published": "2026-06-13T13:24:54.858140Z",
+      "downloads": 263076,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "OzeoEKi7",
+          "hashes": {
+            "sha512": "6d4958fd3c23c0e5fdcbfcdaa3e73511bf89a0988370ab94c93e740ec2452649165b3a331351e12d392ccf924affdc042b3fc01b2e6289b7d9c7c4591c7dbeeb",
+            "sha1": "6bfa55d485018d77f66b04ae78e323e22f18284d"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/s7adptIg/sodium-fabric-0.8.12-beta.1%2Bmc1.21.1.jar",
+          "filename": "sodium-fabric-0.8.12-beta.1+mc1.21.1.jar",
+          "primary": true,
+          "size": 1573127,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "26.1",
+        "26.1.1",
+        "26.1.2"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "Fg5Mk6Y3",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.9 for NeoForge 26.1.1",
+      "version_number": "mc26.1.1-0.8.9-neoforge",
+      "changelog": "This release fixes bugs and makes some miscellaneous improvements.\n\n- Fixed vanilla performance regression in item models when using high resolution texture packs ([PR](https://github.com/CaffeineMC/sodium/pull/3551))\n- Better error messages for option override/overlay conflicts\n- Only show amd workarounds message on windows ([PR](https://github.com/CaffeineMC/sodium/pull/3553))\n- Improved down-facing inner fluid face heuristic ([PR](https://github.com/CaffeineMC/sodium/pull/3552))\n- Fix severe performance issue on 26.1 due to Java 25",
+      "changelog_url": null,
+      "date_published": "2026-04-03T14:11:43.469386Z",
+      "downloads": 305620,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "KsO9zWVu",
+          "hashes": {
+            "sha512": "1e63fa06189d013db57c8c1875e2c3ea5114e00ab82f0b6540f8e9ed6007fdef9ea2ab90721ce2a55b55e3484fa1696e9a582b33fdf271308c8717db4958629d",
+            "sha1": "594e301055e2cbf3afdc4338d6a7a59d7b17216f"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/Fg5Mk6Y3/sodium-neoforge-0.8.9%2Bmc26.1.1.jar",
+          "filename": "sodium-neoforge-0.8.9+mc26.1.1.jar",
+          "primary": true,
+          "size": 1121322,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "26.1",
+        "26.1.1",
+        "26.1.2"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "uGvVQBnw",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.9 for Fabric 26.1.1",
+      "version_number": "mc26.1.1-0.8.9-fabric",
+      "changelog": "This release fixes bugs and makes some miscellaneous improvements.\n\n- Fixed vanilla performance regression in item models when using high resolution texture packs ([PR](https://github.com/CaffeineMC/sodium/pull/3551))\n- Better error messages for option override/overlay conflicts\n- Only show amd workarounds message on windows ([PR](https://github.com/CaffeineMC/sodium/pull/3553))\n- Improved down-facing inner fluid face heuristic ([PR](https://github.com/CaffeineMC/sodium/pull/3552))\n- Fixes a crash with Fabric API 0.145.0+\n- Fix severe performance issue on 26.1 due to Java 25",
+      "changelog_url": null,
+      "date_published": "2026-04-03T14:10:45.341213Z",
+      "downloads": 5187362,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "flCRJm00",
+          "hashes": {
+            "sha1": "48b949ec71365788dfd4e89d489f7abd504aa709",
+            "sha512": "74f9dc8963b5258226837cc361ba6b525da734ab4fa5f05d1862bc6e9175f4fa81ca3d49443e2fb85be144d06042f0d65cbcceefc391043af857b38aa2614ae8"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/uGvVQBnw/sodium-fabric-0.8.9%2Bmc26.1.1.jar",
+          "filename": "sodium-fabric-0.8.9+mc26.1.1.jar",
+          "primary": true,
+          "size": 1810286,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "pXyXLdlT",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.7 for NeoForge 1.21.11",
+      "version_number": "mc1.21.11-0.8.7-neoforge",
+      "changelog": "This release updates to Minecraft 26.1, as well as fixing a few bugs.\n\n- Improved the error message about LWJGL being the wrong version ([PR](https://github.com/CaffeineMC/sodium/pull/3527))\n- Improved fluid culling and shaping ([PR](https://github.com/CaffeineMC/sodium/pull/2931))\n- Improved mod compatibility ([PR](https://github.com/CaffeineMC/sodium/pull/3540), [PR](https://github.com/CaffeineMC/sodium/pull/3539))\n- Fixed an issue with the fog distance ([PR](https://github.com/CaffeineMC/sodium/pull/3510))\n- Fixed a number of smaller issues and performed refactoring",
+      "changelog_url": null,
+      "date_published": "2026-03-24T16:31:21.358019Z",
+      "downloads": 178782,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "dZviXuo1",
+          "hashes": {
+            "sha512": "db1a3d9ceab33bc4e522844912e9e0a8c95b93df12ffd830147f2e361671cc70b2f2d88f87e6b90956e983c36530c999260cc12c5b6fcc0fc33ccca3f3b8b3de",
+            "sha1": "ff5ad4288cbad37be3148cb8e1b9ab62b502f8ed"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/pXyXLdlT/sodium-neoforge-0.8.7%2Bmc1.21.11.jar",
+          "filename": "sodium-neoforge-0.8.7+mc1.21.11.jar",
+          "primary": true,
+          "size": 1101432,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "UddlN6L4",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.7 for Fabric 1.21.11",
+      "version_number": "mc1.21.11-0.8.7-fabric",
+      "changelog": "This release updates to Minecraft 26.1, as well as fixing a few bugs.\n\n- Improved the error message about LWJGL being the wrong version ([PR](https://github.com/CaffeineMC/sodium/pull/3527))\n- Improved fluid culling and shaping ([PR](https://github.com/CaffeineMC/sodium/pull/2931))\n- Improved mod compatibility ([PR](https://github.com/CaffeineMC/sodium/pull/3540), [PR](https://github.com/CaffeineMC/sodium/pull/3539))\n- Fixed an issue with the fog distance ([PR](https://github.com/CaffeineMC/sodium/pull/3510))\n- Fixed a number of smaller issues and performed refactoring",
+      "changelog_url": null,
+      "date_published": "2026-03-24T16:30:41.342552Z",
+      "downloads": 4329087,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "W2eCIW5M",
+          "hashes": {
+            "sha512": "d7f035d6112eaac92cf0f11e4426db631fca5a7115dd355c2126efee4255b648a0102552bbf7b22a7eae9203d08f8740435842bfddcd94e2434f51b57ee9c641",
+            "sha1": "e8865210ba9a926fc206ab9e73f9d4988a81ff69"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/UddlN6L4/sodium-fabric-0.8.7%2Bmc1.21.11.jar",
+          "filename": "sodium-fabric-0.8.7+mc1.21.11.jar",
+          "primary": true,
+          "size": 1870358,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "26.1",
+        "26.1.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "Amr4VcZo",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.7 for Fabric 26.1",
+      "version_number": "mc26.1-0.8.7-fabric",
+      "changelog": "This release updates to Minecraft 26.1, as well as fixing a few bugs.\n\n- Improved the error message about LWJGL being the wrong version ([PR](https://github.com/CaffeineMC/sodium/pull/3527))\n- Improved fluid culling and shaping ([PR](https://github.com/CaffeineMC/sodium/pull/2931))\n- Improved mod compatibility ([PR](https://github.com/CaffeineMC/sodium/pull/3540), [PR](https://github.com/CaffeineMC/sodium/pull/3539))\n- Fixed an issue with the fog distance ([PR](https://github.com/CaffeineMC/sodium/pull/3510))\n- Fixed a number of smaller issues and performed refactoring",
+      "changelog_url": null,
+      "date_published": "2026-03-24T16:17:42.173655Z",
+      "downloads": 1374915,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "xunUc5zm",
+          "hashes": {
+            "sha1": "ef8e9c3571e601427716de38b8b1ec11f09dfa06",
+            "sha512": "28aea2021f9526412c5d5299736dabc6d6d1cae004398f6de8d7c5c00506f4e15c9020b4515de55be27f7d92ccb93188273c1027ab56fe889ac4941d30458945"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/Amr4VcZo/sodium-fabric-0.8.7%2Bmc26.1.jar",
+          "filename": "sodium-fabric-0.8.7+mc26.1.jar",
+          "primary": true,
+          "size": 1659314,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "ZPWbiWXz",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.6 for Fabric 1.21.11",
+      "version_number": "mc1.21.11-0.8.6-fabric",
+      "changelog": "In this release we've fixed some bugs and introduced a small CPU-side performance improvement to occlusion culling.",
+      "changelog_url": null,
+      "date_published": "2026-02-23T22:50:04.696529Z",
+      "downloads": 3426014,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "VbIDhnyj",
+          "hashes": {
+            "sha1": "fa686304c63efea0456af91a0b6352f032e61e66",
+            "sha512": "55b5ade20dc70e8c9a0f7b6a8ba835d49efd3c4f8360869d6551f13e3a016c44dd78c5ecad638903172898154187726d429ad34a14cea30abfa8bd6d61eb6287"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/ZPWbiWXz/sodium-fabric-0.8.6%2Bmc1.21.11.jar",
+          "filename": "sodium-fabric-0.8.6+mc1.21.11.jar",
+          "primary": true,
+          "size": 1869752,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "3PnHeviJ",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.3 for Fabric 1.21.11",
+      "version_number": "mc1.21.11-0.8.3-fabric",
+      "changelog": "This release makes some improvements to the options UI and fixes issues in the UI, translucency sorting, occlusion culling, and regarding mod compatibility.",
+      "changelog_url": null,
+      "date_published": "2026-01-25T16:01:03.632561Z",
+      "downloads": 233745,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "qV8MjMKO",
+          "hashes": {
+            "sha1": "64c3e5a7710fdbdcc1bcf32333c9833b03bc4dcf",
+            "sha512": "dca7862194c1fe6382f953d14bd8e096f1f773ce591ce6bda00844fef08dcf113e302ec36922ce2db5969b2a4060dea58c37b7289b214dd6e707b65c0d5c0cd2"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/3PnHeviJ/sodium-fabric-0.8.3%2Bmc1.21.11.jar",
+          "filename": "sodium-fabric-0.8.3+mc1.21.11.jar",
+          "primary": true,
+          "size": 1868185,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "59wygFUQ",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.2 for Fabric 1.21.11",
+      "version_number": "mc1.21.11-0.8.2-fabric",
+      "changelog": "This release fixes a critical bug with FRAPI, as well as allowing mods to set non-monochrome icons.",
+      "changelog_url": null,
+      "date_published": "2025-12-22T20:35:06.214284Z",
+      "downloads": 10143265,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "frF2juM8",
+          "hashes": {
+            "sha1": "eaae2b226d76079e56ae6f5d4f5dc96214bd49d3",
+            "sha512": "0ab706031f954e4acfc0897536dcd182aaced35b912ee05f00a4c79609064c22d4249d7c1399b3359af974b258520664bbeb079d46f2e167f9f4d12ed86aeb37"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/59wygFUQ/sodium-fabric-0.8.2%2Bmc1.21.11.jar",
+          "filename": "sodium-fabric-0.8.2+mc1.21.11.jar",
+          "primary": true,
+          "size": 1876396,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "8jueyeK2",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.2 for NeoForge 1.21.11",
+      "version_number": "mc1.21.11-0.8.2-neoforge",
+      "changelog": "This release fixes a critical bug with FRAPI, as well as allowing mods to set non-monochrome icons.",
+      "changelog_url": null,
+      "date_published": "2025-12-22T20:34:32.101126Z",
+      "downloads": 189511,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "4NekRsyQ",
+          "hashes": {
+            "sha512": "4a3caca37c497de5cd0e7de5ee0210a2b2db39d4d07bb64ba36c7f52c99142fd8ed92f340c1e50159826b5a56145be7c1b72845eec0a49858c7000a95b45b547",
+            "sha1": "7230d673f2d9ddb8055c6bb53c7588bfa43a91b3"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/8jueyeK2/sodium-neoforge-0.8.2%2Bmc1.21.11.jar",
+          "filename": "sodium-neoforge-0.8.2+mc1.21.11.jar",
+          "primary": true,
+          "size": 1105757,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "z88JSh9S",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.1 for NeoForge 1.21.11",
+      "version_number": "mc1.21.11-0.8.1-neoforge",
+      "changelog": "This release adds support for the Fabric Rendering API on 1.21.11, works around a bug where blocks would turn invisible with certain launchers on certain AMD drivers, and fixes many bugs with the new configuration screen.",
+      "changelog_url": null,
+      "date_published": "2025-12-18T03:17:04.147800Z",
+      "downloads": 32132,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "nYVxlYml",
+          "hashes": {
+            "sha1": "1991820afe383bfe654485ee3c3783170a79dac4",
+            "sha512": "1d29889f7a50090a2435e476ec18513060010220d01c14d71e43bec4d1190cb99949b1a12363ce0f74b8099ddfd2ac113358f62d88521f3ffb75770ae4893fa2"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/z88JSh9S/sodium-neoforge-0.8.1%2Bmc1.21.11.jar",
+          "filename": "sodium-neoforge-0.8.1+mc1.21.11.jar",
+          "primary": true,
+          "size": 1105048,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "2IxKzI1o",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.1 for Fabric 1.21.11",
+      "version_number": "mc1.21.11-0.8.1-fabric",
+      "changelog": "This release adds support for the Fabric Rendering API on 1.21.11, works around a bug where blocks would turn invisible with certain launchers on certain AMD drivers, and fixes many bugs with the new configuration screen.",
+      "changelog_url": null,
+      "date_published": "2025-12-18T03:16:30.884738Z",
+      "downloads": 942133,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "uC2pwkXs",
+          "hashes": {
+            "sha512": "9dfa77348883425c8507be0e788f93dfbd87fd0f258f658898ef0d28a3e5d2ac05e98bd9f494c9981c85c33d6c4082c5b82811869d24a15bfea4898c714a0c11",
+            "sha1": "bc3718523f0a94d0043b0cb83b4d240ef82e2871"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/2IxKzI1o/sodium-fabric-0.8.1%2Bmc1.21.11.jar",
+          "filename": "sodium-fabric-0.8.1+mc1.21.11.jar",
+          "primary": true,
+          "size": 1875665,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "k5Rs4Eru",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.0 for NeoForge 1.21.11",
+      "version_number": "mc1.21.11-0.8.0-neoforge",
+      "changelog": "This release comes with many bug fixes, a brand new configuration screen, and support for Minecraft 1.21.11.",
+      "changelog_url": null,
+      "date_published": "2025-12-10T16:50:21.762276Z",
+      "downloads": 47785,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "PShr3G7J",
+          "hashes": {
+            "sha512": "a0901464b48736580c42dd93362ea5254f51139d869f2b877576e76a91b702b5e1fcf069d3d43101b46d209d8e454cdf3e8899e64e2904828fa0875fbc286d92",
+            "sha1": "79c4b742e721d31d4055cad744736d11b0cb30e3"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/k5Rs4Eru/sodium-neoforge-0.8.0%2Bmc1.21.11.jar",
+          "filename": "sodium-neoforge-0.8.0+mc1.21.11.jar",
+          "primary": true,
+          "size": 1084649,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.11"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "MLXdfyIk",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.8.0 for Fabric 1.21.11",
+      "version_number": "mc1.21.11-0.8.0-fabric",
+      "changelog": "This release comes with many bug fixes, a brand new configuration screen, and support for Minecraft 1.21.11.",
+      "changelog_url": null,
+      "date_published": "2025-12-09T17:11:11.360476Z",
+      "downloads": 1363085,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "5Aqp8e68",
+          "hashes": {
+            "sha1": "331e5f5b6f6b9b471e39a2879dac32801018b8c0",
+            "sha512": "1740608c6301ee82065c29d902a2d18289c33ed73bd39d4643529e81eecda82bdd9d8e8d1923ff1fea11469f2bb2b8a9f33f0400d021e69533135c930c281638"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/MLXdfyIk/sodium-fabric-0.8.0%2Bmc1.21.11.jar",
+          "filename": "sodium-fabric-0.8.0+mc1.21.11.jar",
+          "primary": true,
+          "size": 1697685,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.10"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "PdQpfqPZ",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.3 for NeoForge 1.21.10",
+      "version_number": "mc1.21.10-0.7.3-neoforge",
+      "changelog": "This release fixes a stuttering issue affecting Intel cards.\n\n",
+      "changelog_url": null,
+      "date_published": "2025-11-10T18:51:50.726115Z",
+      "downloads": 386763,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "w2ZA8imQ",
+          "hashes": {
+            "sha512": "26e9ab3d61b06987fad5d2334625bb74e780f4e87588057ab836e9b784b813ad0c1f015ffdf83e50a3a72211a0a06005970ccc0ad9d01d92839bf93567615797",
+            "sha1": "bc7c0fb985908a5ee84ce12e46e04afa7ece935e"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/PdQpfqPZ/sodium-neoforge-0.7.3%2Bmc1.21.10.jar",
+          "filename": "sodium-neoforge-0.7.3+mc1.21.10.jar",
+          "primary": true,
+          "size": 1141369,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.9",
+        "1.21.10"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "sFfidWgd",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.3 for Fabric 1.21.10",
+      "version_number": "mc1.21.10-0.7.3-fabric",
+      "changelog": "This release fixes a stuttering issue affecting Intel cards.\n\n",
+      "changelog_url": null,
+      "date_published": "2025-11-10T18:51:15.477709Z",
+      "downloads": 5558491,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "viwuP605",
+          "hashes": {
+            "sha1": "1c3ffa862d9fa4479abf67a88527907d60237248",
+            "sha512": "1cccdc75d972f5c176a488dcc84cce7320b608a2d105412f2847245affbf5aa22b1995eda392132453fa6e1a9154ac99a87acaf8d7989b9f1a23ac1059a93daf"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/sFfidWgd/sodium-fabric-0.7.3%2Bmc1.21.10.jar",
+          "filename": "sodium-fabric-0.7.3+mc1.21.10.jar",
+          "primary": true,
+          "size": 1676903,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.10"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "h30oKQW3",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.2 for NeoForge 1.21.10",
+      "version_number": "mc1.21.10-0.7.2-neoforge",
+      "changelog": "- Improved the appearance of mipmaps when viewed at extreme angles, especially when looking at fire or tall grass blocks (JellySquid)\n- Fixed a crash that could occur under specific circumstances when alpha-blended blocks were re-sorted (Douira)\n- Reduced the amount of visual flickering that occurs when pistons and other animated blocks are updated in the world (Douira)\n- Reduced the number of nuisance warnings caused by the resource pack compatibility checks (Douira)\n- Fixed a problem that caused model faces to render in a different order, which caused some resource packs to break (2190303755)\n- Added support for Fabric's Item Rendering APIs, which at the time of Minecraft 1.21.9's release were not yet fully implemented in Indigo (IMS, Pepper)",
+      "changelog_url": null,
+      "date_published": "2025-10-28T02:03:12.649813Z",
+      "downloads": 114434,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "tXJIg6FV",
+          "hashes": {
+            "sha512": "13e4f23ee47106c377888446fb5640d52f6c282216cd2918aeb5dbc8f02a6d0e97542132650393014cbb39778208ba08f74bb7c79acea6ee9c2a28af89a7931b",
+            "sha1": "b39c61f5960d6e613c30886f9d73d094a57d8115"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/h30oKQW3/sodium-neoforge-0.7.2%2Bmc1.21.10.jar",
+          "filename": "sodium-neoforge-0.7.2+mc1.21.10.jar",
+          "primary": true,
+          "size": 1140151,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.6",
+        "1.21.7",
+        "1.21.8"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "lgWRGiHv",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.2 for NeoForge 1.21.8",
+      "version_number": "mc1.21.8-0.7.2-neoforge",
+      "changelog": "- Improved the appearance of mipmaps when viewed at extreme angles, especially when looking at fire or tall grass blocks (JellySquid)\n- Fixed a crash that could occur under specific circumstances when alpha-blended blocks were re-sorted (Douira)\n- Reduced the amount of visual flickering that occurs when pistons and other animated blocks are updated in the world (Douira)\n- Reduced the number of nuisance warnings caused by the resource pack compatibility checks (Douira)\n- Fixed a problem that caused model faces to render in a different order, which caused some resource packs to break (2190303755)\n- Added support for Fabric's Item Rendering APIs, which at the time of Minecraft 1.21.9's release were not yet fully implemented in Indigo (IMS, Pepper)",
+      "changelog_url": null,
+      "date_published": "2025-10-09T20:38:08.684095Z",
+      "downloads": 72243,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "tvW6RQ2Y",
+          "hashes": {
+            "sha512": "601a1da59945655048d66dc9cfc1a2a386c587074e7f707a7c0d9034940a87bf2e628c0b5fab708eaeeaeb01d8b82f5b2cb016f5867e2bf766a1f081ac75ef03",
+            "sha1": "e66282d85ed0d769f3ec602297f0110e36e88c35"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/lgWRGiHv/sodium-neoforge-0.7.2%2Bmc1.21.8.jar",
+          "filename": "sodium-neoforge-0.7.2+mc1.21.8.jar",
+          "primary": true,
+          "size": 1253306,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.6",
+        "1.21.7",
+        "1.21.8"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "pJRT8Zxt",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.2 for Fabric 1.21.8",
+      "version_number": "mc1.21.8-0.7.2-fabric",
+      "changelog": "- Improved the appearance of mipmaps when viewed at extreme angles, especially when looking at fire or tall grass blocks (JellySquid)\n- Fixed a crash that could occur under specific circumstances when alpha-blended blocks were re-sorted (Douira)\n- Reduced the amount of visual flickering that occurs when pistons and other animated blocks are updated in the world (Douira)\n- Reduced the number of nuisance warnings caused by the resource pack compatibility checks (Douira)\n- Fixed a problem that caused model faces to render in a different order, which caused some resource packs to break (2190303755)\n- Added support for Fabric's Item Rendering APIs, which at the time of Minecraft 1.21.9's release were not yet fully implemented in Indigo (IMS, Pepper)",
+      "changelog_url": null,
+      "date_published": "2025-10-09T20:37:15.691991Z",
+      "downloads": 862182,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "32Y6kxdl",
+          "hashes": {
+            "sha512": "bd52c2054801191f870fbca6ff3d97aca7bda7c15f0023142102b983ddd4b7454fe10f36cfbe5f7d05cd80c95b34e2a16bddf003508d0761dbb8a565c020865e",
+            "sha1": "ee58562bc918993d62ca457e46b2782fbdde3aaf"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/pJRT8Zxt/sodium-fabric-0.7.2%2Bmc1.21.8.jar",
+          "filename": "sodium-fabric-0.7.2+mc1.21.8.jar",
+          "primary": true,
+          "size": 1620053,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.9",
+        "1.21.10"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "VTidoe6U",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.2 for Fabric 1.21.10",
+      "version_number": "mc1.21.10-0.7.2-fabric",
+      "changelog": "- Improved the appearance of mipmaps when viewed at extreme angles, especially when looking at fire or tall grass blocks (JellySquid)\n- Fixed a crash that could occur under specific circumstances when alpha-blended blocks were re-sorted (Douira)\n- Reduced the amount of visual flickering that occurs when pistons and other animated blocks are updated in the world (Douira)\n- Reduced the number of nuisance warnings caused by the resource pack compatibility checks (Douira)\n- Fixed a problem that caused model faces to render in a different order, which caused some resource packs to break (2190303755)\n- Added support for Fabric's Item Rendering APIs, which at the time of Minecraft 1.21.9's release were not yet fully implemented in Indigo (IMS, Pepper)",
+      "changelog_url": null,
+      "date_published": "2025-10-09T20:35:39.508957Z",
+      "downloads": 5343260,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "KcyueiIo",
+          "hashes": {
+            "sha1": "3ade491ca5fc3074d332ff8eba2dbf0e294cc04e",
+            "sha512": "4b601ae53343e0be205a6b85a8e87893fafac1cdfd86beb2d532c8c72405f35ba727f9939403896870441a0e91a47a6008952b04a79b76ed68294a909222947e"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/VTidoe6U/sodium-fabric-0.7.2%2Bmc1.21.10.jar",
+          "filename": "sodium-fabric-0.7.2+mc1.21.10.jar",
+          "primary": true,
+          "size": 1675639,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.6",
+        "1.21.7",
+        "1.21.8"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "1LjoeVdt",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.0 for NeoForge 1.21.8",
+      "version_number": "mc1.21.8-0.7.0-neoforge",
+      "changelog": "This release brings a variety of performance optimizations, new features, and bug fixes.\n\nWe've spent a lot of time developing and testing this release, with some changes having been worked on and tuned for over a year. Thanks to our community members who contributed features and bug fixes to this release! If you are a mod author who finds their mod no longer works with Sodium 0.7, please [open an issue](https://github.com/CaffeineMC/sodium/issues) so that we can work with you to fix it.\n\nThis is an overview of the biggest changes in this release:\n\n- Complex translucent geometry, such as waterlogged stained glass panes and many types of modded blocks, are now correctly rendered with no measurable performance impact in typical scenarios. We've implemented a quad splitting approach into our translucency sorting solution, resulting in perfect translucency even where it was previously not possible. This provides a significant improvement in graphical fidelity in vanilla and modded scenarios.\n- Many aspects of the chunk meshing task system have been updated to work independently of the frame rate. This means even at lower frame rates or with few threads chunks will be meshed without delay or overloading. Our carefully tuned scheduler uses machine learning to improve frame time stability even when loading new chunks.\n- Terrain rendering itself has received some optimizations that improve the frame rate for some systems, and when the camera is not moving by using a new per-region cache.\n- New optimizations to entity and particle rendering improve performance in heavy scenes.\n\n# New Optimizations and Features\n\n- Added translucency sorting with quad splitting to correctly display intersecting and complex geometry (douira)\n- Improved performance of terrain rendering on some systems (combined draw commands) (douira)\n- Improved performance of terrain rendering when the camera is not moving (draw batch caching) (douira)\n- Improved performance of entity rendering by faster vertex sorting (JellySquid)\n- Improved chunk load performance & frame stability by task effort estimation and frame-rate independent task scheduling (douira)\n- Improved frame time stability by limiting the uploaded chunks using size estimation (douira)\n- Improved performance of particle rendering (MoePus)\n\n# Changes and Fixes\n\n- Reduced unnecessary memory usage in the upload buffer (IMS, douira)\n- Optimized and fixed some block models (muzikbike)\n- Improved accessibility, correctness, and translatability of the options (MeeniMc, Madis0, contariaa)\n- Added debug mode and safety features to prevent and detect off-thread rendering bugs (JellySquid)\n- Improved mod compatibility with the sprite animation optimizations (contariaa)\n\n# Other Bugs Fixed\n\n- Fixed small memory leak (JellySquid)\n- Fixed some bugs with translucency sorting at large coordinates and with some specific geometry (douira)\n- Fixed terrain rendering when the camera is outside the loaded area using bitmap trees (douira)\n- Fixed jittery fog animation (cortex, douira)\n- Fixed multiple bugs with missed chunk updates and race conditions (douira)\n",
+      "changelog_url": null,
+      "date_published": "2025-09-30T15:24:09.099743Z",
+      "downloads": 32697,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "aiu9hw3t",
+          "hashes": {
+            "sha1": "15bf35eaca18098c68761447155efdf50417d686",
+            "sha512": "12f5c2dcdf717228d04d269414078e28eb3314cdfd2e2d1d9e0a32a7825fb7c02fac81079057d141c4f76b335d53acc36874105eefaa8715cb977d69a5ec10b6"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/1LjoeVdt/sodium-neoforge-0.7.0%2Bmc1.21.8.jar",
+          "filename": "sodium-neoforge-0.7.0+mc1.21.8.jar",
+          "primary": true,
+          "size": 1251723,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.6",
+        "1.21.7",
+        "1.21.8"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "24jH02Sf",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.0 for Fabric 1.21.8",
+      "version_number": "mc1.21.8-0.7.0-fabric",
+      "changelog": "This release brings a variety of performance optimizations, new features, and bug fixes.\n\nWe've spent a lot of time developing and testing this release, with some changes having been worked on and tuned for over a year. Thanks to our community members who contributed features and bug fixes to this release! If you are a mod author who finds their mod no longer works with Sodium 0.7, please [open an issue](https://github.com/CaffeineMC/sodium/issues) so that we can work with you to fix it.\n\nThis is an overview of the biggest changes in this release:\n\n- Complex translucent geometry, such as waterlogged stained glass panes and many types of modded blocks, are now correctly rendered with no measurable performance impact in typical scenarios. We've implemented a quad splitting approach into our translucency sorting solution, resulting in perfect translucency even where it was previously not possible. This provides a significant improvement in graphical fidelity in vanilla and modded scenarios.\n- Many aspects of the chunk meshing task system have been updated to work independently of the frame rate. This means even at lower frame rates or with few threads chunks will be meshed without delay or overloading. Our carefully tuned scheduler uses machine learning to improve frame time stability even when loading new chunks.\n- Terrain rendering itself has received some optimizations that improve the frame rate for some systems, and when the camera is not moving by using a new per-region cache.\n- New optimizations to entity and particle rendering improve performance in heavy scenes.\n\n# New Optimizations and Features\n\n- Added translucency sorting with quad splitting to correctly display intersecting and complex geometry (douira)\n- Improved performance of terrain rendering on some systems (combined draw commands) (douira)\n- Improved performance of terrain rendering when the camera is not moving (draw batch caching) (douira)\n- Improved performance of entity rendering by faster vertex sorting (JellySquid)\n- Improved chunk load performance & frame stability by task effort estimation and frame-rate independent task scheduling (douira)\n- Improved frame time stability by limiting the uploaded chunks using size estimation (douira)\n- Improved performance of particle rendering (MoePus)\n\n# Changes and Fixes\n\n- Reduced unnecessary memory usage in the upload buffer (IMS, douira)\n- Optimized and fixed some block models (muzikbike)\n- Improved accessibility, correctness, and translatability of the options (MeeniMc, Madis0, contariaa)\n- Added debug mode and safety features to prevent and detect off-thread rendering bugs (JellySquid)\n- Improved mod compatibility with the sprite animation optimizations (contariaa)\n\n# Other Bugs Fixed\n\n- Fixed small memory leak (JellySquid)\n- Fixed some bugs with translucency sorting at large coordinates and with some specific geometry (douira)\n- Fixed terrain rendering when the camera is outside the loaded area using bitmap trees (douira)\n- Fixed jittery fog animation (cortex, douira)\n- Fixed multiple bugs with missed chunk updates and race conditions (douira)\n",
+      "changelog_url": null,
+      "date_published": "2025-09-30T15:07:01.867787Z",
+      "downloads": 635193,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "Iq0xvUlI",
+          "hashes": {
+            "sha512": "c57481fbe673a7074eac0c7c662ecf611aba11cbf78a70a30929aab5a2b83cc9f0c1e37f2d3814f47c5a0b14452a48149ce8c8603fe45910835207dab8b8f4af",
+            "sha1": "db0cf49b53a602e913ca9b8611f43b8445476969"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/24jH02Sf/sodium-fabric-0.7.0%2Bmc1.21.8.jar",
+          "filename": "sodium-fabric-0.7.0+mc1.21.8.jar",
+          "primary": true,
+          "size": 1618516,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.9",
+        "1.21.10"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "AQpu5aS1",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.7.0 for Fabric 1.21.10",
+      "version_number": "mc1.21.9-0.7.0-fabric",
+      "changelog": "This release brings a variety of performance optimizations, new features, and bug fixes.\n\nWe've spent a lot of time developing and testing this release, with some changes having been worked on and tuned for over a year. Thanks to our community members who contributed features and bug fixes to this release! If you are a mod author who finds their mod no longer works with Sodium 0.7, please [open an issue](https://github.com/CaffeineMC/sodium/issues) so that we can work with you to fix it.\n\nThis is an overview of the biggest changes in this release:\n\n- Complex translucent geometry, such as waterlogged stained glass panes and many types of modded blocks, are now correctly rendered with no measurable performance impact in typical scenarios. We've implemented a quad splitting approach into our translucency sorting solution, resulting in perfect translucency even where it was previously not possible. This provides a significant improvement in graphical fidelity in vanilla and modded scenarios.\n- Many aspects of the chunk meshing task system have been updated to work independently of the frame rate. This means even at lower frame rates or with few threads chunks will be meshed without delay or overloading. Our carefully tuned scheduler uses machine learning to improve frame time stability even when loading new chunks.\n- Terrain rendering itself has received some optimizations that improve the frame rate for some systems, and when the camera is not moving by using a new per-region cache.\n- New optimizations to entity and particle rendering improve performance in heavy scenes.\n\n# New Optimizations and Features\n\n- Added translucency sorting with quad splitting to correctly display intersecting and complex geometry (douira)\n- Improved performance of terrain rendering on some systems (combined draw commands) (douira)\n- Improved performance of terrain rendering when the camera is not moving (draw batch caching) (douira)\n- Improved performance of entity rendering by faster vertex sorting (JellySquid)\n- Improved chunk load performance & frame stability by task effort estimation and frame-rate independent task scheduling (douira)\n- Improved frame time stability by limiting the uploaded chunks using size estimation (douira)\n- Improved performance of particle rendering (MoePus)\n\n# Changes and Fixes\n\n- Reduced unnecessary memory usage in the upload buffer (IMS, douira)\n- Optimized and fixed some block models (muzikbike)\n- Improved accessibility, correctness, and translatability of the options (MeeniMc, Madis0, contariaa)\n- Added debug mode and safety features to prevent and detect off-thread rendering bugs (JellySquid)\n- Improved mod compatibility with the sprite animation optimizations (contariaa)\n\n# Other Bugs Fixed\n\n- Fixed small memory leak (JellySquid)\n- Fixed some bugs with translucency sorting at large coordinates and with some specific geometry (douira)\n- Fixed terrain rendering when the camera is outside the loaded area using bitmap trees (douira)\n- Fixed jittery fog animation (cortex, douira)\n- Fixed multiple bugs with missed chunk updates and race conditions (douira)\n",
+      "changelog_url": null,
+      "date_published": "2025-09-30T15:04:26.070225Z",
+      "downloads": 916864,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "Z6DApjmr",
+          "hashes": {
+            "sha1": "78facebc00d55562922ad70888b9933522c36806",
+            "sha512": "675687d890dc1c0354dee275eac2dc12c3123237db4a9cd587482986a65d072ad1badfd6ee8371be2e834c59e3b5fae4a91e7376e076eacff06257fc69615c35"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/AQpu5aS1/sodium-fabric-0.7.0%2Bmc1.21.9.jar",
+          "filename": "sodium-fabric-0.7.0+mc1.21.9.jar",
+          "primary": true,
+          "size": 1649197,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.6",
+        "1.21.7",
+        "1.21.8"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "ihzX2Dvy",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.6.13 for NeoForge 1.21.7",
+      "version_number": "mc1.21.6-0.6.13-neoforge",
+      "changelog": "**Note:** Due to various performance regressions introduced in Minecraft 1.21.5 (which our team is still investigating), we recommend that players use an older, more stable version of Minecraft if performance is important.\n\nThis release is also compatible with Minecraft 1.21.7 and 1.21.8.\n\n---\n\n### Highlights\n- Added support for Minecraft 1.21.6.\n",
+      "changelog_url": null,
+      "date_published": "2025-06-17T16:00:07.567865Z",
+      "downloads": 484365,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "Y2pQDprv",
+          "hashes": {
+            "sha1": "2e7e7a5abd862c527a5ab26a796498ac9bc8c4ec",
+            "sha512": "c999124b3a60d76a31c45929dd6895f3406e42d61f0155c055b0530d5c02bf6d81a404797ed557a4e05cfee4b46555ec7701fd6d98d281a02595dd2348bb8917"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/ihzX2Dvy/sodium-neoforge-0.6.13%2Bmc1.21.6.jar",
+          "filename": "sodium-neoforge-0.6.13+mc1.21.6.jar",
+          "primary": true,
+          "size": 1177701,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.6",
+        "1.21.7",
+        "1.21.8"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "ND4ROcMQ",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.6.13 for Fabric 1.21.8",
+      "version_number": "mc1.21.6-0.6.13-fabric",
+      "changelog": "**Note:** Due to various performance regressions introduced in Minecraft 1.21.5 (which our team is still investigating), we recommend that players use an older, more stable version of Minecraft if performance is important.\n\nThis release is also compatible with Minecraft 1.21.7 and 1.21.8.\n\n---\n\n### Highlights\n- Added support for Minecraft 1.21.6.\n",
+      "changelog_url": null,
+      "date_published": "2025-06-17T15:18:49.134677Z",
+      "downloads": 8529014,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "PxKp4QY0",
+          "hashes": {
+            "sha512": "ee97e3df07a6f734bc8a0f77c1f1de7f47bed09cf682f048ceb12675c51b70ba727b11fcacbb7b10cc9f79b283dd71a39751312b5c70568aa3ac9471407174db",
+            "sha1": "2d635c3d938aa3f75b0ec61c7402eeea2f9c30a9"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/ND4ROcMQ/sodium-fabric-0.6.13%2Bmc1.21.6.jar",
+          "filename": "sodium-fabric-0.6.13+mc1.21.6.jar",
+          "primary": true,
+          "size": 1443665,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "Pb3OXVqC",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.13 for NeoForge 1.21.1",
+      "version_number": "mc1.21.1-0.6.13-neoforge",
+      "changelog": "- Improved compatibility with some NeoForge mods that use the Fabric Rendering API.\n- Improved compatibility with some Fabric mods when they're used on NeoForge with Sinytra Connector.\n- Fixed an incompatibility with _Snow Real Magic!_ and some other mods that would cause holes to appear in the world.\n- Fixed an issue with mods that use animated sprites in the user interface which was causing their sprites to not be animated.\n- Disabled the use of certain developer options in production which were being modified unnecessarily by other mods.\n- Marked PojavLauncher as incompatible due to multiple severe and unresolved issues.\n- Marked BetterEnd as incompatible due to it enabling code when Sodium is present that causes frequent and difficult to understand crashes.\n- Added a warning for when resource packs try to replace the shaders used by Sodium's improved cloud renderer.",
+      "changelog_url": null,
+      "date_published": "2025-04-04T00:08:12.456557Z",
+      "downloads": 6091914,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "8ZVwVHdU",
+          "hashes": {
+            "sha1": "38af70fa4dc4b2aaac636e92fdba3bedd5a025e1",
+            "sha512": "ce58f34d05d96c0a109a5cea23c741f6bdb2e6be31fc087c5989274cefca5f10ba0c08c62083cf554a51f2c7667bf46e4164383f675c844e77633aef2659996b"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/Pb3OXVqC/sodium-neoforge-0.6.13%2Bmc1.21.1.jar",
+          "filename": "sodium-neoforge-0.6.13+mc1.21.1.jar",
+          "primary": true,
+          "size": 1162994,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.5"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "FbKAFCUM",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.6.12 for NeoForge 1.21.5",
+      "version_number": "mc1.21.5-0.6.12-neoforge",
+      "changelog": "- Fixed an issue that would cause graphical corruption when holding items in some situations.\n- Fixed a bug that was causing a very large number of OpenGL errors to be logged to disk.",
+      "changelog_url": null,
+      "date_published": "2025-03-25T23:05:33.122375Z",
+      "downloads": 77035,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "mS0IKhbO",
+          "hashes": {
+            "sha1": "e04378383b55a2af1a7c754ba3cc6fc68af686b9",
+            "sha512": "123ad671fd72d921f195d5ad3ab70df8d6e320b8a0ac3a7087658b0516aa43d8f8293e137b2ad1071ad63385bf6cbe4e6604b50bba1a728c44acdc4fa132d13d"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/FbKAFCUM/sodium-neoforge-0.6.12%2Bmc1.21.5.jar",
+          "filename": "sodium-neoforge-0.6.12+mc1.21.5.jar",
+          "primary": true,
+          "size": 1198246,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.5"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "fVbw1C7i",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.6.12 for Fabric 1.21.5",
+      "version_number": "mc1.21.5-0.6.12-fabric",
+      "changelog": "- Fixed an issue that would cause graphical corruption when holding items in some situations.\n- Fixed a bug that was causing a very large number of OpenGL errors to be logged to disk.",
+      "changelog_url": null,
+      "date_published": "2025-03-25T23:04:28.438164Z",
+      "downloads": 1820123,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "nbyV47qe",
+          "hashes": {
+            "sha512": "1a5b4202f4af5db13d0774e3ae16da842a4b460eeedcddd1b15317ec63bf4b38e69e96323b6b9b4360d24c1204cf739dbd7af499284f7d3d0e63bb99cad9e534",
+            "sha1": "68104fcca669c485cd63a1e14d7ed7ca816f99a0"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/fVbw1C7i/sodium-fabric-0.6.12%2Bmc1.21.5.jar",
+          "filename": "sodium-fabric-0.6.12+mc1.21.5.jar",
+          "primary": true,
+          "size": 1333648,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.5"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "jv9JbDp8",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.6.11 for NeoForge 1.21.5",
+      "version_number": "mc1.21.5-0.6.11-neoforge",
+      "changelog": "This release introduces support for Minecraft 1.21.5. For the time being, this version of Sodium is considered _beta-quality_ while the ecosystem takes some time to stabilize.",
+      "changelog_url": null,
+      "date_published": "2025-03-25T18:11:21.123894Z",
+      "downloads": 6853,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "ksHOXu8p",
+          "hashes": {
+            "sha1": "73ca23ab5a2b0ecf61d4c79fa6852aab62583a2e",
+            "sha512": "c130d8ca80590a5182317363f16a9387a044a806207f5c069b0c52b5de361c647e5563cfd2c83ed458520317b65de84ce85f93e62e9724bef2c277f65d8f6a2a"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/jv9JbDp8/sodium-neoforge-0.6.11%2Bmc1.21.5.jar",
+          "filename": "sodium-neoforge-0.6.11+mc1.21.5.jar",
+          "primary": true,
+          "size": 1198157,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.5"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "JV9BubzL",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.6.11 for Fabric 1.21.5",
+      "version_number": "mc1.21.5-0.6.11-fabric",
+      "changelog": "This release introduces support for Minecraft 1.21.5. For the time being, this version of Sodium is considered _beta-quality_ while the ecosystem takes some time to stabilize.",
+      "changelog_url": null,
+      "date_published": "2025-03-25T16:14:06.698827Z",
+      "downloads": 70448,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "M4YtS1px",
+          "hashes": {
+            "sha512": "4e81e2a89c7f91cbeffa4d278de425b868fa90412dd12f0739f3b4f4eda59a8ae65b1d8af02345d23308074cb91c57c4aef6dbc52712062446a8a827cb4e0d78",
+            "sha1": "4b27207edd7c70ea3231a242c22a5aaadb3b3e37"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/JV9BubzL/sodium-fabric-0.6.11%2Bmc1.21.5.jar",
+          "filename": "sodium-fabric-0.6.11+mc1.21.5.jar",
+          "primary": true,
+          "size": 1333139,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.20.1"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "ryOMVRuG",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.5.12 (Beta 2) for Fabric 1.20.1",
+      "version_number": "mc1.20.1-0.5.12-beta.2-fabric",
+      "changelog": "This version backports many improvements and bug fixes from newer versions of Sodium 0.6. We recommend that players and mod pack authors update to this version, as some changes can significantly improve performance and stability.\n\n## Mod Compatibility\n\nSpecial care has been taken to minimize the number of breaking changes for other mods, so there should be few issues upgrading to this release for the vast majority of users. However, there are some exceptions:\n\n- \u26a0\ufe0f If using the _Indium_ mod, you must update to version 1.0.36 or newer.\n- \u26a0\ufe0f If using the _Iris_ mod, you must update to version 1.7.6 or newer.\n\n## Highlights\n\n- The quality of terrain rendering has been significantly improved (adding greater vertex and texture precision). This fixes many issues with special block models, and especially with modded content. With large mod packs or resource packs, there is significantly reduced texture bleeding between blocks when compared to the previous release.\n- Virtual memory utilization has been dramatically reduced while loading chunks. This can have a large impact on how quickly chunks are loaded on the client, and on many systems, can reduce the amount of micro-stutter significantly.\n- Improved performance on integrated Intel GPUs significantly with additional terrain rendering optimizations (up to 10-15% faster, depending on the render distance) and enhanced framebuffer copies (up to 3-5% faster, regardless of render distance).\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15%, especially when using higher render distances.\n- All improvements for hardware and driver compatibility from Sodium 0.6+ have been back-ported in this release, helping to improve the user experience considerably.\n\n## Other changes\n- Fixed the handling of sub-texel offsets in terrain rendering, which caused texture seams to appear between blocks when very large texture atlases were used (common in large mod packs).\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed the rendering of block models which have quads with different shading modes (i.e. VT's Bushy Leaves, Bray's World...)\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed a bug where very large block entities in nearby chunk sections would be incorrectly culled.\n- Startup warnings about incompatible NVIDIA or Intel GPU driver versions will now only be shown if the GPU is actually in use.\n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- Fixed a bug that prevented the \"Help\" button in dialog boxes from opening the default web browser on Windows.\n- Fixed many issues around the handling of chunks with large amounts of geometry, fixing some rare crashes and graphical issues.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n- Improved the driver workarounds for NVIDIA GPUs on Windows, potentially improving performance on laptops with hybrid graphics.\n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the Sprite Tracking API (originally introduced in Sodium 0.6.9.)",
+      "changelog_url": null,
+      "date_published": "2025-02-26T00:54:03.278312Z",
+      "downloads": 484443,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "QRwpUN42",
+          "hashes": {
+            "sha1": "8f6bdf3c1fe2737f819fd4f186f5d89ad68d2e51",
+            "sha512": "e6906b77e709c17bfe445d065353010853cad58a65252f70f9e7e06113156f21c85e91a71e5ccebb4ea0f0168280737bb12ae407e115a9f1df3b5e8d21b87ec5"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/ryOMVRuG/sodium-fabric-0.5.12-beta.2%2Bmc1.20.1.jar",
+          "filename": "sodium-fabric-0.5.12-beta.2+mc1.20.1.jar",
+          "primary": true,
+          "size": 971376,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.4"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "QuV9hMgB",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.9 for Fabric 1.21.4",
+      "version_number": "mc1.21.4-0.6.9-fabric",
+      "changelog": "- Fixed the handling of sub-texel offsets in terrain rendering, which caused texture seams to appear between blocks when very large texture atlases were used (common in large mod packs).\n- On macOS, fixed an issue that would cause texture seams to frequently appear between most blocks, regardless of what mods or texture packs are used.\n- Fixed an issue that caused textures on cross-block models (such as Flowers) and block overlays (such as the side of Grass Blocks) to be misaligned.\n- Fixed an issue that caused textures on different faces of the same block to appear misaligned with each other.\n- Fixed an issue that caused textures to appear slightly too zoomed-in on some blocks.\n- Added a utility class which other mods can use to ensure their animated textures are updated correctly when using custom rendering.\n    - Other mods should replace their usages of the [internal SpriteUtil](https://github.com/CaffeineMC/sodium/blob/dev/common/src/main/java/net/caffeinemc/mods/sodium/client/render/texture/SpriteUtil.java) with the [public SpriteUtil](https://github.com/CaffeineMC/sodium/blob/dev/common/src/api/java/net/caffeinemc/mods/sodium/api/texture/SpriteUtil.java), as the internal class will be removed in Sodium 0.7.\n- Fixed the detection of Intel Xe2 graphics cards (again.)",
+      "changelog_url": null,
+      "date_published": "2025-02-19T22:36:35.326282Z",
+      "downloads": 309732,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "IRAWX1gT",
+          "hashes": {
+            "sha1": "62d932489bd06c3d41fde44726d0e2ec0482ed9d",
+            "sha512": "4e53f8ede2079bc7db00c1e5b733c3f3d7c77def533d03caae57ea8f6cd5c6e52577380b4ace99e84cd6fd6edc09508bb81b201313f3d11ffbb0928bfcf2ba13"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/QuV9hMgB/sodium-fabric-0.6.9%2Bmc1.21.4.jar",
+          "filename": "sodium-fabric-0.6.9+mc1.21.4.jar",
+          "primary": true,
+          "size": 1296933,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "I9RMZOOH",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.9 for NeoForge 1.21.1",
+      "version_number": "mc1.21.1-0.6.9-neoforge",
+      "changelog": "- Fixed the handling of sub-texel offsets in terrain rendering, which caused texture seams to appear between blocks when very large texture atlases were used (common in large mod packs).\n- On macOS, fixed an issue that would cause texture seams to frequently appear between most blocks, regardless of what mods or texture packs are used.\n- Fixed an issue that caused textures on cross-block models (such as Flowers) and block overlays (such as the side of Grass Blocks) to be misaligned.\n- Fixed an issue that caused textures on different faces of the same block to appear misaligned with each other.\n- Fixed an issue that caused textures to appear slightly too zoomed-in on some blocks.\n- Added a utility class which other mods can use to ensure their animated textures are updated correctly when using custom rendering.\n    - Other mods should replace their usages of the [internal SpriteUtil](https://github.com/CaffeineMC/sodium/blob/dev/common/src/main/java/net/caffeinemc/mods/sodium/client/render/texture/SpriteUtil.java) with the [public SpriteUtil](https://github.com/CaffeineMC/sodium/blob/dev/common/src/api/java/net/caffeinemc/mods/sodium/api/texture/SpriteUtil.java), as the internal class will be removed in Sodium 0.7.\n- Fixed the detection of Intel Xe2 graphics cards (again.)",
+      "changelog_url": null,
+      "date_published": "2025-02-19T22:35:11.029930Z",
+      "downloads": 341507,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "Rcc0IafB",
+          "hashes": {
+            "sha1": "489fa60823fdde380618ce2ae7dcb1b8423ffddc",
+            "sha512": "bdd2b56fd54787e0ef666c7e0d30d8d800097ae726904a2d95e689a33c20b583a619ec0bfdd0fd1fe57c71fc0516ff2bbb9880806f642b9885451481bd9e7148"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/I9RMZOOH/sodium-neoforge-0.6.9%2Bmc1.21.1.jar",
+          "filename": "sodium-neoforge-0.6.9+mc1.21.1.jar",
+          "primary": true,
+          "size": 1162487,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21",
+        "1.21.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "26nVNc41",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.9 for Fabric 1.21.1",
+      "version_number": "mc1.21.1-0.6.9-fabric",
+      "changelog": "- Fixed the handling of sub-texel offsets in terrain rendering, which caused texture seams to appear between blocks when very large texture atlases were used (common in large mod packs).\n- On macOS, fixed an issue that would cause texture seams to frequently appear between most blocks, regardless of what mods or texture packs are used.\n- Fixed an issue that caused textures on cross-block models (such as Flowers) and block overlays (such as the side of Grass Blocks) to be misaligned.\n- Fixed an issue that caused textures on different faces of the same block to appear misaligned with each other.\n- Fixed an issue that caused textures to appear slightly too zoomed-in on some blocks.\n- Added a utility class which other mods can use to ensure their animated textures are updated correctly when using custom rendering.\n    - Other mods should replace their usages of the [internal SpriteUtil](https://github.com/CaffeineMC/sodium/blob/dev/common/src/main/java/net/caffeinemc/mods/sodium/client/render/texture/SpriteUtil.java) with the [public SpriteUtil](https://github.com/CaffeineMC/sodium/blob/dev/common/src/api/java/net/caffeinemc/mods/sodium/api/texture/SpriteUtil.java), as the internal class will be removed in Sodium 0.7.\n- Fixed the detection of Intel Xe2 graphics cards (again.)",
+      "changelog_url": null,
+      "date_published": "2025-02-19T22:34:49.381915Z",
+      "downloads": 2820491,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "90zfkgFJ",
+          "hashes": {
+            "sha1": "7953f77ac52ca2b1c6a7e483553b2a345f1b2a9c",
+            "sha512": "892728b3c26038446b9f573695db9e791fa320994ed34f89be5c766fa2e735b46adb9efa8f6688d5a5b7bb8e9793ff09e72f06fb5ff074137d5b833f1fe27227"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/26nVNc41/sodium-fabric-0.6.9%2Bmc1.21.1.jar",
+          "filename": "sodium-fabric-0.6.9+mc1.21.1.jar",
+          "primary": true,
+          "size": 1297415,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.4"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "FI3Xu3s3",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.6 for NeoForge 1.21.4",
+      "version_number": "mc1.21.4-0.6.6-neoforge",
+      "changelog": "- Fixed a bug that prevented quad transforms from applying to block models. Fixes compatibility with Contiunity.",
+      "changelog_url": null,
+      "date_published": "2024-12-25T04:19:08.603188Z",
+      "downloads": 105503,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "uIeAAAFL",
+          "hashes": {
+            "sha512": "5677d011800d88c5259a2a3c82d0e90b5dec83a7505fc7502a68a2ff7f21834564f02764dc8813f910bd768bff253892cf54ce7d3300d6d0bbc8b592db829251",
+            "sha1": "9e1ccb3b136cff0715004bbd418c66eb38bb8383"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/FI3Xu3s3/sodium-neoforge-0.6.6%2Bmc1.21.4.jar",
+          "filename": "sodium-neoforge-0.6.6+mc1.21.4.jar",
+          "primary": true,
+          "size": 1150770,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.4"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "tu8qILqH",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.6 for Fabric 1.21.4",
+      "version_number": "mc1.21.4-0.6.6-fabric",
+      "changelog": "- Fixed a bug that prevented quad transforms from applying to block models. Fixes compatibility with Contiunity.",
+      "changelog_url": null,
+      "date_published": "2024-12-25T04:18:10.552721Z",
+      "downloads": 3628061,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "pRpvb4eK",
+          "hashes": {
+            "sha512": "977606f8f344423a1986efded96e9844d1e0efaf11d877f8bec74c4b8711f9d909ddeaf8ba3126b26f704f0c6362f44c661e435cdbed48272bd03b82557314b6",
+            "sha1": "772956d8cc9ebec66a5001dccf66d8d1af3c3465"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/tu8qILqH/sodium-fabric-0.6.6%2Bmc1.21.4.jar",
+          "filename": "sodium-fabric-0.6.6+mc1.21.4.jar",
+          "primary": true,
+          "size": 1286946,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "zBRij2cH",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.5 for NeoForge 1.21.1",
+      "version_number": "mc1.21.1-0.6.5-neoforge",
+      "changelog": "This release is a hot fix for a critical issue introduced with Sodium 0.6.4 (published earlier today) that was causing frequent crashes. We have archived the previous release and recommend that all players using Sodium 0.6.4 instead update to this version.\n\n### Sodium 0.6.5\n- Fixed a bug that would cause any usage of block or item rendering from entities to immediately crash.\n\n### Sodium 0.6.4\n- Fixed a number of bugs with translucency sorting which were caused by the wrong camera coordinates being used in rendering.\n    - This also fixes rendering bugs with Distant Horizons that were introduced in Sodium 0.6.3.\n- Fixed the rendering of block models which have quads with different shading modes (i.e. VT's Bushy Leaves, Bray's World...)\n- Fixed a bug that prevented the \"Help\" button in dialog boxes from opening the default web browser on Windows.\n- Improved the rendering of the \"Pale Oak Leaves\" block in Fast graphics mode.\n- ... and some other very minor improvements and changes.",
+      "changelog_url": null,
+      "date_published": "2024-12-17T22:13:15.464655Z",
+      "downloads": 259170,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "TcoKmfZm",
+          "hashes": {
+            "sha1": "d3d04d6e8577623a826d3ab69787bf25fe62d5d2",
+            "sha512": "e73ec4bdf812bdc31f268598e72db031a1cd7720b384bc6b68dc3c77978f10ac79e282375fe28a434394e4c8c40a529e81726a49549c41c91210aaf941a1cbf4"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/zBRij2cH/sodium-neoforge-0.6.5%2Bmc1.21.1.jar",
+          "filename": "sodium-neoforge-0.6.5+mc1.21.1.jar",
+          "primary": true,
+          "size": 1154654,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.4"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "cQxHrxZR",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.3 for NeoForge 1.21.4",
+      "version_number": "mc1.21.4-0.6.3-neoforge",
+      "changelog": "- [MC 1.21.4] Fixed compatibility with NeoForge 21.4.3+ Beta\n- [MC 1.21.4] Fixed a bug causing font effects (such as italic, bold, underline) and text backgrounds to not render correctly.\n- Fixed a number of bugs with fluid rendering that were causing faces to be hidden incorrectly against some modded blocks.\n- Fixed detection of Intel graphics cards on Windows, which was causing some important workarounds to not apply.\n- Startup warnings about incompatible NVIDIA or Intel GPU driver versions will now only be shown if the GPU is actually in use.\n",
+      "changelog_url": null,
+      "date_published": "2024-12-07T06:59:33.752328Z",
+      "downloads": 27409,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "Jd1BWTl0",
+          "hashes": {
+            "sha1": "2aa0f06bfb947d98a5491a930232dbf66c85f725",
+            "sha512": "d935453f7cbe2108ece9cfb2d6998ae12f407eb8f612e44292c2380775f727c8505582153e9e1779e568d20601b0613071fc7047d3a4ce9e08cfdc439f8d8064"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/cQxHrxZR/sodium-neoforge-0.6.3%2Bmc1.21.4.jar",
+          "filename": "sodium-neoforge-0.6.3+mc1.21.4.jar",
+          "primary": true,
+          "size": 1155208,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.4"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "iPRNybGo",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.3 for Fabric 1.21.4",
+      "version_number": "mc1.21.4-0.6.3-fabric",
+      "changelog": "- [MC 1.21.4] Fixed compatibility with NeoForge 21.4.3+ Beta\n- [MC 1.21.4] Fixed a bug causing font effects (such as italic, bold, underline) and text backgrounds to not render correctly.\n- Fixed a number of bugs with fluid rendering that were causing faces to be hidden incorrectly against some modded blocks.\n- Fixed detection of Intel graphics cards on Windows, which was causing some important workarounds to not apply.\n- Startup warnings about incompatible NVIDIA or Intel GPU driver versions will now only be shown if the GPU is actually in use.\n",
+      "changelog_url": null,
+      "date_published": "2024-12-07T06:59:16.019028Z",
+      "downloads": 258951,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "JSzcuObq",
+          "hashes": {
+            "sha1": "97b2743aabb3cf9f19d1a0821639ad958465802c",
+            "sha512": "9066f7f41b25a7f55b9f8c128a2c0cbaa4e87232fe5ec58a4c5ac6ca1c803807fa43394bedd3856cc89032b1eb238a5dca115c158d59b4d25a832ae579207b7f"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/iPRNybGo/sodium-fabric-0.6.3%2Bmc1.21.4.jar",
+          "filename": "sodium-fabric-0.6.3+mc1.21.4.jar",
+          "primary": true,
+          "size": 1291175,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.4"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "joBzVWtR",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.2 for Fabric 1.21.4",
+      "version_number": "mc1.21.4-0.6.2-fabric",
+      "changelog": "- Added support for Minecraft 1.21.4\n- Fixed the handling of translucent render layers in item rendering when using the Fabric API\n- Updated manifest files to indicate correct versions of Minecraft and NeoForge/Fabric\n- Updated list of known-incompatible mods to help users avoid common issues\n- Backported support for NeoForge fluid handling APIs to Minecraft 1.21.1",
+      "changelog_url": null,
+      "date_published": "2024-12-03T21:21:41.169462Z",
+      "downloads": 126478,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "tKsVW1bC",
+          "hashes": {
+            "sha512": "227a051609855a88027b93832d20624b4a0161a6b541d0fc651911c680d5e2f64b834fa7931eb5faed8cea24b75f493ccf3e0b5d0216f7c4fe05ebe09d2d216f",
+            "sha1": "ae3d1af44b32754b21ad4776495ff001e4339487"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/joBzVWtR/sodium-fabric-0.6.2%2Bmc1.21.4.jar",
+          "filename": "sodium-fabric-0.6.2+mc1.21.4.jar",
+          "primary": true,
+          "size": 1288943,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "uc2dogCv",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.1 for NeoForge 1.21.1",
+      "version_number": "mc1.21.1-0.6.1-neoforge",
+      "changelog": "This release fixes a number of issues in Sodium 0.6.0, and it is recommended that all players install this update.\n\n- Improved the driver workarounds for NVIDIA GPUs on Windows, potentially improving performance on laptops with hybrid graphics.\n- Improved the occlusion culling code so that it can be skipped when chunk updates do not modify the connected-ness of chunk sections, improving performance slightly in some scenarios.\n- Fixed a bug where clouds would render incorrectly (on the wrong framebuffer) when _Fabulous!_ mode is used.\n- Fixed a bug with color blending that would cause some animated textures to flicker or render incorrectly, especially with shader packs.\n- Fixed some issues with translucent block rendering that could occur due to draw calls not being correctly sorted.\n- Fixed a bug where very large block entities in nearby chunk sections would be incorrectly culled.\n- Added optimized block models for Cauldrons, Brewing Stands, and Bells.",
+      "changelog_url": null,
+      "date_published": "2024-12-02T20:44:34.045390Z",
+      "downloads": 13288,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "Z7KKFZZs",
+          "hashes": {
+            "sha1": "a761c40e2ecd1801685d4dbe86ef1273398b2996",
+            "sha512": "08569d29962007dafe4263e919ffa5f3e8a28112984e453ab6d3c814ef1bf4e42007fa0551ab6500da642fab39214b302fd056f56eae51c7747785bebdc3c6a1"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/uc2dogCv/sodium-neoforge-0.6.1%2Bmc1.21.1.jar",
+          "filename": "sodium-neoforge-0.6.1+mc1.21.1.jar",
+          "primary": true,
+          "size": 1156935,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21",
+        "1.21.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "r9o9ggVu",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.1 for Fabric 1.21.1",
+      "version_number": "mc1.21.1-0.6.1-fabric",
+      "changelog": "This release fixes a number of issues in Sodium 0.6.0, and it is recommended that all players install this update.\n\n- Improved the driver workarounds for NVIDIA GPUs on Windows, potentially improving performance on laptops with hybrid graphics.\n- Improved the occlusion culling code so that it can be skipped when chunk updates do not modify the connected-ness of chunk sections, improving performance slightly in some scenarios.\n- Fixed a bug where clouds would render incorrectly (on the wrong framebuffer) when _Fabulous!_ mode is used.\n- Fixed a bug with color blending that would cause some animated textures to flicker or render incorrectly, especially with shader packs.\n- Fixed some issues with translucent block rendering that could occur due to draw calls not being correctly sorted.\n- Fixed a bug where very large block entities in nearby chunk sections would be incorrectly culled.\n- Added optimized block models for Cauldrons, Brewing Stands, and Bells.",
+      "changelog_url": null,
+      "date_published": "2024-12-02T20:43:53.732416Z",
+      "downloads": 145809,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "GyOYo7ke",
+          "hashes": {
+            "sha512": "b62fd47643b98e4af244d664d0e53cae3f53dcd2900c3f0ac067766ec11c64c504a3c0381046727818ad4e732fc9fc48ac994f4b684f048f8183d2bb0555db19",
+            "sha1": "362e702115cc7958bf7ee660833690148b10baf1"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/r9o9ggVu/sodium-fabric-0.6.1%2Bmc1.21.1.jar",
+          "filename": "sodium-fabric-0.6.1+mc1.21.1.jar",
+          "primary": true,
+          "size": 1291049,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.3"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "V26EsYch",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.1 for NeoForge 1.21.3",
+      "version_number": "mc1.21.3-0.6.1-neoforge",
+      "changelog": "This release fixes a number of issues in Sodium 0.6.0, and it is recommended that all players install this update.\n\n- Improved the driver workarounds for NVIDIA GPUs on Windows, potentially improving performance on laptops with hybrid graphics.\n- Improved the occlusion culling code so that it can be skipped when chunk updates do not modify the connected-ness of chunk sections, improving performance slightly in some scenarios.\n- Fixed a bug where clouds would render incorrectly (on the wrong framebuffer) when _Fabulous!_ mode is used.\n- Fixed a bug with color blending that would cause some animated textures to flicker or render incorrectly, especially with shader packs.\n- Fixed some issues with translucent block rendering that could occur due to draw calls not being correctly sorted.\n- Fixed a bug where very large block entities in nearby chunk sections would be incorrectly culled.\n- Added optimized block models for Cauldrons, Brewing Stands, and Bells.",
+      "changelog_url": null,
+      "date_published": "2024-12-02T20:43:14.777496Z",
+      "downloads": 2407,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "f5qrggmj",
+          "hashes": {
+            "sha512": "a089d6b7129c6d25890e0aba7f18f175ad963ad2a3e01ba42c4fefa38394d78835ee7c736ff335120330249d8cd8a0e3adc58f6fe230499511bc5f4f231c2f49",
+            "sha1": "392a1ec62d60b946ef1f8dac69b340a885a8c899"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/V26EsYch/sodium-neoforge-0.6.1%2Bmc1.21.3.jar",
+          "filename": "sodium-neoforge-0.6.1+mc1.21.3.jar",
+          "primary": true,
+          "size": 1155659,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "gXZfuKxx",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.1 for Fabric 1.21.3",
+      "version_number": "mc1.21.3-0.6.1-fabric",
+      "changelog": "This release fixes a number of issues in Sodium 0.6.0, and it is recommended that all players install this update.\n\n- Improved the driver workarounds for NVIDIA GPUs on Windows, potentially improving performance on laptops with hybrid graphics.\n- Improved the occlusion culling code so that it can be skipped when chunk updates do not modify the connected-ness of chunk sections, improving performance slightly in some scenarios.\n- Fixed a bug where clouds would render incorrectly (on the wrong framebuffer) when _Fabulous!_ mode is used.\n- Fixed a bug with color blending that would cause some animated textures to flicker or render incorrectly, especially with shader packs.\n- Fixed some issues with translucent block rendering that could occur due to draw calls not being correctly sorted.\n- Fixed a bug where very large block entities in nearby chunk sections would be incorrectly culled.\n- Added optimized block models for Cauldrons, Brewing Stands, and Bells.",
+      "changelog_url": null,
+      "date_published": "2024-12-02T20:42:19.829508Z",
+      "downloads": 64122,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "VOe3m4ht",
+          "hashes": {
+            "sha1": "0aa2c68de31579449fd05bff323bcd29ee01a5a7",
+            "sha512": "33abcd730494910d59232dbfdc226a2bfe7d1df3ecf2e1777cc6ca0e42e94ee473a1aef36e3489282cb45c4db4fc1a0fca339701fafa9e1a20055e958123f313"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/gXZfuKxx/sodium-fabric-0.6.1%2Bmc1.21.3.jar",
+          "filename": "sodium-fabric-0.6.1+mc1.21.3.jar",
+          "primary": true,
+          "size": 1289984,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "Ci7BTU2N",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.0 for NeoForge 1.21.1",
+      "version_number": "mc1.21.1-0.6.0-neoforge",
+      "changelog": "This is the largest update to Sodium since the initial release! There are a countless number of improvements for mod compatibility and hundreds of bugs and other issues have been resolved. Additionally, we managed to pack some new performance optimizations into this release.\n\n## Key highlights of this release\n\n- **This is the first multi-loader release for both NeoForge _and_ Fabric!** Yes, seriously!\n  - In the long-term, this means that users and mod authors will no longer need to rely on third-party forks of Sodium (Rubidium, Embeddium, Xenon, etc). This will greatly reduce friction for everyone, and improve the overall user experience significantly.\n  - We are working with mod authors as quickly as possible to implement additional APIs to improve mod compatibility with this version. Where possible, we will try to submit patches upstream to other mods to minimize the effort needed. If you are a mod author who finds their mod no longer works with Sodium 0.6, please [open an issue](<https://github.com/CaffeineMC/sodium-fabric/issues>) so that we can work with you to fix it.\n- **The Fabric Rendering API (FRAPI) is now supported out of the box!** This greatly improves mod compatibility, and makes it so mods like _Indium_ are no longer necessary. We've worked with individuals in the Fabric team and other mod authors to make sure our implementation works correctly, and have done comprehensive testing to ensure other mods behave correctly with our implementation. (That said, if you find a bug with it as a mod author, please let us know.)\n- **Major improvements for translucent blocks!** You know the long-standing issues with stained glass and other blocks, and how they don't quite look right? We're happy to announce those issues are no more. This means that translucent blocks will look great-- much better than Vanilla even-- with almost no performance impact. (This achievement would not have been possible without the effort of [Douira](https://douira.dev/). This was such a complex issue that it became the subject of their master's thesis.)\n\n## Improvements and new optimizations\n\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15% when using higher render distances.\n- Added a new optimization called \"Material Downgrading\" which moves some terrain geometry to a simpler render pass when the texture is not transparent or translucent. This can improve terrain rendering performance slightly, and sometimes much more with certain mods or resource packs.\n- The quality of terrain rendering has been greatly improved (greater vertex/texture precision), fixing many issues with special block models. \n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved performance on integrated Intel GPUs by up to 10-15% with additional terrain rendering optimizations.\n- The graphical fidelity and performance of cloud rendering has been improved significantly.\n- Greatly reduced virtual memory utilization while loading chunks. This should also help improve how quickly chunks are loaded on the client.\n- Many fixes for handling worlds with a large amount of geometry. \n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Added an option to the Video Settings screen for controlling the Fullscreen Resolution. (This is currently only available on Windows.)\n- Minor code quality and performance improvements for color mixing/swizzling functions used in various parts of the renderer.\n- The rendering of some options in the video settings menu has been slightly improved.\n- Improved the performance of the box blurs used in biome color blending, making the higher values for the biome blend option less expensive.\n\n## Fixes for mod compatibility\n\n- Added support for modifying the alpha component of vertex colors in terrain rendering, as used by some mods.\n- Fixed an issue where mods relying on FREX Flawless Frames (such as ReplayMod) would have a one-frame delay before chunks were rendered to the screen.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Fixed compatibility with some mods that modify biome colors on NeoForge (i.e. Polytone.)\n- Fixed compatibility with mods that render their block entities on a glowing render pass.\n- Improved compatibility with mods that use custom fluid renderers.\n- Improved compatibility with mods that use custom biome colors.\n- Improved compatibility with mods that extend the entity renderer.\n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the FREX Flawless Frame API on NeoForge.\n- Added an API for mods that need to conditionally render block entities (i.e. Flywheel.)\n- Fixed a cryptic crash relating to the PoseStack that can happen when mods render items using the Fabric APIs.\n\n## Other bugs fixed in this release\n\n- Fixed a bug that would cause z-fighting between fluids and some special blocks (such as Stairs and Slabs.)\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed a problem where animated textures would stop animating, especially when some other mods were installed.\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed a bug that would cause clouds to render with the wrong colors at specific times of day and with specific camera angles.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed a bug where clouds may not render their bottom faces at specific camera angles.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n",
+      "changelog_url": null,
+      "date_published": "2024-11-17T01:42:32.268128Z",
+      "downloads": 87545,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "zGhm2QtO",
+          "hashes": {
+            "sha512": "2adf1d0cec7e7799e45cfa9d74cd7c6f3a5e68acf2c2a9b0d77417b881b435b5e022861c1eb7ff0b550a4ac6e445bc31a372602941b35d7d31671499d8e9b950",
+            "sha1": "497c0cdf99c235cc5005f31019a77ac75cc80974"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/Ci7BTU2N/sodium-neoforge-0.6.0%2Bmc1.21.1.jar",
+          "filename": "sodium-neoforge-0.6.0+mc1.21.1.jar",
+          "primary": true,
+          "size": 1148443,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21",
+        "1.21.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "b70slbHV",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.0 for Fabric 1.21.1",
+      "version_number": "mc1.21.1-0.6.0-fabric",
+      "changelog": "This is the largest update to Sodium since the initial release! There are a countless number of improvements for mod compatibility and hundreds of bugs and other issues have been resolved. Additionally, we managed to pack some new performance optimizations into this release.\n\n## Key highlights of this release\n\n- **This is the first multi-loader release for both NeoForge _and_ Fabric!** Yes, seriously!\n  - In the long-term, this means that users and mod authors will no longer need to rely on third-party forks of Sodium (Rubidium, Embeddium, Xenon, etc). This will greatly reduce friction for everyone, and improve the overall user experience significantly.\n  - We are working with mod authors as quickly as possible to implement additional APIs to improve mod compatibility with this version. Where possible, we will try to submit patches upstream to other mods to minimize the effort needed. If you are a mod author who finds their mod no longer works with Sodium 0.6, please [open an issue](<https://github.com/CaffeineMC/sodium-fabric/issues>) so that we can work with you to fix it.\n- **The Fabric Rendering API (FRAPI) is now supported out of the box!** This greatly improves mod compatibility, and makes it so mods like _Indium_ are no longer necessary. We've worked with individuals in the Fabric team and other mod authors to make sure our implementation works correctly, and have done comprehensive testing to ensure other mods behave correctly with our implementation. (That said, if you find a bug with it as a mod author, please let us know.)\n- **Major improvements for translucent blocks!** You know the long-standing issues with stained glass and other blocks, and how they don't quite look right? We're happy to announce those issues are no more. This means that translucent blocks will look great-- much better than Vanilla even-- with almost no performance impact. (This achievement would not have been possible without the effort of [Douira](https://douira.dev/). This was such a complex issue that it became the subject of their master's thesis.)\n\n## Improvements and new optimizations\n\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15% when using higher render distances.\n- Added a new optimization called \"Material Downgrading\" which moves some terrain geometry to a simpler render pass when the texture is not transparent or translucent. This can improve terrain rendering performance slightly, and sometimes much more with certain mods or resource packs.\n- The quality of terrain rendering has been greatly improved (greater vertex/texture precision), fixing many issues with special block models. \n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved performance on integrated Intel GPUs by up to 10-15% with additional terrain rendering optimizations.\n- The graphical fidelity and performance of cloud rendering has been improved significantly.\n- Greatly reduced virtual memory utilization while loading chunks. This should also help improve how quickly chunks are loaded on the client.\n- Many fixes for handling worlds with a large amount of geometry. \n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Added an option to the Video Settings screen for controlling the Fullscreen Resolution. (This is currently only available on Windows.)\n- Minor code quality and performance improvements for color mixing/swizzling functions used in various parts of the renderer.\n- The rendering of some options in the video settings menu has been slightly improved.\n- Improved the performance of the box blurs used in biome color blending, making the higher values for the biome blend option less expensive.\n\n## Fixes for mod compatibility\n\n- Added support for modifying the alpha component of vertex colors in terrain rendering, as used by some mods.\n- Fixed an issue where mods relying on FREX Flawless Frames (such as ReplayMod) would have a one-frame delay before chunks were rendered to the screen.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Fixed compatibility with some mods that modify biome colors on NeoForge (i.e. Polytone.)\n- Fixed compatibility with mods that render their block entities on a glowing render pass.\n- Improved compatibility with mods that use custom fluid renderers.\n- Improved compatibility with mods that use custom biome colors.\n- Improved compatibility with mods that extend the entity renderer.\n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the FREX Flawless Frame API on NeoForge.\n- Added an API for mods that need to conditionally render block entities (i.e. Flywheel.)\n- Fixed a cryptic crash relating to the PoseStack that can happen when mods render items using the Fabric APIs.\n\n## Other bugs fixed in this release\n\n- Fixed a bug that would cause z-fighting between fluids and some special blocks (such as Stairs and Slabs.)\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed a problem where animated textures would stop animating, especially when some other mods were installed.\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed a bug that would cause clouds to render with the wrong colors at specific times of day and with specific camera angles.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed a bug where clouds may not render their bottom faces at specific camera angles.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n",
+      "changelog_url": null,
+      "date_published": "2024-11-17T01:42:01.649657Z",
+      "downloads": 570243,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "n9yiULvL",
+          "hashes": {
+            "sha1": "d4efadcafc89313befb9bd41e18039584203828e",
+            "sha512": "f7b92989ba6312352623d0311c5bb71eb8da14ea2e5a070f3a959a1f10cfe68cfc8487cf8dbde9187d849d6c04833df2a974be12949efae8aaffe873815ba7a5"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/b70slbHV/sodium-fabric-0.6.0%2Bmc1.21.1.jar",
+          "filename": "sodium-fabric-0.6.0+mc1.21.1.jar",
+          "primary": true,
+          "size": 1281394,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.3"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "7zeY2C2J",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.0 for NeoForge 1.21.3",
+      "version_number": "mc1.21.3-0.6.0-neoforge",
+      "changelog": "This is the largest update to Sodium since the initial release! There are a countless number of improvements for mod compatibility and hundreds of bugs and other issues have been resolved. Additionally, we managed to pack some new performance optimizations into this release.\n\n## Key highlights of this release\n\n- **This is the first multi-loader release for both NeoForge _and_ Fabric!** Yes, seriously!\n  - In the long-term, this means that users and mod authors will no longer need to rely on third-party forks of Sodium (Rubidium, Embeddium, Xenon, etc). This will greatly reduce friction for everyone, and improve the overall user experience significantly.\n  - We are working with mod authors as quickly as possible to implement additional APIs to improve mod compatibility with this version. Where possible, we will try to submit patches upstream to other mods to minimize the effort needed. If you are a mod author who finds their mod no longer works with Sodium 0.6, please [open an issue](<https://github.com/CaffeineMC/sodium-fabric/issues>) so that we can work with you to fix it.\n- **The Fabric Rendering API (FRAPI) is now supported out of the box!** This greatly improves mod compatibility, and makes it so mods like _Indium_ are no longer necessary. We've worked with individuals in the Fabric team and other mod authors to make sure our implementation works correctly, and have done comprehensive testing to ensure other mods behave correctly with our implementation. (That said, if you find a bug with it as a mod author, please let us know.)\n- **Major improvements for translucent blocks!** You know the long-standing issues with stained glass and other blocks, and how they don't quite look right? We're happy to announce those issues are no more. This means that translucent blocks will look great-- much better than Vanilla even-- with almost no performance impact. (This achievement would not have been possible without the effort of [Douira](https://douira.dev/). This was such a complex issue that it became the subject of their master's thesis.)\n\n## Improvements and new optimizations\n\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15% when using higher render distances.\n- Added a new optimization called \"Material Downgrading\" which moves some terrain geometry to a simpler render pass when the texture is not transparent or translucent. This can improve terrain rendering performance slightly, and sometimes much more with certain mods or resource packs.\n- The quality of terrain rendering has been greatly improved (greater vertex/texture precision), fixing many issues with special block models. \n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved performance on integrated Intel GPUs by up to 10-15% with additional terrain rendering optimizations.\n- The graphical fidelity and performance of cloud rendering has been improved significantly.\n- Greatly reduced virtual memory utilization while loading chunks. This should also help improve how quickly chunks are loaded on the client.\n- Many fixes for handling worlds with a large amount of geometry. \n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Added an option to the Video Settings screen for controlling the Fullscreen Resolution. (This is currently only available on Windows.)\n- Minor code quality and performance improvements for color mixing/swizzling functions used in various parts of the renderer.\n- The rendering of some options in the video settings menu has been slightly improved.\n- Improved the performance of the box blurs used in biome color blending, making the higher values for the biome blend option less expensive.\n\n## Fixes for mod compatibility\n\n- Added support for modifying the alpha component of vertex colors in terrain rendering, as used by some mods.\n- Fixed an issue where mods relying on FREX Flawless Frames (such as ReplayMod) would have a one-frame delay before chunks were rendered to the screen.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Fixed compatibility with some mods that modify biome colors on NeoForge (i.e. Polytone.)\n- Fixed compatibility with mods that render their block entities on a glowing render pass.\n- Improved compatibility with mods that use custom fluid renderers.\n- Improved compatibility with mods that use custom biome colors.\n- Improved compatibility with mods that extend the entity renderer.\n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the FREX Flawless Frame API on NeoForge.\n- Added an API for mods that need to conditionally render block entities (i.e. Flywheel.)\n- Fixed a cryptic crash relating to the PoseStack that can happen when mods render items using the Fabric APIs.\n\n## Other bugs fixed in this release\n\n- Fixed a bug that would cause z-fighting between fluids and some special blocks (such as Stairs and Slabs.)\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed a problem where animated textures would stop animating, especially when some other mods were installed.\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed a bug that would cause clouds to render with the wrong colors at specific times of day and with specific camera angles.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed a bug where clouds may not render their bottom faces at specific camera angles.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n",
+      "changelog_url": null,
+      "date_published": "2024-11-17T01:40:42.964587Z",
+      "downloads": 22494,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "dbPvAHIp",
+          "hashes": {
+            "sha512": "d3eb5bde846088ba28dba69379f174a2646f0cca9faeb7699a37fc882958e750308e19aa38f916ab46eed10a06dc8aaab930d8375c0d2d877cc4312f12865bfc",
+            "sha1": "eda745a887ae52045470d635a60844734d681e42"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/7zeY2C2J/sodium-neoforge-0.6.0%2Bmc1.21.3.jar",
+          "filename": "sodium-neoforge-0.6.0+mc1.21.3.jar",
+          "primary": true,
+          "size": 1146647,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "SzAjFUSx",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.6.0 for Fabric 1.21.3",
+      "version_number": "mc1.21.3-0.6.0-fabric",
+      "changelog": "This is the largest update to Sodium since the initial release! There are a countless number of improvements for mod compatibility and hundreds of bugs and other issues have been resolved. Additionally, we managed to pack some new performance optimizations into this release.\n\n## Key highlights of this release\n\n- **This is the first multi-loader release for both NeoForge _and_ Fabric!** Yes, seriously!\n  - In the long-term, this means that users and mod authors will no longer need to rely on third-party forks of Sodium (Rubidium, Embeddium, Xenon, etc). This will greatly reduce friction for everyone, and improve the overall user experience significantly.\n  - We are working with mod authors as quickly as possible to implement additional APIs to improve mod compatibility with this version. Where possible, we will try to submit patches upstream to other mods to minimize the effort needed. If you are a mod author who finds their mod no longer works with Sodium 0.6, please [open an issue](<https://github.com/CaffeineMC/sodium-fabric/issues>) so that we can work with you to fix it.\n- **The Fabric Rendering API (FRAPI) is now supported out of the box!** This greatly improves mod compatibility, and makes it so mods like _Indium_ are no longer necessary. We've worked with individuals in the Fabric team and other mod authors to make sure our implementation works correctly, and have done comprehensive testing to ensure other mods behave correctly with our implementation. (That said, if you find a bug with it as a mod author, please let us know.)\n- **Major improvements for translucent blocks!** You know the long-standing issues with stained glass and other blocks, and how they don't quite look right? We're happy to announce those issues are no more. This means that translucent blocks will look great-- much better than Vanilla even-- with almost no performance impact. (This achievement would not have been possible without the effort of [Douira](https://douira.dev/). This was such a complex issue that it became the subject of their master's thesis.)\n\n## Improvements and new optimizations\n\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15% when using higher render distances.\n- Added a new optimization called \"Material Downgrading\" which moves some terrain geometry to a simpler render pass when the texture is not transparent or translucent. This can improve terrain rendering performance slightly, and sometimes much more with certain mods or resource packs.\n- The quality of terrain rendering has been greatly improved (greater vertex/texture precision), fixing many issues with special block models. \n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved performance on integrated Intel GPUs by up to 10-15% with additional terrain rendering optimizations.\n- The graphical fidelity and performance of cloud rendering has been improved significantly.\n- Greatly reduced virtual memory utilization while loading chunks. This should also help improve how quickly chunks are loaded on the client.\n- Many fixes for handling worlds with a large amount of geometry. \n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Added an option to the Video Settings screen for controlling the Fullscreen Resolution. (This is currently only available on Windows.)\n- Minor code quality and performance improvements for color mixing/swizzling functions used in various parts of the renderer.\n- The rendering of some options in the video settings menu has been slightly improved.\n- Improved the performance of the box blurs used in biome color blending, making the higher values for the biome blend option less expensive.\n\n## Fixes for mod compatibility\n\n- Added support for modifying the alpha component of vertex colors in terrain rendering, as used by some mods.\n- Fixed an issue where mods relying on FREX Flawless Frames (such as ReplayMod) would have a one-frame delay before chunks were rendered to the screen.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Fixed compatibility with some mods that modify biome colors on NeoForge (i.e. Polytone.)\n- Fixed compatibility with mods that render their block entities on a glowing render pass.\n- Improved compatibility with mods that use custom fluid renderers.\n- Improved compatibility with mods that use custom biome colors.\n- Improved compatibility with mods that extend the entity renderer.\n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the FREX Flawless Frame API on NeoForge.\n- Added an API for mods that need to conditionally render block entities (i.e. Flywheel.)\n- Fixed a cryptic crash relating to the PoseStack that can happen when mods render items using the Fabric APIs.\n\n## Other bugs fixed in this release\n\n- Fixed a bug that would cause z-fighting between fluids and some special blocks (such as Stairs and Slabs.)\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed a problem where animated textures would stop animating, especially when some other mods were installed.\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed a bug that would cause clouds to render with the wrong colors at specific times of day and with specific camera angles.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed a bug where clouds may not render their bottom faces at specific camera angles.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n",
+      "changelog_url": null,
+      "date_published": "2024-11-17T01:40:01.679736Z",
+      "downloads": 339989,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "qKUzSSY0",
+          "hashes": {
+            "sha1": "b99e4f3ae1b2d1b04e039858d1b554e6afa7bd65",
+            "sha512": "c1ec717a059a13f7ca6acba1ed7e58b91d14d33523f91c715097502c6b0ffc20452572f7f9a0008429381cc943c3a7ed5b6ad106f05891f0d508a67a9fff3fad"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/SzAjFUSx/sodium-fabric-0.6.0%2Bmc1.21.3.jar",
+          "filename": "sodium-fabric-0.6.0+mc1.21.3.jar",
+          "primary": true,
+          "size": 1280198,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "hBlmTLJR",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 5) for Fabric 1.21.3",
+      "version_number": "mc1.21.3-0.6.0-beta.5-fabric",
+      "changelog": "- Fixed a cryptic crash relating to the PoseStack that can happen when mods render items using the Fabric APIs.\n- Fixed a bug that would cause clouds to render with the wrong colors at specific times of day and with specific camera angles.\n- Fixed a bug where clouds may not render their bottom faces at specific camera angles.\n- Minor code quality and performance improvements for color mixing/swizzling functions used in various parts of the renderer.\n- Improved the performance of the box blurs used in biome color blending, making the higher values for the biome blend option less expensive.\n",
+      "changelog_url": null,
+      "date_published": "2024-11-12T06:10:40.999468Z",
+      "downloads": 96350,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "OIJmwyxJ",
+          "hashes": {
+            "sha512": "4258c1d1e6b179ff221de8968e1ada50fe7568be7c844890742be1148087307c239f46696278db0f5a52ab4863b1e51638d6589f9563c694d92cf912ee63ec1e",
+            "sha1": "794ba1b27e2b6938bb73a90cc8179cda67e2bea9"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/hBlmTLJR/sodium-fabric-0.6.0-beta.5%2Bmc1.21.3.jar",
+          "filename": "sodium-fabric-0.6.0-beta.5+mc1.21.3.jar",
+          "primary": true,
+          "size": 1280205,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "frbpSbY2",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 5) for NeoForge 1.21.3",
+      "version_number": "mc1.21.3-0.6.0-beta.5-neoforge",
+      "changelog": "- Fixed a cryptic crash relating to the PoseStack that can happen when mods render items using the Fabric APIs.\n- Fixed a bug that would cause clouds to render with the wrong colors at specific times of day and with specific camera angles.\n- Fixed a bug where clouds may not render their bottom faces at specific camera angles.\n- Minor code quality and performance improvements for color mixing/swizzling functions used in various parts of the renderer.\n- Improved the performance of the box blurs used in biome color blending, making the higher values for the biome blend option less expensive.",
+      "changelog_url": null,
+      "date_published": "2024-11-12T06:10:05.053669Z",
+      "downloads": 21291,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "D6Q1XAZy",
+          "hashes": {
+            "sha512": "f55caafa0e5d71041f410637b6e3e786f85a4c6a1926dc301d200885297e73575f50ce81bf0fffc08861b7017195fc94160506a44cc1237e1558ac520bb24814",
+            "sha1": "c3a563b136289a8fb341a3059e912fcb2134dadc"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/frbpSbY2/sodium-neoforge-0.6.0-beta.5%2Bmc1.21.3.jar",
+          "filename": "sodium-neoforge-0.6.0-beta.5+mc1.21.3.jar",
+          "primary": true,
+          "size": 1146673,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "HCEjRjK4",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 4) for Fabric 1.21.3",
+      "version_number": "mc1.21.3-0.6.0-beta.4-fabric",
+      "changelog": "- Fixed a problem with older Intel GPUs that would cause Z-fighting with block overlays.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved translucency sorting for special block models with rotated cuboids.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed warnings at startup about missing refmaps.",
+      "changelog_url": null,
+      "date_published": "2024-10-27T23:15:06.163814Z",
+      "downloads": 293997,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "U4f66xUS",
+          "hashes": {
+            "sha512": "7fbc173f0a8110acfbd3e91c670642724f5718ed7bc137045c3782e793a9f54e9d39e54265bee8546c44e95ce73836d70ca110db012b529bcb5390844a411ba5",
+            "sha1": "7c6358f54b41c9851ef50addd455735c342936ef"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/HCEjRjK4/sodium-fabric-0.6.0-beta.4%2Bmc1.21.3.jar",
+          "filename": "sodium-fabric-0.6.0-beta.4+mc1.21.3.jar",
+          "primary": true,
+          "size": 1279673,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "bSL0wBSW",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 4) for NeoForge 1.21.3",
+      "version_number": "mc1.21.3-0.6.0-beta.4-neoforge",
+      "changelog": "- Fixed a problem with older Intel GPUs that would cause Z-fighting with block overlays.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved translucency sorting for special block models with rotated cuboids.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed warnings at startup about missing refmaps.",
+      "changelog_url": null,
+      "date_published": "2024-10-27T23:14:31.212687Z",
+      "downloads": 6989,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "MyzZ8ZGl",
+          "hashes": {
+            "sha1": "095eee30e70c42295d7f53b875f3cd6215639546",
+            "sha512": "9d09736c5cfb2e01c1164227b567009959230eb9f45160b9e077037330c535b2ae580d11ccf03e487f9007129f1eff71a48a75740c0d93fe6ccdd42b5075fc48"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/bSL0wBSW/sodium-neoforge-0.6.0-beta.4%2Bmc1.21.3.jar",
+          "filename": "sodium-neoforge-0.6.0-beta.4+mc1.21.3.jar",
+          "primary": true,
+          "size": 1146209,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "zJZY6GYO",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 4) for Fabric 1.21.1",
+      "version_number": "mc1.21.1-0.6.0-beta.4-fabric",
+      "changelog": "- Fixed a problem with older Intel GPUs that would cause Z-fighting with block overlays.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved translucency sorting for special block models with rotated cuboids.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed warnings at startup about missing refmaps.",
+      "changelog_url": null,
+      "date_published": "2024-10-27T23:13:36.382235Z",
+      "downloads": 450172,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "oCnFaC1y",
+          "hashes": {
+            "sha512": "3774cbbf1d3ce45bf5b1fec9ee4b670bed95e2a401e9dcfcb92031aba56290a5b1d4025cb092dc8927ffbbbb638692c873b89d29ffdf6432fcc3fe4ab7b1da69",
+            "sha1": "eec213b5fff929d8ff4bd8c0119883b849960654"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/zJZY6GYO/sodium-fabric-0.6.0-beta.4%2Bmc1.21.1.jar",
+          "filename": "sodium-fabric-0.6.0-beta.4+mc1.21.1.jar",
+          "primary": true,
+          "size": 1280892,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "r0Cvb6jf",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 4) for NeoForge 1.21.1",
+      "version_number": "mc1.21.1-0.6.0-beta.4-neoforge",
+      "changelog": "- Fixed a problem with older Intel GPUs that would cause Z-fighting with block overlays.\n- Fixed a crash with Immersive Engineering when block entities attempt to render particles.\n- Added a handful of optimizations to Minecraft's block models, which can slightly improve performance in complex worlds.\n- Improved translucency sorting for special block models with rotated cuboids.\n- Fixed a problem that caused clouds to render as fully opaque.\n- Fixed a regression that was causing clouds to only render at a short distance.\n- Fixed tooltips being cutoff in the Video Settings menu when the effective window size is very small. \n- Fixed warnings at startup about missing refmaps.",
+      "changelog_url": null,
+      "date_published": "2024-10-27T23:12:18.440330Z",
+      "downloads": 54774,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "vqlNsfDt",
+          "hashes": {
+            "sha512": "667b940d10252bf4e8110ecb323e612d29f2e7241766a71430c1aa771bc0860b6199da90d36173b3ae783b219136f482ed4d34f60a0a80137486e0d16746fd99",
+            "sha1": "c559b6e30e335b5cbe8e0ca94a6026ea1c3b953d"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/r0Cvb6jf/sodium-neoforge-0.6.0-beta.4%2Bmc1.21.1.jar",
+          "filename": "sodium-neoforge-0.6.0-beta.4+mc1.21.1.jar",
+          "primary": true,
+          "size": 1148020,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "yExcQU0x",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "0.6.0 (Beta 3) for NeoForge 1.21.2",
+      "version_number": "mc1.21.2-0.6.0-beta.3-neoforge",
+      "changelog": "This update contains some minor performance and compatibility improvements, alongside adding support for Minecraft 1.21.2 and 1.21.3.\n\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15% when using higher render distances.\n- Greatly reduced virtual memory utilization while loading chunks. This should also help improve how quickly chunks are loaded on the client.\n- Many fixes for handling worlds with a large amount of geometry. \n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the FREX Flawless Frame API on NeoForge.\n- Marked the mod as client-side only on NeoForge so that it is not (uselessly) loaded on servers.\n- Improved some error diagnostics shown in the log file.",
+      "changelog_url": null,
+      "date_published": "2024-10-22T16:45:17.662680Z",
+      "downloads": 19863,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "ggWEa1rf",
+          "hashes": {
+            "sha1": "62782ec35dcf868d5648419fc48415606bd2a971",
+            "sha512": "ca69158570b65f15b90dfe3e64da03430f1e7aac96882189f2fd2faf2cc309fec6bcd91c4f6ebada94f593597d7f2eb92234685cfc2a5e2d6a48f2ef8624ff04"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/yExcQU0x/sodium-neoforge-0.6.0-beta.3%2Bmc1.21.2.jar",
+          "filename": "sodium-neoforge-0.6.0-beta.3+mc1.21.2.jar",
+          "primary": true,
+          "size": 1118588,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.2",
+        "1.21.3"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "YWD36TtF",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "0.6.0 (Beta 3) for Fabric 1.21.2",
+      "version_number": "mc1.21.2-0.6.0-beta.3-fabric",
+      "changelog": "This update contains some minor performance and compatibility improvements, alongside adding support for Minecraft 1.21.2 and 1.21.3.\n\n- Occlusion culling has been improved slightly, reducing the number of rendered sections by up to 10-15% when using higher render distances.\n- Greatly reduced virtual memory utilization while loading chunks. This should also help improve how quickly chunks are loaded on the client.\n- Many fixes for handling worlds with a large amount of geometry. \n- Improved compatibility with some resource packs that use custom shaders in entity rendering.\n- Added support for the FREX Flawless Frame API on NeoForge.\n- Marked the mod as client-side only on NeoForge so that it is not (uselessly) loaded on servers.\n- Improved some error diagnostics shown in the log file.",
+      "changelog_url": null,
+      "date_published": "2024-10-22T15:25:25.694428Z",
+      "downloads": 125848,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "EZgShPDl",
+          "hashes": {
+            "sha1": "14962a055b78c0eaa54d7e9bffc57473e8ad2358",
+            "sha512": "bf1ebf525540752a03de122dff69f35a41aa6aa13b6765701865d6d49b1014bd70ae0334bac6fbc30a12ec2d4a7afa945a9979c3bf40f906ea9e1bad2fc5a370"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/YWD36TtF/sodium-fabric-0.6.0-beta.3%2Bmc1.21.2.jar",
+          "filename": "sodium-fabric-0.6.0-beta.3+mc1.21.2.jar",
+          "primary": true,
+          "size": 1264764,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21",
+        "1.21.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "CcIWi5Av",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 2) for Fabric",
+      "version_number": "mc1.21-0.6.0-beta.2-fabric",
+      "changelog": "- Improved performance on integrated Intel GPUs by up to 10-15% with additional terrain rendering optimizations.\n- Added a new optimization called \"Material Downgrading\" which moves some terrain geometry to a simpler render pass when the texture is not transparent or translucent. This can improve terrain rendering performance slightly, and sometimes much more with certain mods or resource packs.\n- Added an option to the Video Settings screen for controlling the Fullscreen Resolution. (This is currently only available on Windows.)\n- The game no longer crashes at startup instead of showing an error pop-up mesage on NeoForge.\n- Fixed a problem where animated textures would stop animating, especially when some other mods were installed.\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed a frequent crash when unfocusing the game window or switching between applications on older Intel GPUs.\n- Fixed a bug that would cause mixin overrides from mods to not apply.\n- Fixed compatibility with some mods that modify biome colors on NeoForge (i.e. Polytone.)\n- Fixed compatibility with mods that render their block entities on a glowing render pass.\n- Added an API for mods that need to conditionally render block entities (i.e. Flywheel.)",
+      "changelog_url": null,
+      "date_published": "2024-09-15T18:02:43.377384Z",
+      "downloads": 1567320,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "RSiJ85F6",
+          "hashes": {
+            "sha1": "7a94dda82ffd1fe24cd1cacad70eb89dbe564ea6",
+            "sha512": "cca337b62e66dba14755ede43e44b0156df0bdeba28651f1a1ac3b7e0f6f8de9995dbbafb21a753a6d409d8de7e36bf56227fd1c359b3931bded75999f81dabc"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/CcIWi5Av/sodium-fabric-0.6.0-beta.2%2Bmc1.21.1.jar",
+          "filename": "sodium-fabric-0.6.0-beta.2+mc1.21.1.jar",
+          "primary": true,
+          "size": 1266516,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "vO5IVg3V",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "0.6.0 (Beta 2) for NeoForge",
+      "version_number": "mc1.21-0.6.0-beta.2-neoforge",
+      "changelog": "- Improved performance on integrated Intel GPUs by up to 10-15% with additional terrain rendering optimizations.\n- Added a new optimization called \"Material Downgrading\" which moves some terrain geometry to a simpler render pass when the texture is not transparent or translucent. This can improve terrain rendering performance slightly, and sometimes much more with certain mods or resource packs.\n- Added an option to the Video Settings screen for controlling the Fullscreen Resolution. (This is currently only available on Windows.)\n- The game no longer crashes at startup instead of showing an error pop-up mesage on NeoForge.\n- Fixed a problem where animated textures would stop animating, especially when some other mods were installed.\n- Fixed a problem where z-fighting would occur with some block overlays, such as emissive textures.\n- Fixed a frequent crash when unfocusing the game window or switching between applications on older Intel GPUs.\n- Fixed a bug that would cause mixin overrides from mods to not apply.\n- Fixed compatibility with some mods that modify biome colors on NeoForge (i.e. Polytone.)\n- Fixed compatibility with mods that render their block entities on a glowing render pass.\n- Added an API for mods that need to conditionally render block entities (i.e. Flywheel.)",
+      "changelog_url": null,
+      "date_published": "2024-09-15T18:02:07.997499Z",
+      "downloads": 159167,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "CWcLkLRF",
+          "hashes": {
+            "sha512": "9dcfacdd06710eb04dd8d34d4fc5b463a8be43ab06a67ca8571afa6466b39d3450fd05253598f185ba635013a4fee360ef1f8c04988e61eba2271133d9eb7716",
+            "sha1": "d59103545378e3650ec33b1489bb8d9f4e380fb1"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vO5IVg3V/sodium-neoforge-0.6.0-beta.2%2Bmc1.21.1.jar",
+          "filename": "sodium-neoforge-0.6.0-beta.2+mc1.21.1.jar",
+          "primary": true,
+          "size": 1128656,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21",
+        "1.21.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "oZOSEhyy",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "0.6.0 (Beta 1) for Fabric",
+      "version_number": "mc1.21-0.6.0-beta.1-fabric",
+      "changelog": "This version contains a countless number of improvements and bug fixes, and is the largest update to Sodium since the initial release.\n\n## Highlights\n- **This is the first multi-loader release for both NeoForge _and_ Fabric!** Yes, seriously!\n  - In the long-term, this means that users and mod authors will no longer need to rely on third-party forks of Sodium (Rubidium, Embeddium, Xenon, etc). This will greatly reduce friction for everyone, and improve the overall user experience significantly.\n  - We are working with mod authors as quickly as possible to implement additional APIs to improve mod compatibility with this version. Where possible, we will try to submit patches upstream to other mods to minimize the effort needed. If you are a mod author who finds their mod no longer works with Sodium 0.6, please [open an issue](<https://github.com/CaffeineMC/sodium-fabric/issues>) so that we can work with you to fix it.\n- **The Fabric Rendering API (FRAPI) is now supported out of the box!** This greatly improves mod compatibility, and makes it so mods like _Indium_ are no longer necessary. We've worked with individuals in the Fabric team and other mod authors to make sure our implementation works correctly, and have done comprehensive testing to ensure other mods behave correctly with our implementation. (That said, if you find a bug with it as a mod author, please let us know.)\n- **Major improvements for translucent blocks!** You know the long-standing issues with stained glass and other blocks, and how they don't quite look right? We're happy to announce those issues are no more. This means that translucent blocks will look great-- much better than Vanilla even-- with almost no performance impact. (This achievement would not have been possible without the effort of [Douira](https://douira.dev/). This was such a complex issue that it became the subject of their master's thesis.)\n\n## Other changes\n- The quality of terrain rendering has been greatly improved (greater vertex/texture precision), fixing many issues with special block models. \n- The graphical fidelity and performance of cloud rendering has been improved significantly.\n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Reduced the overhead of framebuffer copies, improving performance slightly on integrated graphics.\n- Fixed a bug that would cause z-fighting between fluids and some special blocks (such as Stairs and Slabs.)\n- Added support for modifying the alpha component of vertex colors in terrain rendering, as used by some mods.\n- Improved compatibility with mods that use custom fluid renderers.\n- Improved compatibility with mods that use custom biome colors.\n- Improved compatibility with mods that extend the entity renderer.\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed an issue where mods relying on FREX Flawless Frames (such as ReplayMod) would have a one-frame delay before chunks were rendered to the screen.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- The rendering of some options in the video settings menu has been slightly improved.\n- And many other improvements...\n",
+      "changelog_url": null,
+      "date_published": "2024-08-22T23:04:32.062618Z",
+      "downloads": 936556,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "9y3CKdv4",
+          "hashes": {
+            "sha512": "acc69505689efb9eec3b87490d04dc158dc25793b3a116c8f395ef8d5805fd9a37386235adf0dbbbd2e25d5b52d9c700fb3301ce302aa02fd3b6b937da247b1c",
+            "sha1": "1f3eae51029d9fad59a3c448010eb6b6b45e3035"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/oZOSEhyy/sodium-fabric-0.6.0-beta.1%2Bmc1.21.jar",
+          "filename": "sodium-fabric-0.6.0-beta.1+mc1.21.jar",
+          "primary": true,
+          "size": 1263801,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.21.1"
+      ],
+      "loaders": [
+        "neoforge"
+      ],
+      "environment": "client_only",
+      "id": "rcNehRIZ",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "0.6.0 (Beta 1) for NeoForge",
+      "version_number": "mc1.21-0.6.0-beta.1-neoforge",
+      "changelog": "This version contains a countless number of improvements and bug fixes, and is the largest update to Sodium since the initial release.\n\n## Highlights\n- **This is the first multi-loader release for both NeoForge _and_ Fabric!** Yes, seriously!\n  - In the long-term, this means that users and mod authors will no longer need to rely on third-party forks of Sodium (Rubidium, Embeddium, Xenon, etc). This will greatly reduce friction for everyone, and improve the overall user experience significantly.\n  - We are working with mod authors as quickly as possible to implement additional APIs to improve mod compatibility with this version. Where possible, we will try to submit patches upstream to other mods to minimize the effort needed. If you are a mod author who finds their mod no longer works with Sodium 0.6, please [open an issue](<https://github.com/CaffeineMC/sodium-fabric/issues>) so that we can work with you to fix it.\n- **The Fabric Rendering API (FRAPI) is now supported out of the box!** This greatly improves mod compatibility, and makes it so mods like _Indium_ are no longer necessary. We've worked with individuals in the Fabric team and other mod authors to make sure our implementation works correctly, and have done comprehensive testing to ensure other mods behave correctly with our implementation. (That said, if you find a bug with it as a mod author, please let us know.)\n- **Major improvements for translucent blocks!** You know the long-standing issues with stained glass and other blocks, and how they don't quite look right? We're happy to announce those issues are no more. This means that translucent blocks will look great-- much better than Vanilla even-- with almost no performance impact. (This achievement would not have been possible without the effort of [Douira](https://douira.dev/). This was such a complex issue that it became the subject of their master's thesis.)\n\n## Other changes\n- The quality of terrain rendering has been greatly improved (greater vertex/texture precision), fixing many issues with special block models. \n- The graphical fidelity and performance of cloud rendering has been improved significantly.\n- Error messages at startup are more helpful now, especially when showing errors about incompatible graphics drivers.\n- Reduced the overhead of framebuffer copies, improving performance slightly on integrated graphics.\n- Fixed a bug that would cause z-fighting between fluids and some special blocks (such as Stairs and Slabs.)\n- Added support for modifying the alpha component of vertex colors in terrain rendering, as used by some mods.\n- Improved compatibility with mods that use custom fluid renderers.\n- Improved compatibility with mods that use custom biome colors.\n- Improved compatibility with mods that extend the entity renderer.\n- Fixed an issue where some chunks would not render correctly immediately after the projection matrix was changed (such as when putting down a Spyglass.)\n- Fixed an issue where mods relying on FREX Flawless Frames (such as ReplayMod) would have a one-frame delay before chunks were rendered to the screen.\n- Added a workaround for users who have installed ASUS GPU Tweak III on their computer, since it causes extremely poor performance and crashes with Minecraft.\n- Fixed a crash at startup with ARM CPUs on Windows that don't support OpenGL without the use of a translation layer.\n- The rendering of some options in the video settings menu has been slightly improved.\n- And many other improvements...\n",
+      "changelog_url": null,
+      "date_published": "2024-08-22T23:03:49.565370Z",
+      "downloads": 58964,
+      "version_type": "beta",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "X1S1qW0h",
+          "hashes": {
+            "sha512": "988bdce9ac6e6561033991fcf59840f2699447797b760490d56a9bc07ad8e677421a6419563ef4b4d01d13540672195f335801fca6741618b589b24f600290b3",
+            "sha1": "c9f8ec31a89c044c95fe3e124e6363e76d0b4eaa"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/rcNehRIZ/sodium-neoforge-0.6.0-beta.1%2Bmc1.21.jar",
+          "filename": "sodium-neoforge-0.6.0-beta.1+mc1.21.jar",
+          "primary": true,
+          "size": 1111194,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.20.1"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "umKbm1Rp",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.5.7",
+      "version_number": "mc1.20.1-0.5.7",
+      "changelog": "- Fixed a critical issue where terrain would not render if outside the world height.\n- Updated mod compatibility data so that the game will crash early at startup if incompatible addon mods are found.",
+      "changelog_url": null,
+      "date_published": "2024-01-29T01:44:57.870252Z",
+      "downloads": 147968,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "mZvBy6mh",
+          "hashes": {
+            "sha1": "10a4f96dd76c6075ad65b9c02bb13b5c3677f47f",
+            "sha512": "54cebbcf94f3a7bf3fdfce37111e7492a7bf397fcd1786c763a4d0194286be965ce67802f8f3834a3cbc35b16f4ae6b01666c3390c82709fd5fb61b6d8d88b2e"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/umKbm1Rp/sodium-fabric-0.5.7%2Bmc1.20.1.jar",
+          "filename": "sodium-fabric-0.5.7+mc1.20.1.jar",
+          "primary": true,
+          "size": 942001,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.20.3",
+        "1.20.4"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "InGKdfel",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.5.5",
+      "version_number": "mc1.20.3-0.5.5",
+      "changelog": "This is a minor point release which improves some error diagnostics.\n\n### Changes\n- Startup errors caused by out-of-date graphics drivers will now show a popup message on Windows.\n- Error diagnostics now link to the improved wiki pages.\n- Attempts to schedule chunk rebuilds from the wrong thread is now an error, potentially catching broken mods that are causing memory safety issues.",
+      "changelog_url": null,
+      "date_published": "2023-12-09T04:06:09.723989Z",
+      "downloads": 432332,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "VCftWVCU",
+          "hashes": {
+            "sha512": "85c469f64dd2bfb41d15a581a6270908679c5d19db5f69d61de92a9007b2334df09e3ba39b5038bbca9b31ce55cd6f465aa86efbeede4177fb00eb51558005a6",
+            "sha1": "999eb53c5761850e99d234812dd0f710640b79a5"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/InGKdfel/sodium-fabric-mc1.20.3-0.5.5.jar",
+          "filename": "sodium-fabric-mc1.20.3-0.5.5.jar",
+          "primary": true,
+          "size": 903118,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.20",
+        "1.20.1"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "vgceLbdH",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.4.10",
+      "version_number": "mc1.20-0.4.10",
+      "changelog": "Updated for Minecraft 1.20. No other changes.",
+      "changelog_url": null,
+      "date_published": "2023-06-07T00:18:50.320813Z",
+      "downloads": 2429337,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "tMQoiFKB",
+          "hashes": {
+            "sha512": "9aef1bde780a608724bc707e2124907a12399ea118dc4dbc70efe6234ec8f13ab7bd53ebaab424d8cf91eab98934be7e8f175bf615820d4ee3a08ec0f925964f",
+            "sha1": "b11e18bb09f06c3f8028fa2c090072976fa326d0"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vgceLbdH/sodium-fabric-mc1.20-0.4.10%2Bbuild.27.jar",
+          "filename": "sodium-fabric-mc1.20-0.4.10+build.27.jar",
+          "primary": true,
+          "size": 717030,
+          "file_type": null
+        },
+        {
+          "id": "kL57ZfET",
+          "hashes": {
+            "sha1": "1c32a3524a9309615366f025dc5c1df0ccef9468",
+            "sha512": "18b1b895eda1fab244dfe8b3169903e1a913c665eeda8ba0e8d0ae328e83cdda212488607bcc1e9df00212173473ab5911b3444fdfe517d0c2619b70c66f655b"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/vgceLbdH/sodium-fabric-mc1.20-0.4.10%2Bbuild.27-sources.jar",
+          "filename": "sodium-fabric-mc1.20-0.4.10+build.27-sources.jar",
+          "primary": false,
+          "size": 322223,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.19.4"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "b4hTi3mo",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": true,
+      "name": "Sodium 0.4.10",
+      "version_number": "mc1.19.4-0.4.10",
+      "changelog": "### Highlights\n\n- Added support for Minecraft 1.19.4.\n- Fixed graphical corruption when using the Zink OpenGL driver.\n\n### Known Issues\n\nNone outstanding as of the time of writing. Please open an issue if you run into problems.",
+      "changelog_url": null,
+      "date_published": "2023-03-14T17:22:35.928436Z",
+      "downloads": 1552340,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "bz9NQSx9",
+          "hashes": {
+            "sha512": "61562626870aa4067657d2687d1fce80fb7d62af32fd68a22708e24ee5b84b39d16b26ccf4db8f53f2da42ba1916d6a5e11efc476cb5c2a8644207659fd5dfef",
+            "sha1": "b060680929d7a6d130fb980a9f9907461df05fa1"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/b4hTi3mo/sodium-fabric-mc1.19.4-0.4.10%2Bbuild.24.jar",
+          "filename": "sodium-fabric-mc1.19.4-0.4.10+build.24.jar",
+          "primary": true,
+          "size": 711302,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.19.3"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "idtcaIVT",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.4.9",
+      "version_number": "mc1.19.3-0.4.9",
+      "changelog": "This version adds new a number of new optimizations and fixes a couple of bugs with the previous release. Most players will want to upgrade to this version.\n\n- Improved the performance of special effects, such as the enchanted item glint (up to 300% faster.)\n- Improved the performance of mob and block entity rendering (up to 20% faster.)\n- Improved the performance of chunk rendering by exchanging a small amount of memory for a reduced number of draw calls (up to 10% faster.)\n- Fixed a memory leak which would cause copies of chunks to remain in cache even if they were no longer needed.\n- Fixed a problem where animated textures which used interpolation would not have their alpha channel handled correctly.\n\nNOTE: This version makes internal changes that will likely break mods that try to hook into Sodium (such as Iris, Indium, ImmediatelyFast, etc.) You will need to wait for an updated version of these mods.",
+      "changelog_url": null,
+      "date_published": "2023-02-05T19:40:03.767109Z",
+      "downloads": 396732,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "hyAXfCSA",
+          "hashes": {
+            "sha1": "14abd0a08804dc67ec6bc8a83d5062f806db6fc9",
+            "sha512": "f2d75f2ca519e1949cdd6e95cb855895c554f085796dca616680f3f0ea74f9dedb9114264b2cf867f4904640548cb41626e8059b0008ea39cf967feb59876316"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/idtcaIVT/sodium-fabric-mc1.19.3-0.4.9%2Bbuild.23.jar",
+          "filename": "sodium-fabric-mc1.19.3-0.4.9+build.23.jar",
+          "primary": true,
+          "size": 707249,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.19.3"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "mnEhtGuH",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.4.5",
+      "version_number": "mc1.19.3-0.4.5",
+      "changelog": " Sodium 0.4.5 is now out, updating to 1.19.3. This release also fixes a small texture corruption issue.\n\n**This release no longer includes JOML, as Minecraft 1.19.3 has it bundled.**\n\n### Highlights\n\nSupports Minecraft 1.19.3\nRemoved JOML\nFixed compact vertex format texture overflow\n\n### Known Issues\n\nNone outstanding as of the time of writing. Please open an issue if you run into problems.",
+      "changelog_url": null,
+      "date_published": "2022-12-07T16:35:22.699893Z",
+      "downloads": 5733,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "Mz8yL71M",
+          "hashes": {
+            "sha512": "4a98e1126fd7c02b687d3a9a1e7b62201f0ac792c3b5f20fc3b4002450aacbac16da7bf1f70d43c2dea2cc9d8cd538b97e1a5b17d188bc176f51548ac16b229b",
+            "sha1": "6117b665ad2054c8495c925b50da409f15330bef"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/mnEhtGuH/sodium-fabric-mc1.19.3-0.4.5%2Bbuild.19.jar",
+          "filename": "sodium-fabric-mc1.19.3-0.4.5+build.19.jar",
+          "primary": true,
+          "size": 683930,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.19",
+        "1.19.1",
+        "1.19.2"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "rAfhHfow",
+      "project_id": "AANobbMI",
+      "author_id": "DzLrfrbK",
+      "featured": false,
+      "name": "Sodium 0.4.4",
+      "version_number": "mc1.19.2-0.4.4",
+      "changelog": "This is a hotfix release to revert Adaptive VSync, as it broke VSync on AMD cards.\n\nThis release also fixes a memory leak.",
+      "changelog_url": null,
+      "date_published": "2022-08-29T16:04:46.626363Z",
+      "downloads": 3674629,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "i6auJ9XW",
+          "hashes": {
+            "sha1": "227648dc4f6a8604bafc282612a6de47eff70cd8",
+            "sha512": "8fbe5ada5c45efd56596bcf0c5d93d7a7264f60263289626e9d2b0ba3b3ccc914af2d9f856596a724df675804e9766a3d890d1731957fe960c58a45f0533b34e"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/rAfhHfow/sodium-fabric-mc1.19.2-0.4.4%2Bbuild.18.jar",
+          "filename": "sodium-fabric-mc1.19.2-0.4.4+build.18.jar",
+          "primary": true,
+          "size": 1372575,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.18.2"
+      ],
+      "loaders": [
+        "fabric",
+        "quilt"
+      ],
+      "environment": "client_only",
+      "id": "74Y5Z8fo",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": true,
+      "name": "Sodium 0.4.1",
+      "version_number": "mc1.18.2-0.4.1",
+      "changelog": "This release is a mostly straightforward port of the most recent version, with some additional bug fixes. Also, we're dropping the alpha version and making this a proper release.\n\n### Highlights\n- Requires Minecraft 1.18.2\n\n### Fixes\n- Fixed a problem where the game could crash at random when teleporting or loading chunks\n- Fixed a problem where biome colors would be incorrect at the edge of chunks which neighbor empty space",
+      "changelog_url": null,
+      "date_published": "2022-03-02T00:43:40.084050Z",
+      "downloads": 1361149,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "kFGUtGKI",
+          "hashes": {
+            "sha512": "86eb4db8fdb9f0bb06274c4f150b55273b5b770ffc89e0ba68011152a231b79ebe0b1adda0dd194f92cdcb386f7a60863d9fee5d15c1c3547ffa22a19083a1ee",
+            "sha1": "f839863a6be7014b8d80058ea1f361521148d049"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/mc1.18.2-0.4.1/sodium-fabric-mc1.18.2-0.4.1%2Bbuild.15.jar",
+          "filename": "sodium-fabric-mc1.18.2-0.4.1+build.15.jar",
+          "primary": true,
+          "size": 1318645,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.18.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "5JyduDNN",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": false,
+      "name": "Sodium 0.4.0a6",
+      "version_number": "mc1.18.1-0.4.0-alpha6",
+      "changelog": "This release is a minor patch for 0.4.0-alpha5 which fixes a number of reported issues. We're currently working on some pretty big changes for the next major release and are pressed for time, so this patch only a small set of issues.\n\n### Highlights\n\n- Lag spikes caused by block updates should be significantly improved\n- Fog effects now match those introduced in Minecraft 1.18.1\n- Fixed a slow memory leak that would occur from fence objects being leaked\n- Server view distance is now respected, preventing discrepancies between client/server\n- Biome blending effects have been improved slightly\n- World rendering bugs/flickering caused by being far away from world center (i.e. near the world border) no longer occurs  \n\n### Known issues\n- Some parts of the world may not load correctly unless the player exits and loads the world file again",
+      "changelog_url": null,
+      "date_published": "2022-01-14T02:35:42.634514Z",
+      "downloads": 115912,
+      "version_type": "alpha",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "ZQXyirXV",
+          "hashes": {
+            "sha1": "795d4c12bffdb1b21eed5ff87c07ce5ca3c0dcbf",
+            "sha512": "8a63bfb819930c5cb470664cc6a266e9478fc1219e34307058e3111ef9e400ccf14adbe31ed705f70d682199640540d7e896965b6fe5e69bce543e475ccc7fbf"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/mc1.18.1-0.4.0-alpha6/sodium-fabric-mc1.18.1-0.4.0-alpha6%2Bbuild.14.jar",
+          "filename": "sodium-fabric-mc1.18.1-0.4.0-alpha6+build.14.jar",
+          "primary": true,
+          "size": 1315447,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.17",
+        "1.17.1"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "Fz37KqRh",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": true,
+      "name": "Sodium 0.3.4",
+      "version_number": "mc1.17.1-0.3.4",
+      "changelog": "This release contains a few important bug fixes and improvements for Minecraft 1.17.1.\n\n### Highlights\n- Flickering and other rendering bugs caused by the player being far away from the center of the world (i.e. near the world border) should no longer happen\n- Fixed a memory leak that would slowly develop each time a chunk is updated",
+      "changelog_url": null,
+      "date_published": "2022-01-14T01:53:03.621701Z",
+      "downloads": 477816,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "IjdE4DWV",
+          "hashes": {
+            "sha512": "febd84274e8e55222c45e73685d5bc93a08ac7194a61f9065fc626420acd1c5279d51f98c1af1888b6718cbce098ce1d67c778739f3ebe1597d2ee99e6bd8382",
+            "sha1": "85f5d67f0ce9e995e738eb6b60034bc919a1859d"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/mc1.17.1-0.3.4/sodium-fabric-mc1.17.1-0.3.4%2Bbuild.13.jar",
+          "filename": "sodium-fabric-mc1.17.1-0.3.4+build.13.jar",
+          "primary": true,
+          "size": 1286054,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    },
+    {
+      "game_versions": [
+        "1.16.3",
+        "1.16.4",
+        "1.16.5"
+      ],
+      "loaders": [
+        "fabric"
+      ],
+      "environment": "client_only",
+      "id": "YAGZ1cCS",
+      "project_id": "AANobbMI",
+      "author_id": "TEZXhE2U",
+      "featured": true,
+      "name": "Sodium 0.2.0",
+      "version_number": "mc1.16.5-0.2.0",
+      "changelog": "This is the first major release of Sodium since launch, so there are nearly a year's worth of improvements and bug fixes in this one! Hardware support has been greatly improved, and there's been many new optimizations to help out everyone.\n\n### Highlights\n- Added a new and optimized system for vertex writing. Depending on the situation, significant performance improvements can be seen for both [block entity rendering](https://cdn.discordapp.com/attachments/791199652410032150/792627201463287818/unknown.png), [mob rendering](https://cdn.discordapp.com/attachments/791199652410032150/792627353401950208/unknown.png), and text rendering.\n- Improved hardware support for AMD and Intel GPUs on Windows, allowing the use of multi-draw rendering where it was otherwise broken in the past. Multi-draw chunk rendering can drastically improve frame rates where supported.\n- Switched to using the new ThinGL library, which allows Sodium code to use a stateless abstraction over OpenGL. This helps to improve performance, mod compatibility, stability, and future compatibility with Minecraft 1.17.\n- Preparing chunk updates for rendering now takes much less time by better taking advantage of multi-threading, greatly improving frame times while loading or updating chunks.\n- Many new optimizations for our chunk graph and culling algorithm, helping to reduce CPU load and improve frame rates while playing.\n- Improved compatibility with many mods depending on additional block data to be available during chunk building, such as LambdaBetterGrass.\n- Added an API other mods can use to disable Sodium features. Sometimes, incompatibilities can arise, but mods supporting this functionality can ask Sodium to disable specific parts of itself automatically to avoid these.\n- Fixed large memory leaks that could occur when unloading and loading many worlds repeatedly.\n- Fixed terrain stitching issues caused by high-resolution texture packs and exotic block models.   \n- Fixed some issues with smooth block and entity lighting, notably with emissive properties.\n- Fixed issues where the top-face of fluids would disappear at certain camera angle, or while inside a fluid.\n- Fixed many issues causing chunks not to update or appear when looking in certain directions.\n- Issues with render distance and fog effects when using certain mods have been fixed.\n... and much, much more.\n\nYou can find a number of issues that were fixed with this release [here](https://github.com/CaffeineMC/sodium-fabric/milestone/2?closed=1). For the complete list of changes, you can review the Git commit log [here](https://github.com/CaffeineMC/sodium-fabric/commits/1.16.x/next).",
+      "changelog_url": null,
+      "date_published": "2021-06-17T21:43:30.893775Z",
+      "downloads": 1578668,
+      "version_type": "release",
+      "status": "listed",
+      "requested_status": null,
+      "files": [
+        {
+          "id": "y40AEk7J",
+          "hashes": {
+            "sha512": "de0ec6cc85a9b90a4a2dc43ca81db962691cb95362bde8db54115c8fadf257d97fc05267832b14f2e576af4743dfde9d79e3deeea0b46b2685085fa1e21d50ee",
+            "sha1": "bf03460f1f82f355d1fe23a27ee81c3ed24e54dc"
+          },
+          "url": "https://cdn.modrinth.com/data/AANobbMI/versions/mc1.16.5-0.2.0/sodium-fabric-mc1.16.5-0.2.0%2Bbuild.4.jar",
+          "filename": "sodium-fabric-mc1.16.5-0.2.0+build.4.jar",
+          "primary": true,
+          "size": 507710,
+          "file_type": null
+        }
+      ],
+      "dependencies": []
+    }
+  ]
+}

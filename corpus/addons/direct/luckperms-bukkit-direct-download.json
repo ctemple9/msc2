@@ -1,0 +1,14 @@
+{
+  "note": "The 'direct' source case (PluginSourceDetector.detect: any http(s) URL or .jar-suffixed URL not matching github.com/modrinth.com/hangar.papermc.io) has no JSON API response to capture -- PluginSourceDetector only classifies the URL string, and the actual byte transfer is Phase 9's PluginDownloader. This file instead records a real HEAD response against a genuine direct-download URL, captured 2026-08-21, so the direct-source shape (filename derivable from the URL path, real content-type/content-length, no API envelope) is evidence-backed rather than invented.",
+  "requested_url": "https://download.luckperms.net/1664/bukkit/loader/LuckPerms-Bukkit-5.5.77.jar",
+  "resolved_via": "https://metadata.luckperms.net/data/downloads (LuckPerms' own public download-metadata endpoint; used only to find the current real jar URL, not treated as a recognized provider)",
+  "http_status": 200,
+  "response_headers": {
+    "content-type": "application/java-archive",
+    "content-length": "1503021",
+    "last-modified": "Sat, 15 Aug 2026 19:49:22 GMT",
+    "accept-ranges": "bytes",
+    "server": "cloudflare"
+  },
+  "derived_filename": "LuckPerms-Bukkit-5.5.77.jar"
+}

@@ -1,0 +1,99 @@
+{
+  "data": [
+    {
+      "id": 8287121,
+      "gameId": 432,
+      "modId": 448233,
+      "isAvailable": true,
+      "displayName": "1.10.5-1.21.4 - Forge",
+      "fileName": "entityculling-forge-1.10.5-mc1.21.4.jar",
+      "releaseType": 1,
+      "fileStatus": 4,
+      "hashes": [
+        {
+          "value": "e4835d005abb6a02f5cfebfd797b361ebd1f8cec",
+          "algo": 1
+        },
+        {
+          "value": "df2dd7a471bd9dbf5d7c37f33da52e4a",
+          "algo": 2
+        }
+      ],
+      "fileDate": "2026-06-20T14:43:06.96Z",
+      "fileLength": 1589078,
+      "downloadCount": 25331,
+      "fileSizeOnDisk": 1848672,
+      "downloadUrl": null,
+      "gameVersions": [
+        "Client",
+        "1.21.4",
+        "Forge"
+      ],
+      "sortableGameVersions": [
+        {
+          "gameVersionName": "Client",
+          "gameVersionPadded": "0",
+          "gameVersion": "",
+          "gameVersionReleaseDate": "2022-12-08T00:00:00Z",
+          "gameVersionTypeId": 75208
+        },
+        {
+          "gameVersionName": "1.21.4",
+          "gameVersionPadded": "0000000001.0000000021.0000000004",
+          "gameVersion": "1.21.4",
+          "gameVersionReleaseDate": "2024-12-03T16:26:15.35Z",
+          "gameVersionTypeId": 77784
+        },
+        {
+          "gameVersionName": "Forge",
+          "gameVersionPadded": "0",
+          "gameVersion": "",
+          "gameVersionReleaseDate": "2022-10-01T00:00:00Z",
+          "gameVersionTypeId": 68441
+        }
+      ],
+      "dependencies": [],
+      "alternateFileId": 0,
+      "isServerPack": false,
+      "fileFingerprint": 1502081356,
+      "modules": [
+        {
+          "name": "META-INF",
+          "fingerprint": 4093982776
+        },
+        {
+          "name": "LICENSE",
+          "fingerprint": 1929528592
+        },
+        {
+          "name": "LICENSE-EntityCulling",
+          "fingerprint": 3421239066
+        },
+        {
+          "name": "assets",
+          "fingerprint": 4245743598
+        },
+        {
+          "name": "com",
+          "fingerprint": 1200952869
+        },
+        {
+          "name": "dev",
+          "fingerprint": 1364369616
+        },
+        {
+          "name": "entityculling.mixins.json",
+          "fingerprint": 2732222196
+        },
+        {
+          "name": "icon.png",
+          "fingerprint": 1128112900
+        },
+        {
+          "name": "pack.mcmeta",
+          "fingerprint": 1454684676
+        }
+      ]
+    }
+  ]
+}

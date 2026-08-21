@@ -4,6 +4,7 @@ pub mod addon_updates;
 pub mod addons;
 pub mod backups;
 pub mod commands;
+pub mod curseforge_manual;
 pub mod diagnostics;
 pub mod fleet;
 pub mod import;

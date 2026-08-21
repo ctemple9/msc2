@@ -455,6 +455,16 @@ pub struct CurseForgeFile {
     pub file_name: String,
     #[serde(rename = "downloadUrl", default)]
     pub download_url: Option<String>,
+    /// P8.20 amendment: CurseForge's own reported byte length for this
+    /// exact file (confirmed present on every real capture in
+    /// `corpus/addons/curseforge/`, e.g. `mods-files-blocked-entityculling.json`'s
+    /// `fileLength`) — D-027's manual-upload completion path
+    /// (`curseforge_manual.rs`) sizes its per-file ceiling to this value
+    /// rather than a flat cap, per `phase8-api.md`'s own contract note.
+    /// `#[serde(default)]` so every earlier decode site (none of which
+    /// needed this field) is unaffected.
+    #[serde(rename = "fileLength", default)]
+    pub file_length: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Default)]

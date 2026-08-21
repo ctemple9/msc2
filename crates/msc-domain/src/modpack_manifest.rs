@@ -178,6 +178,19 @@ pub struct CurseForgeManifestMetadata {
     pub loader_flavor: Option<LoaderFlavor>,
     pub loader_version: Option<String>,
     pub overrides_folder: String,
+    /// P8.20 amendment: the manifest's own `files[]` list (each entry a
+    /// `projectID`/`fileID`/`required` triple) — needed to actually
+    /// resolve and download a CurseForge pack's server files, which P8.18
+    /// didn't itself need (inspection only reads the ids to check for a
+    /// D-027 blocked file, via the raw manifest JSON directly).
+    pub files: Vec<CurseForgeManifestFile>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CurseForgeManifestFile {
+    pub project_id: i64,
+    pub file_id: i64,
+    pub required: bool,
 }
 
 impl CurseForgeManifestMetadata {
@@ -241,6 +254,25 @@ pub fn parse_curseforge_metadata(
             None => (None, None),
         };
 
+    let files: Vec<CurseForgeManifestFile> = v
+        .get("files")
+        .and_then(Value::as_array)
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|f| {
+                    let project_id = f.get("projectID").and_then(Value::as_i64)?;
+                    let file_id = f.get("fileID").and_then(Value::as_i64)?;
+                    let required = f.get("required").and_then(Value::as_bool).unwrap_or(true);
+                    Some(CurseForgeManifestFile {
+                        project_id,
+                        file_id,
+                        required,
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     Ok(CurseForgeManifestMetadata {
         name,
         version_id,
@@ -248,6 +280,7 @@ pub fn parse_curseforge_metadata(
         loader_flavor,
         loader_version,
         overrides_folder,
+        files,
     })
 }
 

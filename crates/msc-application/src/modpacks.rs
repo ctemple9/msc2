@@ -667,3 +667,184 @@ fn disable_override_jar(fs: &dyn FileSystem, path: &Path, disabled: &mut Vec<Pat
         disabled.push(p);
     }
 }
+
+// ---------------------------------------------------------------------
+// P8.20: transactional CurseForge import
+// ---------------------------------------------------------------------
+
+/// `CurseForgeAPI.post`'s own missing-key guard (`msc_domain::addon_provider::
+/// curseforge_require_api_key`, surfaced through `curseforge_files`) means
+/// this whole import can't resolve a single file without a key — unlike
+/// P8.18's inspection (which degrades to `curseforge_lookup_available =
+/// false` and keeps going), `import_curseforge` stops before ANY file
+/// resolution when the key is missing, matching `fixtures/modpack-import/
+/// curseforge-missing-api-key-stops-import-before-any-file-resolution.json`
+/// exactly: inspection is read-only and can afford to say "unknown";
+/// import is a real mutation and a half-resolved pack is worse than a
+/// clean, honest refusal.
+#[derive(Debug)]
+pub enum CurseForgeImportError {
+    PackManaged,
+    NoAddOnKind,
+    MissingApiKey,
+    /// A file-resolution call itself failed (network, malformed response,
+    /// non-key-related provider error) before any file was downloaded —
+    /// stops the import the same way a missing key does, for the same
+    /// "half-resolved is worse than a clean refusal" reason.
+    Provider(String),
+}
+
+impl fmt::Display for CurseForgeImportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::PackManaged => write!(f, "this server is managed by a different modpack"),
+            Self::NoAddOnKind => write!(f, "this server flavor has no add-on folder"),
+            Self::MissingApiKey => write!(f, "no CurseForge API key is configured"),
+            Self::Provider(m) => write!(f, "{m}"),
+        }
+    }
+}
+
+impl std::error::Error for CurseForgeImportError {}
+
+#[derive(Debug, Default)]
+pub struct CurseForgeImportReport {
+    pub installed_files: Vec<PathBuf>,
+    /// `(fileID, reason)` — a resolvable file whose download itself
+    /// failed (network error, non-2xx status). Distinct from
+    /// `blocked_files`: this is a real failure, that's an expected,
+    /// non-fatal pending state.
+    pub failed_files: Vec<(i64, String)>,
+    /// Author-blocked files (`downloadUrl == null`), collected separately
+    /// from `failed_files` and never counted as a failure
+    /// (`fixtures/modpack-import/
+    /// curseforge-blocked-file-collected-separately-from-failed-not-counted-as-a-failure.json`)
+    /// — D-027's own pending list, ready for `curseforge_manual::
+    /// complete_pending_file` once the client uploads each one.
+    pub blocked_files: Vec<crate::curseforge_manual::PendingManualFile>,
+    pub disabled_client_only_overrides: Vec<PathBuf>,
+    pub pack_name: String,
+    pub pack_version: String,
+    pub cancelled: bool,
+}
+
+/// Imports a CurseForge pack's server files and override tree into
+/// `server_dir`, resolving every manifest-declared file through the
+/// CurseForge API first (`curseforge_files`, batched at
+/// [`msc_infrastructure::addon_provider::MAX_BATCH_SIZE`]) before
+/// downloading any of them — matching `CurseForgeAPI`'s own
+/// resolve-then-download shape. Author-blocked files never fail the
+/// import; they're reported in `blocked_files` for the D-027 completion
+/// flow (`curseforge_manual.rs`) instead. See this module's own P8.19 doc
+/// for the same create-vs-existing-server scope boundary and the same
+/// "rolls back files this call itself wrote" rollback shape — both apply
+/// here unchanged.
+#[allow(clippy::too_many_arguments)]
+pub fn import_curseforge(
+    transport: &dyn AddonTransport,
+    secrets: &dyn SecretStore,
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    flavor: JavaServerFlavor,
+    metadata: &CurseForgeManifestMetadata,
+    staged_dir: &Path,
+    pack_managed: bool,
+    explicit_replace_intent: bool,
+    should_cancel: &dyn Fn() -> bool,
+) -> Result<CurseForgeImportReport, CurseForgeImportError> {
+    if modpack::pack_replace_refused(pack_managed, explicit_replace_intent) {
+        return Err(CurseForgeImportError::PackManaged);
+    }
+    let add_on_kind = flavor
+        .add_on_kind()
+        .ok_or(CurseForgeImportError::NoAddOnKind)?;
+    let add_on_folder = server_dir.join(add_on_kind.folder_name());
+
+    let file_ids: Vec<i64> = metadata.files.iter().map(|f| f.file_id).collect();
+    let resolved = provider::curseforge_files(transport, secrets, &file_ids).map_err(|e| {
+        if matches!(
+            e,
+            msc_domain::addon_provider::AddonProviderError::MissingApiKey
+        ) {
+            CurseForgeImportError::MissingApiKey
+        } else {
+            CurseForgeImportError::Provider(e.to_string())
+        }
+    })?;
+    let by_file_id: HashMap<i64, &msc_domain::addon_provider::CurseForgeFile> =
+        resolved.iter().map(|f| (f.id, f)).collect();
+
+    let mut report = CurseForgeImportReport {
+        pack_name: metadata.name.clone(),
+        pack_version: metadata.version_id.clone(),
+        ..Default::default()
+    };
+    let mut written: Vec<PathBuf> = Vec::new();
+
+    for manifest_file in &metadata.files {
+        if should_cancel() {
+            report.cancelled = true;
+            break;
+        }
+        let Some(file) = by_file_id.get(&manifest_file.file_id) else {
+            report.failed_files.push((
+                manifest_file.file_id,
+                "CurseForge did not return this file id".to_string(),
+            ));
+            continue;
+        };
+        let Some(download_url) = &file.download_url else {
+            report
+                .blocked_files
+                .push(crate::curseforge_manual::PendingManualFile {
+                    project_id: manifest_file.project_id,
+                    file_id: manifest_file.file_id,
+                    expected_file_name: file.file_name.clone(),
+                    expected_byte_size: file.file_length,
+                    dest: add_on_folder.join(&file.file_name),
+                });
+            continue;
+        };
+        let dest = add_on_folder.join(&file.file_name);
+        if fs.create_dir_all(&add_on_folder).is_err() {
+            report.failed_files.push((
+                manifest_file.file_id,
+                "could not create destination directory".to_string(),
+            ));
+            continue;
+        }
+        match addon_store::install_verified_file(
+            transport,
+            fs,
+            download_url,
+            &metadata.version_id,
+            None,
+            &dest,
+        ) {
+            Ok(_) => {
+                written.push(dest.clone());
+                report.installed_files.push(dest);
+            }
+            Err(e) => {
+                report
+                    .failed_files
+                    .push((manifest_file.file_id, e.to_string()));
+            }
+        }
+    }
+
+    if report.cancelled {
+        rollback_written(fs, &written);
+        return Ok(report);
+    }
+
+    merge_directory_into(
+        fs,
+        &staged_dir.join(&metadata.overrides_folder),
+        server_dir,
+        &mut written,
+    );
+    report.disabled_client_only_overrides = classify_override_jars(transport, fs, &add_on_folder);
+
+    Ok(report)
+}

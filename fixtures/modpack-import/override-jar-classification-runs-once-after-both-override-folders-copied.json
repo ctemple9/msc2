@@ -1,0 +1,20 @@
+{
+  "domain": "modpack-import",
+  "case": "override-jar-classification-runs-once-after-both-override-folders-copied",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) disableClientOnlyOverrideJars timing",
+    "line": 560
+  },
+  "input": {
+    "manifestJarFilenames": [
+      "manifest-mod.jar"
+    ],
+    "overrides_contributed_jar": "override-mod.jar"
+  },
+  "expected": {
+    "disableClientOnlyOverrideJars_scans": "the WHOLE mods/ folder after both overrides/ and server-overrides/ are merged, skipping only manifest-placed filenames",
+    "reason": "Line 560-563: this scan runs ONCE, after the entire download loop and both override-folder merges complete -- not interleaved per-file. `skipping: manifestJarFilenames` (built up during the download loop at line 508-510) is the only thing preventing a manifest-placed jar from being redundantly reclassified through the hash-based override path."
+  },
+  "workflow": "modpacks"
+}

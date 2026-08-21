@@ -1,0 +1,22 @@
+{
+  "domain": "modpack-import",
+  "case": "file-download-all-mirrors-fail-recorded-in-failed-list-loop-continues-to-next-file",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) all-mirrors-fail path",
+    "line": 539
+  },
+  "input": {
+    "file_downloads": [
+      "https://dead-mirror-1.example/x.jar",
+      "https://dead-mirror-2.example/x.jar"
+    ]
+  },
+  "expected": {
+    "appended_to_failed_list": true,
+    "import_aborted": false,
+    "next_file_still_attempted": true,
+    "reason": "Line 539-541: `else { failed.append(file.path) }` -- exhausting every mirror for one file logs it into `failed` and the outer `for file in serverFiles` loop simply continues to the next file. The whole importModpack function has no `throws` in its signature at all; failures are collected and reported, never propagated as an error the caller must handle."
+  },
+  "workflow": "modpacks"
+}

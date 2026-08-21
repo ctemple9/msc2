@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-import",
+  "case": "curseforge-existing-jar-skip-does-not-reclassify-unlike-mrpack",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importExtractedCurseForgeModpack(...) existing-file skip, contrast with mrpack",
+    "line": 650
+  },
+  "input": {
+    "destURL_exists_on_disk": true
+  },
+  "expected": {
+    "downloaded_incremented": true,
+    "reclassification_triggered": false,
+    "reason": "Lines 648-651: BOTH the disabled-sibling case AND the plain-active-file-exists case just `downloaded += 1; continue` with NO reclassification call -- this is a genuine asymmetry with the mrpack path (see existing-active-jar-skipped-from-download-but-still-reclassified.json), where an existing ACTIVE jar IS reclassified on re-import. The CF path's single unified classification pass happens once, later, over the whole folder (see curseforge-client-only-scan-covers-entire-mods-folder), so this isn't a bug -- it's a structurally different place in the pipeline doing the same job -- but the two pipelines are NOT byte-for-byte parallel, worth citing exactly so the Rust port doesn't assume they are."
+  },
+  "workflow": "modpacks"
+}

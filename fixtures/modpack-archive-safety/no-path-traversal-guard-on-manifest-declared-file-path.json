@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-archive-safety",
+  "case": "no-path-traversal-guard-on-manifest-declared-file-path",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) destURL construction",
+    "line": 505
+  },
+  "input": {
+    "file_path_from_manifest": "../../../../etc/cron.d/evil"
+  },
+  "expected": {
+    "destURL": "serverDir/../../../../etc/cron.d/evil (resolves outside serverDir)",
+    "guard_present": false,
+    "reason": "Line 505: `let destURL = serverDir.appendingPathComponent(file.path)` -- `file.path` comes directly from the untrusted manifest with zero validation that it stays within `serverDir` (no `..` rejection, no standardized-path containment check anywhere in this function or in ModpackClientOnlyClassifier.isModsJar, which only checks a `mods/` PREFIX and `.jar` SUFFIX, not path safety)."
+  },
+  "workflow": "modpack-import",
+  "notes": "Confirmed by grep: no '..' / traversal / containment check exists anywhere in AppViewModel+ModManagement.swift or CurseForgeModpack.swift. This is squarely what P8.14's 'reject hostile archive paths/symlinks' criterion exists to fix -- MSC 1 has no such guard to port, this is new safety work."
+}

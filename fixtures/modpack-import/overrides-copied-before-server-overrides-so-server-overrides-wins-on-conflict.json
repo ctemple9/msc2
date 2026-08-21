@@ -1,0 +1,21 @@
+{
+  "domain": "modpack-import",
+  "case": "overrides-copied-before-server-overrides-so-server-overrides-wins-on-conflict",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) overrides folder order",
+    "line": 545
+  },
+  "input": {
+    "folder_order": [
+      "overrides",
+      "server-overrides"
+    ],
+    "both_contain_config_yml": true
+  },
+  "expected": {
+    "final_config_yml_content": "from server-overrides/ (copied second)",
+    "reason": "Line 545: `for folderName in [\"overrides\", \"server-overrides\"]` -- a fixed array literal order, overrides/ first, server-overrides/ second. Since mergeDirectory unconditionally overwrites the destination for every file it copies (line 856: `try? fm.removeItem(at: dest)` before the copy), a file present in BOTH trees at the same relative path ends up with server-overrides/'s content, because it's copied last."
+  },
+  "workflow": "modpacks"
+}

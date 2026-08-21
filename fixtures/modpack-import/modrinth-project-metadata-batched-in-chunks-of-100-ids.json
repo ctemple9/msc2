@@ -1,0 +1,22 @@
+{
+  "domain": "modpack-import",
+  "case": "modrinth-project-metadata-batched-in-chunks-of-100-ids",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "fetchMrpackProjectMetadata(for:) chunking",
+    "line": 739
+  },
+  "input": {
+    "unique_project_id_count": 250
+  },
+  "expected": {
+    "chunk_sizes": [
+      100,
+      100,
+      50
+    ],
+    "requests_made": 3,
+    "reason": "Line 738-739: `let end = min(i + 100, ids.count)` -- the comment names this Modrinth's own cap on batch project lookups (`GET /v2/projects?ids=[...]`), distinct from CurseForgeAPI's own 200-item batch size for a different endpoint."
+  },
+  "workflow": "modpacks"
+}

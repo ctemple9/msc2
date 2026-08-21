@@ -1,0 +1,20 @@
+{
+  "domain": "modpack-import",
+  "case": "mrpack-detected-by-modrinth-index-json-presence",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) format sniff",
+    "line": 446
+  },
+  "input": {
+    "extracted_root_contains": [
+      "modrinth.index.json",
+      "overrides/"
+    ]
+  },
+  "expected": {
+    "routed_to": "mrpack pipeline",
+    "reason": "Lines 444-457: after extraction, the presence of `modrinth.index.json` at the archive root is the ONLY signal used to distinguish a Modrinth pack -- no format/magic-byte check, no manifest content validation before this branch, just file existence."
+  },
+  "workflow": "modpacks"
+}

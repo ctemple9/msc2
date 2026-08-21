@@ -1,0 +1,21 @@
+{
+  "domain": "modpack-import",
+  "case": "existing-active-jar-skipped-from-download-but-still-reclassified",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) active-jar-exists skip+reclassify",
+    "line": 517
+  },
+  "input": {
+    "destURL_exists_on_disk": true,
+    "disabledURL_exists": false
+  },
+  "expected": {
+    "downloaded_incremented": true,
+    "network_request_made": false,
+    "classifyAndDisableManifestJar_called": true,
+    "reason": "Lines 517-523: unlike the disabled-sibling case above, an EXISTING ACTIVE jar is skipped from re-downloading but IS still passed through classifyAndDisableManifestJar -- so a re-import against a pack whose Modrinth server_side classification changed since the file was first placed can newly disable a previously-enabled, already-installed jar without ever re-downloading it."
+  },
+  "workflow": "modpacks",
+  "notes": "This is a genuine asymmetry between the two 'already present' branches (disabled = frozen forever, active = re-evaluated every re-import) worth preserving exactly, not smoothing into one shared behavior during the port."
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-import",
+  "case": "project-metadata-fetched-only-for-downloadable-files-not-skipped-ones",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) fetchMrpackProjectMetadata scope",
+    "line": 495
+  },
+  "input": {
+    "serverFiles_only": true
+  },
+  "expected": {
+    "fetchMrpackProjectMetadata_input": "serverFiles (post Tier-1-filter), not manifest.files",
+    "reason": "Line 495: `fetchMrpackProjectMetadata(for: serverFiles)` -- the Tier 2 Modrinth batch lookup is scoped to files that survived the Tier 1 filter; a client-only-per-manifest file that was already excluded doesn't waste a Modrinth lookup slot."
+  },
+  "workflow": "modpacks"
+}

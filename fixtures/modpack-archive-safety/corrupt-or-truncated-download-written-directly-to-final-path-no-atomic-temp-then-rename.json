@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-archive-safety",
+  "case": "corrupt-or-truncated-download-written-directly-to-final-path-no-atomic-temp-then-rename",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) direct-write download pattern",
+    "line": 530
+  },
+  "input": {
+    "download_interrupted_mid_transfer": true
+  },
+  "expected": {
+    "partial_bytes_land_at_final_destURL_path": true,
+    "staged_to_temp_file_first": false,
+    "reason": "Line 530: `try data.write(to: destURL)` writes straight to the file's FINAL on-disk location -- there is no download-to-temp-then-atomic-rename step (contrast with `downloadLatestForPlugin`'s own separate `...-downloading.jar` temp-then-move pattern in AppViewModel+PluginManagement.swift, which THIS function does not reuse). If `MSCHTTP.get` returns a truncated/partial body without throwing, or the process is killed mid-write, a corrupt jar can be left at the final path, counted as `ok = true`, and never re-attempted on a later import since the existing-file skip (line 518) would treat its mere presence as 'already installed'."
+  },
+  "workflow": "modpack-import",
+  "notes": "A second, distinct gap from the missing-hash-verification finding above: even WITH a hash check, this write pattern isn't atomic. Both matter for P8.14's 'stage into an operation-owned temp area ... atomic replace' criterion."
+}

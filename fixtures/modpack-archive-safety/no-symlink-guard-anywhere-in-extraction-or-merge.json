@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-archive-safety",
+  "case": "no-symlink-guard-anywhere-in-extraction-or-merge",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) ditto extraction + mergeDirectory, symlink handling",
+    "line": 429
+  },
+  "input": {
+    "archive_contains_a_symlink_entry": "overrides/config.yml -> /etc/passwd"
+  },
+  "expected": {
+    "symlink_detection_anywhere_in_pipeline": false,
+    "reason": "`ditto -x -k` (line 429-434) extracts whatever entry types the archive contains with its own default (Mac-metadata-preserving) behavior; `mergeDirectory` (line 840-865) only checks `.isDirectoryKey` on each extracted item (line 846) to decide recurse-vs-copy -- it never checks `.isSymbolicLinkKey` or resolves/rejects a symlink before copying through it. A malicious override entry that IS a symlink pointing outside the temp extraction root would be followed by `copyItem` without any check stopping it."
+  },
+  "workflow": "modpack-import",
+  "notes": "P8.14's own working-exit-criterion language ('reject hostile archive paths/symlinks') and the Rust ZIP requirement (never ditto) both already commit to closing this; recorded here as the concrete mechanism-level confirmation of why, not a new decision."
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-import",
+  "case": "curseforge-client-only-scan-covers-entire-mods-folder-with-no-manifest-jars-to-skip",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importExtractedCurseForgeModpack(...) disableClientOnlyOverrideJars call",
+    "line": 684
+  },
+  "input": {
+    "skipping_set_passed": []
+  },
+  "expected": {
+    "every_jar_in_mods_folder_considered_a_candidate": true,
+    "reason": "Line 684: `disableClientOnlyOverrideJars(in: serverDir, skipping: [], fm: fm)` -- unlike the mrpack path (which excludes manifest-placed filenames), the CF path passes an EMPTY skip set, because CurseForge's manifest carries no per-file env at all -- every jar CF just downloaded is treated identically to an mrpack override jar for classification purposes."
+  },
+  "workflow": "modpacks"
+}

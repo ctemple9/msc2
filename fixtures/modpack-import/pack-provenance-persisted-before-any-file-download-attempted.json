@@ -1,0 +1,21 @@
+{
+  "domain": "modpack-import",
+  "case": "pack-provenance-persisted-before-any-file-download-attempted",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) provenance write timing",
+    "line": 474
+  },
+  "input": {
+    "manifest_decoded_successfully": true,
+    "every_subsequent_download_fails": true
+  },
+  "expected": {
+    "packManaged_after_import": true,
+    "packName_after_import": "matches manifest.name",
+    "downloaded_count": 0,
+    "reason": "Lines 471-480: `packManaged`/`packName`/`packVersion` are written and saved to config IMMEDIATELY after the manifest decodes -- before the download loop even starts. If every single file download subsequently fails, the server is STILL left marked packManaged=true with a real pack name/version, even though effectively nothing from the pack was actually installed. This is worth flagging: 'this server came from this pack' and 'this pack's contents are actually present' are not the same guarantee in MSC 1 today."
+  },
+  "workflow": "modpacks",
+  "notes": "P8.21's decided contract (do not publish the registry entry until pack application fully succeeds) is stricter than this -- but that's for the CREATE path specifically. This fixture characterizes the update-an-existing-server import path, where MSC 1's provenance-before-content-succeeds ordering is what actually ships today."
+}

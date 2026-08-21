@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-import",
+  "case": "final-summary-log-previews-first-8-disabled-names-then-a-plus-n-more-suffix",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) disabled-summary log truncation",
+    "line": 566
+  },
+  "input": {
+    "disabledClientOnly_count": 11
+  },
+  "expected": {
+    "log_shows_first_n": 8,
+    "log_suffix": ", +3 more",
+    "reason": "Lines 566-571: `names.prefix(8).joined(...)`, and `suffix = names.count > 8 ? \", +\\(names.count - 8) more\" : \"\"` -- the summary log line is capped at 8 named entries regardless of how many jars were actually disabled, to avoid an unbounded single log line for a large pack."
+  },
+  "workflow": "modpacks"
+}

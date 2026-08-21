@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-import",
+  "case": "existing-disabled-jar-never-redownloaded-counted-as-present-without-reclassification",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) disabled-sibling skip",
+    "line": 512
+  },
+  "input": {
+    "disabledURL_exists_on_disk": true
+  },
+  "expected": {
+    "downloaded_incremented": true,
+    "network_request_made": false,
+    "classifyAndDisableManifestJar_called": false,
+    "reason": "Lines 512-515: `if fm.fileExists(atPath: disabledURL.path) { downloaded += 1; continue }` -- a `.jar.disabled` sibling from a prior import (or a manual disable) is never re-downloaded, AND unlike the active-jar-exists branch below, this path does NOT call classifyAndDisableManifestJar again -- a disabled file's disabled status is treated as final, never re-evaluated."
+  },
+  "workflow": "modpacks"
+}

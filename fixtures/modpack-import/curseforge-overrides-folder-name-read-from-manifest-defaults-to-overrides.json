@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-import",
+  "case": "curseforge-overrides-folder-name-read-from-manifest-defaults-to-overrides",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importExtractedCurseForgeModpack(...) overrides folder name",
+    "line": 668
+  },
+  "input": {
+    "manifest_overrides_field": null
+  },
+  "expected": {
+    "folder_name_used": "overrides",
+    "reason": "Line 668: `(manifest.overrides?.isEmpty == false) ? manifest.overrides! : \"overrides\"` -- CurseForge's manifest.json format allows a custom overrides folder name; MSC 1 honors it when present and non-empty, falling back to the conventional \"overrides\" name otherwise."
+  },
+  "workflow": "modpacks"
+}

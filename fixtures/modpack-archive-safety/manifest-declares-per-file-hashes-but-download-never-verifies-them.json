@@ -1,0 +1,21 @@
+{
+  "domain": "modpack-archive-safety",
+  "case": "manifest-declares-per-file-hashes-but-download-never-verifies-them",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) download loop vs MrpackFile.hashes",
+    "line": 526
+  },
+  "input": {
+    "file_hashes_present_in_manifest": {
+      "sha1": "...",
+      "sha512": "..."
+    }
+  },
+  "expected": {
+    "hash_checked_against_downloaded_bytes": false,
+    "reason": "`MrpackFile.hashes` (`AppViewModel+ModManagement.swift:43`, decoding `sha1`/`sha512` from the manifest) is decoded but never read anywhere in the download loop (lines 526-534: `MSCHTTP.get(url)` then `data.write(to: destURL)`, no hash computation, no comparison). The ONLY sha512 call anywhere in this file (line 799) is for override-jar client-only classification, an entirely unrelated purpose. A corrupted or tampered mirror response that still returns HTTP 200 with SOME bytes is written to disk and counted as a successful install."
+  },
+  "workflow": "modpack-import",
+  "notes": "This is a previously-uncited gap, not already flagged in phase8-scope.md's own findings -- worth recording as a genuine new discovery from this step's own source read. P8.14's working exit criterion ('enforce the publisher hash when present') closes a real hole, not a redundant one."
+}

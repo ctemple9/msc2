@@ -1,0 +1,20 @@
+{
+  "domain": "modpack-import",
+  "case": "missing-overrides-folder-in-archive-silently-skipped-not-an-error",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) overrides existence guard",
+    "line": 547
+  },
+  "input": {
+    "tempDir_has_overrides_folder": false,
+    "tempDir_has_server_overrides_folder": true
+  },
+  "expected": {
+    "overrides_merge_attempted": false,
+    "server_overrides_merge_attempted": true,
+    "import_aborted": false,
+    "reason": "Line 547: `guard fm.fileExists(atPath: src.path) else { continue }` -- a pack with only one of the two override folders (or neither) is completely normal, not an error; each folder name is checked independently."
+  },
+  "workflow": "modpacks"
+}

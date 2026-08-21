@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-import",
+  "case": "curseforge-manual-download-mod-metadata-failure-degrades-to-filename-only-never-blocks-import",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importExtractedCurseForgeModpack(...) mods-metadata catch",
+    "line": 690
+  },
+  "input": {
+    "CurseForgeAPI_mods_call_throws": true
+  },
+  "expected": {
+    "import_aborted": false,
+    "projectsById": {},
+    "manualDownloads_still_built": true,
+    "reason": "Lines 690-695: `catch { projectsById = [:] }` with the inline comment \"degrade to fileName-only entries; never block the import\" -- even if the second (cosmetic-metadata) API call fails entirely, `CurseForgeModpack.manualDownloads` is still called and still produces entries, just without a friendly mod name/page link."
+  },
+  "workflow": "modpacks"
+}

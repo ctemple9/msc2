@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-archive-safety",
+  "case": "extraction-temp-directory-name-includes-a-uuid-not-attacker-predictable",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) temp directory naming",
+    "line": 417
+  },
+  "input": {
+    "pattern": "msc_mrpack_\\(UUID().uuidString)"
+  },
+  "expected": {
+    "predictable": false,
+    "reason": "Line 416-417: the extraction temp directory name embeds a fresh `UUID().uuidString` per import call -- this is a genuine (if narrow) positive: it avoids a predictable-temp-path race/collision, even though everything ELSE about extraction safety (path traversal, symlinks, hash verification) has no protection at all. Recorded as a contrast so the port doesn't have to invent EVERY safety property from scratch -- this one narrow property is already sound."
+  },
+  "workflow": "modpacks"
+}

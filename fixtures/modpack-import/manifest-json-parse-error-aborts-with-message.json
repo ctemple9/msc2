@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-import",
+  "case": "manifest-json-parse-error-aborts-with-message",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) JSONDecoder failure",
+    "line": 464
+  },
+  "input": {
+    "manifest_bytes": "not valid MrpackManifest JSON"
+  },
+  "expected": {
+    "aborted": true,
+    "logged_prefix": "[Modpack] Manifest parse error:",
+    "reason": "Lines 464-469: same abort-before-any-write shape as the read-I/O-error case -- a malformed manifest never reaches the download loop."
+  },
+  "workflow": "modpacks"
+}

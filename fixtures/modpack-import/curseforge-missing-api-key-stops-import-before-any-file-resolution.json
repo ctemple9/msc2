@@ -1,0 +1,20 @@
+{
+  "domain": "modpack-import",
+  "case": "curseforge-missing-api-key-stops-import-before-any-file-resolution",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importExtractedCurseForgeModpack(...) missing-key guard",
+    "line": 606
+  },
+  "input": {
+    "keychain_has_curseforge_key": false
+  },
+  "expected": {
+    "aborted": true,
+    "logged_lines": 2,
+    "CurseForgeAPI_files_called": false,
+    "packManaged_written": false,
+    "reason": "Lines 604-613: the Keychain key check runs BEFORE the provenance write (unlike the mrpack path, where provenance is written before any download attempt) and before any CurseForgeAPI call -- a CF pack import with no configured key leaves the server completely untouched, with a two-line friendly explanation (what's missing, and where to add it) rather than a raw error."
+  },
+  "workflow": "modpacks"
+}

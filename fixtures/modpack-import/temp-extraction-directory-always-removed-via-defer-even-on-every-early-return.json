@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-import",
+  "case": "temp-extraction-directory-always-removed-via-defer-even-on-every-early-return",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) defer cleanup",
+    "line": 418
+  },
+  "input": {
+    "scenario": "any of the function's ~6 early-return points fires (extraction failure, manifest read/parse error, unrecognized format, etc.)"
+  },
+  "expected": {
+    "tempDir_removed": true,
+    "reason": "Line 418: `defer { try? fm.removeItem(at: tempDir) }` is registered immediately after tempDir's path is computed, before extraction even runs -- Swift's defer guarantees this fires on every exit path from the function, including the numerous early `return`s for extraction/read/parse failures, so no partial extraction ever lingers in NSTemporaryDirectory()."
+  },
+  "workflow": "modpacks"
+}

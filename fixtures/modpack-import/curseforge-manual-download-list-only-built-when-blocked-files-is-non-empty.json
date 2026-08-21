@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-import",
+  "case": "curseforge-manual-download-list-only-built-when-blocked-files-is-non-empty",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importExtractedCurseForgeModpack(...) manual-download build guard",
+    "line": 688
+  },
+  "input": {
+    "blockedFiles_count": 0
+  },
+  "expected": {
+    "CurseForgeAPI_mods_called": false,
+    "manualDownloads_built": false,
+    "reason": "Line 688: `if !blockedFiles.isEmpty { ... }` -- a pack with zero author-blocked files never makes the second CurseForgeAPI call (`/v1/mods` for project metadata) at all."
+  },
+  "workflow": "modpacks"
+}

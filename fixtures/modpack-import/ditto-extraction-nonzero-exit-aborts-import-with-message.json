@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-import",
+  "case": "ditto-extraction-nonzero-exit-aborts-import-with-message",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) ditto exit-status guard",
+    "line": 439
+  },
+  "input": {
+    "ditto_exit_code": 1
+  },
+  "expected": {
+    "aborted": true,
+    "logged_prefix": "[Modpack] Extraction failed (exit 1).",
+    "reason": "Lines 439-442: a corrupt/truncated .mrpack archive that ditto can't extract (non-zero exit, e.g. exit 1) is caught by checking `terminationStatus`, not by ditto's own stdout/stderr (both are redirected to `/dev/null` at lines 432-433) -- the only signal used is the process exit code."
+  },
+  "workflow": "modpacks"
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "modpack-import",
+  "case": "file-download-tries-each-manifest-url-in-order-first-success-wins",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) multi-mirror download loop",
+    "line": 526
+  },
+  "input": {
+    "file_downloads": [
+      "https://mirror-a.example/broken",
+      "https://cdn.modrinth.com/real-file.jar"
+    ]
+  },
+  "expected": {
+    "attempted_in_order": true,
+    "stopped_after_first_success": true,
+    "reason": "Lines 526-534: `for urlStr in file.downloads { ... try data.write(...); ok = true; break }` -- MrpackFile.downloads is an ordered mirror list; the loop tries each URL in array order and stops at the first that both parses as a URL and downloads+writes without throwing."
+  },
+  "workflow": "modpacks"
+}

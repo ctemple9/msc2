@@ -1,0 +1,31 @@
+{
+  "domain": "modpack-import",
+  "case": "tier1-manifest-unsupported-files-filtered-before-any-download",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) Tier 1 pre-filter",
+    "line": 484
+  },
+  "input": {
+    "manifest_files": [
+      {
+        "path": "mods/client-only-mod.jar",
+        "env": {
+          "server": "unsupported"
+        }
+      },
+      {
+        "path": "mods/server-mod.jar",
+        "env": {
+          "server": "required"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "serverFiles_count": 1,
+    "skipped_count": 1,
+    "reason": "Lines 484-487: `manifest.files.filter { !isManifestServerUnsupported($0.env) }` -- files whose env.server is exactly \"unsupported\" never enter the download loop at all; they're not downloaded-then-deleted, they're never attempted."
+  },
+  "workflow": "modpacks"
+}

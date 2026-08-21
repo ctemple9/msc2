@@ -1,0 +1,21 @@
+{
+  "domain": "modpack-import",
+  "case": "neither-format-detected-logs-unrecognized-no-partial-action-taken",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) format sniff, unrecognized branch",
+    "line": 451
+  },
+  "input": {
+    "extracted_root_contains": [
+      "readme.txt",
+      "some-other-file.dat"
+    ]
+  },
+  "expected": {
+    "logged": "Unrecognized modpack — no modrinth.index.json (Modrinth) or CurseForge manifest.json found.",
+    "any_file_written_to_server_dir": false,
+    "reason": "Lines 451-455: the `default` case of the detectKind switch logs and returns -- nothing about the (already-extracted-to-tempDir) archive contents is ever copied into the server directory for an unrecognized pack."
+  },
+  "workflow": "modpacks"
+}

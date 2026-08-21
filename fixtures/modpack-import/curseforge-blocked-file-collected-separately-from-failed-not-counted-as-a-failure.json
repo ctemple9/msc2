@@ -1,0 +1,18 @@
+{
+  "domain": "modpack-import",
+  "case": "curseforge-blocked-file-collected-separately-from-failed-not-counted-as-a-failure",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importExtractedCurseForgeModpack(...) downloadUrl-nil branch",
+    "line": 653
+  },
+  "input": {
+    "file_downloadUrl": null
+  },
+  "expected": {
+    "appended_to": "blockedFiles",
+    "appended_to_failed": false,
+    "reason": "Lines 653-657: `guard let urlStr = file.downloadUrl, ... else { blockedFiles.append(file); continue }` -- an author-blocked file (D-027's exact shape) is tracked in a SEPARATE array from genuine download failures, so the final summary's 'X installed, Y failed' count doesn't conflate 'this needs a manual step' with 'this actually errored'."
+  },
+  "workflow": "modpacks"
+}

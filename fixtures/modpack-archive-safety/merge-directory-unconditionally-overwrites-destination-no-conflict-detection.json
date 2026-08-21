@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-archive-safety",
+  "case": "merge-directory-unconditionally-overwrites-destination-no-conflict-detection",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "mergeDirectory(from:into:fm:) overwrite behavior",
+    "line": 856
+  },
+  "input": {
+    "dest_file_already_exists_and_differs_from_source": true
+  },
+  "expected": {
+    "dest_silently_replaced": true,
+    "warning_logged": false,
+    "backup_made": false,
+    "reason": "Line 856: `try? fm.removeItem(at: dest)` unconditionally precedes every file copy in mergeDirectory, with the removal's own error silently swallowed by `try?` -- a pack override that happens to share a path with something the server operator placed manually (or with output from a previous different pack) is replaced with no warning, no backup, and no distinction between 'this came from the SAME pack being re-applied' and 'this is a completely different file being clobbered'."
+  },
+  "workflow": "modpacks"
+}

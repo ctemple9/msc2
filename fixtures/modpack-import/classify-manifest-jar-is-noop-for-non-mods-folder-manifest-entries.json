@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-import",
+  "case": "classify-manifest-jar-is-noop-for-non-mods-folder-manifest-entries",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "classifyAndDisableManifestJar(file:jarURL:...) isModsJar guard",
+    "line": 762
+  },
+  "input": {
+    "file_path": "config/some-config.json"
+  },
+  "expected": {
+    "classification_attempted": false,
+    "reason": "Line 762: `guard ModpackClientOnlyClassifier.isModsJar(path: file.path) else { return }` -- only entries under `mods/` ending `.jar` are ever candidates for client-only disabling; a manifest-listed config file or resource pack is written but never touched by this function."
+  },
+  "workflow": "modpacks"
+}

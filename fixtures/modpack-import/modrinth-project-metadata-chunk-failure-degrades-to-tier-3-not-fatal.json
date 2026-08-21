@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-import",
+  "case": "modrinth-project-metadata-chunk-failure-degrades-to-tier-3-not-fatal",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "fetchMrpackProjectMetadata(for:) per-chunk catch",
+    "line": 741
+  },
+  "input": {
+    "chunk_2_of_3_throws": true
+  },
+  "expected": {
+    "chunks_1_and_3_still_processed": true,
+    "import_aborted": false,
+    "affected_jars_fall_to_tier_3": true,
+    "reason": "Lines 741-747: each 100-ID chunk's request is independently try/caught -- one failed chunk (offline mid-import, rate limit) only logs and leaves that chunk's project IDs absent from `byId`; the jars corresponding to those IDs simply fall through to Tier 3 (embedded jar metadata) in classifyAndDisableManifestJar, they don't abort the whole import or the whole classification pass."
+  },
+  "workflow": "modpacks"
+}

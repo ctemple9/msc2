@@ -1,0 +1,17 @@
+{
+  "domain": "modpack-import",
+  "case": "import-function-has-no-throws-keyword-failures-are-always-logged-never-propagated",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) function signature",
+    "line": 407
+  },
+  "input": {
+    "signature": "func importModpack(from mrpackURL: URL, for cfg: ConfigServer) async"
+  },
+  "expected": {
+    "has_throws_keyword": false,
+    "reason": "Confirmed by the function's own declaration at line 407 -- no `throws`. Every failure category in this function (extraction, manifest read/parse, per-file download, per-folder merge) is caught internally and turned into a `logAppMessage` call; nothing ever propagates as a Swift error the caller could catch. This is exactly the structural fact phase8-scope.md's 'Modpack create/import boundary' section cites as why the wizard's outer create-rollback `catch` can never see a pack-import failure today -- there is nothing for it to catch."
+  },
+  "workflow": "modpacks"
+}

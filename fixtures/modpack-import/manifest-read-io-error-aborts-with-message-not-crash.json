@@ -1,0 +1,19 @@
+{
+  "domain": "modpack-import",
+  "case": "manifest-read-io-error-aborts-with-message-not-crash",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) manifest Data(contentsOf:) failure",
+    "line": 458
+  },
+  "input": {
+    "manifestURL_exists": true,
+    "read_throws": true
+  },
+  "expected": {
+    "aborted": true,
+    "logged_prefix": "[Modpack] modrinth.index.json could not be read:",
+    "reason": "Lines 458-463: an I/O error reading the (already-verified-to-exist) manifest file aborts the whole import with a logged message -- no partial state has been written to serverDir yet at this point in the function, since this check runs before any provenance persistence or file download."
+  },
+  "workflow": "modpacks"
+}

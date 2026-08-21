@@ -1,0 +1,21 @@
+{
+  "domain": "modpack-import",
+  "case": "no-mrpack-manifest-but-curseforge-detected-routes-to-curseforge-importer",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "importModpack(from:for:) format sniff, CF branch",
+    "line": 448
+  },
+  "input": {
+    "extracted_root_contains": [
+      "manifest.json (CurseForge shape)",
+      "overrides/"
+    ],
+    "modrinth_index_json_present": false
+  },
+  "expected": {
+    "routed_to": "importExtractedCurseForgeModpack",
+    "reason": "Lines 447-450: when `modrinth.index.json` is absent, `CurseForgeModpack.detectKind(inExtractedRoot:fm:)` (already characterized in fixtures/curseforge-modpack/) is consulted; a `.curseForge` result routes to the CF importer."
+  },
+  "workflow": "modpacks"
+}

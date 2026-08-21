@@ -1,0 +1,17 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "empty-excerpt-returns-empty",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "analyzePaperPlugins(serverDir:consoleExcerpt:installedPlugins:) -- guard !text.isEmpty",
+    "line": 520
+  },
+  "input": {
+    "consoleExcerpt": [],
+    "installedPlugins": []
+  },
+  "expected": {
+    "problemsCount": 0
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins (P1.7's own doc already flagged this) -- characterized directly from source's closed, deterministic logic (StartupCrashAnalyzer.swift:515-576), the same evidentiary standard fixture-format.md calls 'MSC 1 run by hand' for untested pure functions. Mirrors startup-crash-analyzer's own empty-excerpt-returns-empty case (same guard shape, line 520 vs analyze's line 78)."
+}

@@ -1,0 +1,38 @@
+{
+  "domain": "installed-addons",
+  "case": "mods-enabled-and-disabled-jars-listed-with-filename-heuristics",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "refreshDiscoveredMods -- isEnabled/jarStem derivation, no manifest present",
+    "line": 142
+  },
+  "input": {
+    "scanner": "mods",
+    "modsDir": "/srv/demo/mods",
+    "files": [
+      { "name": "Sodium-fabric-0.4.0.jar", "zipEntries": {} },
+      { "name": "OldMod-1.0.jar.disabled", "zipEntries": {} }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "OldMod-1.0.jar.disabled",
+        "jarStem": "OldMod-1.0",
+        "displayName": "OldMod",
+        "modId": null,
+        "version": "1.0",
+        "isEnabled": false
+      },
+      {
+        "filename": "Sodium-fabric-0.4.0.jar",
+        "jarStem": "Sodium-fabric-0.4.0",
+        "displayName": "Sodium-fabric",
+        "modId": null,
+        "version": "0.4.0",
+        "isEnabled": true
+      }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises refreshDiscoveredMods -- characterized from source (line 142-187). Neither jar has a real fabric.mod.json/mods.toml entry (empty zipEntries -- a valid, empty zip archive), so both fall all the way through to PluginNameParser filename heuristics. Results sorted by displayName lowercased, matching source's own .sorted{...}, so 'OldMod' (isEnabled:false) sorts before 'Sodium-fabric'."
+}

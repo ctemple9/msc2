@@ -139,6 +139,46 @@ pub fn read_last_startup_result(
     serde_json::from_slice(&bytes).ok()
 }
 
+/// **P7.36.** MSC 1 has no equivalent — it keeps a separate in-memory
+/// `startupProblems` array for the running session and only unconditionally
+/// does `startupProblems.removeAll { $0.id == problem.id }` there
+/// (`AppViewModel+APIWiringBackupsHealth.swift`'s repair dispatcher),
+/// never touching the persisted JSON at all; the disk file is only ever a
+/// fallback for a fresh launch. MSC 2's agent is headless and keeps no
+/// such session cache — `health_repair` (`routes/health.rs`) reads
+/// `last_startup_result.json` fresh on every call, so *this* is the only
+/// place "remove only the repaired problem after verification; preserve
+/// it on failure" (this phase's own working exit criterion) can become
+/// real. Called only after [`repair_problem`] has already returned `Ok`
+/// (a verified rename/delete), never speculatively — a failed repair
+/// leaves the persisted record completely untouched, problem included.
+/// Every other field (`started_at`/`was_clean`/`fatal_errors`/`warnings`)
+/// is preserved byte-for-byte; only the matching problem is dropped from
+/// `problems`, `None` again if that empties the list, matching
+/// [`write_last_startup_result`]'s own `problems.isEmpty() -> null` rule.
+/// Returns `false` (no-op) when there's no persisted record or `problem_id`
+/// isn't present in it.
+pub fn remove_repaired_problem(fs: &dyn FileSystem, server_dir: &Path, problem_id: &str) -> bool {
+    let Some(mut record) = read_last_startup_result(fs, server_dir) else {
+        return false;
+    };
+    let Some(problems) = record.problems.as_mut() else {
+        return false;
+    };
+    let before = problems.len();
+    problems.retain(|p| p.id() != problem_id);
+    if problems.len() == before {
+        return false;
+    }
+    if problems.is_empty() {
+        record.problems = None;
+    }
+    if let Ok(bytes) = serde_json::to_vec(&record) {
+        let _ = fs.write(&server_dir.join(LAST_STARTUP_RESULT_FILENAME), &bytes);
+    }
+    true
+}
+
 // ---------------------------------------------------------------------
 // diagnoseUnexpectedStop / scanPaperSoftFailures
 // ---------------------------------------------------------------------

@@ -1,3 +1,4 @@
+pub mod add_on_inventory;
 pub mod backups;
 pub mod commands;
 pub mod diagnostics;

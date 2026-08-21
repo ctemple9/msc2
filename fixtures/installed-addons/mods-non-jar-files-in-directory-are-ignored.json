@@ -1,0 +1,31 @@
+{
+  "domain": "installed-addons",
+  "case": "mods-non-jar-files-in-directory-are-ignored",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "refreshDiscoveredMods -- contents.filter { name.hasSuffix('.jar') || name.hasSuffix('.jar.disabled') }",
+    "line": 155
+  },
+  "input": {
+    "scanner": "mods",
+    "modsDir": "/srv/demo/mods",
+    "files": [
+      { "name": "Sodium-0.4.0.jar", "zipEntries": {} },
+      { "name": "README.txt", "zipEntries": null },
+      { "name": ".DS_Store", "zipEntries": null }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "Sodium-0.4.0.jar",
+        "jarStem": "Sodium-0.4.0",
+        "displayName": "Sodium",
+        "modId": null,
+        "version": "0.4.0",
+        "isEnabled": true
+      }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises refreshDiscoveredMods -- characterized from source's own filename filter (line 155-158). A file whose 'zipEntries' is JSON null in this fixture is written as a plain non-zip text file on disk (its contents are irrelevant, the extension filter never even opens it) -- proving the scanner filters by filename suffix before ever touching a file's bytes, not just that it happens to skip unreadable ones."
+}

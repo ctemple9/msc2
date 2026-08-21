@@ -1,0 +1,26 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "enable-error-trims-parenthetical",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "analyzePaperPlugins -- Error occurred while enabling, no version token, trimmed at ' ('",
+    "line": 558
+  },
+  "input": {
+    "consoleExcerpt": [
+      "Error occurred while enabling WorldGuard (This plugin has failed silently)"
+    ],
+    "installedPlugins": []
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "loadError",
+      "offenderName": "WorldGuard",
+      "installedFile": null,
+      "installedJarStem": null,
+      "requirement": "Failed to enable — the plugin errored on startup (it may be outdated)."
+    }
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins -- characterized from source's else-branch (line 558-559): when the line has no ' v<version>' token at all, the name is instead trimmed at the first ' (' -- a real Bukkit failure message shape that never includes a version. No installed plugin present, so the offender falls back to the raw parsed name, same as the missing-dependency unmatched case."
+}

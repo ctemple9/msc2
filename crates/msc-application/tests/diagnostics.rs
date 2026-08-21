@@ -785,3 +785,99 @@ fn repair_problem_disable_verification_fails_when_neither_file_exists() {
     .expect_err("verification fails");
     assert!(matches!(err, RepairError::VerificationFailed));
 }
+
+// --- P7.36: remove_repaired_problem -- no MSC 1 equivalent (this
+// module's own doc explains why a headless agent needs this where the
+// Mac app didn't), so these are plain tests rather than fixture-driven. ---
+
+#[test]
+fn remove_repaired_problem_drops_only_the_matching_problem_preserves_the_rest() {
+    let fs = FakeFileSystem::new();
+    let server_dir = Path::new("/servers/java/box");
+    let kept = problem(StartupProblemKind::MissingDependency, "kept");
+    let repaired = problem(StartupProblemKind::LoadError, "repaired");
+    diagnostics::write_last_startup_result(
+        &fs,
+        server_dir,
+        "2026-08-20T00:00:00Z",
+        false,
+        vec![
+            "kept: Problem".to_string(),
+            "repaired: Failed to load".to_string(),
+        ],
+        Vec::new(),
+        vec![kept.clone(), repaired.clone()],
+    );
+
+    let removed = diagnostics::remove_repaired_problem(&fs, server_dir, &repaired.id());
+    assert!(removed);
+
+    let record = diagnostics::read_last_startup_result(&fs, server_dir).unwrap();
+    assert_eq!(record.problems, Some(vec![kept]));
+    // Everything else about the record is untouched.
+    assert_eq!(record.started_at, "2026-08-20T00:00:00Z");
+    assert!(!record.was_clean);
+    assert_eq!(record.fatal_errors.len(), 2);
+}
+
+#[test]
+fn remove_repaired_problem_clears_to_null_not_empty_array_when_it_was_the_last_one() {
+    let fs = FakeFileSystem::new();
+    let server_dir = Path::new("/servers/java/box");
+    let only = problem(StartupProblemKind::LoadError, "solo");
+    diagnostics::write_last_startup_result(
+        &fs,
+        server_dir,
+        "2026-08-20T00:00:00Z",
+        false,
+        vec!["solo: Problem".to_string()],
+        Vec::new(),
+        vec![only.clone()],
+    );
+
+    assert!(diagnostics::remove_repaired_problem(
+        &fs,
+        server_dir,
+        &only.id()
+    ));
+
+    let bytes = fs
+        .read(&server_dir.join("last_startup_result.json"))
+        .unwrap();
+    let raw: Value = serde_json::from_slice(&bytes).unwrap();
+    assert!(raw["problems"].is_null());
+    let record = diagnostics::read_last_startup_result(&fs, server_dir).unwrap();
+    assert_eq!(record.problems, None);
+}
+
+#[test]
+fn remove_repaired_problem_is_a_no_op_when_the_id_is_not_present() {
+    let fs = FakeFileSystem::new();
+    let server_dir = Path::new("/servers/java/box");
+    let kept = problem(StartupProblemKind::MissingDependency, "kept");
+    diagnostics::write_last_startup_result(
+        &fs,
+        server_dir,
+        "2026-08-20T00:00:00Z",
+        false,
+        vec!["kept: Problem".to_string()],
+        Vec::new(),
+        vec![kept.clone()],
+    );
+
+    let removed = diagnostics::remove_repaired_problem(&fs, server_dir, "no-such-problem-id");
+    assert!(!removed);
+    let record = diagnostics::read_last_startup_result(&fs, server_dir).unwrap();
+    assert_eq!(record.problems, Some(vec![kept]));
+}
+
+#[test]
+fn remove_repaired_problem_is_a_no_op_when_no_record_exists() {
+    let fs = FakeFileSystem::new();
+    let removed = diagnostics::remove_repaired_problem(
+        &fs,
+        Path::new("/servers/java/never-started"),
+        "anything",
+    );
+    assert!(!removed);
+}

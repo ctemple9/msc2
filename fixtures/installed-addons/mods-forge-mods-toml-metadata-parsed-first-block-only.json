@@ -1,0 +1,34 @@
+{
+  "domain": "installed-addons",
+  "case": "mods-forge-mods-toml-metadata-parsed-first-block-only",
+  "source": {
+    "file": "ModJarMetadataParser.swift",
+    "test": "parseModsToml(_:) -- [[mods]] section scan, stops at the next [[ header once modId/displayName found",
+    "line": 133
+  },
+  "input": {
+    "scanner": "mods",
+    "modsDir": "/srv/demo/mods",
+    "files": [
+      {
+        "name": "jei-1.20.1-forge-15.2.0.27.jar",
+        "zipEntries": {
+          "META-INF/mods.toml": "[[dependencies.jei]]\nmodId=\"forge\"\n\n[[mods]]\nmodId = \"jei\"\ndisplayName = \"Just Enough Items\"\nversion = \"${file.jarVersion}\"\n\n[[mods]]\nmodId = \"decoy\"\ndisplayName = \"Should Not Be Read\"\n"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "jei-1.20.1-forge-15.2.0.27.jar",
+        "jarStem": "jei-1.20.1-forge-15.2.0.27",
+        "displayName": "Just Enough Items",
+        "modId": "jei",
+        "version": "1.20.1-forge-15.2.0.27",
+        "isEnabled": true
+      }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises ModJarMetadataParser/refreshDiscoveredMods directly -- characterized from source (ModJarMetadataParser.swift:133-157, AppViewModel+ModManagement.swift:170-172). The leading [[dependencies.jei]] section is skipped entirely (not '[[mods]]', so in_mods_section stays false while inside it). version = '${file.jarVersion}' is an unresolved Gradle template token, dropped per source's own hasPrefix('${') check -- but refreshDiscoveredMods falls back to the filename heuristic *per field*, not only when the whole manifest read fails ('let version = meta?.version ?? PluginNameParser.extractVersion(from: jarStem)'): meta exists and its modId/displayName are used, but its dropped version still falls through to PluginNameParser on the jar stem, landing on '1.20.1-forge-15.2.0.27' (the stem's own trailing version-looking parts). The second [[mods]] block ('decoy') is never reached -- the scanner stops as soon as it hits the next [[ header while already holding modId/displayName from the first block, matching source's own first-block-only behavior exactly."
+}

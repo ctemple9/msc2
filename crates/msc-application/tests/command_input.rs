@@ -100,7 +100,9 @@ fn command_input_running_server_writes_to_process_stdin() {
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
     service
         .send_command(case["input"]["command"].as_str().unwrap())
         .unwrap();
@@ -125,7 +127,9 @@ fn command_input_stdin_write_failure_surfaces() {
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
     process.fail_next_stdin(case["input"]["stdinFailure"].as_str().unwrap());
 
     let error = service

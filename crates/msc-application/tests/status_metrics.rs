@@ -86,13 +86,19 @@ fn status_metrics_snapshot_reports_active_paper_process_state() {
         )
         .unwrap();
     service
-        .ingest_console_line("Done (1.234s)! For help, type \"help\"")
+        .ingest_console_line(
+            "Done (1.234s)! For help, type \"help\"",
+            "2026-08-20T00:00:00Z",
+        )
         .unwrap();
     service
-        .ingest_console_line("camkage joined the game")
+        .ingest_console_line("camkage joined the game", "2026-08-20T00:00:00Z")
         .unwrap();
     service
-        .ingest_console_line("TPS from last 1m, 5m, 15m: 19.8, 19.7, 19.6")
+        .ingest_console_line(
+            "TPS from last 1m, 5m, 15m: 19.8, 19.7, 19.6",
+            "2026-08-20T00:00:00Z",
+        )
         .unwrap();
 
     let status = service.status_snapshot().unwrap();

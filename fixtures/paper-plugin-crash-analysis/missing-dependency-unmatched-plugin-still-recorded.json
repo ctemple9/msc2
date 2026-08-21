@@ -1,0 +1,35 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "missing-dependency-unmatched-plugin-still-recorded",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "analyzePaperPlugins -- unmatched offender falls back to the raw name, not dropped",
+    "line": 539
+  },
+  "input": {
+    "consoleExcerpt": [
+      "Unknown/missing dependency plugins: [Citizens] are required to run 'Denizen'."
+    ],
+    "installedPlugins": [
+      {
+        "filename": "SomeOtherPlugin.jar",
+        "jarStem": "SomeOtherPlugin",
+        "displayName": "SomeOtherPlugin",
+        "version": "1.0",
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "missingDependency",
+      "offenderName": "Denizen",
+      "installedFile": null,
+      "installedJarStem": null,
+      "missingDependency": "Citizens",
+      "requirement": "Requires Citizens"
+    }
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins -- characterized from matchPlugin's own defensive design (line 526-529, mirroring match_installed_mod's 'don't guess, keep the raw offender' precedent already proven by the Fabric/Forge fixtures): when no installed plugin's displayName or jarStem matches, the problem is still recorded (never silently dropped), attributed to the literal name parsed from the log line."
+}

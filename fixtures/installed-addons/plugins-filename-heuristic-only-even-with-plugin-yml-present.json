@@ -1,0 +1,33 @@
+{
+  "domain": "installed-addons",
+  "case": "plugins-filename-heuristic-only-even-with-plugin-yml-present",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins -- never calls ModJarMetadataParser, PluginNameParser only",
+    "line": 147
+  },
+  "input": {
+    "scanner": "plugins",
+    "pluginsDir": "/srv/demo/plugins",
+    "files": [
+      {
+        "name": "EssentialsX-2.20.1.jar",
+        "zipEntries": {
+          "plugin.yml": "name: TotallyDifferentNameFromPluginYml\nversion: 99.99\nauthor: SomeoneElse\n"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "EssentialsX-2.20.1.jar",
+        "jarStem": "EssentialsX-2.20.1",
+        "displayName": "EssentialsX",
+        "version": "2.20.1",
+        "isEnabled": true
+      }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises refreshDiscoveredPlugins directly -- characterized by reading source in full (AppViewModel+ComponentsVersions.swift:114-205): it never calls ModJarMetadataParser.parsePlugin/parseAny, only PluginNameParser on the jar stem. This fixture's own plugin.yml entry declares a deliberately different name/version to prove the divergence is real, not just untested -- if the scanner read plugin.yml, displayName would be 'TotallyDifferentNameFromPluginYml' and version '99.99'; since it's filename-heuristic only, both come from the stem instead, exactly matching mods' own filename-fallback shape but never trying the manifest read mods get first."
+}

@@ -1,0 +1,33 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "missing-dependency-multiple-deps-produce-multiple-problems",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "analyzePaperPlugins -- bracketedList produces one problem per dependency",
+    "line": 537
+  },
+  "input": {
+    "consoleExcerpt": [
+      "Unknown/missing dependency plugins: [Vault, WorldEdit] are required to run 'Essentials'."
+    ],
+    "installedPlugins": []
+  },
+  "expected": {
+    "problemsCount": 2,
+    "problems": [
+      {
+        "kind": "missingDependency",
+        "offenderName": "Essentials",
+        "missingDependency": "Vault",
+        "requirement": "Requires Vault"
+      },
+      {
+        "kind": "missingDependency",
+        "offenderName": "Essentials",
+        "missingDependency": "WorldEdit",
+        "requirement": "Requires WorldEdit"
+      }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins -- characterized from source's for-loop over bracketedList(in: line) (line 537-550): one StartupProblem per bracketed dependency, all sharing the same requesting-plugin name. No installed plugin matches 'Essentials' here, so offenderName/installedFile/installedJarStem fall back to the raw plugin name / nil, same as an unmatched Fabric/Forge offender. No log-level/thread prefix on the line -- same reasoning as the sibling single-dep fixture's own note (bracketedList takes the first '[...]' pair in the whole line)."
+}

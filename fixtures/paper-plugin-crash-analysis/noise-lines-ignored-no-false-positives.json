@@ -1,0 +1,22 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "noise-lines-ignored-no-false-positives",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "analyzePaperPlugins -- only the two recognized message shapes are parsed",
+    "line": 531
+  },
+  "input": {
+    "consoleExcerpt": [
+      "[Server thread/INFO]: Loading Essentials v2.20.1",
+      "[Server thread/INFO]: Enabling Essentials v2.20.1",
+      "[Server thread/INFO]: [Essentials] Enabling Essentials v2.20.1",
+      "Done (12.345s)! For help, type \"help\""
+    ],
+    "installedPlugins": []
+  },
+  "expected": {
+    "problemsCount": 0
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins -- characterized from source's own closed if/else-if pair (line 531-573): a line must contain either 'Unknown/missing dependency plugins:' or the exact 'Error occurred while enabling ' phrase to produce a problem. Ordinary load/enable/ready lines (including one that contains the substring 'Enabling', not 'Error occurred while enabling') never match either branch and are silently ignored -- proving the analyzer doesn't false-positive on routine successful-start chatter."
+}

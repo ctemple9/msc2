@@ -1,0 +1,33 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "enable-error-matched-via-jar-stem-contains",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "matchPlugin -- jarStem substring fallback when displayName doesn't match exactly",
+    "line": 526
+  },
+  "input": {
+    "consoleExcerpt": [
+      "Error occurred while enabling Essentials v2.20.1 (Is it up to date?)"
+    ],
+    "installedPlugins": [
+      {
+        "filename": "EssentialsX-2.20.1.jar",
+        "jarStem": "EssentialsX-2.20.1",
+        "displayName": "EssentialsX",
+        "version": "2.20.1",
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "loadError",
+      "offenderName": "EssentialsX",
+      "installedFile": "EssentialsX-2.20.1.jar",
+      "installedJarStem": "EssentialsX-2.20.1"
+    }
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins -- characterized from matchPlugin's own two-step design (line 526-529): the parsed name 'Essentials' doesn't case-insensitively equal the installed plugin's displayName 'EssentialsX', so the second tier fires -- installedPlugins.first { $0.jarStem.lowercased().contains(name.lowercased()) } -- 'essentialsx-2.20.1'.contains('essentials') is true, so the jar-stem match wins and offenderName becomes the matched plugin's own displayName ('EssentialsX'), not the raw log-parsed name."
+}

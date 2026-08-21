@@ -96,7 +96,9 @@ fn lifecycle_with_fake_process_partial_ready_line_can_drive_running_state() {
             .unwrap();
         for line in framer.push_event(&event) {
             if line.starts_with("Done (") {
-                service.mark_ready(&server.id).unwrap();
+                service
+                    .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+                    .unwrap();
             }
         }
     }
@@ -117,7 +119,9 @@ fn lifecycle_with_fake_process_graceful_stop_waits_for_exit_before_stopped() {
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
 
     service.request_stop().unwrap();
     assert_eq!(service.state(), LifecycleState::Stopping);
@@ -147,7 +151,9 @@ fn lifecycle_with_fake_process_crash_exit_marks_running_server_crashed() {
 
     service.select_active_server(server.id.clone()).unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
 
     process.crash(pid, 1).unwrap();
     for event in process.drain_events(pid).unwrap() {

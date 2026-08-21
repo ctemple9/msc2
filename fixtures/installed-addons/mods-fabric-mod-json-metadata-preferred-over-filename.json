@@ -1,0 +1,34 @@
+{
+  "domain": "installed-addons",
+  "case": "mods-fabric-mod-json-metadata-preferred-over-filename",
+  "source": {
+    "file": "ModJarMetadataParser.swift",
+    "test": "parseFabric(jarURL:) -- id/name/version read from fabric.mod.json, dropped when name is absent",
+    "line": 109
+  },
+  "input": {
+    "scanner": "mods",
+    "modsDir": "/srv/demo/mods",
+    "files": [
+      {
+        "name": "sodium-fabric-mc1.21.4-0.6.13.jar",
+        "zipEntries": {
+          "fabric.mod.json": "{\"id\":\"sodium\",\"name\":\"Sodium\",\"version\":\"0.6.13\",\"environment\":\"*\"}"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "sodium-fabric-mc1.21.4-0.6.13.jar",
+        "jarStem": "sodium-fabric-mc1.21.4-0.6.13",
+        "displayName": "Sodium",
+        "modId": "sodium",
+        "version": "0.6.13",
+        "isEnabled": true
+      }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises ModJarMetadataParser/refreshDiscoveredMods directly -- characterized from source (ModJarMetadataParser.swift:109-120). displayName/modId/version all come from the real fabric.mod.json entry inside the jar (a real, valid zip archive built by this fixture's own test harness) -- the filename heuristic (PluginNameParser) would instead produce displayName 'sodium-fabric-mc1.21.4' (stopping at '0.6.13', the first '-'-split part that looks like a version) and version '0.6.13', which happens to agree on version here but not on displayName ('Sodium' vs 'sodium-fabric-mc1.21.4') -- proving the manifest really does win, not just coincidentally match."
+}

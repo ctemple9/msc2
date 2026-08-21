@@ -1,0 +1,36 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "missing-dependency-single-dep-attributed-to-installed-plugin",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "analyzePaperPlugins -- Unknown/missing dependency plugins branch",
+    "line": 535
+  },
+  "input": {
+    "consoleExcerpt": [
+      "Unknown/missing dependency plugins: [Vault] are required to run 'Essentials'."
+    ],
+    "installedPlugins": [
+      {
+        "filename": "Essentials.jar",
+        "jarStem": "Essentials",
+        "displayName": "Essentials",
+        "version": null,
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "missingDependency",
+      "offenderName": "Essentials",
+      "offenderId": null,
+      "installedFile": "Essentials.jar",
+      "installedJarStem": "Essentials",
+      "missingDependency": "Vault",
+      "requirement": "Requires Vault"
+    }
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins -- characterized from source (StartupCrashAnalyzer.swift:534-552). Plugin name is read via quotedValue(after: 'to run', in: line) -> 'Essentials', matched against installedPlugins by exact case-insensitive displayName compare (matchPlugin, line 526-529). offenderId is always nil for this branch -- Paper plugins have no stable machine id the way Fabric/Forge mods do (StartupProblem's offenderId field is simply never set here, unlike parse_fabric/parse_forge). The console line deliberately carries no log-level/thread prefix (e.g. '[Server thread/WARN]:'), matching every fixtures/startup-crash-analyzer/ line's own bare-content convention -- bracketedList(in:) (source line 579-586) takes the *first* '[...]' pair in the whole line, so a prefix bracket would shadow the real dependency list."
+}

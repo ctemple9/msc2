@@ -1,0 +1,35 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "enable-error-trims-version-suffix",
+  "source": {
+    "file": "StartupCrashAnalyzer.swift",
+    "test": "analyzePaperPlugins -- Error occurred while enabling, trimmed at ' v'",
+    "line": 555
+  },
+  "input": {
+    "consoleExcerpt": [
+      "Error occurred while enabling Essentials v2.20.1 (Is it up to date?)"
+    ],
+    "installedPlugins": [
+      {
+        "filename": "Essentials.jar",
+        "jarStem": "Essentials",
+        "displayName": "Essentials",
+        "version": "2.20.1",
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "loadError",
+      "offenderName": "Essentials",
+      "installedFile": "Essentials.jar",
+      "installedJarStem": "Essentials",
+      "missingDependency": null,
+      "requirement": "Failed to enable — the plugin errored on startup (it may be outdated)."
+    }
+  },
+  "notes": "No MSC 1 test file exercises analyzePaperPlugins -- characterized from source (line 555-573): the plugin name is trimmed at the first ' v' (version marker) when present, tried before ' (' since a real Bukkit line always emits the version token first. 'Essentials' (trimmed) exact-matches the installed plugin's displayName."
+}

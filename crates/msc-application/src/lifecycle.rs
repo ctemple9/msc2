@@ -5,6 +5,7 @@
 //! dependencies, but it does not know about HTTP routes, CLI commands, iOS,
 //! or any other client surface.
 
+use msc_domain::crash_analysis;
 use msc_domain::identity::{AddOnKind, JavaServerFlavor};
 use msc_domain::tps;
 use msc_infrastructure::fs::FileSystem;
@@ -309,9 +310,45 @@ impl<'deps> LifecycleService<'deps> {
         Ok(pid)
     }
 
-    pub fn mark_ready(&mut self, id: &ServerId) -> Result<(), LifecycleError> {
+    pub fn mark_ready(&mut self, id: &ServerId, now: &str) -> Result<(), LifecycleError> {
         self.require_active_server(id)?;
-        self.transition_to(LifecycleState::Running)
+        self.transition_to(LifecycleState::Running)?;
+        self.scan_paper_plugins_once_ready(id, now);
+        Ok(())
+    }
+
+    /// `scanPaperSoftFailures(for:)`'s real trigger point — MSC 1 calls it
+    /// from the same "reached ready" branch this service's own
+    /// `OutputEvent::Ready` handling already has (`AppViewModel+
+    /// OutputHandling.swift:44-58`); this port's own P7.32-era note
+    /// flagged that nothing called it here yet. Fires at most once per
+    /// start: `ingest_console_line` only reaches `mark_ready` while
+    /// `state == Starting`, and this method's own `transition_to` above
+    /// has already left that state by the time this runs, so a second
+    /// `Ready` event this same run (the reducer's own `reached_ready`
+    /// latch, `output_reducer.rs`) can never re-enter it. Best-effort like
+    /// [`Self::record_stop_diagnostics`]: a server the repository can no
+    /// longer load skips the scan silently rather than failing the
+    /// ready-transition already committed above.
+    fn scan_paper_plugins_once_ready(&self, id: &ServerId, now: &str) {
+        let Ok(server) = self.load_server(id) else {
+            return;
+        };
+        if server.flavor.add_on_kind() != Some(AddOnKind::Plugin) {
+            return;
+        }
+        let plugins_dir = server.directory.join(AddOnKind::Plugin.folder_name());
+        let installed_plugins = crate::add_on_inventory::scan_plugins(self.fs, &plugins_dir);
+        let problems =
+            crash_analysis::analyze_paper_plugins(&self.recent_console_lines, &installed_plugins);
+        diagnostics::scan_paper_soft_failures(
+            self.fs,
+            &server.directory,
+            now,
+            true,
+            true,
+            problems,
+        );
     }
 
     pub fn request_stop(&mut self) -> Result<(), LifecycleError> {
@@ -354,7 +391,11 @@ impl<'deps> LifecycleService<'deps> {
         Ok(())
     }
 
-    pub fn ingest_console_line(&mut self, clean: &str) -> Result<Vec<OutputEvent>, LifecycleError> {
+    pub fn ingest_console_line(
+        &mut self,
+        clean: &str,
+        now: &str,
+    ) -> Result<Vec<OutputEvent>, LifecycleError> {
         let id = self.active_server_id()?.clone();
         self.recent_console_lines.push(clean.to_string());
         if self.recent_console_lines.len() > CONSOLE_EXCERPT_CAPACITY {
@@ -364,7 +405,7 @@ impl<'deps> LifecycleService<'deps> {
         for event in &events {
             match event {
                 OutputEvent::Ready if self.state == LifecycleState::Starting => {
-                    self.mark_ready(&id)?;
+                    self.mark_ready(&id, now)?;
                 }
                 OutputEvent::TpsSample(sample) => {
                     self.latest_tps = Some(*sample);
@@ -446,6 +487,12 @@ impl<'deps> LifecycleService<'deps> {
             return;
         }
         let is_modded = server.flavor.add_on_kind() == Some(AddOnKind::Mod);
+        let installed_mods = if is_modded {
+            let mods_dir = server.directory.join(AddOnKind::Mod.folder_name());
+            crate::add_on_inventory::scan_mods(self.fs, &mods_dir)
+        } else {
+            Vec::new()
+        };
         diagnostics::diagnose_unexpected_stop(
             self.fs,
             &server.directory,
@@ -454,7 +501,7 @@ impl<'deps> LifecycleService<'deps> {
             is_modded,
             server.flavor.raw_value(),
             &self.recent_console_lines,
-            &[],
+            &installed_mods,
         );
     }
 

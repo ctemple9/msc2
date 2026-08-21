@@ -181,7 +181,9 @@ fn lifecycle_state_ready_line_moves_starting_server_to_running() {
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
 
     assert_eq!(service.state(), LifecycleState::Running);
 }
@@ -199,7 +201,9 @@ fn lifecycle_state_failed_stop_keeps_server_running() {
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
 
     process.fail_next_stdin("stop failed");
 
@@ -223,7 +227,9 @@ fn lifecycle_state_unexpected_exit_marks_running_server_crashed() {
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
     service
         .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
         .unwrap();
@@ -244,7 +250,9 @@ fn lifecycle_state_requested_stop_delegates_and_exits_to_stopped() {
 
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&server.id).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
     service.request_stop().unwrap();
 
     assert_eq!(service.state(), LifecycleState::Stopping);
@@ -275,7 +283,7 @@ fn lifecycle_state_event_for_non_active_server_is_rejected() {
     service.start_active_server(launch_request()).unwrap();
 
     assert_eq!(
-        service.mark_ready(&other),
+        service.mark_ready(&other, "2026-08-20T00:00:00Z"),
         Err(LifecycleError::WrongActiveServer {
             expected: server.id,
             actual: other,
@@ -336,7 +344,10 @@ fn lifecycle_state_unrequested_exit_after_ready_writes_nothing() {
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
     service
-        .ingest_console_line("Done (1.234s)! For help, type \"help\"")
+        .ingest_console_line(
+            "Done (1.234s)! For help, type \"help\"",
+            "2026-08-20T00:00:00Z",
+        )
         .unwrap();
     service
         .mark_process_exited(&server.id, "2024-01-01T00:00:00Z")
@@ -365,11 +376,15 @@ fn lifecycle_state_requested_stop_before_ready_records_generic_failure_without_c
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
     service
-        .ingest_console_line("A mod requires a dependency that is missing:")
+        .ingest_console_line(
+            "A mod requires a dependency that is missing:",
+            "2026-08-20T00:00:00Z",
+        )
         .unwrap();
     service
         .ingest_console_line(
             "\t - Mod 'MyMod' (mymod) 1.0 requires any version of fabric api, which is missing!",
+            "2026-08-20T00:00:00Z",
         )
         .unwrap();
     service.request_stop().unwrap();
@@ -405,7 +420,10 @@ fn lifecycle_state_requested_stop_after_ready_writes_nothing() {
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
     service
-        .ingest_console_line("Done (1.234s)! For help, type \"help\"")
+        .ingest_console_line(
+            "Done (1.234s)! For help, type \"help\"",
+            "2026-08-20T00:00:00Z",
+        )
         .unwrap();
     service.request_stop().unwrap();
     service
@@ -433,11 +451,15 @@ fn lifecycle_state_unrequested_exit_before_ready_on_modded_server_attributes_cra
     service.select_active_server(server.id.clone()).unwrap();
     service.start_active_server(launch_request()).unwrap();
     service
-        .ingest_console_line("A mod requires a dependency that is missing:")
+        .ingest_console_line(
+            "A mod requires a dependency that is missing:",
+            "2026-08-20T00:00:00Z",
+        )
         .unwrap();
     service
         .ingest_console_line(
             "\t - Mod 'MyMod' (mymod) 1.0 requires any version of fabric api, which is missing!",
+            "2026-08-20T00:00:00Z",
         )
         .unwrap();
     service

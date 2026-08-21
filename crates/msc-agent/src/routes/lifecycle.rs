@@ -941,7 +941,7 @@ impl LifecycleRoutesState {
                     .lifecycle
                     .lock()
                     .unwrap()
-                    .ingest_console_line(&line)
+                    .ingest_console_line(&line, &iso8601_now())
                     .unwrap_or_default();
                 if output_events.iter().any(|event| {
                     matches!(event, msc_application::output_reducer::OutputEvent::Ready)

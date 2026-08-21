@@ -1,0 +1,29 @@
+{
+  "domain": "installed-addons",
+  "case": "mods-corrupt-archive-falls-back-to-filename-heuristics",
+  "source": {
+    "file": "ModJarMetadataParser.swift",
+    "test": "extractFromZip(jarURL:entryPath:) -- any failure (spawn/exit/empty) collapses to nil, same as no manifest found",
+    "line": 162
+  },
+  "input": {
+    "scanner": "mods",
+    "modsDir": "/srv/demo/mods",
+    "files": [
+      { "name": "Broken-2.0.jar", "corruptBytes": "this is not a zip file at all" }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "Broken-2.0.jar",
+        "jarStem": "Broken-2.0",
+        "displayName": "Broken",
+        "modId": null,
+        "version": "2.0",
+        "isEnabled": true
+      }
+    ]
+  },
+  "notes": "MSC 1 has no distinguished 'corrupt archive' state anywhere -- extractFromZip's unzip subprocess just fails (non-zero exit) and returns nil the same as a jar with no manifest entry at all, which is exactly what a filename-heuristic-only fallback already handles. This port's own native zip reader (msc_infrastructure::archive::read_entry_bytes) degrades the same way for a file whose bytes aren't a valid zip archive at all -- one unreadable jar never blanks the whole scan, and this specific jar still gets a filename-heuristic ModEntry rather than being silently dropped from the inventory."
+}

@@ -1,0 +1,36 @@
+{
+  "domain": "installed-addons",
+  "case": "plugins-enabled-and-disabled-jars-listed-with-filename-heuristics",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "refreshDiscoveredPlugins -- isEnabled/jarStem derivation",
+    "line": 142
+  },
+  "input": {
+    "scanner": "plugins",
+    "pluginsDir": "/srv/demo/plugins",
+    "files": [
+      { "name": "LuckPerms-Bukkit-5.4.141.jar", "zipEntries": {} },
+      { "name": "VaultAPI.jar.disabled", "zipEntries": {} }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "LuckPerms-Bukkit-5.4.141.jar",
+        "jarStem": "LuckPerms-Bukkit-5.4.141",
+        "displayName": "LuckPerms-Bukkit",
+        "version": "5.4.141",
+        "isEnabled": true
+      },
+      {
+        "filename": "VaultAPI.jar.disabled",
+        "jarStem": "VaultAPI",
+        "displayName": "VaultAPI",
+        "version": null,
+        "isEnabled": false
+      }
+    ]
+  },
+  "notes": "No MSC 1 test file exercises refreshDiscoveredPlugins -- characterized from source (line 140-145), same isEnabled/jarStem derivation shape as PluginNameParser.swift's own worked examples in its header comment ('LuckPerms-Bukkit-5.4.141 -> name: LuckPerms-Bukkit, version: 5.4.141', 'VaultAPI -> name: VaultAPI, version: nil'). Sorted by displayName lowercased: 'LuckPerms-Bukkit' before 'VaultAPI'."
+}

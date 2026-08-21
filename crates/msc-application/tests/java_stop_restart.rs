@@ -64,7 +64,9 @@ fn running_service<'deps>(
         .select_active_server(repository.server.id.clone())
         .unwrap();
     let pid = service.start_active_server(launch_request()).unwrap();
-    service.mark_ready(&repository.server.id).unwrap();
+    service
+        .mark_ready(&repository.server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
     RunningService { service, pid }
 }
 

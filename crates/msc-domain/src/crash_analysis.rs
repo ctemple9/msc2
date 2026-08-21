@@ -8,17 +8,27 @@
 //! `normalized_identifier` helpers used to map a log's mod-id back to an
 //! installed jar.
 //!
-//! Deliberately NOT ported (untested by any fixture, and not named in
-//! P1.7's scope): Fabric's runtime/stack-trace failure branch
-//! (`parseRuntimeFailure` in MSC 1 — mapping-mismatch/Mixin crashes),
+//! **P7.36** ports the one piece P1.7 deliberately left out —
+//! `analyzePaperPlugins`, the Paper/Spigot plugin soft-failure scanner
+//! (`StartupCrashAnalyzer.swift:515-576`) — as [`analyze_paper_plugins`].
+//! MSC 1 has no dedicated test file for it (P1.7's own doc already noted
+//! this at the time), so its fixtures are characterized directly from
+//! source's closed, deterministic logic, the same evidentiary standard
+//! `fixture-format.md` calls "MSC 1 run by hand" for untested pure
+//! functions — not a lower bar than the fixture-tested Fabric/Forge half
+//! above.
+//!
+//! Still deliberately NOT ported (untested by any fixture, and not named
+//! in P1.7's or P7.36's scope): Fabric's runtime/stack-trace failure
+//! branch (`parseRuntimeFailure` — mapping-mismatch/Mixin crashes) and
 //! Forge/NeoForge client-only-mod detection (`parseForgeClientOnlyMods` —
-//! "invalid dist DEDICATED_SERVER"), and the Paper/Spigot plugin scanner
-//! (`analyzePaperPlugins`). `combinedLog`/`newestCrashReport` (reading
-//! `logs/latest.log` and `crash-reports/*.txt` off disk) are I/O and stay
-//! out of `msc-domain` entirely — `analyze` here takes the console excerpt
-//! directly instead of a `serverDir` to read from, matching every fixture
-//! (MSC 1's own tests always pass a fresh nonexistent `serverDir`, so
-//! `combinedLog` always falls back to the excerpt anyway).
+//! "invalid dist DEDICATED_SERVER"). `combinedLog`/`newestCrashReport`
+//! (reading `logs/latest.log` and `crash-reports/*.txt` off disk) are I/O
+//! and stay out of `msc-domain` entirely — `analyze`/`analyze_paper_plugins`
+//! here take the console excerpt directly instead of a `serverDir` to read
+//! from, matching every fixture (MSC 1's own tests always pass a fresh
+//! nonexistent `serverDir`, so `combinedLog` always falls back to the
+//! excerpt anyway).
 //!
 //! `flavor` is a plain loader-family string (`"fabric"`, `"quilt"`,
 //! `"forge"`, `"neoforge"`, or anything else) rather than the full
@@ -38,6 +48,29 @@ pub struct ModEntry {
     /// The loader's mod ID (e.g. "fabric-api"), from the manifest. `None`
     /// for unrecognized jars.
     pub mod_id: Option<String>,
+    pub version: Option<String>,
+    pub is_enabled: bool,
+}
+
+/// An installed Paper/Spigot plugin jar, as reported by the
+/// plugins-directory scanner (`refreshDiscoveredPlugins`,
+/// `AppViewModel+ComponentsVersions.swift:114-205`). Deliberately a
+/// smaller shape than MSC 1's own `PluginEntry` — `tier`/`sourceConfig`/
+/// `onlineVersion`/`onlineDownloadURL`/`localVersion`/`templateVersion`
+/// are all Modrinth/GitHub/Hangar update-resolution fields (Phase 8's
+/// `/v1/components` scope), never read by [`analyze_paper_plugins`] and
+/// absent from the frozen `StartupProblemDTO`/`HealthProblemsResponseDTO`
+/// contract — carrying them here would be dead weight this phase has no
+/// use for.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PluginEntry {
+    pub filename: String,
+    pub jar_stem: String,
+    /// Filename-heuristic display name (`PluginNameParser
+    /// .extractDisplayName`) — `refreshDiscoveredPlugins` never reads
+    /// `plugin.yml`/`paper-plugin.yml` from the jar itself, unlike mods'
+    /// `ModEntry.display_name` (confirmed by reading source directly).
+    pub display_name: String,
     pub version: Option<String>,
     pub is_enabled: bool,
 }
@@ -519,4 +552,137 @@ pub fn normalized_identifier(raw: &str) -> String {
 /// loosest (prefix) matching tier.
 pub fn compact_identifier(raw: &str) -> String {
     normalized_identifier(raw).replace('-', "")
+}
+
+// MARK: Paper / Spigot plugins (soft fail)
+
+/// `analyzePaperPlugins(serverDir:consoleExcerpt:installedPlugins:)`
+/// (`StartupCrashAnalyzer.swift:515-576`), minus `combinedLog` (this
+/// module's own doc). Scans a *running* Paper-family server's console
+/// output for plugins that failed to load — these don't stop the server,
+/// so they surface as a non-blocking signal (P7.22's
+/// `scan_paper_soft_failures`, which takes this function's own output)
+/// rather than the hard-fail crash path [`analyze`] feeds. Recognizes two
+/// message shapes: a plugin's own missing-dependency report, and a plain
+/// enable-time error. Every recognized problem is attributed to an
+/// installed plugin when [`match_installed_plugin`] finds one; unmatched
+/// offenders keep the raw name from the log line, same "don't guess, but
+/// don't drop it either" precedent [`analyze`]'s Fabric/Forge parsers
+/// already set.
+pub fn analyze_paper_plugins(
+    console_excerpt: &[String],
+    installed_plugins: &[PluginEntry],
+) -> Vec<StartupProblem> {
+    let text = console_excerpt.join("\n");
+    if text.is_empty() {
+        return Vec::new();
+    }
+
+    let mut problems = Vec::new();
+    let mut seen = HashSet::new();
+
+    for raw in text.split('\n') {
+        let line = raw.trim();
+
+        // "Unknown/missing dependency plugins: [Vault, X]. ... to run 'Foo'."
+        if line.contains("Unknown/missing dependency plugins:") {
+            let plugin_name =
+                quoted_value_after("to run", line).unwrap_or_else(|| "A plugin".to_string());
+            let match_entry = match_installed_plugin(&plugin_name, installed_plugins);
+            for dep in bracketed_list(line) {
+                let problem = StartupProblem {
+                    kind: StartupProblemKind::MissingDependency,
+                    offender_name: match_entry
+                        .map(|m| m.display_name.clone())
+                        .unwrap_or_else(|| plugin_name.clone()),
+                    offender_id: None,
+                    installed_file: match_entry.map(|m| m.filename.clone()),
+                    installed_jar_stem: match_entry.map(|m| m.jar_stem.clone()),
+                    requirement: Some(format!("Requires {dep}")),
+                    missing_dependency: Some(dep),
+                    raw_excerpt: line.to_string(),
+                };
+                if seen.insert(problem.id()) {
+                    problems.push(problem);
+                }
+            }
+            continue;
+        }
+
+        // "Error occurred while enabling Foo v1.2 (Is it up to date?)"
+        if let Some(after) = line
+            .split_once("Error occurred while enabling ")
+            .map(|(_, rest)| rest)
+        {
+            let mut rest = after;
+            if let Some(idx) = rest.find(" v") {
+                rest = &rest[..idx];
+            } else if let Some(idx) = rest.find(" (") {
+                rest = &rest[..idx];
+            }
+            let plugin_name = rest.trim();
+            if plugin_name.is_empty() {
+                continue;
+            }
+            let match_entry = match_installed_plugin(plugin_name, installed_plugins);
+            let problem = StartupProblem {
+                kind: StartupProblemKind::LoadError,
+                offender_name: match_entry
+                    .map(|m| m.display_name.clone())
+                    .unwrap_or_else(|| plugin_name.to_string()),
+                offender_id: None,
+                installed_file: match_entry.map(|m| m.filename.clone()),
+                installed_jar_stem: match_entry.map(|m| m.jar_stem.clone()),
+                requirement: Some(
+                    "Failed to enable — the plugin errored on startup (it may be outdated)."
+                        .to_string(),
+                ),
+                missing_dependency: None,
+                raw_excerpt: line.to_string(),
+            };
+            if seen.insert(problem.id()) {
+                problems.push(problem);
+            }
+        }
+    }
+    problems
+}
+
+/// `matchPlugin(_:)` (source line 526-529): case-insensitive exact name
+/// match, then a jar-stem substring fallback — a looser tier than
+/// [`match_installed_mod`]'s five-tier walk since plugins have no stable
+/// machine id to match on first.
+fn match_installed_plugin<'a>(
+    name: &str,
+    installed_plugins: &'a [PluginEntry],
+) -> Option<&'a PluginEntry> {
+    let wanted = name.to_lowercase();
+    installed_plugins
+        .iter()
+        .find(|p| p.display_name.to_lowercase() == wanted)
+        .or_else(|| {
+            installed_plugins
+                .iter()
+                .find(|p| p.jar_stem.to_lowercase().contains(&wanted))
+        })
+}
+
+/// `bracketedList(in:)` (source line 579-586): the comma-separated
+/// entries inside the first `[ ... ]` in a line.
+fn bracketed_list(line: &str) -> Vec<String> {
+    let Some(open) = line.find('[') else {
+        return Vec::new();
+    };
+    let Some(close) = line.find(']') else {
+        return Vec::new();
+    };
+    if open > close {
+        return Vec::new();
+    }
+    line[open + 1..close]
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+        .collect()
 }

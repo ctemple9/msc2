@@ -1,0 +1,38 @@
+{
+  "domain": "installed-addons",
+  "case": "mods-duplicate-jar-stems-both-listed-not-deduplicated",
+  "source": {
+    "file": "AppViewModel+ModManagement.swift",
+    "test": "refreshDiscoveredMods -- jarURLs.map has no de-dup step",
+    "line": 163
+  },
+  "input": {
+    "scanner": "mods",
+    "modsDir": "/srv/demo/mods",
+    "files": [
+      { "name": "WorldEdit-old.jar", "zipEntries": { "fabric.mod.json": "{\"id\":\"worldedit\",\"name\":\"WorldEdit (old build)\",\"version\":\"1.0\"}" } },
+      { "name": "WorldEdit-new.jar", "zipEntries": { "fabric.mod.json": "{\"id\":\"worldedit\",\"name\":\"WorldEdit (new build)\",\"version\":\"2.0\"}" } }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "filename": "WorldEdit-new.jar",
+        "jarStem": "WorldEdit-new",
+        "displayName": "WorldEdit (new build)",
+        "modId": "worldedit",
+        "version": "2.0",
+        "isEnabled": true
+      },
+      {
+        "filename": "WorldEdit-old.jar",
+        "jarStem": "WorldEdit-old",
+        "displayName": "WorldEdit (old build)",
+        "modId": "worldedit",
+        "version": "1.0",
+        "isEnabled": true
+      }
+    ]
+  },
+  "notes": "MSC 1's refreshDiscoveredMods (line 163, jarURLs.map { ... }) has no de-dup step at all -- two jars whose real fabric.mod.json both declare modId 'worldedit' (a user with two copies of the same mod, an old and a new build, both still on disk) still produce two separate ModEntry rows rather than being merged or one being silently dropped. displayName is deliberately distinct between the two ('(new build)'/'(old build)') so the scanner's own sort-by-displayName ordering is deterministic for this fixture's own assertion, not because the scenario requires it -- match_installed_mod (crash_analysis.rs) would attribute a startup problem naming 'worldedit' to whichever entry .find() reaches first, a pre-existing ambiguity this scanner doesn't need to resolve, only to not make worse by hiding one copy."
+}

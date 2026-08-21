@@ -15,14 +15,21 @@
 //! just from a test or a hand-written file. These two routes read
 //! whatever that real write produced (or an honest "never started" `Gray`
 //! card / empty problem list before the server has ever run) — never a
-//! fabricated `ok`. One real limitation remains, tracked in
-//! `lifecycle.rs`'s own `record_stop_diagnostics` doc rather than silently
-//! worked around: no mod-jar directory scanner exists in production yet,
-//! so a modded crash's `installed_mods` input is always empty — dependency
-//! problems (a log line naming what's missing) still get analyzed and
-//! recorded correctly, but a problem that needs matching against an
-//! installed jar to attribute an `installed_jar_stem` (enabling the
-//! disable/delete repair actions) cannot yet find one.
+//! fabricated `ok`. **P7.36 closed the gap this doc used to flag here:**
+//! `msc_application::add_on_inventory::scan_mods`/`scan_plugins` now feed
+//! real `installed_mods`/`installed_plugins` into both
+//! `diagnose_unexpected_stop` (hard fails, `lifecycle.rs`'s
+//! `record_stop_diagnostics`) and `scan_paper_soft_failures` (Paper plugin
+//! soft fails on a successful start, `lifecycle.rs`'s `mark_ready`) — a
+//! problem naming an installed jar now attributes `installed_jar_stem`
+//! for real, which is what actually turns on the disable/delete repair
+//! actions [`diagnostics::available_actions`] offers. `health_repair`
+//! below also now calls [`diagnostics::remove_repaired_problem`] after a
+//! verified repair, so a re-read of this same route doesn't keep
+//! reporting a problem that's already been fixed — MSC 1 never needed
+//! this (it drops the repaired problem from a session-local in-memory
+//! array instead; this headless agent has no such cache and reads the
+//! persisted record fresh every call).
 
 use std::path::{Path, PathBuf};
 
@@ -458,12 +465,20 @@ pub async fn health_repair(
     let add_on_dir: PathBuf = server_dir.join(add_on_kind.folder_name());
 
     match diagnostics::repair_problem(&StdFileSystem, &add_on_dir, &problem, action, is_running) {
-        Ok(()) => Json(HealthRepairResultDto {
-            success: true,
-            message: "Repair applied.".to_string(),
-            updated: Some(health_problems_dto(&state)),
-        })
-        .into_response(),
+        Ok(()) => {
+            // P7.36: MSC 1 keeps a session-local `startupProblems` array
+            // and drops the repaired one there; this agent has no such
+            // cache, so `last_startup_result.json` itself must lose the
+            // problem or a fresh read here (and every read after) would
+            // keep reporting a repair that already verified as done.
+            diagnostics::remove_repaired_problem(&StdFileSystem, server_dir, &body.problem_id);
+            Json(HealthRepairResultDto {
+                success: true,
+                message: "Repair applied.".to_string(),
+                updated: Some(health_problems_dto(&state)),
+            })
+            .into_response()
+        }
         Err(RepairError::ServerRunning) => {
             error_response(StatusCode::CONFLICT, "server_running", "Server is running.")
         }

@@ -1,3 +1,4 @@
+pub mod addon_provider;
 pub mod app_config_schema;
 pub mod backup;
 pub mod capability;
@@ -9,6 +10,7 @@ pub mod launch_shape;
 pub mod nbt;
 pub mod network_safety;
 pub mod operation;
+pub mod plugin_source;
 pub mod properties;
 pub mod provisioning;
 pub mod router;

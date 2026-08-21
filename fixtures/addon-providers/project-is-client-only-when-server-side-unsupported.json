@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "project-is-client-only-when-server-side-unsupported",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthProject.isClientOnly",
+    "line": 195
+  },
+  "input": {
+    "clientSide": "required",
+    "serverSide": "unsupported"
+  },
+  "expected": {
+    "isClientOnly": true,
+    "reason": "Line 195: `var isClientOnly: Bool { serverSide == \"unsupported\" }` -- computed purely from serverSide, clientSide is irrelevant to this flag. This is the Tier 2 signal ModpackClientOnlyClassifier consults (see fixtures/modpack-client-only/), but the flag itself lives on ModrinthAPI's own project model."
+  },
+  "notes": "Companion case: serverSide=\"optional\" or \"required\" -> isClientOnly=false regardless of clientSide."
+}

@@ -1,0 +1,27 @@
+{
+  "domain": "addon-providers",
+  "case": "files-dedupes-and-sorts-ids-before-batching",
+  "source": {
+    "file": "CurseForgeAPI.swift",
+    "test": "CurseForgeAPI.batched(_:_:)",
+    "line": 103
+  },
+  "input": {
+    "function": "batched",
+    "input_ids": [
+      500,
+      100,
+      100,
+      300,
+      500
+    ]
+  },
+  "expected": {
+    "ids_sent_to_fetch": [
+      100,
+      300,
+      500
+    ],
+    "reason": "Line 103: `let unique = Array(Set(ids)).sorted()` -- duplicate IDs (e.g. the same dependency pulled in by two different override entries) collapse to one request slot, and the batch order is deterministic (ascending) rather than insertion order, which matters for reproducible fixture/test comparisons of the exact chunks sent."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "addon-providers",
+  "case": "unauthorized-401-or-403-throws-unauthorized-not-generic-network-error",
+  "source": {
+    "file": "CurseForgeAPI.swift",
+    "test": "CurseForgeAPI.post(_:body:apiKey:) 401/403 guard",
+    "line": 136
+  },
+  "input": {
+    "function": "post",
+    "http_status": 403
+  },
+  "expected": {
+    "throws": "CurseForgeAPIError.unauthorized",
+    "error_description": "CurseForge rejected the API key (401/403). Check the key in Preferences.",
+    "reason": "Lines 136-138: 401 and 403 are checked and thrown as `.unauthorized` BEFORE the general 200..<300 range check at line 139 -- a bad/expired key surfaces a specific, actionable message rather than falling into the generic \"CurseForge returned status N\" network error a 500 would produce."
+  },
+  "notes": "Companion: status 500 falls through to the generic `.network(\"CurseForge returned status 500.\")` case at line 139-141."
+}

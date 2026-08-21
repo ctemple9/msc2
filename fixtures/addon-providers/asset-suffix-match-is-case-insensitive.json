@@ -1,0 +1,23 @@
+{
+  "domain": "addon-providers",
+  "case": "asset-suffix-match-is-case-insensitive",
+  "source": {
+    "file": "GitHubReleaseChecker.swift",
+    "test": "GitHubReleaseChecker.fetchLatestRelease jar suffix match",
+    "line": 87
+  },
+  "input": {
+    "function": "fetchLatestRelease",
+    "assets": [
+      {
+        "name": "Plugin-1.0.JAR",
+        "browser_download_url": "https://x/Plugin-1.0.JAR",
+        "content_type": "application/java-archive"
+      }
+    ]
+  },
+  "expected": {
+    "selected_asset_name": "Plugin-1.0.JAR",
+    "reason": "Line 87: `asset.name.lowercased().hasSuffix(\".jar\")` lowercases the asset name before the suffix check -- an uppercase or mixed-case .JAR/.Jar extension still matches."
+  }
+}

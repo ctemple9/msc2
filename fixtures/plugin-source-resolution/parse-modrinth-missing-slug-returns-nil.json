@@ -1,0 +1,17 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "parse-modrinth-missing-slug-returns-nil",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.parseModrinth(url:) empty slug guard",
+    "line": 55
+  },
+  "input": {
+    "url": "https://modrinth.com/plugin/"
+  },
+  "expected": {
+    "slug": null,
+    "result": null,
+    "reason": "Line 55: `!parts[2].isEmpty` -- a trailing-slash URL with nothing after the project-kind segment (parts[2] would be an empty string after the trim-then-split, or the split itself may not even produce 3 parts once leading/trailing slashes are stripped) fails the guard and returns nil rather than an empty-string slug."
+  }
+}

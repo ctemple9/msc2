@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "version-file-hash-404-returns-nil-not-error",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.versionFromHash(_:) 404 handling",
+    "line": 387
+  },
+  "input": {
+    "function": "versionFromHash",
+    "http_status": 404
+  },
+  "expected": {
+    "result": null,
+    "threw": false,
+    "reason": "Line 387: `if http.statusCode == 404 { return nil }` -- with the inline comment \"not hosted on Modrinth — expected, not an error\". A jar that simply isn't on Modrinth (a private plugin, a direct-download-only jar) resolves to nil identity, not a thrown failure; every other resolution path (persisted link, filename guess) then gets a chance."
+  }
+}

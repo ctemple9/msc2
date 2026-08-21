@@ -1,0 +1,20 @@
+{
+  "domain": "addon-providers",
+  "case": "search-facets-plugin-project-type-includes-mod-in-or-group",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.facets(projectType:loaders:gameVersion:)",
+    "line": 234
+  },
+  "input": {
+    "function": "facets",
+    "project_type": "plugin",
+    "loaders": [],
+    "game_version": null
+  },
+  "expected": {
+    "facets_string": "[[\"project_type:plugin\",\"project_type:mod\"]]",
+    "reason": "Line 234-236: when projectType==\"plugin\" the group is an OR of project_type:plugin AND project_type:mod in the SAME bracket, not two separate AND groups. The header comment explains why: Geyser/Floodgate and similar cross-platform projects are typed \"mod\" on Modrinth even though they behave like plugins, so a pure project_type:plugin search would silently exclude them."
+  },
+  "notes": "A plugin-server catalog search that used only project_type:plugin would never surface Geyser/Floodgate on Modrinth -- P8.10's port must reproduce this OR group exactly for plugin-kind catalog search, not just filter by a single project_type."
+}

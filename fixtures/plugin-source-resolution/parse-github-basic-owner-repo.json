@@ -1,0 +1,17 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "parse-github-basic-owner-repo",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.parseGitHub(url:)",
+    "line": 32
+  },
+  "input": {
+    "url": "https://github.com/EssentialsX/Essentials"
+  },
+  "expected": {
+    "owner": "EssentialsX",
+    "repo": "Essentials",
+    "reason": "Lines 32-43: scheme is stripped, leading/trailing slashes trimmed, then the remainder is split on \"/\" -- parts[0] must equal \"github.com\" (case-insensitively), parts[1] is owner, parts[2] is repo."
+  }
+}

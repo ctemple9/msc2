@@ -1,0 +1,24 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "strip-scheme-strips-http-and-https-prefix-case-insensitively",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.stripScheme(_:)",
+    "line": 77
+  },
+  "input": {
+    "inputs": [
+      "HTTPS://github.com/a/b",
+      "http://github.com/a/b",
+      "github.com/a/b (no scheme)"
+    ]
+  },
+  "expected": {
+    "outputs": [
+      "github.com/a/b",
+      "github.com/a/b",
+      "github.com/a/b"
+    ],
+    "reason": "Lines 77-86: the loop checks `s.lowercased().hasPrefix(prefix)` for each of [\"https://\", \"http://\"] in that order, dropping the matched prefix's exact length from the ORIGINAL (non-lowercased) string via `dropFirst(prefix.count)` -- so casing of the scheme itself doesn't leak into the result, and a schemeless string is returned completely unchanged (the `break` only fires on a match, and neither prefix matches, so the loop falls through with `s` untouched)."
+  }
+}

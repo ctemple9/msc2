@@ -1,0 +1,19 @@
+{
+  "domain": "addon-providers",
+  "case": "search-facets-single-group-for-non-plugin-project-type",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.facets(projectType:loaders:gameVersion:)",
+    "line": 238
+  },
+  "input": {
+    "function": "facets",
+    "project_type": "mod",
+    "loaders": [],
+    "game_version": null
+  },
+  "expected": {
+    "facets_string": "[[\"project_type:mod\"]]",
+    "reason": "Line 237-239: any projectType other than \"plugin\" (e.g. \"mod\") gets a single-element OR group with just that one type -- the cross-platform OR-with-mod special case at line 234-236 applies only to the plugin search path."
+  }
+}

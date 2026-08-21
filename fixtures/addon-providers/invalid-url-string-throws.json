@@ -1,0 +1,19 @@
+{
+  "domain": "addon-providers",
+  "case": "invalid-url-string-throws",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "fetchOnlineVersion .direct case URL(string:) guard",
+    "line": 304
+  },
+  "input": {
+    "function": "fetchOnlineVersion",
+    "case": "direct",
+    "source_url": "not a url at all ///"
+  },
+  "expected": {
+    "throws": "NSError(domain: \"PluginSource\", code: 1)",
+    "message": "Invalid direct download URL.",
+    "reason": "Lines 303-307: the .direct case's only validation is `URL(string: source.url)` succeeding -- there is no scheme/host requirement beyond what Foundation's URL initializer itself rejects."
+  }
+}

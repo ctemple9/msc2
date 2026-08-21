@@ -1,0 +1,18 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "parse-github-missing-repo-segment-returns-nil",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.parseGitHub(url:) too-short guard",
+    "line": 37
+  },
+  "input": {
+    "url": "https://github.com/EssentialsX"
+  },
+  "expected": {
+    "owner": null,
+    "repo": null,
+    "result": null,
+    "reason": "Line 37-41: with only 2 path segments (github.com, EssentialsX) the `parts.count >= 3` guard fails and the function returns nil -- an owner-only URL with no repo can't be resolved."
+  }
+}

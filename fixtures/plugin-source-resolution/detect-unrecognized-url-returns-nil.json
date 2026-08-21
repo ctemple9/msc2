@@ -1,0 +1,16 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-unrecognized-url-returns-nil",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:) final fall-through",
+    "line": 26
+  },
+  "input": {
+    "url": "ftp://mirror.example.org/plugins/thing"
+  },
+  "expected": {
+    "detected_source": null,
+    "reason": "Line 26: `return nil` -- a non-empty string that matches none of github.com/modrinth.com/hangar.papermc.io, has no http prefix, and doesn't end in .jar (an ftp:// URL, a bare filename, a typo'd host) is genuinely unrecognized, not silently coerced into .direct."
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "no-compatible-version-throws-when-result-empty",
+  "source": {
+    "file": "HangarAPI.swift",
+    "test": "HangarAPI.fetchLatest empty result guard",
+    "line": 83
+  },
+  "input": {
+    "function": "fetchLatest",
+    "parsed_result": []
+  },
+  "expected": {
+    "throws": "HangarAPIError.noCompatibleVersion",
+    "error_description": "No compatible version found on Hangar.",
+    "reason": "Lines 83-85: the platform=PAPER&channel=Release&platformVersion={mcVersion} query filters server-side; an empty `result` array (no release-channel Paper build for this exact MC version) throws noCompatibleVersion rather than silently returning nothing successful."
+  }
+}

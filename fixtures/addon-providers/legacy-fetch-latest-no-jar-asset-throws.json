@@ -1,0 +1,24 @@
+{
+  "domain": "addon-providers",
+  "case": "legacy-fetch-latest-no-jar-asset-throws",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.fetchLatest -> ModrinthAPIError.noJarAsset",
+    "line": 95
+  },
+  "input": {
+    "function": "fetchLatest",
+    "files": [
+      {
+        "url": "https://cdn.modrinth.com/x/readme.txt",
+        "filename": "readme.txt",
+        "primary": true
+      }
+    ]
+  },
+  "expected": {
+    "throws": "ModrinthAPIError.noJarAsset",
+    "error_description": "Modrinth release has no JAR download.",
+    "reason": "Line 95-97: when jarFile is nil (no file matched either clause of the primary/first .jar lookup) OR `URL(string: file.url)` fails to parse, .noJarAsset is thrown -- a version can exist with files, none of which are usable jars."
+  }
+}

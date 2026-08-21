@@ -1,0 +1,22 @@
+{
+  "domain": "addon-providers",
+  "case": "version-file-hash-real-exact-identity-response",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.versionFromHash(_:) -> GET /v2/version_file/{sha512}",
+    "line": 375
+  },
+  "input": {
+    "function": "versionFromHash",
+    "sha512": "a7fbb629793c52f0be8b049f787cb598879239b1ad8e1de62e103c8b9efff140e3232b93ef1f14e505d262897d8cf9505b1126396429ad4056bff969c8674e52"
+  },
+  "expected": {
+    "decodes_to_project_id": "YL57xq9U",
+    "decodes_to_version_id": "bAo1Qhte",
+    "version_number": "1.8.14-beta.1+1.21.1-fabric",
+    "reason": "Real GET /v2/version_file/{hash}?algorithm=sha512 response for Iris's exact fabric-1.21.1 jar, captured 2026-08-21 -- confirms the exact-hash-identity endpoint returns a full ModrinthVersionInfo including projectId, used directly by AddonUpdateResolver's identify step (see fixtures/addon-update-resolution/)."
+  },
+  "corpus_source": [
+    "modrinth/version-file-hash-iris.json"
+  ]
+}

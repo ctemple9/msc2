@@ -1,0 +1,34 @@
+{
+  "domain": "addon-providers",
+  "case": "legacy-fetch-latest-prefers-primary-jar-over-first-jar-suffixed-file",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.fetchLatest(slug:mcVersion:) jarFile selection",
+    "line": 92
+  },
+  "input": {
+    "function": "fetchLatest",
+    "files": [
+      {
+        "url": "https://cdn.modrinth.com/x/sources.jar",
+        "filename": "sources.jar",
+        "primary": false
+      },
+      {
+        "url": "https://cdn.modrinth.com/x/plugin-1.0.jar",
+        "filename": "plugin-1.0.jar",
+        "primary": true
+      },
+      {
+        "url": "https://cdn.modrinth.com/x/plugin-1.0-shaded.jar",
+        "filename": "plugin-1.0-shaded.jar",
+        "primary": false
+      }
+    ]
+  },
+  "expected": {
+    "selected_filename": "plugin-1.0.jar",
+    "reason": "Lines 92-93: `latest.files.first(where: { $0.primary && $0.filename.hasSuffix(\".jar\") }) ?? latest.files.first(where: { $0.filename.hasSuffix(\".jar\") })`. Unlike ModrinthVersionInfo.primaryFile (line 158-160, used by the newer browser API), this legacy single-plugin fetcher requires the primary file to ALSO end in .jar before accepting it -- a primary=true non-.jar file would be skipped by the first clause and the fallback would pick the first .jar-suffixed file instead."
+  },
+  "notes": "This function backs the older PluginSourceType.modrinth dispatch path (AppViewModel+ComponentsVersions.swift fetchOnlineVersion .modrinth case, line 294), distinct from the newer ModrinthVersionInfo.primaryFile used by ModrinthAPI.downloadVersionFile."
+}

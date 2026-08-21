@@ -1,0 +1,18 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "parse-hangar-missing-slug-returns-nil",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.parseHangar(url:) too-short guard",
+    "line": 67
+  },
+  "input": {
+    "url": "https://hangar.papermc.io/EssentialsX"
+  },
+  "expected": {
+    "author": null,
+    "slug": null,
+    "result": null,
+    "reason": "Line 67-71: with only 2 segments (host, author) the count/empty guards fail identically to parseGitHub's missing-repo case -- an author-only URL can't be resolved into a specific project."
+  }
+}

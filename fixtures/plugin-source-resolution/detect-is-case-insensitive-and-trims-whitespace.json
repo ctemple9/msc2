@@ -1,0 +1,16 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-is-case-insensitive-and-trims-whitespace",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:) normalization",
+    "line": 18
+  },
+  "input": {
+    "url": "  HTTPS://GITHUB.COM/Owner/Repo  "
+  },
+  "expected": {
+    "detected_source": "github",
+    "reason": "Line 18: `.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()` runs before every subsequent check -- surrounding whitespace and any letter casing in the scheme/host are both normalized away, so GITHUB.COM and github.com detect identically."
+  }
+}

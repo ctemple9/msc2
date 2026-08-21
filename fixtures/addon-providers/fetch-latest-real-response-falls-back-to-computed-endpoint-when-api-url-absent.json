@@ -1,0 +1,24 @@
+{
+  "domain": "addon-providers",
+  "case": "fetch-latest-real-response-falls-back-to-computed-endpoint-when-api-url-absent",
+  "source": {
+    "file": "HangarAPI.swift",
+    "test": "HangarAPI.fetchLatest(author:slug:mcVersion:) download URL fallback",
+    "line": 90
+  },
+  "input": {
+    "function": "fetchLatest",
+    "author": "EssentialsX",
+    "slug": "Essentials",
+    "mcVersion": "1.21.11"
+  },
+  "expected": {
+    "selected_version_name": "2.22.0",
+    "download_url": "https://hangar.papermc.io/api/v1/projects/EssentialsX/Essentials/versions/2.22.0/PAPER/download",
+    "reason": "Real GET /v1/projects/Essentials/versions response: the latest version's `downloads.PAPER.downloadUrl` is null (EssentialsX links out to its GitHub release instead, via `externalUrl`). Lines 89-95: when `first.downloads.PAPER?.downloadUrl` is nil or empty, HangarAPI falls back to constructing `.../versions/{name}/PAPER/download` itself -- MSC 1 trusts Hangar's redirect-download endpoint to work even when the version's own metadata doesn't advertise a direct URL."
+  },
+  "notes": "This is the ONLY branch this real evidence exercises -- the api-provided-URL branch below is a synthetic companion since no captured Hangar project in this corpus happens to publish one.",
+  "corpus_source": [
+    "hangar/versions-latest-essentials.json"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "addon-providers",
+  "case": "version-name-percent-encoded-in-fallback-download-url",
+  "source": {
+    "file": "HangarAPI.swift",
+    "test": "HangarAPI.fetchLatest fallback URL version-name encoding",
+    "line": 93
+  },
+  "input": {
+    "function": "fetchLatest",
+    "version_name": "1.0.0 Release Candidate"
+  },
+  "expected": {
+    "fallback_download_url_segment": "1.0.0%20Release%20Candidate",
+    "reason": "Line 93: `first.name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)` -- a version name containing spaces or other path-unsafe characters is percent-encoded before being spliced into the fallback download URL's path segment, so an unusual release name can't produce a malformed URL."
+  }
+}

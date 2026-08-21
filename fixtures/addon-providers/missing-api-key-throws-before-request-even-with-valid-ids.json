@@ -1,0 +1,22 @@
+{
+  "domain": "addon-providers",
+  "case": "missing-api-key-throws-before-request-even-with-valid-ids",
+  "source": {
+    "file": "CurseForgeAPI.swift",
+    "test": "CurseForgeAPI.post(_:body:apiKey:) key guard",
+    "line": 116
+  },
+  "input": {
+    "function": "files",
+    "fileIds": [
+      8287121
+    ],
+    "apiKey": ""
+  },
+  "expected": {
+    "throws": "CurseForgeAPIError.missingAPIKey",
+    "error_description": "No CurseForge API key is configured.",
+    "network_request_made": false,
+    "reason": "Lines 116-117: the trimmed, empty-checked key guard runs first inside the shared `post` helper, before the URL is even built -- a genuinely valid fileIds batch never reaches the network when no key is configured, matching CurseForgeManualDownloadSheet's own \"stops with a friendly message, not a crash\" behavior noted in phase8-scope.md."
+  }
+}

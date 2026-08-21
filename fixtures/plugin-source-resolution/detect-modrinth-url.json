@@ -1,0 +1,16 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-modrinth-url",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:)",
+    "line": 22
+  },
+  "input": {
+    "url": "https://modrinth.com/plugin/luckperms"
+  },
+  "expected": {
+    "detected_source": "modrinth",
+    "reason": "Line 22: `if trimmed.contains(\"modrinth.com\") { return .modrinth }`, checked second."
+  }
+}

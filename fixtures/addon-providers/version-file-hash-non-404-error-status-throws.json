@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "version-file-hash-non-404-error-status-throws",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.versionFromHash(_:) non-404 status guard",
+    "line": 388
+  },
+  "input": {
+    "function": "versionFromHash",
+    "http_status": 503
+  },
+  "expected": {
+    "throws": "ModrinthAPIError.networkError",
+    "error_description_contains": "Modrinth returned status 503",
+    "reason": "Lines 388-390: only 404 is treated as a meaningful \"not found\" signal; every other non-2xx status (500s, 429 rate limit, etc.) throws instead of also returning nil -- callers must not conflate a transient provider failure with a genuine not-on-Modrinth result."
+  }
+}

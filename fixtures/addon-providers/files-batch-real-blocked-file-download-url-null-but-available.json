@@ -1,0 +1,28 @@
+{
+  "domain": "addon-providers",
+  "case": "files-batch-real-blocked-file-download-url-null-but-available",
+  "source": {
+    "file": "CurseForgeAPI.swift",
+    "test": "CurseForgeAPI.files(fileIds:apiKey:) -> CFFile.downloadUrl",
+    "line": 21
+  },
+  "input": {
+    "function": "files",
+    "fileIds": [
+      8287121
+    ]
+  },
+  "expected": {
+    "decodes_to": {
+      "id": 8287121,
+      "modId": 448233,
+      "fileName": "entityculling-forge-1.10.5-mc1.21.4.jar",
+      "downloadUrl": null,
+      "isAvailable_in_raw_response": true
+    },
+    "reason": "Real POST /v1/mods/files response for Entity Culling's author-blocked Forge file (allowModDistribution=false on the mod). `CFFile.downloadUrl` (line 27) decodes as nil per its own doc comment: \"Null when the author opted out of API distribution — surfaced as a manual download.\" This is the exact shape D-027's pending-file workflow (P8.20) must detect to know a file needs the manual-upload path rather than a direct download."
+  },
+  "corpus_source": [
+    "curseforge/mods-files-blocked-entityculling.json"
+  ]
+}

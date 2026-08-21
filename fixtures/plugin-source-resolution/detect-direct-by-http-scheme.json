@@ -1,0 +1,19 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-direct-by-http-scheme",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:) direct fallback",
+    "line": 25
+  },
+  "input": {
+    "url": "https://download.luckperms.net/1664/bukkit/loader/LuckPerms-Bukkit-5.5.77.jar"
+  },
+  "expected": {
+    "detected_source": "direct",
+    "reason": "Line 25: `if trimmed.hasSuffix(\".jar\") || trimmed.hasPrefix(\"http\") { return .direct }` -- any URL with an http/https scheme that didn't match one of the three named hosts above falls to .direct, whether or not it ends in .jar."
+  },
+  "corpus_source": [
+    "direct/luckperms-bukkit-direct-download.json"
+  ]
+}

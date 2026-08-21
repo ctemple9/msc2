@@ -1,0 +1,32 @@
+{
+  "domain": "addon-providers",
+  "case": "version-primary-file-prefers-flagged-primary-else-first-file",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthVersionInfo.primaryFile",
+    "line": 158
+  },
+  "input": {
+    "files": [
+      {
+        "url": "https://cdn.modrinth.com/data/AAA/versions/v1/sources.jar",
+        "filename": "sources.jar",
+        "primary": false,
+        "hashes": {},
+        "size": 100
+      },
+      {
+        "url": "https://cdn.modrinth.com/data/AAA/versions/v1/mod-1.0.jar",
+        "filename": "mod-1.0.jar",
+        "primary": true,
+        "hashes": {},
+        "size": 200000
+      }
+    ]
+  },
+  "expected": {
+    "primary_file_filename": "mod-1.0.jar",
+    "reason": "Line 158-160: `files.first(where: { $0.primary }) ?? files.first` -- the flagged-primary file wins regardless of array order; only when no file is flagged primary does the computed property fall back to the first file in the array."
+  },
+  "notes": "Companion case: no file has primary=true -> primaryFile is the array's first element (order-dependent fallback), matching the same shape ModrinthAPI.downloadVersionFile (line 331-338) relies on."
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "legacy-fetch-latest-no-versions-throws-no-compatible-version",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.fetchLatest -> ModrinthAPIError.noCompatibleVersion",
+    "line": 87
+  },
+  "input": {
+    "function": "fetchLatest",
+    "versions": []
+  },
+  "expected": {
+    "throws": "ModrinthAPIError.noCompatibleVersion",
+    "error_description": "No compatible version found on Modrinth.",
+    "reason": "Line 87-89: `guard let latest = versions.first else { throw .noCompatibleVersion }` -- an empty version array (the loaders/game_versions query filtered out every version) reports honestly as no-compatible-version, not decoded-but-empty success."
+  }
+}

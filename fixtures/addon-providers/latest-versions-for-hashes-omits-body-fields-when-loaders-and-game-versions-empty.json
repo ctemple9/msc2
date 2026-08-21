@@ -1,0 +1,27 @@
+{
+  "domain": "addon-providers",
+  "case": "latest-versions-for-hashes-omits-body-fields-when-loaders-and-game-versions-empty",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.latestVersionsForHashes(_:loaders:gameVersions:) body construction",
+    "line": 415
+  },
+  "input": {
+    "function": "latestVersionsForHashes",
+    "sha512s": [
+      "abc123"
+    ],
+    "loaders": [],
+    "gameVersions": []
+  },
+  "expected": {
+    "post_body": {
+      "hashes": [
+        "abc123"
+      ],
+      "algorithm": "sha512"
+    },
+    "reason": "Lines 415-417: `loaders`/`game_versions` keys are only added to the POST body `if !loaders.isEmpty` / `if !gameVersions.isEmpty` -- an empty filter is omitted from the JSON entirely rather than sent as an empty array, since Modrinth's own /v2/version_files/update endpoint may treat an explicit empty array as a real (all-excluding) filter rather than \"no filter\"."
+  },
+  "notes": "Companion case: loaders=[\"fabric\"], gameVersions=[\"1.21.1\"] -> both keys present in the POST body alongside hashes/algorithm."
+}

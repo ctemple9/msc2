@@ -1,0 +1,17 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "parse-modrinth-basic-slug-any-project-kind-segment",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.parseModrinth(url:)",
+    "line": 48
+  },
+  "input": {
+    "url": "https://modrinth.com/plugin/luckperms"
+  },
+  "expected": {
+    "slug": "luckperms",
+    "reason": "Lines 48-58: parts[0] must be \"modrinth.com\", and the slug is always parts[2] -- the doc comment says \"modrinth.com/plugin/slug (or /mod/slug)\" but the code never actually checks what parts[1] equals (\"plugin\" vs \"mod\" vs anything else), it's purely positional. A URL like modrinth.com/anything/luckperms would parse identically, since parts[1] is never validated."
+  },
+  "notes": "Worth flagging for P8.10's port: the doc comment implies parts[1] is checked against a known set (plugin/mod), but the guard clause (line 53-56) never reads parts[1] at all, only parts[0] and parts[2]. Faithful port preserves this permissiveness rather than adding a stricter check MSC 1 never had."
+}

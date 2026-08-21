@@ -1,0 +1,26 @@
+{
+  "domain": "addon-providers",
+  "case": "no-jar-asset-returns-nil-url-without-throwing",
+  "source": {
+    "file": "GitHubReleaseChecker.swift",
+    "test": "GitHubReleaseChecker.fetchLatestRelease jarAsset absent",
+    "line": 90
+  },
+  "input": {
+    "function": "fetchLatestRelease",
+    "assets": [
+      {
+        "name": "source-code.zip",
+        "browser_download_url": "https://x/source-code.zip",
+        "content_type": "application/zip"
+      }
+    ]
+  },
+  "expected": {
+    "tag": "returned normally",
+    "jarDownloadURL": null,
+    "threw": false,
+    "reason": "Line 86-91: `jarAsset` is an optional match; `downloadURL = jarAsset.flatMap { URL(string: $0.browser_download_url) }` -- when no asset ends in .jar, the function returns successfully with `jarDownloadURL: nil` rather than throwing. The caller (fetchOnlineVersion's .github case, AppViewModel+ComponentsVersions.swift:283-286) is the one that turns a nil URL into a user-facing error, not this function itself."
+  },
+  "notes": "Distinguishes this from every other provider's fetchLatest, which throw their own not-found errors directly -- GitHub's checker reports the absence structurally and lets the caller decide."
+}

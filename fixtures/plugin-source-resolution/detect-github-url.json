@@ -1,0 +1,16 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-github-url",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:)",
+    "line": 21
+  },
+  "input": {
+    "url": "https://github.com/EssentialsX/Essentials"
+  },
+  "expected": {
+    "detected_source": "github",
+    "reason": "Line 21: `if trimmed.contains(\"github.com\") { return .github }` -- a substring containment check, checked first among the three named-host checks."
+  }
+}

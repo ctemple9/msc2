@@ -1,0 +1,17 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "parse-hangar-basic-author-slug",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.parseHangar(url:)",
+    "line": 63
+  },
+  "input": {
+    "url": "https://hangar.papermc.io/EssentialsX/Essentials"
+  },
+  "expected": {
+    "author": "EssentialsX",
+    "slug": "Essentials",
+    "reason": "Lines 63-73: parts[0] must be \"hangar.papermc.io\", parts[1] is author (the Hangar namespace/owner), parts[2] is the project slug -- structurally identical shape to parseGitHub, just against a different host and different field names."
+  }
+}

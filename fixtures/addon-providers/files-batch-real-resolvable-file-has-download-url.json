@@ -1,0 +1,22 @@
+{
+  "domain": "addon-providers",
+  "case": "files-batch-real-resolvable-file-has-download-url",
+  "source": {
+    "file": "CurseForgeAPI.swift",
+    "test": "CurseForgeAPI.files(fileIds:apiKey:) -> CFFile.downloadUrl present",
+    "line": 27
+  },
+  "input": {
+    "function": "files",
+    "fileIds": [
+      8439077
+    ]
+  },
+  "expected": {
+    "decodes_to_has_download_url": true,
+    "reason": "Contrast case for the fixture above: the same endpoint, called for a normal (non-blocked) file -- the Fabulously Optimized pack's own CurseForge-hosted zip -- decodes with a real, non-null downloadUrl. Confirms CFFile's downloadUrl is genuinely optional per-file, not always-null for this endpoint."
+  },
+  "corpus_source": [
+    "curseforge/mods-files-resolvable-fabulously-optimized-pack.json"
+  ]
+}

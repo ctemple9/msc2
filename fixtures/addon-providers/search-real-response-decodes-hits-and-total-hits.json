@@ -1,0 +1,24 @@
+{
+  "domain": "addon-providers",
+  "case": "search-real-response-decodes-hits-and-total-hits",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.search -> ModrinthSearchResult (snake_case decode)",
+    "line": 124
+  },
+  "input": {
+    "function": "search",
+    "raw_response_path": "modrinth/search-sodium.json (real GET /v2/search capture)"
+  },
+  "expected": {
+    "decodes_to": {
+      "hits_count": "matches real response's hits array length",
+      "total_hits_field": "total_hits (snake_case) -> totalHits"
+    },
+    "reason": "ModrinthSearchResult (line 124-127) decodes `hits`/`total_hits` via the shared snakeDecoder() (line 204-208, .convertFromSnakeCase), and each ModrinthSearchHit (line 106-122) exposes isClientOnly as serverSide==\"unsupported\"."
+  },
+  "notes": "Real capture: query=sodium, facets=[[project_type:mod],[categories:fabric]], limit=5, 2026-08-21.",
+  "corpus_source": [
+    "modrinth/search-sodium.json"
+  ]
+}

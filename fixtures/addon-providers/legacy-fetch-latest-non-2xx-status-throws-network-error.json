@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "legacy-fetch-latest-non-2xx-status-throws-network-error",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.fetchLatest HTTP status guard",
+    "line": 59
+  },
+  "input": {
+    "function": "fetchLatest",
+    "http_status": 500
+  },
+  "expected": {
+    "throws": "ModrinthAPIError.networkError",
+    "error_description_contains": "Modrinth returned status 500",
+    "reason": "Lines 59-63: any status outside 200..<300 throws .networkError with the literal status code interpolated into the message (`\"Modrinth returned status \\(code) for \\(slug).\"`), never a silently-empty decode attempt against an error body."
+  }
+}

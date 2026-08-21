@@ -1,0 +1,16 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-direct-by-jar-suffix-without-scheme",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:) direct fallback jar-suffix branch",
+    "line": 25
+  },
+  "input": {
+    "url": "cdn.example.com/files/plugin-2.0.jar"
+  },
+  "expected": {
+    "detected_source": "direct",
+    "reason": "Line 25's OR has two independent triggers: a .jar suffix alone is sufficient even without an http(s) scheme prefix -- a bare host+path string ending in .jar still classifies as direct."
+  }
+}

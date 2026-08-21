@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "search-index-downloads-when-query-empty-else-relevance",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.search(query:loaders:gameVersion:projectType:limit:offset:)",
+    "line": 266
+  },
+  "input": {
+    "function": "search",
+    "query": ""
+  },
+  "expected": {
+    "index_query_param": "downloads",
+    "reason": "Line 266: `index` is `query.isEmpty ? \"downloads\" : \"relevance\"`. An empty query string (browsing without searching) sorts by download count so the catalog opens on popular add-ons; any non-empty query sorts by Modrinth's relevance ranking."
+  },
+  "notes": "Companion case: query=\"sodium\" -> index=\"relevance\"."
+}

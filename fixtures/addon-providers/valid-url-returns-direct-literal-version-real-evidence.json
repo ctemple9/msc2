@@ -1,0 +1,23 @@
+{
+  "domain": "addon-providers",
+  "case": "valid-url-returns-direct-literal-version-real-evidence",
+  "source": {
+    "file": "AppViewModel+ComponentsVersions.swift",
+    "test": "fetchOnlineVersion .direct case success path",
+    "line": 309
+  },
+  "input": {
+    "function": "fetchOnlineVersion",
+    "case": "direct",
+    "source_url": "https://download.luckperms.net/1664/bukkit/loader/LuckPerms-Bukkit-5.5.77.jar"
+  },
+  "expected": {
+    "version_string": "(direct)",
+    "download_url": "https://download.luckperms.net/1664/bukkit/loader/LuckPerms-Bukkit-5.5.77.jar",
+    "reason": "Line 309: `return (\"(direct)\", url)` -- the literal string \"(direct)\" stands in for a version identifier since a raw URL carries no version metadata. No HEAD/GET is performed to confirm the URL resolves or to capture a real filename/size at this dispatch layer; the real HEAD response captured against this exact URL (content-type application/java-archive, content-length 1503021, filename LuckPerms-Bukkit-5.5.77.jar derived from the URL path, not from any response header) confirms the URL is live but is not itself consulted by fetchOnlineVersion's .direct branch."
+  },
+  "notes": "No hash verification of the downloaded bytes exists anywhere in MSC 1's direct-URL path -- confirmed in phase8-scope.md's provider table. P8.10/P8.13's port should not invent a verification step MSC 1 never had, but should record the gap.",
+  "corpus_source": [
+    "direct/luckperms-bukkit-direct-download.json"
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "projects-batch-empty-ids-returns-empty-without-request",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.projects(ids:)",
+    "line": 298
+  },
+  "input": {
+    "function": "projects",
+    "ids": []
+  },
+  "expected": {
+    "result": [],
+    "network_request_made": false,
+    "reason": "Line 298: `guard !ids.isEmpty else { return [] }` short-circuits before any URLComponents/URLRequest is built -- an update plan with zero unresolved project IDs never makes a wasted /v2/projects call."
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "addon-providers",
+  "case": "versions-from-hashes-batch-empty-input-short-circuits",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.versionsFromHashes(_:)",
+    "line": 398
+  },
+  "input": {
+    "function": "versionsFromHashes",
+    "sha512s": []
+  },
+  "expected": {
+    "result": {},
+    "network_request_made": false,
+    "reason": "Line 398: `guard !sha512s.isEmpty else { return [:] }` -- an empty-hash-list resolve pass (e.g. a server with zero add-ons installed) never POSTs to /v2/version_files."
+  }
+}

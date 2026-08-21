@@ -1,0 +1,17 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "parse-github-extra-path-segments-ignored",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.parseGitHub(url:) trailing segments",
+    "line": 37
+  },
+  "input": {
+    "url": "https://github.com/EssentialsX/Essentials/releases/tag/2.22.0"
+  },
+  "expected": {
+    "owner": "EssentialsX",
+    "repo": "Essentials",
+    "reason": "Line 37: `guard parts.count >= 3` only requires AT LEAST 3 segments -- any path beyond owner/repo (like /releases/tag/2.22.0) is simply unused, not rejected as malformed."
+  }
+}

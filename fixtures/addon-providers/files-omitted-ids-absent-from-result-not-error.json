@@ -1,0 +1,20 @@
+{
+  "domain": "addon-providers",
+  "case": "files-omitted-ids-absent-from-result-not-error",
+  "source": {
+    "file": "CurseForgeAPI.swift",
+    "test": "CurseForgeAPI.files(fileIds:apiKey:) omission comment",
+    "line": 78
+  },
+  "input": {
+    "function": "files",
+    "fileIds": [
+      8287121,
+      999999999
+    ]
+  },
+  "expected": {
+    "result_count": 1,
+    "reason": "Line 78's doc comment: \"Files the API omits are simply absent from the result.\" A fileId CurseForge doesn't recognize (deleted, wrong ID) is not represented by an error or a null placeholder in the returned array -- callers must diff the requested ID set against the result to detect a miss, same shape as Modrinth's versionsFromHashes."
+  }
+}

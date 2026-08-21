@@ -1,0 +1,26 @@
+{
+  "domain": "addon-providers",
+  "case": "search-facets-appends-loader-and-game-version-groups",
+  "source": {
+    "file": "ModrinthAPI.swift",
+    "test": "ModrinthAPI.facets(projectType:loaders:gameVersion:)",
+    "line": 240
+  },
+  "input": {
+    "function": "facets",
+    "project_type": "mod",
+    "loaders": [
+      "fabric",
+      "quilt"
+    ],
+    "game_version": "1.21.1"
+  },
+  "expected": {
+    "facets_string": "[[\"project_type:mod\"],[\"categories:fabric\",\"categories:quilt\"],[\"versions:1.21.1\"]]",
+    "reason": "Lines 240-246: loaders (if non-empty) become their own OR group of categories:<loader> entries (line 241-242), and a non-empty gameVersion becomes a third OR group of exactly one versions:<version> entry (line 244-246). Groups are joined with commas inside one outer array -- AND across the three groups (project type AND loader AND version), OR within each group."
+  },
+  "notes": "corpus/addons/manifest.json records this exact query shape as search-sodium.json's source_url: facets=[[\"project_type:mod\"],[\"categories:fabric\"]].",
+  "corpus_source": [
+    "modrinth/search-sodium.json"
+  ]
+}

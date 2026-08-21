@@ -1,0 +1,16 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-blank-url-returns-nil",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:) empty guard",
+    "line": 19
+  },
+  "input": {
+    "url": "   "
+  },
+  "expected": {
+    "detected_source": null,
+    "reason": "Line 18-19: the input is trimmed and lowercased first; an all-whitespace (or empty) string fails the `!trimmed.isEmpty` guard and returns nil immediately, before any of the host/suffix checks run."
+  }
+}

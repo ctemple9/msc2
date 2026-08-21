@@ -1,0 +1,22 @@
+{
+  "domain": "addon-providers",
+  "case": "first-jar-asset-selected-from-real-multi-asset-release",
+  "source": {
+    "file": "GitHubReleaseChecker.swift",
+    "test": "GitHubReleaseChecker.fetchLatestRelease(owner:repo:) jar selection",
+    "line": 86
+  },
+  "input": {
+    "function": "fetchLatestRelease",
+    "owner": "EssentialsX",
+    "repo": "Essentials"
+  },
+  "expected": {
+    "selected_asset_name": "EssentialsX-2.22.0.jar",
+    "reason": "Real GET /repos/EssentialsX/Essentials/releases/latest response has 9 .jar assets (EssentialsX-2.22.0.jar, EssentialsXAntiBuild-2.22.0.jar, EssentialsXChat-2.22.0.jar, ...). Line 86-88: `release.assets.first(where: { asset.name.lowercased().hasSuffix(\".jar\") })` takes the FIRST array-order match -- MSC 1 relies entirely on the GitHub release API returning assets with the base plugin jar listed before its addon modules, with no filename-content heuristic to prefer the base module."
+  },
+  "notes": "A repo whose release lists an addon jar (e.g. EssentialsXDiscord-2.22.0.jar) before the base EssentialsX-2.22.0.jar would silently install the wrong module -- this is asset-array-order-dependent behavior worth flagging, not obviously correct.",
+  "corpus_source": [
+    "github/releases-latest-essentialsx.json"
+  ]
+}

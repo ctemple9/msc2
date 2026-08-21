@@ -1,0 +1,16 @@
+{
+  "domain": "plugin-source-resolution",
+  "case": "detect-hangar-url",
+  "source": {
+    "file": "PluginSourceDetector.swift",
+    "test": "PluginSourceDetector.detect(url:)",
+    "line": 23
+  },
+  "input": {
+    "url": "https://hangar.papermc.io/EssentialsX/Essentials"
+  },
+  "expected": {
+    "detected_source": "hangar",
+    "reason": "Line 23: `if trimmed.contains(\"hangar.papermc.io\") { return .hangar }`, checked third -- after github.com and modrinth.com, before the generic direct fallback."
+  }
+}

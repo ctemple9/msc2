@@ -1,0 +1,19 @@
+{
+  "domain": "addon-providers",
+  "case": "fetch-latest-uses-api-provided-download-url-when-present",
+  "source": {
+    "file": "HangarAPI.swift",
+    "test": "HangarAPI.fetchLatest download URL selection",
+    "line": 90
+  },
+  "input": {
+    "function": "fetchLatest",
+    "author": "SomeAuthor",
+    "slug": "SomePlugin",
+    "raw_downloads_PAPER_downloadUrl": "https://hangar.papermc.io/api/v1/projects/SomeAuthor/SomePlugin/versions/1.0.0/PAPER/download-file-direct"
+  },
+  "expected": {
+    "download_url": "https://hangar.papermc.io/api/v1/projects/SomeAuthor/SomePlugin/versions/1.0.0/PAPER/download-file-direct",
+    "reason": "Line 90-91: `if let apiURL = first.downloads.PAPER?.downloadUrl, !apiURL.isEmpty { downloadURLString = apiURL }` -- when Hangar's own version metadata DOES supply a non-empty downloadUrl, it is used verbatim rather than the computed fallback endpoint, even though both would likely resolve to the same file."
+  }
+}

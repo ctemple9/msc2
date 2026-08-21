@@ -1,0 +1,27 @@
+{
+  "domain": "addon-providers",
+  "case": "mods-batch-real-blocked-mod-metadata-for-manual-download-list",
+  "source": {
+    "file": "CurseForgeAPI.swift",
+    "test": "CurseForgeAPI.mods(modIds:apiKey:) -> CFMod",
+    "line": 32
+  },
+  "input": {
+    "function": "mods",
+    "modIds": [
+      448233
+    ]
+  },
+  "expected": {
+    "decodes_to": {
+      "id": 448233,
+      "name": "Entity Culling Fabric/Forge",
+      "slug": "entityculling",
+      "websiteUrl": "https://www.curseforge.com/minecraft/mc-mods/entityculling"
+    },
+    "reason": "Real POST /v1/mods response for the same blocked mod as the files-batch fixture above. `CFMod`/`CFModLinks` (line 32-41) is used only to build the manual-download list's display name + page link for a blocked file -- the mod's own websiteUrl is what D-027's client-side manual step directs the user to open."
+  },
+  "corpus_source": [
+    "curseforge/mods-metadata-entityculling.json"
+  ]
+}

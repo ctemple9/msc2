@@ -42,6 +42,33 @@ set -euo pipefail
 # (`crates/msc-agent/src/routes/lifecycle.rs::build_launch_request` --
 # see this script's own findings note below) works on an *imported*
 # server too, not only one this same process just created.
+#
+# P7.37 strengthens this same committed script with the review-sensitive
+# paths Codex's Phase 7 review found missing, all still fully portable:
+#   - the interrupted-create directory from section 9 below is actually
+#     gone after restart, not merely reconciled in the operation journal;
+#   - a corrupted Vanilla/Paper/Purpur payload against a correct
+#     published digest is refused by P7.35's real enforcement, for all
+#     three publisher algorithms (SHA-1/SHA-256/MD5), without mutating
+#     any committed fixture -- `fake_provider_server.py`'s own
+#     `bad_checksum_<family>` control markers flip one byte at request
+#     time instead;
+#   - Fabric/NeoForge/Forge, which publish no digest, still create
+#     successfully (already proven by section 5's main loop; called out
+#     explicitly here so a future regression in "no digest means
+#     unverified, not refused" can't hide behind that loop alone);
+#   - a hard modded-family crash and a successful-start Paper plugin
+#     failure both surface through `GET /v1/health/problems`, each
+#     attributed to a real installed jar by P7.36's new mods/plugins
+#     scanner; and
+#   - `POST /v1/health/repair` actually disables/deletes the right jar on
+#     disk and removes only the repaired problem from a still-longer
+#     persisted list, leaving every other open problem alone.
+# `FakeServer.java`'s own new `smoke-plugin-failure.txt`/
+# `smoke-mod-crash.txt` control files (read relative to its own working
+# directory -- always the server's own directory) are what let this stay
+# synthetic: no real Paper/Fabric process crash is needed to prove any of
+# this.
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FIXTURES_DIR="${ROOT}/tools/phase7/fixtures/fake-provisioning"
@@ -455,6 +482,74 @@ server_id_from_create_json() {
 }
 
 # =====================================================================
+# P7.37 helpers: the diagnostics/repair round trip (`GET /v1/health/
+# problems`, `POST /v1/health/repair`) and the checksum-refusal checks.
+# =====================================================================
+doctor_problems_json() {
+  # `msc doctor` operates on whatever server `server start`/`server
+  # select` last made active (`ensure_active_server`, `cli/mod.rs`) --
+  # every caller below has just started the server it wants problems for.
+  run_msc_json doctor | python3 -c 'import json,sys; print(json.dumps(json.load(sys.stdin)["problems"]["problems"]))'
+}
+
+wait_doctor_problem_containing() {
+  # $1 = substring to find in some problem's offenderName. Echoes that
+  # problem's id on success.
+  local needle="$1" deadline problems id
+  deadline=$(( $(date +%s) + 30 ))
+  while [[ "$(date +%s)" -lt "${deadline}" ]]; do
+    problems="$(doctor_problems_json)"
+    id="$(python3 -c '
+import json, sys
+needle = sys.argv[1]
+problems = json.loads(sys.argv[2])
+for p in problems:
+    if needle in p["offenderName"]:
+        print(p["id"])
+        break
+' "${needle}" "${problems}")"
+    if [[ -n "${id}" ]]; then
+      echo "${id}"
+      return 0
+    fi
+    sleep 0.25
+  done
+  fail "no health problem ever appeared with offenderName containing: ${needle}"
+}
+
+assert_no_doctor_problem_containing() {
+  local needle="$1" problems match
+  problems="$(doctor_problems_json)"
+  match="$(python3 -c '
+import json, sys
+needle = sys.argv[1]
+problems = json.loads(sys.argv[2])
+for p in problems:
+    if needle in p["offenderName"]:
+        print(p["id"])
+        break
+' "${needle}" "${problems}")"
+  [[ -z "${match}" ]] || fail "problem still present after repair (offenderName contains \"${needle}\"): ${match}"
+}
+
+# Corrupted-payload refusal: a marker in the fake provider's control dir
+# corrupts one family's served bytes while its metadata keeps advertising
+# the correct digest (`fake_provider_server.py`'s own doc). The create
+# must fail and leave no server directory behind -- the same shape
+# section 7/8's injected-failure checks already establish, applied here
+# to a real digest mismatch instead of a transport/installer failure.
+assert_checksum_refused() {
+  local flavor="$1" folder="$2"
+  local marker="${CONTROL_DIR}/bad_checksum_${flavor}"
+  local dir="${SERVERS_ROOT}/java/${folder}"
+  touch "${marker}"
+  expect_fail run_msc server create "${folder}" --flavor "${flavor}" --port "$(( PORT_COUNTER++ ))"
+  rm -f "${marker}"
+  [[ ! -e "${dir}" ]] || fail "${flavor}: server directory left behind after a corrupted-payload checksum mismatch: ${dir}"
+  echo "${flavor}: corrupted payload against a correct published digest was refused, no directory left behind"
+}
+
+# =====================================================================
 # 4. Start the agent, pointed at the fake provider.
 # =====================================================================
 echo "== starting agent =="
@@ -621,6 +716,93 @@ wait_for_path "${KILL_DIR}/neoforge-installer.jar" "neoforge installer download 
 kill_agent_hard
 restart_agent
 assert_operation_interrupted_by_restart "${operation_id}"
-echo "mid-install kill: the operation journal reconciled the interrupted create to failed on restart"
+# P7.37: the reconciled record alone doesn't prove the half-provisioned
+# directory is gone -- `LifecycleOperations::reconcile_on_startup`'s own
+# `sweep_orphaned_server_directory` call (P7.33) is what actually removes
+# it, and only the directory check below proves that ran, not just that
+# the operation was marked failed.
+[[ ! -e "${KILL_DIR}" ]] || fail "interrupted-create directory still present after restart's orphan sweep: ${KILL_DIR}"
+echo "mid-install kill: the operation journal reconciled the interrupted create to failed on restart, and the orphan sweep removed ${KILL_DIR}"
+
+# =====================================================================
+# 10. Publisher checksum enforcement (P7.35), proven both ways: a
+#     corrupted Vanilla/Paper/Purpur payload against a correct published
+#     digest is refused, and Fabric/NeoForge/Forge -- which publish no
+#     digest for jar_provider.rs to check -- still create successfully
+#     (already exercised by section 5's main loop; asserted again
+#     explicitly here so the two halves of P7.35's contract are proven
+#     side by side, not just co-incidentally by an unrelated loop).
+# =====================================================================
+echo "== corrupted-payload checksum refusal (vanilla sha1, paper sha256, purpur md5) =="
+assert_checksum_refused vanilla smoke-bad-checksum-vanilla
+assert_checksum_refused paper smoke-bad-checksum-paper
+assert_checksum_refused purpur smoke-bad-checksum-purpur
+echo "fabric/neoforge/forge publish no checksum for jar_provider.rs to enforce -- already proven to still create successfully in section 5's main loop"
+
+# =====================================================================
+# 11. Startup diagnostics (P7.36), successful-start side: a Paper plugin
+#     that fails to enable is attributed to the real installed jar
+#     `add_on_inventory::scan_plugins` finds, surfaces through
+#     `GET /v1/health/problems` even though the server still reaches
+#     ready, and a verified `disable` repair renames only that plugin's
+#     jar and removes only its problem -- a second, untouched plugin
+#     failure proves "only", not "all".
+# =====================================================================
+echo "== paper plugin soft-failure surfaces through GET /v1/health/problems =="
+PAPER_DIAG_NAME="smoke-paper-diag"
+PAPER_DIAG_PORT="$(( PORT_COUNTER++ ))"
+create_json="$(run_msc_json server create "${PAPER_DIAG_NAME}" --flavor paper --port "${PAPER_DIAG_PORT}")"
+PAPER_DIAG_DIR="${SERVERS_ROOT}/java/${PAPER_DIAG_NAME}"
+mkdir -p "${PAPER_DIAG_DIR}/plugins"
+# Two independent installed plugins, so repairing one proves the other's
+# own problem survives untouched.
+jar cf "${PAPER_DIAG_DIR}/plugins/BrokenPluginA-1.0.jar" -C "${BUILD_DIR}" server-manifest.txt
+jar cf "${PAPER_DIAG_DIR}/plugins/BrokenPluginB-2.0.jar" -C "${BUILD_DIR}" server-manifest.txt
+cat > "${PAPER_DIAG_DIR}/smoke-plugin-failure.txt" <<'PLUGINS'
+BrokenPluginA
+BrokenPluginB
+PLUGINS
+run_msc server start "${PAPER_DIAG_NAME}" >/dev/null
+wait_running_state "True"
+wait_console_contains "${PAPER_DIAG_NAME}" 'Done (0.001s)! For help, type "help"'
+problem_a_id="$(wait_doctor_problem_containing "BrokenPluginA")"
+problem_b_id="$(wait_doctor_problem_containing "BrokenPluginB")"
+echo "paper plugin soft-failures surfaced through GET /v1/health/problems: ${problem_a_id}, ${problem_b_id}"
+
+run_msc server stop "${PAPER_DIAG_NAME}" >/dev/null
+wait_running_state "False"
+run_msc doctor repair "${problem_a_id}" disable >/dev/null
+[[ -f "${PAPER_DIAG_DIR}/plugins/BrokenPluginA-1.0.jar.disabled" ]] || fail "disable repair did not rename BrokenPluginA-1.0.jar to .jar.disabled"
+[[ ! -e "${PAPER_DIAG_DIR}/plugins/BrokenPluginA-1.0.jar" ]] || fail "disable repair left the original BrokenPluginA-1.0.jar in place"
+[[ -f "${PAPER_DIAG_DIR}/plugins/BrokenPluginB-2.0.jar" ]] || fail "unrelated repair touched BrokenPluginB-2.0.jar"
+assert_no_doctor_problem_containing "BrokenPluginA"
+wait_doctor_problem_containing "BrokenPluginB" >/dev/null
+echo "verified disable repair renamed BrokenPluginA's own jar, removed only its own problem, and left BrokenPluginB's jar and problem untouched"
+
+# =====================================================================
+# 12. Startup diagnostics (P7.36), hard-crash side: a modded server that
+#     dies before reaching ready is attributed to the real installed mod
+#     jar, surfaces through GET /v1/health/problems, and a verified
+#     `delete` repair actually removes the jar from disk.
+# =====================================================================
+echo "== hard mod crash surfaces through GET /v1/health/problems =="
+FABRIC_CRASH_NAME="smoke-fabric-crash"
+FABRIC_CRASH_PORT="$(( PORT_COUNTER++ ))"
+create_json="$(run_msc_json server create "${FABRIC_CRASH_NAME}" --flavor fabric --port "${FABRIC_CRASH_PORT}")"
+FABRIC_CRASH_DIR="${SERVERS_ROOT}/java/${FABRIC_CRASH_NAME}"
+mkdir -p "${FABRIC_CRASH_DIR}/mods"
+jar cf "${FABRIC_CRASH_DIR}/mods/CoolMod-1.0.jar" -C "${BUILD_DIR}" server-manifest.txt
+cat > "${FABRIC_CRASH_DIR}/smoke-mod-crash.txt" <<'CRASH'
+Mod 'CoolMod' (coolmod) 1.0 requires version 1.21 of fabric-api, which is missing!
+CRASH
+run_msc server start "${FABRIC_CRASH_NAME}" >/dev/null
+crash_problem_id="$(wait_doctor_problem_containing "CoolMod")"
+wait_running_state "False"
+echo "hard mod crash surfaced through GET /v1/health/problems: ${crash_problem_id}"
+
+run_msc doctor repair "${crash_problem_id}" delete >/dev/null
+[[ ! -e "${FABRIC_CRASH_DIR}/mods/CoolMod-1.0.jar" ]] || fail "delete repair did not remove CoolMod-1.0.jar from disk"
+assert_no_doctor_problem_containing "CoolMod"
+echo "verified delete repair removed CoolMod-1.0.jar from disk and removed its problem"
 
 echo "PHASE 7 GATE SMOKE PASSED"

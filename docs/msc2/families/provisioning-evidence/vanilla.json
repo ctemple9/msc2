@@ -1,6 +1,6 @@
 {
   "family": "vanilla",
-  "captured": "2026-08-19",
+  "captured": "2026-08-20",
   "resolved_minecraft_version": "26.2",
   "loader_version": null,
   "download_url": "https://piston-data.mojang.com/v1/objects/823e2250d24b3ddac457a60c92a6a941943fcd6a/server.jar",
@@ -9,10 +9,11 @@
     "value": "823e2250d24b3ddac457a60c92a6a941943fcd6a",
     "matches_provider_published": true
   },
+  "checksum_verification": "enforced_by_production",
   "byte_size": 60894273,
   "launch_argv": "/usr/bin/java -Xms2048M -Xmx4096M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true -jar paper.jar --nogui",
   "reached_ready": true,
-  "ready_line": "[13:26:04] [Server thread/INFO]: Done (3.114s)! For help, type \"help\"",
-  "install_seconds": 11,
-  "notes": "First real boot refused to start until eula.txt (written eula=false by MSC2, matching real Mojang behavior) was manually flipped to eula=true by the operator -- expected Mojang EULA gate, not a bug. Download URL and checksum were independently re-derived from Mojang's own version_manifest_v2.json/per-version metadata (the same lookup jar_provider.rs performs) and verified against the SHA-1 the on-disk jar actually hashes to; Mojang's manifest publishes SHA-1, not SHA-256, so checksum.algorithm here is sha1 to match what the provider actually publishes."
+  "ready_line": "[22:48:39] [Server thread/INFO]: Done (3.219s)! For help, type \"help\"",
+  "install_seconds": 8,
+  "notes": "P7.37 re-capture on the exact-candidate commit, after P7.35 wired real checksum enforcement into jar_provider.rs (P7.28's original capture, still on disk in git history, predates that wiring -- production always passed None then). This create ran through the real, unmodified msc-agent binary with no MSC2_PROVIDER_*_BASE override; a corrupted or substituted jar would have been refused by stage_download before eula.txt/server.properties/world_slots were ever written, so this create succeeding is itself the evidence production's own P7.35 checksum check accepted these bytes -- checksum_verification: enforced_by_production reflects that, not just the independent re-hash below. checksum.value is still independently re-derived from Mojang's own version_manifest_v2.json/per-version metadata (the same lookup jar_provider.rs performs) and verified byte-for-byte against a fresh sha1sum of the on-disk paper.jar -- same EULA-gate behavior as P7.28's original capture (eula.txt written eula=false by MSC2, flipped by the operator before this run's own first start)."
 }

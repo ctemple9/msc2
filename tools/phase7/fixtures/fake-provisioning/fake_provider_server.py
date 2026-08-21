@@ -18,8 +18,36 @@ fields rewritten to point back at this same server before being served.
 Every other family's download URL is composed by the Rust code itself
 from the overridden base, so those catalogs are served byte-for-byte
 unmodified.
+
+**P7.37: publisher-checksum fields are rewritten to match the fake jar,
+not the real corpus digest.** P7.35 wired real checksum enforcement into
+`jar_provider.rs`, extracting the expected digest from the exact
+metadata response already used to choose the download -- the real
+corpus files under `corpus/providers/` carry the *real* Mojang/Paper/
+Purpur digest for a *real* server jar, but this script has only ever
+served a small locally-built `FakeServer.class` jar in that jar's place.
+Serving the real digest alongside fake bytes is exactly the mismatch
+P7.35's own enforcement now correctly refuses (confirmed live by P7.35's
+own "noticed but not acted on" note). `compute_server_jar_digests()` below
+hashes the actual `--server-jar` bytes once at startup, and every catalog response
+that carries a checksum field gets that real digest substituted in
+instead of the corpus one -- Vanilla's `downloads.server.sha1`, Paper's
+`downloads."server:default".checksums.sha256`, and a **new** Purpur
+`/v2/purpur/{version}/latest` metadata route (a hop this fake provider
+never needed before P7.35 added it) serving `{"md5": ...}`.
+
+**Corrupted-payload injection, `bad_checksum_<family>` control markers.**
+A control file `bad_checksum_vanilla`/`bad_checksum_paper`/
+`bad_checksum_purpur` in `--control-dir` (same convention as
+`fail_download`) corrupts that family's *served bytes* while its
+metadata keeps advertising the correct digest -- proving P7.35's
+enforcement refuses a real mismatch rather than merely proving the
+happy path still works. Fabric/NeoForge/Forge carry no such marker:
+their real endpoints publish no digest for `jar_provider.rs` to check in
+the first place, so there is nothing here to corrupt against.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -29,6 +57,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from io import BytesIO
 
 ARGS = None
+SERVER_JAR_SHA1 = None
+SERVER_JAR_SHA256 = None
+SERVER_JAR_MD5 = None
 
 
 def read_corpus(*parts):
@@ -38,6 +69,35 @@ def read_corpus(*parts):
 
 def self_base():
     return f"http://127.0.0.1:{ARGS.port}"
+
+
+def compute_server_jar_digests():
+    """Hashes the real `--server-jar` bytes once at startup -- every
+    checksum field this fake provider serves is rewritten to match these,
+    not the real corpus digest (this module's own doc explains why)."""
+    global SERVER_JAR_SHA1, SERVER_JAR_SHA256, SERVER_JAR_MD5
+    with open(ARGS.server_jar, "rb") as f:
+        data = f.read()
+    SERVER_JAR_SHA1 = hashlib.sha1(data).hexdigest()
+    SERVER_JAR_SHA256 = hashlib.sha256(data).hexdigest()
+    SERVER_JAR_MD5 = hashlib.md5(data).hexdigest()
+
+
+def bad_checksum_marker_path(family: str) -> str:
+    return os.path.join(ARGS.control_dir, f"bad_checksum_{family}")
+
+
+def serve_binary(handler, family: str):
+    """Serves `--server-jar`'s bytes, corrupted (one flipped byte) when
+    this family's `bad_checksum_<family>` control marker is present --
+    metadata for this family still advertises the correct digest computed
+    from the *uncorrupted* bytes, so a marker set here proves P7.35's
+    enforcement refuses the resulting real mismatch."""
+    with open(ARGS.server_jar, "rb") as f:
+        data = bytearray(f.read())
+    if os.path.exists(bad_checksum_marker_path(family)):
+        data[0] ^= 0xFF
+    handler._send(200, bytes(data))
 
 
 def build_installer_jar(properties: dict) -> bytes:
@@ -110,19 +170,27 @@ class Handler(BaseHTTPRequestHandler):
         if m:
             version_json = json.loads(read_corpus("vanilla", "version-26.2.json"))
             version_json["id"] = m.group(1)
-            version_json.setdefault("downloads", {}).setdefault("server", {})[
-                "url"
-            ] = f"{self_base()}/dl/vanilla-server.jar"
+            server_download = version_json.setdefault("downloads", {}).setdefault("server", {})
+            server_download["url"] = f"{self_base()}/dl/vanilla-server.jar"
+            server_download["sha1"] = SERVER_JAR_SHA1
             self._send_json(version_json)
             return
         if path == "/dl/vanilla-server.jar":
-            with open(ARGS.server_jar, "rb") as f:
-                self._send(200, f.read())
+            serve_binary(self, "vanilla")
             return
 
         # ---- Purpur ----
         if path == "/v2/purpur":
             self._send_raw(["purpur", "project-purpur.json"], "application/json")
+            return
+        m = re.match(r"^/v2/purpur/([^/]+)/latest$", path)
+        if m:
+            # P7.35's own new hop: `purpur_latest_build_md5` reads this
+            # exact response's top-level `md5` field, distinct from the
+            # `/v2/purpur/{version}` version-info response below.
+            build = json.loads(read_corpus("purpur", "build-latest-1.21.11.json"))
+            build["md5"] = SERVER_JAR_MD5
+            self._send_json(build)
             return
         m = re.match(r"^/v2/purpur/([^/]+)$", path)
         if m:
@@ -130,8 +198,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         m = re.match(r"^/v2/purpur/([^/]+)/latest/download$", path)
         if m:
-            with open(ARGS.server_jar, "rb") as f:
-                self._send(200, f.read())
+            serve_binary(self, "purpur")
             return
 
         # ---- Paper ----
@@ -145,11 +212,11 @@ class Handler(BaseHTTPRequestHandler):
                 sd = build.get("downloads", {}).get("server:default")
                 if sd:
                     sd["url"] = f"{self_base()}/dl/paper-jar"
+                    sd.setdefault("checksums", {})["sha256"] = SERVER_JAR_SHA256
             self._send_json(builds)
             return
         if path == "/dl/paper-jar":
-            with open(ARGS.server_jar, "rb") as f:
-                self._send(200, f.read())
+            serve_binary(self, "paper")
             return
 
         # ---- Fabric ----
@@ -231,6 +298,7 @@ def main():
     parser.add_argument("--verbose", action="store_true")
     ARGS = parser.parse_args()
     os.makedirs(ARGS.control_dir, exist_ok=True)
+    compute_server_jar_digests()
 
     server = ThreadingHTTPServer(("127.0.0.1", ARGS.port), Handler)
     server.serve_forever()

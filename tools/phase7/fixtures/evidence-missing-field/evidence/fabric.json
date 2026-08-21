@@ -14,5 +14,6 @@
   "reached_ready": true,
   "ready_line": "Done (1.0s)! For help, type \"help\"",
   "install_seconds": 5,
-  "notes": null
+  "notes": null,
+  "checksum_verification": "enforced_by_production"
 }

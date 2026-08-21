@@ -1,6 +1,6 @@
 {
   "family": "paper",
-  "captured": "2026-08-19",
+  "captured": "2026-08-20",
   "resolved_minecraft_version": "26.2",
   "loader_version": null,
   "server_build": "112",
@@ -10,10 +10,11 @@
     "value": "bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e",
     "matches_provider_published": true
   },
+  "checksum_verification": "enforced_by_production",
   "byte_size": 61859678,
   "launch_argv": "/usr/bin/java -Xms2048M -Xmx4096M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true -jar paper.jar --nogui",
   "reached_ready": true,
-  "ready_line": "[13:28:24 INFO]: Done (11.679s)! For help, type \"help\"",
-  "install_seconds": 7,
-  "notes": "Download URL and checksum were independently re-derived from fill.papermc.io's own /versions/{version}/builds response for the resolved build id (112), the same lookup jar_provider.rs performs, and matched exactly against the on-disk jar."
+  "ready_line": "[22:49:56 INFO]: Done (12.007s)! For help, type \"help\"",
+  "install_seconds": 9,
+  "notes": "P7.37 re-capture on the exact-candidate commit, after P7.35 wired real checksum enforcement into jar_provider.rs. This create ran through the real, unmodified msc-agent binary with no MSC2_PROVIDER_*_BASE override; a corrupted or substituted jar would have been refused by stage_download before eula.txt/server.properties/world_slots were ever written, so this create succeeding is itself the evidence production's own P7.35 checksum check accepted these bytes -- checksum_verification: enforced_by_production reflects that. checksum.value here is a fresh sha256 of the actual on-disk paper.jar this run downloaded, and matches P7.28's original 2026-08-19 capture (build 112, same resolved version) byte-for-byte, independent confirmation the digest jar_provider.rs extracted and enforced was the real one. Same benign JNA/OSHI 'Failed to get system info' stack-trace noise on this macOS host as any real Paper boot produces (harmless, unrelated to readiness) -- console tail needed a larger window than the default to find the Done line behind it."
 }

@@ -1,6 +1,6 @@
 {
   "family": "forge",
-  "captured": "2026-08-19",
+  "captured": "2026-08-20",
   "resolved_minecraft_version": "26.2",
   "loader_version": "65.1.0",
   "download_url": "https://maven.minecraftforge.net/net/minecraftforge/forge/26.2-65.1.0/forge-26.2-65.1.0-installer.jar",
@@ -9,14 +9,15 @@
     "value": "d23291591ee03408e39549d5509772f6c46280fef51044e1a706dd3da455dd74",
     "matches_provider_published": null
   },
+  "checksum_verification": "not_published",
   "byte_size": 7855558,
-  "installed_libraries_total_size_bytes": 195890870,
+  "installed_libraries_total_size_bytes": 197312512,
   "installed_libraries_file_count": 95,
   "args_file": "libraries/net/minecraftforge/forge/26.2-65.1.0/unix_args.txt",
   "launch_argv": "/usr/bin/java -Xms3072M -Xmx6144M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true @libraries/net/minecraftforge/forge/26.2-65.1.0/unix_args.txt nogui",
   "reached_ready": true,
-  "ready_line": "[13:36:27] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.773s)! For help, type \"help\"",
+  "ready_line": "[22:54:23] [Server thread/INFO] [minecraft/DedicatedServer]: Done (2.556s)! For help, type \"help\"",
   "install_seconds": 16,
   "installer_log_confirms": "\"The server installed successfully\" plus a self-verified patch checksum (forge-installer.jar.log: 'Checksum Validated: 9c84356c56bf3d2046c977d1ef703d519cd8d362')",
-  "notes": "Forge's own maven-metadata.xml <latest>/<release> tags under-report the newest version (P7.3's own finding, recorded in corpus/providers/README.md) -- MSC2's create flow reads promotions_slim.json for 'recommended' instead, which is what actually resolved here (65.1.0), confirming that P7.3-era finding still holds against live data. Same installer-jar-deleted-after-install caveat as NeoForge applies to checksum.value here."
+  "notes": "P7.37 re-capture on the exact-candidate commit. Forge's own Maven still publishes no checksum for jar_provider.rs to extract, so P7.35's enforcement passes None here exactly as it did before that step -- checksum_verification: not_published, matching checksum.matches_provider_published: null. Forge's own maven-metadata.xml <latest>/<release> tags still under-report the newest version (P7.3's original finding) -- this create again resolved through promotions_slim.json to 65.1.0, the same version P7.28's original capture found, confirming that finding still holds live a day-plus later. Same installer-jar-deleted-after-install caveat as NeoForge: checksum.value is a fresh, independent re-download of the exact URL jar_provider.rs composes, hashed separately, and is byte-for-byte identical to P7.28's original 2026-08-19 capture (same byte_size, same sha256) -- this artifact hasn't changed on Forge's Maven in the interim. installed_libraries_file_count is unchanged at 95; installed_libraries_total_size_bytes drifted slightly (195890870 -> 197312512), expected upstream library drift, not a regression. The launch argv again confirms build_launch_request's @<args-file> nogui dispatch for Forge holds against a real install."
 }

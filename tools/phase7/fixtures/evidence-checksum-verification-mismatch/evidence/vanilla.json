@@ -1,9 +1,9 @@
 {
-  "family": "neoforge",
+  "family": "vanilla",
   "captured": "2026-08-19",
   "resolved_minecraft_version": "26.2",
   "loader_version": null,
-  "download_url": "https://example.invalid/neoforge/server.jar",
+  "download_url": "https://example.invalid/vanilla/server.jar",
   "checksum": {
     "algorithm": "sha256",
     "value": "deadbeef",
@@ -15,5 +15,5 @@
   "ready_line": "Done (1.0s)! For help, type \"help\"",
   "install_seconds": 5,
   "notes": null,
-  "checksum_verification": "enforced_by_production"
+  "checksum_verification": "not_published"
 }

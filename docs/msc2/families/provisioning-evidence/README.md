@@ -5,9 +5,12 @@ This directory is the counterpart: one real create/start/verify-ready/stop
 cycle per family, driven through nothing but `msc-agent`'s own CLI (the same
 public surface iOS and any other client uses), against the live PaperMC,
 Mojang, PurpurMC, FabricMC, NeoForge Maven, and Forge Maven endpoints — no
-`MSC2_PROVIDER_*_BASE` override set anywhere in this run. Captured
-2026-08-19, on Cameron's own machine (macOS, Temurin 25 JDK already
-installed, matching P7.3's own runtime note).
+`MSC2_PROVIDER_*_BASE` override set anywhere in this run. Originally
+captured 2026-08-19 (P7.28); **re-captured 2026-08-20 (P7.37)**, on the
+exact-candidate commit, after P7.35 wired real publisher-checksum
+enforcement into `jar_provider.rs` and P7.36 completed live startup
+diagnostics — the P7.28-era files predate both and are superseded by
+this re-capture, not kept alongside it.
 
 One `<family>.json` per family, all six required (`vanilla`, `paper`,
 `purpur`, `fabric`, `neoforge`, `forge`; the same six `tools/phase7/
@@ -16,15 +19,22 @@ carries, at minimum: the resolved Minecraft (and, where applicable, loader)
 version, the real download URL, a checksum with `matches_provider_published`
 recorded (`true`/`false` where a provider actually publishes one to compare
 against, `null` where it doesn't — Fabric and NeoForge/Forge's Maven publish
-none), the real launch argv the agent ran, whether the server reached
+none), **`checksum_verification`** (P7.37: `"enforced_by_production"` when
+that create ran through the real, unmodified `msc-agent` binary's own P7.35
+checksum enforcement — a mismatch would have refused the download outright,
+so the create succeeding at all is the evidence, independently corroborated
+below by a fresh re-hash of the on-disk jar — or `"not_published"` when
+this family's provider gives `jar_provider.rs` nothing to enforce), the real
+launch argv the agent ran, whether the server reached
 `Done (...)! For help, type "help"`, and how long create took
 (`install_seconds`). `python3 tools/phase7/provider-corpus-check.py
---evidence` (this step's own addition to that checker) enforces this shape:
-all six families present, no more, no fewer, every required field non-empty,
-`reached_ready` literally `true` for all six — a family that could not be
-started would fail this checker rather than let the gate pass silently on
-five of six, per this step's own "if a family genuinely cannot be
-provisioned today, stop and report it" instruction.
+--evidence` enforces this shape: all six families present, no more, no
+fewer, every required field non-empty, `checksum_verification` consistent
+with `checksum.matches_provider_published`, `reached_ready` literally
+`true` for all six — a family that could not be started would fail this
+checker rather than let the gate pass silently on five of six, per this
+step's own "if a family genuinely cannot be provisioned today, stop and
+report it" instruction.
 
 ## Result
 
@@ -69,6 +79,25 @@ genuinely cannot be provisioned" report to make here.
   (Mojang's, Paper's, Purpur's, and Fabric's `stable`/`release` markers all
   agreed) — the `YY.n` versioning scheme P7.3 first observed in the raw
   corpus is confirmed live and unchanged one day later.
+- **P7.37 re-capture: publisher checksum enforcement is real end-to-end,
+  not just at the unit level.** Every Vanilla/Paper/Purpur create in this
+  re-capture ran through the exact same `jar_provider.rs`/`download_staging
+  ::stage_download` path P7.35 wired real enforcement into — a corrupted or
+  substituted jar would have been refused before `eula.txt`/
+  `server.properties`/`world_slots` were ever written, so each of these
+  three creates succeeding *is* production-level proof its own checksum
+  check accepted the real bytes. This re-capture also independently
+  re-verified all three: Vanilla's on-disk jar hashes to the exact SHA-1
+  Mojang's own per-version metadata publishes, Paper's to the exact SHA-256
+  its builds response publishes (matching P7.28's original digest
+  byte-for-byte — Paper build 112 hasn't moved), and Purpur's to the exact
+  MD5 its `/v2/purpur/{version}/latest` endpoint publishes (Purpur's own
+  build advanced from 2568/2620 to 2622 between captures — a live rolling
+  build, not a pin, so a differing build/size here is expected). Fabric's
+  and NeoForge's/Forge's digests (or lack of one) and resolved versions are
+  otherwise unchanged from the original capture — Forge/NeoForge's
+  installer-jar re-download hashed byte-for-byte identical to P7.28's own
+  capture a day-plus earlier.
 
 ## iOS manual walkthrough
 

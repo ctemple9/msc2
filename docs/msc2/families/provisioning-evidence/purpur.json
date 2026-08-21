@@ -1,19 +1,20 @@
 {
   "family": "purpur",
-  "captured": "2026-08-19",
+  "captured": "2026-08-20",
   "resolved_minecraft_version": "26.2",
   "loader_version": null,
-  "server_build": "2620",
+  "server_build": "2622",
   "download_url": "https://api.purpurmc.org/v2/purpur/26.2/latest/download",
   "checksum": {
     "algorithm": "md5",
-    "value": "88c11e58b141c2ce9e25bac52d57c8af",
+    "value": "72344b5a4c3e82ae38ae914cb6190d2a",
     "matches_provider_published": true
   },
-  "byte_size": 64739265,
+  "checksum_verification": "enforced_by_production",
+  "byte_size": 64739363,
   "launch_argv": "/usr/bin/java -Xms2048M -Xmx4096M -Djna.nosys=true -Djna.nounpack=true -Djline.terminal=dumb -Dio.netty.noUnsafe=true -jar paper.jar --nogui",
   "reached_ready": true,
-  "ready_line": "[13:30:33 INFO]: Done (12.023s)! For help, type \"help\"",
-  "install_seconds": 6,
-  "notes": "Purpur's own download URL always resolves to /v2/purpur/{version}/latest/download (no build-id path segment) -- the recorded server_build (2620) comes from a separate builds.latest metadata read. checksum.algorithm is md5 because that is the only hash Purpur's per-build API (/v2/purpur/{version}/{build}) actually publishes; verified against that, not sha256/sha1."
+  "ready_line": "[22:51:15 INFO]: Done (12.096s)! For help, type \"help\"",
+  "install_seconds": 7,
+  "notes": "P7.37 re-capture on the exact-candidate commit, after P7.35 wired real checksum enforcement into jar_provider.rs -- including the new /v2/purpur/{version}/latest metadata hop P7.35 itself added, since Purpur's own download URL never carried a digest before it. This create ran through the real, unmodified msc-agent binary with no MSC2_PROVIDER_*_BASE override; a corrupted or substituted jar would have been refused by stage_download before eula.txt/server.properties/world_slots were ever written, so this create succeeding is itself the evidence production's own P7.35 checksum check accepted these bytes -- checksum_verification: enforced_by_production reflects that. checksum.value is independently re-fetched from Purpur's own /v2/purpur/26.2/latest response (this run's own live query, not the earlier /v2/purpur/{version}/{build} form P7.28 used) and verified against a fresh md5 of the on-disk paper.jar -- exact match. Purpur's own build advanced from 2568/2620 (P7.3/P7.28's earlier captures) to 2622 between those runs and this one, and byte_size shifted by 98 bytes accordingly -- Purpur ships a live rolling build, not a pinned one, so a differing build/size here is expected drift, not a regression."
 }

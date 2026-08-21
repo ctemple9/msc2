@@ -61,7 +61,14 @@ providers/tests above were built to simulate:
     `algorithm`/`value` and a present, possibly-`null`,
     `matches_provider_published` key -- `null` is how a family whose
     provider publishes no checksum to compare against records that
-    honestly), `byte_size`, `launch_argv`, `install_seconds`.
+    honestly), `checksum_verification` (P7.37: `"enforced_by_production"`
+    when the real, unmodified `msc-agent` binary's own P7.35 checksum
+    enforcement is what accepted these bytes -- a mismatch would have
+    refused the download outright, so a successful create *is* the
+    evidence -- or `"not_published"` when this family's provider gives
+    `jar_provider.rs` nothing to enforce; must agree with
+    `matches_provider_published`), `byte_size`, `launch_argv`,
+    `install_seconds`.
   - `reached_ready` must be the literal boolean `true` -- this is the one
     field this mode refuses to accept any other value for, since a family
     that never reached a ready state is exactly the "stop and report it"
@@ -122,6 +129,7 @@ REQUIRED_EVIDENCE_FIELDS = (
     "resolved_minecraft_version",
     "download_url",
     "checksum",
+    "checksum_verification",
     "byte_size",
     "launch_argv",
     "reached_ready",
@@ -129,6 +137,15 @@ REQUIRED_EVIDENCE_FIELDS = (
 )
 
 REQUIRED_CHECKSUM_FIELDS = ("algorithm", "value")
+
+# P7.37: whether the *real, unmodified* `msc-agent` binary's own P7.35
+# checksum enforcement is what accepted this family's bytes
+# ("enforced_by_production" -- the create would have refused a mismatch
+# outright) or whether this family's provider publishes nothing for
+# `jar_provider.rs` to enforce against ("not_published") -- must agree
+# with `checksum.matches_provider_published` (`true` <-> enforced,
+# `null` <-> not published) so the two fields can't silently drift apart.
+CHECKSUM_VERIFICATION_VALUES = {"enforced_by_production", "not_published"}
 
 IGNORED_NAMES = {"manifest.json", "README.md"}
 
@@ -149,6 +166,7 @@ SELFTEST_CASES = [
     ("evidence", "evidence-family-mismatch", 1),
     ("evidence", "evidence-not-ready", 1),
     ("evidence", "evidence-missing-field", 1),
+    ("evidence", "evidence-checksum-verification-mismatch", 1),
 ]
 
 
@@ -380,6 +398,30 @@ def check_evidence(evidence_dir: Path) -> str:
                 "(true/false when the provider publishes one to compare "
                 "against, null when it doesn't -- the key must still be "
                 "present either way)"
+            )
+
+        verification = entry["checksum_verification"]
+        if verification not in CHECKSUM_VERIFICATION_VALUES:
+            raise CheckError(
+                f"{file_path}: checksum_verification is {verification!r}, "
+                f"expected one of {sorted(CHECKSUM_VERIFICATION_VALUES)}"
+            )
+        matches_published = checksum.get("matches_provider_published")
+        if matches_published is True and verification != "enforced_by_production":
+            raise CheckError(
+                f"{file_path}: checksum.matches_provider_published is true but "
+                f"checksum_verification is {verification!r}, expected "
+                "'enforced_by_production' -- a published digest this family's "
+                "provider actually returns must have been enforced by "
+                "production's own P7.35 download path, not just compared "
+                "after the fact"
+            )
+        if matches_published is None and verification != "not_published":
+            raise CheckError(
+                f"{file_path}: checksum.matches_provider_published is null but "
+                f"checksum_verification is {verification!r}, expected "
+                "'not_published' -- nothing was enforced because this "
+                "family's provider publishes no digest to enforce against"
             )
 
         if entry["reached_ready"] is not True:

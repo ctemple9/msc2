@@ -13,5 +13,6 @@
   "launch_argv": "/usr/bin/java -jar paper.jar --nogui",
   "reached_ready": true,
   "ready_line": "Done (1.0s)! For help, type \"help\"",
-  "notes": null
+  "notes": null,
+  "checksum_verification": "enforced_by_production"
 }

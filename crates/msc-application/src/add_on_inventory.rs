@@ -86,8 +86,8 @@ pub fn scan_mods(fs: &dyn FileSystem, mods_dir: &Path) -> Vec<ModEntry> {
                 return None;
             }
             let (is_enabled, jar_stem) = enabled_and_stem(&filename);
-            let (mod_id, manifest_name, manifest_version) =
-                mod_jar_metadata(&path).unwrap_or((None, None, None));
+            let (mod_id, manifest_name, manifest_version, _environment) =
+                mod_jar_metadata(&path).unwrap_or((None, None, None, None));
             let display_name = manifest_name.unwrap_or_else(|| extract_display_name(&jar_stem));
             let version = manifest_version.or_else(|| extract_version(&jar_stem));
             Some(ModEntry {
@@ -239,7 +239,20 @@ fn looks_like_version_component(s: &str) -> bool {
 // ModJarMetadataParser (fabric.mod.json / META-INF/mods.toml)
 // ---------------------------------------------------------------------
 
-type ModManifest = (Option<String>, Option<String>, Option<String>); // (mod_id, display_name, version)
+// (mod_id, display_name, version, environment) -- `environment` is P8.22's
+// own amendment (outside this file's own step's `Files:` list, flagged
+// rather than silent): `ModJarMetadataParser.ModMetadata.environment`
+// (`ModJarMetadataParser.swift:21-22`) is Fabric-only ("client"/"server"/
+// "*" from `fabric.mod.json`'s own "environment" key, `None` for Forge/
+// NeoForge's `mods.toml` and for plugin.yml) -- needed by
+// `client_export.rs`'s own client-side status fallback, which this
+// module's own `scan_mods` never needed.
+type ModManifest = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
 
 /// P8.16 amendment: `AddonUpdateResolver`'s own unlinked-item display-name
 /// fallback (`fixtures/addon-update-resolution/
@@ -270,8 +283,12 @@ pub fn plugin_yml_name(jar_path: &Path) -> Option<String> {
 /// `ModJarMetadataParser.parse(jarURL:)` (`ModJarMetadataParser.swift:
 /// 28-32`): Fabric first, then Forge/NeoForge. `jar_path` must be a real
 /// path on disk — see this module's own doc on why `archive::
-/// read_entry_bytes` can't go through the `FileSystem` trait.
-fn mod_jar_metadata(jar_path: &Path) -> Option<ModManifest> {
+/// read_entry_bytes` can't go through the `FileSystem` trait. `pub(crate)`
+/// (P8.22 amendment): `client_export.rs`'s own status-fallback needs this
+/// exact Fabric-then-Forge lookup (never `parsePlugin`'s plugin.yml third
+/// tier — that's `parseAny`, which this module's own `plugin_yml_name`
+/// stands in for separately, per this file's own P8.16 doc above).
+pub(crate) fn mod_jar_metadata(jar_path: &Path) -> Option<ModManifest> {
     if let Ok(Some(bytes)) = archive::read_entry_bytes(jar_path, "fabric.mod.json")
         && let Some(meta) = parse_fabric_mod_json(&bytes)
     {
@@ -289,7 +306,9 @@ fn mod_jar_metadata(jar_path: &Path) -> Option<ModManifest> {
 /// `parseFabric(jarURL:)` (`ModJarMetadataParser.swift:109-120`). `None`
 /// on invalid JSON or when neither `id` nor `name` is present — a version
 /// starting with `"${"` (an unresolved Gradle template token) is dropped,
-/// matching source's own `flatMap`.
+/// matching source's own `flatMap`. `environment` (line 117) is read
+/// unconditionally alongside the others -- P8.22 amendment, see this
+/// file's own `ModManifest` doc above.
 fn parse_fabric_mod_json(bytes: &[u8]) -> Option<ModManifest> {
     let value: serde_json::Value = serde_json::from_slice(bytes).ok()?;
     let mod_id = value.get("id").and_then(|v| v.as_str()).map(str::to_string);
@@ -302,10 +321,14 @@ fn parse_fabric_mod_json(bytes: &[u8]) -> Option<ModManifest> {
         .and_then(|v| v.as_str())
         .filter(|v| !v.starts_with("${"))
         .map(str::to_string);
+    let environment = value
+        .get("environment")
+        .and_then(|v| v.as_str())
+        .map(str::to_string);
     if mod_id.is_none() && name.is_none() {
         return None;
     }
-    Some((mod_id, name, version))
+    Some((mod_id, name, version, environment))
 }
 
 /// `parseModsToml(_:)` (`ModJarMetadataParser.swift:133-157`): a
@@ -345,7 +368,7 @@ fn parse_mods_toml(text: &str) -> Option<ModManifest> {
     if mod_id.is_none() && display_name.is_none() {
         return None;
     }
-    Some((mod_id, display_name, version))
+    Some((mod_id, display_name, version, None))
 }
 
 /// `tomlStringValue(line:key:)` (`ModJarMetadataParser.swift:178-195`):

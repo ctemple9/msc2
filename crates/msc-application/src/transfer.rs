@@ -29,7 +29,7 @@
 //! has its own) is easiest to get right with two visibly distinct encoders
 //! side by side rather than one derive macro straddling both conventions.
 
-use msc_domain::app_config_schema::{ConfigServer, DecodeError};
+use msc_domain::app_config_schema::{ConfigServer, DecodeError, PluginSourceConfig};
 use msc_domain::identity::{JavaServerFlavor, ServerType};
 use serde_json::{Map, Value};
 use std::collections::{HashMap, HashSet};
@@ -467,23 +467,17 @@ fn sanitize_for_manifest(server: &ConfigServer) -> ConfigServer {
     sanitized
 }
 
-fn plugin_links_from(plugin_sources: &Option<Value>) -> Vec<TransferPluginLink> {
-    let Some(Value::Object(map)) = plugin_sources else {
+fn plugin_links_from(
+    plugin_sources: &Option<HashMap<String, PluginSourceConfig>>,
+) -> Vec<TransferPluginLink> {
+    let Some(map) = plugin_sources else {
         return Vec::new();
     };
     map.iter()
-        .map(|(filename, value)| TransferPluginLink {
+        .map(|(filename, config)| TransferPluginLink {
             filename: filename.clone(),
-            url: value
-                .get("url")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
-            plugin_type: value
-                .get("type")
-                .and_then(Value::as_str)
-                .unwrap_or_default()
-                .to_string(),
+            url: config.url.clone(),
+            plugin_type: config.source_type.raw_value().to_string(),
         })
         .collect()
 }

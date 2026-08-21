@@ -21,14 +21,16 @@
 //! corresponding line in `encode(to:)` at all, so it never round-trips
 //! (confirmed absent from the source's `encode(to:)` body).
 //!
-//! Three referenced MSC 1 types have no Rust port yet
-//! (`PluginSourceConfig`, `AddonLink`, `LoaderVersionRecord` — all
-//! outside this step's scope) — their fields decode/encode as opaque
-//! `serde_json::Value` pass-through rather than typed structs.
+//! `LoaderVersionRecord` still has no Rust port (outside this step's
+//! scope) and decodes/encodes as opaque `serde_json::Value` pass-through.
+//! `PluginSourceConfig` and `AddonLink` (P8.11) are typed below, each with
+//! an `extra` field that preserves any JSON key this decode doesn't
+//! recognize, so a forward-compat field written by a newer client
+//! round-trips through MSC 2 untouched rather than being silently dropped.
 
 use crate::identity::{JavaServerFlavor, ServerType};
 use serde_json::{Map, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -258,6 +260,203 @@ impl RemoteApiSharedAccessEntry {
     }
 }
 
+// MARK: - AddonLinkProvenance / AddonLink
+
+/// `AddonLinkProvenance` (`AppModels.swift`): drives trust in a persisted
+/// `AddonLink`. `is_trusted` is `false` only for `NameGuess` -- the one
+/// value `AddonUpdateResolver` never assigns itself (it's written by the
+/// manual-link UI).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddonLinkProvenance {
+    Installed,
+    HashDetected,
+    UserLinked,
+    NameGuess,
+}
+
+impl AddonLinkProvenance {
+    pub fn raw_value(self) -> &'static str {
+        match self {
+            Self::Installed => "installed",
+            Self::HashDetected => "hashDetected",
+            Self::UserLinked => "userLinked",
+            Self::NameGuess => "nameGuess",
+        }
+    }
+
+    pub fn from_raw_value(raw: &str) -> Option<Self> {
+        match raw {
+            "installed" => Some(Self::Installed),
+            "hashDetected" => Some(Self::HashDetected),
+            "userLinked" => Some(Self::UserLinked),
+            "nameGuess" => Some(Self::NameGuess),
+            _ => None,
+        }
+    }
+
+    pub fn is_trusted(self) -> bool {
+        !matches!(self, Self::NameGuess)
+    }
+}
+
+const ADDON_LINK_KNOWN_KEYS: &[&str] = &[
+    "projectId",
+    "title",
+    "slug",
+    "iconURL",
+    "provenance",
+    "installedVersionId",
+    "installedFileName",
+    "installedHash",
+    "clientSide",
+    "serverSide",
+];
+
+/// A persisted link between an on-disk add-on and a Modrinth project
+/// (`AddonLink` in `AppModels.swift`). Keyed by `projectId` in
+/// `ConfigServer.addon_links`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AddonLink {
+    pub project_id: String,
+    pub title: Option<String>,
+    pub slug: Option<String>,
+    pub icon_url: Option<String>,
+    pub provenance: AddonLinkProvenance,
+    pub installed_version_id: Option<String>,
+    pub installed_file_name: Option<String>,
+    pub installed_hash: Option<String>,
+    pub client_side: Option<String>,
+    pub server_side: Option<String>,
+    /// Unrecognized JSON keys, preserved verbatim across decode/encode.
+    pub extra: Map<String, Value>,
+}
+
+impl AddonLink {
+    pub fn decode(v: &Value) -> Result<Self, DecodeError> {
+        let project_id = req_str(v, "projectId")?;
+        let provenance = match present(v, "provenance") {
+            None => AddonLinkProvenance::NameGuess,
+            Some(Value::String(s)) => AddonLinkProvenance::from_raw_value(s)
+                .ok_or_else(|| err(format!("unknown addon link provenance \"{s}\"")))?,
+            Some(_) => return Err(err("field \"provenance\" is not a string")),
+        };
+        let extra = match v {
+            Value::Object(m) => m
+                .iter()
+                .filter(|(k, _)| !ADDON_LINK_KNOWN_KEYS.contains(&k.as_str()))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            _ => return Err(err("addon link entry is not an object")),
+        };
+        Ok(Self {
+            project_id,
+            title: opt_str(v, "title")?,
+            slug: opt_str(v, "slug")?,
+            icon_url: opt_str(v, "iconURL")?,
+            provenance,
+            installed_version_id: opt_str(v, "installedVersionId")?,
+            installed_file_name: opt_str(v, "installedFileName")?,
+            installed_hash: opt_str(v, "installedHash")?,
+            client_side: opt_str(v, "clientSide")?,
+            server_side: opt_str(v, "serverSide")?,
+            extra,
+        })
+    }
+
+    pub fn encode(&self) -> Value {
+        let mut m = self.extra.clone();
+        insert_str(&mut m, "projectId", &self.project_id);
+        insert_opt_str(&mut m, "title", &self.title);
+        insert_opt_str(&mut m, "slug", &self.slug);
+        insert_opt_str(&mut m, "iconURL", &self.icon_url);
+        insert_str(&mut m, "provenance", self.provenance.raw_value());
+        insert_opt_str(&mut m, "installedVersionId", &self.installed_version_id);
+        insert_opt_str(&mut m, "installedFileName", &self.installed_file_name);
+        insert_opt_str(&mut m, "installedHash", &self.installed_hash);
+        insert_opt_str(&mut m, "clientSide", &self.client_side);
+        insert_opt_str(&mut m, "serverSide", &self.server_side);
+        Value::Object(m)
+    }
+}
+
+// MARK: - PluginSourceConfig
+
+/// `AppModels.swift:74-78`'s closed four-case URL-source enum, mirrored
+/// here (rather than re-exported from `plugin_source`) so this module
+/// doesn't need to depend on that sibling module just for a raw-value
+/// parse; the two enums are kept in lockstep by [`fixtures/plugin-source-resolution/`]
+/// and this module's own decode fixtures both citing `AppModels.swift`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PluginSourceKind {
+    Github,
+    Modrinth,
+    Hangar,
+    Direct,
+}
+
+impl PluginSourceKind {
+    pub fn raw_value(self) -> &'static str {
+        match self {
+            Self::Github => "github",
+            Self::Modrinth => "modrinth",
+            Self::Hangar => "hangar",
+            Self::Direct => "direct",
+        }
+    }
+
+    pub fn from_raw_value(raw: &str) -> Option<Self> {
+        match raw {
+            "github" => Some(Self::Github),
+            "modrinth" => Some(Self::Modrinth),
+            "hangar" => Some(Self::Hangar),
+            "direct" => Some(Self::Direct),
+            _ => None,
+        }
+    }
+}
+
+const PLUGIN_SOURCE_CONFIG_KNOWN_KEYS: &[&str] = &["url", "type"];
+
+/// A user-linked plugin source (`PluginSourceConfig` in `AppModels.swift`).
+/// Keyed by jar stem in `ConfigServer.plugin_sources`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PluginSourceConfig {
+    pub url: String,
+    pub source_type: PluginSourceKind,
+    pub extra: Map<String, Value>,
+}
+
+impl PluginSourceConfig {
+    pub fn decode(v: &Value) -> Result<Self, DecodeError> {
+        let url = req_str(v, "url")?;
+        let source_type = match present(v, "type") {
+            Some(Value::String(s)) => PluginSourceKind::from_raw_value(s)
+                .ok_or_else(|| err(format!("unknown plugin source type \"{s}\"")))?,
+            _ => return Err(err("missing or invalid required field \"type\"")),
+        };
+        let extra = match v {
+            Value::Object(m) => m
+                .iter()
+                .filter(|(k, _)| !PLUGIN_SOURCE_CONFIG_KNOWN_KEYS.contains(&k.as_str()))
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+            _ => return Err(err("plugin source entry is not an object")),
+        };
+        Ok(Self {
+            url,
+            source_type,
+            extra,
+        })
+    }
+
+    pub fn encode(&self) -> Value {
+        let mut m = self.extra.clone();
+        insert_str(&mut m, "url", &self.url);
+        insert_str(&mut m, "type", self.source_type.raw_value());
+        Value::Object(m)
+    }
+}
+
 // MARK: - ConfigServer
 
 #[derive(Debug, Clone, PartialEq)]
@@ -307,10 +506,12 @@ pub struct ConfigServer {
     pub server_build: Option<String>,
 
     pub notification_prefs: ServerNotificationPrefs,
-    /// `PluginSourceConfig` isn't ported yet; passed through opaquely.
-    pub plugin_sources: Option<Value>,
-    /// `AddonLink` isn't ported yet; passed through opaquely.
-    pub addon_links: Option<Value>,
+    /// Keyed by jar stem. `None` and `Some(empty map)` are never both
+    /// possible at once -- encode collapses an empty map back to omitted,
+    /// matching `pluginSources = sources.isEmpty ? nil : sources`.
+    pub plugin_sources: Option<HashMap<String, PluginSourceConfig>>,
+    /// Keyed by Modrinth project id.
+    pub addon_links: Option<HashMap<String, AddonLink>>,
 
     pub playit_enabled: bool,
     pub playit_voice_chat_enabled: bool,
@@ -469,8 +670,24 @@ impl ConfigServer {
             None => ServerNotificationPrefs::default(),
             Some(obj) => ServerNotificationPrefs::decode(obj)?,
         };
-        let plugin_sources = present(v, "plugin_sources").cloned();
-        let addon_links = present(v, "addon_links").cloned();
+        let plugin_sources = match present(v, "plugin_sources") {
+            None => None,
+            Some(Value::Object(m)) => Some(
+                m.iter()
+                    .map(|(k, v)| PluginSourceConfig::decode(v).map(|c| (k.clone(), c)))
+                    .collect::<Result<HashMap<_, _>, _>>()?,
+            ),
+            Some(_) => return Err(err("field \"plugin_sources\" is not an object")),
+        };
+        let addon_links = match present(v, "addon_links") {
+            None => None,
+            Some(Value::Object(m)) => Some(
+                m.iter()
+                    .map(|(k, v)| AddonLink::decode(v).map(|l| (k.clone(), l)))
+                    .collect::<Result<HashMap<_, _>, _>>()?,
+            ),
+            Some(_) => return Err(err("field \"addon_links\" is not an object")),
+        };
 
         let playit_enabled = opt_bool(v, "playit_enabled", false)?;
         let playit_voice_chat_enabled = opt_bool(v, "playit_voice_chat_enabled", false)?;
@@ -626,11 +843,17 @@ impl ConfigServer {
             "notification_prefs".into(),
             self.notification_prefs.encode(),
         );
-        if let Some(v) = &self.plugin_sources {
-            m.insert("plugin_sources".into(), v.clone());
+        if let Some(sources) = &self.plugin_sources {
+            let encoded: Map<String, Value> = sources
+                .iter()
+                .map(|(k, v)| (k.clone(), v.encode()))
+                .collect();
+            m.insert("plugin_sources".into(), Value::Object(encoded));
         }
-        if let Some(v) = &self.addon_links {
-            m.insert("addon_links".into(), v.clone());
+        if let Some(links) = &self.addon_links {
+            let encoded: Map<String, Value> =
+                links.iter().map(|(k, v)| (k.clone(), v.encode())).collect();
+            m.insert("addon_links".into(), Value::Object(encoded));
         }
 
         m.insert("playit_enabled".into(), Value::Bool(self.playit_enabled));

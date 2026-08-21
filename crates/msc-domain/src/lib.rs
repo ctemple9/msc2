@@ -1,4 +1,5 @@
 pub mod addon_provider;
+pub mod addon_update;
 pub mod app_config_schema;
 pub mod backup;
 pub mod capability;

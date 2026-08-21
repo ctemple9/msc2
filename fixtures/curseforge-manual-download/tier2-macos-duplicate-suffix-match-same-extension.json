@@ -1,0 +1,21 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "tier2-macos-duplicate-suffix-match-same-extension",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scanWatchFolder() secondary match, duplicate suffix",
+    "line": 264
+  },
+  "input": {
+    "mod_fileName": "entityculling-forge-1.10.5.jar",
+    "newFiles": [
+      "entityculling-forge-1.10.5 (1).jar"
+    ]
+  },
+  "expected": {
+    "matched": true,
+    "tier": 2,
+    "reason": "Lines 261-272: when Chrome/Safari appends macOS's own \" (1)\" duplicate-avoidance suffix to a re-downloaded file, the stem-plus-`\" (\"`-prefix / `\")\"`-suffix check catches it -- `noExt.hasPrefix(stem + \" (\")` and `noExt.hasSuffix(\")\")`, with the extension compared separately."
+  },
+  "workflow": "modpack-import"
+}

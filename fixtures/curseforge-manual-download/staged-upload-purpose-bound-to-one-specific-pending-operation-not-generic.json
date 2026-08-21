@@ -1,0 +1,17 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "staged-upload-purpose-bound-to-one-specific-pending-operation-not-generic",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "D-027 section -- purpose-binding requirement",
+    "line": 17
+  },
+  "input": {
+    "attempted_redemption": "an upload created for pending-pack-operation A, redeemed against pending-pack-operation B's manual-file-completion route"
+  },
+  "expected": {
+    "accepted": false,
+    "reason": "phase8-scope.md's D-027 section: \"This has been recorded as ... never a generic 'upload anything' purpose,\" following the existing purpose-check-on-redemption pattern already in `crates/msc-agent/src/routes/worlds.rs`'s `begin_staged_upload` doc comment (\"a staging slot can only be redeemed by the route it was created for\"). A staged upload minted for one specific pending operation's one specific expected file cannot complete an unrelated pending operation, even if the bytes happen to be identical."
+  },
+  "workflow": "modpack-import"
+}

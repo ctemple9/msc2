@@ -1,0 +1,18 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "in-flight-move-in-progress-files-excluded-from-fallback-claim",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scanWatchFolder() claimedNames exclusion",
+    "line": 279
+  },
+  "input": {
+    "one_mod_already_inFlight": true,
+    "one_new_unrelated_file_appears": true
+  },
+  "expected": {
+    "fallback_does_not_reclaim_inFlight_files_name": true,
+    "reason": "Lines 276-284: `claimedNames` collects the fileName of every mod currently `inFlightIndices` (already scheduled for a move, not yet confirmed done); `unclaimed` excludes those names from the fallback pool, so a file mid-move-operation on a slow disk can't be double-claimed by a second scan tick before its move completes."
+  },
+  "workflow": "modpack-import"
+}

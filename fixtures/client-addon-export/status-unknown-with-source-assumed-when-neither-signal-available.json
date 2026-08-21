@@ -1,0 +1,19 @@
+{
+  "domain": "client-addon-export",
+  "case": "status-unknown-with-source-assumed-when-neither-signal-available",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) no-signal fallback",
+    "line": 111
+  },
+  "input": {
+    "link": null,
+    "jar_environment": null
+  },
+  "expected": {
+    "status": "unknown",
+    "source": "assumed",
+    "reason": "Lines 110-113: with no Modrinth link and no parseable embedded environment, status is `.unknown` and `statusSource` is the literal string \"assumed\" -- distinct from \"Modrinth\"/\"mod manifest\", so the UI can show the user exactly how confident this classification is."
+  },
+  "workflow": "modpack-client-only"
+}

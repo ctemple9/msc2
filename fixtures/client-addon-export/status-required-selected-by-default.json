@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "status-required-selected-by-default",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "ClientSideStatus.isSelectedByDefault",
+    "line": 26
+  },
+  "input": {
+    "status": "required"
+  },
+  "expected": {
+    "isSelectedByDefault": true,
+    "reason": "Line 24-28: `.required, .optional, .unknown` all default to selected (true); only `.serverOnly` defaults to false."
+  },
+  "workflow": "modpack-client-only"
+}

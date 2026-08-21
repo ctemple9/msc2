@@ -1,0 +1,19 @@
+{
+  "domain": "client-addon-export",
+  "case": "display-name-precedence-persisted-link-title-then-jar-metadata-then-filename-heuristic",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) displayName precedence",
+    "line": 120
+  },
+  "input": {
+    "link_title": "Real Modrinth Title",
+    "embedded_metadata_displayName": "Embedded Name",
+    "filename_heuristic": "filename-derived"
+  },
+  "expected": {
+    "displayName": "Real Modrinth Title",
+    "reason": "Line 120-122: `link?.title ?? ModJarMetadataParser.parseAny(jarURL:)?.displayName ?? PluginNameParser.extractDisplayName(from: jarStem)` -- three-level fallback, same general shape (persisted link wins, then embedded metadata, then filename heuristic) as AddonUpdateResolver's own unlinked-item nameGuess, but this is an independent implementation in a different file, not a shared helper call."
+  },
+  "workflow": "modpack-client-only"
+}

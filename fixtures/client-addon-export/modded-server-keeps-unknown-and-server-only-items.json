@@ -1,0 +1,18 @@
+{
+  "domain": "client-addon-export",
+  "case": "modded-server-keeps-unknown-and-server-only-items",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) mod-kind non-filter",
+    "line": 118
+  },
+  "input": {
+    "addOnKind": "mod",
+    "item_status": "unknown"
+  },
+  "expected": {
+    "included_in_export_list": true,
+    "reason": "Line 118's filter is gated on `addOnKind == .plugin` -- a modded server's export list is deliberately MORE inclusive: unknown-status and even server-only mods still appear (just unchecked by default for server-only, per isSelectedByDefault), so the user can manually opt one back in rather than have it silently disappear from the list."
+  },
+  "workflow": "modpack-client-only"
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "staged-upload-rejects-expired-token",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "D-027 section -- expired staged-upload rejection",
+    "line": 17
+  },
+  "input": {
+    "staged_upload_token_ttl_elapsed": true
+  },
+  "expected": {
+    "accepted": false,
+    "reason": "The staged-upload primitive this phase reuses (Phase 6's `POST /v1/staged-uploads` + `PUT /v1/staged-uploads/{id}`) is purpose-bound and presumably time-bounded like every other staging slot in this system -- an upload attempt against an expired token is rejected the same way an expired/invalid staged-upload is rejected anywhere else in the API, not given special-case leniency for the CurseForge manual-download purpose."
+  },
+  "workflow": "modpack-import",
+  "notes": "This fixture documents an EXPECTED consequence of reusing the existing staged-upload primitive (P8.9/P8.20's job to actually wire), not a newly-invented rule specific to CurseForge manual downloads."
+}

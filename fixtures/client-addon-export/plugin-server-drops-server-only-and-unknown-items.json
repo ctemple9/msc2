@@ -1,0 +1,18 @@
+{
+  "domain": "client-addon-export",
+  "case": "plugin-server-drops-server-only-and-unknown-items",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) plugin-kind filter",
+    "line": 118
+  },
+  "input": {
+    "addOnKind": "plugin",
+    "item_status": "unknown"
+  },
+  "expected": {
+    "included_in_export_list": false,
+    "reason": "Line 116-118: `if addOnKind == .plugin, status == .serverOnly || status == .unknown { continue }` -- for Paper/Purpur specifically, unlinked/unclassifiable plugins are dropped from the list entirely, per the inline comment: \"almost always server-only\"."
+  },
+  "workflow": "modpack-client-only"
+}

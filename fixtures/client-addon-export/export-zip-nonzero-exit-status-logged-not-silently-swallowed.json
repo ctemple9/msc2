@@ -1,0 +1,18 @@
+{
+  "domain": "client-addon-export",
+  "case": "export-zip-nonzero-exit-status-logged-not-silently-swallowed",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "writeZip(items:to:cfg:) exit-status check",
+    "line": 189
+  },
+  "input": {
+    "zip_process_exit_status": 2
+  },
+  "expected": {
+    "logged": "[Export] zip exited with status 2",
+    "file_viewer_opened": false,
+    "reason": "Lines 189-197: the file-reveal call (`NSWorkspace.shared.activateFileViewerSelecting`) only fires on exit status 0; any non-zero exit logs the literal status code instead, so a partially-written or failed zip doesn't get presented to the user as if it succeeded."
+  },
+  "workflow": "modpack-client-only"
+}

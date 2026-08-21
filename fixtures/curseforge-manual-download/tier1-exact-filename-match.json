@@ -1,0 +1,21 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "tier1-exact-filename-match",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scanWatchFolder() primary match",
+    "line": 256
+  },
+  "input": {
+    "mod_fileName": "entityculling-forge-1.10.5-mc1.21.4.jar",
+    "newFiles": [
+      "entityculling-forge-1.10.5-mc1.21.4.jar"
+    ]
+  },
+  "expected": {
+    "matched": true,
+    "tier": 1,
+    "reason": "Line 255-259: `newFiles.first(where: { $0 == mod.fileName })` -- exact string equality against the expected CurseForge filename, checked first, covers any extension (.jar, .zip, whatever CF used for this file)."
+  },
+  "workflow": "modpack-import"
+}

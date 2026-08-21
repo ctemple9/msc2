@@ -1,0 +1,18 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "matched-file-moved-same-volume",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scheduleMove(fileName:for:) same-volume path",
+    "line": 300
+  },
+  "input": {
+    "src_and_dest_same_volume": true
+  },
+  "expected": {
+    "used_moveItem": true,
+    "used_copyItem": false,
+    "reason": "Line 299-300: an existing destination file is removed first (never-clobber-by-overwrite, same convention as ModpackClientOnlyClassifier), then `fm.moveItem(at: src, to: dest)` -- a same-volume rename, not a copy."
+  },
+  "workflow": "modpack-import"
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "no-add-on-kind-server-returns-empty-list",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) addOnKind guard",
+    "line": 70
+  },
+  "input": {
+    "javaFlavor_addOnKind": null
+  },
+  "expected": {
+    "result": [],
+    "reason": "Line 70: `guard let addOnKind = cfg.javaFlavor.addOnKind else { return [] }` -- a server flavor with no mods/plugins folder concept (e.g. a proxy) always exports an empty list."
+  },
+  "workflow": "modpack-client-only"
+}

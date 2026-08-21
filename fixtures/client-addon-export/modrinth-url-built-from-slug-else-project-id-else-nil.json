@@ -1,0 +1,18 @@
+{
+  "domain": "client-addon-export",
+  "case": "modrinth-url-built-from-slug-else-project-id-else-nil",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "ClientExportItem.modrinthURL",
+    "line": 56
+  },
+  "input": {
+    "slug": null,
+    "projectId": "AANobbMI"
+  },
+  "expected": {
+    "modrinthURL": "https://modrinth.com/project/AANobbMI",
+    "reason": "Line 56-59: `slug ?? projectId` -- when no slug was persisted (an older or minimally-populated AddonLink) the raw project ID is used in the URL path instead; Modrinth's own routing accepts either. Only when BOTH are nil is modrinthURL itself nil."
+  },
+  "workflow": "modpack-client-only"
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "status-server-only-not-selected-by-default",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "ClientSideStatus.isSelectedByDefault",
+    "line": 27
+  },
+  "input": {
+    "status": "serverOnly"
+  },
+  "expected": {
+    "isSelectedByDefault": false,
+    "reason": "Line 27: the sole false case -- a server-only item is present in the export list (for visibility/audit) but starts unchecked."
+  },
+  "workflow": "modpack-client-only"
+}

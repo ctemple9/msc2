@@ -1,0 +1,19 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "files-present-before-watch-started-excluded-from-matching",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "startWatching() knownFiles snapshot",
+    "line": 231
+  },
+  "input": {
+    "watchFolder_contents_at_start": [
+      "old-unrelated-file.jar"
+    ]
+  },
+  "expected": {
+    "old_unrelated_file_ever_matched": false,
+    "reason": "Line 230-234 (`startWatching`): `knownFiles` snapshots the folder's ENTIRE contents the moment watching begins; `scanWatchFolder`'s `newFiles` filter (line 248) excludes anything already in that snapshot -- a stray older jar already sitting in Downloads is never accidentally claimed."
+  },
+  "workflow": "modpack-import"
+}

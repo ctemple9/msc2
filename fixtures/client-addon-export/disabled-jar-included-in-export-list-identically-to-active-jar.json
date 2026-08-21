@@ -1,0 +1,22 @@
+{
+  "domain": "client-addon-export",
+  "case": "disabled-jar-included-in-export-list-identically-to-active-jar",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) enabled/disabled handling",
+    "line": 76
+  },
+  "input": {
+    "folder_contents": [
+      "ActiveModA.jar",
+      "DisabledModB.jar.disabled"
+    ]
+  },
+  "expected": {
+    "both_appear_in_export_list": true,
+    "ClientExportItem_has_isEnabled_field": false,
+    "reason": "Lines 76-81 enumerate BOTH `.jar` and `.jar.disabled` files identically to AddonUpdateResolver's own enumeration, and `isEnabled` IS computed locally at line 87 to derive the correct `jarStem` -- but `ClientExportItem` (line 41-60) has NO `isEnabled` field at all, and nothing later in the function filters by it. A mod the server operator explicitly DISABLED still appears in the client export list, gets classified, and (if selected) gets its bytes copied into the export ZIP or listed in the clipboard link text, exactly as if it were active."
+  },
+  "workflow": "modpack-client-only",
+  "notes": "This is worth flagging explicitly since 'disabled JAR handling' is named directly in this step's own What line -- the actual MSC 1 behavior is 'no special handling at all,' which is a real, possibly-surprising finding, not an oversight in this characterization pass."
+}

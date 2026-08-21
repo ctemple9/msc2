@@ -1,0 +1,19 @@
+{
+  "domain": "client-addon-export",
+  "case": "status-falls-back-to-embedded-jar-environment-for-unlinked-mods",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) status source fallback",
+    "line": 105
+  },
+  "input": {
+    "link": null,
+    "jar_environment": "client"
+  },
+  "expected": {
+    "status": "required",
+    "source": "mod manifest",
+    "reason": "Lines 104-109: only when no persisted link (or the link has no clientSide value) is `ModJarMetadataParser.parse(jarURL:)`'s embedded environment consulted, sourced as \"mod manifest\"."
+  },
+  "workflow": "modpack-client-only"
+}

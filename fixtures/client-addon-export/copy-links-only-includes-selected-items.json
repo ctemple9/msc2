@@ -1,0 +1,28 @@
+{
+  "domain": "client-addon-export",
+  "case": "copy-links-only-includes-selected-items",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "copyClientLinksToClipboard(items:) selection filter",
+    "line": 209
+  },
+  "input": {
+    "items": [
+      {
+        "isSelected": true,
+        "displayName": "A"
+      },
+      {
+        "isSelected": false,
+        "displayName": "B"
+      }
+    ]
+  },
+  "expected": {
+    "clipboard_lines": [
+      "• A: ..."
+    ],
+    "reason": "Line 209: `items.filter { $0.isSelected }` -- an unchecked item (e.g. a server-only item the user left unselected) never appears in the copied text, even though it's present in the underlying `items` array passed in."
+  },
+  "workflow": "modpack-client-only"
+}

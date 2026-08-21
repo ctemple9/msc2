@@ -1,0 +1,17 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "cross-volume-move-failure-falls-back-to-copy-then-delete-source",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scheduleMove(fileName:for:) catch fallback",
+    "line": 301
+  },
+  "input": {
+    "moveItem_throws": "cross-volume error"
+  },
+  "expected": {
+    "used_copyItem_then_removeItem_at_src": true,
+    "reason": "Lines 301-304: `catch { try? fm.copyItem(at: src, to: dest); try? fm.removeItem(at: src) }` -- when a straight rename fails (e.g. Downloads and the server directory are on different volumes, where `moveItem` can't do an atomic rename), MSC 1 falls back to copy-then-delete rather than surfacing an error to the user."
+  },
+  "workflow": "modpack-import"
+}

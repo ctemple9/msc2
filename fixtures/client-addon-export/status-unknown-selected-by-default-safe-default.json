@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "status-unknown-selected-by-default-safe-default",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "ClientSideStatus.isSelectedByDefault",
+    "line": 26
+  },
+  "input": {
+    "status": "unknown"
+  },
+  "expected": {
+    "isSelectedByDefault": true,
+    "reason": "Line 21's own comment: \"no signal — default to required (safe)\" -- when MSC genuinely doesn't know whether a client needs an item, it defaults to INCLUDING it rather than excluding it, since a missing client-required mod breaks the connection while an extra unnecessary one is just clutter."
+  },
+  "workflow": "modpack-client-only"
+}

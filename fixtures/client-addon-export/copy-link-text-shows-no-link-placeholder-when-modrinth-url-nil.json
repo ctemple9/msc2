@@ -1,0 +1,19 @@
+{
+  "domain": "client-addon-export",
+  "case": "copy-link-text-shows-no-link-placeholder-when-modrinth-url-nil",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "copyClientLinksToClipboard(items:) line formatting, no-URL case",
+    "line": 210
+  },
+  "input": {
+    "item_slug": null,
+    "item_projectId": null,
+    "item_displayName": "Some Unlinked Plugin"
+  },
+  "expected": {
+    "line": "• Some Unlinked Plugin: (no link)",
+    "reason": "Line 210: `item.modrinthURL.map { $0.absoluteString } ?? \"(no link)\"` -- an item with no Modrinth association still gets a line in the copied list (so the user knows to source it manually), with the literal placeholder text \"(no link)\" rather than being silently dropped."
+  },
+  "workflow": "modpack-client-only"
+}

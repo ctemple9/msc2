@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "empty-add-on-folder-returns-empty-list-no-error",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) empty-folder guard",
+    "line": 82
+  },
+  "input": {
+    "folder_contents": []
+  },
+  "expected": {
+    "result": [],
+    "reason": "Line 82: `guard !urls.isEmpty else { return [] }` -- an empty add-on folder (or a folder with no jar/jar.disabled files) returns an empty array, not an error."
+  },
+  "workflow": "modpack-client-only"
+}

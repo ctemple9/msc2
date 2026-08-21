@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "modrinth-server-side-value-unsupported-maps-to-server-only",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "clientSideStatus(from:) switch",
+    "line": 225
+  },
+  "input": {
+    "modrinthValue": "unsupported"
+  },
+  "expected": {
+    "status": "serverOnly",
+    "reason": "Line 225: `case \"unsupported\": return .serverOnly` -- this local mapper is independent of AddonUpdateResolver/ModpackClientOnlyClassifier's own unsupported-handling, but arrives at the same status name for the same Modrinth value."
+  },
+  "workflow": "modpack-client-only"
+}

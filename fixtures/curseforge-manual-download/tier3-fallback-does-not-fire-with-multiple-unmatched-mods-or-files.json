@@ -1,0 +1,18 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "tier3-fallback-does-not-fire-with-multiple-unmatched-mods-or-files",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scanWatchFolder() fallback ambiguity guard",
+    "line": 285
+  },
+  "input": {
+    "unmatchedMods_count": 2,
+    "unclaimed_newFiles_count": 1
+  },
+  "expected": {
+    "matched": false,
+    "reason": "Line 285: `if unmatchedMods.count == 1, unclaimed.count == 1` -- with 2+ mods still pending, a single new unrecognized file is left unclaimed rather than guessed at; MSC 1 would rather wait for a Tier 1/2 match (or a second file to disambiguate) than risk assigning the wrong mod's bytes to the wrong pending slot."
+  },
+  "workflow": "modpack-import"
+}

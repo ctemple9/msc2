@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "jar-environment-client-value-maps-to-required-not-excluded",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "clientSideStatus(fromEnvironment:) client case",
+    "line": 233
+  },
+  "input": {
+    "jarEnvironment": "client"
+  },
+  "expected": {
+    "status": "required",
+    "reason": "Line 233: `case \"client\": return .required` with the inline comment \"shouldn't be server-side, but include for client\" -- a jar whose embedded manifest says it's client-only is mapped to REQUIRED for the client-export list (the client obviously needs it), not excluded -- this export-list mapping is a completely different question from whether the same jar should be DISABLED server-side (ModpackClientOnlyClassifier's job)."
+  },
+  "workflow": "modpack-client-only"
+}

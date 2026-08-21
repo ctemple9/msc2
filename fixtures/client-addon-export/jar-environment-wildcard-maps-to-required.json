@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "jar-environment-wildcard-maps-to-required",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "clientSideStatus(fromEnvironment:) wildcard case",
+    "line": 234
+  },
+  "input": {
+    "jarEnvironment": "*"
+  },
+  "expected": {
+    "status": "required",
+    "reason": "Line 234: Fabric's `environment: \"*\"` (works on both sides) also maps to required for export purposes -- the client needs it present regardless of it also running server-side."
+  },
+  "workflow": "modpack-client-only"
+}

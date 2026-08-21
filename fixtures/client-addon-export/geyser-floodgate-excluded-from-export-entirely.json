@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "geyser-floodgate-excluded-from-export-entirely",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) managed-plugin skip",
+    "line": 94
+  },
+  "input": {
+    "jarStem": "geyser-spigot"
+  },
+  "expected": {
+    "included_in_export_list": false,
+    "reason": "Line 92-94: `if stemLower.contains(\"geyser\") || stemLower.contains(\"floodgate\") { continue }` -- these never even become a ClientExportItem, they're skipped before classification, since they're Bedrock-compatibility server plugins a Java client never installs."
+  },
+  "workflow": "modpack-client-only"
+}

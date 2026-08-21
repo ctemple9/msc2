@@ -1,0 +1,18 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "staged-upload-accepts-macos-duplicate-suffix-variant-of-expected-filename",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "D-027 section -- staged-upload translation of Tier 2",
+    "line": 17
+  },
+  "input": {
+    "pending_file_expected_name": "entityculling.jar",
+    "uploaded_filename": "entityculling (1).jar"
+  },
+  "expected": {
+    "accepted": true,
+    "reason": "phase8-scope.md's D-027 section explicitly preserves this piece of the three-tier logic conceptually: a browser download can still pick up a macOS \" (1)\" duplicate suffix even when the resulting file is then uploaded (not moved from a watched folder) -- the upload-acceptance check should tolerate the same duplicate-suffix pattern MSC 1's Tier 2 already tolerated."
+  },
+  "workflow": "modpack-import"
+}

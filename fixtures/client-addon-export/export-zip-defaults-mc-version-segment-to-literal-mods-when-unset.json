@@ -1,0 +1,18 @@
+{
+  "domain": "client-addon-export",
+  "case": "export-zip-defaults-mc-version-segment-to-literal-mods-when-unset",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "exportClientModsAsZip(items:for:) mcVersion fallback",
+    "line": 154
+  },
+  "input": {
+    "cfg_minecraftVersion": null,
+    "serverName": "MyServer"
+  },
+  "expected": {
+    "zipName": "MyServer-client-mods.zip",
+    "reason": "Line 154: `cfg.minecraftVersion ?? \"mods\"` -- a server with no recorded Minecraft version gets the literal word \"mods\" spliced into the filename rather than an empty segment or a placeholder like \"unknown\"."
+  },
+  "workflow": "modpack-client-only"
+}

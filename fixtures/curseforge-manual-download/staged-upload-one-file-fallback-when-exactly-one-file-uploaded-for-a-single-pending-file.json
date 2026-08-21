@@ -1,0 +1,19 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "staged-upload-one-file-fallback-when-exactly-one-file-uploaded-for-a-single-pending-file",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "D-027 section -- staged-upload translation of Tier 3",
+    "line": 17
+  },
+  "input": {
+    "pending_operation_has_exactly_one_outstanding_file": true,
+    "uploaded_filename_does_not_match_expected_name_at_all": true
+  },
+  "expected": {
+    "accepted": true,
+    "reason": "The single-remaining-fallback tolerance carries over: if a pending pack-import operation has exactly one outstanding blocked file and the client uploads exactly one file against it, the upload is accepted even on a total filename mismatch -- mirroring Tier 3's reasoning that a browser-saved name can bear no resemblance to the CurseForge API's recorded name at all."
+  },
+  "workflow": "modpack-import",
+  "notes": "Unlike MSC 1's folder-watch fallback, this operates over a single-purpose staged-upload slot already bound to one specific pending file at creation time (per the note below on purpose-binding) -- so 'exactly one file' here means the redemption call itself, not a scan across an entire ambiguous folder."
+}

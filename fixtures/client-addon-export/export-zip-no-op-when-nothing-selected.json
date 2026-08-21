@@ -1,0 +1,21 @@
+{
+  "domain": "client-addon-export",
+  "case": "export-zip-no-op-when-nothing-selected",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "exportClientModsAsZip(items:for:) empty guard",
+    "line": 151
+  },
+  "input": {
+    "items": [
+      {
+        "isSelected": false
+      }
+    ]
+  },
+  "expected": {
+    "save_panel_shown": false,
+    "reason": "Line 150-151: `let selected = items.filter { $0.isSelected }; guard !selected.isEmpty else { return }` -- the macOS save panel isn't even presented when nothing is checked."
+  },
+  "workflow": "modpack-client-only"
+}

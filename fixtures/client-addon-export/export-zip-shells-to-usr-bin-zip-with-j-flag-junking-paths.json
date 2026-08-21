@@ -1,0 +1,19 @@
+{
+  "domain": "client-addon-export",
+  "case": "export-zip-shells-to-usr-bin-zip-with-j-flag-junking-paths",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "writeZip(items:to:cfg:) archive tool invocation",
+    "line": 182
+  },
+  "input": {
+    "selected_item_count": 3
+  },
+  "expected": {
+    "executable": "/usr/bin/zip",
+    "arguments_include": "-j",
+    "reason": "Lines 180-184: `process.executableURL = URL(fileURLWithPath: \"/usr/bin/zip\")`, `arguments = [\"-j\", dest.path] + <staged file paths>` -- `-j` (\"junk paths\") means every selected jar lands flat at the archive root regardless of its original mods/plugins subpath. This is one of the five macOS-only shell-out call sites phase8-scope.md's 'Zip extraction is macOS-only' section already flags as not surviving the port (D-006/D-011, P8.22's own text: 'Rust archive code, ... no base64')."
+  },
+  "workflow": "modpack-client-only",
+  "notes": "Characterized here for archive-CONTENT-shape completeness (flat layout, junked paths) even though the /usr/bin/zip mechanism itself is explicitly not being ported -- P8.22's Rust ZIP writer needs to reproduce the flat-layout OUTPUT, not the shell-out MECHANISM."
+}

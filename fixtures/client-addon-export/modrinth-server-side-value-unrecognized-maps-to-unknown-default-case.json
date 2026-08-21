@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "modrinth-server-side-value-unrecognized-maps-to-unknown-default-case",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "clientSideStatus(from:) default case",
+    "line": 226
+  },
+  "input": {
+    "modrinthValue": "some-future-modrinth-value"
+  },
+  "expected": {
+    "status": "unknown",
+    "reason": "Line 226: `default: return .unknown` -- this local Modrinth-value mapper is distinct from AddonUpdateResolver's own isClientOnly (serverSide==\"unsupported\") -- an unrecognized value degrades to unknown here rather than being treated as either extreme."
+  },
+  "workflow": "modpack-client-only"
+}

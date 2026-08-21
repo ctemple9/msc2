@@ -1,0 +1,35 @@
+{
+  "domain": "client-addon-export",
+  "case": "deterministic-ordering-required-optional-unknown-server-only-then-alphabetical",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) items.sort",
+    "line": 138
+  },
+  "input": {
+    "items": [
+      {
+        "displayName": "Zeta",
+        "clientStatus": "required"
+      },
+      {
+        "displayName": "Alpha",
+        "clientStatus": "optional"
+      },
+      {
+        "displayName": "Beta",
+        "clientStatus": "serverOnly"
+      }
+    ]
+  },
+  "expected": {
+    "ordered_display_names": [
+      "Zeta",
+      "Alpha",
+      "Beta"
+    ],
+    "reason": "Lines 138-144: the rank array is `[.required, .optional, .unknown, .serverOnly]` -- a DIFFERENT bucket set and order than AddonUpdateResolver's own sort (updateAvailable/noCompatibleVersion/upToDate/unlinked). Within an equal rank, case-insensitive alphabetical (line 143) is the same tie-break convention as every other sorted list in this phase."
+  },
+  "workflow": "modpack-client-only",
+  "notes": "Worth citing precisely so the Rust port doesn't accidentally reuse AddonUpdateBucket's sort rank for this unrelated ClientSideStatus ranking -- they happen to share a shape (rank array + alphabetical tie-break) but are two independent orderings over two independent enums."
+}

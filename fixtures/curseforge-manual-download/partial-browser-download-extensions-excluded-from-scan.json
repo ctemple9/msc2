@@ -1,0 +1,21 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "partial-browser-download-extensions-excluded-from-scan",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scanWatchFolder() in-progress-download filter",
+    "line": 245
+  },
+  "input": {
+    "folder_contents": [
+      "mod.jar.crdownload",
+      "mod.jar.part",
+      "mod.jar.download"
+    ]
+  },
+  "expected": {
+    "any_treated_as_new_file": false,
+    "reason": "Lines 243-249: Chrome's `.crdownload`, Firefox's `.part`, and a generic `.download` in-progress suffix are all excluded from `newFiles` -- an incomplete browser download is never mistakenly matched and moved mid-transfer."
+  },
+  "workflow": "modpack-import"
+}

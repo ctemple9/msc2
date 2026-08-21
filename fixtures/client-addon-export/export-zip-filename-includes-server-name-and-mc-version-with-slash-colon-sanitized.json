@@ -1,0 +1,18 @@
+{
+  "domain": "client-addon-export",
+  "case": "export-zip-filename-includes-server-name-and-mc-version-with-slash-colon-sanitized",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "exportClientModsAsZip(items:for:) zipName construction",
+    "line": 153
+  },
+  "input": {
+    "serverName": "My/Cool: Server",
+    "mcVersion": "1.21.1"
+  },
+  "expected": {
+    "zipName": "My-Cool Server-client-1.21.1.zip",
+    "reason": "Lines 153-157: `\"\\(serverName)-client-\\(mcVersion).zip\"` then `.replacingOccurrences(of: \"/\", with: \"-\")` and `.replacingOccurrences(of: \":\", with: \"\")` -- a server display name containing a slash or colon (both invalid/awkward in a macOS filename) is sanitized, slash becomes a hyphen, colon is simply deleted (not replaced), before being offered as the save panel's default filename."
+  },
+  "workflow": "modpack-client-only"
+}

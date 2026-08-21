@@ -1,0 +1,22 @@
+{
+  "domain": "client-addon-export",
+  "case": "copy-links-no-op-when-nothing-selected",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "copyClientLinksToClipboard(items:) empty guard",
+    "line": 213
+  },
+  "input": {
+    "items": [
+      {
+        "isSelected": false,
+        "displayName": "A"
+      }
+    ]
+  },
+  "expected": {
+    "clipboard_modified": false,
+    "reason": "Line 213: `guard !lines.isEmpty else { return }` -- the pasteboard is left completely untouched (not even cleared) when every item is deselected, rather than copying an empty string."
+  },
+  "workflow": "modpack-client-only"
+}

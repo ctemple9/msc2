@@ -1,0 +1,17 @@
+{
+  "domain": "client-addon-export",
+  "case": "export-zip-temp-staging-dir-removed-on-both-success-and-failure-paths",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "writeZip(items:to:cfg:) temp cleanup",
+    "line": 187
+  },
+  "input": {
+    "zip_process_exit_status": 1
+  },
+  "expected": {
+    "temp_dir_removed": true,
+    "reason": "Line 187 (success path, after zip runs) and line 199 (the `catch` block for a staging-copy failure) both call `try? fm.removeItem(at: tmp)` -- the per-export UUID-named temp staging directory is cleaned up regardless of whether the archive tool itself succeeds, though a truly killed process (not merely a caught Swift error or non-zero exit) could still leave it behind."
+  },
+  "workflow": "modpack-client-only"
+}

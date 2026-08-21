@@ -1,0 +1,19 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "staged-upload-rejects-wrong-file-does-not-silently-substitute",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "D-027 section -- rejection case",
+    "line": 17
+  },
+  "input": {
+    "pending_file_expected_id_or_hash": "known",
+    "uploaded_file_hash_after_download_completes": "does not match expected file identity, and filename also doesn't match"
+  },
+  "expected": {
+    "accepted": false,
+    "operation_left": "pending, not silently substituted or failed",
+    "reason": "rolling-plan.md's Phase 8 working exit criteria commit to durable, cancellable pack operations where 'wrong or missing files leave the operation honestly pending/failed and never publish a half-server' (P8.20's own text). An upload that matches neither the expected filename (with duplicate-suffix tolerance) nor the single-remaining fallback, AND fails a final hash/JAR validation, is rejected outright -- the operation stays pending for a correct retry rather than accepting a mismatched file."
+  },
+  "workflow": "modpack-import"
+}

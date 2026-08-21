@@ -1,0 +1,20 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "tier3-single-remaining-fallback-when-exactly-one-mod-and-one-file-left",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scanWatchFolder() fallback claim",
+    "line": 285
+  },
+  "input": {
+    "unmatchedMods_count": 1,
+    "unclaimed_newFiles_count": 1,
+    "filenames_do_not_match_at_all": true
+  },
+  "expected": {
+    "matched": true,
+    "tier": 3,
+    "reason": "Lines 275-287: after Tiers 1/2 run for every pending mod, if EXACTLY one mod remains unmatched and EXACTLY one new, unclaimed file exists, the fallback claims it regardless of filename similarity -- covers a CurseForge author-blocked download whose browser-saved filename bears no resemblance to the API's recorded fileName at all."
+  },
+  "workflow": "modpack-import"
+}

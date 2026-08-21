@@ -1,0 +1,20 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "tier2-duplicate-suffix-match-requires-same-extension",
+  "source": {
+    "file": "CurseForgeManualDownloadSheet.swift",
+    "test": "scanWatchFolder() secondary match, extension guard",
+    "line": 267
+  },
+  "input": {
+    "mod_fileName": "entityculling.jar",
+    "newFiles": [
+      "entityculling (1).zip"
+    ]
+  },
+  "expected": {
+    "matched": false,
+    "reason": "Line 267: `fileExt == ext` is required alongside the stem/suffix shape -- a duplicate-suffixed file with a DIFFERENT extension than expected (.zip vs .jar) does not match Tier 2, even though the stem and suffix pattern otherwise line up."
+  },
+  "workflow": "modpack-import"
+}

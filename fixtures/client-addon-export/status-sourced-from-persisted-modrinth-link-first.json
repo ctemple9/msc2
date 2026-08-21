@@ -1,0 +1,19 @@
+{
+  "domain": "client-addon-export",
+  "case": "status-sourced-from-persisted-modrinth-link-first",
+  "source": {
+    "file": "AppViewModel+ClientExport.swift",
+    "test": "buildClientExportItems(for:) status source precedence",
+    "line": 101
+  },
+  "input": {
+    "link_clientSide": "required",
+    "jar_has_fabric_mod_json_environment": "server"
+  },
+  "expected": {
+    "status": "required",
+    "source": "Modrinth",
+    "reason": "Lines 100-103: a persisted AddonLink's `clientSide` field (from Modrinth) is checked FIRST and wins outright when present -- the jar's own embedded manifest is never even parsed in this branch."
+  },
+  "workflow": "modpack-client-only"
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "curseforge-manual-download",
+  "case": "staged-upload-accepts-exact-filename-match-for-pending-file",
+  "source": {
+    "file": "docs/msc2/addons/phase8-scope.md",
+    "test": "D-027 section -- staged-upload translation of Tier 1",
+    "line": 17
+  },
+  "input": {
+    "pending_file_expected_name": "entityculling-forge-1.10.5-mc1.21.4.jar",
+    "uploaded_filename": "entityculling-forge-1.10.5-mc1.21.4.jar"
+  },
+  "expected": {
+    "accepted": true,
+    "reason": "Per Cameron's D-027 answer (option a): the client uploads a specific file to a specific pending operation through MSC's bounded staged-upload path; the agent verifies the expected file identity before resuming. An uploaded file whose name matches the pending operation's expected CurseForge filename exactly is the direct analogue of MSC 1's Tier 1 exact match, translated from 'found in a watched folder' to 'uploaded against this operation's redemption route.'"
+  },
+  "workflow": "modpack-import",
+  "notes": "This fixture and the five below characterize Phase 8's NEW decided contract (not yet built -- P8.9 pins the exact route/purpose, P8.20 implements it), following the same source-cites-the-decision-doc convention fixtures/pack-managed-guard/ established in P8.6. MSC 1's own mechanism (browser + folder watch) is characterized separately above and does not survive the port per phase8-scope.md's D-027 section."
+}

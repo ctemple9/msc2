@@ -12,17 +12,21 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use axum::http::{Method, StatusCode, Uri};
 use clap::{Args, Subcommand};
 use msc_api::dto::{
+    AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto, AddonsResponseDto,
     ActiveServerRequestDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
     BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
     BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, CommandRequestDto,
-    CommandResultDto, ErrorDto, HealthProblemsResponseDto, HealthRepairRequestDto,
-    HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto, JavaConfigSetRequestDto,
-    JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
-    OperationDto, OperationStateDto, RemoteApiStatus, ServerCreateRequestDto,
-    ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
-    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
-    ServerImportScanResponseDto, ServerRenameRequestDto, ServerRenameResultDto,
-    SettingsResponseDto, SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
+    CommandResultDto, ComponentUpdateRequestDto, ErrorDto,
+    HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto,
+    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
+    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
+    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
+    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
+    RemoteApiStatus, ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto,
+    ServerDeleteResultDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
+    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
+    ServerRenameRequestDto, ServerRenameResultDto, SettingsResponseDto,
+    SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
     StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
     StagedUploadPurposeDto, TemplateMutationRequestDto, TemplateMutationResultDto,
     TemplatesResponseDto, VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto,
@@ -30,7 +34,8 @@ use msc_api::dto::{
     WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
     WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto, WorldRenameRequestDto,
     WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
-    WorldSlotDto, WorldSlotsResponseDto,
+    WorldSlotDto, WorldSlotsResponseDto, CatalogInstallRequestDto, CatalogInstallResultDto,
+    CatalogSearchResponseDto, ClientExportResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -144,6 +149,16 @@ pub enum Command {
     Doctor {
         #[command(subcommand)]
         command: Option<DoctorCommand>,
+    },
+    /// List, search, install, update, remove, link, or export add-ons.
+    Addon {
+        #[command(subcommand)]
+        command: AddonCommand,
+    },
+    /// Inspect, import, replace, or resume a staged modpack import.
+    Modpack {
+        #[command(subcommand)]
+        command: ModpackCommand,
     },
 }
 
@@ -304,6 +319,9 @@ pub struct ServerCreateArgs {
     /// NeoForge installer runs).
     #[arg(long = "java-path")]
     java_path: Option<String>,
+    /// Create the server from a local .mrpack or CurseForge archive.
+    #[arg(long = "modpack")]
+    modpack: Option<PathBuf>,
     /// Print the operation id and return immediately instead of waiting
     /// for creation to finish.
     #[arg(long)]
@@ -396,8 +414,90 @@ pub enum DoctorCommand {
     /// Attempt a repair for a diagnosed startup problem.
     Repair {
         problem_id: String,
-        /// `disable` or `delete`.
+        /// `disable`, `delete`, `update`, or `install`.
         action: String,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum AddonCommand {
+    /// List installed add-ons for the active server.
+    List,
+    /// Search the active server's filtered Modrinth catalog.
+    Search {
+        query: String,
+        #[arg(long, default_value_t = 0)]
+        offset: usize,
+    },
+    /// Install one add-on from the active server's filtered Modrinth catalog.
+    InstallCatalog {
+        project_id: String,
+        #[arg(long)]
+        slug: Option<String>,
+        #[arg(long)]
+        title: Option<String>,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Upload and install one local jar into the active server.
+    InstallLocal {
+        path: PathBuf,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Update one installed add-on.
+    Update {
+        jar_stem: String,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Update every installed add-ons with a compatible update.
+    UpdateAll {
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Enable one disabled add-on.
+    Enable { jar_stem: String },
+    /// Disable one enabled add-on.
+    Disable { jar_stem: String },
+    /// Remove one installed add-on.
+    Remove { jar_stem: String },
+    /// Manually link one jar stem to a Modrinth project id.
+    Link { jar_stem: String, project_id: String },
+    /// Set a plugin source URL for one jar stem.
+    SetSource { jar_stem: String, url: String },
+    /// Remove a plugin source URL for one jar stem.
+    RemoveSource { jar_stem: String },
+    /// Export client-side add-ons to a local file or stdout.
+    Export {
+        #[arg(long = "selected")]
+        selected_ids: Vec<String>,
+        #[arg(long)]
+        output: Option<PathBuf>,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum ModpackCommand {
+    /// Inspect a local .mrpack or CurseForge zip without mutating the server.
+    Inspect { path: PathBuf },
+    /// Import a local modpack into the active server.
+    Import {
+        path: PathBuf,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Explicitly replace the active server's current pack with a new local modpack.
+    Replace {
+        path: PathBuf,
+        #[arg(long)]
+        no_wait: bool,
+    },
+    /// Complete one pending author-blocked CurseForge file upload.
+    ManualFile {
+        operation_id: String,
+        file_id: String,
+        path: PathBuf,
     },
 }
 
@@ -713,6 +813,8 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Template { command } => run_template(common, command).await,
         Command::Java { command } => run_java(common, command).await,
         Command::Doctor { command } => run_doctor(common, command).await,
+        Command::Addon { command } => run_addon(common, command).await,
+        Command::Modpack { command } => run_modpack(common, command).await,
     }
 }
 
@@ -934,6 +1036,20 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
         }
         ServerCommand::Create(args) => {
             let no_wait = args.no_wait;
+            let staged_modpack_upload_id = if let Some(path) = args.modpack.as_ref() {
+                Some(
+                    stage_file_upload(
+                        &client,
+                        path,
+                        StagedUploadPurposeDto::ModpackArchive,
+                        None,
+                        None,
+                    )
+                    .await?,
+                )
+            } else {
+                None
+            };
             let body = ServerCreateRequestDto {
                 name: args.name,
                 server_type: args.server_type,
@@ -955,6 +1071,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 bedrock_version: None,
                 docker_image: None,
                 java_path: args.java_path,
+                staged_modpack_upload_id,
             };
             let result: ServerCreateResultDto =
                 client.post_json("/v1/servers/create", &body).await?;
@@ -1051,6 +1168,45 @@ fn zip_folder_to_bytes(path: &Path) -> Result<Vec<u8>, CliError> {
         .map_err(|err| CliError::internal(format!("failed to read temporary zip: {err}")))?;
     let _ = std::fs::remove_file(&temp_zip);
     Ok(bytes)
+}
+
+fn encode_uri_component(value: &str) -> String {
+    let mut encoded = String::new();
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
+}
+
+async fn stage_file_upload(
+    client: &RemoteClient,
+    path: &Path,
+    purpose: StagedUploadPurposeDto,
+    operation_id: Option<String>,
+    file_id: Option<String>,
+) -> Result<String, CliError> {
+    let bytes = tokio::fs::read(path)
+        .await
+        .map_err(|err| CliError::usage(format!("failed to read {}: {err}", path.display())))?;
+    let begin: StagedUploadBeginResultDto = client
+        .post_json(
+            "/v1/staged-uploads",
+            &StagedUploadBeginRequestDto {
+                purpose,
+                content_type: None,
+                operation_id,
+                file_id,
+            },
+        )
+        .await?;
+    let _uploaded: StagedUploadCompleteResultDto = client
+        .put_bytes(&begin.upload_path, "application/octet-stream", bytes)
+        .await?;
+    Ok(begin.staged_upload_id)
 }
 
 /// Parses `<source-server-id>=<port>` pairs, matching `settings set`'s
@@ -1220,6 +1376,8 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                     &StagedUploadBeginRequestDto {
                         purpose: StagedUploadPurposeDto::WorldImport,
                         content_type: None,
+                        operation_id: None,
+                        file_id: None,
                     },
                 )
                 .await?;
@@ -1254,6 +1412,8 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
                             &StagedUploadBeginRequestDto {
                                 purpose: StagedUploadPurposeDto::ActiveWorldReplace,
                                 content_type: None,
+                                operation_id: None,
+                                file_id: None,
                             },
                         )
                         .await?;
@@ -1778,13 +1938,436 @@ async fn run_doctor(common: CommonArgs, command: Option<DoctorCommand>) -> Resul
                     print_health_problems(updated);
                 }
             }
-            if result.success {
+            if let Some(operation_id) = result.operation_id {
+                if !common.json {
+                    println!("operation id: {operation_id}");
+                }
+                poll_operation(&client, &operation_id, common.json).await
+            } else if result.success {
                 Ok(())
             } else {
                 Err(CliError::usage(result.message))
             }
         }
     }
+}
+
+async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        AddonCommand::List => {
+            let response: AddonsResponseDto = client.get_json("/v1/addons").await?;
+            if common.json {
+                print_json(&response)?;
+            } else {
+                print_addons(&response);
+            }
+            Ok(())
+        }
+        AddonCommand::Search { query, offset } => {
+            let path = format!(
+                "/v1/catalog/search?q={}&offset={offset}",
+                encode_uri_component(&query)
+            );
+            let response: CatalogSearchResponseDto = client.get_json(&path).await?;
+            if common.json {
+                print_json(&response)?;
+            } else {
+                print_catalog_results(&response);
+            }
+            Ok(())
+        }
+        AddonCommand::InstallCatalog {
+            project_id,
+            slug,
+            title,
+            no_wait,
+        } => {
+            let result: CatalogInstallResultDto = client
+                .post_json(
+                    "/v1/components/install",
+                    &CatalogInstallRequestDto {
+                        project_id: Some(project_id.clone()),
+                        slug,
+                        title,
+                        staged_upload_id: None,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            if result.operation_id.is_some() {
+                finish_operation(&client, common.json, no_wait, result.operation_id, "add-on install")
+                    .await
+            } else {
+                Ok(())
+            }
+        }
+        AddonCommand::InstallLocal { path, no_wait } => {
+            let staged_upload_id = stage_file_upload(
+                &client,
+                &path,
+                StagedUploadPurposeDto::AddonLocalFile,
+                None,
+                None,
+            )
+            .await?;
+            let result: CatalogInstallResultDto = client
+                .post_json(
+                    "/v1/components/install",
+                    &CatalogInstallRequestDto {
+                        project_id: None,
+                        slug: None,
+                        title: None,
+                        staged_upload_id: Some(staged_upload_id),
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            finish_operation(&client, common.json, no_wait, result.operation_id, "local add-on install")
+                .await
+        }
+        AddonCommand::Update { jar_stem, no_wait } => {
+            let result: AddonUpdateResultDto = client
+                .post_json(
+                    "/v1/components/update",
+                    &ComponentUpdateRequestDto {
+                        component: None,
+                        jar_stem: Some(jar_stem.clone()),
+                        update_all: None,
+                        enabled: None,
+                        link_project_id: None,
+                        source_url: None,
+                        remove_source: None,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.result);
+            }
+            if result.operation_id.is_some() {
+                finish_operation(&client, common.json, no_wait, result.operation_id, "add-on update")
+                    .await
+            } else {
+                Ok(())
+            }
+        }
+        AddonCommand::UpdateAll { no_wait } => {
+            let result: AddonUpdateResultDto = client
+                .post_json(
+                    "/v1/components/update",
+                    &ComponentUpdateRequestDto {
+                        component: None,
+                        jar_stem: None,
+                        update_all: Some(true),
+                        enabled: None,
+                        link_project_id: None,
+                        source_url: None,
+                        remove_source: None,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.result);
+            }
+            if result.operation_id.is_some() {
+                finish_operation(
+                    &client,
+                    common.json,
+                    no_wait,
+                    result.operation_id,
+                    "add-on updates",
+                )
+                .await
+            } else {
+                Ok(())
+            }
+        }
+        AddonCommand::Enable { jar_stem } => {
+            let result: AddonUpdateResultDto = client
+                .post_json(
+                    "/v1/components/update",
+                    &ComponentUpdateRequestDto {
+                        component: None,
+                        jar_stem: Some(jar_stem),
+                        update_all: None,
+                        enabled: Some(true),
+                        link_project_id: None,
+                        source_url: None,
+                        remove_source: None,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.result);
+            }
+            Ok(())
+        }
+        AddonCommand::Disable { jar_stem } => {
+            let result: AddonUpdateResultDto = client
+                .post_json(
+                    "/v1/components/update",
+                    &ComponentUpdateRequestDto {
+                        component: None,
+                        jar_stem: Some(jar_stem),
+                        update_all: None,
+                        enabled: Some(false),
+                        link_project_id: None,
+                        source_url: None,
+                        remove_source: None,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.result);
+            }
+            Ok(())
+        }
+        AddonCommand::Remove { jar_stem } => {
+            let result: AddonRemoveResultDto = client
+                .post_json(
+                    "/v1/components/remove",
+                    &AddonRemoveRequestDto { jar_stem },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            Ok(())
+        }
+        AddonCommand::Link {
+            jar_stem,
+            project_id,
+        } => {
+            let result: AddonUpdateResultDto = client
+                .post_json(
+                    "/v1/components/update",
+                    &ComponentUpdateRequestDto {
+                        component: None,
+                        jar_stem: Some(jar_stem),
+                        update_all: None,
+                        enabled: None,
+                        link_project_id: Some(project_id),
+                        source_url: None,
+                        remove_source: None,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.result);
+            }
+            Ok(())
+        }
+        AddonCommand::SetSource { jar_stem, url } => {
+            let result: AddonUpdateResultDto = client
+                .post_json(
+                    "/v1/components/update",
+                    &ComponentUpdateRequestDto {
+                        component: None,
+                        jar_stem: Some(jar_stem),
+                        update_all: None,
+                        enabled: None,
+                        link_project_id: None,
+                        source_url: Some(url),
+                        remove_source: None,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.result);
+            }
+            Ok(())
+        }
+        AddonCommand::RemoveSource { jar_stem } => {
+            let result: AddonUpdateResultDto = client
+                .post_json(
+                    "/v1/components/update",
+                    &ComponentUpdateRequestDto {
+                        component: None,
+                        jar_stem: Some(jar_stem),
+                        update_all: None,
+                        enabled: None,
+                        link_project_id: None,
+                        source_url: None,
+                        remove_source: Some(true),
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.result);
+            }
+            Ok(())
+        }
+        AddonCommand::Export {
+            selected_ids,
+            output,
+        } => {
+            let path = if selected_ids.is_empty() {
+                "/v1/components/client-export".to_string()
+            } else {
+                format!(
+                    "/v1/components/client-export?selected={}",
+                    encode_uri_component(&selected_ids.join(","))
+                )
+            };
+            let result: ClientExportResponseDto = client.get_json(&path).await?;
+            if common.json {
+                print_json(&result)?;
+                return Ok(());
+            }
+            if let Some(text) = &result.share_text {
+                println!("{text}");
+                return Ok(());
+            }
+            if let Some(staged_download_id) = &result.staged_download_id {
+                let output = output.ok_or_else(|| {
+                    CliError::usage("client export returned a zip; pass --output <path> to save it")
+                })?;
+                let bytes = client
+                    .get_raw_bytes(&format!("/v1/staged-downloads/{staged_download_id}"))
+                    .await?;
+                tokio::fs::write(&output, &bytes).await.map_err(|err| {
+                    CliError::internal(format!("failed to write {}: {err}", output.display()))
+                })?;
+                println!("exported {} bytes to {}", bytes.len(), output.display());
+                return Ok(());
+            }
+            if let Some(note) = &result.note {
+                println!("note: {note}");
+            }
+            Ok(())
+        }
+    }
+}
+
+async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        ModpackCommand::Inspect { path } => {
+            let staged_upload_id = stage_file_upload(
+                &client,
+                &path,
+                StagedUploadPurposeDto::ModpackArchive,
+                None,
+                None,
+            )
+            .await?;
+            let result: ModpackInspectionResultDto = client
+                .post_json(
+                    "/v1/modpacks/inspect",
+                    &ModpackInspectionRequestDto { staged_upload_id },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                print_modpack_inspection(&result);
+            }
+            Ok(())
+        }
+        ModpackCommand::Import { path, no_wait } => {
+            let result = import_modpack_command(&client, &path, "import").await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            finish_operation(&client, common.json, no_wait, Some(result.operation_id), "modpack import")
+                .await
+        }
+        ModpackCommand::Replace { path, no_wait } => {
+            let result = import_modpack_command(&client, &path, "replace").await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                Some(result.operation_id),
+                "modpack replacement",
+            )
+            .await
+        }
+        ModpackCommand::ManualFile {
+            operation_id,
+            file_id,
+            path,
+        } => {
+            let staged_upload_id = stage_file_upload(
+                &client,
+                &path,
+                StagedUploadPurposeDto::CurseforgeManualFile,
+                Some(operation_id.clone()),
+                Some(file_id.clone()),
+            )
+            .await?;
+            let result: ModpackManualFileResultDto = client
+                .post_json(
+                    &format!("/v1/modpacks/{operation_id}/manual-file"),
+                    &ModpackManualFileRequestDto {
+                        file_id,
+                        staged_upload_id,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result.message);
+            }
+            Ok(())
+        }
+    }
+}
+
+async fn import_modpack_command(
+    client: &RemoteClient,
+    path: &Path,
+    action: &str,
+) -> Result<ModpackImportResultDto, CliError> {
+    let staged_upload_id = stage_file_upload(
+        client,
+        path,
+        StagedUploadPurposeDto::ModpackArchive,
+        None,
+        None,
+    )
+    .await?;
+    client
+        .post_json(
+            "/v1/modpacks/import",
+            &ModpackImportRequestDto {
+                staged_upload_id,
+                action: action.to_string(),
+            },
+        )
+        .await
 }
 
 fn print_health(response: &HealthResponseDto) {
@@ -1817,6 +2400,60 @@ fn print_health_problems(response: &HealthProblemsResponseDto) {
         );
         if !problem.available_actions.is_empty() {
             println!("  actions: {}", problem.available_actions.join(", "));
+        }
+    }
+}
+
+fn print_addons(response: &AddonsResponseDto) {
+    if let Some(note) = &response.note {
+        println!("note: {note}");
+    }
+    if response.addons.is_empty() {
+        println!("No add-ons.");
+        return;
+    }
+    for addon in &response.addons {
+        let enabled = if addon.is_enabled { "enabled" } else { "disabled" };
+        println!(
+            "{} [{}] {}",
+            addon.jar_stem, enabled, addon.bucket
+        );
+        if let Some(project_id) = &addon.project_id {
+            println!("  project: {project_id}");
+        }
+        if let Some(version) = &addon.available_version {
+            println!("  available: {version}");
+        }
+    }
+}
+
+fn print_catalog_results(response: &CatalogSearchResponseDto) {
+    if let Some(note) = &response.note {
+        println!("note: {note}");
+    }
+    if response.results.is_empty() {
+        println!("No catalog results.");
+        return;
+    }
+    for item in &response.results {
+        println!("{} {}", item.project_id, item.title);
+        println!("  slug: {}", item.slug);
+    }
+}
+
+fn print_modpack_inspection(result: &ModpackInspectionResultDto) {
+    println!("format: {}", result.format);
+    if let Some(name) = &result.pack_name {
+        println!("pack: {name}");
+    }
+    if let Some(version) = &result.pack_version {
+        println!("version: {version}");
+    }
+    println!("files: {}", result.file_count);
+    if !result.manual_files.is_empty() {
+        println!("manual files:");
+        for file in &result.manual_files {
+            println!("  {} {}", file.file_id, file.file_name);
         }
     }
 }

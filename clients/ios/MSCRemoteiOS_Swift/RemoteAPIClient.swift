@@ -648,6 +648,12 @@ final class RemoteAPIClient {
         return try await get(path: "/components/client-export", query: query, as: ClientExportResponseDTO.self, urlSession: installSession)
     }
 
+    func downloadStagedDownload(id: String) async throws -> Data {
+        let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw RemoteAPIError.network("Missing staged download id.") }
+        return try await getBytes(path: "/staged-downloads/\(trimmed)")
+    }
+
     // MARK: - Worlds
 
     func getWorlds() async throws -> WorldSlotsResponseDTO {

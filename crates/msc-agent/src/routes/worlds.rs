@@ -44,10 +44,10 @@ use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::body::Bytes;
-use axum::extract::{DefaultBodyLimit, Extension, Path as AxumPath, State};
+use axum::extract::{Extension, Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post, put};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use msc_api::dto::{
     PermissionCategoryDto, StagedUploadBeginRequestDto, StagedUploadBeginResultDto,
@@ -106,20 +106,6 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds/activate", post(activate))
         .route("/worlds/convert", post(convert))
         .route("/worlds/:slot_id/thumbnail", get(thumbnail))
-        .route("/staged-uploads", post(begin_staged_upload))
-        .route(
-            "/staged-uploads/:id",
-            // axum's `Bytes` extractor refuses any body over 2MB by
-            // default (`DefaultBodyLimit`'s own doc: "for security
-            // reasons") regardless of this route's own `max_bytes`
-            // bookkeeping — without this override, every real Minecraft
-            // world upload (almost never under 2MB) would 413 before
-            // `upload_staged_bytes` ever ran, making
-            // `MAX_STAGED_UPLOAD_BYTES` unreachable in practice.
-            put(upload_staged_bytes)
-                .route_layer(DefaultBodyLimit::max(MAX_STAGED_UPLOAD_BYTES as usize)),
-        )
-        .route("/staged-downloads/:id", get(download_staged_bytes))
         .with_state(state)
 }
 
@@ -133,7 +119,7 @@ pub fn router(state: WorldsRoutesState) -> Router {
 #[derive(Clone)]
 pub struct WorldsRoutesState {
     pub lifecycle: LifecycleRoutesState,
-    staging: StagingStore,
+    pub(crate) staging: StagingStore,
 }
 
 impl WorldsRoutesState {
@@ -143,21 +129,25 @@ impl WorldsRoutesState {
             staging: StagingStore::default(),
         }
     }
+
+    pub fn with_staging(lifecycle: LifecycleRoutesState, staging: StagingStore) -> Self {
+        Self { lifecycle, staging }
+    }
 }
 
 #[derive(Debug, Clone)]
-struct StagedUpload {
-    purpose: StagedUploadPurposeDto,
-    expires_at_unix: u64,
-    max_bytes: u64,
-    path: PathBuf,
+pub(crate) struct StagedUpload {
+    pub(crate) purpose: StagedUploadPurposeDto,
+    pub(crate) expires_at_unix: u64,
+    pub(crate) max_bytes: u64,
+    pub(crate) path: PathBuf,
 }
 
 #[derive(Debug, Clone)]
-struct StagedDownload {
-    expires_at_unix: u64,
-    path: PathBuf,
-    size_bytes: u64,
+pub(crate) struct StagedDownload {
+    pub(crate) expires_at_unix: u64,
+    pub(crate) path: PathBuf,
+    pub(crate) size_bytes: u64,
 }
 
 /// Bytes live on disk under `<servers_root>/.msc2-staging/{uploads,
@@ -168,19 +158,19 @@ struct StagedDownload {
 /// staged transfers, the same "best-effort, not durable" shape this
 /// step's own scope note leaves to a later phase).
 #[derive(Clone, Default)]
-struct StagingStore {
-    uploads: std::sync::Arc<Mutex<HashMap<String, StagedUpload>>>,
-    downloads: std::sync::Arc<Mutex<HashMap<String, StagedDownload>>>,
+pub(crate) struct StagingStore {
+    pub(crate) uploads: std::sync::Arc<Mutex<HashMap<String, StagedUpload>>>,
+    pub(crate) downloads: std::sync::Arc<Mutex<HashMap<String, StagedDownload>>>,
 }
 
-fn now_unix() -> u64 {
+pub(crate) fn now_unix() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
 }
 
-fn unix_to_iso8601(unix: u64) -> String {
+pub(crate) fn unix_to_iso8601(unix: u64) -> String {
     let days = (unix / 86_400) as i64;
     let secs_of_day = unix % 86_400;
     let (year, month, day) = civil_from_days(days);
@@ -209,7 +199,7 @@ fn civil_from_days(days: i64) -> (i64, u32, u32) {
     (year, month, day)
 }
 
-fn staging_root(servers_root: &Path) -> PathBuf {
+pub(crate) fn staging_root(servers_root: &Path) -> PathBuf {
     servers_root.join(".msc2-staging")
 }
 
@@ -828,6 +818,14 @@ pub async fn begin_staged_upload(
     // matches.
     match body.purpose {
         StagedUploadPurposeDto::WorldImport | StagedUploadPurposeDto::ActiveWorldReplace => {}
+        StagedUploadPurposeDto::ModpackArchive
+        | StagedUploadPurposeDto::AddonLocalFile
+        | StagedUploadPurposeDto::CurseforgeManualFile => {
+            return invalid_body(
+                "invalid_purpose",
+                "This staged upload route only accepts world import purposes.",
+            );
+        }
     }
 
     let id = Uuid::new_v4().to_string();

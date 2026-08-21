@@ -48,6 +48,8 @@ pub struct ServerCreateRequestDto {
     pub docker_image: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub java_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub staged_modpack_upload_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -98,6 +98,9 @@ pub struct BackupDeleteRequestDto {
 pub enum StagedUploadPurposeDto {
     WorldImport,
     ActiveWorldReplace,
+    ModpackArchive,
+    AddonLocalFile,
+    CurseforgeManualFile,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -106,6 +109,10 @@ pub struct StagedUploadBeginRequestDto {
     pub purpose: StagedUploadPurposeDto,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

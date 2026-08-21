@@ -417,6 +417,7 @@ struct ComponentStatusDTO: Codable, Identifiable, Equatable {
     /// Whether this component uses the build-based Update flow. Nil (older servers) is
     /// treated as updatable only when a build number is present, preserving old behavior.
     let updatable: Bool?
+    let note: String?
 
     var id: String { name }
 
@@ -476,6 +477,7 @@ struct AddonsResponseDTO: Codable, Equatable {
     let packManaged: Bool?
     /// The Modrinth modpack name, e.g. "Better MC [FORGE] BMC4". Nil for non-pack servers.
     let packName: String?
+    let note: String?
 
     var updateCount: Int { addons.filter { $0.hasUpdate }.count }
 }
@@ -485,6 +487,7 @@ struct AddonUpdateResultDTO: Codable, Equatable {
     let result: String
     let jarStem: String?
     let count: Int
+    let operationId: String?
 }
 
 struct AddonRemoveResultDTO: Codable, Equatable {
@@ -521,7 +524,9 @@ struct CatalogSearchResponseDTO: Codable, Equatable {
 struct CatalogInstallResultDTO: Codable, Equatable {
     let success: Bool
     let message: String
-    let projectId: String
+    let projectId: String?
+    let operationId: String?
+    let installedDependencies: [String]?
 }
 
 // MARK: - Settings (typed server.properties schema)
@@ -770,7 +775,7 @@ struct ClientExportResponseDTO: Codable, Equatable {
     let selectedCount: Int
     let shareText: String?
     let zipFileName: String?
-    let zipBase64: String?
+    let stagedDownloadId: String?
     let note: String?
 }
 
@@ -945,6 +950,7 @@ struct HealthProblemsResponseDTO: Codable, Equatable {
 struct HealthRepairResultDTO: Codable, Equatable {
     let success: Bool
     let message: String
+    let operationId: String?
     let updated: HealthProblemsResponseDTO?
 }
 

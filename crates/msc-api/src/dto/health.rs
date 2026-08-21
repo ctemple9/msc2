@@ -89,5 +89,7 @@ pub struct HealthRepairResultDto {
     pub success: bool,
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub updated: Option<HealthProblemsResponseDto>,
 }

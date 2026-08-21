@@ -11,6 +11,7 @@
 //! (`RemoteAPIStatus`, `HealthResponseDTO`). Every other schema in
 //! `openapi.json` belongs to a route this phase doesn't wire.
 
+pub mod addons;
 pub mod backups;
 pub mod capabilities;
 pub mod error;
@@ -24,6 +25,7 @@ pub mod templates;
 pub mod versions;
 pub mod worlds;
 
+pub use addons::*;
 pub use backups::*;
 pub use capabilities::*;
 pub use error::*;

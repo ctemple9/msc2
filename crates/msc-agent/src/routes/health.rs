@@ -650,6 +650,7 @@ pub async fn health_repair(
             Json(HealthRepairResultDto {
                 success: true,
                 message: "Repair applied.".to_string(),
+                operation_id: None,
                 updated: Some(health_problems_dto(&state)),
             })
             .into_response()

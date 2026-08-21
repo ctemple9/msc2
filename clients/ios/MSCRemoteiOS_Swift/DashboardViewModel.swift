@@ -657,6 +657,17 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    func downloadClientExportArchive(baseURL: URL, token: String, stagedDownloadId: String) async -> Data? {
+        updateCredentials(baseURL: baseURL, token: token)
+        errorMessage = nil
+        do {
+            return try await requireClient().downloadStagedDownload(id: stagedDownloadId)
+        } catch {
+            errorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
     private func friendlyFileError(_ message: String) -> String {
         switch message {
         case "missing_path": return "Choose a file first."
@@ -1045,9 +1056,16 @@ final class DashboardViewModel: ObservableObject {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
         do {
-            let result = try await requireClient().repairHealthProblem(problemId: problemId, action: action)
+            let client = try requireClient()
+            let result = try await client.repairHealthProblem(problemId: problemId, action: action)
             guard result.success else { return healthRepairErrorText(result.message) }
-            if let fresh = result.updated { healthProblemsResponse = fresh }
+            if let operationId = result.operationId {
+                activeOperation = nil
+                activeOperation = try await client.pollOperationToTerminal(id: operationId)
+                healthProblemsResponse = try await client.getHealthProblems()
+            } else if let fresh = result.updated {
+                healthProblemsResponse = fresh
+            }
             return nil
         } catch {
             return error.localizedDescription
@@ -1135,7 +1153,12 @@ final class DashboardViewModel: ObservableObject {
     func updateAddon(baseURL: URL, token: String, jarStem: String) async -> String? {
         updateCredentials(baseURL: baseURL, token: token)
         do {
-            let result = try await requireClient().updateAddon(jarStem: jarStem)
+            let client = try requireClient()
+            let result = try await client.updateAddon(jarStem: jarStem)
+            if let operationId = result.operationId {
+                activeOperation = nil
+                activeOperation = try await client.pollOperationToTerminal(id: operationId)
+            }
             return result.result
         } catch {
             return error.localizedDescription
@@ -1145,7 +1168,12 @@ final class DashboardViewModel: ObservableObject {
     func updateAllAddons(baseURL: URL, token: String) async -> String? {
         updateCredentials(baseURL: baseURL, token: token)
         do {
-            let result = try await requireClient().updateAllAddons()
+            let client = try requireClient()
+            let result = try await client.updateAllAddons()
+            if let operationId = result.operationId {
+                activeOperation = nil
+                activeOperation = try await client.pollOperationToTerminal(id: operationId)
+            }
             return result.result
         } catch {
             return error.localizedDescription
@@ -1165,7 +1193,8 @@ final class DashboardViewModel: ObservableObject {
                     isResolving: current.isResolving,
                     serverSupportsAddons: current.serverSupportsAddons,
                     packManaged: current.packManaged,
-                    packName: current.packName
+                    packName: current.packName,
+                    note: current.note
                 )
             }
             return nil
@@ -1188,7 +1217,14 @@ final class DashboardViewModel: ObservableObject {
     func installCatalogAddon(baseURL: URL, token: String, item: CatalogItemDTO) async -> CatalogInstallResultDTO? {
         updateCredentials(baseURL: baseURL, token: token)
         guard let client = try? requireClient() else { return nil }
-        return try? await client.installAddon(projectId: item.projectId, slug: item.slug, title: item.title)
+        guard let result = try? await client.installAddon(projectId: item.projectId, slug: item.slug, title: item.title) else {
+            return nil
+        }
+        if let operationId = result.operationId {
+            activeOperation = nil
+            activeOperation = try? await client.pollOperationToTerminal(id: operationId)
+        }
+        return result
     }
 
     // MARK: - Resource Packs

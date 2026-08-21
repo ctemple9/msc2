@@ -3,6 +3,7 @@
 pub mod backups;
 pub mod capabilities;
 pub mod commands;
+pub mod components;
 pub mod health;
 pub mod lifecycle;
 pub mod operations;

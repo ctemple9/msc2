@@ -141,8 +141,14 @@ pub(crate) fn build_app() -> Router {
     // staged-upload/download store); `backups` gets its own
     // `BackupsRoutesState` (adds the `&'static BackupScheduler` handle
     // `POST /v1/backups/config` reconfigures on a settings change).
-    let worlds = routes::worlds::router(routes::worlds::WorldsRoutesState::new(
+    let shared_staging = routes::worlds::StagingStore::default();
+    let worlds = routes::worlds::router(routes::worlds::WorldsRoutesState::with_staging(
         lifecycle_state.clone(),
+        shared_staging.clone(),
+    ));
+    let components = routes::components::router(routes::components::ComponentsRoutesState::new(
+        lifecycle_state.clone(),
+        shared_staging,
     ));
     let backups = routes::backups::router(routes::backups::BackupsRoutesState {
         lifecycle: lifecycle_state.clone(),
@@ -210,6 +216,7 @@ pub(crate) fn build_app() -> Router {
         .merge(operation_progress)
         .merge(console)
         .merge(worlds)
+        .merge(components)
         .merge(backups)
         .merge(templates)
         .route_layer(axum::middleware::from_fn_with_state(

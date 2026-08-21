@@ -1893,9 +1893,9 @@ struct ClientExportRemoteSheet: View {
             sharePayload = ClientExportSharePayload(items: [text])
             return
         }
-        if let zipBase64 = response.zipBase64,
-           let data = Data(base64Encoded: zipBase64),
-           let filename = response.zipFileName {
+        if let stagedDownloadId = response.stagedDownloadId,
+           let filename = response.zipFileName,
+           let data = await vm.downloadClientExportArchive(baseURL: baseURL, token: token, stagedDownloadId: stagedDownloadId) {
             let url = FileManager.default.temporaryDirectory.appendingPathComponent(filename)
             do {
                 try data.write(to: url, options: .atomic)

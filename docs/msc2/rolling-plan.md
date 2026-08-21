@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 7 is closed on exact candidate `79d5044`. Phase 8 is planned and awaiting Cameron's READ.
-> **Next move:** READ — Cameron reviews the Phase 8 boundary, QUESTION 1, step list, Verify commands, and batch ranges before any Phase 8 implementation begins.
+> ## STATUS: Phase 7 is closed on exact candidate `79d5044`. Phase 8 is in progress; P8.24–P8.26 are awaiting verification.
+> **Next move:** VERIFY — Cameron runs the P8.24–P8.26 Verify commands, then either closes the batch or sends back the failing step.
 > **Repo:** https://github.com/ctemple9/msc2 · Phase 7 candidate branch `phase7-corrections` at `79d5044`; GitHub Actions run [32448912726](https://github.com/ctemple9/msc2/actions/runs/32448912726) is fully green across repo invariants, macOS, Linux, Windows, both Phase 6/7 smokes, and the headless no-GUI link check.
 > **Last updated:** 2026-08-21
 
@@ -411,7 +411,7 @@ Added `crates/msc-application/src/curseforge_manual.rs`: the D-027 staged-upload
 26 new tests: 10 in `tests/curseforge_manual.rs` (all three filename-match tiers, both accept and reject cases, plus `complete_pending_file`'s exact/wrong-file/size-mismatch/not-a-jar/one-file-fallback outcomes against a real minimal zip built in-test), 6 in `tests/curseforge_pack_import.rs` (missing-key hard stop before any resolution, a real resolvable-file download, a blocked file collected separately and never counted as failed, the manifest-named overrides folder merging correctly, cancellation rolling back an already-written file before a second file is attempted, and pack-managed refusal proven via a transport that panics on any call at all). `cargo fmt -p msc-application -p msc-domain -- --check` and `cargo clippy -p msc-application -p msc-domain --tests` are both clean. `cargo nextest run -p msc-application -E 'test(/curseforge_pack_import|curseforge_manual/)'` passes 17/17 (16 new + the one pre-existing accidental match); re-ran the full P8.16-P8.20 suite together (`--test addon_updates --test addons --test modpack_inspection --test addon_dependencies --test modrinth_pack_import --test curseforge_pack_import --test curseforge_manual`, 86/86) and `cargo check --workspace` (clean) to confirm no regression anywhere in the batch before this final commit. Status set to *awaiting verification*, not DONE, per `CLAUDE.md`. This closes the P8.16-P8.20 batch range per `rolling-plan.md`'s own "Planned batch ranges" note and this step's own `Batch: stop-after` — no further step was started.
 
 ### P8.21 — Integrate staged add-ons and packs into server creation
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/provisioning.rs`, `crates/msc-application/src/modpacks.rs`, `crates/msc-application/tests/modpack_server_creation.rs`, `crates/msc-application/tests/provisioning.rs`
 **What:** Carry inspected pack metadata into Phase 7 provisioning, select the exact loader build, apply staged JAR/URL/ZIP/pack inputs in source order, and make the whole create one durable cancellable operation. Do not publish the server registry entry until loader provisioning, pack application, initial world setup, and pack provenance all succeed; rollback the directory and staged artifacts on every failure or restart.
 **Verify:** `cargo nextest run -p msc-application -E 'test(/modpack_server_creation|provisioning/)'`
@@ -429,7 +429,7 @@ Added `provisioning.rs::create_server_from_pack`: `pack_loader_pin` reads the pi
 Note: this file's own working tree already carried Cameron's own uncommitted edit marking P8.16–P8.20 `DONE` (his own verification) — left untouched and folded into this same commit rather than reverted, since it sits in the same file this step also edits, the same precedent P8.16's own note already established for P8.10–P8.15.
 
 ### P8.22 — Build portable client export
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/client_export.rs`, `crates/msc-application/tests/client_export.rs`
 **What:** Build export items from live inventory and persisted provider links, exclude managed server-only plugins, apply classification and default-selection rules, return link text for Paper-like servers, and generate a deterministic ZIP for modded servers with Rust archive code. Enforce selection/path bounds and avoid base64 for any new large-payload route; preserve the baseline JSON response only where compatibility requires it and document the size ceiling.
 **Verify:** `cargo nextest run -p msc-application --test client_export`
@@ -445,7 +445,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 26 tests in `tests/client_export.rs`, mapped against `fixtures/client-addon-export/`'s 28 cases (two — the `/usr/bin/zip`-subprocess-specific `export-zip-nonzero-exit-status-logged-not-silently-swallowed` and the temp-staging-dir case just described above — are cited as N/A in this module's own doc rather than force-fit, since this port's architecture has no subprocess and no temp copy to exercise): real on-disk jars via `StdFileSystem` (`ModJarMetadataParser`'s own zip-entry reads need a real path, the same boundary `add_on_inventory.rs` already established) for every status-precedence/environment-mapping/exclusion/ordering/display-name case, plus pure unit tests for both classification mappers, the Modrinth-URL slug/project-id/nil fallback chain, the clipboard-text no-op/selected-only/no-link-placeholder cases, and a real round-trip export (writes a zip from two real jars, reads it back with `zip::ZipArchive` to confirm a flat, correctly-named archive). `cargo fmt -p msc-application -- --check` and `cargo clippy -p msc-application --tests` are both clean. `cargo nextest run -p msc-application --test client_export` passes 26/26. Status set to *awaiting verification*, not DONE, per `CLAUDE.md`.
 
 ### P8.23 — Complete component health and add-on repairs
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/diagnostics.rs`, `crates/msc-application/src/addon_updates.rs`, `crates/msc-application/tests/diagnostics.rs`, `crates/msc-agent/src/routes/health.rs`, `crates/msc-agent/src/routes/components.rs`
 **What:** Replace the Phase 7 placeholder component-health portion with real add-on folder/version/dependency findings. Implement `update` and `install` repairs through the same verified operation paths as ordinary add-on mutations, keep Phase 9 components explicitly unavailable, require stopped state where replacement demands it, and remove only the repaired persisted problem after both disk and record writes succeed.
 **Verify:** `cargo nextest run -p msc-application --test diagnostics && cargo nextest run -p msc-agent -E 'test(/health|components/)'`
@@ -469,26 +469,29 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 ### Public clients
 
 ### P8.24 — Wire Phase 8 routes through real services
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/mod.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/phase8_routes.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Wire the existing add-on/catalog/components/export routes plus P8.9's staged pack/manual-file additions to the real services with authentication, `addons`/`fleet` permissions, request limits, audit records, operation IDs, typed errors, and capability degradation. Test through the HTTP router with fake providers and disk-backed state across restart. Mark Agent cells Implemented only after the public path passes.
+**Actual result:** Added the Phase 8 add-on/modpack DTOs in `msc-api`, created `routes/components.rs`, mounted the new `/v1/addons`, `/v1/catalog/search`, `/v1/components/*`, and `/v1/modpacks/*` public routes, and tightened staged uploads so non-world purposes no longer fall through the world route. Added `phase8_routes.rs` as a black-box smoke over the real HTTP surface, and marked the corresponding Agent matrix rows Implemented after that public path passed.
 **Verify:** `cargo nextest run -p msc-agent --test phase8_routes`
 **Commit:** `P8.24: wire Phase 8 agent routes`
 **Batch:** safe
 
 ### P8.25 — Add complete Phase 8 CLI commands
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/cli_phase8.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Add scriptable commands for inventory, catalog search, install from catalog/local file, update one/all, enable/disable/remove, source link management, pack inspect/create/replace/manual-file completion, health repair, and client export. Local inputs upload through staged uploads, long operations poll/cancel using the shared operation commands, JSON output stays machine-readable, and noninteractive use never prompts unexpectedly.
+**Actual result:** Added `msc addon ...` and `msc modpack ...` command families, `msc server create --modpack`, the shared staged-upload helper, staged-download export retrieval, and durable-operation polling for add-on mutations, modpack import/replace, and health repair. Added `cli_phase8.rs` coverage for the new help surfaces and local-file error paths. Marked CLI matrix rows Implemented where there is a real command surface; `/v1/components` stays Planned because there is still no dedicated CLI system-components inventory command.
 **Verify:** `cargo nextest run -p msc-agent --test cli_phase8`
 **Commit:** `P8.25: add Phase 8 CLI commands`
 **Batch:** safe
 
 ### P8.26 — Repoint and prove the copied iOS add-on workflows
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/ios/MSCRemoteiOS_Swift/ComponentsView.swift`, `clients/ios/MSCRemoteiOS_Swift/CatalogBrowserView.swift`, `clients/ios/MSCRemoteiOS_Swift/HealthView.swift`, `clients/ios/MSCRemoteiOS_Swift/DashboardViewModel.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIClient.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOSTests/`, `docs/msc2/client-capability-matrix.csv`
 **What:** Repoint the existing components/add-ons/catalog/update/remove/export/repair flows to `/v1`, generated/frozen DTO shapes, typed errors, and operation polling. Add document-picker upload for modpack/local-JAR/manual CurseForge completion if the existing copied UI exposes those workflows; otherwise record the still-Planned screen without claiming parity. Preserve per-host state and show pack-managed/provider-unavailable explanations plainly.
-**Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 16 Pro' test`
+**Actual result:** Updated the copied iOS DTOs, API client, view model, and Health export flow to the frozen Phase 8 shapes: staged-download client export, optional durable `operationId` handling on add-on install/update and health repair, and the new result fields the agent now returns. Added `Phase8ComponentsAPITests.swift` to prove DTO decoding, staged-download fetches, and operation polling, and wired that file into the Xcode project so it actually runs. Marked iOS matrix rows Implemented for the existing add-on/catalog/components/export/repair screens; the modpack inspect/import/manual-file rows stay Planned because the copied iOS app still has no screen for those workflows.
+**Verify:** `xcodebuild -project clients/ios/MSCRemoteiOS.xcodeproj -scheme MSCRemoteiOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.2' test`
 **Commit:** `P8.26: repoint iOS add-on workflows`
 **Batch:** safe
 

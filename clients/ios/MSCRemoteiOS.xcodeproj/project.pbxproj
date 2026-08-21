@@ -68,6 +68,7 @@
 		FD6BF81E2961471181CE660C /* ConvertWorldView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AF5DF3F1C554048A7742CFE /* ConvertWorldView.swift */; };
 		7A58DB3BB01D4E6A8152E312 /* Phase6WorldBackupViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */; };
 		1D8208B4649D4D2CB0E321B8 /* Phase6ServerImportOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D264E2BA6D42F0B2B58EEB /* Phase6ServerImportOperationTests.swift */; };
+		8E9A0D1C2B3A4F5E6D7C8B9A /* Phase8ComponentsAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D6C5B4A3928171615141312 /* Phase8ComponentsAPITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -135,6 +136,7 @@
 		6AF5DF3F1C554048A7742CFE /* ConvertWorldView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConvertWorldView.swift; sourceTree = "<group>"; };
 		C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase6WorldBackupViewModelTests.swift; sourceTree = "<group>"; };
 		50D264E2BA6D42F0B2B58EEB /* Phase6ServerImportOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase6ServerImportOperationTests.swift; sourceTree = "<group>"; };
+		7D6C5B4A3928171615141312 /* Phase8ComponentsAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase8ComponentsAPITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -255,6 +257,7 @@
 				B0D760E77AB141E498408FEA /* Phase6WorldBackupAPITests.swift */,
 				C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */,
 				50D264E2BA6D42F0B2B58EEB /* Phase6ServerImportOperationTests.swift */,
+				7D6C5B4A3928171615141312 /* Phase8ComponentsAPITests.swift */,
 			);
 			path = MSCRemoteiOSTests;
 			sourceTree = "<group>";
@@ -430,6 +433,7 @@
 				A646F4C87A334F4595A45245 /* Phase6WorldBackupAPITests.swift in Sources */,
 				7A58DB3BB01D4E6A8152E312 /* Phase6WorldBackupViewModelTests.swift in Sources */,
 				1D8208B4649D4D2CB0E321B8 /* Phase6ServerImportOperationTests.swift in Sources */,
+				8E9A0D1C2B3A4F5E6D7C8B9A /* Phase8ComponentsAPITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

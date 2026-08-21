@@ -11,11 +11,21 @@
 //! survives [`required_dependencies_with_project_id`], matching
 //! `rolling-plan.md`'s own "Optional dependencies remain explanatory, not
 //! silently installed."
+//!
+//! **P8.15 amendment:** [`ModrinthDependency`] now derives [`Deserialize`]
+//! so it can decode directly out of a version response's own embedded
+//! `dependencies` array (`ModrinthVersionInfo.dependencies`,
+//! `addon_provider.rs`'s own P8.15 amendment) -- Modrinth's wire shape is
+//! already snake_case (`project_id`/`dependency_type`), matching this
+//! struct's field names with no rename needed, the same as
+//! `ModrinthSearchHit`'s own undecorated derive.
 
 use crate::identity::AddOnKind;
+use serde::Deserialize;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct ModrinthDependency {
+    #[serde(default)]
     pub project_id: Option<String>,
     pub dependency_type: String,
 }

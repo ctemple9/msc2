@@ -10,7 +10,17 @@
 //! and `fixtures/addon-providers/` (P8.4). Every function here takes
 //! already-fetched status codes/response bodies -- `msc-domain` carries no
 //! I/O; the real HTTP transport is `msc-infrastructure`'s job (P8.13).
+//!
+//! **P8.15 amendment:** P8.10/P8.13 never built `ModrinthAPI.project(idOrSlug:)`
+//! or `.projectVersions(idOrSlug:loaders:gameVersion:)` -- both are real
+//! gaps `installRequiredDependencies` (`AppViewModel+ModManagement.swift:
+//! 271-328`) needs and no earlier Phase 8 step happened to touch, since
+//! neither the search flow (P8.4) nor the hash-identity/update flow (P8.5)
+//! calls either one. [`ModrinthProjectSummary`]/[`modrinth_decode_project`]
+//! and `ModrinthVersionInfo.dependencies` close that gap here rather than
+//! inventing a parallel type in `msc-application`.
 
+use crate::addon_dependency::ModrinthDependency;
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
@@ -93,6 +103,31 @@ pub fn modrinth_facets(
         groups.push(vec![format!("versions:{v}")]);
     }
     serde_json::to_string(&groups).expect("Vec<Vec<String>> always serializes")
+}
+
+/// P8.15 amendment: `ModrinthAPI.projectVersions(idOrSlug:loaders:gameVersion:)`'s
+/// query-param construction (`ModrinthAPI.swift:280-288`) -- `loaders`
+/// becomes a bare JSON string array (`["fabric"]`), `game_version` becomes
+/// a single-element one (`["1.21.1"]`); either is omitted entirely from
+/// the returned list when empty/absent, matching source's own
+/// `items.isEmpty ? nil : items` (an empty query list here means "send no
+/// query string at all," not "send an empty one").
+pub fn modrinth_project_versions_query(
+    loaders: &[String],
+    game_version: Option<&str>,
+) -> Vec<(String, String)> {
+    let mut params = Vec::new();
+    if !loaders.is_empty() {
+        let json = serde_json::to_string(loaders).expect("Vec<String> always serializes");
+        params.push(("loaders".to_string(), json));
+    }
+    if let Some(v) = game_version
+        && !v.is_empty()
+    {
+        let json = serde_json::to_string(&[v]).expect("[&str; 1] always serializes");
+        params.push(("game_versions".to_string(), json));
+    }
+    params
 }
 
 /// `ModrinthAPI.search(query:...)`'s `index` param (line 266): an empty
@@ -215,6 +250,34 @@ pub struct ModrinthVersionInfo {
     pub version_number: String,
     #[serde(default)]
     pub files: Vec<ModrinthVersionFile>,
+    /// P8.15 amendment: `ModrinthVersionInfo.dependencies`, read by
+    /// `installRequiredDependencies` off the version that was just
+    /// resolved/downloaded (not a separate fetch) -- absent from every
+    /// earlier Phase 8 step's own use of this struct (identity/update
+    /// checks never needed it), `#[serde(default)]` so those existing
+    /// decode sites are unaffected by a response that omits it.
+    #[serde(default)]
+    pub dependencies: Vec<ModrinthDependency>,
+}
+
+/// P8.15 amendment: `ModrinthAPI.project(idOrSlug:)`'s response shape --
+/// only the fields `installRequiredDependencies` actually reads (`project.slug`,
+/// used for both already-installed checks and the version-list lookup).
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModrinthProjectSummary {
+    pub id: String,
+    pub slug: String,
+    pub title: String,
+}
+
+pub fn modrinth_decode_project(body: &str) -> Result<ModrinthProjectSummary, AddonProviderError> {
+    serde_json::from_str(body).map_err(|e| malformed("Modrinth project", e))
+}
+
+pub fn modrinth_decode_project_versions(
+    body: &str,
+) -> Result<Vec<ModrinthVersionInfo>, AddonProviderError> {
+    serde_json::from_str(body).map_err(|e| malformed("Modrinth project versions", e))
 }
 
 /// `ModrinthAPI.versionFromHash(_:)` (line 375-390): the exact-identity

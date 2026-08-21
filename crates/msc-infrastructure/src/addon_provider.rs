@@ -388,6 +388,49 @@ pub fn modrinth_projects(
     Ok(result)
 }
 
+/// P8.15 amendment: `ModrinthAPI.project(idOrSlug:)`.
+pub fn modrinth_project(
+    transport: &dyn AddonTransport,
+    id_or_slug: &str,
+) -> Result<domain::ModrinthProjectSummary, AddonProviderError> {
+    let url = format!("{}/v2/project/{}", modrinth_base(), urlencode(id_or_slug));
+    let resp = transport
+        .get(&url, "Modrinth project", &[], RESPONSE_MAX_BYTES)
+        .map_err(map_transport_err)?;
+    domain::ensure_modrinth_ok(resp.status)?;
+    let text = bytes_to_utf8(resp.body, "Modrinth project")?;
+    domain::modrinth_decode_project(&text)
+}
+
+/// P8.15 amendment: `ModrinthAPI.projectVersions(idOrSlug:loaders:gameVersion:)`.
+pub fn modrinth_project_versions(
+    transport: &dyn AddonTransport,
+    id_or_slug: &str,
+    loaders: &[String],
+    game_version: Option<&str>,
+) -> Result<Vec<domain::ModrinthVersionInfo>, AddonProviderError> {
+    let params = domain::modrinth_project_versions_query(loaders, game_version);
+    let mut url = format!(
+        "{}/v2/project/{}/version",
+        modrinth_base(),
+        urlencode(id_or_slug)
+    );
+    if !params.is_empty() {
+        let query: Vec<String> = params
+            .iter()
+            .map(|(k, v)| format!("{k}={}", urlencode(v)))
+            .collect();
+        url.push('?');
+        url.push_str(&query.join("&"));
+    }
+    let resp = transport
+        .get(&url, "Modrinth project versions", &[], RESPONSE_MAX_BYTES)
+        .map_err(map_transport_err)?;
+    domain::ensure_modrinth_ok(resp.status)?;
+    let text = bytes_to_utf8(resp.body, "Modrinth project versions")?;
+    domain::modrinth_decode_project_versions(&text)
+}
+
 // ---------------------------------------------------------------------
 // Hangar
 // ---------------------------------------------------------------------

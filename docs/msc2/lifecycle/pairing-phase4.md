@@ -252,3 +252,15 @@ credential key shape needed by those clients. Still open:
 
 Those remain Phase 11/client-networking questions unless a later Phase 4 step
 finds a direct gate blocker.
+
+## Phase 9 access-posture addendum
+
+Approved by Cameron Temple on 2026-08-22: Phase 9 keeps the management API on
+loopback by default and permits only an explicitly configured Tailscale
+management path. Tailscale does not replace the bearer credential, expiry,
+revocation, role, or permission checks defined above. General-LAN management
+binding and its TLS certificate/trust design are unavailable until Phase 11;
+so are remote desktop pairing, desktop-local automatic authorization, and
+browser cookie/origin/CSP/CSRF mechanics. This addendum preserves this
+document's per-host CLI/iOS credential model and does not turn named tokens
+into per-person accounts.

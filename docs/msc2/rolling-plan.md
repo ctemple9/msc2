@@ -119,7 +119,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.3 — Resolve the remaining Phase 9 credential and remote-access posture
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/networking/phase9-scope.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/api-contract/auth-scope-phase2.md`, `docs/msc2/lifecycle/pairing-phase4.md`
 **What:** Turn the P9.1 evidence into a narrowly scoped D-012 decision record: which of remote desktop pairing, per-host credential persistence, off-loopback TLS, Tailscale, browser origins, and CSRF is implemented in Phase 9 versus explicitly deferred to Phase 11. Do not silently choose an unresolved security posture. If Cameron’s approval is required, prepare the required plain-language question and stop; after an answer, record it with its rationale and testable security invariant. Keep named-token `/users` CRUD separate from per-person identity, which remains a v1 non-goal.
 **Verify:** `git diff --check && rg -n 'Phase 9|D-012|deferred|approved|owner question' docs/msc2/networking/phase9-scope.md docs/msc2/msc2-decisions.md`

@@ -271,6 +271,19 @@ Three things follow, and conflating them is a mistake:
 
 **Phase 4 scope (P4.2).** Phase 4's Java lifecycle slice mutates a real imported Paper server from the CLI and existing iOS app, so P2.3's `MSC_DEV_TOKEN` stand-in is retired before those routes accept real mutation. The scoped design in `docs/msc2/lifecycle/pairing-phase4.md` preserves MSC 1's named-token model (admin, guest, named tokens with permission categories and optional expiry), stores server-side token verifier records in `SecretStore` under `remote-api.token.<credential-id>`, uses bearer tokens shaped as `msc2_<credential-id>_<secret>` so lookup does not require listing the secret store, stores only a hash/verifier rather than the raw bearer token, and keeps client-side tokens under per-host keys (`client.host-token.<agent-host-id>` for the CLI, `host-token.<agent-host-id>` in the iOS Keychain). Pairing for this phase is CLI-admin-created and iOS-exchanged: an already-authenticated admin CLI command creates a short-lived one-use pairing challenge, iOS exchanges it for a durable bearer token, and the challenge is immediately invalidated. Auth failures keep MSC 1's rate limit shape (10 failures per 60 seconds from one IP, then 429), sensitive POSTs keep MSC 1's 10-per-5-seconds shape, and audit records attribute auth failures, forbidden/rate-limited requests, token creation/revocation, and lifecycle mutations. P4.2 also records the P2.20 copied-iOS bug fix requirement: a missing Keychain item must mean "not paired," not an empty token that bypasses fallback behavior. This closes only the CLI/iOS credential path needed for Phase 4; local Tauri automatic authorization, remote desktop pairing, LAN TLS, Tailscale posture, browser cookies, origin policy, CSP, and CSRF remain open D-012 work.
 
+**Phase 9 access-posture addendum (P9.3).** **Approved by Cameron Temple,
+2026-08-22:** Phase 9 keeps management loopback-only by default and permits
+only an explicit Tailscale management path; it does not permit a general-LAN
+management bind, off-loopback HTTP, or TLS certificate provisioning. Tailscale
+membership never replaces bearer authentication and permission checks. The
+Phase 4 per-host CLI/iOS credential storage is retained, and Phase 9 adds
+durable named-token administration, but remote desktop pairing, desktop-local
+automatic authorization, browser cookie issuance, allowed origins/CSP, and
+CSRF are deferred to Phase 11. The required invariant is that an unconfigured
+agent accepts management traffic only on loopback; with Tailscale configured,
+only that path may reach management and every request remains bearer-authenticated.
+Player-facing listeners never provide a management path.
+
 ---
 
 ## D-013 — Multi-host data model from day one

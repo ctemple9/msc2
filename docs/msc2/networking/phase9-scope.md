@@ -91,7 +91,7 @@ Phase 9 is ready for review only when one exact candidate proves all of these:
    honestly. Targeted tests and the Phase 9 gate run pass on macOS, Linux, and
    Windows, including the headless no-GUI link check.
 
-## D-012: unresolved access posture
+## D-012: access posture carried from P9.1
 
 P9.1 does not silently settle D-012. Phase 4’s CLI/iOS bearer path is the
 current baseline, but these six connected choices remain unresolved: proving a
@@ -99,14 +99,13 @@ local desktop shell, pairing a desktop to a remote host, per-host desktop
 credential storage, LAN TLS and certificate trust, whether Tailscale changes
 any rule, and browser origin/CSP/CSRF policy.
 
-**Recommendation for P9.3:** keep the management bind loopback by default;
-require a token even on Tailscale; do not expose it through Playit; retain the
-already-defined per-host secret-store shape; and defer desktop/browser-specific
-pairing, cookie, origin, and CSRF mechanics to Phase 11. P9.3 must record
-whether opt-in LAN administration requires TLS now or is unavailable until its
-certificate/trust story is implemented. That decision changes whether remote
-desktop/browser clients can safely manage a LAN host before Phase 11; it does
-not limit player connectivity.
+P9.1 recommended a loopback-default management bind, mandatory bearer tokens
+on Tailscale, no Playit management exposure, retention of the per-host
+secret-store shape, and deferral of desktop/browser-specific pairing, cookie,
+origin, and CSRF mechanics to Phase 11. Cameron approved that posture in P9.3
+below: opt-in general-LAN administration is unavailable until its certificate
+and trust design exists. This affects only management access, not player
+connectivity.
 
 ## P9.2 fixture provenance and live evidence
 
@@ -130,20 +129,27 @@ resource-pack listener, or disposable Minecraft server was available, and no
 stateful third-party operation was attempted. DuckDNS has no MSC 1 update API,
 so request/response evidence for one would be fabricated rather than useful.
 
-## Questions for Cameron
+## D-012: Phase 9 access posture
 
-### QUESTION 1 — LAN administration before the desktop and web clients
+**Approved by Cameron Temple, 2026-08-22.** Phase 9 keeps the management API
+loopback-only by default and permits an explicitly configured Tailscale path
+only. It does not bind the management API to a general LAN address and does
+not add off-loopback HTTP or TLS certificate provisioning in this phase.
+Tailscale membership does not authenticate an administrator: every management
+request still requires the existing bearer credential and permission checks.
+Playit, resource-pack hosting, and every other player-facing listener remain
+incapable of forwarding traffic to the management API.
 
-What it is:      The Minecraft-player helpers in this phase do not need the MSC
-                  management port. Separately, an administrator may eventually
-                  choose a LAN address to manage the agent from another device.
-The choice:      Require TLS before any off-loopback management bind, or keep
-                  management loopback/Tailscale-only until Phase 11 supplies a
-                  complete certificate, browser-origin, and CSRF design.
-Why it matters:  The first choice requires cross-platform certificate setup in
-                  Phase 9; the second keeps Phase 9’s player connectivity fully
-                  available while postponing remote desktop/browser management.
-If unsure:       Keep it loopback/Tailscale-only for now, require bearer tokens
-                  on Tailscale, and let Phase 11 deliver the complete browser
-                  and desktop remote-access experience. This avoids creating a
-                  LAN security exception before its trust model exists.
+Phase 9 retains the Phase 4 per-host bearer-credential persistence for the CLI
+and iOS, and adds durable named-token administration. It does not implement
+remote desktop pairing, desktop-local automatic authorization, browser cookie
+issuance, browser origins/CSP, or CSRF. Those browser and desktop mechanisms,
+along with any general-LAN TLS/certificate-trust design, are explicitly
+deferred to Phase 11. Named tokens remain credentials with roles and
+permissions, not per-person identities.
+
+**Testable security invariant.** With no explicit Tailscale configuration, the
+management listener accepts connections only on loopback. With Tailscale
+enabled, it accepts management requests only from the chosen Tailscale path
+and rejects absent, malformed, expired, revoked, or unauthorized bearer
+credentials; no general LAN or player-facing endpoint reaches it.

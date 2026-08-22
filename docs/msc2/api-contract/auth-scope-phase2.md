@@ -38,8 +38,12 @@ Carried forward unchanged from D-012's six-item gap list; Phase 2 closes none of
 1. **Local automatic authorization** (same-machine process impersonation) — unaffected either way by a fixed dev token; still open.
 2. **Remote desktop pairing** (Tauri → remote host) — no desktop client exists yet; Phase 11.
 3. **Per-host credential storage** — no `SecretStore` trait yet; Phase 3, consumed by later phases per-client.
-4. **LAN TLS provisioning** — moot while binding is loopback-only; revisit whenever a phase turns LAN exposure on by default.
-5. **Tailscale posture** — no Tailscale integration exists in the skeletal agent; unaffected.
+4. **General-LAN TLS provisioning** — deliberately unavailable through Phase 9;
+   Phase 11 owns any certificate and trust design before a general-LAN
+   management bind can exist.
+5. **Tailscale posture** — Phase 9 permits only an explicit Tailscale
+   management path, never as an authentication exception: bearer credentials
+   and permission checks remain mandatory.
 6. **Browser origin policy / CSRF** — no browser client exists yet; Phase 11, and only relevant once cookie auth (D-012's other Approved leg) is implemented.
 
 Also carried forward, not part of D-012's numbered list but adjacent and worth naming so it isn't mistaken for closed: **rate limiting and audit logging** on auth failures (MSC 1's `checkAndRecordAuthFail` / `AuditLogger`) are Phase 3 substrate work per `rolling-plan.md`'s Phase 2 "Not in this phase" note — Phase 2's dev-token check fails closed (401) but does not rate-limit or audit-log failures.
@@ -47,3 +51,12 @@ Also carried forward, not part of D-012's numbered list but adjacent and worth n
 ## 5. Why a fixed dev token is safe to accept here
 
 The skeletal agent this phase builds touches no real server process and no real file (`rolling-plan.md`: "every handler this phase wires returns canned or in-memory data"). A hardcoded dev token guarding a loopback-only stub with no real mutation carries none of the risk a hardcoded token guarding a LAN-reachable agent with real servers behind it would — which is exactly the distinction Phase 3+ has to draw before any of this scoping could extend past the dev loop.
+
+## Phase 9 addendum
+
+Cameron approved the narrow Phase 9 posture on 2026-08-22: loopback is the
+default management bind, with an explicitly configured Tailscale path as the
+only off-loopback exception. General-LAN binding, remote desktop pairing,
+browser cookie/origin/CSP/CSRF mechanics, and TLS certificate/trust setup are
+all Phase 11 work. This does not change Phase 2's loopback-only stub or the
+Phase 4 CLI/iOS per-host bearer-token flow.

@@ -2384,6 +2384,8 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::WorldImport,
                 content_type: None,
+                operation_id: None,
+                file_id: None,
             })),
         )
         .await;
@@ -2540,6 +2542,8 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::ActiveWorldReplace,
                 content_type: None,
+                operation_id: None,
+                file_id: None,
             })),
         )
         .await;
@@ -2627,6 +2631,8 @@ mod tests {
             Some(Json(StagedUploadBeginRequestDto {
                 purpose: StagedUploadPurposeDto::WorldImport,
                 content_type: None,
+                operation_id: None,
+                file_id: None,
             })),
         )
         .await;

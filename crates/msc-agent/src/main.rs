@@ -12,6 +12,7 @@ mod ws;
 use std::net::SocketAddr;
 use std::process::ExitCode;
 
+use axum::Extension;
 use axum::Router;
 use axum::routing::{get, post};
 use clap::Parser;
@@ -148,7 +149,7 @@ pub(crate) fn build_app() -> Router {
     ));
     let components = routes::components::router(routes::components::ComponentsRoutesState::new(
         lifecycle_state.clone(),
-        shared_staging,
+        shared_staging.clone(),
     ));
     let backups = routes::backups::router(routes::backups::BackupsRoutesState {
         lifecycle: lifecycle_state.clone(),
@@ -201,7 +202,11 @@ pub(crate) fn build_app() -> Router {
         )
         .route("/health/problems", get(routes::health::health_problems))
         .route("/health/repair", post(routes::health::health_repair))
-        .with_state(lifecycle_state);
+        .with_state(lifecycle_state)
+        // A staged modpack is created by the shared upload route but
+        // redeemed by server creation, so both route groups need this one
+        // in-memory, purpose-tagged store.
+        .layer(Extension(shared_staging));
 
     // Every other route this phase wires runs behind the SecretStore-backed
     // bearer-token check — including both WebSocket upgrades, since the auth

@@ -24,7 +24,10 @@ use msc_application::import::{
     ScannedServerInfo, StdRawImportFileSystem, import_raw_server, rescan_and_import_servers,
     scan_server_directory, scan_zip_source,
 };
-use msc_application::provisioning::{self, CreateServerError, NewServerRequest, WorldSource};
+use msc_application::modpacks;
+use msc_application::provisioning::{
+    self, CreateFromPackError, CreateServerError, NewServerRequest, PackServerRequest, WorldSource,
+};
 use msc_application::transfer::{
     TransferApplyRequest, TransferApplyResult, TransferExportRequest, TransferExportServerInput,
     TransferInspection, apply_transfer_import, export_server_transfer, inspect_transfer_package,
@@ -32,16 +35,18 @@ use msc_application::transfer::{
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::{JavaServerFlavor, ServerProvisioningKind, ServerType};
 use msc_domain::operation::OperationId;
+use msc_infrastructure::addon_provider::HttpTransport as AddonHttpTransport;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::HttpTransport;
 use msc_infrastructure::java_runtime_detection;
 use msc_infrastructure::process::ProcessSupervisor;
 
-use crate::auth::AuthenticatedCredential;
+use crate::auth::{AuthenticatedCredential, production_secret_store};
 use crate::routes::lifecycle::{
     LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
 use crate::routes::operations::operation_error_response;
+use crate::routes::worlds::{StagedUpload, StagingStore, now_unix, staging_root};
 
 pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerDto>> {
     let servers: Vec<ServerDto> = state
@@ -1144,6 +1149,7 @@ pub(crate) fn is_create_flow_flavor(flavor: JavaServerFlavor) -> bool {
 pub async fn create(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(staging): Extension<StagingStore>,
     body: Result<Json<ServerCreateRequestDto>, JsonRejection>,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
@@ -1210,6 +1216,15 @@ pub async fn create(
         );
     }
 
+    // The CLI has already uploaded the archive through the shared staging
+    // route. Redeem it exactly once here, and only when it carries the
+    // purpose this create path owns.
+    let staged_modpack =
+        match redeem_modpack_upload(&staging, body.staged_modpack_upload_id.as_deref()) {
+            Ok(upload) => upload,
+            Err(response) => return *response,
+        };
+
     let operation_id = match state.operations().begin_lifecycle(
         "server-create",
         Some(folder_name),
@@ -1267,6 +1282,7 @@ pub async fn create(
                 servers_root,
                 paper_template_dir,
                 plugin_template_dir,
+                staged_modpack,
             )
         })
         .await
@@ -1313,6 +1329,7 @@ fn run_create_server(
     servers_root: PathBuf,
     paper_template_dir: PathBuf,
     plugin_template_dir: PathBuf,
+    staged_modpack: Option<StagedUpload>,
 ) {
     let should_cancel = state.operations().cancellation_check(&operation_id);
     if should_cancel() {
@@ -1340,6 +1357,90 @@ fn run_create_server(
         default_banner_color_hex: &default_banner_color_hex,
     };
     let transport = HttpTransport::new();
+
+    if let Some(staged_modpack) = staged_modpack {
+        let addon_transport = AddonHttpTransport::new();
+        let secrets = match production_secret_store() {
+            Ok(secrets) => secrets,
+            Err(error) => {
+                let _ = state.finish_operation_failure(
+                    &operation_id,
+                    "internal_error",
+                    error.to_string(),
+                );
+                return;
+            }
+        };
+        let inspection = match modpacks::inspect_staged_archive(
+            &StdFileSystem,
+            &addon_transport,
+            secrets.as_ref(),
+            &staged_modpack.path,
+            &staging_root(&servers_root).join("modpacks"),
+            operation_id.as_str(),
+        ) {
+            Ok(inspection) => inspection,
+            Err(error) => {
+                let _ = StdFileSystem.remove(&staged_modpack.path);
+                let _ = state.finish_operation_failure(
+                    &operation_id,
+                    "invalid_body",
+                    error.to_string(),
+                );
+                return;
+            }
+        };
+        let pack_request = PackServerRequest {
+            name: &safe_name,
+            initial_world_name: initial_world_name.as_deref(),
+            port,
+            enable_cross_play,
+            cross_play_bedrock_port,
+            enable_playit,
+            enable_xbox_broadcast,
+            difficulty: &difficulty,
+            gamemode: &gamemode,
+            world_seed: world_seed.as_deref(),
+            world_source: WorldSource::Fresh,
+            default_banner_color_hex: &default_banner_color_hex,
+        };
+        let result = provisioning::create_server_from_pack(
+            &StdFileSystem,
+            &transport,
+            &addon_transport,
+            secrets.as_ref(),
+            state.process_supervisor(),
+            &home_dir,
+            &servers_root,
+            &plugin_template_dir,
+            &pack_request,
+            &inspection,
+            &java_path,
+            INSTALLER_TIMEOUT,
+            &now,
+            &should_cancel,
+            |_stream, _bytes| {},
+            provisioning::real_unzip_world_backup,
+            provisioning::real_copy_existing_world_folder,
+        );
+        let _ = StdFileSystem.remove(&staged_modpack.path);
+        match result {
+            Ok(created) => {
+                let created = created.created;
+                let flavor = created.config.java_flavor;
+                finish_created_server(&state, &operation_id, created, flavor, accept_eula, None);
+            }
+            Err(error) => {
+                let code = if matches!(error, CreateFromPackError::Cancelled) {
+                    "cancelled"
+                } else {
+                    "create_failed"
+                };
+                let _ = state.finish_operation_failure(&operation_id, code, error.to_string());
+            }
+        }
+        return;
+    }
 
     let result = if flavor.provisioning_kind() == ServerProvisioningKind::InstallStep {
         provisioning::create_install_step_server(
@@ -1400,50 +1501,15 @@ fn run_create_server(
                 }
             }
 
-            let server_id = created.config.id.clone();
-            let server_name = created.config.display_name.clone();
-            let is_java = created.config.server_type == ServerType::Java;
             let java_compatibility_warning = created.java_compatibility_warning.clone();
-            match state.register_imported_config_servers(vec![created.config], false) {
-                Ok(statuses) => {
-                    let ready = statuses.iter().any(|(id, status)| {
-                        id == &server_id
-                            && matches!(
-                                status,
-                                crate::routes::lifecycle::ReconciliationStatus::Ready
-                            )
-                    });
-                    if accept_eula {
-                        let _ = fleet::accept_eula(
-                            &StdFileSystem,
-                            &state.app_config_snapshot(),
-                            &server_id,
-                        );
-                    }
-                    if is_java && ready {
-                        let _ = state.select_active_server(server_id.clone());
-                    }
-                    let mut result_map = BTreeMap::new();
-                    result_map.insert("serverId".to_string(), server_id);
-                    result_map.insert("serverName".to_string(), server_name.clone());
-                    result_map.insert("ready".to_string(), ready.to_string());
-                    if let Some(warning) = java_compatibility_warning {
-                        result_map.insert("javaCompatibilityWarning".to_string(), warning);
-                    }
-                    let _ = state.finish_operation_success(
-                        &operation_id,
-                        &format!("Created {} server \"{server_name}\".", flavor.raw_value()),
-                        result_map,
-                    );
-                }
-                Err(error) => {
-                    let _ = state.finish_operation_failure(
-                        &operation_id,
-                        "internal_error",
-                        error.to_string(),
-                    );
-                }
-            }
+            finish_created_server(
+                &state,
+                &operation_id,
+                created,
+                flavor,
+                accept_eula,
+                java_compatibility_warning,
+            );
         }
         Err(error) => {
             let _ = state.finish_operation_failure(
@@ -1451,6 +1517,83 @@ fn run_create_server(
                 create_server_error_code(&error),
                 error.to_string(),
             );
+        }
+    }
+}
+
+fn redeem_modpack_upload(
+    staging: &StagingStore,
+    staged_upload_id: Option<&str>,
+) -> Result<Option<StagedUpload>, Box<Response>> {
+    let Some(staged_upload_id) = staged_upload_id.filter(|id| !id.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let entry = staging.uploads.lock().unwrap().remove(staged_upload_id);
+    let Some(entry) = entry else {
+        return Err(Box::new(error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Unknown or already-redeemed staged upload.",
+        )));
+    };
+    if now_unix() > entry.expires_at_unix
+        || !matches!(
+            entry.purpose,
+            msc_api::dto::StagedUploadPurposeDto::ModpackArchive
+        )
+    {
+        return Err(Box::new(error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Unknown or already-redeemed staged upload.",
+        )));
+    }
+    Ok(Some(entry))
+}
+
+fn finish_created_server(
+    state: &LifecycleRoutesState,
+    operation_id: &OperationId,
+    created: provisioning::CreatedServer,
+    flavor: JavaServerFlavor,
+    accept_eula: bool,
+    java_compatibility_warning: Option<String>,
+) {
+    let server_id = created.config.id.clone();
+    let server_name = created.config.display_name.clone();
+    let is_java = created.config.server_type == ServerType::Java;
+    match state.register_imported_config_servers(vec![created.config], false) {
+        Ok(statuses) => {
+            let ready = statuses.iter().any(|(id, status)| {
+                id == &server_id
+                    && matches!(
+                        status,
+                        crate::routes::lifecycle::ReconciliationStatus::Ready
+                    )
+            });
+            if accept_eula {
+                let _ =
+                    fleet::accept_eula(&StdFileSystem, &state.app_config_snapshot(), &server_id);
+            }
+            if is_java && ready {
+                let _ = state.select_active_server(server_id.clone());
+            }
+            let mut result_map = BTreeMap::new();
+            result_map.insert("serverId".to_string(), server_id);
+            result_map.insert("serverName".to_string(), server_name.clone());
+            result_map.insert("ready".to_string(), ready.to_string());
+            if let Some(warning) = java_compatibility_warning {
+                result_map.insert("javaCompatibilityWarning".to_string(), warning);
+            }
+            let _ = state.finish_operation_success(
+                operation_id,
+                &format!("Created {} server \"{server_name}\".", flavor.raw_value()),
+                result_map,
+            );
+        }
+        Err(error) => {
+            let _ =
+                state.finish_operation_failure(operation_id, "internal_error", error.to_string());
         }
     }
 }
@@ -2684,9 +2827,18 @@ mod tests {
     }
 
     async fn call_create(state: &LifecycleRoutesState, body: ServerCreateRequestDto) -> Response {
+        call_create_with_staging(state, StagingStore::default(), body).await
+    }
+
+    async fn call_create_with_staging(
+        state: &LifecycleRoutesState,
+        staging: StagingStore,
+        body: ServerCreateRequestDto,
+    ) -> Response {
         create(
             State(state.clone()),
             Extension(transfer_credential()),
+            Extension(staging),
             Ok(Json(body)),
         )
         .await
@@ -2756,6 +2908,27 @@ mod tests {
                 .unwrap()
                 .contains("invalid_server_type")
         );
+    }
+
+    #[test]
+    fn create_route_redeems_a_modpack_upload_instead_of_falling_back_to_paper() {
+        let staging = StagingStore::default();
+        let staged_path = temp_dir("create-modpack-upload").join("pack.bin");
+        std::fs::write(&staged_path, b"not a zip archive").unwrap();
+        staging.uploads.lock().unwrap().insert(
+            "pack-upload".to_string(),
+            StagedUpload {
+                purpose: msc_api::dto::StagedUploadPurposeDto::ModpackArchive,
+                expires_at_unix: now_unix() + 60,
+                max_bytes: 1024,
+                path: staged_path.clone(),
+            },
+        );
+        let redeemed = redeem_modpack_upload(&staging, Some("pack-upload"))
+            .expect("a modpack-purpose upload is redeemable by server creation")
+            .expect("a supplied upload produces a staged file");
+        assert_eq!(redeemed.path, staged_path);
+        assert!(staging.uploads.lock().unwrap().get("pack-upload").is_none());
     }
 
     // ---------- P7.23: POST /v1/servers/delete ----------

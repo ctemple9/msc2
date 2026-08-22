@@ -107,6 +107,9 @@ real thing. No network access anywhere in this tool.
                                               check a fixture directory's
                                               citations against an add-on
                                               corpus
+  phase8-check.py --evidence DIR --modpack-evidence DIR
+                                              check P8.28's real CLI evidence
+                                              records for providers and packs
   phase8-check.py --selftest                 run all three modes against the
                                               fixtures in
                                               tools/phase8/fixtures/,
@@ -156,6 +159,8 @@ WORKFLOWS = (
 )
 
 PACK_FORMATS = ("mrpack", "curseforge")
+LIVE_PROVIDERS = ("modrinth", "hangar")
+LIVE_OUTCOMES = ("success", "unavailable")
 
 REQUIRED_ENTRY_FIELDS = ("provider", "purpose", "source_url", "captured", "sha256", "byte_size")
 REQUIRED_PACK_FIELDS = ("source_url", "captured", "sha256", "byte_size", "pack_format")
@@ -521,6 +526,87 @@ def run_coverage(fixture_dir: Path, addons_dir: Path) -> tuple[int, str]:
 
 
 # ---------------------------------------------------------------------------
+# Live evidence mode (P8.28)
+# ---------------------------------------------------------------------------
+
+def load_evidence_record(path: Path) -> dict:
+    try:
+        record = json.loads(path.read_text())
+    except json.JSONDecodeError as exc:
+        raise CheckError(f"{path}: malformed JSON ({exc})")
+    if not isinstance(record, dict):
+        raise CheckError(f"{path}: evidence record must be a JSON object")
+    return record
+
+
+def require_live_fields(path: Path, record: dict, fields: tuple[str, ...]) -> None:
+    for field in fields:
+        value = record.get(field)
+        if value is None or value == "":
+            raise CheckError(f"{path}: missing '{field}'")
+    if record["outcome"] not in LIVE_OUTCOMES:
+        raise CheckError(
+            f"{path}: outcome must be one of {', '.join(LIVE_OUTCOMES)}"
+        )
+
+
+def check_provider_evidence(evidence_dir: Path) -> str:
+    if not evidence_dir.is_dir():
+        raise CheckError(f"{evidence_dir}: provider evidence directory does not exist")
+    seen = set()
+    for path in sorted(evidence_dir.glob("*.json")):
+        record = load_evidence_record(path)
+        require_live_fields(path, record, ("provider", "captured", "source_url", "outcome"))
+        provider = record["provider"]
+        if provider not in LIVE_PROVIDERS:
+            raise CheckError(f"{path}: unknown live provider {provider!r}")
+        if path.stem != provider:
+            raise CheckError(f"{path}: filename must be {provider}.json")
+        seen.add(provider)
+    missing = sorted(set(LIVE_PROVIDERS) - seen)
+    if missing:
+        raise CheckError(f"{evidence_dir}: missing provider evidence for {', '.join(missing)}")
+    return f"ok {evidence_dir} ({len(seen)} provider record(s))"
+
+
+def run_provider_evidence(evidence_dir: Path) -> tuple[int, str]:
+    try:
+        return 0, check_provider_evidence(evidence_dir)
+    except CheckError as exc:
+        return 1, str(exc)
+
+
+def check_modpack_evidence(evidence_dir: Path) -> str:
+    if not evidence_dir.is_dir():
+        raise CheckError(f"{evidence_dir}: modpack evidence directory does not exist")
+    seen = set()
+    for path in sorted(evidence_dir.glob("*.json")):
+        record = load_evidence_record(path)
+        require_live_fields(
+            path,
+            record,
+            ("pack_format", "captured", "source_archive", "source_sha256", "outcome"),
+        )
+        pack_format = record["pack_format"]
+        if pack_format not in PACK_FORMATS:
+            raise CheckError(f"{path}: unknown pack_format {pack_format!r}")
+        if path.stem != pack_format:
+            raise CheckError(f"{path}: filename must be {pack_format}.json")
+        seen.add(pack_format)
+    missing = sorted(set(PACK_FORMATS) - seen)
+    if missing:
+        raise CheckError(f"{evidence_dir}: missing modpack evidence for {', '.join(missing)}")
+    return f"ok {evidence_dir} ({len(seen)} modpack record(s))"
+
+
+def run_modpack_evidence(evidence_dir: Path) -> tuple[int, str]:
+    try:
+        return 0, check_modpack_evidence(evidence_dir)
+    except CheckError as exc:
+        return 1, str(exc)
+
+
+# ---------------------------------------------------------------------------
 # Self-test and CLI
 # ---------------------------------------------------------------------------
 
@@ -563,6 +649,8 @@ def main() -> int:
         help="check a modpack archive corpus directory (default: corpus/packs)",
     )
     parser.add_argument("--coverage", type=Path, default=None, metavar="FIXTURE_DIR")
+    parser.add_argument("--evidence", type=Path, default=None, metavar="DIR")
+    parser.add_argument("--modpack-evidence", type=Path, default=None, metavar="DIR")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
 
@@ -591,6 +679,18 @@ def main() -> int:
         ran = True
         addons_dir = args.inventory if args.inventory is not None else DEFAULT_ADDONS_DIR
         code, message = run_coverage(args.coverage, addons_dir)
+        print(message)
+        overall_code = overall_code or code
+
+    if args.evidence is not None:
+        ran = True
+        code, message = run_provider_evidence(args.evidence)
+        print(message)
+        overall_code = overall_code or code
+
+    if args.modpack_evidence is not None:
+        ran = True
+        code, message = run_modpack_evidence(args.modpack_evidence)
         print(message)
         overall_code = overall_code or code
 

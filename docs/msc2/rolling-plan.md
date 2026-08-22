@@ -469,7 +469,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 ### Public clients
 
 ### P8.24 — Wire Phase 8 routes through real services
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-api/src/dto/addons.rs`, `crates/msc-api/src/dto/mod.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/phase8_routes.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Wire the existing add-on/catalog/components/export routes plus P8.9's staged pack/manual-file additions to the real services with authentication, `addons`/`fleet` permissions, request limits, audit records, operation IDs, typed errors, and capability degradation. Test through the HTTP router with fake providers and disk-backed state across restart. Mark Agent cells Implemented only after the public path passes.
 **Actual result:** Added the Phase 8 add-on/modpack DTOs in `msc-api`, created `routes/components.rs`, mounted the new `/v1/addons`, `/v1/catalog/search`, `/v1/components/*`, and `/v1/modpacks/*` public routes, and tightened staged uploads so non-world purposes no longer fall through the world route. Added `phase8_routes.rs` as a black-box smoke over the real HTTP surface, and marked the corresponding Agent matrix rows Implemented after that public path passed.
@@ -478,7 +478,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Batch:** safe
 
 ### P8.25 — Add complete Phase 8 CLI commands
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/cli_phase8.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Add scriptable commands for inventory, catalog search, install from catalog/local file, update one/all, enable/disable/remove, source link management, pack inspect/create/replace/manual-file completion, health repair, and client export. Local inputs upload through staged uploads, long operations poll/cancel using the shared operation commands, JSON output stays machine-readable, and noninteractive use never prompts unexpectedly.
 **Actual result:** Added `msc addon ...` and `msc modpack ...` command families, `msc server create --modpack`, the shared staged-upload helper, staged-download export retrieval, and durable-operation polling for add-on mutations, modpack import/replace, and health repair. Added `cli_phase8.rs` coverage for the new help surfaces and local-file error paths. Marked CLI matrix rows Implemented where there is a real command surface; `/v1/components` stays Planned because there is still no dedicated CLI system-components inventory command.
@@ -487,7 +487,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Batch:** safe
 
 ### P8.26 — Repoint and prove the copied iOS add-on workflows
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/ios/MSCRemoteiOS_Swift/ComponentsView.swift`, `clients/ios/MSCRemoteiOS_Swift/CatalogBrowserView.swift`, `clients/ios/MSCRemoteiOS_Swift/HealthView.swift`, `clients/ios/MSCRemoteiOS_Swift/DashboardViewModel.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIClient.swift`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOSTests/`, `docs/msc2/client-capability-matrix.csv`
 **What:** Repoint the existing components/add-ons/catalog/update/remove/export/repair flows to `/v1`, generated/frozen DTO shapes, typed errors, and operation polling. Add document-picker upload for modpack/local-JAR/manual CurseForge completion if the existing copied UI exposes those workflows; otherwise record the still-Planned screen without claiming parity. Preserve per-host state and show pack-managed/provider-unavailable explanations plainly.
 **Actual result:** Updated the copied iOS DTOs, API client, view model, and Health export flow to the frozen Phase 8 shapes: staged-download client export, optional durable `operationId` handling on add-on install/update and health repair, and the new result fields the agent now returns. Added `Phase8ComponentsAPITests.swift` to prove DTO decoding, staged-download fetches, and operation polling, and wired that file into the Xcode project so it actually runs. Marked iOS matrix rows Implemented for the existing add-on/catalog/components/export/repair screens; the modpack inspect/import/manual-file rows stay Planned because the copied iOS app still has no screen for those workflows.
@@ -498,7 +498,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 ### Proof and gate
 
 ### P8.27 — Build one portable Phase 8 public-path smoke
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase8/phase8-gate-smoke.sh`, `tools/phase8/fake-provider-server.py`, `tools/phase8/fixtures/`, `.github/workflows/ci.yml`
 **What:** Build one synthetic smoke, not a collection of overlapping scripts. Through ordinary CLI/HTTP paths and local fake providers, create a modded server from a tiny pack, search/install/update/disable/enable/remove an add-on, resolve dependencies and a cycle, refuse a corrupt hash and hostile archive, resume a manual CurseForge file, enforce pack-managed refusal, perform client export, complete health repairs, cancel/restart an interrupted pack operation, and prove no staging/orphan residue. Add this same smoke as macOS/Linux/Windows CI legs.
 **Verify:** `bash tools/phase8/phase8-gate-smoke.sh --synthetic`
@@ -534,3 +534,5 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 ## Amendments log
 
 Every amendment from Phase 8 onward is recorded here. Earlier phases' amendments are in `rolling-plan-archive.md`.
+
+**2026-08-21 — P8.24 correction: staged modpack creation reaches the pack-aware service.** P8.28's live preflight found that `msc server create --modpack <archive>` successfully uploaded the archive but `POST /v1/servers/create` ignored `stagedModpackUploadId` and provisioned the default Paper flow. The create route now redeems the shared, purpose-bound `ModpackArchive` upload exactly once and passes its staged path to `create_server_from_pack`, which derives the pinned Fabric/Forge/NeoForge loader from the archive before any server is registered. An invalid archive therefore fails its operation rather than silently creating an unrelated Paper server. The Phase 8 checker now implements P8.28's declared `--evidence` and `--modpack-evidence` modes: both require one JSON record per required provider/pack format and fail loudly on missing, malformed, or wrongly named records. Three existing world-route test DTO literals gained `operation_id: None` and `file_id: None`, the mechanically required defaults after P8.9 added those fields; otherwise `msc-agent` tests could not compile. P8.28 remains **not started**: this correction enables, but does not replace, its live-network evidence run.

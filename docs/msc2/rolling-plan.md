@@ -494,7 +494,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.17 — Verify the Xbox Broadcast acquisition amendment
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `docs/msc2/rolling-plan.md`
 **What:** Run P9.11a's own Verify command against the completed Broadcast checksum-acquisition implementation. Confirm that the upstream digest is required and verified before promotion, the prior JAR remains intact on failure, and readiness timing is not armed by acquisition failure. After the command passes, update P9.11a to `awaiting verification`; Cameron closes it after independently running the same command.
 **Verify:** `cargo nextest run -p msc-application --test xbox_broadcast`

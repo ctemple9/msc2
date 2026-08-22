@@ -578,6 +578,13 @@ impl LifecycleRoutesState {
             .map(|id| id.as_str().to_string())
     }
 
+    pub fn update_duckdns_hostname(
+        &self,
+        hostname: Option<String>,
+    ) -> Result<(), AgentAppConfigError> {
+        self.inner.app_config.update_duckdns_hostname(hostname)
+    }
+
     /// A clone of the shared operation store — P6.21's world/backup
     /// routes journal every mutation through the same
     /// `OperationJournal::admit` per-target exclusivity mechanism
@@ -1233,6 +1240,13 @@ impl AgentAppConfigStore {
 
     pub fn active_server_id(&self) -> Option<String> {
         self.config.lock().unwrap().active_server_id.clone()
+    }
+
+    pub fn update_duckdns_hostname(
+        &self,
+        hostname: Option<String>,
+    ) -> Result<(), AgentAppConfigError> {
+        self.mutate(|config| config.duckdns_hostname = hostname)
     }
 
     #[cfg(test)]

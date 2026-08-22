@@ -174,6 +174,15 @@ pub(crate) fn build_app() -> Router {
         .route("/status", get(routes::status::status))
         .route("/performance", get(routes::performance::performance))
         .route(
+            "/connectivity",
+            get(routes::network_diagnostics::connectivity),
+        )
+        .route(
+            "/duckdns",
+            get(routes::network_diagnostics::duckdns_status)
+                .post(routes::network_diagnostics::update_duckdns),
+        )
+        .route(
             "/settings",
             get(routes::settings::get_settings).post(routes::settings::update_settings),
         )

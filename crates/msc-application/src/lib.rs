@@ -12,6 +12,7 @@ pub mod import;
 pub mod java_launch;
 pub mod lifecycle;
 pub mod modpacks;
+pub mod network_diagnostics;
 pub mod operations;
 pub mod output_reducer;
 pub mod playit;

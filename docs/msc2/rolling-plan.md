@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 9 in progress — P9.1 through P9.12 are DONE. A live-evidence amendment added four helper-binary acquisition steps (P9.6a, P9.7a, P9.10a, P9.11a) that are **blocked on the QUESTION below**; P9.13–P9.15 remain.
-> **Next move:** Cameron answers the checksum-ownership QUESTION before P9.6a executes. P9.6a builds the acquisition primitive once; P9.7a/P9.10a/P9.11a consume it. P9.11a additionally requires a decision entry, because it deliberately diverges from MSC 1 rather than fixing a port defect.
+> ## STATUS: Phase 9 in progress — P9.1 through P9.12 are DONE. The live-evidence amendment added four helper-binary acquisition steps (P9.6a, P9.7a, P9.10a, P9.11a); its checksum-ownership QUESTION is **answered** (2026-08-22, option (a) — MSC 2 owns the hash), so they are unblocked. P9.13–P9.15 remain.
+> **Next move:** EXECUTE P9.6a — it builds the pinned-asset acquisition primitive once, and P9.7a/P9.10a/P9.11a consume it. P9.11a additionally requires a decision entry, because it deliberately diverges from MSC 1 rather than fixing a port defect.
 > **Repo:** https://github.com/ctemple9/msc2 · GitHub Actions run [32544701401](https://github.com/ctemple9/msc2/actions/runs/32544701401) is green for exact Phase 8 code candidate `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887`, including repository invariants, macOS, Linux, Windows, and the headless no-GUI link check.
 > **Last updated:** 2026-08-21
 
@@ -224,7 +224,34 @@ The four steps below replace the three drafted earlier. The acquisition mechanis
 **once**, as P9.6a on the managed-helper foundation, and consumed by three thin steps —
 rather than reimplemented per helper, which is what the earlier draft would have produced.
 
-### QUESTION — before P9.6a
+### QUESTION — before P9.6a — **ANSWERED**
+
+**Answer: (a) — MSC 2 owns the hash.** Confirmed by Cameron Temple, 2026-08-22.
+
+For every pinned helper version, the expected SHA-256 is recorded **in this repository**,
+and the agent refuses any artifact that does not match it. This applies to all managed
+helpers without exception — `playitd`, Geyser, Floodgate, and MCXboxBroadcast — regardless
+of whether upstream publishes a checksum of its own. Where upstream *does* publish one, it
+is an additional cross-check, never a substitute for our recorded hash.
+
+**Accepted consequences**, recorded so they are not rediscovered as friction later:
+
+- Bumping any managed helper is a repository change: pin the new version, compute its
+  SHA-256, commit both, release. There is no path that installs an unrecorded artifact.
+- A helper whose hash is missing from the repository is **unavailable**, not
+  best-effort. `GET /v1/components` must report that honestly rather than silently
+  degrading, and the failure must name the missing pin — not surface as a readiness
+  timeout.
+- Upstream re-tagging or replacing a release under a pinned version is now a *detected*
+  condition rather than a silent substitution of the executable the agent runs.
+
+**Rationale.** Phase 3 already made checksum-verified staging the rule for every download
+in the product. A long-lived executable that the agent spawns — on a host where the agent
+also holds filesystem authority over the user's worlds — is the worst possible thing to
+exempt from that rule. Pinning is required regardless; once a version is pinned, the hash
+is the cheap part.
+
+The original question, for the record:
 
 ```
 QUESTION — Who owns the checksum for a pinned helper binary?
@@ -259,7 +286,7 @@ If unsure:       (a). Phase 3 already made checksum-verified staging the rule fo
 
 **Status:** not started
 **Files:** `crates/msc-infrastructure/src/helper_acquisition.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/helper_acquisition.rs`, `fixtures/networking/`
-**What:** Extend P9.6's managed-helper foundation with the one acquisition primitive all three helpers need, so it is not written three times. Resolve an **explicitly pinned** release identity — never `latest` — select an exact named asset for the running platform, verify a SHA-256 per Cameron's answer to the QUESTION above, and promote through Phase 3's `stage_download`. Persist origin, pinned version, asset name, and checksum alongside the cached artifact, and keep any previously working artifact in place until the replacement is fully downloaded, verified, and staged. Acquisition is a distinct journaled boundary that terminates with its **own** error: release-resolution, download, checksum, staging, permission, and spawn failures must each surface as themselves and must never be allowed to arm a downstream readiness watchdog. Fakeable — no test may reach the public network.
+**What:** Extend P9.6's managed-helper foundation with the one acquisition primitive all three helpers need, so it is not written three times. Resolve an **explicitly pinned** release identity — never `latest` — select an exact named asset for the running platform, verify the SHA-256 recorded in this repository for that pinned version — required for every helper, upstream-published or not, per the answer above — and promote through Phase 3's `stage_download`. Persist origin, pinned version, asset name, and checksum alongside the cached artifact, and keep any previously working artifact in place until the replacement is fully downloaded, verified, and staged. Acquisition is a distinct journaled boundary that terminates with its **own** error: release-resolution, download, checksum, staging, permission, and spawn failures must each surface as themselves and must never be allowed to arm a downstream readiness watchdog. Fakeable — no test may reach the public network.
 **Verify:** `cargo nextest run -p msc-infrastructure --test helper_acquisition`
 **Commit:** `P9.6a: add pinned verified helper acquisition`
 **Batch:** solo

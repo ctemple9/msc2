@@ -147,6 +147,19 @@ credential or disposable server existed, not that the integration succeeded.
 The read-only mcsrvstat.us probe is the only stateful provider contact recorded
 here, and it made no server mutation.
 
+## P9.15 gate check
+
+`tools/phase9/phase9-check.py --gate` and
+`tools/phase9/phase9-smoke.sh --synthetic` pass on the macOS candidate. The
+documentary gate confirms the nine evidence records, 29 implemented Phase 9
+routes, player/management separation, fixture coverage, and the existing
+tri-platform/headless CI wiring. The full-workspace portion of P9.15's Verify
+command remains open: it stops while compiling the existing
+`msc-api` Phase 9 conformance test because `resolve`'s `schema` parameter
+shadows the helper function named `schema` (`crates/msc-api/tests/phase9_conformance.rs:19-21`).
+No Phase 9 completion claim is made until that compile gap is resolved and an
+exact Phase 9 candidate has external tri-platform CI evidence.
+
 ## D-012: Phase 9 access posture
 
 **Approved by Cameron Temple, 2026-08-22.** Phase 9 keeps the management API

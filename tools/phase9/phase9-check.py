@@ -5,6 +5,11 @@ This checker is deliberately offline.  The evidence manifest says which
 third-party operations were unavailable in this workspace; the synthetic
 smoke runner supplies the executable proof for the behavior that can be
 checked without credentials or a real Minecraft server.
+
+Modes:
+
+  phase9-check.py --evidence   check P9.14's evidence record
+  phase9-check.py --gate       check P9.15's documentary gate prerequisites
 """
 
 from __future__ import annotations
@@ -25,6 +30,13 @@ AGENT_CLI_PATH = ROOT / "crates/msc-agent/src/cli/mod.rs"
 USER_ROUTES_PATH = ROOT / "crates/msc-agent/src/routes/users.rs"
 NETWORKING_ROUTES_PATH = ROOT / "crates/msc-agent/src/routes/networking.rs"
 EVIDENCE_DIR = ROOT / "docs/msc2/networking/evidence"
+FIXTURE_DIRS = {
+    "networking": ROOT / "fixtures/networking",
+    "helper-lifecycle": ROOT / "fixtures/helper-lifecycle",
+    "credentials": ROOT / "fixtures/credentials",
+}
+CI_WORKFLOW_PATH = ROOT / ".github/workflows/ci.yml"
+SMOKE_PATH = ROOT / "tools/phase9/phase9-smoke.sh"
 
 REQUIRED_INTEGRATIONS = {
     "playit",
@@ -193,26 +205,113 @@ def check_scope_references() -> list[str]:
     return ["provenance: scope and live-evidence notes are present"]
 
 
+def check_fixture_coverage() -> list[str]:
+    """Check that the gate still has the fixture families P9.2 promised.
+
+    The acquisition amendment added cases after P9.2, so this intentionally
+    checks minimum coverage rather than freezing the directory to an old
+    count.  The evidence manifest and the targeted Rust suites provide the
+    per-integration linkage and executable behavior checks.
+    """
+    minimums = {"networking": 14, "helper-lifecycle": 8, "credentials": 8}
+    counts: dict[str, int] = {}
+    for name, directory in FIXTURE_DIRS.items():
+        require(directory.is_dir(), f"fixtures: missing {directory.relative_to(ROOT)}")
+        files = sorted(directory.glob("*.json"))
+        require(
+            len(files) >= minimums[name],
+            f"fixtures: {directory.relative_to(ROOT)} has {len(files)} files, expected at least {minimums[name]}",
+        )
+        for path in files:
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise EvidenceError(f"fixtures: {path.relative_to(ROOT)} is not valid JSON ({error})") from error
+            require(isinstance(data, dict), f"fixtures: {path.relative_to(ROOT)} must contain an object")
+        counts[name] = len(files)
+    return [
+        "fixtures: "
+        + ", ".join(f"{name}={count}" for name, count in counts.items())
+        + " (minimum Phase 9 coverage present)"
+    ]
+
+
+def check_gate_runner() -> list[str]:
+    """Check that the committed smoke and CI paths exercise the gate scope."""
+    smoke = SMOKE_PATH.read_text(encoding="utf-8")
+    require(
+        "phase9_routes" in smoke and "cli_phase9" in smoke,
+        "gate runner: public HTTP and CLI Phase 9 suites are not in the synthetic smoke",
+    )
+    for required_suite in (
+        "helper_process",
+        "helper_acquisition",
+        "network_diagnostics",
+        "xbox_broadcast",
+        "credential_repository",
+    ):
+        require(
+            required_suite in smoke,
+            f"gate runner: synthetic smoke omits {required_suite}",
+        )
+
+    workflow = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    for platform in ("ubuntu-latest", "macos-latest", "windows-latest"):
+        require(platform in workflow, f"CI: missing {platform} toolchain leg")
+    require("cargo nextest run --workspace" in workflow, "CI: workspace regression suite is missing")
+    require(
+        "headless-link-check.py --all-artifacts" in workflow,
+        "CI: headless no-GUI link check is missing",
+    )
+    return ["gate runner: Phase 9 synthetic coverage and tri-platform/headless CI checks are wired"]
+
+
+def check_gate_scope() -> list[str]:
+    """Check the owner-approved boundary and explicit deferrals behind the gate."""
+    scope = SCOPE_PATH.read_text(encoding="utf-8")
+    require("duckdns_label_only" in scope, "scope: DuckDNS label-only behavior is not recorded")
+    require("no DuckDNS updater is implied" in scope, "scope: DuckDNS updater deferral is missing")
+    require("Approved by Cameron Temple" in scope, "scope: D-012 approval is missing")
+    require("deferred to Phase 11" in scope, "scope: Phase 11 access deferrals are missing")
+    return ["scope: player/management boundary and owner-approved access deferrals are recorded"]
+
+
+def check_exit_gate() -> list[str]:
+    messages: list[str] = []
+    messages.extend(check_evidence_manifest())
+    messages.extend(check_capability_matrix())
+    messages.extend(check_management_boundary())
+    messages.extend(check_scope_references())
+    messages.extend(check_fixture_coverage())
+    messages.extend(check_gate_runner())
+    messages.extend(check_gate_scope())
+    return messages
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence", action="store_true", help="check the recorded Phase 9 evidence")
+    parser.add_argument("--gate", action="store_true", help="check P9.15's committed gate prerequisites")
     args = parser.parse_args()
-    if not args.evidence:
-        parser.error("the only supported mode is --evidence")
+    if args.evidence and args.gate:
+        parser.error("choose only one of --evidence or --gate")
+    if not args.evidence and not args.gate:
+        parser.error("choose --evidence or --gate")
 
     try:
-        messages: list[str] = []
-        messages.extend(check_evidence_manifest())
-        messages.extend(check_capability_matrix())
-        messages.extend(check_management_boundary())
-        messages.extend(check_scope_references())
+        messages = check_exit_gate() if args.gate else []
+        if args.evidence:
+            messages.extend(check_evidence_manifest())
+            messages.extend(check_capability_matrix())
+            messages.extend(check_management_boundary())
+            messages.extend(check_scope_references())
     except EvidenceError as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1
 
     for message in messages:
         print(message)
-    print("PHASE 9 EVIDENCE CHECK PASSED")
+    print("PHASE 9 GATE CHECK PASSED" if args.gate else "PHASE 9 EVIDENCE CHECK PASSED")
     return 0
 
 

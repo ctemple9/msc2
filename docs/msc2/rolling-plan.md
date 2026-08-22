@@ -476,7 +476,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.15 — Close the Phase 9 working gate
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase9/phase9-check.py`, `tools/phase9/phase9-smoke.sh`, `docs/msc2/networking/phase9-scope.md`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/rolling-plan.md`
 **What:** Check P9.1’s working gate against one exact candidate: every port-plan deliverable is implemented or honestly recorded as an owner-approved deferral; player-network and management-network boundaries hold; helper lifecycle, resource-pack safety, credential CRUD/revocation across restart, public API/CLI/iOS paths, fixture/evidence provenance, cancellation/recovery, tri-platform CI, and headless no-GUI linking all pass. Run the full workspace suite once here because this is the phase-wide regression sweep. Report any gap without marking the phase complete or pre-empting the other agent’s REVIEW.
 **Verify:** `python3 tools/phase9/phase9-check.py --gate && bash tools/phase9/phase9-smoke.sh --synthetic && cargo nextest run --workspace`

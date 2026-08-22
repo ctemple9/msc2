@@ -198,6 +198,33 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 **Commit:** `P9.11: add Xbox Broadcast and notifications`
 **Batch:** stop-after
 
+### P9.7a — Add pinned, verified Playit binary acquisition
+
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/playit.rs`, `crates/msc-application/src/playit.rs`, `crates/msc-infrastructure/tests/playit_binary.rs`, `crates/msc-application/tests/playit.rs`, `fixtures/networking/`
+**What:** Close the acquisition gap found after P9.7: MSC 2 must obtain `playitd` itself instead of accepting an unexplained executable path. Pin the release identity (the current MSC 1 evidence is `playitd-v1.0.10`), select a platform-appropriate asset from that pinned release, and require a published or repository-owned SHA-256 before calling Phase 3's `stage_download`. Record the origin, pinned version, and checksum with the cached file; reject missing or mismatched integrity data before replacing an existing binary. Make acquisition a distinct, journaled pre-start boundary: a release-resolution, download, staging, permission, or process-spawn failure must finish with its own error and must not arm the 75-second readiness watchdog. Reserve the readiness timeout for a successfully spawned `playitd` that stays silent or never supplies a player address.
+**Verify:** `cargo nextest run -p msc-infrastructure --test playit_binary && cargo nextest run -p msc-application --test playit`
+**Commit:** `P9.7a: add verified playit binary acquisition`
+**Batch:** solo
+
+### P9.10a — Add pinned, verified Geyser and Floodgate acquisition
+
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/geyser.rs`, `crates/msc-infrastructure/src/download_staging.rs`, `crates/msc-application/src/geyser.rs`, `crates/msc-infrastructure/tests/geyser_download.rs`, `crates/msc-application/tests/geyser.rs`, `fixtures/networking/`
+**What:** Close the P9.10 acquisition gap: the current code detects existing Geyser/Floodgate JARs and edits Geyser YAML, but does not install or update either helper. Add provider-specific acquisition with explicit pinned project/version/build identities, no unbounded `latest` resolution, and a published or repository-owned SHA-256 passed through Phase 3's `stage_download`. Keep the prior working JARs until download, checksum, compatibility, and configuration validation succeed; return acquisition failures directly and do not let them become a later helper-readiness timeout. Preserve the existing safe YAML mutation and the exclusion of these managed helpers from client-mod export.
+**Verify:** `cargo nextest run -p msc-infrastructure --test geyser_download && cargo nextest run -p msc-application --test geyser`
+**Commit:** `P9.10a: add verified geyser and floodgate acquisition`
+**Batch:** solo
+
+### P9.11a — Pin and verify Xbox Broadcast acquisition
+
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-infrastructure/tests/xbox_broadcast_download.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `fixtures/networking/`
+**What:** Correct the P9.11 download path exposed by the MSC 1 evidence. Replace `/releases/latest` metadata and the `latest/download` fallback with an explicit release identity and exact asset selected from that release. Require a published or repository-owned SHA-256 and pass it to Phase 3's `stage_download`; never treat `None` as acceptable integrity data for this required helper. Keep the existing JAR active until the new one is fully downloaded, verified, staged, and recorded. Surface metadata, download, checksum, staging, and process-start failures as their actual operation errors before the 60-second broadcast-readiness watchdog is armed.
+**Verify:** `cargo nextest run -p msc-infrastructure --test xbox_broadcast_download && cargo nextest run -p msc-application --test xbox_broadcast`
+**Commit:** `P9.11a: pin and verify xbox broadcast acquisition`
+**Batch:** solo
+
 ### P9.12 — Implement durable named-token administration and revocation
 
 **Status:** awaiting verification
@@ -233,5 +260,19 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 **Verify:** `python3 tools/phase9/phase9-check.py --gate && bash tools/phase9/phase9-smoke.sh --synthetic && cargo nextest run --workspace`
 **Commit:** `P9.15: close the Phase 9 gate`
 **Batch:** solo
+
+## Phase 9 amendments log
+
+### 2026-08-22 — Managed-helper acquisition and truthful startup failures
+
+Real-world MSC 1 evidence showed that the Playit claim flow can succeed while the required `playitd` binary is never downloaded: `PlayitBinaryManager.swift` asks MSC's own `/releases/latest` for an asset named `playitd`, but the binary is published under the separate `playitd-v1.0.10` release and app releases have shadowed it. The subsequent readiness timeout therefore described a consequence, not the cause.
+
+The MSC 2 audit found three different current states:
+
+- **Playit:** P9.7 has no acquisition path at all. `PlayitLaunch` accepts an executable path, and P9.7 supervises the process and records spawn failures immediately; there is no binary-resolution error to surface, and a readiness timeout applies only after a process has spawned.
+- **Geyser/Floodgate:** P9.10 has no acquisition path. It detects already-present JARs and edits `Geyser-Spigot/config.yml`; no version is resolved dynamically, but installation/update behavior promised by P9.10 is still uncovered.
+- **Xbox Broadcast:** P9.11 resolves `/releases/latest`, falls back to `/releases/latest/download/MCXboxBroadcastStandalone.jar`, and calls `stage_download(..., None)`. It is staged atomically but not checksum-verified and is not pinned.
+
+The three amendments above establish one rule for all required helper binaries: acquisition must be explicit, pinned, integrity-checked through Phase 3 staging, and completed before readiness timing begins. They are new work; none changes the DONE P9.6, P9.7, P9.10, or P9.11 entries, and P9.12–P9.15 remain untouched.
 
 ---

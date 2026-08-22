@@ -10,6 +10,7 @@ pub mod credential_repository;
 pub mod download_staging;
 pub mod duckdns;
 pub mod fs;
+pub mod helper_acquisition;
 pub mod helper_process;
 pub mod jar_provider;
 pub mod java_runtime_detection;

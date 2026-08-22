@@ -284,7 +284,7 @@ If unsure:       (a). Phase 3 already made checksum-verified staging the rule fo
 
 ### P9.6a — Pinned, verified helper-binary acquisition
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/helper_acquisition.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/helper_acquisition.rs`, `fixtures/networking/`
 **What:** Extend P9.6's managed-helper foundation with the one acquisition primitive all three helpers need, so it is not written three times. Resolve an **explicitly pinned** release identity — never `latest` — select an exact named asset for the running platform, verify the SHA-256 recorded in this repository for that pinned version — required for every helper, upstream-published or not, per the answer above — and promote through Phase 3's `stage_download`. Persist origin, pinned version, asset name, and checksum alongside the cached artifact, and keep any previously working artifact in place until the replacement is fully downloaded, verified, and staged. Acquisition is a distinct journaled boundary that terminates with its **own** error: release-resolution, download, checksum, staging, permission, and spawn failures must each surface as themselves and must never be allowed to arm a downstream readiness watchdog. Fakeable — no test may reach the public network.
 **Verify:** `cargo nextest run -p msc-infrastructure --test helper_acquisition`

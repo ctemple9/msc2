@@ -1,0 +1,13 @@
+{
+  "tag_name": "playitd-v1.0.10",
+  "assets": [
+    {
+      "name": "playitd-linux-x86_64",
+      "browser_download_url": "https://github.com/example/playitd/releases/download/playitd-v1.0.10/playitd-linux-x86_64"
+    },
+    {
+      "name": "playitd-windows-x86_64.exe",
+      "browser_download_url": "https://github.com/example/playitd/releases/download/playitd-v1.0.10/playitd-windows-x86_64.exe"
+    }
+  ]
+}

@@ -107,6 +107,12 @@ pub(crate) fn build_app() -> Router {
         app_config,
         auth_state.clone(),
     );
+    let notification_state = ws::notifications::NotificationState::default();
+    let networking_state = routes::networking::NetworkingState::new(
+        lifecycle_state.clone(),
+        operations_state.clone(),
+        secret_store.clone(),
+    );
 
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
@@ -240,11 +246,18 @@ pub(crate) fn build_app() -> Router {
         .merge(operations)
         .merge(operation_progress)
         .merge(console)
+        .merge(routes::networking::router(networking_state.clone()))
+        .merge(
+            Router::new()
+                .route("/notifications/stream", get(ws::notifications::upgrade))
+                .with_state(notification_state),
+        )
         .merge(worlds)
         .merge(components)
         .merge(backups)
         .merge(templates)
         .merge(users)
+        .layer(Extension(networking_state))
         .layer(Extension(auth_state.clone()))
         .route_layer(axum::middleware::from_fn_with_state(
             auth_state,

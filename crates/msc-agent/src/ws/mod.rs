@@ -3,4 +3,5 @@
 //! pushing `OperationDTO` updates, per `websocket-v1.json`.
 
 pub mod console;
+pub mod notifications;
 pub mod operations;

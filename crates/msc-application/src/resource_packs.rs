@@ -80,6 +80,23 @@ impl<'a> ResourcePackService<'a> {
             .map_err(ResourcePackServiceError::Properties)
     }
 
+    /// Applies a caller-supplied hosted URL without copying bytes into the
+    /// approved local store.  This is the explicit custom-URL escape hatch in
+    /// the API contract; it still changes only the three resource-pack keys,
+    /// through the same atomic properties write as local publication.
+    pub fn set_external_url(
+        &self,
+        url: &str,
+        sha1: Option<&str>,
+        require: bool,
+    ) -> Result<(), ResourcePackServiceError> {
+        if url.trim().is_empty() || url.contains(['\n', '\r']) {
+            return Err(ResourcePackServiceError::InvalidHost);
+        }
+        self.write_active_properties(Some((url.trim(), sha1.unwrap_or(""), require)))
+            .map_err(ResourcePackServiceError::Properties)
+    }
+
     pub fn remove(&self, file_name: &str) -> Result<(), ResourcePackServiceError> {
         let store = ResourcePackStore::new(&self.server_dir);
         store

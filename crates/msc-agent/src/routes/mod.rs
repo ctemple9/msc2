@@ -8,6 +8,7 @@ pub mod geyser;
 pub mod health;
 pub mod lifecycle;
 pub mod network_diagnostics;
+pub mod networking;
 pub mod operations;
 pub mod performance;
 pub mod servers;

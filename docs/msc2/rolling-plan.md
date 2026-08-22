@@ -344,7 +344,7 @@ If unsure:       (a). Phase 3 already made checksum-verified staging the rule fo
 
 ### P9.6b — Record checksum provenance and correct the primitive's stated policy
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/helper_acquisition.rs`, `crates/msc-infrastructure/tests/helper_acquisition.rs`
 **What:** P9.6a's shape is correct and is **not** being redone — it already takes the expected digest as caller-supplied data, which is exactly what both checksum sources need. Two things now misstate the design. First, `PinnedHelperRelease`'s doc comment declares a policy the type does not own — "One repository-owned helper release pin … the expected digest is deliberately stored here, even when the upstream project publishes no checksum of its own" — which would tell a cold agent that P9.10a's upstream-published hash violates the design. Reword it to describe a verifier that accepts a digest from either source. Second, `HelperArtifactMetadata` records `sha256` but not where it came from; add a `checksum_source` field (`repository-pinned` | `upstream-published`) so an audit can answer who vouched for the bytes on disk. No behavior change to download, verification, staging, or failure handling.
 **Verify:** `cargo nextest run -p msc-infrastructure --test helper_acquisition && rg -n 'checksum_source' crates/msc-infrastructure/src/helper_acquisition.rs`
@@ -362,7 +362,7 @@ If unsure:       (a). Phase 3 already made checksum-verified staging the rule fo
 
 ### P9.10a — Port MSC 1's Geyser and Floodgate acquisition
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/geyser.rs`, `crates/msc-application/src/geyser.rs`, `crates/msc-application/tests/geyser.rs`, `crates/msc-infrastructure/tests/geyser_resolution.rs`, `fixtures/networking/`
 **What:** Close the Geyser/Floodgate acquisition gap by **porting MSC 1's behavior**, not by inventing a compatibility system. MSC 1 (`PluginDownloader.swift`) resolves `download.geysermc.org/v2/projects/{geyser,floodgate}/versions/latest/builds/latest`, then downloads `versions/{version}/builds/{build}/downloads/spigot`, and reports the result as `"{version} (build {build})"` (`AppViewModel+ComponentsVersions.swift`). Reproduce exactly that: latest version, latest build, the `spigot` artifact, both helpers. Keep MSC 1's model in which **Geyser and Floodgate are Paper-family plugins** living in `plugins/` — that is why `spigot` is the only artifact MSC 1 fetches, and it is coherent rather than an oversight; do not extend to `fabric`/`neoforge` in this step. Feed the resolved release into P9.6a's `acquire_pinned_helper` rather than writing a second download path. Resolution failure or an unparseable response is fatal and must surface as its own error, never as a later helper-readiness timeout. Keep the prior working JARs active until download, verification, and configuration validation succeed. Preserve the existing safe YAML mutation and the exclusion of these managed helpers from client-mod export. Resolution must be fakeable — no test may reach the public network.
 **Verify:** `cargo nextest run -p msc-infrastructure --test geyser_resolution && cargo nextest run -p msc-application --test geyser`
@@ -425,7 +425,7 @@ If unsure:       (b). "The server told you nothing and crossplay just didn't wor
 
 ### P9.10b — Name a Geyser load failure in startup diagnostics
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/crash_analysis.rs`, `crates/msc-domain/tests/paper_plugin_crash_analysis.rs`, `fixtures/paper-plugin-crash-analysis/`
 **What:** Per QUESTION 2's answer, close the silence MSC 1 leaves when the newest Geyser will not load on an older server. P9.10a deliberately installs the newest build with no compatibility guard, exactly as MSC 1 does; this step makes the resulting failure explicable instead of invisible. Characterize real Geyser load failures against an older Paper server first — do not invent log lines — then teach the analyzer to classify them as the existing `StartupProblemKind::IncompatibleVersion`, carrying as context the installed Geyser version and build (which P9.10a records in `HelperArtifactMetadata`) and the server's Minecraft version, so the finding states plainly that the two do not match. **No new problem kind, no new machinery** — this is a pattern and its context inside the analyzer Phase 7 already runs on every failed start. Where the analyzer offers a repair action, the correct one is not an automatic version walk-back (P9.10a explicitly builds no mapping) but naming the mismatch; whether a repair is offered at all is P9.10b's to determine from the evidence, not to assume. If the pattern does not match, the analyzer must fall through silently — behavior identical to MSC 1's today.
 **Verify:** `cargo nextest run -p msc-domain --test paper_plugin_crash_analysis`
@@ -458,7 +458,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.13 — Wire Phase 9 routes, operations, capability discovery, and CLI
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/src/routes/users.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/routes/capabilities.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/phase9_routes.rs`, `crates/msc-agent/tests/cli_phase9.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Connect the completed application services to the frozen HTTP, WebSocket, capability, and scriptable CLI surfaces. Every long-running helper action must enter the shared operation model and support status/poll/cancel; unavailable host or server requirements must be advertised instead of inferred by a client. CLI output stays machine-readable and never prints secrets except the one-time token-creation value on an explicitly interactive-safe path. Mark only actually reachable API/CLI/iOS surfaces implemented in the capability matrix. Reproduce MSC 1's first-run two-pass orchestration for server creation with Playit/Broadcast enabled (`AppViewModel+ServerControls.swift`'s initiation pass 1/2, symbol-ledger row 195): hold creation's completion open until every awaited transport's readiness signal (P9.7, P9.11) resolves or the ~10-minute safety cap trips, using the shared operation model rather than MSC 1's ad hoc timers.
 **Verify:** `cargo nextest run -p msc-agent --test phase9_routes --test cli_phase9`

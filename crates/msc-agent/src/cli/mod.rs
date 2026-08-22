@@ -15,14 +15,18 @@ use msc_api::dto::{
     ActiveServerRequestDto, AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto,
     AddonsResponseDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
     BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
-    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, CatalogInstallRequestDto,
+    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, BroadcastAuthPromptDto,
+    BroadcastAutoStartDto, BroadcastCredentialsDto, BroadcastJarDownloadResultDto,
+    BroadcastSimpleResultDto, BroadcastStatusDto, CapabilitiesDto, CatalogInstallRequestDto,
     CatalogInstallResultDto, CatalogSearchResponseDto, ClientExportResponseDto, CommandRequestDto,
-    CommandResultDto, ComponentUpdateRequestDto, ErrorDto, HealthProblemsResponseDto,
-    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto,
-    JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto,
-    JavaRuntimesResponseDto, ModpackImportRequestDto, ModpackImportResultDto,
-    ModpackInspectionRequestDto, ModpackInspectionResultDto, ModpackManualFileRequestDto,
-    ModpackManualFileResultDto, OperationDto, OperationStateDto, RemoteApiStatus,
+    CommandResultDto, ComponentUpdateRequestDto, ConnectivityResponseDto, DuckDnsStatusResponseDto,
+    DuckDnsUpdateRequestDto, ErrorDto, HealthProblemsResponseDto, HealthRepairRequestDto,
+    HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto, JavaConfigSetRequestDto,
+    JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
+    ModpackImportRequestDto, ModpackImportResultDto, ModpackInspectionRequestDto,
+    ModpackInspectionResultDto, ModpackManualFileRequestDto, ModpackManualFileResultDto,
+    OperationDto, OperationStateDto, PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus,
+    ResourcePackActivateRequestDto, ResourcePackMutationResultDto, ResourcePacksResponseDto,
     ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
     ServerDto, ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto,
     ServerImportResultDto, ServerImportScanResponseDto, ServerRenameRequestDto,
@@ -101,6 +105,28 @@ pub enum Command {
     Send(CommandArgs),
     /// Show the active server's current lifecycle state.
     Status,
+    /// Show the agent's host and token capability advertisement.
+    Capabilities,
+    /// Read connectivity and the DuckDNS hostname label.
+    Network {
+        #[command(subcommand)]
+        command: NetworkCommand,
+    },
+    /// Control the Playit player-connectivity tunnel.
+    Playit {
+        #[command(subcommand)]
+        command: PlayitCommand,
+    },
+    /// Control Xbox Broadcast and its account/helper state.
+    Broadcast {
+        #[command(subcommand)]
+        command: BroadcastCommand,
+    },
+    /// List or mutate Java resource-pack publication.
+    ResourcePack {
+        #[command(subcommand)]
+        command: ResourcePackCommand,
+    },
     /// Install or inspect the background service registration.
     Service {
         #[command(subcommand)]
@@ -169,6 +195,83 @@ pub enum TokenCommand {
         /// `MSC2_TEST_BOOTSTRAP_TOKEN`.
         #[arg(long)]
         test: bool,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum NetworkCommand {
+    /// Show the active server's player-connectivity diagnostics.
+    Connectivity,
+    /// Read or set the plain DuckDNS hostname label.
+    Duckdns {
+        #[command(subcommand)]
+        command: DuckdnsCommand,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum DuckdnsCommand {
+    Get,
+    Set {
+        /// Empty the label with `--hostname ""`.
+        #[arg(long)]
+        hostname: String,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum PlayitCommand {
+    Status,
+    Start {
+        #[arg(long)]
+        no_wait: bool,
+    },
+    Stop,
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum BroadcastCommand {
+    Status,
+    Start {
+        #[arg(long)]
+        no_wait: bool,
+    },
+    Stop,
+    Restart {
+        #[arg(long)]
+        no_wait: bool,
+    },
+    DownloadJar {
+        #[arg(long)]
+        no_wait: bool,
+    },
+    AuthPrompt,
+    DismissAuthPrompt,
+    Autostart {
+        #[command(subcommand)]
+        command: BroadcastAutostartCommand,
+    },
+    Credentials {
+        email: String,
+        password: String,
+        gamertag: String,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum BroadcastAutostartCommand {
+    Get,
+    Set { enabled: bool },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum ResourcePackCommand {
+    List,
+    Activate {
+        /// Existing approved ZIP name; omit to clear the active pack.
+        pack_id: Option<String>,
+        #[arg(long)]
+        require: bool,
     },
 }
 
@@ -804,6 +907,11 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
             }
             Ok(())
         }
+        Command::Capabilities => run_capabilities(common).await,
+        Command::Network { command } => run_network(common, command).await,
+        Command::Playit { command } => run_playit(common, command).await,
+        Command::Broadcast { command } => run_broadcast(common, command).await,
+        Command::ResourcePack { command } => run_resource_pack(common, command).await,
         Command::Service { command } => service::run(common, command).await,
         Command::Server { command } => run_server(common, command).await,
         Command::Send(args) => run_command(common, args).await,
@@ -1275,6 +1383,300 @@ async fn run_console(common: CommonArgs, command: ConsoleCommand) -> Result<(), 
                 }
             }
             Ok(())
+        }
+    }
+}
+
+async fn run_capabilities(common: CommonArgs) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    let result: CapabilitiesDto = client.get_json("/v1/capabilities").await?;
+    if common.json {
+        print_json(&result)
+    } else {
+        println!(
+            "agent: {} (API {}.{})",
+            result.agent_version, result.api_major, result.api_minor
+        );
+        println!("host: {:?}", result.host_os);
+        println!("permissions: {}", result.permissions.len());
+        println!("playit: {}", result.helpers.playit);
+        println!("duckdns: {}", result.helpers.duckdns);
+        println!("geyser: {}", result.helpers.geyser);
+        Ok(())
+    }
+}
+
+async fn run_network(common: CommonArgs, command: NetworkCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        NetworkCommand::Connectivity => {
+            let result: ConnectivityResponseDto = client.get_json("/v1/connectivity").await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("{}: {}", result.server_name, result.headline);
+                if let Some(address) = result.join_address {
+                    println!("join address: {address}");
+                }
+                println!("local: {}", result.port_diagnostics.local.outcome);
+                println!("public: {}", result.port_diagnostics.public.outcome);
+                Ok(())
+            }
+        }
+        NetworkCommand::Duckdns { command } => match command {
+            DuckdnsCommand::Get => {
+                let result: DuckDnsStatusResponseDto = client.get_json("/v1/duckdns").await?;
+                if common.json {
+                    print_json(&result)
+                } else {
+                    println!(
+                        "{}",
+                        result.hostname.unwrap_or_else(|| "not configured".into())
+                    );
+                    Ok(())
+                }
+            }
+            DuckdnsCommand::Set { hostname } => {
+                let result: serde_json::Value = client
+                    .post_json(
+                        "/v1/duckdns",
+                        &DuckDnsUpdateRequestDto {
+                            hostname: Some(hostname),
+                        },
+                    )
+                    .await?;
+                if common.json {
+                    print_json(&result)
+                } else {
+                    println!("DuckDNS label saved.");
+                    Ok(())
+                }
+            }
+        },
+    }
+}
+
+async fn run_playit(common: CommonArgs, command: PlayitCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        PlayitCommand::Status => {
+            let result: PlayitStatusDto = client.get_json("/v1/playit").await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("playit enabled: {}", result.playit_enabled);
+                println!("running: {}", result.is_running);
+                println!("secret configured: {}", result.has_secret_key);
+                if let Some(address) = result.java_address {
+                    println!("Java address: {address}");
+                }
+                Ok(())
+            }
+        }
+        PlayitCommand::Start { no_wait } => {
+            let result: PlayitActionResultDto = client
+                .post_json("/v1/playit/start", &serde_json::json!({}))
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "Playit start",
+            )
+            .await
+        }
+        PlayitCommand::Stop => {
+            let result: PlayitActionResultDto = client
+                .post_json("/v1/playit/stop", &serde_json::json!({}))
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("{}", result.result);
+                Ok(())
+            }
+        }
+    }
+}
+
+async fn run_broadcast(common: CommonArgs, command: BroadcastCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        BroadcastCommand::Status => {
+            let result: BroadcastStatusDto = client.get_json("/v1/broadcast/status").await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("Xbox Broadcast running: {}", result.xbox_broadcast_running);
+                Ok(())
+            }
+        }
+        BroadcastCommand::Start { no_wait } => {
+            let result: BroadcastSimpleResultDto = client
+                .post_json("/v1/broadcast/start", &serde_json::json!({}))
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "Xbox Broadcast start",
+            )
+            .await
+        }
+        BroadcastCommand::Stop => {
+            let result: BroadcastSimpleResultDto = client
+                .post_json("/v1/broadcast/stop", &serde_json::json!({}))
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("{}", result.result);
+                Ok(())
+            }
+        }
+        BroadcastCommand::Restart { no_wait } => {
+            let result: BroadcastSimpleResultDto = client
+                .post_json("/v1/broadcast/restart", &serde_json::json!({}))
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "Xbox Broadcast restart",
+            )
+            .await
+        }
+        BroadcastCommand::DownloadJar { no_wait } => {
+            let result: BroadcastJarDownloadResultDto = client
+                .post_json("/v1/broadcast/download-jar", &serde_json::json!({}))
+                .await?;
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "Xbox Broadcast JAR download",
+            )
+            .await
+        }
+        BroadcastCommand::AuthPrompt => {
+            let result: BroadcastAuthPromptDto =
+                client.get_json("/v1/broadcast/auth-prompt").await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("present: {}", result.is_present);
+                if let Some(code) = result.code {
+                    println!("code: {code}");
+                }
+                Ok(())
+            }
+        }
+        BroadcastCommand::DismissAuthPrompt => {
+            let result: BroadcastSimpleResultDto = client
+                .post_json("/v1/broadcast/auth-prompt/dismiss", &serde_json::json!({}))
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("{}", result.result);
+                Ok(())
+            }
+        }
+        BroadcastCommand::Autostart { command } => match command {
+            BroadcastAutostartCommand::Get => {
+                let result: BroadcastAutoStartDto =
+                    client.get_json("/v1/broadcast/autostart").await?;
+                if common.json {
+                    print_json(&result)
+                } else {
+                    println!("enabled: {}", result.enabled);
+                    Ok(())
+                }
+            }
+            BroadcastAutostartCommand::Set { enabled } => {
+                let result: BroadcastAutoStartDto = client
+                    .post_json(
+                        "/v1/broadcast/autostart",
+                        &BroadcastAutoStartDto { enabled },
+                    )
+                    .await?;
+                if common.json {
+                    print_json(&result)
+                } else {
+                    println!("enabled: {}", result.enabled);
+                    Ok(())
+                }
+            }
+        },
+        BroadcastCommand::Credentials {
+            email,
+            password,
+            gamertag,
+        } => {
+            let _: BroadcastSimpleResultDto = client
+                .post_json(
+                    "/v1/broadcast/credentials",
+                    &BroadcastCredentialsDto {
+                        email,
+                        password,
+                        gamertag,
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&serde_json::json!({"result":"credentials_saved"}))
+            } else {
+                println!("Broadcast credentials saved.");
+                Ok(())
+            }
+        }
+    }
+}
+
+async fn run_resource_pack(
+    common: CommonArgs,
+    command: ResourcePackCommand,
+) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        ResourcePackCommand::List => {
+            let result: ResourcePacksResponseDto = client.get_json("/v1/resourcepacks").await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                if result.packs.is_empty() {
+                    println!("No resource packs.");
+                }
+                for pack in result.packs {
+                    println!(
+                        "{} {}",
+                        if pack.is_active { "*" } else { " " },
+                        pack.file_name
+                    );
+                }
+                Ok(())
+            }
+        }
+        ResourcePackCommand::Activate { pack_id, require } => {
+            let result: ResourcePackMutationResultDto = client
+                .post_json(
+                    "/v1/resourcepacks/activate",
+                    &ResourcePackActivateRequestDto {
+                        pack_id,
+                        require: Some(require),
+                    },
+                )
+                .await?;
+            if common.json {
+                print_json(&result)
+            } else {
+                println!("{}", result.message);
+                Ok(())
+            }
         }
     }
 }

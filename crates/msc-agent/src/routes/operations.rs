@@ -162,6 +162,17 @@ impl OperationsState {
         self.operations.cancellation_check(id)
     }
 
+    /// Gives an application service a stable view of the same journal used by
+    /// the HTTP operation routes.  The leaked `Arc` is intentional: helper
+    /// services live for the lifetime of the agent, and keeping this handle
+    /// alive prevents a route-local service from accidentally writing to a
+    /// second operation store.
+    pub fn application_operations(&self) -> &'static LifecycleOperations<'static> {
+        let leaked: &'static Arc<LifecycleOperations<'static>> =
+            Box::leak(Box::new(self.operations.clone()));
+        leaked.as_ref()
+    }
+
     /// Current `OperationDTO` for `id`, or `None` if unknown. Used by the
     /// operation-progress WebSocket handler (P2.16) to existence-check
     /// before upgrading and to poll for changes afterward, without

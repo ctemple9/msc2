@@ -1,4 +1,89 @@
 use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayitStatusDto {
+    pub server_name: String,
+    pub server_type: String,
+    pub playit_enabled: bool,
+    pub is_running: bool,
+    pub has_secret_key: bool,
+    pub java_address: Option<String>,
+    pub bedrock_address: Option<String>,
+    pub voice_address: Option<String>,
+    pub voice_chat_enabled: bool,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayitActionResultDto {
+    pub result: String,
+    pub message: Option<String>,
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcePackItemDto {
+    pub id: String,
+    pub name: String,
+    pub file_name: String,
+    pub file_size_display: String,
+    pub pack_kind: String,
+    pub is_active: bool,
+    pub type_label: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcePacksResponseDto {
+    pub server_type: String,
+    pub is_java: bool,
+    pub packs: Vec<ResourcePackItemDto>,
+    pub geyser_packs: Vec<ResourcePackItemDto>,
+    pub is_geyser_available: bool,
+    pub active_pack_url: Option<String>,
+    pub require_pack: bool,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcePackActivateRequestDto {
+    pub pack_id: Option<String>,
+    pub require: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcePackSetUrlRequestDto {
+    pub url: String,
+    pub sha1: Option<String>,
+    pub require: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcePackToggleRequestDto {
+    pub pack_id: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcePackRemoveRequestDto {
+    pub pack_id: String,
+    pub pack_kind: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcePackMutationResultDto {
+    pub success: bool,
+    pub message: String,
+    pub updated: Option<ResourcePacksResponseDto>,
+}
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DuckDnsStatusResponseDto {
@@ -17,20 +102,20 @@ pub struct DuckDnsUpdateResultDto {
     pub hostname: Option<String>,
     pub message: Option<String>,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectivityPortDiagnosticDto {
     pub outcome: String,
     pub detail: Option<String>,
     pub help_id: Option<String>,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectivityPortDiagnosticsDto {
     pub local: ConnectivityPortDiagnosticDto,
     pub public: ConnectivityPortDiagnosticDto,
 }
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConnectivityResponseDto {
     pub server_type: String,
@@ -100,7 +185,7 @@ pub struct BroadcastAuthPromptDto {
     pub link_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BroadcastCredentialsDto {
     pub email: String,

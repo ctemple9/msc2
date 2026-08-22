@@ -38,7 +38,7 @@ pub type Result<T> = std::result::Result<T, SecretStoreError>;
 /// is an opaque string per the naming scheme in
 /// `docs/msc2/substrate/secret-storage.md` section 9 — this trait itself
 /// has no notion of which secret a key names.
-pub trait SecretStore {
+pub trait SecretStore: Send + Sync {
     /// `Ok(None)` when `key` was never set — never an error for a plain
     /// miss.
     fn get(&self, key: &str) -> Result<Option<String>>;

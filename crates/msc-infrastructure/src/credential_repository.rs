@@ -34,6 +34,8 @@ pub struct CredentialRegistryEntry {
     pub label: String,
     pub role: String,
     pub permissions: Vec<String>,
+    /// Unix seconds when the credential was issued.
+    pub created_at: u64,
     /// Unix seconds; `None` means "never expires".
     pub expires_at: Option<u64>,
     pub revoked: bool,
@@ -126,6 +128,7 @@ fn entry_to_value(entry: &CredentialRegistryEntry) -> Value {
                 .collect(),
         ),
     );
+    obj.insert("createdAt".to_string(), Value::from(entry.created_at));
     obj.insert(
         "expiresAt".to_string(),
         entry.expires_at.map(Value::from).unwrap_or(Value::Null),
@@ -157,6 +160,12 @@ fn entry_from_value(value: &Value) -> Option<CredentialRegistryEntry> {
         .iter()
         .filter_map(|p| p.as_str().map(str::to_string))
         .collect();
+    // Rows written before P9.12 did not have creation time. Keep them
+    // readable; newly issued credentials always write the field.
+    let created_at = obj
+        .get("createdAt")
+        .and_then(Value::as_u64)
+        .unwrap_or_default();
     let expires_at = obj
         .get("expiresAt")
         .and_then(|v| if v.is_null() { None } else { v.as_u64() });
@@ -166,6 +175,7 @@ fn entry_from_value(value: &Value) -> Option<CredentialRegistryEntry> {
         label,
         role,
         permissions,
+        created_at,
         expires_at,
         revoked,
     })
@@ -182,6 +192,7 @@ mod tests {
             label: "owner-admin".to_string(),
             role: "admin".to_string(),
             permissions: vec!["admin".to_string(), "serverControl".to_string()],
+            created_at: 1_700_000_000,
             expires_at: None,
             revoked: false,
         }

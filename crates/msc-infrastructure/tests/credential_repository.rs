@@ -18,6 +18,7 @@ fn owner_entry() -> CredentialRegistryEntry {
         label: "owner-admin".to_string(),
         role: "admin".to_string(),
         permissions: vec!["admin".to_string(), "serverControl".to_string()],
+        created_at: 1_700_000_000,
         expires_at: None,
         revoked: false,
     }
@@ -29,6 +30,7 @@ fn guest_entry() -> CredentialRegistryEntry {
         label: "guest".to_string(),
         role: "guest".to_string(),
         permissions: vec!["players".to_string()],
+        created_at: 1_700_000_001,
         expires_at: Some(1_800_000_000),
         revoked: true,
     }

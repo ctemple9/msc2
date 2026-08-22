@@ -159,6 +159,13 @@ pub(crate) fn build_app() -> Router {
     // `worlds`/`backups`'s own precedent) since `GET /v1/templates` needs
     // no route param but does need `LifecycleRoutesState`.
     let templates = routes::templates::router(lifecycle_state.clone());
+    let users = Router::new()
+        .route(
+            "/users",
+            get(routes::users::list).post(routes::users::create),
+        )
+        .route("/users/update", post(routes::users::update))
+        .route("/users/revoke", post(routes::users::revoke));
 
     let lifecycle = Router::new()
         .route("/servers", get(routes::servers::list))
@@ -237,6 +244,8 @@ pub(crate) fn build_app() -> Router {
         .merge(components)
         .merge(backups)
         .merge(templates)
+        .merge(users)
+        .layer(Extension(auth_state.clone()))
         .route_layer(axum::middleware::from_fn_with_state(
             auth_state,
             auth::require_bearer_token,

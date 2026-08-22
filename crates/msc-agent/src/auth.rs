@@ -70,6 +70,7 @@ struct CredentialRecord {
     label: String,
     role: CredentialRole,
     permissions: Vec<PermissionCategoryDto>,
+    created_at: SystemTime,
     expires_at: Option<SystemTime>,
     revoked: bool,
 }
@@ -79,6 +80,40 @@ struct CredentialRecord {
 pub struct IssuedCredential {
     pub credential_id: String,
     pub token: String,
+}
+
+/// Safe, non-secret data returned by the named-token administration routes.
+#[derive(Debug, Clone)]
+pub struct CredentialSummary {
+    pub credential_id: String,
+    pub label: String,
+    pub role: CredentialRole,
+    pub permissions: Vec<PermissionCategoryDto>,
+    pub created_at: SystemTime,
+    pub expires_at: Option<SystemTime>,
+    pub is_expired: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CredentialExpiryUpdate {
+    Unchanged,
+    Clear,
+    Set(SystemTime),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CredentialAdminError {
+    NotFound,
+    SecretStore(String),
+}
+
+impl std::fmt::Display for CredentialAdminError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotFound => write!(f, "credential was not found"),
+            Self::SecretStore(message) => write!(f, "{message}"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -263,6 +298,119 @@ impl AuthState {
         Ok(issued)
     }
 
+    pub fn list_credentials(&self) -> Vec<CredentialSummary> {
+        let now = SystemTime::now();
+        let registry = self.inner.registry.lock().unwrap();
+        registry
+            .iter()
+            .filter(|(_, record)| !record.revoked)
+            .map(|(id, record)| summary_from_record(id, record, now))
+            .collect()
+    }
+
+    /// Creates a named-access credential. The caller supplies the already
+    /// authenticated admin's label so the audit record identifies who made
+    /// the change without storing or returning the bearer secret.
+    pub fn create_named_credential(
+        &self,
+        label: String,
+        role: CredentialRole,
+        permissions: Vec<PermissionCategoryDto>,
+        expires_at: Option<SystemTime>,
+        actor_label: &str,
+    ) -> Result<(CredentialSummary, IssuedCredential), CredentialAdminError> {
+        let issued = self
+            .issue_credential_with_secret(label, role, permissions, expires_at, random_secret())
+            .map_err(|error| CredentialAdminError::SecretStore(error.to_string()))?;
+        let summary = self.summary_for_id(&issued.credential_id).ok_or_else(|| {
+            CredentialAdminError::SecretStore("credential was not persisted".into())
+        })?;
+        self.record_audit(actor_label, StatusCode::CREATED, "token_created");
+        Ok((summary, issued))
+    }
+
+    pub fn update_credential(
+        &self,
+        credential_id: &str,
+        label: Option<String>,
+        role: Option<CredentialRole>,
+        permissions: Option<Vec<PermissionCategoryDto>>,
+        expiry: CredentialExpiryUpdate,
+        actor_label: &str,
+    ) -> Result<CredentialSummary, CredentialAdminError> {
+        let summary = {
+            let mut registry = self.inner.registry.lock().unwrap();
+            let previous = {
+                let record = registry
+                    .get_mut(credential_id)
+                    .filter(|record| !record.revoked)
+                    .ok_or(CredentialAdminError::NotFound)?;
+                let previous = record.clone();
+                if let Some(label) = label {
+                    record.label = label;
+                }
+                if let Some(role) = role {
+                    record.role = role;
+                }
+                if let Some(permissions) = permissions {
+                    record.permissions = permissions;
+                }
+                match expiry {
+                    CredentialExpiryUpdate::Unchanged => {}
+                    CredentialExpiryUpdate::Clear => record.expires_at = None,
+                    CredentialExpiryUpdate::Set(expires_at) => record.expires_at = Some(expires_at),
+                }
+                previous
+            };
+            if let Err(error) = self.persist_registry(&registry) {
+                registry.insert(credential_id.to_string(), previous);
+                return Err(CredentialAdminError::SecretStore(error.to_string()));
+            }
+            let record = registry
+                .get(credential_id)
+                .expect("updated credential remains in registry");
+            summary_from_record(credential_id, record, SystemTime::now())
+        };
+        self.record_audit(actor_label, StatusCode::OK, "token_updated");
+        Ok(summary)
+    }
+
+    pub fn revoke_credential(
+        &self,
+        credential_id: &str,
+        actor_label: &str,
+    ) -> Result<(), CredentialAdminError> {
+        let mut registry = self.inner.registry.lock().unwrap();
+        if registry
+            .get(credential_id)
+            .is_none_or(|record| record.revoked)
+        {
+            return Err(CredentialAdminError::NotFound);
+        }
+
+        // Delete the verifier first. Even if a concurrent request still has
+        // a cloned registry record, it cannot authenticate after this point.
+        self.inner
+            .secret_store
+            .delete(&secret_store_key(credential_id))
+            .map_err(|error| CredentialAdminError::SecretStore(error.to_string()))?;
+        registry.remove(credential_id);
+        if let Err(error) = self.persist_registry(&registry) {
+            return Err(CredentialAdminError::SecretStore(error.to_string()));
+        }
+        drop(registry);
+        self.record_audit(actor_label, StatusCode::OK, "token_revoked");
+        Ok(())
+    }
+
+    fn summary_for_id(&self, credential_id: &str) -> Option<CredentialSummary> {
+        let registry = self.inner.registry.lock().unwrap();
+        registry
+            .get(credential_id)
+            .filter(|record| !record.revoked)
+            .map(|record| summary_from_record(credential_id, record, SystemTime::now()))
+    }
+
     /// Migrates a P5.8 legacy owner token into the Phase 4 credential
     /// model: `None` if `LEGACY_OWNER_TOKEN_SECRET_KEY` is absent or blank
     /// (nothing to migrate — including the common case where an earlier
@@ -373,11 +521,19 @@ impl AuthState {
                     label: label.into(),
                     role,
                     permissions,
+                    created_at: SystemTime::now(),
                     expires_at,
                     revoked: false,
                 },
             );
-            self.persist_registry(&registry)?;
+            if let Err(error) = self.persist_registry(&registry) {
+                registry.remove(&credential_id);
+                let _ = self
+                    .inner
+                    .secret_store
+                    .delete(&secret_store_key(&credential_id));
+                return Err(error);
+            }
         }
 
         Ok(IssuedCredential {
@@ -410,6 +566,7 @@ impl AuthState {
                     label: "phase4-live-check".to_string(),
                     role: CredentialRole::Admin,
                     permissions: all_permissions(),
+                    created_at: SystemTime::now(),
                     expires_at: None,
                     revoked: false,
                 },
@@ -790,6 +947,7 @@ fn record_to_entry(credential_id: &str, record: &CredentialRecord) -> Credential
             .iter()
             .map(|permission| permission_to_string(*permission))
             .collect(),
+        created_at: system_time_to_unix_secs(record.created_at),
         expires_at: record.expires_at.map(system_time_to_unix_secs),
         revoked: record.revoked,
     }
@@ -815,6 +973,7 @@ fn entry_to_record(entry: CredentialRegistryEntry) -> Option<(String, Credential
             label: entry.label,
             role,
             permissions,
+            created_at: unix_secs_to_system_time(entry.created_at),
             expires_at: entry.expires_at.map(unix_secs_to_system_time),
             revoked: entry.revoked,
         },
@@ -851,6 +1010,24 @@ fn system_time_to_unix_secs(time: SystemTime) -> u64 {
 
 fn unix_secs_to_system_time(secs: u64) -> SystemTime {
     UNIX_EPOCH + Duration::from_secs(secs)
+}
+
+fn summary_from_record(
+    credential_id: &str,
+    record: &CredentialRecord,
+    now: SystemTime,
+) -> CredentialSummary {
+    CredentialSummary {
+        credential_id: credential_id.to_string(),
+        label: record.label.clone(),
+        role: record.role,
+        permissions: record.permissions.clone(),
+        created_at: record.created_at,
+        expires_at: record.expires_at,
+        is_expired: record
+            .expires_at
+            .is_some_and(|expires_at| now >= expires_at),
+    }
 }
 
 fn unauthorized() -> Response {

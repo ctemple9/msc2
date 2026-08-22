@@ -191,7 +191,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.11 — Add Xbox Broadcast lifecycle and notifications
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/src/notifications.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `crates/msc-agent/tests/xbox_broadcast_routes.rs`, `fixtures/networking/`, `fixtures/dto-contract/`
 **What:** Port the Xbox Broadcast helper’s staged download, configuration, account-prompt/status, supervised lifecycle, and secret migration/use. Keep passwords and account tokens in `SecretStore`, constrain logs to non-secret status, and expose a bounded "broadcast became ready" signal (MSC 1's creation-time watchdog waits ~60s once authenticated) for P9.13's first-run orchestration. Build the `notifications` service around MSC 1's **actual** notification content — `ServerNotificationEvent`'s four cases (server started, server stopped, player joined, player left), per `AppViewModel+Notifications.swift` and symbol-ledger row 16, which disposes native delivery as client-owned and the event source as agent-owned: the agent emits these as WebSocket/notification-feed events, clients render them as local OS notifications. Helper-crash and connectivity-change notifications are additive new event types on top of that real baseline, not a replacement for it.
 **Verify:** `cargo nextest run -p msc-application --test xbox_broadcast && cargo nextest run -p msc-agent --test xbox_broadcast_routes && rg -n 'ServerStarted|ServerStopped|PlayerJoined|PlayerLeft' crates/msc-application/src/notifications.rs`
@@ -200,7 +200,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.12 — Implement durable named-token administration and revocation
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/routes/users.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/tests/user_routes.rs`, `crates/msc-infrastructure/src/credential_repository.rs`, `crates/msc-infrastructure/tests/credential_repository.rs`, `fixtures/credentials/`
 **What:** Wire the existing durable registry and verifier into the P9.4 `GET /users`, `POST /users`, `POST /users/update`, and `POST /users/revoke` contract. Admin-only access, label/role/permission/expiry validation, secret issuance exactly once, audit attribution, secret deletion, registry persistence, and revoked-token rejection must all be explicit. Prove that revoke wins over stale in-memory state and remains effective after the agent restarts using the same production `SecretStore` path Phase 4/5 use; never return raw bearer secrets from list/update responses.
 **Verify:** `cargo nextest run -p msc-infrastructure --test credential_repository && cargo nextest run -p msc-agent --test user_routes`

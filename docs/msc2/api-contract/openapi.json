@@ -1867,8 +1867,18 @@
     },
     "/v1/playit/start": {
       "post": {
-        "summary": "Start the Playit tunnel",
+        "summary": "Start the Playit tunnel as a cancellable managed operation",
         "responses": {
+          "202": {
+            "description": "Tunnel start accepted; operationId is populated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitActionResultDTO"
+                }
+              }
+            }
+          },
           "200": {
             "description": "started / already_running",
             "content": {
@@ -1896,8 +1906,18 @@
     },
     "/v1/playit/stop": {
       "post": {
-        "summary": "Stop the Playit tunnel",
+        "summary": "Stop the Playit tunnel as a managed operation",
         "responses": {
+          "202": {
+            "description": "Tunnel stop accepted; operationId is populated and is not cancellable after graceful termination begins",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitActionResultDTO"
+                }
+              }
+            }
+          },
           "200": {
             "description": "stopped / not_running",
             "content": {
@@ -2023,8 +2043,12 @@
     },
     "/v1/broadcast/start": {
       "post": {
-        "summary": "Start Xbox broadcast",
+        "summary": "Start Xbox broadcast as a cancellable managed operation",
         "responses": {
+          "202": {
+            "description": "Start accepted; operationId is populated",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BroadcastSimpleResultDTO"}}}
+          },
           "200": {
             "description": "result: broadcast_start_requested",
             "content": {
@@ -2041,8 +2065,12 @@
     },
     "/v1/broadcast/stop": {
       "post": {
-        "summary": "Stop Xbox broadcast",
+        "summary": "Stop Xbox broadcast as a managed operation",
         "responses": {
+          "202": {
+            "description": "Stop accepted; operationId is populated and is not cancellable after graceful termination begins",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BroadcastSimpleResultDTO"}}}
+          },
           "200": {
             "description": "result: broadcast_stop_requested",
             "content": {
@@ -2059,8 +2087,12 @@
     },
     "/v1/broadcast/restart": {
       "post": {
-        "summary": "Restart Xbox broadcast",
+        "summary": "Restart Xbox broadcast as a cancellable managed operation",
         "responses": {
+          "202": {
+            "description": "Restart accepted; operationId is populated",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BroadcastSimpleResultDTO"}}}
+          },
           "200": {
             "description": "result: broadcast_restart_requested",
             "content": {
@@ -2154,8 +2186,12 @@
     },
     "/v1/broadcast/download-jar": {
       "post": {
-        "summary": "Download the MCXboxBroadcast JAR",
+        "summary": "Download the MCXboxBroadcast JAR as a cancellable managed operation",
         "responses": {
+          "202": {
+            "description": "Download accepted; operationId is populated",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BroadcastJarDownloadResultDTO"}}}
+          },
           "200": {
             "description": "Download started/finished",
             "content": {
@@ -6032,6 +6068,10 @@
           },
           "message": {
             "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Present when helper work continues; poll GET /v1/operations/{id} or stream its progress."
           }
         },
         "required": [
@@ -6140,6 +6180,10 @@
           },
           "filename": {
             "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Present when the staged download continues after this response."
           }
         },
         "required": [
@@ -6152,6 +6196,10 @@
         "properties": {
           "result": {
             "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Present when helper lifecycle work continues after this response."
           }
         },
         "required": [
@@ -7706,6 +7754,89 @@
           "bedrockRunning"
         ]
       },
+      "ConnectivityPortDiagnosticDTO": {
+        "type": "object",
+        "properties": {
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "open",
+              "closed",
+              "unreachable",
+              "unavailable",
+              "not_applicable"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          },
+          "helpId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "ConnectivityPortDiagnosticsDTO": {
+        "type": "object",
+        "properties": {
+          "local": {
+            "$ref": "#/components/schemas/ConnectivityPortDiagnosticDTO"
+          },
+          "public": {
+            "$ref": "#/components/schemas/ConnectivityPortDiagnosticDTO"
+          }
+        },
+        "required": [
+          "local",
+          "public"
+        ]
+      },
+      "NotificationEventDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "occurredAtISO8601": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "server_started",
+              "server_stopped",
+              "player_joined",
+              "player_left",
+              "helper_failed",
+              "connectivity_changed"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "helpId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "serverId",
+          "occurredAtISO8601",
+          "kind",
+          "title",
+          "body"
+        ]
+      },
       "ConnectivityResponseDTO": {
         "type": "object",
         "properties": {
@@ -7736,6 +7867,15 @@
           "method": {
             "type": "string"
           },
+          "joinAddressSource": {
+            "type": "string",
+            "enum": [
+              "playit",
+              "duckdns",
+              "public_ip",
+              "unavailable"
+            ]
+          },
           "localListening": {
             "type": "boolean"
           },
@@ -7756,6 +7896,9 @@
           },
           "broadcast": {
             "$ref": "#/components/schemas/ConnectivityBroadcastDTO"
+          },
+          "portDiagnostics": {
+            "$ref": "#/components/schemas/ConnectivityPortDiagnosticsDTO"
           },
           "note": {
             "type": "string"

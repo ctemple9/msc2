@@ -37,6 +37,7 @@ GET,/v1/config/ram,,Get the active server's RAM allocation,none,Implemented,Plan
 POST,/v1/config/ram,,Update the active server's RAM allocation,settings,Implemented,Planned,Implemented,Implemented,"iOS: HealthView.swift already wired against RemoteAPIClient.updateRAMConfig; request/result shape matches"
 GET,/v1/connectivity,,"Reachability summary: join address, method, playit/broadcast status",none,Planned,Planned,Planned,Planned,
 WS,/v1/console/stream,,console channel,none,Implemented,Planned,Implemented,Planned,"P0.24 baseline channel, versioned path (P2.7)"
+WS,/v1/notifications/stream,,Server/player and helper/connectivity notification feed,none,Planned,Planned,Planned,Planned,"P9.4 contract only; native notification presentation remains client-owned until its client surface lands"
 GET,/v1/console/tail,,"Last N console lines (query param n, default 200, clamped 1-2000)",none,Implemented,Planned,Implemented,Implemented,cli: `msc console tail`
 GET,/v1/duckdns,,Get the configured DuckDNS hostname,none,Planned,Planned,Planned,Planned,
 POST,/v1/duckdns,,Update the DuckDNS hostname,settings,Planned,Planned,Planned,Planned,

@@ -128,7 +128,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.4 — Freeze the Phase 9 API and capability contract
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/networking/phase9-api.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/websocket-v1.json`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-api/tests/phase9_conformance.rs`
 **What:** Map every supported Phase 9 action to an additive, versioned route and DTO contract before application code exists: player-network status/configuration, resource-pack hosting, helper operations, notifications, Geyser/Floodgate, and named-token list/create/update/revoke. Declare permission categories, operation/cancellation semantics, secret-redaction rules, help identifiers where a response explains a user-facing state, and which contract elements are intentionally delayed by P9.3. Update the capability matrix without claiming a client surface exists before it does. **`GET /v1/connectivity` (`ConnectivityResponseDTO`) already exists in the frozen contract from Phase 2/P0.30** — extend that existing schema for port-diagnostic and reachability fields instead of adding a parallel route; P9.9's application service implements its body.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run -p msc-api --test phase9_conformance && rg -n 'ConnectivityResponseDTO' docs/msc2/api-contract/openapi.json`

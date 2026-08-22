@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 9 in progress — P9.1 through P9.12 are DONE, and the helper-acquisition amendment's P9.6a and P9.7a are DONE. The amendment's checksum QUESTION was **answered and then amended** (2026-08-22): verification is absolute for every helper, but the hash is repository-pinned for `playitd`/MCXboxBroadcast and upstream-published for Geyser/Floodgate. Remaining: P9.6b, P9.10a, P9.11a, then P9.13–P9.15.
-> **Next move:** EXECUTE the amendment's remaining steps in order — P9.6b, P9.10a, P9.10b, P9.11a — then P9.13–P9.15. Both amendment QUESTIONs are answered. P9.11a still requires its own decision entry (D-028), because it deliberately diverges from MSC 1 rather than fixing a port defect.
+> **Next move:** EXECUTE the amendment's remaining steps in order — P9.6b, P9.10a, P9.10b, P9.11a — then P9.13–P9.15. Both amendment QUESTIONs are answered and no decision entry is outstanding: only `playitd` is pinned, and Geyser and Broadcast keep MSC 1's resolve-latest behavior with upstream-published checksums added.
 > **Repo:** https://github.com/ctemple9/msc2 · GitHub Actions run [32544701401](https://github.com/ctemple9/msc2/actions/runs/32544701401) is green for exact Phase 8 code candidate `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887`, including repository invariants, macOS, Linux, Windows, and the headless no-GUI link check.
 > **Last updated:** 2026-08-21
 
@@ -244,11 +244,20 @@ bought nothing while costing a great deal (see P9.10a).
 
 Two rules, split by whether the helper is coupled to Minecraft's protocols:
 
-| Helper | Coupled to | Checksum source |
-|---|---|---|
-| `playitd` | nothing — a tunnel daemon, and it is **our own** release | **Repository-pinned.** We compute and commit the hash. |
-| MCXboxBroadcast | Bedrock protocol, loosely; updates rarely | **Repository-pinned.** |
-| **Geyser / Floodgate** | **the Java MC version *and* the Bedrock protocol** | **Upstream-published**, read from the Geyser API for the exact resolved build, and recorded with the artifact. |
+| Helper | Release stream | Chases | Rule |
+|---|---|---|---|
+| `playitd` | **ours** — `ctemple9/minecraft-server-controller`, shared with unrelated app releases | nothing; a tunnel daemon | **Pinned**, hash computed and committed by us |
+| Geyser / Floodgate | upstream, ~weekly builds | Java MC version **and** Bedrock protocol | **Resolve latest, verify the `sha256` the Geyser API publishes** |
+| MCXboxBroadcast | upstream, ~every 9 days | Xbox Live auth **and** Bedrock protocol | **Resolve latest, verify the `digest` the GitHub releases API publishes** |
+
+**The rule, stated generally: pin what we own; resolve-and-verify what chases a moving
+third-party target.** `playitd` is the only helper we publish, so it is the only one we pin.
+
+**Amended again 2026-08-22.** MCXboxBroadcast was first placed in the pinned bucket on the
+claim that it "updates rarely." That was a guess and it was wrong — tags 139→150 span
+2026-05-05 to 2026-08-20, two of them fifteen minutes apart. It tracks Xbox Live and the
+Bedrock protocol, neither of which we control, and GitHub serves a `sha256` digest per
+release asset. It belongs with Geyser.
 
 Geyser is genuinely different and a fixed pin cannot serve it. Geyser versions on its own
 scheme (2.1.0 → 2.11.2), not by Minecraft version, and keeps no per-MC-version branches, so
@@ -260,10 +269,15 @@ be pinned in our release cycle.
 
 MSC 1 reached the same conclusion independently: `PluginDownloader.swift` resolves
 `versions/latest/builds/latest` from the Geyser API rather than pinning. P9.10a ports that
-resolution as-is and adds only the checksum. Note the symmetry with the defect that started
-this amendment — `latest` was *wrong* for `playitd`, whose asset moved out from under it,
-and is *right* for Geyser, whose protocol moves out from under a pin. The deciding question
-is whether the thing being tracked changes for reasons outside our control.
+resolution as-is and adds only the checksum.
+
+**What the originating defect actually taught us**, stated precisely, because "never use
+`latest`" is the wrong lesson: `latest` broke for `playitd` not because it is dynamic, but
+because the release stream it queried is **ours and shared** — app releases v1.14 onward
+shadowed the `playitd-v1.0.10` tag, so `latest` began returning something that was never
+the helper. A dedicated upstream release stream that publishes only that helper does not
+have this failure mode. Hence the rule above: the question is who owns the stream and
+whether what it tracks moves outside our control, not whether resolution is dynamic.
 
 Provenance is recorded, never inferred: `HelperArtifactMetadata` carries which of the two
 sources vouched for the bytes (see P9.6b), so an audit can always answer *who* stood behind
@@ -418,15 +432,20 @@ If unsure:       (b). "The server told you nothing and crossplay just didn't wor
 **Commit:** `P9.10b: name geyser load failures in startup diagnostics`
 **Batch:** solo
 
-### P9.11a — Pin the Xbox Broadcast JAR, and record the divergence from MSC 1
+### P9.11a — Verify the Xbox Broadcast JAR through the acquisition primitive
 
 **Status:** not started
-**Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `docs/msc2/msc2-decisions.md`, `fixtures/networking/`
-**What:** **This is a deliberate correction to MSC 1, not a defect in the port.** `XboxBroadcastDownloader.swift:27,51` resolves `/releases/latest` and `latest/download`, and `xbox_broadcast.rs:16,18` reproduces both faithfully. Per the precedent Phase 6 set — a strengthening of MSC 1 must be marked explicitly — record this as a numbered decision entry before changing behavior, then acquire the JAR through P9.6a against an explicitly pinned release and exact asset name. **Preserve** MSC 1's one good instinct here: it queries the API for the tag first, commented "so we KNOW the version", so the resolved version is already recorded — pin it rather than discard it. Reserve the ~60-second broadcast-readiness watchdog for an authenticated, successfully spawned helper.
-**Verify:** `cargo nextest run -p msc-application --test xbox_broadcast && rg -n 'releases/latest|latest/download' crates/msc-infrastructure/src/xbox_broadcast.rs` → no matches
-**Commit:** `P9.11a: pin the xbox broadcast jar and record the divergence`
-**Batch:** solo
+**Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `fixtures/networking/`
+**What:** **MSC 1's resolution behavior is correct here and is kept.** `XboxBroadcastDownloader.swift:41,51` queries `api.github.com/repos/MCXboxBroadcast/Broadcaster/releases/latest` for the tag and asset — the comment says "so we KNOW the version" — and `xbox_broadcast.rs:16,18` already reproduces it. Per the amended two-rule table, Broadcast resolves latest rather than pinning: it tracks Xbox Live authentication and the Bedrock protocol, releases roughly every nine days, and a repository pin would strand every user's Broadcast until we cut a release. This step therefore adds **one thing**: the GitHub releases API returns a `digest` field per asset (`"digest": "sha256:…"`), and MSC 2 must verify the downloaded JAR against it and refuse a mismatch — MSC 1 verifies nothing. Route the resolved release through P9.6a's `acquire_pinned_helper` rather than keeping a separate download path, and record `checksum_source: upstream-published` via P9.6b. Preserve MSC 1's existing behavior of resolving and recording the tag. A release whose asset carries no `digest` is fatal: no hash, no install. Metadata, download, checksum, staging, and process-start failures must each surface as their own operation error before the ~60-second broadcast-readiness watchdog is armed. Keep the existing JAR active until the replacement is downloaded, verified, staged, and recorded.
+**Verify:** `cargo nextest run -p msc-application --test xbox_broadcast`
+**Commit:** `P9.11a: verify the xbox broadcast jar on download`
+**Batch:** stop-after
 
+**No decision entry is required.** An earlier draft of this step pinned the JAR and therefore
+needed D-028 to record a deliberate divergence from MSC 1. That draft rested on a wrong
+belief about the project's release cadence; there is no divergence to record. Adding
+checksum verification is a strengthening of the same kind P9.10a makes, noted in the commit
+body rather than promoted to a numbered decision.
 
 ### P9.12 — Implement durable named-token administration and revocation
 

@@ -74,7 +74,7 @@
       },
       "payload": {
         "type": "NotificationEventDTO",
-        "schema": "#/components/schemas/NotificationEventDTO in openapi.json",
+        "schema": "#/components/schemas/NotificationEventDTO",
         "framing": "one JSON-encoded event per WebSocket text frame"
       },
       "deliveryModel": {

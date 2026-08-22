@@ -63,7 +63,10 @@ fn broadcast_launch_and_readiness_are_journaled_without_secret_arguments() {
 
     let operation_id = OperationId::new(service.start(launch(), &acquisition(fs)).unwrap());
     let (_, request) = supervisor.spawned_requests().pop().unwrap();
-    let expected_jar = Path::new("/cache/xbox-broadcast/v3.0.2/MCXboxBroadcastStandalone.jar")
+    let expected_jar = Path::new("/cache")
+        .join("xbox-broadcast")
+        .join("v3.0.2")
+        .join("MCXboxBroadcastStandalone.jar")
         .to_string_lossy()
         .into_owned();
     assert_eq!(request.arguments, vec!["-jar".to_owned(), expected_jar]);

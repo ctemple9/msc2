@@ -10,7 +10,7 @@ use msc_domain::helper::{
 };
 use msc_domain::networking::parse_playit_address;
 use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperProcessManager};
-use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitLaunch};
+use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch};
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
 use std::collections::BTreeMap;
@@ -29,6 +29,7 @@ pub enum PlayitError {
     Disabled,
     MissingSecret,
     AlreadyManaged,
+    Acquisition(String),
     SecretStore(String),
     Operation(String),
     Process(String),
@@ -40,6 +41,7 @@ impl fmt::Display for PlayitError {
             Self::Disabled => write!(f, "Playit is not enabled for this server"),
             Self::MissingSecret => write!(f, "no Playit secret is configured"),
             Self::AlreadyManaged => write!(f, "the Playit tunnel is already managed"),
+            Self::Acquisition(message) => write!(f, "Playit binary acquisition failed: {message}"),
             Self::SecretStore(message) | Self::Operation(message) | Self::Process(message) => {
                 write!(f, "{message}")
             }
@@ -112,7 +114,11 @@ impl<'a> PlayitService<'a> {
             .map_err(|error| PlayitError::SecretStore(error.to_string()))
     }
 
-    pub fn start(&mut self, launch: PlayitLaunch) -> Result<PlayitStartResult, PlayitError> {
+    pub fn start(
+        &mut self,
+        launch: PlayitLaunch,
+        acquisition: &PlayitBinaryAcquisition<'_>,
+    ) -> Result<PlayitStartResult, PlayitError> {
         let secret_present = self.has_secret()?;
         match decide_playit_start(self.enabled, secret_present) {
             msc_domain::helper::HelperStartDecision::NoAction => return Err(PlayitError::Disabled),
@@ -131,7 +137,21 @@ impl<'a> PlayitService<'a> {
                 "Starting Playit tunnel.",
             )
             .map_err(|error| PlayitError::Operation(error.to_string()))?;
-        match self.helpers.start(key, launch.process_request()) {
+        let acquired = match acquisition.acquire() {
+            Ok(acquired) => acquired,
+            Err(error) => {
+                let message = error.to_string();
+                let _ = self.operations.fail(
+                    &operation_id,
+                    lifecycle_error("playit_acquisition_failed", message.clone()),
+                );
+                return Err(PlayitError::Acquisition(message));
+            }
+        };
+        match self
+            .helpers
+            .start(key, launch.process_request(&acquired.artifact.path))
+        {
             Ok(_) => {
                 self.snapshot.status = HelperStatus::Starting;
                 self.active_operation = Some(operation_id.clone());

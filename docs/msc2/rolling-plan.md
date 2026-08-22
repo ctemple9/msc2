@@ -533,10 +533,20 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 
 **Actual result:** Updated the two conformance-test literals that compile every API DTO shape so their new optional fields are stated explicitly as `None`. The former world-route staged upload/download handlers were already absent from the production router — Phase 8's components router owns `/v1/staged-uploads` and `/v1/staged-downloads` — so their direct Phase 6 regression helpers now compile only in test builds, retaining their existing tests without leaving an unreachable second production implementation. Removed the unused staged-download bookkeeping field. In `components.rs`, config persistence now returns the existing operation error types: an add-on install fails its operation if writing its link fails, and either pack import fails its operation if the durable pack metadata write fails; successful public-path behavior is unchanged. Replaced the side-effect-only `map` calls with `and_then`, which makes that propagation explicit. The exact CI static gate passes locally across all workspace targets.
 
+### P8.29c — Compile platform-specific add-on-store test support only where used
+**Status:** awaiting verification
+**Files:** `crates/msc-infrastructure/tests/addon_store.rs`, `docs/msc2/rolling-plan.md`
+**What:** Restrict the Unix-only temporary-directory test helper to the Unix-only archive-safety tests that use it, so Windows compiles the same add-on-store test target without dead code. Do not change production add-on storage behavior or skip any Windows-capable test.
+**Verify:** `cargo clippy --workspace --all-targets -- -D warnings`
+**Commit:** `P8.29c: scope add-on store test support`
+**Batch:** stop-after
+
+**Actual result:** Marked `TempDir` and its implementations with `#[cfg(unix)]`, matching the sole executable-permission test that constructs it. Windows therefore no longer compiles unused Unix filesystem test support, while Unix keeps the full permission-preservation regression. The exact CI clippy command passes locally.
+
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`
-**What:** Push the exact candidate containing P8.27/P8.28, require its own GitHub Actions run—not an earlier run—to pass repo invariants plus macOS, Linux, and Windows Phase 8 smoke legs and the headless no-GUI check, and record the run/candidate in the scope evidence. Fix nothing in this step; if CI fails, stop and plan a correction step for the actual failure.
+**What:** Push the exact candidate containing P8.27/P8.28 and any required CI corrections, require its own GitHub Actions run—not an earlier run—to pass repo invariants plus macOS, Linux, and Windows Phase 8 smoke legs and the headless no-GUI check, and record the run/candidate in the scope evidence. If CI exposes a candidate defect, correct it in a narrowly scoped committed correction step and repeat this exact proof until it passes.
 **Verify:** `gh run view "$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId')" --json conclusion,jobs` → `conclusion` is `success`, with green macOS, Linux, and Windows Phase 8 smoke jobs for this exact `HEAD`
 **Commit:** `P8.29: prove Phase 8 across platforms`
 **Batch:** solo

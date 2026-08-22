@@ -309,8 +309,10 @@ fn resolve_pack_file_dest_rejects_a_symlink_mediated_escape() {
 // from a fixture, the same "no fixture, direct unit test" precedent this
 // whole file follows.
 
+#[cfg(unix)]
 struct TempDir(PathBuf);
 
+#[cfg(unix)]
 impl TempDir {
     fn new(label: &str) -> Self {
         let dir = std::env::temp_dir().join(format!(
@@ -327,6 +329,7 @@ impl TempDir {
     }
 }
 
+#[cfg(unix)]
 impl Drop for TempDir {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.0);

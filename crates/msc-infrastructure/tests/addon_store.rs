@@ -9,6 +9,7 @@ use msc_infrastructure::addon_store::{self, AddonStoreError, DisableOutcome};
 use msc_infrastructure::download_staging::ExpectedChecksum;
 use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;

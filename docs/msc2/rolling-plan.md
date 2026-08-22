@@ -543,6 +543,16 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 
 **Actual result:** Marked `TempDir` and its implementations with `#[cfg(unix)]`, matching the sole executable-permission test that constructs it. Windows therefore no longer compiles unused Unix filesystem test support, while Unix keeps the full permission-preservation regression. The exact CI clippy command passes locally.
 
+### P8.29d — Gate the Unix-only add-on-store filesystem import
+**Status:** awaiting verification
+**Files:** `crates/msc-infrastructure/tests/addon_store.rs`, `docs/msc2/rolling-plan.md`
+**What:** Apply the same Unix condition to the filesystem import that is used only by the Unix-gated temporary-directory helper and executable-permission regression. This removes the Windows `unused import` lint without changing production code, Windows-capable tests, or Unix test coverage.
+**Verify:** `cargo clippy --workspace --all-targets -- -D warnings`
+**Commit:** `P8.29d: gate unix add-on store import`
+**Batch:** stop-after
+
+**Actual result:** Added `#[cfg(unix)]` to the `std::fs` import, matching the helper and sole test that use it. The exact CI clippy command passes locally; Windows will no longer compile that Unix-only import.
+
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`

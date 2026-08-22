@@ -1,0 +1,1 @@
+{"domain":"networking","case":"geyser-patches-top-level-bedrock-only","source":{"file":"MSCmacOS/MSCmacOS Swift/GeyserConfigManager.swift","test":"patchBedrockSection","line":91},"input":{"yaml":"bedrock:\n  port: 19132 # public\nremote:\n  bedrock:\n    port: 9\n","port":19133},"expected":{"yaml":"bedrock:\n  port: 19133 # public\nremote:\n  bedrock:\n    port: 9\n"}}

@@ -1,0 +1,1 @@
+{"domain":"helper-lifecycle","case":"playit-exit-clears-running-and-address","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+Playit.swift","test":"onDidTerminate","line":117},"input":{"event":"process_exit","wasRunning":true,"tunnelAddress":"java.example"},"expected":{"running":false,"tunnelAddress":null,"log":"Tunnel stopped."}}

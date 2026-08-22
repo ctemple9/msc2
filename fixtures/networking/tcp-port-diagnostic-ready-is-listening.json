@@ -1,0 +1,1 @@
+{"domain":"networking","case":"tcp-port-diagnostic-ready-is-listening","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+HealthCards.swift","test":"isPortReachable","line":760},"input":{"protocol":"tcp","connectionState":"ready"},"expected":{"listening":true}}

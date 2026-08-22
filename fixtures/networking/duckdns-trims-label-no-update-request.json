@@ -1,0 +1,1 @@
+{"domain":"networking","case":"duckdns-trims-label-no-update-request","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+ServerSettings.swift","test":"saveDuckDNSHostname","line":310},"input":{"hostname":"  example.duckdns.org  "},"expected":{"storedHostname":"example.duckdns.org","duckdnsHttpRequest":false,"resyncXboxBroadcast":true}}

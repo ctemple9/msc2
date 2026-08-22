@@ -1,0 +1,1 @@
+{"domain":"networking","case":"geyser-floodgate-filename-detection","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+ServerInfo.swift","test":"crossPlayStatus","line":67},"input":{"pluginFiles":["Geyser-Spigot.jar","floodgate-spigot.jar","other.jar"]},"expected":{"geyserInstalled":true,"floodgateInstalled":true,"crossPlayStatus":"both"}}

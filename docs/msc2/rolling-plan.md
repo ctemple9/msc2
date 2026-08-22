@@ -110,7 +110,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.2 — Capture Phase 9 characterization fixtures and live evidence
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `fixtures/networking/`, `fixtures/helper-lifecycle/`, `fixtures/credentials/`, `docs/msc2/networking/evidence/`, `docs/msc2/networking/phase9-scope.md`
 **What:** Before translating behavior, extract exactly 14 language-neutral networking fixtures, 8 helper-lifecycle fixtures, and 8 credential fixtures covering Playit status/error handling, DuckDNS request/response interpretation, resource-pack URL and SHA-1 rules, port-diagnostic outcomes, Xbox Broadcast prompts and status, Geyser/Floodgate detection and configuration, helper startup/exit/restart behavior, and named-token CRUD/revocation. Capture reproducible live evidence only where a third-party integration can be exercised safely; record unavailable cases honestly rather than inventing successes. Extend the scope note with fixture provenance and the exact behavior that has no MSC 1 oracle.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/networking --expect 14 && python3 tools/fixture-runner/run.py --validate-dir fixtures/helper-lifecycle --expect 8 && python3 tools/fixture-runner/run.py --validate-dir fixtures/credentials --expect 8`

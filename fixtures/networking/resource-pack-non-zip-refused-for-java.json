@@ -1,0 +1,1 @@
+{"domain":"networking","case":"resource-pack-non-zip-refused-for-java","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+ResourcePacks.swift","test":"installResourcePack","line":106},"input":{"filename":"pack.mcpack"},"expected":{"accepted":false,"reason":"java_pack_must_be_zip"}}

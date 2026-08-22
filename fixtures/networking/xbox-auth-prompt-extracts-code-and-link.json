@@ -1,0 +1,1 @@
+{"domain":"networking","case":"xbox-auth-prompt-extracts-code-and-link","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+OutputHandling.swift","test":"parseBroadcastAuthPrompt","line":319},"input":{"line":"enter the code ABCD at https://www.microsoft.com/link"},"expected":{"prompt":{"code":"ABCD","url":"https://www.microsoft.com/link"}}}

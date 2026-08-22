@@ -1,0 +1,1 @@
+{"domain":"helper-lifecycle","case":"restart-reconciles-helper-state-honestly","source":{"file":"MSC2-new","test":"no MSC 1 oracle","line":0},"input":{"agentRestartedWhileHelperPidExists":true},"expected":{"status":"unknown_until_reconciled","mustNotReport":"running"},"notes":"MSC 2 acceptance behavior: MSC 1 is an in-process macOS app and has no agent-restart oracle."}

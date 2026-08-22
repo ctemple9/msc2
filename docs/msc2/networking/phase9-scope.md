@@ -108,6 +108,28 @@ certificate/trust story is implemented. That decision changes whether remote
 desktop/browser clients can safely manage a LAN host before Phase 11; it does
 not limit player connectivity.
 
+## P9.2 fixture provenance and live evidence
+
+`fixtures/networking/` contains 14 language-neutral cases extracted from the
+listed MSC 1 implementation: Playit state/output, the label-only DuckDNS
+setting, Java resource-pack URL/SHA-1 behavior, local/public port diagnostics,
+Xbox Broadcast prompts/readiness, and Geyser/Floodgate detection/configuration.
+`fixtures/helper-lifecycle/` contains 8 cases from the Playit and first-run
+orchestration paths. `fixtures/credentials/` contains 8 cases from the named
+token route providers.
+
+Two cases have no MSC 1 oracle and say so in their `notes`: an agent restart
+must reconcile a helper rather than claim it is running, and revocation must
+remain effective after a restart through the production `SecretStore` path.
+These are MSC 2 acceptance requirements from the Phase 9 working gate, not
+retrospective claims about the macOS app.
+
+Live evidence is deliberately limited to a read-only mcsrvstat.us request in
+`evidence/mcsrvstat-us.md`. No configured Playit secret, Xbox account,
+resource-pack listener, or disposable Minecraft server was available, and no
+stateful third-party operation was attempted. DuckDNS has no MSC 1 update API,
+so request/response evidence for one would be fabricated rather than useful.
+
 ## Questions for Cameron
 
 ### QUESTION 1 — LAN administration before the desktop and web clients

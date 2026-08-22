@@ -1,0 +1,1 @@
+{"domain":"networking","case":"provider-failure-is-not-port-closed","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+HealthCards.swift","test":"checkPublicServerStatus","line":620},"input":{"provider":"mcsrvstat.us","outcome":"network_error"},"expected":{"status":"provider_unavailable","portReachability":"unknown"}}

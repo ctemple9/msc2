@@ -1,0 +1,1 @@
+{"domain":"networking","case":"playit-tunnel-address-after-setup-line","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+Playit.swift","test":"parsePlayitTunnelAddress","line":185},"input":{"priorLine":"tunnel setup","line":"java.example.joinmc.link"},"expected":{"javaTunnelAddress":"java.example.joinmc.link","ready":true}}

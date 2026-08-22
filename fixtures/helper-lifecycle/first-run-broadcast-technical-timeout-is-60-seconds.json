@@ -1,0 +1,1 @@
+{"domain":"helper-lifecycle","case":"first-run-broadcast-technical-timeout-is-60-seconds","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+ServerControls.swift","test":"armInitiationBroadcastTechTimeout","line":899},"input":{"authenticated":true,"broadcastNotReadyAtSeconds":60},"expected":{"broadcastOutcome":"timed_out"}}

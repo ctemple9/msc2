@@ -1,0 +1,1 @@
+{"domain":"helper-lifecycle","case":"stop-terminates-running-helper","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+Playit.swift","test":"stopPlayitIfRunning","line":145},"input":{"isPlayitRunning":true,"managerIsRunning":true},"expected":{"running":false,"tunnelAddress":null,"terminate":true}}

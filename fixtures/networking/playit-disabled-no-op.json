@@ -1,0 +1,1 @@
+{"domain":"networking","case":"playit-disabled-no-op","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+Playit.swift","test":"startPlayitIfNeeded","line":101},"input":{"playitEnabled":false},"expected":{"action":"none","running":false}}

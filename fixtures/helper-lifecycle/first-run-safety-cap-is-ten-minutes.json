@@ -1,0 +1,1 @@
+{"domain":"helper-lifecycle","case":"first-run-safety-cap-is-ten-minutes","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+ServerControls.swift","test":"scheduleInitiationSafetyCap","line":899},"input":{"workflowUnresolvedAtSeconds":600},"expected":{"outcome":"safety_cap_completed"}}

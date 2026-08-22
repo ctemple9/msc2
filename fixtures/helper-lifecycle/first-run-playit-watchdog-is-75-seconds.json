@@ -1,0 +1,1 @@
+{"domain":"helper-lifecycle","case":"first-run-playit-watchdog-is-75-seconds","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+ServerControls.swift","test":"scheduleInitiationPlayitWatchdog","line":899},"input":{"secretPresent":true,"playitNotReadyAtSeconds":75},"expected":{"playitOutcome":"timed_out"}}

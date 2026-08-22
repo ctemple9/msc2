@@ -1,0 +1,1 @@
+{"domain":"networking","case":"xbox-ready-signal-completes-broadcast","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+OutputHandling.swift","test":"handleBroadcastOutputLine","line":319},"input":{"line":"Creation of Xbox LIVE session was successful"},"expected":{"broadcastReady":true}}

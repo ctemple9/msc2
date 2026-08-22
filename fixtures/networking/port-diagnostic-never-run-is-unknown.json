@@ -1,0 +1,1 @@
+{"domain":"networking","case":"port-diagnostic-never-run-is-unknown","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+HealthCards.swift","test":"refreshHealthCards","line":537},"input":{"serverHasRun":false,"port":25565},"expected":{"localProbe":"not_attempted","publicProbe":"not_attempted","status":"unknown"}}

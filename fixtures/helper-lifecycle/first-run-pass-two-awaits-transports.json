@@ -1,0 +1,1 @@
+{"domain":"helper-lifecycle","case":"first-run-pass-two-awaits-transports","source":{"file":"MSCmacOS/MSCmacOS Swift/AppViewModel+ServerControls.swift","test":"initiationNeedsPass2","line":899},"input":{"playitEnabled":true,"broadcastEnabled":true,"serverReady":true},"expected":{"startSecondPass":true,"completeOnlyWhen":["playit_resolved","broadcast_resolved","server_ready"]}}

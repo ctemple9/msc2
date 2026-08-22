@@ -553,6 +553,16 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 
 **Actual result:** Added `#[cfg(unix)]` to the `std::fs` import, matching the helper and sole test that use it. The exact CI clippy command passes locally; Windows will no longer compile that Unix-only import.
 
+### P8.29e — Release the Windows agent executable before the Phase 8 smoke
+**Status:** awaiting verification
+**Files:** `tools/phase7/phase7-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
+**What:** Explicitly stop and reap the final foreground Phase 7 agent before that smoke reports success. On Windows this releases `target/debug/msc.exe` before Phase 8's next Cargo test build tries to replace it; the existing exit trap remains the failure-path cleanup backstop. Do not alter provisioning, launch, or Phase 8 behavior.
+**Verify:** `bash -c 'tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run -p msc-agent --test phase8_routes --test cli_phase8'`
+**Commit:** `P8.29e: release agent before phase 8 smoke`
+**Batch:** stop-after
+
+**Actual result:** Phase 7 now calls its existing graceful `stop_agent` helper immediately before success, allowing it to reap the foreground agent before the next Cargo command. The declared Phase 7-then-Phase-8 test sequence passes locally; CI will repeat the sequence on Windows.
+
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`

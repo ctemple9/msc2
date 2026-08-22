@@ -805,4 +805,8 @@ run_msc doctor repair "${crash_problem_id}" delete >/dev/null
 assert_no_doctor_problem_containing "CoolMod"
 echo "verified delete repair removed CoolMod-1.0.jar from disk and removed its problem"
 
+# End the foreground agent before the next CI step can rebuild the same
+# Windows executable. The exit trap remains a failure-path backstop.
+stop_agent
+
 echo "PHASE 7 GATE SMOKE PASSED"

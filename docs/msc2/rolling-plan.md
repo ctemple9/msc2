@@ -93,7 +93,7 @@ and identify any owner decision that cannot be inferred from MSC 1.
 
 ### P9.1 — Freeze Phase 9 scope, source inventory, and working gate
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/networking/phase9-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Read every Phase 9-relevant MSC 1 implementation, test, route, DTO, and configuration field; record the symbol-level disposition, the behavior that MSC 1 proves, and the cross-platform behavior MSC 2 must newly define. State a working gate covering all Phase 9 deliverables, public API/CLI/iOS reachability, durable credential revocation across restart, cancellation/recovery of long-running helpers, and tri-platform/headless proof. Preserve the explicit management-port boundary; do not turn a player-connectivity feature into public MSC administration. List only genuinely unresolved D-012 choices as owner questions with a recommendation and downstream consequence.
 
@@ -110,7 +110,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.2 — Capture Phase 9 characterization fixtures and live evidence
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/networking/`, `fixtures/helper-lifecycle/`, `fixtures/credentials/`, `docs/msc2/networking/evidence/`, `docs/msc2/networking/phase9-scope.md`
 **What:** Before translating behavior, extract exactly 14 language-neutral networking fixtures, 8 helper-lifecycle fixtures, and 8 credential fixtures covering Playit status/error handling, DuckDNS request/response interpretation, resource-pack URL and SHA-1 rules, port-diagnostic outcomes, Xbox Broadcast prompts and status, Geyser/Floodgate detection and configuration, helper startup/exit/restart behavior, and named-token CRUD/revocation. Capture reproducible live evidence only where a third-party integration can be exercised safely; record unavailable cases honestly rather than inventing successes. Extend the scope note with fixture provenance and the exact behavior that has no MSC 1 oracle.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/networking --expect 14 && python3 tools/fixture-runner/run.py --validate-dir fixtures/helper-lifecycle --expect 8 && python3 tools/fixture-runner/run.py --validate-dir fixtures/credentials --expect 8`
@@ -119,7 +119,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.3 — Resolve the remaining Phase 9 credential and remote-access posture
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/networking/phase9-scope.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/api-contract/auth-scope-phase2.md`, `docs/msc2/lifecycle/pairing-phase4.md`
 **What:** Turn the P9.1 evidence into a narrowly scoped D-012 decision record: which of remote desktop pairing, per-host credential persistence, off-loopback TLS, Tailscale, browser origins, and CSRF is implemented in Phase 9 versus explicitly deferred to Phase 11. Do not silently choose an unresolved security posture. If Cameron’s approval is required, prepare the required plain-language question and stop; after an answer, record it with its rationale and testable security invariant. Keep named-token `/users` CRUD separate from per-person identity, which remains a v1 non-goal.
 **Verify:** `git diff --check && rg -n 'Phase 9|D-012|deferred|approved|owner question' docs/msc2/networking/phase9-scope.md docs/msc2/msc2-decisions.md`
@@ -128,7 +128,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.4 — Freeze the Phase 9 API and capability contract
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/networking/phase9-api.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/websocket-v1.json`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-api/tests/phase9_conformance.rs`
 **What:** Map every supported Phase 9 action to an additive, versioned route and DTO contract before application code exists: player-network status/configuration, resource-pack hosting, helper operations, notifications, Geyser/Floodgate, and named-token list/create/update/revoke. Declare permission categories, operation/cancellation semantics, secret-redaction rules, help identifiers where a response explains a user-facing state, and which contract elements are intentionally delayed by P9.3. Update the capability matrix without claiming a client surface exists before it does. **`GET /v1/connectivity` (`ConnectivityResponseDTO`) already exists in the frozen contract from Phase 2/P0.30** — extend that existing schema for port-diagnostic and reachability fields instead of adding a parallel route; P9.9's application service implements its body.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run -p msc-api --test phase9_conformance && rg -n 'ConnectivityResponseDTO' docs/msc2/api-contract/openapi.json`
@@ -137,7 +137,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.5 — Port pure network and helper status rules
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/networking.rs`, `crates/msc-domain/src/helper.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/networking.rs`, `crates/msc-domain/tests/helper.rs`, `fixtures/networking/`, `fixtures/helper-lifecycle/`
 **What:** Implement the fixture-backed, side-effect-free rules from P9.2: safe player address presentation, resource-pack metadata validation, provider/helper status classification, diagnostic result vocabulary, and helper lifecycle transition rules. Keep raw credentials, private addresses where masking is requested, and provider-specific process details outside domain display types.
 **Verify:** `cargo nextest run -p msc-domain --test networking --test helper`
@@ -146,7 +146,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.6 — Build the managed helper-process foundation
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/helper_process.rs`, `crates/msc-infrastructure/src/process.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/helper_process.rs`, `fixtures/helper-lifecycle/`
 **What:** Add one bounded, supervised helper-process abstraction for the Phase 9 programs rather than bespoke subprocess ownership per integration. It must preserve output framing, record readiness/failure/exit, prevent duplicate helpers for the same server/function, support graceful stop then forced termination, retain bounded diagnostics, and recover honestly after agent restart. Reuse the Phase 4 process and operation-journal boundaries; do not weaken server-process ownership.
 **Verify:** `cargo nextest run -p msc-infrastructure --test helper_process`
@@ -155,7 +155,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.7 — Add Playit tunnel lifecycle and secret handling
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/playit.rs`, `crates/msc-application/src/playit.rs`, `crates/msc-application/tests/playit.rs`, `crates/msc-agent/tests/playit_routes.rs`, `fixtures/networking/`
 **What:** Port Playit configuration, tunnel status, start/stop/update behavior, and player-facing connection details through the managed-helper foundation. Store its secret only through `SecretStore`, redact it from status, logs, audit records, exports, and API responses, and make network work an operation with cancellation and restart recovery. Treat a tunnel as Minecraft transport only; it must never make the agent’s management port public. Expose a bounded "tunnel became ready" signal (MSC 1's own creation-time watchdog waits ~75s before giving up) — P9.13 needs it to reproduce MSC 1's first-run orchestration.
 **Verify:** `cargo nextest run -p msc-application --test playit && cargo nextest run -p msc-agent --test playit_routes`
@@ -164,7 +164,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.8 — Add resource-pack hosting and transactional pack publication
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/resource_pack_store.rs`, `crates/msc-application/src/resource_packs.rs`, `crates/msc-application/tests/resource_packs.rs`, `crates/msc-agent/tests/resource_pack_routes.rs`, `fixtures/networking/`
 **What:** Implement resource-pack upload/import, SHA-1 calculation, hosted URL construction, server.properties mutation, replacement rollback, disable/remove behavior, and bounded serving according to the P9.4 contract. Stage bytes before publication, validate paths and size, preserve the prior working configuration on failure, and make the public pack endpoint serve only an approved file rather than an arbitrary server path.
 **Verify:** `cargo nextest run -p msc-application --test resource_packs && cargo nextest run -p msc-agent --test resource_pack_routes`
@@ -173,7 +173,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.9 — Add DuckDNS hostname handling and the `/v1/connectivity` diagnostics behind it
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/duckdns.rs`, `crates/msc-infrastructure/src/port_diagnostics.rs`, `crates/msc-application/src/network_diagnostics.rs`, `crates/msc-application/tests/network_diagnostics.rs`, `crates/msc-agent/tests/network_diagnostic_routes.rs`, `fixtures/networking/`
 **What:** MSC 1's DuckDNS feature is a plain hostname label (`AppConfig.swift:557`'s `duckdnsHostname`) the user sets and manages their own updater for — there is no token and no `duckdns.org` API call anywhere in MSC 1. Port that: store/validate the hostname as ordinary (non-secret) configuration, and reuse it wherever MSC 1 does (Xbox Broadcast host resolution, connection-info display). A real token-based DuckDNS updater is out of scope for this step; note it as available future work rather than building it now. Then implement the port-diagnostic probes (`checkPortReachability`/`probeLocalPort`/`queryServerStatus` in `AppViewModel+HealthCards.swift`) and compose them, DuckDNS, and playit/broadcast state into the **existing** `GET /v1/connectivity` contract (`ConnectivityResponseDTO`, frozen at Phase 2/P0.30) rather than a new route — this is MSC 1's own `connectivitySnapshot` workflow. Make provider calls cancellable and bounded, and distinguish a provider failure from a closed or unreachable Minecraft port.
 **Verify:** `cargo nextest run -p msc-application --test network_diagnostics && cargo nextest run -p msc-agent --test network_diagnostic_routes && rg -n 'ConnectivityResponseDTO' crates/msc-agent/tests/network_diagnostic_routes.rs`
@@ -182,7 +182,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.10 — Add Geyser and Floodgate management
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/geyser.rs`, `crates/msc-application/tests/geyser.rs`, `crates/msc-agent/tests/geyser_routes.rs`, `fixtures/networking/`, `docs/msc2/client-capability-matrix.csv`
 **What:** Complete the Phase 7 provisioning placeholder with managed Geyser/Floodgate installation/update detection, compatibility/configuration validation, Bedrock-facing address/status reporting, and safe mutation of the relevant server files. Reuse the Phase 8 managed-plugin rules where they apply, retain the existing exclusion from client-mod export, and report unavailable update information honestly rather than presenting these helpers as ordinary add-ons.
 **Verify:** `cargo nextest run -p msc-application --test geyser && cargo nextest run -p msc-agent --test geyser_routes`
@@ -191,7 +191,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.11 — Add Xbox Broadcast lifecycle and notifications
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/xbox_broadcast.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/src/notifications.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `crates/msc-agent/tests/xbox_broadcast_routes.rs`, `fixtures/networking/`, `fixtures/dto-contract/`
 **What:** Port the Xbox Broadcast helper’s staged download, configuration, account-prompt/status, supervised lifecycle, and secret migration/use. Keep passwords and account tokens in `SecretStore`, constrain logs to non-secret status, and expose a bounded "broadcast became ready" signal (MSC 1's creation-time watchdog waits ~60s once authenticated) for P9.13's first-run orchestration. Build the `notifications` service around MSC 1's **actual** notification content — `ServerNotificationEvent`'s four cases (server started, server stopped, player joined, player left), per `AppViewModel+Notifications.swift` and symbol-ledger row 16, which disposes native delivery as client-owned and the event source as agent-owned: the agent emits these as WebSocket/notification-feed events, clients render them as local OS notifications. Helper-crash and connectivity-change notifications are additive new event types on top of that real baseline, not a replacement for it.
 **Verify:** `cargo nextest run -p msc-application --test xbox_broadcast && cargo nextest run -p msc-agent --test xbox_broadcast_routes && rg -n 'ServerStarted|ServerStopped|PlayerJoined|PlayerLeft' crates/msc-application/src/notifications.rs`

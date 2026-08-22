@@ -77,3 +77,69 @@ pub struct GeyserConfigUpdateResultDto {
     pub address: Option<String>,
     pub port: Option<i64>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastStatusDto {
+    pub xbox_broadcast_running: bool,
+    pub bedrock_broadcast_running: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastAutoStartDto {
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastAuthPromptDto {
+    pub is_present: bool,
+    pub code: Option<String>,
+    #[serde(rename = "linkURL")]
+    pub link_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastCredentialsDto {
+    pub email: String,
+    pub password: String,
+    pub gamertag: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastJarStatusDto {
+    pub installed: bool,
+    pub downloading: bool,
+    pub filename: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastJarDownloadResultDto {
+    pub success: bool,
+    pub message: String,
+    pub filename: Option<String>,
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BroadcastSimpleResultDto {
+    pub result: String,
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotificationEventDto {
+    pub id: String,
+    pub server_id: String,
+    pub occurred_at_iso8601: String,
+    pub kind: String,
+    pub title: String,
+    pub body: String,
+    pub help_id: Option<String>,
+}

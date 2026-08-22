@@ -27,3 +27,4 @@ pub mod secret_store;
 pub mod service;
 pub mod template_store;
 pub mod world_store;
+pub mod xbox_broadcast;

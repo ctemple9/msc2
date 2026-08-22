@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 9 in progress — P9.1 through P9.12 are DONE. The live-evidence amendment added four helper-binary acquisition steps (P9.6a, P9.7a, P9.10a, P9.11a); its checksum-ownership QUESTION is **answered** (2026-08-22, option (a) — MSC 2 owns the hash), so they are unblocked. P9.13–P9.15 remain.
-> **Next move:** EXECUTE P9.6a — it builds the pinned-asset acquisition primitive once, and P9.7a/P9.10a/P9.11a consume it. P9.11a additionally requires a decision entry, because it deliberately diverges from MSC 1 rather than fixing a port defect.
+> ## STATUS: Phase 9 in progress — P9.1 through P9.12 are DONE, and the helper-acquisition amendment's P9.6a and P9.7a are DONE. The amendment's checksum QUESTION was **answered and then amended** (2026-08-22): verification is absolute for every helper, but the hash is repository-pinned for `playitd`/MCXboxBroadcast and upstream-published for Geyser/Floodgate. Remaining: P9.6b, P9.10a, P9.11a, then P9.13–P9.15.
+> **Next move:** EXECUTE P9.6b (small — provenance field and a doc-comment correction on the P9.6a primitive), then P9.10a, which adds the Geyser API resolution layer above that primitive. P9.11a still requires its own decision entry, because it deliberately diverges from MSC 1 rather than fixing a port defect.
 > **Repo:** https://github.com/ctemple9/msc2 · GitHub Actions run [32544701401](https://github.com/ctemple9/msc2/actions/runs/32544701401) is green for exact Phase 8 code candidate `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887`, including repository invariants, macOS, Linux, Windows, and the headless no-GUI link check.
 > **Last updated:** 2026-08-21
 
@@ -226,23 +226,53 @@ rather than reimplemented per helper, which is what the earlier draft would have
 
 ### QUESTION — before P9.6a — **ANSWERED**
 
-**Answer: (a) — MSC 2 owns the hash.** Confirmed by Cameron Temple, 2026-08-22.
+**Answer: (a) — no artifact runs unless its bytes match a published SHA-256.** Confirmed by
+Cameron Temple, 2026-08-22. **Amended 2026-08-22** — see "Amendment: two rules, not one" below.
 
-For every pinned helper version, the expected SHA-256 is recorded **in this repository**,
-and the agent refuses any artifact that does not match it. This applies to all managed
-helpers without exception — `playitd`, Geyser, Floodgate, and MCXboxBroadcast — regardless
-of whether upstream publishes a checksum of its own. Where upstream *does* publish one, it
-is an additional cross-check, never a substitute for our recorded hash.
+The invariant is absolute and applies to every managed helper: the agent verifies a
+SHA-256 before an artifact is staged or spawned, and refuses anything that does not match.
+There is no best-effort path.
+
+### Amendment: two rules, not one
+
+The original answer said the hash is recorded "in this repository … for all managed helpers
+without exception." That was written on a wrong assumption — that Geyser might publish no
+checksum. **It does.** `download.geysermc.org/v2` serves a per-build, per-artifact `sha256`
+for every platform JAR. The strict-verification-versus-unverified-executables trade-off the
+question posed was therefore a false choice for Geyser, and the uniform rule would have
+bought nothing while costing a great deal (see P9.10a).
+
+Two rules, split by whether the helper is coupled to Minecraft's protocols:
+
+| Helper | Coupled to | Checksum source |
+|---|---|---|
+| `playitd` | nothing — a tunnel daemon, and it is **our own** release | **Repository-pinned.** We compute and commit the hash. |
+| MCXboxBroadcast | Bedrock protocol, loosely; updates rarely | **Repository-pinned.** |
+| **Geyser / Floodgate** | **the Java MC version *and* the Bedrock protocol** | **Upstream-published**, read from the Geyser API for the exact resolved build, and recorded with the artifact. |
+
+Geyser is genuinely different and a fixed pin cannot serve it. Geyser versions on its own
+scheme (2.1.0 → 2.11.2), not by Minecraft version, and keeps no per-MC-version branches, so
+no single pin is correct for every server. Worse, **Bedrock clients auto-update through the
+app stores** — when Mojang ships a Bedrock protocol change, only newer Geyser builds speak
+it, and a repository pin would lock every MSC user's Bedrock players out of crossplay until
+we cut a release. A helper that goes stale for reasons unrelated to the user's server cannot
+be pinned in our release cycle.
+
+Provenance is recorded, never inferred: `HelperArtifactMetadata` carries which of the two
+sources vouched for the bytes (see P9.6b), so an audit can always answer *who* stood behind
+a given artifact.
 
 **Accepted consequences**, recorded so they are not rediscovered as friction later:
 
-- Bumping any managed helper is a repository change: pin the new version, compute its
-  SHA-256, commit both, release. There is no path that installs an unrecorded artifact.
-- A helper whose hash is missing from the repository is **unavailable**, not
-  best-effort. `GET /v1/components` must report that honestly rather than silently
-  degrading, and the failure must name the missing pin — not surface as a readiness
-  timeout.
-- Upstream re-tagging or replacing a release under a pinned version is now a *detected*
+- Bumping a **repository-pinned** helper (`playitd`, MCXboxBroadcast) is a repository
+  change: pin the new version, compute its SHA-256, commit both, release.
+- A repository-pinned helper whose hash is missing is **unavailable**, not best-effort.
+  `GET /v1/components` must report that honestly rather than silently degrading, and the
+  failure must name the missing pin — not surface as a readiness timeout.
+- For **Geyser/Floodgate**, resolution failure, an unparseable API response, or a missing
+  upstream `sha256` is equally fatal: no hash, no install. Upstream publishing a checksum
+  is what makes dynamic resolution acceptable, so its absence removes the permission.
+- Upstream re-tagging or replacing a release under a pinned version stays a *detected*
   condition rather than a silent substitution of the executable the agent runs.
 
 **Rationale.** Phase 3 already made checksum-verified staging the rule for every download
@@ -291,23 +321,37 @@ If unsure:       (a). Phase 3 already made checksum-verified staging the rule fo
 **Commit:** `P9.6a: add pinned verified helper acquisition`
 **Batch:** solo
 
+### P9.6b — Record checksum provenance and correct the primitive's stated policy
+
+**Status:** not started
+**Files:** `crates/msc-infrastructure/src/helper_acquisition.rs`, `crates/msc-infrastructure/tests/helper_acquisition.rs`
+**What:** P9.6a's shape is correct and is **not** being redone — it already takes the expected digest as caller-supplied data, which is exactly what both checksum sources need. Two things now misstate the design. First, `PinnedHelperRelease`'s doc comment declares a policy the type does not own — "One repository-owned helper release pin … the expected digest is deliberately stored here, even when the upstream project publishes no checksum of its own" — which would tell a cold agent that P9.10a's upstream-published hash violates the design. Reword it to describe a verifier that accepts a digest from either source. Second, `HelperArtifactMetadata` records `sha256` but not where it came from; add a `checksum_source` field (`repository-pinned` | `upstream-published`) so an audit can answer who vouched for the bytes on disk. No behavior change to download, verification, staging, or failure handling.
+**Verify:** `cargo nextest run -p msc-infrastructure --test helper_acquisition && rg -n 'checksumSource' crates/msc-infrastructure/src/helper_acquisition.rs`
+**Commit:** `P9.6b: record checksum provenance on acquired helpers`
+**Batch:** safe
+
 ### P9.7a — Acquire `playitd` through the pinned-asset primitive
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/playit.rs`, `crates/msc-application/src/playit.rs`, `crates/msc-application/tests/playit.rs`, `fixtures/networking/`
 **What:** Close the Playit acquisition gap. `playit.rs` currently accepts an `executable_path: PathBuf` and spawns whatever it is handed; nothing obtains the binary. Acquire it through P9.6a against a pinned release identity (MSC 1's current evidence is tag `playitd-v1.0.10`, asset `playitd`), selecting the platform-appropriate artifact. Reserve the ~75-second readiness watchdog for a `playitd` that spawned successfully and then stayed silent or never supplied a player address — an acquisition failure must report itself, which is precisely the confusion observed in MSC 1.
 **Verify:** `cargo nextest run -p msc-application --test playit`
 **Commit:** `P9.7a: acquire playitd through the pinned primitive`
 **Batch:** stop-after
 
-### P9.10a — Acquire Geyser and Floodgate through the pinned-asset primitive
+### P9.10a — Resolve, verify, and acquire Geyser and Floodgate
 
 **Status:** not started
-**Files:** `crates/msc-infrastructure/src/geyser.rs`, `crates/msc-application/src/geyser.rs`, `crates/msc-application/tests/geyser.rs`, `fixtures/networking/`
-**What:** Close the Geyser/Floodgate acquisition gap: the current code detects existing JARs by filename and edits Geyser YAML, but installs and updates neither. Acquire both through P9.6a with explicit pinned project/version/build identities and no unbounded `latest` resolution. Keep the prior working JARs active until download, checksum, compatibility, and configuration validation all succeed. Preserve the existing safe YAML mutation and the exclusion of these managed helpers from client-mod export.
-**Verify:** `cargo nextest run -p msc-application --test geyser`
-**Commit:** `P9.10a: acquire geyser and floodgate through the pinned primitive`
-**Batch:** stop-after
+**Files:** `crates/msc-infrastructure/src/geyser.rs`, `crates/msc-application/src/geyser.rs`, `crates/msc-application/tests/geyser.rs`, `crates/msc-infrastructure/tests/geyser_resolution.rs`, `fixtures/networking/`
+**What:** Close the Geyser/Floodgate acquisition gap — the current code detects existing JARs by filename and edits Geyser YAML, but installs and updates neither, and MSC 1 never downloaded them at all, so there is **no oracle behavior here**. Per the amended QUESTION, Geyser is upstream-published rather than repository-pinned: build a resolution layer **above** P9.6a that queries `download.geysermc.org/v2`, selects a version and build, reads that build's `downloads.<artifact>.sha256`, and hands the result to `acquire_pinned_helper` as an ordinary pinned asset. The primitive is reused unchanged; only the source of the pin differs. Select the artifact matching the server's loader (`spigot` for Paper-family, `fabric`, `neoforge`), and resolve Floodgate the same way. Default to the newest build, since that is what tracks the current Bedrock protocol; when the server's Minecraft version is older than the newest build supports, walk back through the version list and **report the resolved version and why it was chosen** rather than silently installing a JAR that will not load. A resolution failure, an unparseable response, or a build with no published `sha256` is fatal — no hash, no install — and must surface as its own error, never as a later helper-readiness timeout. Record `checksum_source: upstream-published` via P9.6b. Keep the prior working JARs active until download, checksum, compatibility, and configuration validation all succeed. Preserve the existing safe YAML mutation and the exclusion of these managed helpers from client-mod export. Resolution must be fakeable — no test may reach the public network.
+**Verify:** `cargo nextest run -p msc-infrastructure --test geyser_resolution && cargo nextest run -p msc-application --test geyser`
+**Commit:** `P9.10a: resolve and verify geyser and floodgate acquisition`
+**Batch:** solo
+
+**Open, for P9.10a to answer with evidence:** the Geyser API exposes no mapping from a
+Minecraft version to the Geyser version that supports it. Establish how compatibility is
+actually determined — JAR metadata after download, a small mapping maintained as data, or
+an upstream field not yet examined — and record the finding. Do not invent a mapping.
 
 ### P9.11a — Pin the Xbox Broadcast JAR, and record the divergence from MSC 1
 

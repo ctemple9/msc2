@@ -146,7 +146,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.6 — Build the managed helper-process foundation
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/helper_process.rs`, `crates/msc-infrastructure/src/process.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-infrastructure/tests/helper_process.rs`, `fixtures/helper-lifecycle/`
 **What:** Add one bounded, supervised helper-process abstraction for the Phase 9 programs rather than bespoke subprocess ownership per integration. It must preserve output framing, record readiness/failure/exit, prevent duplicate helpers for the same server/function, support graceful stop then forced termination, retain bounded diagnostics, and recover honestly after agent restart. Reuse the Phase 4 process and operation-journal boundaries; do not weaken server-process ownership.
 **Verify:** `cargo nextest run -p msc-infrastructure --test helper_process`

@@ -9,6 +9,7 @@ pub mod console_buffer;
 pub mod credential_repository;
 pub mod download_staging;
 pub mod fs;
+pub mod helper_process;
 pub mod jar_provider;
 pub mod java_runtime_detection;
 pub mod java_runtime_install;

@@ -164,6 +164,38 @@ pub struct OutputLineFramer {
     inner: ConsoleLineFramer,
 }
 
+/// Frames each process output stream independently. stdout and stderr can
+/// arrive in arbitrary-sized chunks, so sharing one pending buffer would let
+/// a partial stdout line be completed by stderr (or the reverse).
+#[derive(Debug, Default)]
+pub struct OutputStreamLineFramer {
+    stdout: OutputLineFramer,
+    stderr: OutputLineFramer,
+}
+
+impl OutputStreamLineFramer {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(&mut self, stream: OutputStream, bytes: &[u8]) -> Vec<String> {
+        match stream {
+            OutputStream::Stdout => self.stdout.push(bytes),
+            OutputStream::Stderr => self.stderr.push(bytes),
+        }
+    }
+
+    pub fn flush(&mut self) -> Vec<(OutputStream, String)> {
+        [
+            self.stdout.flush().map(|line| (OutputStream::Stdout, line)),
+            self.stderr.flush().map(|line| (OutputStream::Stderr, line)),
+        ]
+        .into_iter()
+        .flatten()
+        .collect()
+    }
+}
+
 impl OutputLineFramer {
     pub fn new() -> Self {
         Self::default()

@@ -79,18 +79,30 @@ fn cli_phase8_addon_install_local_missing_file_exits_with_usage_error() {
     );
 
     assert_eq!(output.status.code(), Some(2));
-    assert!(stderr(&output).contains("failed to read"), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("failed to read"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]
 fn cli_phase8_modpack_inspect_missing_file_exits_with_usage_error() {
     let output = run_cli(
-        &["modpack", "inspect", "/nonexistent/path/does-not-exist.mrpack"],
+        &[
+            "modpack",
+            "inspect",
+            "/nonexistent/path/does-not-exist.mrpack",
+        ],
         &[("MSC2_CLI_TOKEN", "msc2_testid_testsecret")],
     );
 
     assert_eq!(output.status.code(), Some(2));
-    assert!(stderr(&output).contains("failed to read"), "{}", stderr(&output));
+    assert!(
+        stderr(&output).contains("failed to read"),
+        "{}",
+        stderr(&output)
+    );
 }
 
 #[test]

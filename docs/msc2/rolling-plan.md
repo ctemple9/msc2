@@ -515,6 +515,14 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 
 **Actual result:** Live run used the ordinary CLI against an isolated local agent with no provider-base override. The recorded Fabulously Optimized `.mrpack` and CurseForge archive both inspected as Fabric 0.19.3 on Minecraft 26.1.2 with 48 manifest files. The `.mrpack` create operation `op-24011-1` reached `succeeded` and registered a Fabric server; its process then started (`op-24011-2`), was observed running, and received a stop request. A literal Minecraft ready line was not captured before stopping, so it is recorded as unavailable rather than inferred from the running process. Modrinth catalog search returned Sodium (`AANobbMI`) first for that active Fabric server. Hangar resolution, CurseForge import/manual-file completion, and client export are recorded honestly as unavailable: the run had no Paper-like plugin jar to resolve, no CurseForge secret was copied into the isolated agent, and the ordinary CLI export exceeded its response timeout. P8.28's checker validates the four committed records.
 
+### P8.29a — Restore repository formatting after the failed candidate
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/tests/cli_phase8.rs`, `crates/msc-agent/tests/phase8_routes.rs`, and any other Rust files changed by `cargo fmt --all`; `docs/msc2/rolling-plan.md`
+**What:** Apply the repository's canonical Rust formatter to the exact files CI reported on candidate `cf83a643d7dcd8e8e9fad3dc187060502eaf27c6`. This is a mechanical correction only: do not alter behavior, tests, the workflow, or P8.29's proof requirements. The next P8.29 candidate must include this commit and receive a new, exact GitHub Actions run.
+**Verify:** `cargo fmt --all -- --check`
+**Commit:** `P8.29a: restore repository formatting`
+**Batch:** stop-after
+
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`

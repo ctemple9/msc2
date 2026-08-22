@@ -507,10 +507,7 @@ pub async fn download_staged_bytes(
             let _ = std::fs::remove_file(&entry.path);
             (
                 StatusCode::OK,
-                [(
-                    axum::http::header::CONTENT_TYPE,
-                    "application/octet-stream",
-                )],
+                [(axum::http::header::CONTENT_TYPE, "application/octet-stream")],
                 bytes,
             )
                 .into_response()
@@ -843,17 +840,22 @@ pub async fn install_component(
             "This server's flavor has no add-ons.",
         );
     };
-    let operation_id = match state
-        .lifecycle
-        .operations()
-        .begin_lifecycle("addon-install", Some(server.id.clone()), "Installing add-on.")
-    {
+    let operation_id = match state.lifecycle.operations().begin_lifecycle(
+        "addon-install",
+        Some(server.id.clone()),
+        "Installing add-on.",
+    ) {
         Ok(id) => id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
 
     let result = if let Some(staged_upload_id) = body.staged_upload_id.as_deref() {
-        let entry = state.staging.uploads.lock().unwrap().remove(staged_upload_id);
+        let entry = state
+            .staging
+            .uploads
+            .lock()
+            .unwrap()
+            .remove(staged_upload_id);
         let Some(entry) = entry else {
             return error_response(
                 StatusCode::NOT_FOUND,
@@ -929,24 +931,24 @@ pub async fn install_component(
                 "Install started.",
             );
         };
-        let installed_mod_ids: Vec<String> = if server.java_flavor.add_on_kind() == Some(AddOnKind::Mod)
-        {
-            addon_updates::resolve_addon_updates(
-                &transport,
-                &StdFileSystem,
-                &add_on_dir,
-                server.java_flavor,
-                server.minecraft_version.as_deref(),
-                &server.addon_links.clone().unwrap_or_default(),
-                &server.plugin_sources.clone().unwrap_or_default(),
-            )
-            .items
-            .into_iter()
-            .filter_map(|item| item.project_id)
-            .collect()
-        } else {
-            Vec::new()
-        };
+        let installed_mod_ids: Vec<String> =
+            if server.java_flavor.add_on_kind() == Some(AddOnKind::Mod) {
+                addon_updates::resolve_addon_updates(
+                    &transport,
+                    &StdFileSystem,
+                    &add_on_dir,
+                    server.java_flavor,
+                    server.minecraft_version.as_deref(),
+                    &server.addon_links.clone().unwrap_or_default(),
+                    &server.plugin_sources.clone().unwrap_or_default(),
+                )
+                .items
+                .into_iter()
+                .filter_map(|item| item.project_id)
+                .collect()
+            } else {
+                Vec::new()
+            };
         addons::install_from_catalog(
             &transport,
             &StdFileSystem,
@@ -969,9 +971,7 @@ pub async fn install_component(
                     Some(&outcome.installed_path),
                 );
             }
-            body.project_id
-                .clone()
-                .zip(body.slug.clone())
+            body.project_id.clone().zip(body.slug.clone())
         })
     };
 
@@ -996,7 +996,11 @@ pub async fn install_component(
         }
     }
 
-    let response = install_result(body.project_id.clone(), operation_id.as_str(), "Install started.");
+    let response = install_result(
+        body.project_id.clone(),
+        operation_id.as_str(),
+        "Install started.",
+    );
     audit(
         &state.lifecycle,
         &credential,
@@ -1107,7 +1111,12 @@ pub async fn update_component(
         };
         let path = add_on_dir.join(current_name);
         return match addons::toggle(&StdFileSystem, &path, server.pack_managed) {
-            Ok(_) => update_result(if enabled { "enabled" } else { "disabled" }, Some(jar_stem.to_string()), 1, None),
+            Ok(_) => update_result(
+                if enabled { "enabled" } else { "disabled" },
+                Some(jar_stem.to_string()),
+                1,
+                None,
+            ),
             Err(AddonMutationError::PackManaged) => error_response(
                 StatusCode::CONFLICT,
                 "conflict",
@@ -1210,7 +1219,11 @@ pub async fn update_component(
         });
         return match result {
             Ok(()) => update_result(
-                if remove_source { "source_removed" } else { "source_set" },
+                if remove_source {
+                    "source_removed"
+                } else {
+                    "source_set"
+                },
                 Some(jar_stem.to_string()),
                 1,
                 None,
@@ -1249,11 +1262,11 @@ pub async fn update_component(
         if items.is_empty() {
             return update_result("no_updates_available", None, 0, None);
         }
-        let operation_id = match state
-            .lifecycle
-            .operations()
-            .begin_lifecycle("addon-update", Some(server.id.clone()), "Updating add-ons.")
-        {
+        let operation_id = match state.lifecycle.operations().begin_lifecycle(
+            "addon-update",
+            Some(server.id.clone()),
+            "Updating add-ons.",
+        ) {
             Ok(id) => id,
             Err(error) => return crate::routes::operations::operation_error_response(error),
         };
@@ -1268,7 +1281,10 @@ pub async fn update_component(
             server.pack_managed,
             &|| false,
         );
-        let updated = results.iter().filter(|result| result.outcome.is_ok()).count();
+        let updated = results
+            .iter()
+            .filter(|result| result.outcome.is_ok())
+            .count();
         if let Some(error) = results
             .iter()
             .find_map(|result| result.outcome.as_ref().err())
@@ -1312,11 +1328,11 @@ pub async fn update_component(
     if item.available_version.is_none() {
         return update_result("no_updates_available", Some(jar_stem.to_string()), 0, None);
     }
-    let operation_id = match state
-        .lifecycle
-        .operations()
-        .begin_lifecycle("addon-update", Some(server.id.clone()), "Updating add-on.")
-    {
+    let operation_id = match state.lifecycle.operations().begin_lifecycle(
+        "addon-update",
+        Some(server.id.clone()),
+        "Updating add-on.",
+    ) {
         Ok(id) => id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
@@ -1396,22 +1412,22 @@ pub async fn inspect_modpack(
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
-    let entry = { state.staging.uploads.lock().unwrap().get(&body.staged_upload_id).cloned() };
+    let entry = {
+        state
+            .staging
+            .uploads
+            .lock()
+            .unwrap()
+            .get(&body.staged_upload_id)
+            .cloned()
+    };
     let Some(entry) = entry else {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown staged upload.",
-        );
+        return error_response(StatusCode::NOT_FOUND, "not_found", "Unknown staged upload.");
     };
     if now_unix() > entry.expires_at_unix
         || !matches!(entry.purpose, StagedUploadPurposeDto::ModpackArchive)
     {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown staged upload.",
-        );
+        return error_response(StatusCode::NOT_FOUND, "not_found", "Unknown staged upload.");
     }
     let transport = HttpTransport::new();
     let secrets = match production_secret_store() {
@@ -1421,7 +1437,7 @@ pub async fn inspect_modpack(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
                 &error.to_string(),
-            )
+            );
         }
     };
     let operation_id = format!("inspect-{}", Uuid::new_v4());
@@ -1448,7 +1464,9 @@ pub async fn inspect_modpack(
     Json(response).into_response()
 }
 
-fn modpack_inspection_response(inspection: &modpacks::ModpackInspection) -> ModpackInspectionResultDto {
+fn modpack_inspection_response(
+    inspection: &modpacks::ModpackInspection,
+) -> ModpackInspectionResultDto {
     let (format, pack_name, pack_version, file_count) = match &inspection.format {
         modpacks::InspectedFormat::Mrpack(manifest) => {
             let _meta = msc_domain::modpack_manifest::mrpack_metadata(manifest);
@@ -1527,7 +1545,12 @@ pub async fn import_modpack(
         "replace" => true,
         _ => return invalid_body("invalid_action", "action must be import or replace."),
     };
-    let entry = state.staging.uploads.lock().unwrap().remove(&body.staged_upload_id);
+    let entry = state
+        .staging
+        .uploads
+        .lock()
+        .unwrap()
+        .remove(&body.staged_upload_id);
     let Some(entry) = entry else {
         return error_response(
             StatusCode::NOT_FOUND,
@@ -1544,11 +1567,11 @@ pub async fn import_modpack(
             "Unknown or already-redeemed staged upload.",
         );
     }
-    let operation_id = match state
-        .lifecycle
-        .operations()
-        .begin_lifecycle("modpack-import", Some(server.id.clone()), "Importing modpack.")
-    {
+    let operation_id = match state.lifecycle.operations().begin_lifecycle(
+        "modpack-import",
+        Some(server.id.clone()),
+        "Importing modpack.",
+    ) {
         Ok(id) => id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
     };
@@ -1624,7 +1647,14 @@ pub async fn import_modpack(
             report
         })
         .map_err(|error| error.to_string())
-        .map(|report| (Vec::new(), report.pack_name, report.pack_version, report.cancelled)),
+        .map(|report| {
+            (
+                Vec::new(),
+                report.pack_name,
+                report.pack_version,
+                report.cancelled,
+            )
+        }),
         modpacks::InspectedFormat::CurseForge(metadata) => modpacks::import_curseforge(
             &transport,
             secrets.as_ref(),
@@ -1652,7 +1682,9 @@ pub async fn import_modpack(
             )
         })
         .map_err(|error| error.to_string()),
-        modpacks::InspectedFormat::PlainJarZip { .. } => Err("Plain JAR ZIP import is not supported here.".to_string()),
+        modpacks::InspectedFormat::PlainJarZip { .. } => {
+            Err("Plain JAR ZIP import is not supported here.".to_string())
+        }
     };
     let _ = std::fs::remove_file(&entry.path);
 
@@ -1706,9 +1738,10 @@ pub async fn import_modpack(
                 .into_response()
         }
         Err(message) => {
-            let _ = state
-                .lifecycle
-                .finish_operation_failure(&operation_id, "internal_error", message);
+            let _ =
+                state
+                    .lifecycle
+                    .finish_operation_failure(&operation_id, "internal_error", message);
             (
                 StatusCode::ACCEPTED,
                 Json(ModpackImportResultDto {
@@ -1744,7 +1777,12 @@ pub async fn complete_modpack_manual_file(
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
-    let entry = state.staging.uploads.lock().unwrap().remove(&body.staged_upload_id);
+    let entry = state
+        .staging
+        .uploads
+        .lock()
+        .unwrap()
+        .remove(&body.staged_upload_id);
     let Some(entry) = entry else {
         return error_response(
             StatusCode::NOT_FOUND,

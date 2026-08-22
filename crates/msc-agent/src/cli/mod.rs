@@ -12,30 +12,29 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use axum::http::{Method, StatusCode, Uri};
 use clap::{Args, Subcommand};
 use msc_api::dto::{
-    AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto, AddonsResponseDto,
-    ActiveServerRequestDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
+    ActiveServerRequestDto, AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto,
+    AddonsResponseDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
     BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
-    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, CommandRequestDto,
-    CommandResultDto, ComponentUpdateRequestDto, ErrorDto,
-    HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto,
-    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
-    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
-    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
-    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
-    RemoteApiStatus, ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto,
-    ServerDeleteResultDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
-    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
-    ServerRenameRequestDto, ServerRenameResultDto, SettingsResponseDto,
-    SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
-    StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
-    StagedUploadPurposeDto, TemplateMutationRequestDto, TemplateMutationResultDto,
-    TemplatesResponseDto, VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto,
-    WorldActivateRequestDto, WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto,
-    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
-    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto, WorldRenameRequestDto,
-    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
-    WorldSlotDto, WorldSlotsResponseDto, CatalogInstallRequestDto, CatalogInstallResultDto,
-    CatalogSearchResponseDto, ClientExportResponseDto,
+    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, CatalogInstallRequestDto,
+    CatalogInstallResultDto, CatalogSearchResponseDto, ClientExportResponseDto, CommandRequestDto,
+    CommandResultDto, ComponentUpdateRequestDto, ErrorDto, HealthProblemsResponseDto,
+    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto,
+    JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto,
+    JavaRuntimesResponseDto, ModpackImportRequestDto, ModpackImportResultDto,
+    ModpackInspectionRequestDto, ModpackInspectionResultDto, ModpackManualFileRequestDto,
+    ModpackManualFileResultDto, OperationDto, OperationStateDto, RemoteApiStatus,
+    ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
+    ServerDto, ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto,
+    ServerImportResultDto, ServerImportScanResponseDto, ServerRenameRequestDto,
+    ServerRenameResultDto, SettingsResponseDto, SettingsUpdateRequestDto, SettingsUpdateResultDto,
+    SimpleResultDto, StagedUploadBeginRequestDto, StagedUploadBeginResultDto,
+    StagedUploadCompleteResultDto, StagedUploadPurposeDto, TemplateMutationRequestDto,
+    TemplateMutationResultDto, TemplatesResponseDto, VersionChangeRequestDto,
+    VersionChangeResultDto, VersionsResponseDto, WorldActivateRequestDto, WorldActivateResultDto,
+    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
+    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
+    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -463,7 +462,10 @@ pub enum AddonCommand {
     /// Remove one installed add-on.
     Remove { jar_stem: String },
     /// Manually link one jar stem to a Modrinth project id.
-    Link { jar_stem: String, project_id: String },
+    Link {
+        jar_stem: String,
+        project_id: String,
+    },
     /// Set a plugin source URL for one jar stem.
     SetSource { jar_stem: String, url: String },
     /// Remove a plugin source URL for one jar stem.
@@ -2000,8 +2002,14 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                 println!("{}", result.message);
             }
             if result.operation_id.is_some() {
-                finish_operation(&client, common.json, no_wait, result.operation_id, "add-on install")
-                    .await
+                finish_operation(
+                    &client,
+                    common.json,
+                    no_wait,
+                    result.operation_id,
+                    "add-on install",
+                )
+                .await
             } else {
                 Ok(())
             }
@@ -2031,8 +2039,14 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
             } else {
                 println!("{}", result.message);
             }
-            finish_operation(&client, common.json, no_wait, result.operation_id, "local add-on install")
-                .await
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                result.operation_id,
+                "local add-on install",
+            )
+            .await
         }
         AddonCommand::Update { jar_stem, no_wait } => {
             let result: AddonUpdateResultDto = client
@@ -2055,8 +2069,14 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                 println!("{}", result.result);
             }
             if result.operation_id.is_some() {
-                finish_operation(&client, common.json, no_wait, result.operation_id, "add-on update")
-                    .await
+                finish_operation(
+                    &client,
+                    common.json,
+                    no_wait,
+                    result.operation_id,
+                    "add-on update",
+                )
+                .await
             } else {
                 Ok(())
             }
@@ -2140,10 +2160,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
         }
         AddonCommand::Remove { jar_stem } => {
             let result: AddonRemoveResultDto = client
-                .post_json(
-                    "/v1/components/remove",
-                    &AddonRemoveRequestDto { jar_stem },
-                )
+                .post_json("/v1/components/remove", &AddonRemoveRequestDto { jar_stem })
                 .await?;
             if common.json {
                 print_json(&result)?;
@@ -2295,8 +2312,14 @@ async fn run_modpack(common: CommonArgs, command: ModpackCommand) -> Result<(), 
             } else {
                 println!("{}", result.message);
             }
-            finish_operation(&client, common.json, no_wait, Some(result.operation_id), "modpack import")
-                .await
+            finish_operation(
+                &client,
+                common.json,
+                no_wait,
+                Some(result.operation_id),
+                "modpack import",
+            )
+            .await
         }
         ModpackCommand::Replace { path, no_wait } => {
             let result = import_modpack_command(&client, &path, "replace").await?;
@@ -2413,11 +2436,12 @@ fn print_addons(response: &AddonsResponseDto) {
         return;
     }
     for addon in &response.addons {
-        let enabled = if addon.is_enabled { "enabled" } else { "disabled" };
-        println!(
-            "{} [{}] {}",
-            addon.jar_stem, enabled, addon.bucket
-        );
+        let enabled = if addon.is_enabled {
+            "enabled"
+        } else {
+            "disabled"
+        };
+        println!("{} [{}] {}", addon.jar_stem, enabled, addon.bucket);
         if let Some(project_id) = &addon.project_id {
             println!("  project: {project_id}");
         }

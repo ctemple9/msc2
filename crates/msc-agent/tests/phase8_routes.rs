@@ -273,11 +273,8 @@ fn free_port() -> u16 {
 }
 
 fn temp_dir(label: &str) -> PathBuf {
-    let path = std::env::temp_dir().join(format!(
-        "msc2-{label}-{}-{}",
-        std::process::id(),
-        suffix()
-    ));
+    let path =
+        std::env::temp_dir().join(format!("msc2-{label}-{}-{}", std::process::id(), suffix()));
     let _ = fs::remove_dir_all(&path);
     fs::create_dir_all(&path).unwrap();
     path

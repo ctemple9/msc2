@@ -137,7 +137,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.5 — Port pure network and helper status rules
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/networking.rs`, `crates/msc-domain/src/helper.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/networking.rs`, `crates/msc-domain/tests/helper.rs`, `fixtures/networking/`, `fixtures/helper-lifecycle/`
 **What:** Implement the fixture-backed, side-effect-free rules from P9.2: safe player address presentation, resource-pack metadata validation, provider/helper status classification, diagnostic result vocabulary, and helper lifecycle transition rules. Keep raw credentials, private addresses where masking is requested, and provider-specific process details outside domain display types.
 **Verify:** `cargo nextest run -p msc-domain --test networking --test helper`

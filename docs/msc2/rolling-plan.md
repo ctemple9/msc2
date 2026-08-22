@@ -182,7 +182,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.10 — Add Geyser and Floodgate management
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/geyser.rs`, `crates/msc-application/tests/geyser.rs`, `crates/msc-agent/tests/geyser_routes.rs`, `fixtures/networking/`, `docs/msc2/client-capability-matrix.csv`
 **What:** Complete the Phase 7 provisioning placeholder with managed Geyser/Floodgate installation/update detection, compatibility/configuration validation, Bedrock-facing address/status reporting, and safe mutation of the relevant server files. Reuse the Phase 8 managed-plugin rules where they apply, retain the existing exclusion from client-mod export, and report unavailable update information honestly rather than presenting these helpers as ordinary add-ons.
 **Verify:** `cargo nextest run -p msc-application --test geyser && cargo nextest run -p msc-agent --test geyser_routes`

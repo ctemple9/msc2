@@ -49,3 +49,31 @@ pub struct ConnectivityResponseDto {
     pub note: Option<String>,
     pub help_id: Option<String>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeyserConfigResponseDto {
+    pub server_name: String,
+    pub server_type: String,
+    pub is_geyser_installed: bool,
+    pub address: Option<String>,
+    pub port: Option<i64>,
+    pub config_file_exists: bool,
+    pub note: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeyserConfigUpdateRequestDto {
+    pub address: Option<String>,
+    pub port: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GeyserConfigUpdateResultDto {
+    pub success: bool,
+    pub message: String,
+    pub address: Option<String>,
+    pub port: Option<i64>,
+}

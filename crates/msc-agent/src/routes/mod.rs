@@ -4,6 +4,7 @@ pub mod backups;
 pub mod capabilities;
 pub mod commands;
 pub mod components;
+pub mod geyser;
 pub mod health;
 pub mod lifecycle;
 pub mod network_diagnostics;

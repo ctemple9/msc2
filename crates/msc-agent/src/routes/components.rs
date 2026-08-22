@@ -27,6 +27,7 @@ use msc_application::addon_updates;
 use msc_application::addons::{self, AddonMutationError};
 use msc_application::client_export::{self, ClientSideStatus};
 use msc_application::curseforge_manual::{self, PendingManualFile};
+use msc_application::geyser;
 use msc_application::modpacks;
 use msc_domain::addon_update::AddonUpdateBucket;
 use msc_domain::app_config_schema::{AddonLink, AddonLinkProvenance, PluginSourceConfig};
@@ -196,6 +197,28 @@ fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<C
             updatable: Some(true),
             note: None,
         });
+        // Geyser and Floodgate are managed compatibility helpers, not
+        // catalog add-ons.  Their builds have no provider-backed update check
+        // yet, so expose the installed fact and say that honestly.
+        let installation = geyser::installation(&StdFileSystem, Path::new(&server.server_dir));
+        for (name, installed) in [
+            ("Geyser", installation.geyser_installed),
+            ("Floodgate", installation.floodgate_installed),
+        ] {
+            if installed {
+                rows.push(ComponentStatusDto {
+                    name: name.to_string(),
+                    installed_build: None,
+                    latest_build: None,
+                    installed_version: None,
+                    latest_version: None,
+                    is_up_to_date: false,
+                    installed_label: Some("installed".to_string()),
+                    updatable: Some(false),
+                    note: Some("update_information_unavailable".to_string()),
+                });
+            }
+        }
     }
     rows
 }

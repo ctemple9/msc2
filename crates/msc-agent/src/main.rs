@@ -183,6 +183,10 @@ pub(crate) fn build_app() -> Router {
                 .post(routes::network_diagnostics::update_duckdns),
         )
         .route(
+            "/config/geyser",
+            get(routes::geyser::get_config).post(routes::geyser::update_config),
+        )
+        .route(
             "/settings",
             get(routes::settings::get_settings).post(routes::settings::update_settings),
         )

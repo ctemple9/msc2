@@ -573,6 +573,16 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 
 **Actual result:** Phase 7 copies the freshly built agent into its own temporary directory before starting it. The declared Phase 7-then-Phase-8 test sequence passes locally; Windows CI will verify that Cargo can now replace its shared build output.
 
+### P8.29g — Isolate the Phase 6 smoke binary from Cargo's Windows output
+**Status:** awaiting verification
+**Files:** `tools/phase6/phase6-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
+**What:** Copy the already-built agent executable into Phase 6's temporary smoke directory and run that private copy for its agent and CLI calls. The exact Windows run proved Phase 8's 151 application tests pass but Cargo cannot rebuild the shared executable afterward because Phase 6 also ran `target/debug/msc.exe`; isolating both earlier smoke stages removes the remaining file lock without changing their product behavior.
+**Verify:** `bash -c 'tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run -p msc-agent --test phase8_routes --test cli_phase8'`
+**Commit:** `P8.29g: isolate phase 6 smoke binary`
+**Batch:** stop-after
+
+**Actual result:** Phase 6 now copies the freshly built agent into its own temporary directory before any agent or CLI process starts, matching Phase 7's isolation. Process inspection during the declared Phase 6-then-Phase-7-then-Phase-8 verification confirmed the restart tests ran the temporary executable, and the full targeted sequence completed locally.
+
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`

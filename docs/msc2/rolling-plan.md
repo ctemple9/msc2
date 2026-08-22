@@ -164,7 +164,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.8 — Add resource-pack hosting and transactional pack publication
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/resource_pack_store.rs`, `crates/msc-application/src/resource_packs.rs`, `crates/msc-application/tests/resource_packs.rs`, `crates/msc-agent/tests/resource_pack_routes.rs`, `fixtures/networking/`
 **What:** Implement resource-pack upload/import, SHA-1 calculation, hosted URL construction, server.properties mutation, replacement rollback, disable/remove behavior, and bounded serving according to the P9.4 contract. Stage bytes before publication, validate paths and size, preserve the prior working configuration on failure, and make the public pack endpoint serve only an approved file rather than an arbitrary server path.
 **Verify:** `cargo nextest run -p msc-application --test resource_packs && cargo nextest run -p msc-agent --test resource_pack_routes`

@@ -20,6 +20,7 @@ pub mod path_safety;
 pub mod playit;
 pub mod power;
 pub mod process;
+pub mod resource_pack_store;
 pub mod secret_store;
 pub mod service;
 pub mod template_store;

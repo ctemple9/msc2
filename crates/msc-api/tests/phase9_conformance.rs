@@ -16,14 +16,14 @@ fn schema<'a>(contract: &'a Value, name: &str) -> &'a Value {
     &contract["components"]["schemas"][name]
 }
 
-fn resolve<'a>(contract: &'a Value, schema: &'a Value) -> &'a Value {
-    if let Some(reference) = schema["$ref"].as_str() {
+fn resolve<'a>(contract: &'a Value, schema_value: &'a Value) -> &'a Value {
+    if let Some(reference) = schema_value["$ref"].as_str() {
         schema(
             contract,
             reference.rsplit('/').next().expect("schema ref name"),
         )
     } else {
-        schema
+        schema_value
     }
 }
 

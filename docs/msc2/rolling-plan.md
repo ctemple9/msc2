@@ -485,7 +485,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.16 — Repair and re-verify Phase 9 API conformance
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-api/tests/phase9_conformance.rs`, `docs/msc2/rolling-plan.md`
 **What:** Fix the Phase 9 conformance test's Rust name-shadowing compile error: `resolve`'s `schema` parameter hides the helper function named `schema`. Rename only the parameter or otherwise make the helper call unambiguous; do not alter the API contract or weaken the assertions. Run P9.4's literal Verify command afterward. If that command fails for any other reason, stop and report it rather than broadening the change.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run -p msc-api --test phase9_conformance && rg -n 'ConnectivityResponseDTO' docs/msc2/api-contract/openapi.json`

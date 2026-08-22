@@ -149,3 +149,20 @@ fn paper_plugin_crash_analysis_noise_lines_ignored_no_false_positives() {
     let problems = run(&load("noise-lines-ignored-no-false-positives"));
     assert!(problems.is_empty());
 }
+
+#[test]
+fn paper_plugin_crash_analysis_geyser_unsupported_server_version_names_context() {
+    let fixture = load("geyser-unsupported-server-version-names-context");
+    let problems = run(&fixture);
+    assert_eq!(
+        problems.len(),
+        fixture.expected["problemsCount"].as_i64().unwrap() as usize
+    );
+    assert_problem_fields(&problems[0], &fixture.expected["problem"]);
+}
+
+#[test]
+fn paper_plugin_crash_analysis_geyser_unrelated_status_message_ignored() {
+    let problems = run(&load("geyser-unrelated-status-message-ignored"));
+    assert!(problems.is_empty());
+}

@@ -563,8 +563,9 @@ pub fn compact_identifier(raw: &str) -> String {
 /// so they surface as a non-blocking signal (P7.22's
 /// `scan_paper_soft_failures`, which takes this function's own output)
 /// rather than the hard-fail crash path [`analyze`] feeds. Recognizes two
-/// message shapes: a plugin's own missing-dependency report, and a plain
-/// enable-time error. Every recognized problem is attributed to an
+/// message shapes: a plugin's own missing-dependency report, a plain
+/// enable-time error, and Geyser's explicit unsupported-server message.
+/// Every recognized problem is attributed to an
 /// installed plugin when [`match_installed_plugin`] finds one; unmatched
 /// offenders keep the raw name from the log line, same "don't guess, but
 /// don't drop it either" precedent [`analyze`]'s Fabric/Forge parsers
@@ -583,6 +584,13 @@ pub fn analyze_paper_plugins(
 
     for raw in text.split('\n') {
         let line = raw.trim();
+
+        if let Some(problem) = parse_geyser_incompatible_version(line, &text, installed_plugins)
+            && seen.insert(problem.id())
+        {
+            problems.push(problem);
+            continue;
+        }
 
         // "Unknown/missing dependency plugins: [Vault, X]. ... to run 'Foo'."
         if line.contains("Unknown/missing dependency plugins:") {
@@ -646,6 +654,81 @@ pub fn analyze_paper_plugins(
         }
     }
     problems
+}
+
+/// Geyser emits this message when its newest Paper-family plugin cannot run
+/// on the server's Minecraft version. It is intentionally narrower than a
+/// generic "Geyser" or "unsupported" search: unrelated Geyser connection
+/// warnings must not become startup diagnoses.
+fn parse_geyser_incompatible_version(
+    line: &str,
+    text: &str,
+    installed_plugins: &[PluginEntry],
+) -> Option<StartupProblem> {
+    const MESSAGE: &str = "Geyser does not work on your server version as a plugin";
+    const REQUIRED_PREFIX: &str = "requires that you run at least ";
+    const REQUIRED_SUFFIX: &str = " on your server";
+
+    if !line.contains(MESSAGE) {
+        return None;
+    }
+
+    let required_start = line.find(REQUIRED_PREFIX)? + REQUIRED_PREFIX.len();
+    let required_end = line[required_start..].find(REQUIRED_SUFFIX)? + required_start;
+    let required_version = line[required_start..required_end].trim();
+    if required_version.is_empty() {
+        return None;
+    }
+
+    let server_version = paper_minecraft_version(text)?;
+    let geyser_entry = match_installed_plugin("Geyser-Spigot", installed_plugins);
+    let geyser_version = geyser_entry
+        .and_then(|entry| entry.version.as_deref())
+        .or_else(|| geyser_version_from_log(text))?;
+
+    let problem = StartupProblem {
+        kind: StartupProblemKind::IncompatibleVersion,
+        offender_name: geyser_entry
+            .map(|entry| entry.display_name.clone())
+            .unwrap_or_else(|| "Geyser-Spigot".to_string()),
+        offender_id: None,
+        installed_file: geyser_entry.map(|entry| entry.filename.clone()),
+        installed_jar_stem: geyser_entry.map(|entry| entry.jar_stem.clone()),
+        requirement: Some(format!(
+            "Geyser {geyser_version} is incompatible with Minecraft {server_version}; it requires at least Minecraft {required_version}."
+        )),
+        missing_dependency: None,
+        raw_excerpt: line.to_string(),
+    };
+    Some(problem)
+}
+
+/// Paper's normal startup banner identifies the server version as `(MC: x)`.
+/// Requiring that exact context keeps a bare Geyser warning from being
+/// misreported as a version mismatch.
+fn paper_minecraft_version(text: &str) -> Option<String> {
+    let marker = "(MC: ";
+    let start = text.find(marker)? + marker.len();
+    let end = text[start..].find(')')? + start;
+    let version = text[start..end].trim();
+    if version.is_empty() {
+        None
+    } else {
+        Some(version.to_string())
+    }
+}
+
+/// A future managed-plugin inventory may carry the exact
+/// `HelperArtifactMetadata.version` value. Until then, accept the version
+/// printed by Paper/Geyser during plugin loading as the same diagnostic
+/// context when it is present in the captured startup excerpt.
+fn geyser_version_from_log(text: &str) -> Option<&str> {
+    const MARKER: &str = "Loading server plugin Geyser-Spigot v";
+    let start = text.find(MARKER)? + MARKER.len();
+    let rest = &text[start..];
+    let end = rest.find(['\n', '\r']).unwrap_or(rest.len());
+    let version = rest[..end].trim();
+    (!version.is_empty()).then_some(version)
 }
 
 /// `matchPlugin(_:)` (source line 526-529): case-insensitive exact name

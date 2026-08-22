@@ -1,0 +1,29 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "geyser-unrelated-status-message-ignored",
+  "source": {
+    "file": "public Paper log",
+    "test": "successful Geyser startup followed by a proxy-placement warning",
+    "line": 63
+  },
+  "input": {
+    "consoleExcerpt": [
+      "[Server thread/INFO]: This server is running Paper version 26.1.2-57-main@afea65c (Implementing API version 26.1.2.build.57-stable)",
+      "[Server thread/INFO]: [Geyser-Spigot] Loading server plugin Geyser-Spigot v2.9.6-SNAPSHOT",
+      "[Server thread/WARN]: [Geyser-Spigot] This server appears to be running behind a Velocity proxy! Remove the Geyser plugin from this server and install Geyser only on your proxy."
+    ],
+    "installedPlugins": [
+      {
+        "filename": "Geyser-Spigot.jar",
+        "jarStem": "Geyser-Spigot",
+        "displayName": "Geyser-Spigot",
+        "version": "2.9.6-SNAPSHOT",
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 0
+  },
+  "notes": "A real Geyser proxy-placement warning is not a Minecraft-version load failure and must remain outside the new IncompatibleVersion pattern."
+}

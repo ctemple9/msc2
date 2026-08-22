@@ -425,7 +425,7 @@ If unsure:       (b). "The server told you nothing and crossplay just didn't wor
 
 ### P9.10b — Name a Geyser load failure in startup diagnostics
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/crash_analysis.rs`, `crates/msc-domain/tests/paper_plugin_crash_analysis.rs`, `fixtures/paper-plugin-crash-analysis/`
 **What:** Per QUESTION 2's answer, close the silence MSC 1 leaves when the newest Geyser will not load on an older server. P9.10a deliberately installs the newest build with no compatibility guard, exactly as MSC 1 does; this step makes the resulting failure explicable instead of invisible. Characterize real Geyser load failures against an older Paper server first — do not invent log lines — then teach the analyzer to classify them as the existing `StartupProblemKind::IncompatibleVersion`, carrying as context the installed Geyser version and build (which P9.10a records in `HelperArtifactMetadata`) and the server's Minecraft version, so the finding states plainly that the two do not match. **No new problem kind, no new machinery** — this is a pattern and its context inside the analyzer Phase 7 already runs on every failed start. Where the analyzer offers a repair action, the correct one is not an automatic version walk-back (P9.10a explicitly builds no mapping) but naming the mismatch; whether a repair is offered at all is P9.10b's to determine from the evidence, not to assume. If the pattern does not match, the analyzer must fall through silently — behavior identical to MSC 1's today.
 **Verify:** `cargo nextest run -p msc-domain --test paper_plugin_crash_analysis`

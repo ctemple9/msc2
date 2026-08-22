@@ -1,0 +1,37 @@
+{
+  "domain": "paper-plugin-crash-analysis",
+  "case": "geyser-unsupported-server-version-names-context",
+  "source": {
+    "file": "GeyserMC/languages/texts/en_US.properties",
+    "test": "geyser.bootstrap.unsupported_server.message",
+    "line": 0,
+    "url": "https://github.com/GeyserMC/languages/blob/master/texts/en_US.properties"
+  },
+  "input": {
+    "consoleExcerpt": [
+      "[Server thread/INFO]: This server is running Paper version git-Paper-330 (MC: 1.18.2) (Implementing API version 1.18.2-R0.1-SNAPSHOT) (Git: 268476b)",
+      "[Server thread/INFO]: [Geyser-Spigot] Loading server plugin Geyser-Spigot v2.11.2 (build 42)",
+      "[Server thread/ERROR]: [Geyser-Spigot] Geyser does not work on your server version as a plugin and requires that you run at least 1.20.5 on your server, or that you run Geyser standalone or through a proxy such as Velocity."
+    ],
+    "installedPlugins": [
+      {
+        "filename": "Geyser-Spigot.jar",
+        "jarStem": "Geyser-Spigot",
+        "displayName": "Geyser-Spigot",
+        "version": "2.11.2 (build 42)",
+        "isEnabled": true
+      }
+    ]
+  },
+  "expected": {
+    "problemsCount": 1,
+    "problem": {
+      "kind": "incompatibleVersion",
+      "offenderName": "Geyser-Spigot",
+      "installedFile": "Geyser-Spigot.jar",
+      "installedJarStem": "Geyser-Spigot",
+      "requirement": "Geyser 2.11.2 (build 42) is incompatible with Minecraft 1.18.2; it requires at least Minecraft 1.20.5."
+    }
+  },
+  "notes": "The Paper banner and Geyser loading line are real public log shapes (mclo.gs/jPfD5Nn and mclo.gs/LEIfiq3); the incompatibility sentence is Geyser's published localization string. The fixture uses the exact Geyser API version/build identity that P9.10a records in HelperArtifactMetadata. The analyzer names the mismatch but does not attempt a version walk-back because P9.10a deliberately builds no compatibility mapping."
+}

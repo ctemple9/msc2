@@ -506,7 +506,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Batch:** solo
 
 ### P8.28 — Exercise real providers and real packs
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/addons/provider-evidence/`, `docs/msc2/addons/modpack-evidence/`, `docs/msc2/addons/phase8-scope.md`
 **What:** With all provider overrides absent, use the ordinary CLI to search Modrinth, resolve one Hangar-backed plugin source, inspect/import the recorded `.mrpack` and CurseForge pack, complete one author-blocked file if the evidence contains one, reach a real server ready line, export its client package, and stop it. Record exact provider URLs, versions, checksums, operation outcomes, pack file disposition counts, and any unavailable evidence. This is the phase's only live-network verification step.
 **Verify:** `python3 tools/phase8/phase8-check.py --evidence docs/msc2/addons/provider-evidence --modpack-evidence docs/msc2/addons/modpack-evidence`
@@ -516,7 +516,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Live run used the ordinary CLI against an isolated local agent with no provider-base override. The recorded Fabulously Optimized `.mrpack` and CurseForge archive both inspected as Fabric 0.19.3 on Minecraft 26.1.2 with 48 manifest files. The `.mrpack` create operation `op-24011-1` reached `succeeded` and registered a Fabric server; its process then started (`op-24011-2`), was observed running, and received a stop request. A literal Minecraft ready line was not captured before stopping, so it is recorded as unavailable rather than inferred from the running process. Modrinth catalog search returned Sodium (`AANobbMI`) first for that active Fabric server. Hangar resolution, CurseForge import/manual-file completion, and client export are recorded honestly as unavailable: the run had no Paper-like plugin jar to resolve, no CurseForge secret was copied into the isolated agent, and the ordinary CLI export exceeded its response timeout. P8.28's checker validates the four committed records.
 
 ### P8.29a — Restore repository formatting after the failed candidate
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/tests/cli_phase8.rs`, `crates/msc-agent/tests/phase8_routes.rs`, and any other Rust files changed by `cargo fmt --all`; `docs/msc2/rolling-plan.md`
 **What:** Apply the repository's canonical Rust formatter to the exact files CI reported on candidate `cf83a643d7dcd8e8e9fad3dc187060502eaf27c6`. This is a mechanical correction only: do not alter behavior, tests, the workflow, or P8.29's proof requirements. The next P8.29 candidate must include this commit and receive a new, exact GitHub Actions run.
 **Verify:** `cargo fmt --all -- --check`
@@ -524,7 +524,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Batch:** stop-after
 
 ### P8.29b — Clear the complete CI compile and lint gate
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-api/tests/world_backup_conformance.rs`, `crates/msc-api/tests/provisioning_conformance.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/components.rs`, the affected route tests, `docs/msc2/rolling-plan.md`
 **What:** Resolve the entire current `cargo clippy --workspace --all-targets -- -D warnings` failure set before attempting P8.29 again. Add the absent optional-field values to the two stale DTO conformance literals (`operationId`/`fileId`, `stagedModpackUploadId`); remove or migrate the now-unrouted duplicate staged-upload/download implementation in `worlds.rs` so the Phase 8 components route remains the sole production owner; and make the components persistence/import helpers satisfy clippy without hiding a failed config write or changing any successful public-path behavior. Do not suppress lints wholesale. Re-run the exact CI static gate after each correction until it is clean, so no compiler-error ordering can conceal a later failure.
 **Verify:** `cargo clippy --workspace --all-targets -- -D warnings`
@@ -534,7 +534,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Updated the two conformance-test literals that compile every API DTO shape so their new optional fields are stated explicitly as `None`. The former world-route staged upload/download handlers were already absent from the production router — Phase 8's components router owns `/v1/staged-uploads` and `/v1/staged-downloads` — so their direct Phase 6 regression helpers now compile only in test builds, retaining their existing tests without leaving an unreachable second production implementation. Removed the unused staged-download bookkeeping field. In `components.rs`, config persistence now returns the existing operation error types: an add-on install fails its operation if writing its link fails, and either pack import fails its operation if the durable pack metadata write fails; successful public-path behavior is unchanged. Replaced the side-effect-only `map` calls with `and_then`, which makes that propagation explicit. The exact CI static gate passes locally across all workspace targets.
 
 ### P8.29c — Compile platform-specific add-on-store test support only where used
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/tests/addon_store.rs`, `docs/msc2/rolling-plan.md`
 **What:** Restrict the Unix-only temporary-directory test helper to the Unix-only archive-safety tests that use it, so Windows compiles the same add-on-store test target without dead code. Do not change production add-on storage behavior or skip any Windows-capable test.
 **Verify:** `cargo clippy --workspace --all-targets -- -D warnings`
@@ -544,7 +544,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Marked `TempDir` and its implementations with `#[cfg(unix)]`, matching the sole executable-permission test that constructs it. Windows therefore no longer compiles unused Unix filesystem test support, while Unix keeps the full permission-preservation regression. The exact CI clippy command passes locally.
 
 ### P8.29d — Gate the Unix-only add-on-store filesystem import
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/tests/addon_store.rs`, `docs/msc2/rolling-plan.md`
 **What:** Apply the same Unix condition to the filesystem import that is used only by the Unix-gated temporary-directory helper and executable-permission regression. This removes the Windows `unused import` lint without changing production code, Windows-capable tests, or Unix test coverage.
 **Verify:** `cargo clippy --workspace --all-targets -- -D warnings`
@@ -554,7 +554,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Added `#[cfg(unix)]` to the `std::fs` import, matching the helper and sole test that use it. The exact CI clippy command passes locally; Windows will no longer compile that Unix-only import.
 
 ### P8.29e — Release the Windows agent executable before the Phase 8 smoke
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase7/phase7-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
 **What:** Explicitly stop and reap the final foreground Phase 7 agent before that smoke reports success. On Windows this releases `target/debug/msc.exe` before Phase 8's next Cargo test build tries to replace it; the existing exit trap remains the failure-path cleanup backstop. Do not alter provisioning, launch, or Phase 8 behavior.
 **Verify:** `bash -c 'tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run -p msc-agent --test phase8_routes --test cli_phase8'`
@@ -564,7 +564,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Phase 7 now calls its existing graceful `stop_agent` helper immediately before success, allowing it to reap the foreground agent before the next Cargo command. The declared Phase 7-then-Phase-8 test sequence passes locally; CI will repeat the sequence on Windows.
 
 ### P8.29f — Isolate the Phase 7 smoke binary from Cargo's Windows output
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase7/phase7-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
 **What:** Copy the already-built agent executable into Phase 7's temporary smoke directory and run that private copy for both agent and CLI calls. Windows may keep a completed executable briefly locked, so this prevents the Phase 7 smoke from blocking Phase 8's later rebuild of Cargo's shared `target/debug/msc.exe`; Unix behavior remains equivalent.
 **Verify:** `bash -c 'tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run -p msc-agent --test phase8_routes --test cli_phase8'`
@@ -574,7 +574,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Phase 7 copies the freshly built agent into its own temporary directory before starting it. The declared Phase 7-then-Phase-8 test sequence passes locally; Windows CI will verify that Cargo can now replace its shared build output.
 
 ### P8.29g — Isolate the Phase 6 smoke binary from Cargo's Windows output
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase6/phase6-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
 **What:** Copy the already-built agent executable into Phase 6's temporary smoke directory and run that private copy for its agent and CLI calls. The exact Windows run proved Phase 8's 151 application tests pass but Cargo cannot rebuild the shared executable afterward because Phase 6 also ran `target/debug/msc.exe`; isolating both earlier smoke stages removes the remaining file lock without changing their product behavior.
 **Verify:** `bash -c 'tools/phase6/phase6-gate-smoke.sh --synthetic && tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run -p msc-agent --test phase8_routes --test cli_phase8'`
@@ -584,7 +584,7 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Phase 6 now copies the freshly built agent into its own temporary directory before any agent or CLI process starts, matching Phase 7's isolation. Process inspection during the declared Phase 6-then-Phase-7-then-Phase-8 verification confirmed the restart tests ran the temporary executable, and the full targeted sequence completed locally.
 
 ### P8.29 — Prove the exact candidate on all three platforms
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`
 **What:** Push the exact candidate containing P8.27/P8.28 and any required CI corrections, require its own GitHub Actions run—not an earlier run—to pass repo invariants plus macOS, Linux, and Windows Phase 8 smoke legs and the headless no-GUI check, and record the run/candidate in the scope evidence. If CI exposes a candidate defect, correct it in a narrowly scoped committed correction step and repeat this exact proof until it passes.
 **Verify:** `gh run view 32544701401 --json conclusion,headSha,jobs` → `conclusion` is `success`, `headSha` is `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887`, and repo invariants, macOS, Linux, Windows, and the headless no-GUI link check are green
@@ -594,12 +594,14 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Exact candidate `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887` passed GitHub Actions run `32544701401`. Repo invariants, all macOS/Linux/Windows build-format-clippy-test and Phase 6-8 smoke paths, native artifact uploads, and the dependent headless no-GUI link check completed successfully. The candidate and run URL are recorded in the Phase 8 scope evidence.
 
 ### P8.30 — Close the Phase 8 exit gate
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase8/phase8-gate-smoke.sh`, `tools/phase8/phase8-check.py`, `docs/msc2/addons/phase8-scope.md`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/rolling-plan.md`
 **What:** Check the literal port-plan gate and every working exit criterion against one exact candidate: provider parsing, dependency resolution, client-only precedence, pack guards, transactional imports/updates, D-027 behavior, client export, public API/CLI/iOS paths, real evidence, cancellation/restart recovery, and tri-platform CI. Run the full workspace suite once here. Report gaps honestly; do not mark the phase complete or pre-empt the other agent's REVIEW.
 **Verify:** `python3 tools/phase8/phase8-check.py --gate && bash tools/phase8/phase8-gate-smoke.sh --synthetic && cargo nextest run --workspace`
 **Commit:** `P8.30: close the Phase 8 gate`
 **Batch:** solo
+
+**Actual result:** The declared Verify command was initially broken because `tools/phase8/phase8-check.py` documented itself as a gate checker but did not accept `--gate`. Added that narrowly scoped mode rather than broadening the Verify: it mechanically checks the committed P8.28 live-evidence records, D-027's approved option-1 staged-upload topology, the Phase 8 API/CLI/iOS matrix rows (including the deliberately Planned iOS modpack rows with no copied screen), and P8.29's exact successful macOS/Linux/Windows candidate/run. The synthetic public-path smoke then covers the remaining executable gate behavior, and this step's required full workspace suite is the phase's one regression sweep. The scope note records the precise evidence and the honest live gaps: Modrinth search and `.mrpack` creation succeeded; Hangar, CurseForge/manual-file, and export remain recorded as unavailable for the stated isolated-run constraints, not fabricated successes. This step reports evidence only and does not mark Phase 8 complete or pre-empt REVIEW. Status set to *awaiting verification*, not DONE, per `AGENTS.md`.
 
 ---
 

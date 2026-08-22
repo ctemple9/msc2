@@ -128,6 +128,7 @@ and `tools/phase6/corpus-check.py` -- no dependency setup for Cameron to fight.
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import sys
@@ -137,6 +138,32 @@ from pathlib import Path
 DEFAULT_ADDONS_DIR = Path("corpus/addons")
 DEFAULT_PACKS_DIR = Path("corpus/packs")
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+REPO_ROOT = FIXTURES_DIR.parent.parent.parent
+PROVIDER_EVIDENCE_DIR = Path("docs/msc2/addons/provider-evidence")
+MODPACK_EVIDENCE_DIR = Path("docs/msc2/addons/modpack-evidence")
+SCOPE_PATH = Path("docs/msc2/addons/phase8-scope.md")
+DECISIONS_PATH = Path("docs/msc2/msc2-decisions.md")
+CAPABILITY_MATRIX_PATH = Path("docs/msc2/client-capability-matrix.csv")
+
+# These are the public paths Phase 8 promises through every client that has
+# a corresponding copied workflow.  Modpack inspect/import/manual completion
+# intentionally remain iOS-Planned: the copied app has no screen for them,
+# and P8.26 records that limitation instead of claiming parity.
+PUBLIC_CLIENT_ROWS = {
+    ("GET", "/v1/addons"): ("Implemented", "Implemented", "Implemented"),
+    ("GET", "/v1/catalog/search"): ("Implemented", "Implemented", "Implemented"),
+    ("GET", "/v1/components/client-export"): ("Implemented", "Implemented", "Implemented"),
+    ("POST", "/v1/components/install"): ("Implemented", "Implemented", "Implemented"),
+    ("POST", "/v1/components/remove"): ("Implemented", "Implemented", "Implemented"),
+    ("POST", "/v1/components/update"): ("Implemented", "Implemented", "Implemented"),
+    ("POST", "/v1/health/repair"): ("Implemented", "Implemented", "Implemented"),
+}
+
+MODPACK_CLIENT_ROWS = {
+    ("POST", "/v1/modpacks/inspect"),
+    ("POST", "/v1/modpacks/import"),
+    ("POST", "/v1/modpacks/{operationId}/manual-file"),
+}
 
 # The five provider purposes `docs/msc2/addons/phase8-scope.md`'s "Provider
 # purposes" table names -- Modrinth, Hangar, CurseForge, GitHub Releases,
@@ -607,6 +634,66 @@ def run_modpack_evidence(evidence_dir: Path) -> tuple[int, str]:
 
 
 # ---------------------------------------------------------------------------
+# Exit-gate evidence mode (P8.30)
+# ---------------------------------------------------------------------------
+
+def check_exit_gate() -> str:
+    """Checks the committed, reviewable evidence that completes Phase 8.
+
+    Runtime behavior is exercised by the synthetic smoke in P8.30's Verify
+    command.  This complementary check makes its documentary claims
+    mechanically reviewable: live evidence, D-027's approved topology,
+    copied-client coverage, and the exact cross-platform candidate.
+    """
+    check_provider_evidence(REPO_ROOT / PROVIDER_EVIDENCE_DIR)
+    check_modpack_evidence(REPO_ROOT / MODPACK_EVIDENCE_DIR)
+
+    decisions = (REPO_ROOT / DECISIONS_PATH).read_text()
+    if "## D-027" not in decisions or "**Status:** **Approved**, option 1" not in decisions:
+        raise CheckError(f"{DECISIONS_PATH}: D-027 is not recorded as approved option 1")
+
+    scope = (REPO_ROOT / SCOPE_PATH).read_text()
+    candidate = "3e04f484bdbee3e821ea55dda6a06cc8e8f5c887"
+    run = "32544701401"
+    if "## P8.29 exact cross-platform candidate" not in scope or candidate not in scope or run not in scope:
+        raise CheckError(f"{SCOPE_PATH}: missing P8.29 exact candidate/run evidence")
+
+    with (REPO_ROOT / CAPABILITY_MATRIX_PATH).open(newline="") as matrix_file:
+        rows = {
+            (row["method"], row["path"]): row
+            for row in csv.DictReader(matrix_file)
+        }
+    for key, expected in PUBLIC_CLIENT_ROWS.items():
+        row = rows.get(key)
+        if row is None:
+            raise CheckError(f"{CAPABILITY_MATRIX_PATH}: missing {key[0]} {key[1]} row")
+        actual = (row["agent_status"], row["ios_status"], row["cli_status"])
+        if actual != expected:
+            raise CheckError(
+                f"{CAPABILITY_MATRIX_PATH}: {key[0]} {key[1]} is {actual}, expected {expected}"
+            )
+    for key in MODPACK_CLIENT_ROWS:
+        row = rows.get(key)
+        if row is None:
+            raise CheckError(f"{CAPABILITY_MATRIX_PATH}: missing {key[0]} {key[1]} row")
+        actual = (row["agent_status"], row["ios_status"], row["cli_status"])
+        expected = ("Implemented", "Planned", "Implemented")
+        if actual != expected:
+            raise CheckError(
+                f"{CAPABILITY_MATRIX_PATH}: {key[0]} {key[1]} is {actual}, expected {expected}"
+            )
+
+    return "ok Phase 8 exit-gate evidence (live providers/packs, D-027, public clients, tri-platform candidate)"
+
+
+def run_exit_gate() -> tuple[int, str]:
+    try:
+        return 0, check_exit_gate()
+    except (CheckError, OSError, csv.Error) as exc:
+        return 1, str(exc)
+
+
+# ---------------------------------------------------------------------------
 # Self-test and CLI
 # ---------------------------------------------------------------------------
 
@@ -651,6 +738,7 @@ def main() -> int:
     parser.add_argument("--coverage", type=Path, default=None, metavar="FIXTURE_DIR")
     parser.add_argument("--evidence", type=Path, default=None, metavar="DIR")
     parser.add_argument("--modpack-evidence", type=Path, default=None, metavar="DIR")
+    parser.add_argument("--gate", action="store_true", help="check P8.30's committed exit-gate evidence")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
 
@@ -691,6 +779,12 @@ def main() -> int:
     if args.modpack_evidence is not None:
         ran = True
         code, message = run_modpack_evidence(args.modpack_evidence)
+        print(message)
+        overall_code = overall_code or code
+
+    if args.gate:
+        ran = True
+        code, message = run_exit_gate()
         print(message)
         overall_code = overall_code or code
 

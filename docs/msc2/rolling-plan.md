@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 9 in progress — P9.1 through P9.12 are DONE, and the helper-acquisition amendment's P9.6a and P9.7a are DONE. The amendment's checksum QUESTION was **answered and then amended** (2026-08-22): verification is absolute for every helper, but the hash is repository-pinned for `playitd`/MCXboxBroadcast and upstream-published for Geyser/Floodgate. Remaining: P9.6b, P9.10a, P9.11a, then P9.13–P9.15.
-> **Next move:** Cameron answers QUESTION 2 (what MSC 2 says when the newest Geyser will not run on an older server). Then EXECUTE P9.6b, P9.10a, P9.11a. P9.11a still requires its own decision entry, because it deliberately diverges from MSC 1 rather than fixing a port defect.
+> **Next move:** EXECUTE the amendment's remaining steps in order — P9.6b, P9.10a, P9.10b, P9.11a — then P9.13–P9.15. Both amendment QUESTIONs are answered. P9.11a still requires its own decision entry (D-028), because it deliberately diverges from MSC 1 rather than fixing a port defect.
 > **Repo:** https://github.com/ctemple9/msc2 · GitHub Actions run [32544701401](https://github.com/ctemple9/msc2/actions/runs/32544701401) is green for exact Phase 8 code candidate `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887`, including repository invariants, macOS, Linux, Windows, and the headless no-GUI link check.
 > **Last updated:** 2026-08-21
 
@@ -359,7 +359,26 @@ If unsure:       (a). Phase 3 already made checksum-verified staging the rule fo
 
 **Explicitly out of scope, matching MSC 1.** No Minecraft-version-to-Geyser-version mapping is built. MSC 1 has none — it installs the newest Geyser onto whatever server exists, with no compatibility guard — and the Geyser API exposes no such mapping to copy. This step preserves that behavior deliberately rather than inventing a system with no oracle behind it. See QUESTION 2 below for the one piece of this that is still open.
 
-### QUESTION 2 — before P9.10a
+### QUESTION 2 — before P9.10a — **ANSWERED**
+
+**Answer: (b) — install as MSC 1 does, and diagnose the failure.** Confirmed by Cameron
+Temple, 2026-08-22.
+
+P9.10a's install behavior is unchanged and unblocked: newest version, newest build, `spigot`
+artifact, exactly as MSC 1 does it. No version mapping is built. Separately, P9.10b teaches
+the startup analyzer to recognise a Geyser load failure and name it.
+
+This turns out cheaper than the question estimated. `StartupProblemKind::IncompatibleVersion`
+already exists in `crates/msc-domain/src/crash_analysis.rs` — "Offender is built for a
+different MC/loader/mod version" — and `fixtures/paper-plugin-crash-analysis/` already
+exists, which is precisely where a Paper-family plugin belongs. This is a new pattern and
+new context inside machinery Phase 7 already built and already runs on every failed start,
+not a new problem kind and not new machinery.
+
+**Degrades honestly:** if the pattern never matches, behavior is identical to (a) — the same
+silence MSC 1 has today. Nothing is made worse by trying.
+
+The original question, for the record:
 
 ```
 QUESTION 2 — What happens when the newest Geyser does not support the server?
@@ -389,6 +408,15 @@ If unsure:       (b). "The server told you nothing and crossplay just didn't wor
                  start. It also degrades honestly: if the pattern never matches,
                  behavior is identical to (a).
 ```
+
+### P9.10b — Name a Geyser load failure in startup diagnostics
+
+**Status:** not started
+**Files:** `crates/msc-domain/src/crash_analysis.rs`, `crates/msc-domain/tests/paper_plugin_crash_analysis.rs`, `fixtures/paper-plugin-crash-analysis/`
+**What:** Per QUESTION 2's answer, close the silence MSC 1 leaves when the newest Geyser will not load on an older server. P9.10a deliberately installs the newest build with no compatibility guard, exactly as MSC 1 does; this step makes the resulting failure explicable instead of invisible. Characterize real Geyser load failures against an older Paper server first — do not invent log lines — then teach the analyzer to classify them as the existing `StartupProblemKind::IncompatibleVersion`, carrying as context the installed Geyser version and build (which P9.10a records in `HelperArtifactMetadata`) and the server's Minecraft version, so the finding states plainly that the two do not match. **No new problem kind, no new machinery** — this is a pattern and its context inside the analyzer Phase 7 already runs on every failed start. Where the analyzer offers a repair action, the correct one is not an automatic version walk-back (P9.10a explicitly builds no mapping) but naming the mismatch; whether a repair is offered at all is P9.10b's to determine from the evidence, not to assume. If the pattern does not match, the analyzer must fall through silently — behavior identical to MSC 1's today.
+**Verify:** `cargo nextest run -p msc-domain --test paper_plugin_crash_analysis`
+**Commit:** `P9.10b: name geyser load failures in startup diagnostics`
+**Batch:** solo
 
 ### P9.11a — Pin the Xbox Broadcast JAR, and record the divergence from MSC 1
 

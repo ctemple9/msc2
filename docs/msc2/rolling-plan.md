@@ -563,6 +563,16 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 
 **Actual result:** Phase 7 now calls its existing graceful `stop_agent` helper immediately before success, allowing it to reap the foreground agent before the next Cargo command. The declared Phase 7-then-Phase-8 test sequence passes locally; CI will repeat the sequence on Windows.
 
+### P8.29f — Isolate the Phase 7 smoke binary from Cargo's Windows output
+**Status:** awaiting verification
+**Files:** `tools/phase7/phase7-gate-smoke.sh`, `docs/msc2/rolling-plan.md`
+**What:** Copy the already-built agent executable into Phase 7's temporary smoke directory and run that private copy for both agent and CLI calls. Windows may keep a completed executable briefly locked, so this prevents the Phase 7 smoke from blocking Phase 8's later rebuild of Cargo's shared `target/debug/msc.exe`; Unix behavior remains equivalent.
+**Verify:** `bash -c 'tools/phase7/phase7-gate-smoke.sh --synthetic && cargo nextest run -p msc-agent --test phase8_routes --test cli_phase8'`
+**Commit:** `P8.29f: isolate phase 7 smoke binary`
+**Batch:** stop-after
+
+**Actual result:** Phase 7 copies the freshly built agent into its own temporary directory before starting it. The declared Phase 7-then-Phase-8 test sequence passes locally; Windows CI will verify that Cargo can now replace its shared build output.
+
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`

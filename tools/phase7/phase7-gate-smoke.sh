@@ -126,9 +126,15 @@ fail() {
   exit 1
 }
 
-MSC_BIN="${ROOT}/target/debug/msc"
 TOKEN="msc2_phase7_gate_bootstrap_secret"
 TMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/msc2-phase7-gate.XXXXXX")"
+if [[ "$(uname -s)" == MINGW* || "$(uname -s)" == MSYS* ]]; then
+  MSC_BIN="${TMP_DIR}/msc.exe"
+  cp "${ROOT}/target/debug/msc.exe" "${MSC_BIN}"
+else
+  MSC_BIN="${TMP_DIR}/msc"
+  cp "${ROOT}/target/debug/msc" "${MSC_BIN}"
+fi
 DATA_DIR="${TMP_DIR}/data"
 SERVERS_ROOT="${TMP_DIR}/servers"
 CONFIG_PATH="${DATA_DIR}/server_config_swift.json"

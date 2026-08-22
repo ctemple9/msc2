@@ -483,6 +483,42 @@ body rather than promoted to a numbered decision.
 **Commit:** `P9.15: close the Phase 9 gate`
 **Batch:** solo
 
+### P9.16 — Repair and re-verify Phase 9 API conformance
+
+**Status:** not started
+**Files:** `crates/msc-api/tests/phase9_conformance.rs`, `docs/msc2/rolling-plan.md`
+**What:** Fix the Phase 9 conformance test's Rust name-shadowing compile error: `resolve`'s `schema` parameter hides the helper function named `schema`. Rename only the parameter or otherwise make the helper call unambiguous; do not alter the API contract or weaken the assertions. Run P9.4's literal Verify command afterward. If that command fails for any other reason, stop and report it rather than broadening the change.
+**Verify:** `python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run -p msc-api --test phase9_conformance && rg -n 'ConnectivityResponseDTO' docs/msc2/api-contract/openapi.json`
+**Commit:** `P9.16: repair phase9 API conformance`
+**Batch:** solo
+
+### P9.17 — Verify the Xbox Broadcast acquisition amendment
+
+**Status:** not started
+**Files:** `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `docs/msc2/rolling-plan.md`
+**What:** Run P9.11a's own Verify command against the completed Broadcast checksum-acquisition implementation. Confirm that the upstream digest is required and verified before promotion, the prior JAR remains intact on failure, and readiness timing is not armed by acquisition failure. After the command passes, update P9.11a to `awaiting verification`; Cameron closes it after independently running the same command.
+**Verify:** `cargo nextest run -p msc-application --test xbox_broadcast`
+**Commit:** `P9.17: verify Xbox Broadcast acquisition`
+**Batch:** stop-after
+
+### P9.18 — Run the Phase 9 synthetic gate in tri-platform CI
+
+**Status:** not started
+**Files:** `.github/workflows/ci.yml`, `docs/msc2/rolling-plan.md`
+**What:** Extend the existing macOS/Linux/Windows toolchain job so every platform runs `python3 tools/phase9/phase9-check.py --gate` and `bash tools/phase9/phase9-smoke.sh --synthetic` in addition to the existing workspace, Phase 6, Phase 7, and Phase 8 checks. Keep the headless no-GUI artifact and link job unchanged. The Phase 9 smoke is offline and must use its existing fake transports; do not add provider credentials or live network calls to CI. This creates the exact candidate whose CI result P9.19 will inspect.
+**Verify:** `git diff --check && rg -n 'phase9-check.py --gate|phase9-smoke.sh --synthetic' .github/workflows/ci.yml`
+**Commit:** `P9.18: run phase9 synthetic gate in CI`
+**Batch:** solo
+
+### P9.19 — Re-run and record the exact Phase 9 gate
+
+**Status:** not started
+**Files:** `docs/msc2/networking/phase9-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Run the complete P9.15 gate against the exact P9.18 code candidate: the documentary checker, synthetic smoke, full workspace suite, and the GitHub Actions run whose `headSha` is that candidate. Require green macOS, Linux, Windows, and headless no-GUI jobs. Then reconcile the review record: state the exact candidate SHA and CI run, correct the stale Phase 9 header, mark P9.11a/P9.14/P9.15 accurately, and remove the Phase 9 scope wording that still implies general-LAN management is allowed; the approved D-012 posture is loopback by default with explicitly configured Tailscale only. Do not claim live provider success where the evidence remains honestly unavailable. Leave this step `awaiting verification` for the independent REVIEW move; Cameron alone marks it `DONE` after running the Verify command.
+**Verify:** `candidate_sha=$(git log -1 --format=%H --grep='P9.18: run phase9 synthetic gate in CI') && test -n "$candidate_sha" && python3 tools/phase9/phase9-check.py --gate && bash tools/phase9/phase9-smoke.sh --synthetic && cargo nextest run --workspace && run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --json databaseId,headSha,conclusion --jq 'map(select(.headSha == "'"$candidate_sha"'" and .conclusion == "success"))[0].databaseId') && test -n "$run_id" && gh run view "$run_id" --exit-status`
+**Commit:** `P9.19: re-run and record the phase9 gate`
+**Batch:** solo
+
 ## Phase 9 amendments log
 
 ### 2026-08-22 — Managed-helper acquisition and truthful startup failures

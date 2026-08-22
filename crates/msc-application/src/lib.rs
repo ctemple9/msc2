@@ -14,6 +14,7 @@ pub mod lifecycle;
 pub mod modpacks;
 pub mod operations;
 pub mod output_reducer;
+pub mod playit;
 pub mod provisioning;
 pub mod server_versions;
 pub mod status;

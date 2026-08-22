@@ -155,7 +155,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.7 — Add Playit tunnel lifecycle and secret handling
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/playit.rs`, `crates/msc-application/src/playit.rs`, `crates/msc-application/tests/playit.rs`, `crates/msc-agent/tests/playit_routes.rs`, `fixtures/networking/`
 **What:** Port Playit configuration, tunnel status, start/stop/update behavior, and player-facing connection details through the managed-helper foundation. Store its secret only through `SecretStore`, redact it from status, logs, audit records, exports, and API responses, and make network work an operation with cancellation and restart recovery. Treat a tunnel as Minecraft transport only; it must never make the agent’s management port public. Expose a bounded "tunnel became ready" signal (MSC 1's own creation-time watchdog waits ~75s before giving up) — P9.13 needs it to reproduce MSC 1's first-run orchestration.
 **Verify:** `cargo nextest run -p msc-application --test playit && cargo nextest run -p msc-agent --test playit_routes`

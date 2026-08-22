@@ -17,6 +17,7 @@ pub mod loader_installer;
 pub mod metrics;
 pub mod operation_journal;
 pub mod path_safety;
+pub mod playit;
 pub mod power;
 pub mod process;
 pub mod secret_store;

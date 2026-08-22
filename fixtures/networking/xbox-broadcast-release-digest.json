@@ -1,0 +1,20 @@
+{
+  "domain": "networking",
+  "case": "xbox-broadcast-release-digest",
+  "source": {
+    "file": "MSCmacOS/MSCmacOS Swift/XboxBroadcastDownloader.swift",
+    "test": "downloadOrUpdateXboxBroadcastJar",
+    "line": 41
+  },
+  "input": {
+    "tagName": "v3.0.2",
+    "assetName": "MCXboxBroadcastStandalone.jar",
+    "digest": "sha256:829b21a069ff177599d32249ba84e0979b39f7fcba8a437607be0b9b06b51c20"
+  },
+  "expected": {
+    "resolveLatest": true,
+    "verifySha256": true,
+    "checksumSource": "upstream-published",
+    "missingDigest": "fatal"
+  }
+}

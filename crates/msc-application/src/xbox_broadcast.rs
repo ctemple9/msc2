@@ -7,7 +7,8 @@ use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperPr
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::xbox_broadcast::{
-    XboxBroadcastLaunch, alt_password_secret_key, auth_token_secret_key,
+    XboxBroadcastJarAcquisition, XboxBroadcastLaunch, alt_password_secret_key,
+    auth_token_secret_key,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -32,7 +33,7 @@ pub struct BroadcastStatus {
 pub enum XboxBroadcastError {
     Disabled,
     AlreadyManaged,
-    MissingJar,
+    Acquisition(String),
     SecretStore(String),
     Operation(String),
     Process(String),
@@ -43,7 +44,9 @@ impl fmt::Display for XboxBroadcastError {
         match self {
             Self::Disabled => write!(f, "Xbox Broadcast is not enabled for this server"),
             Self::AlreadyManaged => write!(f, "Xbox Broadcast is already managed"),
-            Self::MissingJar => write!(f, "MCXboxBroadcast JAR is not configured"),
+            Self::Acquisition(message) => {
+                write!(f, "MCXboxBroadcast acquisition failed: {message}")
+            }
             Self::SecretStore(message) | Self::Operation(message) | Self::Process(message) => {
                 write!(f, "{message}")
             }
@@ -125,12 +128,13 @@ impl<'a> XboxBroadcastService<'a> {
             .map_err(|error| XboxBroadcastError::SecretStore(error.to_string()))
     }
 
-    pub fn start(&mut self, launch: XboxBroadcastLaunch) -> Result<String, XboxBroadcastError> {
+    pub fn start(
+        &mut self,
+        launch: XboxBroadcastLaunch,
+        acquisition: &XboxBroadcastJarAcquisition<'_>,
+    ) -> Result<String, XboxBroadcastError> {
         if !self.enabled {
             return Err(XboxBroadcastError::Disabled);
-        }
-        if launch.jar_path.as_os_str().is_empty() {
-            return Err(XboxBroadcastError::MissingJar);
         }
         let key = self.key();
         let operation_id = self
@@ -141,7 +145,21 @@ impl<'a> XboxBroadcastService<'a> {
                 "Starting Xbox Broadcast.",
             )
             .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;
-        match self.helpers.start(key, launch.process_request()) {
+        let acquired = match acquisition.acquire() {
+            Ok(acquired) => acquired,
+            Err(error) => {
+                let message = error.to_string();
+                let _ = self.operations.fail(
+                    &operation_id,
+                    lifecycle_error("broadcast_acquisition_failed", message.clone()),
+                );
+                return Err(XboxBroadcastError::Acquisition(message));
+            }
+        };
+        match self
+            .helpers
+            .start(key, launch.process_request(&acquired.artifact.path))
+        {
             Ok(_) => {
                 self.snapshot = HelperSnapshot {
                     status: HelperStatus::Starting,

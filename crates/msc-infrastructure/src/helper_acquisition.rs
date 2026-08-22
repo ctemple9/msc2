@@ -88,6 +88,23 @@ pub struct PinnedHelperAsset {
     pub sha256: String,
 }
 
+/// A provider-resolved release with one exact asset.
+///
+/// This uses the same stage, verify, and promote path as a repository pin,
+/// while allowing providers such as Geyser to supply their own concrete
+/// version/build identity and published checksum.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedHelperRelease {
+    pub helper: String,
+    pub version: String,
+    pub platform: HelperPlatform,
+    pub release_metadata_url: String,
+    pub asset_name: String,
+    pub asset_url: String,
+    pub sha256: String,
+    pub checksum_source: ChecksumSource,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ChecksumSource {
@@ -227,14 +244,43 @@ pub fn acquire_pinned_helper(
         )));
     }
 
-    let helper_directory = cache_directory.join(&pin.helper).join(&pin.version);
+    acquire_resolved_helper(
+        transport,
+        fs,
+        cache_directory,
+        &ResolvedHelperRelease {
+            helper: pin.helper.clone(),
+            version: pin.version.clone(),
+            platform,
+            release_metadata_url: pin.release_metadata_url.clone(),
+            asset_name: pinned_asset.asset_name.clone(),
+            asset_url: asset.browser_download_url.clone(),
+            sha256: pinned_asset.sha256.clone(),
+            checksum_source: ChecksumSource::RepositoryPinned,
+        },
+    )
+}
+
+/// Acquires a provider-resolved helper through the same verified staging
+/// boundary as [`acquire_pinned_helper`]. The provider must already have
+/// resolved the release to an exact version, asset URL, and SHA-256; this
+/// function does not chase a mutable alias or perform another metadata lookup.
+pub fn acquire_resolved_helper(
+    transport: &dyn Transport,
+    fs: &dyn FileSystem,
+    cache_directory: &Path,
+    release: &ResolvedHelperRelease,
+) -> Result<AcquiredHelper, HelperAcquisitionError> {
+    validate_resolved_release(release)?;
+
+    let helper_directory = cache_directory.join(&release.helper).join(&release.version);
     fs.create_dir_all(&helper_directory)
         .map_err(|error| map_filesystem_error("create helper cache", error))?;
-    let artifact_path = helper_directory.join(&pinned_asset.asset_name);
+    let artifact_path = helper_directory.join(&release.asset_name);
     let metadata_path = metadata_path_for(&artifact_path);
-    let staged_artifact = helper_directory.join(format!(".{}.staged", pinned_asset.asset_name));
+    let staged_artifact = helper_directory.join(format!(".{}.staged", release.asset_name));
     let staged_metadata =
-        helper_directory.join(format!(".{}.metadata.json.staged", pinned_asset.asset_name));
+        helper_directory.join(format!(".{}.metadata.json.staged", release.asset_name));
     let previous_artifact = fs.read(&artifact_path).ok();
     let previous_artifact_executable = fs
         .stat(&artifact_path)
@@ -243,19 +289,15 @@ pub fn acquire_pinned_helper(
     let previous_metadata = fs.read(&metadata_path).ok();
 
     let bytes = transport
-        .get(
-            &asset.browser_download_url,
-            "pinned helper asset",
-            HELPER_ASSET_MAX_BYTES,
-        )
+        .get(&release.asset_url, "helper asset", HELPER_ASSET_MAX_BYTES)
         .map_err(HelperAcquisitionError::Download)?;
-    let checksum = ExpectedChecksum::sha256(pinned_asset.sha256.clone());
+    let checksum = ExpectedChecksum::sha256(release.sha256.clone());
     if let Err(error) = download_staging::stage_download(
         fs,
         &staged_artifact,
         &bytes,
-        &asset.browser_download_url,
-        &pin.version,
+        &release.asset_url,
+        &release.version,
         Some(&checksum),
     ) {
         cleanup(fs, &staged_artifact);
@@ -267,14 +309,14 @@ pub fn acquire_pinned_helper(
     }
 
     let metadata = HelperArtifactMetadata {
-        helper: pin.helper.clone(),
-        version: pin.version.clone(),
-        platform,
-        release_metadata_url: pin.release_metadata_url.clone(),
-        asset_name: pinned_asset.asset_name.clone(),
-        asset_url: asset.browser_download_url.clone(),
-        sha256: pinned_asset.sha256.clone(),
-        checksum_source: ChecksumSource::RepositoryPinned,
+        helper: release.helper.clone(),
+        version: release.version.clone(),
+        platform: release.platform,
+        release_metadata_url: release.release_metadata_url.clone(),
+        asset_name: release.asset_name.clone(),
+        asset_url: release.asset_url.clone(),
+        sha256: release.sha256.clone(),
+        checksum_source: release.checksum_source,
     };
     let metadata_json = serde_json::to_vec_pretty(&metadata).map_err(|error| {
         cleanup(fs, &staged_artifact);
@@ -309,8 +351,8 @@ pub fn acquire_pinned_helper(
     Ok(AcquiredHelper {
         artifact: CachedFile {
             path: artifact_path,
-            origin_url: asset.browser_download_url.clone(),
-            version: pin.version.clone(),
+            origin_url: release.asset_url.clone(),
+            version: release.version.clone(),
         },
         metadata_path,
         metadata,
@@ -365,6 +407,43 @@ fn validate_pin(
         return Err(HelperAcquisitionError::ReleaseResolution(format!(
             "asset {} does not have a 64-character SHA-256 pin",
             asset.asset_name
+        )));
+    }
+    Ok(())
+}
+
+fn validate_resolved_release(
+    release: &ResolvedHelperRelease,
+) -> Result<(), HelperAcquisitionError> {
+    if release.helper.is_empty() || !safe_component(&release.helper) {
+        return Err(HelperAcquisitionError::ReleaseResolution(
+            "helper name must be one path component".into(),
+        ));
+    }
+    if release.version.is_empty() || !safe_component(&release.version) {
+        return Err(HelperAcquisitionError::ReleaseResolution(
+            "resolved version must be one path component".into(),
+        ));
+    }
+    if release.release_metadata_url.is_empty() {
+        return Err(HelperAcquisitionError::ReleaseResolution(
+            "resolved release is missing its metadata URL".into(),
+        ));
+    }
+    if release.asset_name.is_empty() || !safe_component(&release.asset_name) {
+        return Err(HelperAcquisitionError::ReleaseResolution(
+            "asset name must be one path component".into(),
+        ));
+    }
+    if release.asset_url.is_empty() {
+        return Err(HelperAcquisitionError::ReleaseResolution(
+            "resolved asset is missing its download URL".into(),
+        ));
+    }
+    if release.sha256.len() != 64 || !release.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(HelperAcquisitionError::ReleaseResolution(format!(
+            "asset {} does not have a 64-character SHA-256 digest",
+            release.asset_name
         )));
     }
     Ok(())

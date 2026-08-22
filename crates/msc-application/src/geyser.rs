@@ -7,7 +7,13 @@
 
 use std::path::{Path, PathBuf};
 
-use msc_infrastructure::{atomic_write::atomic_write, fs::FileSystem};
+use msc_infrastructure::{
+    atomic_write::atomic_write,
+    fs::FileSystem,
+    geyser::{self as geyser_provider, GeyserAcquisitionError, GeyserBuild, GeyserProject},
+    helper_acquisition::{AcquiredHelper, HelperPlatform},
+    jar_provider::Transport,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeyserConfig {
@@ -21,6 +27,134 @@ pub struct CrossPlayInstallation {
     pub floodgate_installed: bool,
     pub geyser_path: Option<PathBuf>,
     pub floodgate_path: Option<PathBuf>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ManagedPluginInstallation {
+    pub build: GeyserBuild,
+    pub plugin_path: PathBuf,
+    pub acquired: AcquiredHelper,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstallError {
+    Acquisition(String),
+    Filesystem(String),
+    InvalidConfiguration(String),
+}
+
+impl std::fmt::Display for InstallError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Acquisition(message) => write!(f, "Geyser acquisition failed: {message}"),
+            Self::Filesystem(message) => write!(f, "Geyser installation failed: {message}"),
+            Self::InvalidConfiguration(message) => {
+                write!(f, "Geyser configuration is invalid: {message}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for InstallError {}
+
+/// Resolves and installs one latest Paper-family cross-play plugin.
+///
+/// The JAR is acquired and checksum-verified before this function touches
+/// the server's `plugins/` directory. If an existing Geyser configuration is
+/// present, it must still be parseable; a failed validation restores the
+/// previous JAR so an update never leaves a known-good installation disabled.
+pub fn install_latest(
+    fs: &dyn FileSystem,
+    transport: &dyn Transport,
+    cache_directory: &Path,
+    server_dir: &Path,
+    project: GeyserProject,
+    platform: HelperPlatform,
+) -> Result<ManagedPluginInstallation, InstallError> {
+    let (build, acquired) =
+        geyser_provider::acquire_latest(transport, fs, cache_directory, project, platform)
+            .map_err(map_acquisition_error)?;
+    let plugins_dir = server_dir.join("plugins");
+    if !fs
+        .stat(&plugins_dir)
+        .map(|metadata| metadata.is_dir)
+        .unwrap_or(false)
+    {
+        return Err(InstallError::Filesystem(format!(
+            "plugin directory {} does not exist",
+            plugins_dir.display()
+        )));
+    }
+
+    let current = installation(fs, server_dir);
+    let plugin_path = match project {
+        GeyserProject::Geyser => current
+            .geyser_path
+            .unwrap_or_else(|| plugins_dir.join(project.jar_name())),
+        GeyserProject::Floodgate => current
+            .floodgate_path
+            .unwrap_or_else(|| plugins_dir.join(project.jar_name())),
+    };
+    let previous =
+        if fs.stat(&plugin_path).is_ok() {
+            Some(fs.read(&plugin_path).map_err(|error| {
+                InstallError::Filesystem(format!("read existing plugin: {error}"))
+            })?)
+        } else {
+            None
+        };
+
+    let config_was_present = matches!(project, GeyserProject::Geyser)
+        && fs
+            .stat(&config_path(server_dir))
+            .map(|metadata| metadata.is_file)
+            .unwrap_or(false);
+    if config_was_present && read_config(fs, server_dir).is_none() {
+        return Err(InstallError::InvalidConfiguration(
+            "existing config.yml cannot be parsed".into(),
+        ));
+    }
+
+    let bytes = fs.read(&acquired.artifact.path).map_err(|error| {
+        InstallError::Filesystem(format!("read verified helper artifact: {error}"))
+    })?;
+    atomic_write(fs, &plugin_path, &bytes)
+        .map_err(|error| InstallError::Filesystem(error.to_string()))?;
+
+    let valid = match project {
+        GeyserProject::Geyser => !config_was_present || read_config(fs, server_dir).is_some(),
+        GeyserProject::Floodgate => installation(fs, server_dir).floodgate_installed,
+    };
+    if !valid {
+        restore_plugin(fs, &plugin_path, previous.as_deref())?;
+        return Err(InstallError::InvalidConfiguration(
+            "configuration validation failed after staging the new plugin".into(),
+        ));
+    }
+
+    Ok(ManagedPluginInstallation {
+        build,
+        plugin_path,
+        acquired,
+    })
+}
+
+fn map_acquisition_error(error: GeyserAcquisitionError) -> InstallError {
+    InstallError::Acquisition(error.to_string())
+}
+
+fn restore_plugin(
+    fs: &dyn FileSystem,
+    path: &Path,
+    previous: Option<&[u8]>,
+) -> Result<(), InstallError> {
+    match previous {
+        Some(bytes) => atomic_write(fs, path, bytes)
+            .map_err(|error| InstallError::Filesystem(error.to_string())),
+        None => fs.remove(path).map_err(|error| {
+            InstallError::Filesystem(format!("remove failed plugin replacement: {error}"))
+        }),
+    }
 }
 
 pub fn installation(fs: &dyn FileSystem, server_dir: &Path) -> CrossPlayInstallation {

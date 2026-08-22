@@ -227,7 +227,7 @@ Four corrections from the cross-check, to carry into the scope note rather than 
 
 ### P9.12 — Implement durable named-token administration and revocation
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/auth.rs`, `crates/msc-agent/src/routes/users.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/tests/user_routes.rs`, `crates/msc-infrastructure/src/credential_repository.rs`, `crates/msc-infrastructure/tests/credential_repository.rs`, `fixtures/credentials/`
 **What:** Wire the existing durable registry and verifier into the P9.4 `GET /users`, `POST /users`, `POST /users/update`, and `POST /users/revoke` contract. Admin-only access, label/role/permission/expiry validation, secret issuance exactly once, audit attribution, secret deletion, registry persistence, and revoked-token rejection must all be explicit. Prove that revoke wins over stale in-memory state and remains effective after the agent restarts using the same production `SecretStore` path Phase 4/5 use; never return raw bearer secrets from list/update responses.
 **Verify:** `cargo nextest run -p msc-infrastructure --test credential_repository && cargo nextest run -p msc-agent --test user_routes`

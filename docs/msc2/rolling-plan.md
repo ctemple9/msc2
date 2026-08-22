@@ -503,7 +503,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.18 — Run the Phase 9 synthetic gate in tri-platform CI
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/rolling-plan.md`
 **What:** Extend the existing macOS/Linux/Windows toolchain job so every platform runs `python3 tools/phase9/phase9-check.py --gate` and `bash tools/phase9/phase9-smoke.sh --synthetic` in addition to the existing workspace, Phase 6, Phase 7, and Phase 8 checks. Keep the headless no-GUI artifact and link job unchanged. The Phase 9 smoke is offline and must use its existing fake transports; do not add provider credentials or live network calls to CI. This creates the exact candidate whose CI result P9.19 will inspect.
 **Verify:** `git diff --check && rg -n 'phase9-check.py --gate|phase9-smoke.sh --synthetic' .github/workflows/ci.yml`

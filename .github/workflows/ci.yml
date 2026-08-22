@@ -146,6 +146,16 @@ jobs:
         shell: bash
         run: tools/phase8/phase8-gate-smoke.sh --synthetic
 
+      # P9.18: the Phase 9 gate and synthetic smoke are offline and use only
+      # the committed fake transports, so they run on every toolchain leg.
+      - name: Phase 9 networking and helper gate
+        shell: bash
+        run: python3 tools/phase9/phase9-check.py --gate
+
+      - name: Phase 9 networking and helper smoke
+        shell: bash
+        run: tools/phase9/phase9-smoke.sh --synthetic
+
       - name: Collect headless artifact
         shell: bash
         run: |

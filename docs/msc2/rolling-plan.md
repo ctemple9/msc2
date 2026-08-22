@@ -344,10 +344,10 @@ If unsure:       (a). Phase 3 already made checksum-verified staging the rule fo
 
 ### P9.6b — Record checksum provenance and correct the primitive's stated policy
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/helper_acquisition.rs`, `crates/msc-infrastructure/tests/helper_acquisition.rs`
 **What:** P9.6a's shape is correct and is **not** being redone — it already takes the expected digest as caller-supplied data, which is exactly what both checksum sources need. Two things now misstate the design. First, `PinnedHelperRelease`'s doc comment declares a policy the type does not own — "One repository-owned helper release pin … the expected digest is deliberately stored here, even when the upstream project publishes no checksum of its own" — which would tell a cold agent that P9.10a's upstream-published hash violates the design. Reword it to describe a verifier that accepts a digest from either source. Second, `HelperArtifactMetadata` records `sha256` but not where it came from; add a `checksum_source` field (`repository-pinned` | `upstream-published`) so an audit can answer who vouched for the bytes on disk. No behavior change to download, verification, staging, or failure handling.
-**Verify:** `cargo nextest run -p msc-infrastructure --test helper_acquisition && rg -n 'checksumSource' crates/msc-infrastructure/src/helper_acquisition.rs`
+**Verify:** `cargo nextest run -p msc-infrastructure --test helper_acquisition && rg -n 'checksum_source' crates/msc-infrastructure/src/helper_acquisition.rs`
 **Commit:** `P9.6b: record checksum provenance on acquired helpers`
 **Batch:** safe
 

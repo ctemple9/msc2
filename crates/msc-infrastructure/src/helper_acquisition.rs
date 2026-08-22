@@ -1,11 +1,12 @@
-//! Pinned, checksum-verified acquisition for managed helper binaries.
+//! Checksum-verified acquisition for managed helper binaries.
 //!
 //! A helper is executable code that the agent downloads and later launches,
 //! so it has a stricter contract than an ordinary provider download: the
-//! release identity, asset name, and SHA-256 all come from the repository's
-//! pin, and a release is never resolved through an unbounded `latest` alias.
-//! The caller supplies a [`Transport`] so tests can exercise every branch
-//! without contacting a public provider.
+//! release and asset identity are exact, and the bytes must match a
+//! caller-supplied SHA-256 from either a repository pin or the upstream
+//! provider. The acquisition boundary never resolves an unbounded `latest`
+//! alias itself. The caller supplies a [`Transport`] so tests can exercise
+//! every branch without contacting a public provider.
 
 use crate::atomic_write::{AtomicWriteError, atomic_write};
 use crate::download_staging::{self, CachedFile, DownloadStagingError, ExpectedChecksum};
@@ -67,9 +68,11 @@ impl fmt::Display for HelperPlatform {
     }
 }
 
-/// One repository-owned helper release pin. The metadata URL must identify
-/// this exact release, and the expected digest is deliberately stored here,
-/// even when the upstream project publishes no checksum of its own.
+/// An exact helper release and its platform-specific asset checksums.
+///
+/// The metadata URL and version must identify the same release. The expected
+/// digest is caller-supplied: it may be a repository pin or a checksum
+/// published by the upstream provider.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PinnedHelperRelease {
     pub helper: String,
@@ -85,6 +88,13 @@ pub struct PinnedHelperAsset {
     pub sha256: String,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ChecksumSource {
+    RepositoryPinned,
+    UpstreamPublished,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HelperArtifactMetadata {
@@ -95,6 +105,7 @@ pub struct HelperArtifactMetadata {
     pub asset_name: String,
     pub asset_url: String,
     pub sha256: String,
+    pub checksum_source: ChecksumSource,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -263,6 +274,7 @@ pub fn acquire_pinned_helper(
         asset_name: pinned_asset.asset_name.clone(),
         asset_url: asset.browser_download_url.clone(),
         sha256: pinned_asset.sha256.clone(),
+        checksum_source: ChecksumSource::RepositoryPinned,
     };
     let metadata_json = serde_json::to_vec_pretty(&metadata).map_err(|error| {
         cleanup(fs, &staged_artifact);

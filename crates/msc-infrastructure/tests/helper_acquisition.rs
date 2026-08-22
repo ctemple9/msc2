@@ -1,8 +1,8 @@
 use msc_infrastructure::download_staging::sha256_hex;
 use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
 use msc_infrastructure::helper_acquisition::{
-    AcquiredHelper, HelperAcquisitionError, HelperPlatform, PinnedHelperAsset, PinnedHelperRelease,
-    acquire_pinned_helper, metadata_path_for,
+    AcquiredHelper, ChecksumSource, HelperAcquisitionError, HelperPlatform, PinnedHelperAsset,
+    PinnedHelperRelease, acquire_pinned_helper, metadata_path_for,
 };
 use msc_infrastructure::jar_provider::{JarProviderError, Transport};
 use serde_json::Value;
@@ -118,6 +118,22 @@ fn pinned_helper_resolves_exact_asset_verifies_sha256_and_records_metadata() {
     assert_eq!(metadata["version"], "playitd-v1.0.10");
     assert_eq!(metadata["assetName"], "playitd-linux-x86_64");
     assert_eq!(metadata["sha256"], ASSET_SHA256);
+    assert_eq!(
+        metadata["checksumSource"],
+        serde_json::json!("repository-pinned")
+    );
+}
+
+#[test]
+fn checksum_source_serializes_both_provenance_values() {
+    assert_eq!(
+        serde_json::to_value(ChecksumSource::RepositoryPinned).unwrap(),
+        serde_json::json!("repository-pinned")
+    );
+    assert_eq!(
+        serde_json::to_value(ChecksumSource::UpstreamPublished).unwrap(),
+        serde_json::json!("upstream-published")
+    );
 }
 
 #[test]

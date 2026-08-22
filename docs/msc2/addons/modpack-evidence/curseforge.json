@@ -1,0 +1,9 @@
+{
+  "pack_format": "curseforge",
+  "captured": "2026-08-21T20:18:00-04:00",
+  "source_archive": "corpus/packs/fabulously-optimized-v13.3.0-curseforge.zip",
+  "source_sha256": "847fbdba35b7c0f36bf7dc0ff654b3a90f19f57f6aab4fbabb86f5e857a7d755",
+  "outcome": "unavailable",
+  "inspection": {"name": "Fabulously Optimized", "version": "13.3.0", "minecraft_version": "26.1.2", "loader": "Fabric 0.19.3", "file_count": 48, "manual_files": 0},
+  "reason": "Inspection succeeded through the ordinary CLI. Import and D-027 manual-file completion require a configured CurseForge API key; the isolated live agent had none, and no secret was copied from a user keychain."
+}

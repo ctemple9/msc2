@@ -147,7 +147,7 @@ If unsure:       (a). Phase 6 already built bounded staged uploads, so this pres
 ### Scope and evidence
 
 ### P8.1 — Scope Phase 8 and settle the D-027 workflow
-**Status:** DONE
+**Status:** awaiting verification
 **Files:** `docs/msc2/addons/phase8-scope.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/audit/msc2-symbol-ledger.csv`
 **What:** Read every Phase 8 oracle symbol against the current Rust inventory, Phase 7 handoff, frozen routes, and staged-upload primitive. Record the exact provider purposes, add-on identity/update precedence, pack-managed rule, modpack create/import boundary, rollback/cancellation contract, client-export behavior, Phase 9 exclusions, and every owned ledger row (`addon-updates`, `components`/`components-versions` only where not Phase 9, `modpack-client-only`, `modpack-import`, `modpacks`, `modrinth-deps`, `mods`, `plugin-management`, `plugins`, and `applyStagedAddOn`). Record Cameron's answer to QUESTION 1 as a dated D-027 decision. Write no Rust.
 **Verify:** `python3 -c "from pathlib import Path; s=Path('docs/msc2/addons/phase8-scope.md').read_text().lower(); required=['modrinth','hangar','curseforge','dependency','client-only','pack-managed','rollback','staged upload','client export','phase 9','d-027']; missing=[x for x in required if x not in s]; assert not missing, missing; print('OK')"`
@@ -506,12 +506,14 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Batch:** solo
 
 ### P8.28 — Exercise real providers and real packs
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/addons/provider-evidence/`, `docs/msc2/addons/modpack-evidence/`, `docs/msc2/addons/phase8-scope.md`
 **What:** With all provider overrides absent, use the ordinary CLI to search Modrinth, resolve one Hangar-backed plugin source, inspect/import the recorded `.mrpack` and CurseForge pack, complete one author-blocked file if the evidence contains one, reach a real server ready line, export its client package, and stop it. Record exact provider URLs, versions, checksums, operation outcomes, pack file disposition counts, and any unavailable evidence. This is the phase's only live-network verification step.
 **Verify:** `python3 tools/phase8/phase8-check.py --evidence docs/msc2/addons/provider-evidence --modpack-evidence docs/msc2/addons/modpack-evidence`
 **Commit:** `P8.28: record real Phase 8 evidence`
 **Batch:** stop-after
+
+**Actual result:** Live run used the ordinary CLI against an isolated local agent with no provider-base override. The recorded Fabulously Optimized `.mrpack` and CurseForge archive both inspected as Fabric 0.19.3 on Minecraft 26.1.2 with 48 manifest files. The `.mrpack` create operation `op-24011-1` reached `succeeded` and registered a Fabric server; its process then started (`op-24011-2`), was observed running, and received a stop request. A literal Minecraft ready line was not captured before stopping, so it is recorded as unavailable rather than inferred from the running process. Modrinth catalog search returned Sodium (`AANobbMI`) first for that active Fabric server. Hangar resolution, CurseForge import/manual-file completion, and client export are recorded honestly as unavailable: the run had no Paper-like plugin jar to resolve, no CurseForge secret was copied into the isolated agent, and the ordinary CLI export exceeded its response timeout. P8.28's checker validates the four committed records.
 
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started

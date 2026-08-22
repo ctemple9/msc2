@@ -1,0 +1,11 @@
+{
+  "pack_format": "mrpack",
+  "captured": "2026-08-21T20:18:00-04:00",
+  "source_archive": "corpus/packs/fabulously-optimized-v13.3.0.mrpack",
+  "source_sha256": "76cea28e48b4e0da5a80216b1e0784c85cf8b3e333dd4849db84f2588b83349c",
+  "outcome": "success",
+  "inspection": {"name": "Fabulously Optimized", "version": "13.3.0", "minecraft_version": "26.1.2", "loader": "Fabric 0.19.3", "file_count": 48, "client_only_file_count": 0},
+  "create_operation": {"id": "op-24011-1", "state": "succeeded", "status_line": "Created fabric server \"P8 evidence Fabric\".", "ready": true},
+  "lifecycle": {"start_operation": "op-24011-2", "running_observed": true, "ready_line": "unavailable", "stop_requested": true},
+  "client_export": {"outcome": "unavailable", "reason": "The ordinary CLI request exceeded its response timeout; no export artifact was recorded."}
+}

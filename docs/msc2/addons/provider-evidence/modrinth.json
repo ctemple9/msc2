@@ -1,0 +1,9 @@
+{
+  "provider": "modrinth",
+  "captured": "2026-08-21T20:18:00-04:00",
+  "source_url": "https://api.modrinth.com/v2/search?query=sodium",
+  "outcome": "success",
+  "cli": "msc addon search sodium",
+  "server": {"flavor": "fabric", "minecraft_version": "26.1.2"},
+  "first_result": {"project_id": "AANobbMI", "slug": "sodium", "title": "Sodium"}
+}

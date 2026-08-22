@@ -1,0 +1,7 @@
+{
+  "provider": "hangar",
+  "captured": "2026-08-21T20:18:00-04:00",
+  "source_url": "https://hangar.papermc.io/Essentials/Essentials",
+  "outcome": "unavailable",
+  "reason": "The live run created the recorded Fabric pack, so no Paper-like plugin jar existed to link and resolve through the ordinary CLI. The CLI has set-source but no standalone resolve command; no raw HTTP substitute was used."
+}

@@ -162,6 +162,10 @@ Every `docs/msc2/audit/msc2-symbol-ledger.csv` row whose `target_domain` is one 
 
 ## Not resolved by this note
 
+## P8.28 live evidence
+
+The committed records under `provider-evidence/` and `modpack-evidence/` are the real-network evidence for this phase. The `.mrpack` public path successfully created a pinned Fabric server and reached a running state; the unavailable Hangar, CurseForge, and export outcomes are retained rather than substituted with raw HTTP or a copied secret, so the evidence states exactly what the ordinary CLI could complete.
+
 This note fixes the provider/identity/classification/rollback boundary as MSC 1 actually implements it, and records where Phase 8 must invent behavior MSC 1 never had; it does not decide:
 
 - **Whether in-place pack updates against a live server (P8.19/P8.20) get the same all-or-nothing transactional guarantee as pack-driven creation (P8.21)** — flagged above under "Rollback and cancellation." Recommended: yes, for the same reason Phase 7 unified its two separate rollback paths rather than leaving one weaker — but this is P8.19/P8.20's call to make explicitly, not this note's to finalize.

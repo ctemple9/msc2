@@ -146,6 +146,7 @@ fn provisioning_conformance_server_create_request() {
             bedrock_version: None,
             docker_image: None,
             java_path: None,
+            staged_modpack_upload_id: None,
         },
     );
 }

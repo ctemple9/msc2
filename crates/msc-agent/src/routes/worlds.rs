@@ -43,6 +43,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+#[cfg(test)]
 use axum::body::Bytes;
 use axum::extract::{Extension, Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode, header};
@@ -50,13 +51,16 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use msc_api::dto::{
-    PermissionCategoryDto, StagedUploadBeginRequestDto, StagedUploadBeginResultDto,
-    StagedUploadCompleteResultDto, StagedUploadPurposeDto, WorldActivateRequestDto,
-    WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto,
-    WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto,
-    WorldImportRequestDto, WorldMutationResultDto, WorldRenameActiveWorldRequestDto,
-    WorldRenameRequestDto, WorldRepairRequestDto, WorldReplaceActiveRequestDto,
-    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    PermissionCategoryDto, StagedUploadPurposeDto, WorldActivateRequestDto, WorldActivateResultDto,
+    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
+    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
+    WorldMutationResultDto, WorldRenameActiveWorldRequestDto, WorldRenameRequestDto,
+    WorldRepairRequestDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
+    WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+};
+#[cfg(test)]
+use msc_api::dto::{
+    StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
 };
 use msc_application::world_conversion::{
     self, ConversionError, ConversionPlacement, WorldConverter,
@@ -68,6 +72,7 @@ use msc_domain::world::WorldSlot;
 use msc_infrastructure::audit_log::Entry as AuditEntry;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::world_store;
+#[cfg(test)]
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
@@ -83,6 +88,7 @@ use crate::routes::lifecycle::{
 /// deferral of the exact number to this step. Not derived from any
 /// fixture or MSC 1 constant — this step's own scoping decision, flagged
 /// in the P6.21 report rather than treated as an oracle-derived value.
+#[cfg(test)]
 const MAX_STAGED_UPLOAD_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 /// How long a staged upload/download token stays redeemable before it
 /// expires — another of this step's own scoping decisions (§4 leaves the
@@ -123,6 +129,7 @@ pub struct WorldsRoutesState {
 }
 
 impl WorldsRoutesState {
+    #[cfg(test)]
     pub fn new(lifecycle: LifecycleRoutesState) -> Self {
         Self {
             lifecycle,
@@ -147,7 +154,6 @@ pub(crate) struct StagedUpload {
 pub(crate) struct StagedDownload {
     pub(crate) expires_at_unix: u64,
     pub(crate) path: PathBuf,
-    pub(crate) size_bytes: u64,
 }
 
 /// Bytes live on disk under `<servers_root>/.msc2-staging/{uploads,
@@ -799,6 +805,7 @@ pub async fn thumbnail(
 // Staged upload / import
 // =====================================================================
 
+#[cfg(test)]
 pub async fn begin_staged_upload(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -867,6 +874,7 @@ pub async fn begin_staged_upload(
     response
 }
 
+#[cfg(test)]
 pub async fn upload_staged_bytes(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -1057,7 +1065,6 @@ pub async fn export(
                 StagedDownload {
                     expires_at_unix,
                     path: destination,
-                    size_bytes,
                 },
             );
             Json(WorldExportResultDto {
@@ -1079,6 +1086,7 @@ pub async fn export(
     response
 }
 
+#[cfg(test)]
 pub async fn download_staged_bytes(
     State(state): State<WorldsRoutesState>,
     AxumPath(id): AxumPath<String>,
@@ -1104,7 +1112,6 @@ pub async fn download_staged_bytes(
             let _ = std::fs::remove_file(&entry.path);
             let mut headers = HeaderMap::new();
             headers.insert(header::CONTENT_TYPE, "application/zip".parse().unwrap());
-            let _ = entry.size_bytes;
             (StatusCode::OK, headers, bytes).into_response()
         }
         Err(_) => error_response(

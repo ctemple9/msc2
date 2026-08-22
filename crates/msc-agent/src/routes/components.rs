@@ -265,7 +265,7 @@ fn add_or_update_link(
     title: Option<String>,
     slug: Option<String>,
     installed_path: Option<&Path>,
-) -> Result<(), Response> {
+) -> Result<(), AddonMutationError> {
     state
         .try_mutate_config(|config| {
             let server = config
@@ -306,11 +306,9 @@ fn add_or_update_link(
             Ok(())
         })
         .map_err(|error| match error {
-            TryMutateError::Domain(()) | TryMutateError::Save(_) => error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "internal_error",
-                "Could not persist add-on metadata.",
-            ),
+            TryMutateError::Domain(()) | TryMutateError::Save(_) => {
+                AddonMutationError::Io("Could not persist add-on metadata.".to_string())
+            }
         })
 }
 
@@ -319,7 +317,7 @@ fn set_pack_metadata(
     server_id: &str,
     pack_name: &str,
     pack_version: &str,
-) -> Result<(), Response> {
+) -> Result<(), String> {
     state
         .try_mutate_config(|config| {
             let server = config
@@ -332,13 +330,7 @@ fn set_pack_metadata(
             server.pack_version = Some(pack_version.to_string());
             Ok::<(), ()>(())
         })
-        .map_err(|_: TryMutateError<()>| {
-            error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "internal_error",
-                "Could not persist pack metadata.",
-            )
-        })
+        .map_err(|_: TryMutateError<()>| "Could not persist pack metadata.".to_string())
 }
 
 pub async fn begin_staged_upload(
@@ -784,13 +776,11 @@ pub async fn get_client_export(
         let path = downloads_dir.join(format!("{id}.zip"));
         let _ = std::fs::create_dir_all(&downloads_dir);
         if client_export::write_client_export_zip(&items, &path).is_ok() {
-            let size_bytes = std::fs::metadata(&path).map(|meta| meta.len()).unwrap_or(0);
             state.staging.downloads.lock().unwrap().insert(
                 id.clone(),
                 StagedDownload {
                     expires_at_unix: now_unix() + STAGING_TTL_SECONDS,
                     path,
-                    size_bytes,
                 },
             );
             Some(id)
@@ -960,18 +950,18 @@ pub async fn install_component(
             server.pack_managed,
             &|| false,
         )
-        .map(|outcome| {
+        .and_then(|outcome| {
             if let Some(project_id) = body.project_id.as_deref() {
-                let _ = add_or_update_link(
+                add_or_update_link(
                     &state.lifecycle,
                     &server.id,
                     project_id,
                     body.title.clone(),
                     body.slug.clone(),
                     Some(&outcome.installed_path),
-                );
+                )?;
             }
-            body.project_id.clone().zip(body.slug.clone())
+            Ok(body.project_id.clone().zip(body.slug.clone()))
         })
     };
 
@@ -1637,16 +1627,16 @@ pub async fn import_modpack(
             explicit_replace,
             &|| false,
         )
-        .map(|report| {
-            let _ = set_pack_metadata(
+        .map_err(|error| error.to_string())
+        .and_then(|report| {
+            set_pack_metadata(
                 &state.lifecycle,
                 &server.id,
                 &report.pack_name,
                 &report.pack_version,
-            );
-            report
+            )?;
+            Ok(report)
         })
-        .map_err(|error| error.to_string())
         .map(|report| {
             (
                 Vec::new(),
@@ -1667,21 +1657,21 @@ pub async fn import_modpack(
             explicit_replace,
             &|| false,
         )
-        .map(|report| {
-            let _ = set_pack_metadata(
+        .map_err(|error| error.to_string())
+        .and_then(|report| {
+            set_pack_metadata(
                 &state.lifecycle,
                 &server.id,
                 &report.pack_name,
                 &report.pack_version,
-            );
-            (
+            )?;
+            Ok((
                 report.blocked_files,
                 report.pack_name,
                 report.pack_version,
                 report.cancelled,
-            )
-        })
-        .map_err(|error| error.to_string()),
+            ))
+        }),
         modpacks::InspectedFormat::PlainJarZip { .. } => {
             Err("Plain JAR ZIP import is not supported here.".to_string())
         }

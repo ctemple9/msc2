@@ -523,6 +523,16 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Commit:** `P8.29a: restore repository formatting`
 **Batch:** stop-after
 
+### P8.29b — Clear the complete CI compile and lint gate
+**Status:** awaiting verification
+**Files:** `crates/msc-api/tests/world_backup_conformance.rs`, `crates/msc-api/tests/provisioning_conformance.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/components.rs`, the affected route tests, `docs/msc2/rolling-plan.md`
+**What:** Resolve the entire current `cargo clippy --workspace --all-targets -- -D warnings` failure set before attempting P8.29 again. Add the absent optional-field values to the two stale DTO conformance literals (`operationId`/`fileId`, `stagedModpackUploadId`); remove or migrate the now-unrouted duplicate staged-upload/download implementation in `worlds.rs` so the Phase 8 components route remains the sole production owner; and make the components persistence/import helpers satisfy clippy without hiding a failed config write or changing any successful public-path behavior. Do not suppress lints wholesale. Re-run the exact CI static gate after each correction until it is clean, so no compiler-error ordering can conceal a later failure.
+**Verify:** `cargo clippy --workspace --all-targets -- -D warnings`
+**Commit:** `P8.29b: clear CI compile and lint gate`
+**Batch:** stop-after
+
+**Actual result:** Updated the two conformance-test literals that compile every API DTO shape so their new optional fields are stated explicitly as `None`. The former world-route staged upload/download handlers were already absent from the production router — Phase 8's components router owns `/v1/staged-uploads` and `/v1/staged-downloads` — so their direct Phase 6 regression helpers now compile only in test builds, retaining their existing tests without leaving an unreachable second production implementation. Removed the unused staged-download bookkeeping field. In `components.rs`, config persistence now returns the existing operation error types: an add-on install fails its operation if writing its link fails, and either pack import fails its operation if the durable pack metadata write fails; successful public-path behavior is unchanged. Replaced the side-effect-only `map` calls with `and_then`, which makes that propagation explicit. The exact CI static gate passes locally across all workspace targets.
+
 ### P8.29 — Prove the exact candidate on all three platforms
 **Status:** not started
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`

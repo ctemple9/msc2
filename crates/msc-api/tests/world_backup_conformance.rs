@@ -466,6 +466,8 @@ fn world_backup_conformance_staged_upload_begin_request_matches_schema() {
         &StagedUploadBeginRequestDto {
             purpose: StagedUploadPurposeDto::WorldImport,
             content_type: Some("application/zip".to_string()),
+            operation_id: None,
+            file_id: None,
         },
     );
 }

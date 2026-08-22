@@ -1,0 +1,122 @@
+{
+  "schema": "msc2.phase9.evidence.v1",
+  "recordedAt": "2026-08-22",
+  "purpose": "P9.14 synthetic safety proof and honest live-provider accounting",
+  "integrations": [
+    {
+      "integration": "playit",
+      "synthetic": "success",
+      "live": "unavailable",
+      "liveReason": "No disposable Playit secret was available; no account or tunnel was touched.",
+      "summary": "Synthetic lifecycle proves secret-store-only handling, player-address readiness, cancellation, restart recovery, and acquisition failure before the readiness watchdog.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-application/tests/playit.rs",
+        "crates/msc-agent/tests/playit_routes.rs",
+        "fixtures/networking/playit-tunnel-address-after-setup-line.json"
+      ]
+    },
+    {
+      "integration": "duckdns",
+      "synthetic": "success",
+      "live": "unavailable",
+      "liveReason": "MSC 1 has no DuckDNS update request or credential; a request/response capture would be fabricated.",
+      "summary": "Synthetic proof keeps DuckDNS as a trimmed, non-secret player-address label and makes no provider call.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-application/tests/network_diagnostics.rs",
+        "fixtures/networking/duckdns-trims-label-no-update-request.json"
+      ]
+    },
+    {
+      "integration": "resource-pack-hosting",
+      "synthetic": "success",
+      "live": "unavailable",
+      "liveReason": "No safe disposable Minecraft server was available for a real pack join.",
+      "summary": "Synthetic proof validates ZIP-only publication, SHA-1 and URL construction, approved-file serving, disable, and removal.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-application/tests/resource_packs.rs",
+        "crates/msc-agent/tests/resource_pack_routes.rs",
+        "fixtures/networking/resource-pack-sha1-is-written-with-url.json"
+      ]
+    },
+    {
+      "integration": "port-diagnostics",
+      "synthetic": "success",
+      "live": "success",
+      "summary": "Synthetic proof preserves open/closed/unreachable/provider-unavailable distinctions; the read-only mcsrvstat.us probe recorded the provider-contact case without a server mutation.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-application/tests/network_diagnostics.rs",
+        "crates/msc-agent/tests/network_diagnostic_routes.rs",
+        "docs/msc2/networking/evidence/mcsrvstat-us.md",
+        "fixtures/networking/provider-failure-is-not-port-closed.json"
+      ]
+    },
+    {
+      "integration": "geyser-floodgate",
+      "synthetic": "success",
+      "live": "unavailable",
+      "liveReason": "No disposable server was available for a live cross-play install; fake provider responses cover resolution and checksum failure.",
+      "summary": "Synthetic proof resolves latest Geyser/Floodgate spigot builds, verifies the upstream SHA-256, preserves prior JARs on failure, and safely patches the listener.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-infrastructure/tests/geyser_resolution.rs",
+        "crates/msc-application/tests/geyser.rs",
+        "fixtures/networking/geyser-floodgate-filename-detection.json"
+      ]
+    },
+    {
+      "integration": "xbox-broadcast",
+      "synthetic": "success",
+      "live": "unavailable",
+      "liveReason": "No Xbox account or disposable Broadcast server was available; no credentials were submitted.",
+      "summary": "Synthetic proof verifies the upstream digest before JAR promotion, keeps secrets out of launch arguments, and preserves baseline notification events.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-application/tests/xbox_broadcast.rs",
+        "crates/msc-agent/tests/xbox_broadcast_routes.rs",
+        "fixtures/networking/xbox-broadcast-release-digest.json"
+      ]
+    },
+    {
+      "integration": "notifications",
+      "synthetic": "success",
+      "live": "unavailable",
+      "liveReason": "Native OS notification presentation is client-owned and no client session was used for this agent evidence run.",
+      "summary": "Synthetic proof preserves server start/stop and player join/leave events and allows helper/connectivity additions without exposing secrets.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-application/tests/xbox_broadcast.rs",
+        "crates/msc-agent/tests/xbox_broadcast_routes.rs",
+        "fixtures/networking/xbox-ready-signal-completes-broadcast.json"
+      ]
+    },
+    {
+      "integration": "helper-lifecycle",
+      "synthetic": "success",
+      "live": "unavailable",
+      "liveReason": "No real helper binary was launched; live launches would require third-party credentials or provider mutation.",
+      "summary": "Synthetic proof covers single-owner admission, framed bounded diagnostics, readiness/failure/exit, graceful-then-forced stop, cancellation, and honest restart recovery.",
+      "verification": "tools/phase9/phase9-smoke.sh --synthetic",
+      "evidence": [
+        "crates/msc-infrastructure/tests/helper_process.rs",
+        "crates/msc-domain/tests/helper.rs",
+        "fixtures/helper-lifecycle/restart-reconciles-helper-state-honestly.json"
+      ]
+    },
+    {
+      "integration": "named-token-revocation",
+      "synthetic": "success",
+      "live": "success",
+      "summary": "The isolated service test uses the production macOS SecretStore path, creates and revokes a named token, restarts the actual agent, and proves the old bearer remains rejected.",
+      "verification": "tools/phase9/credential-revocation-check.py",
+      "evidence": [
+        "crates/msc-agent/tests/user_routes.rs",
+        "crates/msc-infrastructure/tests/credential_repository.rs",
+        "fixtures/credentials/revocation-survives-agent-restart.json"
+      ]
+    }
+  ]
+}

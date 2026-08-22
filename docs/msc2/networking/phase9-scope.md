@@ -1,6 +1,6 @@
 # Phase 9 — networking and helpers scope
 
-**Status:** P9.1 scope record; implementation has not begun.
+**Status:** P9.14 evidence record; implementation and targeted safety proof are present.
 
 Phase 9 makes player-connection tools and the existing named-token model
 durable. It does not make the MSC management API public. The separation is
@@ -128,6 +128,24 @@ Live evidence is deliberately limited to a read-only mcsrvstat.us request in
 resource-pack listener, or disposable Minecraft server was available, and no
 stateful third-party operation was attempted. DuckDNS has no MSC 1 update API,
 so request/response evidence for one would be fabricated rather than useful.
+
+## P9.14 evidence runner
+
+`evidence/phase9-evidence.json` records each Phase 9 integration's synthetic
+proof and its live-provider outcome. `tools/phase9/phase9-check.py --evidence`
+checks that every record has provenance, that the Phase 9 agent routes are
+marked reachable in the capability matrix, and that the management listener
+and player-facing paths still satisfy the separation invariant. The offline
+`tools/phase9/phase9-smoke.sh --synthetic` runner then executes the targeted
+domain, infrastructure, application, HTTP, and CLI suites using fake
+transports and temporary state. `tools/phase9/credential-revocation-check.py`
+is separate because its macOS proof deliberately exercises the production
+Keychain-backed SecretStore across two actual agent processes.
+
+The live records are intentionally conservative: unavailable means no safe
+credential or disposable server existed, not that the integration succeeded.
+The read-only mcsrvstat.us probe is the only stateful provider contact recorded
+here, and it made no server mutation.
 
 ## D-012: Phase 9 access posture
 

@@ -20,7 +20,7 @@ POST,/v1/broadcast/restart,,Restart Xbox broadcast,broadcast,Implemented,Planned
 POST,/v1/broadcast/start,,Start Xbox broadcast,broadcast,Implemented,Planned,Planned,Implemented,
 GET,/v1/broadcast/status,,Get Xbox/Bedrock broadcast running status,none,Implemented,Planned,Planned,Implemented,
 POST,/v1/broadcast/stop,,Stop Xbox broadcast,broadcast,Implemented,Planned,Planned,Implemented,
-GET,/v1/capabilities,,Report agent capabilities for this host and this token,none,Implemented,Planned,Implemented,
+GET,/v1/capabilities,,Report agent capabilities for this host and this token,none,Implemented,Planned,Implemented,Implemented,
 GET,/v1/catalog/search,,"Search the Modrinth add-on catalog for the active server (query params q, offset)",none,Implemented,Planned,Implemented,Implemented,
 POST,/v1/command,,Send a console command to the active server,serverControl,Implemented,Planned,Implemented,Implemented,
 GET,/v1/components,,Installed system components (Paper/Geyser/Floodgate/flavor jar) and update status,none,Implemented,Planned,Implemented,Planned,"P9.10: Geyser/Floodgate detection reports installed helpers and explicitly marks their update information unavailable; CLI has no dedicated system-components inventory command yet"
@@ -88,10 +88,10 @@ GET,/v1/status,,"Current run status (active server, pid, running state)",none,Im
 POST,/v1/stop,,Stop the active server,serverControl,Implemented,Planned,Implemented,Implemented,
 GET,/v1/templates,,List available Paper/plugin templates,none,Implemented,Planned,Planned,Implemented,"iOS has no Templates screen at all yet (not one of the copied MSC 1 screens this phase's own scope names) -- CLI (msc template list/export/create) is the only P7.25/26 client surface"
 POST,/v1/templates,,"Export the active server as a template, or create a server from one",fleet,Implemented,Planned,Planned,Implemented,"iOS has no Templates screen at all yet -- see GET /v1/templates' own note"
-GET,/v1/users,,List named-access users,admin,Planned,Planned,Planned,Planned,
-POST,/v1/users,,Create a named-access user,admin,Planned,Planned,Planned,Planned,
-POST,/v1/users/revoke,,Revoke a named-access user,admin,Planned,Planned,Planned,Planned,
-POST,/v1/users/update,,Update a named-access user's label/role/permissions/expiry,admin,Planned,Planned,Planned,Planned,
+GET,/v1/users,,List named-access users,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; admin-only durable registry read
+POST,/v1/users,,Create a named-access user,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; raw token is returned only on this one-time create response
+POST,/v1/users/revoke,,Revoke a named-access user,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; revocation is durable and restart-safe
+POST,/v1/users/update,,Update a named-access user's label/role/permissions/expiry,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; raw bearer is never returned
 GET,/v1/versions,,Available server JAR versions for the active server's flavor,none,Implemented,Planned,Implemented,Implemented,"iOS: ServerVersionView.swift already wired against RemoteAPIClient.getVersions; no shape mismatch found"
 GET,/v1/versions/create,,"Available versions for the create-server flow (query params serverType, javaFlavor)",none,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift's create-server flow already wired against RemoteAPIClient.getCreateVersions; no shape mismatch found"
 POST,/v1/watchdog/disable,,Disable the watchdog,settings,Planned,Planned,Planned,Planned,

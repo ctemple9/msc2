@@ -458,7 +458,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.13 — Wire Phase 9 routes, operations, capability discovery, and CLI
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/src/routes/users.rs`, `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/routes/capabilities.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/phase9_routes.rs`, `crates/msc-agent/tests/cli_phase9.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Connect the completed application services to the frozen HTTP, WebSocket, capability, and scriptable CLI surfaces. Every long-running helper action must enter the shared operation model and support status/poll/cancel; unavailable host or server requirements must be advertised instead of inferred by a client. CLI output stays machine-readable and never prints secrets except the one-time token-creation value on an explicitly interactive-safe path. Mark only actually reachable API/CLI/iOS surfaces implemented in the capability matrix. Reproduce MSC 1's first-run two-pass orchestration for server creation with Playit/Broadcast enabled (`AppViewModel+ServerControls.swift`'s initiation pass 1/2, symbol-ledger row 195): hold creation's completion open until every awaited transport's readiness signal (P9.7, P9.11) resolves or the ~10-minute safety cap trips, using the shared operation model rather than MSC 1's ad hoc timers.
 **Verify:** `cargo nextest run -p msc-agent --test phase9_routes --test cli_phase9`
@@ -467,7 +467,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.14 — Prove public-path safety, restart recovery, and real integration evidence
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase9/phase9-smoke.sh`, `tools/phase9/phase9-check.py`, `tools/phase9/credential-revocation-check.py`, `docs/msc2/networking/evidence/`, `docs/msc2/networking/phase9-scope.md`, `docs/msc2/client-capability-matrix.csv`
 **What:** Build the reviewed Phase 9 evidence runner and use it to prove that player-facing helpers cannot expose the management API, secrets are absent from returned/logged/audited data, revoked credentials fail after restart, operations cancel and recover honestly, and each supported integration has either reproducible success evidence or an explicit unavailable record. Run safe real-provider checks only with disposable credentials and no production server mutation. This step reports evidence; it does not mark the phase complete.
 **Verify:** `python3 tools/phase9/phase9-check.py --evidence && bash tools/phase9/phase9-smoke.sh --synthetic && python3 tools/phase9/credential-revocation-check.py`

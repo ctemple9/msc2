@@ -584,12 +584,14 @@ Amendment outside this step's own declared `Files:` list, flagged rather than si
 **Actual result:** Phase 6 now copies the freshly built agent into its own temporary directory before any agent or CLI process starts, matching Phase 7's isolation. Process inspection during the declared Phase 6-then-Phase-7-then-Phase-8 verification confirmed the restart tests ran the temporary executable, and the full targeted sequence completed locally.
 
 ### P8.29 — Prove the exact candidate on all three platforms
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/addons/phase8-scope.md`
 **What:** Push the exact candidate containing P8.27/P8.28 and any required CI corrections, require its own GitHub Actions run—not an earlier run—to pass repo invariants plus macOS, Linux, and Windows Phase 8 smoke legs and the headless no-GUI check, and record the run/candidate in the scope evidence. If CI exposes a candidate defect, correct it in a narrowly scoped committed correction step and repeat this exact proof until it passes.
-**Verify:** `gh run view "$(gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId --jq '.[0].databaseId')" --json conclusion,jobs` → `conclusion` is `success`, with green macOS, Linux, and Windows Phase 8 smoke jobs for this exact `HEAD`
+**Verify:** `gh run view 32544701401 --json conclusion,headSha,jobs` → `conclusion` is `success`, `headSha` is `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887`, and repo invariants, macOS, Linux, Windows, and the headless no-GUI link check are green
 **Commit:** `P8.29: prove Phase 8 across platforms`
 **Batch:** solo
+
+**Actual result:** Exact candidate `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887` passed GitHub Actions run `32544701401`. Repo invariants, all macOS/Linux/Windows build-format-clippy-test and Phase 6-8 smoke paths, native artifact uploads, and the dependent headless no-GUI link check completed successfully. The candidate and run URL are recorded in the Phase 8 scope evidence.
 
 ### P8.30 — Close the Phase 8 exit gate
 **Status:** not started

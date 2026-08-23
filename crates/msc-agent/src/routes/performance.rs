@@ -20,7 +20,10 @@ pub async fn performance(
         ram_max_mb: metric(snapshot.ram_max_mb, "performance.ram"),
         world_size_mb: metric(snapshot.world_size_mb, "performance.world-size"),
         server_type: snapshot.server_type,
-        runtime: None,
+        runtime: state
+            .active_config_server()
+            .filter(|server| server.server_type == msc_domain::identity::ServerType::Bedrock)
+            .map(|_| state.bedrock_runtime_state()),
     })
 }
 

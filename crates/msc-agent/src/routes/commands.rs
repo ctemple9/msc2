@@ -30,6 +30,19 @@ pub async fn command(
         Err(error) => return invalid_body(error.code(), &error.to_string()),
     };
 
+    if state.active_bedrock_server().is_some() {
+        return match state.send_bedrock_command(&command) {
+            Ok(active_server_id) => Json(CommandResultDto {
+                result: "sent".to_string(),
+                active_server_id,
+                command,
+                runtime: Some(state.bedrock_runtime_state()),
+            })
+            .into_response(),
+            Err(error) => crate::routes::lifecycle::lifecycle_route_error_response(error),
+        };
+    }
+
     match state.send_command(&command) {
         Ok(active_server_id) => Json(CommandResultDto {
             result: "sent".to_string(),

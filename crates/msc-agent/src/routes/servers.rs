@@ -177,17 +177,13 @@ fn run_rescan_import(
         );
         return;
     }
-    let first_java_server_id = result
-        .added
-        .iter()
-        .find(|server| server.server_type == ServerType::Java)
-        .map(|server| server.id.clone());
+    let first_lifecycle_server_id = result.added.first().map(|server| server.id.clone());
     let first_added = result.added.first().cloned();
     let imported = result.added.len() as i64;
     let skipped = result.skipped as i64;
     match state.register_imported_config_servers(result.added, false) {
         Ok(statuses) => {
-            if let Some(server_id) = first_java_server_id
+            if let Some(server_id) = first_lifecycle_server_id
                 && statuses.iter().any(|(id, status)| {
                     id == &server_id
                         && matches!(
@@ -465,7 +461,7 @@ fn run_raw_import(
                             )
                     });
                     result.insert("ready".to_string(), ready.to_string());
-                    if server_type == ServerType::Java && ready {
+                    if ready {
                         let _ = state.select_active_server(imported_server_id);
                     }
                     let _ = state.finish_operation_success(&operation_id, &message, result);
@@ -986,11 +982,7 @@ fn run_transfer_import(
 
     match result {
         Ok(applied) => {
-            let lifecycle_server_id = applied
-                .servers
-                .iter()
-                .find(|server| server.server_type == ServerType::Java)
-                .map(|server| server.id.clone());
+            let lifecycle_server_id = applied.servers.first().map(|server| server.id.clone());
             let mode_note = if replace_all {
                 " (replaced existing set)"
             } else {
@@ -1176,11 +1168,77 @@ pub async fn create(
         },
     };
     if server_type == ServerType::Bedrock {
-        return error_response(
-            StatusCode::CONFLICT,
-            "capability_unavailable",
-            "Bedrock server creation is not available until Phase 10.",
-        );
+        let port = match body.port.unwrap_or(19132).try_into() {
+            Ok(port) if port > 0 => port,
+            _ => return invalid_body("invalid_body", "port must be between 1 and 65535."),
+        };
+        let max_players = body.max_players.unwrap_or(10);
+        if !(1..=10_000).contains(&max_players) {
+            return invalid_body("invalid_body", "maxPlayers must be between 1 and 10000.");
+        }
+        let operation_id = match state.operations().begin_lifecycle(
+            "server-create",
+            Some(safe_name.clone()),
+            "Creating Bedrock server.",
+        ) {
+            Ok(id) => id,
+            Err(error) => return operation_error_response(error),
+        };
+        let runtime = state.bedrock_runtime_state();
+        let worker_state = state.clone();
+        let worker_operation_id = operation_id.clone();
+        let request_name = safe_name.clone();
+        let request_world_name = body.world_name.clone();
+        let request_version = body.bedrock_version.clone();
+        let request_enable_playit = body.enable_playit.unwrap_or(false);
+        let request_enable_xbox = body.enable_xbox_broadcast.unwrap_or(false);
+        let request_difficulty = body
+            .difficulty
+            .clone()
+            .unwrap_or_else(|| "normal".to_string());
+        let request_gamemode = body
+            .gamemode
+            .clone()
+            .unwrap_or_else(|| "survival".to_string());
+        let request_seed = body.world_seed.clone();
+        tokio::spawn(async move {
+            let failure_state = worker_state.clone();
+            let failure_operation_id = worker_operation_id.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                run_create_bedrock_server(
+                    worker_state,
+                    worker_operation_id,
+                    request_name,
+                    request_world_name,
+                    request_version,
+                    port,
+                    max_players,
+                    request_enable_playit,
+                    request_enable_xbox,
+                    request_difficulty,
+                    request_gamemode,
+                    request_seed,
+                )
+            })
+            .await;
+            if let Err(error) = result {
+                let _ = failure_state.finish_operation_failure(
+                    &failure_operation_id,
+                    "background_worker_failed",
+                    error.to_string(),
+                );
+            }
+        });
+        return Json(ServerCreateResultDto {
+            success: true,
+            message: "Bedrock server creation started.".to_string(),
+            operation_id: Some(operation_id.as_str().to_string()),
+            server_id: None,
+            server_name: Some(safe_name),
+            warnings: None,
+            runtime: Some(runtime),
+        })
+        .into_response();
     }
 
     let flavor = match body.java_flavor.as_deref().map(str::trim) {
@@ -1307,6 +1365,86 @@ pub async fn create(
         runtime: None,
     })
     .into_response()
+}
+
+fn run_create_bedrock_server(
+    state: LifecycleRoutesState,
+    operation_id: OperationId,
+    name: String,
+    initial_world_name: Option<String>,
+    bedrock_version: Option<String>,
+    port: u16,
+    max_players: i64,
+    enable_playit: bool,
+    enable_xbox_broadcast: bool,
+    difficulty: String,
+    gamemode: String,
+    world_seed: Option<String>,
+) {
+    let should_cancel = state.operations().cancellation_check(&operation_id);
+    if should_cancel() {
+        let _ = state
+            .operations()
+            .cancel(&operation_id, "Bedrock server creation cancelled before it started.");
+        return;
+    }
+    let request = msc_application::provisioning::BedrockCreateRequest {
+        name: &name,
+        initial_world_name: initial_world_name.as_deref(),
+        bedrock_version: bedrock_version.as_deref(),
+        port,
+        max_players,
+        enable_playit,
+        enable_xbox_broadcast,
+        difficulty: &difficulty,
+        gamemode: &gamemode,
+        world_seed: world_seed.as_deref(),
+        world_source: msc_application::provisioning::BedrockWorldSource::Fresh,
+    };
+    let created = msc_application::provisioning::create_bedrock_server(
+        &StdFileSystem,
+        &state.servers_root(),
+        &request,
+        &iso8601_now(),
+    );
+    match created {
+        Ok(created) => {
+            match state.register_imported_config_servers(vec![created.config.clone()], false) {
+                Ok(statuses) => {
+                    let ready = statuses.iter().any(|(id, status)| {
+                        id == &created.config.id
+                            && matches!(
+                                status,
+                                crate::routes::lifecycle::ReconciliationStatus::Ready
+                            )
+                    });
+                    if ready {
+                        let _ = state.select_active_server(created.config.id.clone());
+                    }
+                    let mut result = BTreeMap::new();
+                    result.insert("serverId".to_string(), created.config.id);
+                    result.insert("serverName".to_string(), created.config.display_name);
+                    result.insert("ready".to_string(), ready.to_string());
+                    let _ = state.finish_operation_success(
+                        &operation_id,
+                        "Bedrock server created.",
+                        result,
+                    );
+                }
+                Err(error) => {
+                    let _ = state.finish_operation_failure(
+                        &operation_id,
+                        "internal_error",
+                        error.to_string(),
+                    );
+                }
+            }
+        }
+        Err(error) => {
+            let _ =
+                state.finish_operation_failure(&operation_id, "create_failed", error.to_string());
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1564,7 +1702,6 @@ fn finish_created_server(
 ) {
     let server_id = created.config.id.clone();
     let server_name = created.config.display_name.clone();
-    let is_java = created.config.server_type == ServerType::Java;
     match state.register_imported_config_servers(vec![created.config], false) {
         Ok(statuses) => {
             let ready = statuses.iter().any(|(id, status)| {
@@ -1578,7 +1715,7 @@ fn finish_created_server(
                 let _ =
                     fleet::accept_eula(&StdFileSystem, &state.app_config_snapshot(), &server_id);
             }
-            if is_java && ready {
+            if ready {
                 let _ = state.select_active_server(server_id.clone());
             }
             let mut result_map = BTreeMap::new();

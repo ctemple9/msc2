@@ -419,7 +419,7 @@ a fake-only implementation is not enough. Until P10.38 passes, Phase 10 does
 not advance.
 
 ### P10.29 — Make Bedrock runtime disclosure a real public DTO contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-api/src/dto/capabilities.rs`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-api/src/dto/status.rs`, `crates/msc-api/src/dto/settings.rs`, `crates/msc-api/src/dto/versions.rs`, `crates/msc-api/src/dto/provisioning.rs`, `crates/msc-api/src/dto/backups.rs`, `docs/msc2/api-contract/openapi.json`, `crates/msc-api/tests/phase10_conformance.rs`, `docs/msc2/bedrock/phase10-api.md`
 **What:** Implement the already-frozen additive `BedrockRuntimeStateDTO` and attach it wherever the Phase 10 API contract specifies: capabilities, create/import/list/status/lifecycle/command, settings, players/allowlist, performance, versions, backups, and console-unavailable results. Preserve all existing Java fields and old-client decoding. Define one structured unavailable mapping (`code`, `details.capability`, `serverType`, `state`, `backend`, `reasonCode`, `hostOs`, and documented `helpId`) rather than allowing each route to invent its own response. This step changes no host eligibility and makes no support claim.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary && cargo nextest run -p msc-api --test phase10_conformance`
@@ -427,7 +427,7 @@ not advance.
 **Batch:** solo
 
 ### P10.30 — Derive runtime eligibility from real host prerequisites
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/src/bedrock_linux.rs`, `crates/msc-application/src/bedrock_windows.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/src/bedrock_provisioning.rs`, `crates/msc-infrastructure/src/bedrock_distribution.rs`, `crates/msc-application/tests/bedrock_runtime_eligibility.rs`, `fixtures/bedrock-runtime/`
 **What:** Replace OS/CPU-only `supported` decisions with one agent-owned eligibility result. Linux and Windows are eligible only when the current host and a verified staged BDS distribution satisfy the runtime prerequisites; Intel macOS additionally requires the sidecar executable and its distributable appliance resources; Apple Silicon stays explicitly `unavailable` with D-028's `no_test_hardware` reason. A missing package, sidecar, appliance, or prerequisite must be an honest unavailable/provisioning-required state, never a false supported result. Keep the compatibility CSV as published evidence, not a runtime configuration file, and retain injectable fixture eligibility only inside tests.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_runtime_eligibility`
@@ -435,7 +435,7 @@ not advance.
 **Batch:** solo
 
 ### P10.31 — Select the Bedrock runtime in the production agent
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/capabilities.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/tests/bedrock_runtime_selection.rs`
 **What:** Build the eligible Linux-native, Windows-native, or Intel-macOS-sidecar runtime once in the real agent composition root and pass it through the production route state. `GET /v1/capabilities` must report that selected runtime's current state rather than a literal `false`/`null`; unavailable hosts must return the structured P10.29 result. Do not put VZ, guest-IP, process-tree, or platform inference in HTTP handlers, and do not let a test-only runtime factory become a production back door to claim support.
 **Verify:** `cargo nextest run -p msc-agent --test bedrock_runtime_selection`
@@ -443,7 +443,7 @@ not advance.
 **Batch:** solo
 
 ### P10.32 — Wire Bedrock creation, import, lifecycle, and operations through the real router
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-agent/src/ws/console.rs`, `crates/msc-agent/src/ws/operations.rs`, `crates/msc-agent/tests/bedrock_production_lifecycle.rs`
 **What:** Remove the obsolete “not available until Phase 10” Bedrock refusals and route Bedrock create/import, provision, start, stop, command, status, metrics, console, operation progress, cancellation, and recovery through the selected runtime and existing operation journal. Keep Java's lifecycle untouched. A runtime-unavailable host may import and inspect existing files where safe, but it must never present a record as started or accept a live mutation it cannot perform. The test must construct the same top-level router that `main.rs` serves, exercise its authenticated HTTP and WebSocket routes, and prove both an eligible fixture-backed runtime and the production unavailable state.
 **Verify:** `cargo nextest run -p msc-agent --test bedrock_production_lifecycle`

@@ -9,9 +9,10 @@ use std::sync::{Arc, Mutex};
 
 use msc_api::dto::{BedrockBackendDto, BedrockRuntimeStateDto, HostOsDto};
 use msc_application::bedrock_runtime::{
-    BedrockHost, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeEligibility,
-    BedrockRuntimeEligibilityState, BedrockRuntimePaths, BedrockRuntimeState,
-    BedrockSidecarResources,
+    BedrockHost, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
+    BedrockRuntimeEligibility, BedrockRuntimeEligibilityState, BedrockRuntimeError,
+    BedrockRuntimeEvent, BedrockRuntimePaths, BedrockRuntimeState, BedrockSidecarResources,
+    BedrockStartRequest,
 };
 use msc_domain::identity::ServerType;
 
@@ -51,6 +52,86 @@ impl BedrockRuntimeHandle {
             #[cfg(target_os = "macos")]
             Self::Macos(runtime) => runtime.state(),
             Self::Unavailable => BedrockRuntimeState::Unavailable,
+        }
+    }
+
+    fn provision(&mut self, request: BedrockProvisionRequest) -> Result<(), BedrockRuntimeError> {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux(runtime) => runtime.provision(request),
+            #[cfg(target_os = "windows")]
+            Self::Windows(runtime) => runtime.provision(request),
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.provision(request),
+            Self::Unavailable => Err(BedrockRuntimeError::Transport(
+                "Bedrock runtime is unavailable.".to_owned(),
+            )),
+        }
+    }
+
+    fn start(&mut self, request: BedrockStartRequest) -> Result<(), BedrockRuntimeError> {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux(runtime) => runtime.start(request),
+            #[cfg(target_os = "windows")]
+            Self::Windows(runtime) => runtime.start(request),
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.start(request),
+            Self::Unavailable => Err(BedrockRuntimeError::Transport(
+                "Bedrock runtime is unavailable.".to_owned(),
+            )),
+        }
+    }
+
+    fn stop(&mut self) -> Result<(), BedrockRuntimeError> {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux(runtime) => runtime.stop(),
+            #[cfg(target_os = "windows")]
+            Self::Windows(runtime) => runtime.stop(),
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.stop(),
+            Self::Unavailable => Err(BedrockRuntimeError::Transport(
+                "Bedrock runtime is unavailable.".to_owned(),
+            )),
+        }
+    }
+
+    fn command(&mut self, command: &str) -> Result<(), BedrockRuntimeError> {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux(runtime) => runtime.command(command),
+            #[cfg(target_os = "windows")]
+            Self::Windows(runtime) => runtime.command(command),
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.command(command),
+            Self::Unavailable => Err(BedrockRuntimeError::Transport(
+                "Bedrock runtime is unavailable.".to_owned(),
+            )),
+        }
+    }
+
+    fn poll_event(&mut self) -> Result<Option<BedrockRuntimeEvent>, BedrockRuntimeError> {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux(runtime) => runtime.poll_event(),
+            #[cfg(target_os = "windows")]
+            Self::Windows(runtime) => runtime.poll_event(),
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.poll_event(),
+            Self::Unavailable => Ok(None),
+        }
+    }
+
+    fn process_id(&self) -> Option<msc_infrastructure::process::ProcessId> {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux(runtime) => runtime.process_id(),
+            #[cfg(target_os = "windows")]
+            Self::Windows(runtime) => runtime.process_id(),
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.process_id(),
+            Self::Unavailable => None,
         }
     }
 }
@@ -195,6 +276,36 @@ impl BedrockRuntimeSelection {
             message: Some(self.eligibility.message.clone()),
             help_id: unavailable.then(|| "bedrock.runtime-unavailable".to_owned()),
         }
+    }
+
+    pub fn state(&self) -> BedrockRuntimeState {
+        self.runtime.lock().unwrap().state()
+    }
+
+    /// The route layer owns the application operation, while this selection
+    /// owns the one mutable backend instance chosen at agent startup.
+    pub fn provision(&self, request: BedrockProvisionRequest) -> Result<(), BedrockRuntimeError> {
+        self.runtime.lock().unwrap().provision(request)
+    }
+
+    pub fn start(&self, request: BedrockStartRequest) -> Result<(), BedrockRuntimeError> {
+        self.runtime.lock().unwrap().start(request)
+    }
+
+    pub fn stop(&self) -> Result<(), BedrockRuntimeError> {
+        self.runtime.lock().unwrap().stop()
+    }
+
+    pub fn command(&self, command: &str) -> Result<(), BedrockRuntimeError> {
+        self.runtime.lock().unwrap().command(command)
+    }
+
+    pub fn poll_event(&self) -> Result<Option<BedrockRuntimeEvent>, BedrockRuntimeError> {
+        self.runtime.lock().unwrap().poll_event()
+    }
+
+    pub fn process_id(&self) -> Option<msc_infrastructure::process::ProcessId> {
+        self.runtime.lock().unwrap().process_id()
     }
 
     fn new(eligibility: BedrockRuntimeEligibility, runtime: BedrockRuntimeHandle) -> Self {

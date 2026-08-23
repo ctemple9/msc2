@@ -108,7 +108,10 @@ pub async fn status(State(state): State<LifecycleRoutesState>) -> Json<RemoteApi
         server_type: snapshot.server_type,
         docker_container_running: None,
         docker_container_status: None,
-        runtime: None,
+        runtime: state
+            .active_config_server()
+            .filter(|server| server.server_type == msc_domain::identity::ServerType::Bedrock)
+            .map(|_| state.bedrock_runtime_state()),
     })
 }
 

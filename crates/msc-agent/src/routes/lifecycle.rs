@@ -11,6 +11,10 @@ use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{ActiveServerRequestDto, ErrorDto, PermissionCategoryDto, SimpleResultDto};
+use msc_application::bedrock_runtime::{
+    BedrockProvisionRequest, BedrockRuntimeError, BedrockRuntimeEvent, BedrockStartRequest,
+    BedrockTerminationReason,
+};
 #[cfg(test)]
 use msc_application::import::ImportedPaperServer;
 use msc_application::java_launch::{
@@ -209,6 +213,7 @@ struct LifecycleRoutesInner {
     lifecycle: Mutex<LifecycleService<'static>>,
     operations: OperationsState,
     active_lifecycle_operation: Mutex<Option<OperationId>>,
+    bedrock_active_server_id: Mutex<Option<String>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
     auth_state: Option<AuthState>,
     audit_log: &'static AuditLog<'static>,
@@ -335,11 +340,18 @@ impl LifecycleRoutesState {
         }));
         let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
         let mut lifecycle = LifecycleService::new(registry, process, console, fs);
+        let initial_bedrock_active_server_id = app_config.active_server_id().filter(|active| {
+            app_config
+                .servers()
+                .into_iter()
+                .any(|server| server.id == *active && server.server_type == ServerType::Bedrock)
+        });
         if let Some(active) = app_config.active_server_id()
             && matches!(
                 reconciliation.get(&active),
                 Some(ReconciliationStatus::Ready)
             )
+            && initial_bedrock_active_server_id.is_none()
         {
             let _ = lifecycle.select_active_server(ServerId::new(active));
         }
@@ -354,6 +366,7 @@ impl LifecycleRoutesState {
                 lifecycle: Mutex::new(lifecycle),
                 operations,
                 active_lifecycle_operation: Mutex::new(None),
+                bedrock_active_server_id: Mutex::new(initial_bedrock_active_server_id),
                 pump_tasks: Mutex::new(Vec::new()),
                 auth_state,
                 audit_log,
@@ -596,11 +609,18 @@ impl LifecycleRoutesState {
 
     pub fn active_server_id(&self) -> Option<String> {
         self.inner
-            .lifecycle
+            .bedrock_active_server_id
             .lock()
             .unwrap()
-            .active_server()
-            .map(|id| id.as_str().to_string())
+            .clone()
+            .or_else(|| {
+                self.inner
+                    .lifecycle
+                    .lock()
+                    .unwrap()
+                    .active_server()
+                    .map(|id| id.as_str().to_string())
+            })
     }
 
     pub fn update_duckdns_hostname(
@@ -800,6 +820,28 @@ impl LifecycleRoutesState {
                 return Err(ActiveServerSelectionError::Reconciliation { reason });
             }
         }
+        let server = self
+            .inner
+            .registry
+            .get(&ServerId::new(server_id.clone()))
+            .ok_or_else(|| {
+                ActiveServerSelectionError::Lifecycle(LifecycleError::ServerNotFound(
+                    ServerId::new(server_id.clone()),
+                ))
+            })?;
+        if server.server_type == ServerType::Bedrock {
+            self.inner
+                .app_config
+                .set_active_server_id(Some(server_id.clone()))
+                .map_err(|error| {
+                    ActiveServerSelectionError::Lifecycle(LifecycleError::Repository(
+                        error.to_string(),
+                    ))
+                })?;
+            *self.inner.bedrock_active_server_id.lock().unwrap() = Some(server_id.clone());
+            return Ok(server_id);
+        }
+        *self.inner.bedrock_active_server_id.lock().unwrap() = None;
         let id = ServerId::new(server_id);
         let active = id.as_str().to_string();
         self.inner
@@ -819,6 +861,9 @@ impl LifecycleRoutesState {
 
     pub fn start_active_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
         self.drain_active_process_events();
+        if self.active_bedrock_server().is_some() {
+            return self.start_active_bedrock_server();
+        }
         let active = self
             .inner
             .lifecycle
@@ -909,13 +954,72 @@ impl LifecycleRoutesState {
         Ok(self.active_server_id())
     }
 
+    pub fn stop_active_bedrock_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
+        self.drain_bedrock_events();
+        let active = self
+            .active_bedrock_server()
+            .ok_or_else(|| LifecycleRouteError::Lifecycle(LifecycleError::NoActiveServer))?;
+        let operation_id = self.inner.operations.begin_lifecycle(
+            "bedrock-stop",
+            Some(active.id.clone()),
+            "Stopping Bedrock server.",
+        )?;
+        if let Err(error) = self.inner.bedrock_runtime.stop() {
+            let _ =
+                self.inner
+                    .operations
+                    .fail(&operation_id, "bedrock_stop_failed", error.to_string());
+            return Err(self.bedrock_runtime_error(error));
+        }
+        *self.inner.active_lifecycle_operation.lock().unwrap() = Some(operation_id.clone());
+        self.spawn_bedrock_pump();
+        Ok(LifecycleActionResult {
+            active_server_id: Some(active.id),
+            operation_id: Some(operation_id.as_str().to_string()),
+        })
+    }
+
     pub fn send_command(&self, command: &str) -> Result<Option<String>, LifecycleError> {
         self.drain_active_process_events();
         self.inner.lifecycle.lock().unwrap().send_command(command)?;
         Ok(self.active_server_id())
     }
 
+    pub fn send_bedrock_command(
+        &self,
+        command: &str,
+    ) -> Result<Option<String>, LifecycleRouteError> {
+        self.drain_bedrock_events();
+        let active = self
+            .active_bedrock_server()
+            .ok_or_else(|| LifecycleRouteError::Lifecycle(LifecycleError::NoActiveServer))?;
+        self.inner
+            .bedrock_runtime
+            .command(command)
+            .map_err(|error| self.bedrock_runtime_error(error))?;
+        Ok(Some(active.id))
+    }
+
     pub fn status_snapshot(&self) -> LifecycleStatusSnapshot {
+        if self.active_bedrock_server().is_some() {
+            self.drain_bedrock_events();
+            let runtime_state = self.inner.bedrock_runtime.state();
+            return LifecycleStatusSnapshot {
+                running: matches!(
+                    runtime_state,
+                    msc_application::bedrock_runtime::BedrockRuntimeState::Starting
+                        | msc_application::bedrock_runtime::BedrockRuntimeState::Running
+                        | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping
+                ),
+                active_server_id: self.active_server_id(),
+                pid: self
+                    .inner
+                    .bedrock_runtime
+                    .process_id()
+                    .map(|pid| pid.raw() as i64),
+                server_type: Some("bedrock".to_owned()),
+            };
+        }
         self.drain_active_process_events();
         self.inner
             .lifecycle
@@ -926,6 +1030,25 @@ impl LifecycleRoutesState {
     }
 
     pub fn performance_snapshot(&self) -> PerformanceSnapshot {
+        if self.active_bedrock_server().is_some() {
+            self.drain_bedrock_events();
+            let usage = self.inner.bedrock_runtime.process_id().and_then(|pid| {
+                msc_infrastructure::metrics::ProcessMetricsProvider::process_usage(
+                    &self.inner.metrics,
+                    pid,
+                )
+            });
+            return PerformanceSnapshot {
+                ts: unix_timestamp_string(),
+                tps_1m: None,
+                players_online: Some(0),
+                cpu_percent: usage.as_ref().and_then(|value| value.cpu_percent),
+                ram_used_mb: usage.as_ref().and_then(|value| value.ram_used_mb),
+                ram_max_mb: None,
+                world_size_mb: None,
+                server_type: Some("bedrock".to_owned()),
+            };
+        }
         self.drain_active_process_events();
         self.inner
             .lifecycle
@@ -933,6 +1056,152 @@ impl LifecycleRoutesState {
             .unwrap()
             .performance_snapshot(&self.inner.metrics, unix_timestamp_string())
             .unwrap_or_else(|_| stopped_performance())
+    }
+
+    pub(crate) fn active_bedrock_server(&self) -> Option<ConfigServer> {
+        self.active_server_id().and_then(|id| {
+            self.inner
+                .app_config
+                .servers()
+                .into_iter()
+                .find(|server| server.id == id && server.server_type == ServerType::Bedrock)
+        })
+    }
+
+    fn bedrock_runtime_error(&self, error: BedrockRuntimeError) -> LifecycleRouteError {
+        LifecycleRouteError::BedrockRuntime {
+            state: self.bedrock_runtime_state(),
+            error,
+        }
+    }
+
+    fn start_active_bedrock_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
+        let active = self
+            .active_bedrock_server()
+            .ok_or_else(|| LifecycleRouteError::Lifecycle(LifecycleError::NoActiveServer))?;
+        let operation_id = self.inner.operations.begin_lifecycle(
+            "bedrock-start",
+            Some(active.id.clone()),
+            "Starting Bedrock server.",
+        )?;
+        let version = active
+            .bedrock_version
+            .clone()
+            .unwrap_or_else(|| "LATEST".to_owned());
+        let memory_gb = active.max_ram_gb.max(1.0).ceil() as u32;
+        let result = self
+            .inner
+            .bedrock_runtime
+            .provision(BedrockProvisionRequest {
+                server_dir: active.server_dir.clone(),
+                version,
+            })
+            .and_then(|()| {
+                self.inner.bedrock_runtime.start(BedrockStartRequest {
+                    memory_gb,
+                    bedrock_port: active
+                        .bedrock_port
+                        .unwrap_or(19132)
+                        .try_into()
+                        .unwrap_or(19132),
+                })
+            });
+        if let Err(error) = result {
+            let code = if self.bedrock_runtime_state().state != "available" {
+                "capability_unavailable"
+            } else {
+                "bedrock_start_failed"
+            };
+            let _ = self
+                .inner
+                .operations
+                .fail(&operation_id, code, error.to_string());
+            return Err(self.bedrock_runtime_error(error));
+        }
+        let _ = self
+            .inner
+            .operations
+            .progress(&operation_id, 1, 2, "Bedrock process spawned.");
+        *self.inner.active_lifecycle_operation.lock().unwrap() = Some(operation_id.clone());
+        self.spawn_bedrock_pump();
+        Ok(LifecycleActionResult {
+            active_server_id: Some(active.id),
+            operation_id: Some(operation_id.as_str().to_string()),
+        })
+    }
+
+    fn spawn_bedrock_pump(&self) {
+        let state = self.clone();
+        let handle = tokio::spawn(async move {
+            loop {
+                state.drain_bedrock_events();
+                let runtime_state = state.inner.bedrock_runtime.state();
+                if state.bedrock_operation_cancel_requested() {
+                    match runtime_state {
+                        msc_application::bedrock_runtime::BedrockRuntimeState::Starting
+                        | msc_application::bedrock_runtime::BedrockRuntimeState::Running => {
+                            let _ = state.inner.bedrock_runtime.stop();
+                        }
+                        msc_application::bedrock_runtime::BedrockRuntimeState::Stopped
+                        | msc_application::bedrock_runtime::BedrockRuntimeState::Unavailable => {
+                            state.finish_active_lifecycle_operation_cancelled();
+                            break;
+                        }
+                        msc_application::bedrock_runtime::BedrockRuntimeState::New
+                        | msc_application::bedrock_runtime::BedrockRuntimeState::Provisioned
+                        | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping => {}
+                    }
+                }
+                if matches!(
+                    runtime_state,
+                    msc_application::bedrock_runtime::BedrockRuntimeState::Stopped
+                        | msc_application::bedrock_runtime::BedrockRuntimeState::Unavailable
+                ) {
+                    break;
+                }
+                tokio::time::sleep(Duration::from_millis(100)).await;
+            }
+        });
+        self.inner.pump_tasks.lock().unwrap().push(handle);
+    }
+
+    fn drain_bedrock_events(&self) {
+        loop {
+            let event = match self.inner.bedrock_runtime.poll_event() {
+                Ok(Some(event)) => event,
+                Ok(None) | Err(_) => break,
+            };
+            match event {
+                BedrockRuntimeEvent::ConsoleLine(line) => {
+                    self.inner
+                        .console
+                        .push(ConsoleLine::new("bedrock", None, line));
+                }
+                BedrockRuntimeEvent::Ready { .. } => {
+                    if self.bedrock_operation_cancel_requested() {
+                        let _ = self.inner.bedrock_runtime.stop();
+                    } else {
+                        self.finish_active_lifecycle_operation_success("Bedrock server is ready.");
+                    }
+                }
+                BedrockRuntimeEvent::Metrics(_) => {}
+                BedrockRuntimeEvent::Terminated { reason } => match reason {
+                    BedrockTerminationReason::Clean => {
+                        if self.bedrock_operation_cancel_requested() {
+                            self.finish_active_lifecycle_operation_cancelled();
+                        } else {
+                            self.finish_active_lifecycle_operation_success(
+                                "Bedrock server stopped.",
+                            );
+                        }
+                    }
+                    BedrockTerminationReason::GuestError(message)
+                    | BedrockTerminationReason::StartFailed(message) => {
+                        self.finish_active_lifecycle_operation_failure(&message);
+                    }
+                },
+            }
+        }
     }
 
     fn spawn_process_pump(&self, pid: ProcessId) {
@@ -1037,6 +1306,30 @@ impl LifecycleRoutesState {
             .operations
             .fail(&operation_id, "lifecycle_error", message.to_string());
     }
+
+    fn bedrock_operation_cancel_requested(&self) -> bool {
+        let Some(operation_id) = self
+            .inner
+            .active_lifecycle_operation
+            .lock()
+            .unwrap()
+            .clone()
+        else {
+            return false;
+        };
+        self.inner.operations.cancellation_check(&operation_id)()
+    }
+
+    fn finish_active_lifecycle_operation_cancelled(&self) {
+        let Some(operation_id) = self.inner.active_lifecycle_operation.lock().unwrap().take()
+        else {
+            return;
+        };
+        let _ = self
+            .inner
+            .operations
+            .cancel(&operation_id, "Bedrock operation cancelled.");
+    }
 }
 
 #[derive(Debug)]
@@ -1049,6 +1342,10 @@ pub struct LifecycleActionResult {
 pub enum LifecycleRouteError {
     Lifecycle(LifecycleError),
     Operation(msc_application::operations::LifecycleOperationError),
+    BedrockRuntime {
+        state: msc_api::dto::BedrockRuntimeStateDto,
+        error: BedrockRuntimeError,
+    },
     /// P7.31: the required-major Java guard refused the resolved
     /// executable before a process was ever spawned.
     UnusableJavaRuntime(msc_domain::java_runtime::UnusableJavaRuntime),
@@ -1089,7 +1386,9 @@ pub async fn start(
             result: "start_requested".to_string(),
             active_server_id: active_server_id.active_server_id,
             operation_id: active_server_id.operation_id,
-            runtime: None,
+            runtime: state
+                .active_bedrock_server()
+                .map(|_| state.bedrock_runtime_state()),
         })
         .into_response(),
         Err(error) => lifecycle_route_error_response(error),
@@ -1102,6 +1401,19 @@ pub async fn stop(
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::ServerControl) {
         return response;
+    }
+
+    if state.active_bedrock_server().is_some() {
+        return match state.stop_active_bedrock_server() {
+            Ok(result) => Json(SimpleResultDto {
+                result: "stop_requested".to_string(),
+                active_server_id: result.active_server_id,
+                operation_id: result.operation_id,
+                runtime: Some(state.bedrock_runtime_state()),
+            })
+            .into_response(),
+            Err(error) => lifecycle_route_error_response(error),
+        };
     }
 
     match state.stop_active_server() {
@@ -1524,6 +1836,21 @@ pub fn lifecycle_route_error_response(error: LifecycleRouteError) -> Response {
     match error {
         LifecycleRouteError::Lifecycle(error) => lifecycle_error_response(error),
         LifecycleRouteError::Operation(error) => operation_error_response(error),
+        LifecycleRouteError::BedrockRuntime { state, error } => {
+            if state.state != "available" {
+                (
+                    StatusCode::CONFLICT,
+                    Json(state.capability_unavailable_error()),
+                )
+                    .into_response()
+            } else {
+                error_response(
+                    StatusCode::CONFLICT,
+                    "bedrock_runtime_error",
+                    &error.to_string(),
+                )
+            }
+        }
         LifecycleRouteError::UnusableJavaRuntime(error) => error_response(
             StatusCode::CONFLICT,
             "unusable_java_runtime",

@@ -467,7 +467,7 @@ not advance.
 **Batch:** solo
 
 ### P10.35 — Replace the fake-only cross-backend smoke with a production-router smoke
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase10/phase10-smoke.sh`, `crates/msc-agent/tests/support/bedrock_smoke.rs`, `crates/msc-agent/tests/bedrock_production_smoke.rs`, `docs/msc2/bedrock/evidence/phase10-synthetic-cross-backend.md`
 **What:** Make the cross-backend smoke instantiate the production agent router and its real runtime-selection/operation wiring for Linux-native, Windows-native, and Intel-macOS-sidecar fixture adapters. It must cover provision, create/import, lifecycle, console, command, player/settings/allowlist state, cancellation/recovery, capability disclosure, and an unavailable host without starting BDS, a VM, or a public provider. Keep the evidence explicit that this proves the public integration contract, not live BDS or VZ support.
 **Verify:** `bash tools/phase10/phase10-smoke.sh --synthetic`

@@ -7,6 +7,61 @@ use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+/// The production smoke runs once per CI host.  Keeping the expected backend
+/// in one adapter table makes a platform job fail if the composition root
+/// selects the wrong runtime, without pretending that one host can emulate
+/// another host's process or VM boundary.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProductionBackend {
+    LinuxNative,
+    WindowsNative,
+    MacosSidecar,
+}
+
+impl ProductionBackend {
+    pub const ALL: [Self; 3] = [Self::LinuxNative, Self::WindowsNative, Self::MacosSidecar];
+
+    pub const fn current() -> Self {
+        #[cfg(target_os = "linux")]
+        {
+            return Self::LinuxNative;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            return Self::WindowsNative;
+        }
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        {
+            return Self::MacosSidecar;
+        }
+        #[allow(unreachable_code)]
+        Self::MacosSidecar
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::LinuxNative => "linux-native",
+            Self::WindowsNative => "windows-native",
+            Self::MacosSidecar => "macos-sidecar",
+        }
+    }
+
+    pub const fn host_os(self) -> &'static str {
+        match self {
+            Self::LinuxNative => "linux",
+            Self::WindowsNative => "windows",
+            Self::MacosSidecar => "macos",
+        }
+    }
+
+    pub const fn api_backend(self) -> &'static str {
+        match self {
+            Self::LinuxNative | Self::WindowsNative => "native",
+            Self::MacosSidecar => "vz-sidecar",
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Backend {
     LinuxNative,
@@ -476,4 +531,236 @@ pub async fn request(
         status,
         serde_json::from_slice(&response[header_end + 4..]).unwrap(),
     )
+}
+
+/// Disposable on-disk state for the production-router smoke. The binary is
+/// started normally, so the selected runtime and operation journal are the
+/// same ones used outside tests; only the BDS/sidecar inputs are synthetic.
+pub struct ProductionFixture {
+    pub root: std::path::PathBuf,
+    pub data_dir: std::path::PathBuf,
+    pub config_path: std::path::PathBuf,
+    pub servers_root: std::path::PathBuf,
+    pub server_dir: std::path::PathBuf,
+    pub import_source: std::path::PathBuf,
+    pub port: u16,
+    keychain_service: String,
+}
+
+impl ProductionFixture {
+    pub fn new() -> Self {
+        let root = std::env::temp_dir().join(format!(
+            "msc2-bedrock-production-smoke-{}-{}",
+            std::process::id(),
+            unique_suffix()
+        ));
+        let data_dir = root.join("data");
+        let servers_root = root.join("servers");
+        let server_dir = servers_root.join("bedrock").join("smoke-fixture");
+        let import_source = root.join("import-source");
+        std::fs::create_dir_all(&data_dir).unwrap();
+        std::fs::create_dir_all(&server_dir).unwrap();
+        std::fs::create_dir_all(&import_source).unwrap();
+        Self {
+            config_path: data_dir.join("server_config_swift.json"),
+            keychain_service: format!(
+                "com.msc2.bedrock-production-smoke.{}.{}",
+                std::process::id(),
+                unique_suffix()
+            ),
+            port: free_port(),
+            root,
+            data_dir,
+            servers_root,
+            server_dir,
+            import_source,
+        }
+    }
+
+    pub fn seed(&self, backend: ProductionBackend) {
+        self.seed_server(&self.server_dir, backend);
+        self.seed_server(&self.import_source, backend);
+        self.write_config();
+    }
+
+    pub fn seed_unavailable(&self, backend: ProductionBackend) {
+        std::fs::create_dir_all(&self.server_dir).unwrap();
+        let _ = backend;
+        self.write_config();
+    }
+
+    fn write_config(&self) {
+        let mut config = msc_domain::app_config_schema::AppConfig::default_config(
+            self.servers_root.to_string_lossy(),
+        );
+        let mut server = msc_domain::app_config_schema::ConfigServer::new(
+            "bedrock-production-smoke",
+            "Production Bedrock Smoke",
+            self.server_dir.to_string_lossy(),
+            "",
+            1.0,
+            2.0,
+        );
+        server.server_type = msc_domain::identity::ServerType::Bedrock;
+        server.bedrock_enabled = true;
+        server.bedrock_port = Some(19132);
+        server.bedrock_version = Some("1.21.80.3".to_owned());
+        config.servers.push(server);
+        config.active_server_id = config.servers.first().map(|server| server.id.clone());
+        std::fs::write(
+            &self.config_path,
+            serde_json::to_vec_pretty(&config.encode()).unwrap(),
+        )
+        .unwrap();
+    }
+
+    fn seed_server(&self, directory: &std::path::Path, backend: ProductionBackend) {
+        std::fs::create_dir_all(directory.join("worlds/Realm/db")).unwrap();
+        std::fs::write(
+            directory.join("server.properties"),
+            "level-name=Realm\ndifficulty=normal\nserver-port=19132\nmax-players=10\n",
+        )
+        .unwrap();
+        std::fs::write(
+            directory.join("allowlist.json"),
+            r#"[{"name":"Alex","xuid":"123","ignoresPlayerLimit":false}]"#,
+        )
+        .unwrap();
+        std::fs::write(directory.join("permissions.json"), "[]").unwrap();
+        let executable = match backend {
+            ProductionBackend::WindowsNative => "bedrock_server.exe",
+            ProductionBackend::LinuxNative | ProductionBackend::MacosSidecar => "bedrock_server",
+        };
+        if backend != ProductionBackend::WindowsNative {
+            std::fs::write(directory.join(executable), b"fixture adapter").unwrap();
+            std::fs::write(
+                directory.join(".msc_bds_provenance.json"),
+                format!(
+                    r#"{{"version":"1.21.80.3","platform":"{}","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}}"#,
+                    match backend {
+                        ProductionBackend::LinuxNative => "linux",
+                        ProductionBackend::WindowsNative => "windows",
+                        ProductionBackend::MacosSidecar => "macos",
+                    }
+                ),
+            )
+            .unwrap();
+        }
+        #[cfg(unix)]
+        if backend == ProductionBackend::LinuxNative {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::write(
+                directory.join(executable),
+                b"#!/bin/sh\nprintf 'Server started\\n'\nwhile IFS= read -r line; do\n  [ \"$line\" = stop ] && exit 0\ndone\n",
+            )
+            .unwrap();
+            std::fs::set_permissions(
+                directory.join(executable),
+                std::fs::Permissions::from_mode(0o755),
+            )
+            .unwrap();
+        }
+    }
+
+    pub fn spawn_agent(&self) -> std::process::Child {
+        std::process::Command::new(env!("CARGO_BIN_EXE_msc"))
+            .args(["serve", "--bind", &format!("127.0.0.1:{}", self.port)])
+            .env("MSC2_APP_CONFIG_PATH", &self.config_path)
+            .env("MSC2_AGENT_SERVERS_ROOT", &self.servers_root)
+            .env(
+                "MSC2_CREDENTIAL_REGISTRY_PATH",
+                self.data_dir.join("credentials.json"),
+            )
+            .env("MSC2_OPERATION_JOURNAL_DIR", self.data_dir.join("journal"))
+            .env(
+                "MSC2_TEST_BOOTSTRAP_TOKEN",
+                "msc2_bedrock_production_smoke_testsecret",
+            )
+            .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap()
+    }
+
+    pub fn wait_for_health(&self) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while std::time::Instant::now() < deadline {
+            if std::net::TcpStream::connect(std::net::SocketAddr::from(([127, 0, 0, 1], self.port)))
+                .is_ok()
+                && raw_http(self.port, "GET", "/v1/health", None).starts_with("HTTP/1.1 200")
+            {
+                return;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        panic!("production agent did not become healthy");
+    }
+
+    pub fn http(&self, method: &str, path: &str, body: Option<&str>) -> (u16, Value) {
+        let response = raw_http(self.port, method, path, body);
+        let status = response.split_whitespace().nth(1).unwrap().parse().unwrap();
+        let body = response.split("\r\n\r\n").nth(1).unwrap_or_default();
+        (status, serde_json::from_str(body).unwrap_or(Value::Null))
+    }
+
+    pub fn cli(&self, args: &[&str]) -> std::process::Output {
+        std::process::Command::new(env!("CARGO_BIN_EXE_msc"))
+            .args([
+                "--base-url",
+                &format!("http://127.0.0.1:{}", self.port),
+                "--token",
+                "msc2_bedrock_production_smoke_testsecret",
+                "--json",
+            ])
+            .args(args)
+            .output()
+            .unwrap()
+    }
+
+    pub fn stop(&self, agent: &mut std::process::Child) {
+        let _ = agent.kill();
+        let _ = agent.wait();
+        let _ = std::fs::remove_dir_all(&self.root);
+        #[cfg(target_os = "macos")]
+        let _ = std::process::Command::new("security")
+            .args([
+                "delete-generic-password",
+                "-s",
+                &self.keychain_service,
+                "-a",
+                "remote-api.owner-token",
+            ])
+            .output();
+    }
+}
+
+fn raw_http(port: u16, method: &str, path: &str, body: Option<&str>) -> String {
+    use std::io::{Read, Write};
+    let mut stream =
+        std::net::TcpStream::connect(std::net::SocketAddr::from(([127, 0, 0, 1], port))).unwrap();
+    let body = body.unwrap_or_default();
+    let request = format!(
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer msc2_bedrock_production_smoke_testsecret\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    stream.write_all(request.as_bytes()).unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    response
+}
+
+fn free_port() -> u16 {
+    std::net::TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn unique_suffix() -> u128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos()
 }

@@ -302,7 +302,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.17 — Build the Swift Virtualization sidecar
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `sidecar/bedrock/`, `sidecar/bedrock/Tests/`, `fixtures/bedrock-sidecar/`, `docs/msc2/bedrock/phase10-scope.md`
 **What:** Build the narrow macOS Swift executable that owns `Virtualization.framework` and implements exactly the frozen provision/start/ready/command/stop/force-stop/terminated/console protocol. It may share the server directory through virtio-fs but may not introduce a second management API or persist Bedrock state outside that directory. Per D-028, the bundled kernel/initramfs appliance is Intel (x86_64) only, matching MSC 1's own single-architecture build; do not attempt an arm64 appliance or Rosetta-for-Linux wiring this phase, and make the host-architecture requirement an explicit, checked precondition rather than an unexplained failure to boot on Apple Silicon.
 **Verify:** `xcodebuild -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar test`
@@ -310,7 +310,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.18 — Prove the macOS VM and UDP relay lifecycle
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/tests/bedrock_macos_routes.rs`, `tools/phase10/macos-smoke.sh`, `docs/msc2/bedrock/evidence/`, `fixtures/bedrock-udp/`
 **What:** Run the complete agent-to-sidecar lifecycle against a disposable VM appliance on an Intel Mac: readiness only after DHCP and relay setup, console/command framing, graceful and forced shutdown, sidecar crash recovery, and host-directory persistence across a fresh VM. Record hardware or virtualization unavailability honestly rather than claiming a native-macOS BDS runtime, and record Apple Silicon specifically as out of scope per D-028 rather than untested-and-unmentioned.
 **Verify:** `bash tools/phase10/macos-smoke.sh --synthetic`

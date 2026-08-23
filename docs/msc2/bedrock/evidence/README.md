@@ -47,6 +47,14 @@ record under this directory. It must identify:
 4. the command or smoke-test entry point, its result, and capture time; and
 5. any limits on the claim, including whether the result is synthetic or live.
 
+P10.24's structured distribution records use the schema
+`msc2.phase10.distribution-evidence.v1`. An `unavailable` package identity is
+deliberate: it must name what the official source proves and why an exact
+versioned archive and digest were not safely captured. It must not fill in a
+fixture digest or a digest copied from the third-party MSC 1 reference
+manifest. A `supported` matrix cell is accepted only when its matching record
+has a verified official archive URL, captured archive, and SHA-256 identity.
+
 Unavailable evidence is a real outcome, not a missing row. For D-028, the
 decision record is the reproducible authority for the no-test-hardware reason;
 future Apple Silicon evidence must replace that reference only after the

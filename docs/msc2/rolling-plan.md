@@ -310,7 +310,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.18 — Prove the macOS VM and UDP relay lifecycle
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/tests/bedrock_macos_routes.rs`, `tools/phase10/macos-smoke.sh`, `docs/msc2/bedrock/evidence/`, `fixtures/bedrock-udp/`
 **What:** Run the complete agent-to-sidecar lifecycle against a disposable VM appliance on an Intel Mac: readiness only after DHCP and relay setup, console/command framing, graceful and forced shutdown, sidecar crash recovery, and host-directory persistence across a fresh VM. Record hardware or virtualization unavailability honestly rather than claiming a native-macOS BDS runtime, and record Apple Silicon specifically as out of scope per D-028 rather than untested-and-unmentioned.
 **Verify:** `bash tools/phase10/macos-smoke.sh --synthetic`
@@ -320,7 +320,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Shared application and public surfaces
 
 ### P10.19 — Reconcile Bedrock imports and creation
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/bedrock_service.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-application/tests/bedrock_imports.rs`, `fixtures/bedrock-world-layout/`
 **What:** Make Phase 5 imported Bedrock records authoritative only after their real BDS directory, level name, settings, and lifecycle implications are reconciled against the running-host truth. Implement Bedrock create/import with transactional rollback; clearly report any imported record that cannot run on its host rather than presenting it as ready.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_imports`
@@ -328,7 +328,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.19a — Implement Bedrock world and backup operations
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/bedrock_world_backup.rs`, `fixtures/bedrock-backup/`
 **What:** Make Phase 6 world-slot data authoritative for Bedrock's flat `worlds/<level-name>/` layout, and implement Bedrock backup with save-hold/save-query coordination when running and transactional rollback on failure. Preserve MSC 1's own scope boundary: Bedrock has no live-backup restore path — restore always goes through the slot-based Worlds model, never a direct in-place live restore the way Java's does. Do not invent a Bedrock live-restore path MSC 1 never had.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_world_backup`
@@ -336,7 +336,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.20 — Add Bedrock players, allowlist, permissions, and settings services
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/bedrock_players.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-application/tests/bedrock_players.rs`, `fixtures/bedrock-properties/`, `fixtures/bedrock-players/`, `fixtures/bedrock-leveldb/`
 **What:** Provide the shared services for Bedrock player discovery, XUID/name cache updates, allowlist and permissions mutation, live reload where supported, and validated `server.properties` changes. Every write must use the substrate’s atomic path and preserve a valid prior file if validation or replacement fails.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_players`
@@ -344,7 +344,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** safe
 
 ### P10.21 — Wire Bedrock HTTP, WebSocket, and CLI behavior
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/bedrock.rs`, `crates/msc-agent/tests/bedrock_routes.rs`, `crates/msc-cli/src/commands/bedrock.rs`, `crates/msc-cli/tests/bedrock.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Implement the P10.6 contract through the public agent routes and scriptable CLI, including operations, cancellation, capability disclosure, status/metrics/logs, settings, and player/allowlist actions. Reuse existing shared lifecycle routes where specified and ensure unsupported backend features are explicit, permission-checked results rather than absent or Java-only behavior.
 **Verify:** `cargo nextest run -p msc-agent --test bedrock_routes && cargo nextest run -p msc-agent --test bedrock_cli`
@@ -352,7 +352,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.22 — Update the copied iOS Bedrock client contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/ios/MSCRemoteiOS_Swift/`, `clients/ios/MSCRemoteiOSTests/`, `docs/msc2/client-capability-matrix.csv`, `tools/phase10/ios-contract-check.py`
 **What:** Update the copied iOS client’s Bedrock DTO decoding and supported lifecycle/settings/player flows against the P10.6 public contract, while keeping presentation-specific behavior client-owned. The MSC 1 oracle remains read-only. Record each delivered or intentionally unavailable capability in the matrix; do not claim a desktop/web surface before Phase 11.
 **Verify:** `python3 tools/phase10/ios-contract-check.py`
@@ -360,7 +360,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.23 — Add one synthetic cross-backend Bedrock smoke
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase10/phase10-smoke.sh`, `crates/msc-agent/tests/bedrock_routes.rs`, `crates/msc-agent/tests/bedrock_cli.rs`, `crates/msc-agent/tests/support/bedrock_smoke.rs`, `docs/msc2/bedrock/evidence/`
 **What:** Add one offline public-path smoke that runs the same fixture-backed API and CLI workflow against Linux-native, Windows-native, and macOS-sidecar fakes. It must cover provision, lifecycle, console, command, player/settings state, cancellation/recovery, runtime-unavailable disclosure, and ensure no test needs a live provider or personal world.
 **Verify:** `bash tools/phase10/phase10-smoke.sh --synthetic`
@@ -370,7 +370,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Evidence and gate
 
 ### P10.24 — Record safe official-distribution evidence
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/bedrock/evidence/`, `tools/phase10/evidence-check.py`, `docs/msc2/bedrock/compatibility-matrix.csv`
 **What:** Record the reproducible official-distribution and package-identity evidence each runtime needs, or a precise unavailable result where licensing, host support, or safe access prevents it — including Apple Silicon Mac distribution, unavailable per D-028 (no test hardware). The checker must reject fabricated success and must link every supported matrix cell to its matching record.
 **Verify:** `python3 tools/phase10/evidence-check.py --distribution`

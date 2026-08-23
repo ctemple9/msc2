@@ -1,0 +1,31 @@
+{
+  "schema": "msc2.phase10.distribution-evidence.v1",
+  "kind": "official-distribution",
+  "host": "macOS (Apple Silicon)",
+  "architecture": "arm64",
+  "bedrock_backend": "macos-vz-swift-sidecar",
+  "distribution": {
+    "publisher": "Mojang Studios / Microsoft",
+    "official_source": "https://www.minecraft.net/en-us/download/server/bedrock",
+    "package_platform": "none",
+    "official_requirement": "The official page publishes Linux and Windows BDS packages, not a macOS or arm64 BDS package.",
+    "package_identity": {
+      "status": "unavailable",
+      "version": null,
+      "archive_url": null,
+      "sha256": null,
+      "verification": "not-verified",
+      "archive_captured": false,
+      "reason": "D-028 defers Apple Silicon Bedrock: the owner has no Apple Silicon test hardware, and the Intel-only appliance would require a new arm64 appliance plus Rosetta-for-Linux path before the x86_64 BDS package could be used."
+    }
+  },
+  "capture": {
+    "recorded_at": "2026-08-23",
+    "method": "Applied D-028 to the official distribution's Linux/Windows-only package list; no Apple Silicon host test was attempted.",
+    "result": "unavailable"
+  },
+  "limits": [
+    "This is unavailable, not a tested negative and not an Apple Silicon support claim.",
+    "Revisit only after the D-028 condition is met and the arm64 appliance plus Rosetta-for-Linux path has reproducible evidence."
+  ]
+}

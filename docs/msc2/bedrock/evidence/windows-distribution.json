@@ -1,0 +1,31 @@
+{
+  "schema": "msc2.phase10.distribution-evidence.v1",
+  "kind": "official-distribution",
+  "host": "Windows",
+  "architecture": "x86_64",
+  "bedrock_backend": "native-windows-bds",
+  "distribution": {
+    "publisher": "Mojang Studios / Microsoft",
+    "official_source": "https://www.minecraft.net/en-us/download/server/bedrock",
+    "package_platform": "windows",
+    "official_requirement": "Windows 10 version 10.0.15063 or later, or Windows Server 2016 or later.",
+    "package_identity": {
+      "status": "unavailable",
+      "version": null,
+      "archive_url": null,
+      "sha256": null,
+      "verification": "not-verified",
+      "archive_captured": false,
+      "reason": "The official download page documents the Windows package and its host requirement, but this capture has no owner-supplied archive and no publisher-supplied SHA-256 identity. The third-party version manifest used by the MSC 1 behavioral reference is not accepted as official package identity evidence."
+    }
+  },
+  "capture": {
+    "recorded_at": "2026-08-23",
+    "method": "Inspected the official download page and compared its package claims with the identity fields required by MSC 2 provisioning.",
+    "result": "unavailable"
+  },
+  "limits": [
+    "This record does not claim that native BDS starts on Windows.",
+    "A future record must name an exact official archive, version, and SHA-256 before a runtime cell can be supported."
+  ]
+}

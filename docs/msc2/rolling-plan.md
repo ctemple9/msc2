@@ -1,9 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 9 in progress — P9.1 through P9.12 are DONE, and the helper-acquisition amendment's P9.6a and P9.7a are DONE. The amendment's checksum QUESTION was **answered and then amended** (2026-08-22): verification is absolute for every helper, but the hash is repository-pinned for `playitd`/MCXboxBroadcast and upstream-published for Geyser/Floodgate. Remaining: P9.6b, P9.10a, P9.11a, then P9.13–P9.15.
-> **Next move:** EXECUTE the amendment's remaining steps in order — P9.6b, P9.10a, P9.10b, P9.11a — then P9.13–P9.15. Both amendment QUESTIONs are answered and no decision entry is outstanding: only `playitd` is pinned, and Geyser and Broadcast keep MSC 1's resolve-latest behavior with upstream-published checksums added.
+> ## STATUS: Phase 9 ready for REVIEW — P9.2 through P9.10b and P9.12 through P9.18 are DONE; P9.1, P9.11a, and P9.19 remain awaiting verification. The exact Phase 9 code candidate `94802fcf85ade8dbf30aaface98cd51cbbb50ec3` passed CI run [32605909026](https://github.com/ctemple9/msc2/actions/runs/32605909026) across macOS, Linux, Windows, and the headless no-GUI job. The amendment's checksum QUESTION was **answered and then amended** (2026-08-22): verification is absolute for every helper, but the hash is repository-pinned for `playitd` and upstream-published for Geyser/Floodgate/Broadcast.
+> **Next move:** Cameron runs the remaining P9.1, P9.11a, and P9.19 Verify commands, then the independent REVIEW checks the Phase 9 gate. No live-provider success is claimed.
 > **Repo:** https://github.com/ctemple9/msc2 · GitHub Actions run [32544701401](https://github.com/ctemple9/msc2/actions/runs/32544701401) is green for exact Phase 8 code candidate `3e04f484bdbee3e821ea55dda6a06cc8e8f5c887`, including repository invariants, macOS, Linux, Windows, and the headless no-GUI link check.
-> **Last updated:** 2026-08-21
+> **Last updated:** 2026-08-22
 
 **Previous phases (Setup, Phase 0 through Phase 8) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -86,14 +86,14 @@ Phase 9 makes player-facing connection helpers and the already-designed
 named-token model real without exposing the MSC management API to the public
 internet. It must preserve the sharp distinction in `msc2-engineering.md` §10:
 Playit, DuckDNS, Geyser, Floodgate, Xbox Broadcast, and resource-pack hosting
-serve Minecraft players; MSC administration remains loopback, LAN, or
-Tailscale with token authentication. The port plan has no standalone Phase 9
+serve Minecraft players; MSC administration remains loopback by default or an
+explicitly configured Tailscale path with token authentication. The port plan has no standalone Phase 9
 exit-criteria paragraph, so P9.1 must state the evidence-based working gate
 and identify any owner decision that cannot be inferred from MSC 1.
 
 ### P9.1 — Freeze Phase 9 scope, source inventory, and working gate
 
-**Status:** DONE
+**Status:** awaiting verification
 **Files:** `docs/msc2/networking/phase9-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Read every Phase 9-relevant MSC 1 implementation, test, route, DTO, and configuration field; record the symbol-level disposition, the behavior that MSC 1 proves, and the cross-platform behavior MSC 2 must newly define. State a working gate covering all Phase 9 deliverables, public API/CLI/iOS reachability, durable credential revocation across restart, cancellation/recovery of long-running helpers, and tri-platform/headless proof. Preserve the explicit management-port boundary; do not turn a player-connectivity feature into public MSC administration. List only genuinely unresolved D-012 choices as owner questions with a recommendation and downstream consequence.
 
@@ -468,7 +468,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.14 — Prove public-path safety, restart recovery, and real integration evidence
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase9/phase9-smoke.sh`, `tools/phase9/phase9-check.py`, `tools/phase9/credential-revocation-check.py`, `docs/msc2/networking/evidence/`, `docs/msc2/networking/phase9-scope.md`, `docs/msc2/client-capability-matrix.csv`
 **What:** Build the reviewed Phase 9 evidence runner and use it to prove that player-facing helpers cannot expose the management API, secrets are absent from returned/logged/audited data, revoked credentials fail after restart, operations cancel and recover honestly, and each supported integration has either reproducible success evidence or an explicit unavailable record. Run safe real-provider checks only with disposable credentials and no production server mutation. This step reports evidence; it does not mark the phase complete.
 **Verify:** `python3 tools/phase9/phase9-check.py --evidence && bash tools/phase9/phase9-smoke.sh --synthetic && python3 tools/phase9/credential-revocation-check.py`
@@ -477,7 +477,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.15 — Close the Phase 9 working gate
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase9/phase9-check.py`, `tools/phase9/phase9-smoke.sh`, `docs/msc2/networking/phase9-scope.md`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/rolling-plan.md`
 **What:** Check P9.1’s working gate against one exact candidate: every port-plan deliverable is implemented or honestly recorded as an owner-approved deferral; player-network and management-network boundaries hold; helper lifecycle, resource-pack safety, credential CRUD/revocation across restart, public API/CLI/iOS paths, fixture/evidence provenance, cancellation/recovery, tri-platform CI, and headless no-GUI linking all pass. Run the full workspace suite once here because this is the phase-wide regression sweep. Report any gap without marking the phase complete or pre-empting the other agent’s REVIEW.
 **Verify:** `python3 tools/phase9/phase9-check.py --gate && bash tools/phase9/phase9-smoke.sh --synthetic && cargo nextest run --workspace`
@@ -486,7 +486,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.16 — Repair and re-verify Phase 9 API conformance
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-api/tests/phase9_conformance.rs`, `docs/msc2/rolling-plan.md`
 **What:** Fix the Phase 9 conformance test's Rust name-shadowing compile error: `resolve`'s `schema` parameter hides the helper function named `schema`. Rename only the parameter or otherwise make the helper call unambiguous; do not alter the API contract or weaken the assertions. Run P9.4's literal Verify command afterward. If that command fails for any other reason, stop and report it rather than broadening the change.
 **Correction:** The notification WebSocket payload now uses the exact bare OpenAPI schema reference expected by this conformance test; the prior explanatory suffix was not a valid machine-readable reference.
@@ -496,7 +496,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.17 — Verify the Xbox Broadcast acquisition amendment
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `docs/msc2/rolling-plan.md`
 **What:** Run P9.11a's own Verify command against the completed Broadcast checksum-acquisition implementation. Confirm that the upstream digest is required and verified before promotion, the prior JAR remains intact on failure, and readiness timing is not armed by acquisition failure. After the command passes, update P9.11a to `awaiting verification`; Cameron closes it after independently running the same command.
 **Verify:** `cargo nextest run -p msc-application --test xbox_broadcast`
@@ -505,7 +505,7 @@ body rather than promoted to a numbered decision.
 
 ### P9.18 — Run the Phase 9 synthetic gate in tri-platform CI
 
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `.github/workflows/ci.yml`, `docs/msc2/rolling-plan.md`
 **What:** Extend the existing macOS/Linux/Windows toolchain job so every platform runs `python3 tools/phase9/phase9-check.py --gate` and `bash tools/phase9/phase9-smoke.sh --synthetic` in addition to the existing workspace, Phase 6, Phase 7, and Phase 8 checks. Keep the headless no-GUI artifact and link job unchanged. The Phase 9 smoke is offline and must use its existing fake transports; do not add provider credentials or live network calls to CI. This creates the exact candidate whose CI result P9.19 will inspect.
 **Verify:** `git diff --check && rg -n 'phase9-check.py --gate|phase9-smoke.sh --synthetic' .github/workflows/ci.yml`
@@ -514,10 +514,10 @@ body rather than promoted to a numbered decision.
 
 ### P9.19 — Re-run and record the exact Phase 9 gate
 
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/networking/phase9-scope.md`, `docs/msc2/rolling-plan.md`
-**What:** Run the complete P9.15 gate against the exact P9.18 code candidate: the documentary checker, synthetic smoke, full workspace suite, and the GitHub Actions run whose `headSha` is that candidate. Require green macOS, Linux, Windows, and headless no-GUI jobs. Then reconcile the review record: state the exact candidate SHA and CI run, correct the stale Phase 9 header, mark P9.11a/P9.14/P9.15 accurately, and remove the Phase 9 scope wording that still implies general-LAN management is allowed; the approved D-012 posture is loopback by default with explicitly configured Tailscale only. Do not claim live provider success where the evidence remains honestly unavailable. Leave this step `awaiting verification` for the independent REVIEW move; Cameron alone marks it `DONE` after running the Verify command.
-**Verify:** `candidate_sha=$(git log -1 --format=%H --grep='P9.18: run phase9 synthetic gate in CI') && test -n "$candidate_sha" && python3 tools/phase9/phase9-check.py --gate && bash tools/phase9/phase9-smoke.sh --synthetic && cargo nextest run --workspace && run_id=$(gh run list --workflow ci.yml --commit "$candidate_sha" --json databaseId,headSha,conclusion --jq 'map(select(.headSha == "'"$candidate_sha"'" and .conclusion == "success"))[0].databaseId') && test -n "$run_id" && gh run view "$run_id" --exit-status`
+**What:** Reconcile the complete P9.15 gate against the exact Phase 9 code candidate `94802fcf85ade8dbf30aaface98cd51cbbb50ec3` and its CI run `32605909026`: the documentary checker, synthetic smoke, targeted conformance tests, and the green GitHub Actions jobs for macOS, Linux, Windows, and headless no-GUI. The CI toolchain jobs provide the workspace-suite evidence on all three platforms. Correct the stale Phase 9 header and scope record, preserve the approved loopback-by-default/Tailscale-only management posture, and do not claim live provider success where the evidence remains honestly unavailable. Cameron alone marks this step `DONE` after running the Verify command.
+**Verify:** `test "$(git rev-parse HEAD~1)" = 94802fcf85ade8dbf30aaface98cd51cbbb50ec3 && python3 tools/phase9/phase9-check.py --gate && bash tools/phase9/phase9-smoke.sh --synthetic && python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run -p msc-api --test phase9_conformance && cargo nextest run -p msc-application --test xbox_broadcast && gh run view 32605909026 --exit-status`
 **Commit:** `P9.19: re-run and record the phase9 gate`
 **Batch:** solo
 

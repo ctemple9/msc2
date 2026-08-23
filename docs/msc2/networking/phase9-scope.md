@@ -1,13 +1,13 @@
 # Phase 9 — networking and helpers scope
 
-**Status:** P9.14 evidence record; implementation and targeted safety proof are present.
+**Status:** P9.19 gate re-check recorded on exact candidate `94802fcf85ade8dbf30aaface98cd51cbbb50ec3`; implementation, targeted safety proof, and tri-platform CI gate are green.
 
 Phase 9 makes player-connection tools and the existing named-token model
 durable. It does not make the MSC management API public. The separation is
 non-negotiable: a Playit tunnel, a resource-pack HTTP server, DuckDNS display
 name, Geyser/Floodgate, and Xbox Broadcast carry Minecraft-player traffic;
-administration remains loopback by default, or an explicitly chosen LAN or
-Tailscale connection with token authentication.
+administration remains loopback by default, or an explicitly configured
+Tailscale path with token authentication.
 
 ## Source inventory and disposition
 
@@ -61,8 +61,8 @@ and CLI output (except the deliberate one-time named-token issuance response).
 No Phase 9 listener is an alternate management listener. Resource-pack hosting
 is restricted to an approved active pack; Playit and player-facing integrations
 carry Minecraft traffic only. The management API remains token-protected, with
-loopback as its default bind and LAN/Tailscale an explicit administrative
-choice.
+loopback as its default bind; an explicitly configured Tailscale path is the
+only off-loopback management path permitted in Phase 9.
 
 ## Working gate
 
@@ -149,16 +149,18 @@ here, and it made no server mutation.
 
 ## P9.15 gate check
 
-`tools/phase9/phase9-check.py --gate` and
-`tools/phase9/phase9-smoke.sh --synthetic` pass on the macOS candidate. The
-documentary gate confirms the nine evidence records, 29 implemented Phase 9
-routes, player/management separation, fixture coverage, and the existing
-tri-platform/headless CI wiring. The full-workspace portion of P9.15's Verify
-command remains open: it stops while compiling the existing
-`msc-api` Phase 9 conformance test because `resolve`'s `schema` parameter
-shadows the helper function named `schema` (`crates/msc-api/tests/phase9_conformance.rs:19-21`).
-No Phase 9 completion claim is made until that compile gap is resolved and an
-exact Phase 9 candidate has external tri-platform CI evidence.
+The documentary checker, synthetic smoke, targeted Phase 9 conformance tests,
+and Xbox Broadcast tests pass on the exact Phase 9 code candidate
+`94802fcf85ade8dbf30aaface98cd51cbbb50ec3`. Its GitHub Actions run
+[#32605909026](https://github.com/ctemple9/msc2/actions/runs/32605909026)
+is green for repository invariants, macOS, Linux, Windows, and the headless
+no-GUI link check. The macOS, Linux, and Windows toolchain jobs include the
+workspace suite and Phase 9 gate checks; the headless job provides the
+no-display artifact/link evidence. The local full-workspace run was started
+but interrupted after 171 of 1,581 tests with no observed failures; the CI
+run is the authoritative tri-platform workspace evidence. No live-provider
+success is claimed, and P9.19 remains awaiting Cameron's verification and
+the independent REVIEW move.
 
 ## D-012: Phase 9 access posture
 

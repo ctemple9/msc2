@@ -1,0 +1,19 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "nested-grandchild-is-not-discovered",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "resolvedBedrockWorldFolder(from:)",
+    "line": 592
+  },
+  "input": {
+    "selected": "/imports/wrapper",
+    "tree": [
+      "outer/inner/level.dat"
+    ]
+  },
+  "expected": {
+    "resolved": "/imports/wrapper",
+    "valid_world": false
+  }
+}

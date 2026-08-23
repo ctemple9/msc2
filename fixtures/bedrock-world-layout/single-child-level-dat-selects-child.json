@@ -1,0 +1,18 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "single-child-level-dat-selects-child",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "resolvedBedrockWorldFolder(from:)",
+    "line": 592
+  },
+  "input": {
+    "selected": "/imports/wrapper",
+    "tree": [
+      "My World/level.dat"
+    ]
+  },
+  "expected": {
+    "resolved": "/imports/wrapper/My World"
+  }
+}

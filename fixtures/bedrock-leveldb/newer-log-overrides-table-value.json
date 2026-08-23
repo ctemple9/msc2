@@ -1,0 +1,27 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "newer-log-overrides-table-value",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readPlayerData(dbPath:)",
+    "line": 62
+  },
+  "input": {
+    "ldb": {
+      "player_1": "table"
+    },
+    "logs": [
+      {
+        "file": "000003.log",
+        "writes": {
+          "player_1": "log"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "records": {
+      "player_1": "log"
+    }
+  }
+}

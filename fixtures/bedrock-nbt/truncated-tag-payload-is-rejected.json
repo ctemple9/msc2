@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "truncated-tag-payload-is-rejected",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "readData(count:)",
+    "line": 401
+  },
+  "input": {
+    "root_tags": [
+      {
+        "type": "TAG_Int",
+        "name": "Health",
+        "payload_bytes": 2
+      }
+    ]
+  },
+  "expected": {
+    "stats": null,
+    "inventory": [],
+    "error": "truncated_nbt"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "inventory-item-without-slot-is-skipped",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseBedrockItem(_:slotOverride:)",
+    "line": 188
+  },
+  "input": {
+    "Name": "minecraft:stone",
+    "Count": 1
+  },
+  "expected": {
+    "item": null,
+    "reason": "missing_slot"
+  }
+}

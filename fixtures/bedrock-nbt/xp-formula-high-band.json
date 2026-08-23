@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "xp-formula-high-band",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 73
+  },
+  "input": {
+    "PlayerLevel": 32,
+    "PlayerLevelProgress": 0.5
+  },
+  "expected": {
+    "xp_total": 1709
+  }
+}

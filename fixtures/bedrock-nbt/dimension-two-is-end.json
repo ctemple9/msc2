@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "dimension-two-is-end",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 122
+  },
+  "input": {
+    "DimensionId": 2
+  },
+  "expected": {
+    "dimension": "minecraft:the_end"
+  }
+}

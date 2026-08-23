@@ -1,0 +1,29 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "missing-stats-fields-use-defaults",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 38
+  },
+  "input": {
+    "root": {}
+  },
+  "expected": {
+    "stats": {
+      "health": 20,
+      "max_health": 20,
+      "food_level": 20,
+      "xp_level": 0,
+      "xp_total": 0,
+      "game_mode": 0,
+      "position": [
+        0,
+        0,
+        0
+      ],
+      "dimension": "minecraft:overworld",
+      "score": 0
+    }
+  }
+}

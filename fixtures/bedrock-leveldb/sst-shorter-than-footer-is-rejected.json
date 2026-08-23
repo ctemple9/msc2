@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "sst-shorter-than-footer-is-rejected",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseSSTFile(at:into:)",
+    "line": 79
+  },
+  "input": {
+    "file_size": 47
+  },
+  "expected": {
+    "records": {},
+    "error": "unavailable_or_corrupt"
+  }
+}

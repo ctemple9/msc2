@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "plain-custom-name-falls-back-to-raw",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseJSONTextComponent(_:)",
+    "line": 299
+  },
+  "input": {
+    "display_name": "Old Sword"
+  },
+  "expected": {
+    "custom_name": "Old Sword"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "int-item-field-variants-are-read",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseBedrockItem(_:slotOverride:)",
+    "line": 177
+  },
+  "input": {
+    "Name": "minecraft:stone",
+    "Slot": {
+      "type": "TAG_Int",
+      "value": 5
+    },
+    "Count": {
+      "type": "TAG_Int",
+      "value": 6
+    },
+    "Damage": {
+      "type": "TAG_Int",
+      "value": 7
+    }
+  },
+  "expected": {
+    "item": {
+      "slot": 5,
+      "item_id": "minecraft:stone",
+      "count": 6,
+      "damage": 7
+    }
+  }
+}

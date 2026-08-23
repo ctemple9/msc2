@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-backup",
+  "case": "save-query-ready-on-first-poll",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "waitForBedrockSaveReady(timeout:)",
+    "line": 394
+  },
+  "input": {
+    "send_results": {
+      "save hold": true,
+      "save query": true
+    },
+    "console_lines": [
+      "Data saved. Files are now ready to be copied."
+    ]
+  },
+  "expected": {
+    "saves_paused": true,
+    "query_attempts": 1,
+    "backup_proceeds": true
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "empty-level-name-uses-fallback",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "sanitizedWorldLevelName(_:fallback:)",
+    "line": 164
+  },
+  "input": {
+    "raw": " /\\:=\n\t ",
+    "fallback": "Bedrock level"
+  },
+  "expected": {
+    "level_name": "Bedrock level"
+  }
+}

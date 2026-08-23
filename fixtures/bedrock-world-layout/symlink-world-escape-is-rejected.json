@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "symlink-world-escape-is-rejected",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "resolvedBedrockWorldFolder(from:)",
+    "line": 592
+  },
+  "input": {
+    "selected": "/staging/import",
+    "tree": [
+      "World -> /outside/live-world",
+      "World/level.dat"
+    ],
+    "path_safety_root": "/staging/import"
+  },
+  "expected": {
+    "resolved": null,
+    "error": "path_escape"
+  },
+  "notes": "MSC 1 follows this directory symlink; MSC 2 must reject it under Phase 3's approved path-safety boundary rather than treating an outside live world as an import."
+}

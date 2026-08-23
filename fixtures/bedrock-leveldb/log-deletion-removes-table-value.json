@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "log-deletion-removes-table-value",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "applyWriteBatch(_:into:)",
+    "line": 255
+  },
+  "input": {
+    "ldb": {
+      "player_1": "table"
+    },
+    "log_operations": [
+      {
+        "type": "deletion",
+        "key": "player_1"
+      }
+    ]
+  },
+  "expected": {
+    "records": {}
+  }
+}

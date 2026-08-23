@@ -1,0 +1,19 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "no-child-world-falls-back-to-selected",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "resolvedBedrockWorldFolder(from:)",
+    "line": 592
+  },
+  "input": {
+    "selected": "/imports/empty",
+    "tree": [
+      "readme.txt"
+    ]
+  },
+  "expected": {
+    "resolved": "/imports/empty",
+    "valid_world": false
+  }
+}

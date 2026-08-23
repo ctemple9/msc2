@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "invalid-level-name-characters-collapse",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "sanitizedWorldLevelName(_:fallback:)",
+    "line": 164
+  },
+  "input": {
+    "raw": "  My/World\\Test:=  ",
+    "fallback": "Bedrock level"
+  },
+  "expected": {
+    "level_name": "My-World-Test"
+  }
+}

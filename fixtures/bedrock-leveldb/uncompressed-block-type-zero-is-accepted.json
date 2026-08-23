@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "uncompressed-block-type-zero-is-accepted",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readBlock(data:offset:size:)",
+    "line": 111
+  },
+  "input": {
+    "compression_type": 0,
+    "raw_hex": "616263"
+  },
+  "expected": {
+    "block_hex": "616263"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "xp-formula-level-thirty-one-boundary",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 73
+  },
+  "input": {
+    "PlayerLevel": 31,
+    "PlayerLevelProgress": 0.5
+  },
+  "expected": {
+    "xp_total": 1582
+  }
+}

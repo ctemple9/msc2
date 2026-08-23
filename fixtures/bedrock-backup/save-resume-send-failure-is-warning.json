@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-backup",
+  "case": "save-resume-send-failure-is-warning",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "resumeSavesAfterBackup(for:isBedrock:)",
+    "line": 370
+  },
+  "input": {
+    "server_still_running": true,
+    "active_server_matches": true,
+    "send_results": {
+      "save resume": false
+    }
+  },
+  "expected": {
+    "error_raised": false,
+    "warning": "could not send 'save resume'"
+  }
+}

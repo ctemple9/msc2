@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "truncated-wal-fragment-stops-cleanly",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseLogFile(at:into:)",
+    "line": 225
+  },
+  "input": {
+    "header": {
+      "length": 12,
+      "type": "FULL"
+    },
+    "remaining_payload_bytes": 4
+  },
+  "expected": {
+    "records": {},
+    "error": "unavailable_or_corrupt"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-backup",
+  "case": "save-query-timeout-still-proceeds",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pauseSavesForBackup(isBedrock:)",
+    "line": 329
+  },
+  "input": {
+    "send_results": {
+      "save hold": true,
+      "save query": true
+    },
+    "console_lines": [],
+    "timeout_seconds": 10
+  },
+  "expected": {
+    "saves_paused": true,
+    "backup_proceeds": true,
+    "warning": "timed out waiting for Bedrock 'save query' to report ready"
+  }
+}

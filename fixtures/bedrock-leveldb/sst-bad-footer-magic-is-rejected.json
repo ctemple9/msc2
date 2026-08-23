@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "sst-bad-footer-magic-is-rejected",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseSSTFile(at:into:)",
+    "line": 83
+  },
+  "input": {
+    "footer_magic_le": "0000000000000000"
+  },
+  "expected": {
+    "records": {},
+    "error": "unavailable_or_corrupt"
+  }
+}

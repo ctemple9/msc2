@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "json-custom-name-extracts-text",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseJSONTextComponent(_:)",
+    "line": 299
+  },
+  "input": {
+    "display_name": "{\"text\":\"Pickaxe\"}"
+  },
+  "expected": {
+    "custom_name": "Pickaxe"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "raw-deflate-block-type-four-is-accepted",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readBlock(data:offset:size:)",
+    "line": 111
+  },
+  "input": {
+    "compression_type": 4,
+    "raw_deflate_of_utf8": "player data"
+  },
+  "expected": {
+    "block_utf8": "player data"
+  }
+}

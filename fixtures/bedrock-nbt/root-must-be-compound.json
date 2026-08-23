@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "root-must-be-compound",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "readRootCompound()",
+    "line": 293
+  },
+  "input": {
+    "nbt_hex": "000000"
+  },
+  "expected": {
+    "stats": null,
+    "inventory": [],
+    "error": "corrupt_nbt"
+  }
+}

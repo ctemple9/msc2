@@ -1,0 +1,35 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "ench-short-fields-map-numeric-id",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseBedrockItem(_:slotOverride:)",
+    "line": 215
+  },
+  "input": {
+    "Name": "minecraft:sword",
+    "Slot": 0,
+    "tag": {
+      "ench": [
+        {
+          "id": {
+            "type": "TAG_Short",
+            "value": 9
+          },
+          "lvl": {
+            "type": "TAG_Short",
+            "value": 3
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "enchantments": [
+      {
+        "id": "minecraft:sharpness",
+        "level": 3
+      }
+    ]
+  }
+}

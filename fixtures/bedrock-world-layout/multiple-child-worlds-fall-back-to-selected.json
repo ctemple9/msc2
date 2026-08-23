@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "multiple-child-worlds-fall-back-to-selected",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "resolvedBedrockWorldFolder(from:)",
+    "line": 592
+  },
+  "input": {
+    "selected": "/imports/worlds",
+    "tree": [
+      "One/level.dat",
+      "Two/level.dat"
+    ]
+  },
+  "expected": {
+    "resolved": "/imports/worlds",
+    "valid_world": false
+  }
+}

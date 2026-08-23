@@ -1,0 +1,21 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "sst-deletion-record-is-skipped",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseDataBlock(_:into:)",
+    "line": 186
+  },
+  "input": {
+    "records": [
+      {
+        "key": "player_1",
+        "type": "deletion",
+        "value": "ignored"
+      }
+    ]
+  },
+  "expected": {
+    "records": {}
+  }
+}

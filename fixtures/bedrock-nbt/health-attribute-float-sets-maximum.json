@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "health-attribute-float-sets-maximum",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 44
+  },
+  "input": {
+    "Health": 18,
+    "Attributes": [
+      {
+        "Name": "minecraft:health",
+        "Base": 40,
+        "base_type": "TAG_Float"
+      }
+    ]
+  },
+  "expected": {
+    "health": 18,
+    "max_health": 40
+  }
+}

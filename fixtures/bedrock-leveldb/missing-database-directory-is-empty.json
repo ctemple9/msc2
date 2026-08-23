@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "missing-database-directory-is-empty",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readPlayerData(dbPath:)",
+    "line": 47
+  },
+  "input": {
+    "directory_exists": false
+  },
+  "expected": {
+    "records": {}
+  }
+}

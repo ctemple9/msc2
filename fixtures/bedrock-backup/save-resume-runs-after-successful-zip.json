@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-backup",
+  "case": "save-resume-runs-after-successful-zip",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "backupWorld(for:isAutomatic:triggerReason:)",
+    "line": 246
+  },
+  "input": {
+    "running_active_bedrock": true,
+    "pause_succeeded": true,
+    "zip_status": 0
+  },
+  "expected": {
+    "commands": [
+      "save hold",
+      "save query",
+      "save resume"
+    ],
+    "backup_result": true
+  }
+}

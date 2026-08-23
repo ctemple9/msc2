@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "unknown-nested-tag-is-rejected",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "readPayload(type:)",
+    "line": 313
+  },
+  "input": {
+    "root_tags": [
+      {
+        "type": 99,
+        "name": "bad"
+      }
+    ]
+  },
+  "expected": {
+    "stats": null,
+    "inventory": [],
+    "error": "bad_tag"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "ldb-conflict-follows-filesystem-order",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readPlayerData(dbPath:)",
+    "line": 56
+  },
+  "input": {
+    "directory_order": [
+      "000010.ldb",
+      "000002.ldb"
+    ],
+    "records": [
+      {
+        "file": "000010.ldb",
+        "key": "player_1",
+        "value": "newer-number"
+      },
+      {
+        "file": "000002.ldb",
+        "key": "player_1",
+        "value": "older-number"
+      }
+    ]
+  },
+  "expected": {
+    "value": "newer-number"
+  },
+  "notes": "MSC 1 does not sort .ldb files and keeps the first value inserted, so filesystem enumeration order—not the numeric filename—wins."
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "varint-overflow-is-rejected",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readVarint(data:cursor:)",
+    "line": 282
+  },
+  "input": {
+    "hex": "80808080808080808080"
+  },
+  "expected": {
+    "value": null,
+    "cursor": 10,
+    "error": "varint_overflow"
+  }
+}

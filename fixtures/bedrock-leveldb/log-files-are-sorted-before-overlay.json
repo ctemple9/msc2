@@ -1,0 +1,21 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "log-files-are-sorted-before-overlay",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readPlayerData(dbPath:)",
+    "line": 67
+  },
+  "input": {
+    "directory_order": [
+      "000010.log",
+      "000002.log"
+    ]
+  },
+  "expected": {
+    "application_order": [
+      "000002.log",
+      "000010.log"
+    ]
+  }
+}

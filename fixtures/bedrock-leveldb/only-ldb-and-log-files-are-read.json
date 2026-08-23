@@ -1,0 +1,24 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "only-ldb-and-log-files-are-read",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readPlayerData(dbPath:)",
+    "line": 50
+  },
+  "input": {
+    "files": [
+      "CURRENT",
+      "MANIFEST-000001",
+      "000001.ldb",
+      "000002.log",
+      "notes.txt"
+    ]
+  },
+  "expected": {
+    "parsed": [
+      "000001.ldb",
+      "000002.log"
+    ]
+  }
+}

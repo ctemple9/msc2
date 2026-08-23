@@ -1,0 +1,39 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "armor-and-offhand-use-forced-slots",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractInventory(from:)",
+    "line": 145
+  },
+  "input": {
+    "Armor": [
+      {
+        "Name": "minecraft:helmet"
+      },
+      {
+        "Name": "minecraft:chestplate"
+      },
+      {
+        "Name": "minecraft:leggings"
+      },
+      {
+        "Name": "minecraft:boots"
+      }
+    ],
+    "Offhand": [
+      {
+        "Name": "minecraft:shield"
+      }
+    ]
+  },
+  "expected": {
+    "slots": [
+      103,
+      102,
+      101,
+      100,
+      -106
+    ]
+  }
+}

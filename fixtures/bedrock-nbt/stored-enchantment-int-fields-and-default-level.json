@@ -1,0 +1,31 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "stored-enchantment-int-fields-and-default-level",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseBedrockItem(_:slotOverride:)",
+    "line": 212
+  },
+  "input": {
+    "Name": "minecraft:book",
+    "Slot": 0,
+    "tag": {
+      "StoredEnchantments": [
+        {
+          "id": {
+            "type": "TAG_Int",
+            "value": 26
+          }
+        }
+      ]
+    }
+  },
+  "expected": {
+    "enchantments": [
+      {
+        "id": "minecraft:mending",
+        "level": 1
+      }
+    ]
+  }
+}

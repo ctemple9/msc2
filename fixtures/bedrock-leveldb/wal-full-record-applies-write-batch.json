@@ -1,0 +1,28 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "wal-full-record-applies-write-batch",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseLogFile(at:into:)",
+    "line": 207
+  },
+  "input": {
+    "physical_records": [
+      {
+        "type": "FULL",
+        "write_batch": [
+          {
+            "type": "value",
+            "key": "player_1",
+            "value": "nbt"
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "records": {
+      "player_1": "nbt"
+    }
+  }
+}

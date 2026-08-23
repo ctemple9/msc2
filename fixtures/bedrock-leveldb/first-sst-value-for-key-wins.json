@@ -1,0 +1,30 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "first-sst-value-for-key-wins",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseDataBlock(_:into:)",
+    "line": 167
+  },
+  "input": {
+    "records": [
+      {
+        "key": "player_1",
+        "sequence": 20,
+        "type": "value",
+        "value": "new"
+      },
+      {
+        "key": "player_1",
+        "sequence": 10,
+        "type": "value",
+        "value": "old"
+      }
+    ]
+  },
+  "expected": {
+    "records": {
+      "player_1": "new"
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "corrupt-level-dat-yields-empty-metadata",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromFolder:serverType:)",
+    "line": 1271
+  },
+  "input": {
+    "level_dat": "truncated-or-bad-tag"
+  },
+  "expected": {
+    "metadata": {
+      "seed": null,
+      "difficulty": null,
+      "gamemode": null,
+      "day_time": null
+    },
+    "error": "corrupt_world_metadata"
+  }
+}

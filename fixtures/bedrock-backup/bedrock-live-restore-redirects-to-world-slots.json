@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-backup",
+  "case": "bedrock-live-restore-redirects-to-world-slots",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "restoreBackup(_:)",
+    "line": 585
+  },
+  "input": {
+    "server_type": "bedrock",
+    "backup_exists": true,
+    "server_running": false
+  },
+  "expected": {
+    "restored": false,
+    "error_title": "Restore Not Available",
+    "destination": "Worlds tab",
+    "slot_restore_available": true
+  }
+}

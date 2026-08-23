@@ -1,0 +1,31 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "wal-first-middle-last-reassembles-record",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseLogFile(at:into:)",
+    "line": 207
+  },
+  "input": {
+    "physical_records": [
+      {
+        "type": "FIRST",
+        "fragment": "header+op"
+      },
+      {
+        "type": "MIDDLE",
+        "fragment": "key"
+      },
+      {
+        "type": "LAST",
+        "fragment": "value"
+      }
+    ]
+  },
+  "expected": {
+    "logical_records_applied": 1,
+    "records": {
+      "player_1": "value"
+    }
+  }
+}

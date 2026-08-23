@@ -1,0 +1,28 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "bedrock-headered-level-dat-metadata-is-derived",
+  "source": {
+    "file": "WorldSlotManager.swift",
+    "test": "importedWorldMetadata(fromLevelDatData:serverType:)",
+    "line": 1281
+  },
+  "input": {
+    "level_dat": {
+      "eight_byte_header": true,
+      "nbt": {
+        "RandomSeed": 12345,
+        "Difficulty": 2,
+        "GameType": 1,
+        "DayTime": 48001
+      }
+    }
+  },
+  "expected": {
+    "metadata": {
+      "seed": "12345",
+      "difficulty": "normal",
+      "gamemode": "creative",
+      "day_time": 48001
+    }
+  }
+}

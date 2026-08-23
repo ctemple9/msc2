@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "empty-custom-name-is-absent",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseJSONTextComponent(_:)",
+    "line": 299
+  },
+  "input": {
+    "display_name": ""
+  },
+  "expected": {
+    "custom_name": null
+  }
+}

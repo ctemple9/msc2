@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-backup",
+  "case": "save-hold-send-failure-backs-up-live-files",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "pauseSavesForBackup(isBedrock:)",
+    "line": 329
+  },
+  "input": {
+    "is_bedrock": true,
+    "send_results": {
+      "save hold": false
+    }
+  },
+  "expected": {
+    "saves_paused": false,
+    "query_attempts": 0,
+    "backup_proceeds": true
+  }
+}

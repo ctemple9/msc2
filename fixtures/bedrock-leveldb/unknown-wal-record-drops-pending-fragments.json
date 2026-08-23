@@ -1,0 +1,29 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "unknown-wal-record-drops-pending-fragments",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseLogFile(at:into:)",
+    "line": 241
+  },
+  "input": {
+    "physical_records": [
+      {
+        "type": "FIRST",
+        "fragment": "partial-a"
+      },
+      {
+        "type": 9,
+        "fragment": "unknown"
+      },
+      {
+        "type": "LAST",
+        "fragment": "partial-b"
+      }
+    ]
+  },
+  "expected": {
+    "logical_records_applied": 0,
+    "records": {}
+  }
+}

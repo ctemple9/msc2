@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "xp-formula-level-sixteen-boundary",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 73
+  },
+  "input": {
+    "PlayerLevel": 16,
+    "PlayerLevelProgress": 0.5
+  },
+  "expected": {
+    "xp_total": 373
+  }
+}

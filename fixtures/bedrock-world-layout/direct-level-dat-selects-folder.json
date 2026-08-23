@@ -1,0 +1,19 @@
+{
+  "domain": "bedrock-world-layout",
+  "case": "direct-level-dat-selects-folder",
+  "source": {
+    "file": "AppViewModel+ServerCreation.swift",
+    "test": "resolvedBedrockWorldFolder(from:)",
+    "line": 592
+  },
+  "input": {
+    "selected": "/imports/My World",
+    "tree": [
+      "level.dat",
+      "db/"
+    ]
+  },
+  "expected": {
+    "resolved": "/imports/My World"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "dimension-one-is-nether",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 122
+  },
+  "input": {
+    "DimensionId": 1
+  },
+  "expected": {
+    "dimension": "minecraft:the_nether"
+  }
+}

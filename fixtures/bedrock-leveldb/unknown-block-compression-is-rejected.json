@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "unknown-block-compression-is-rejected",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "readBlock(data:offset:size:)",
+    "line": 111
+  },
+  "input": {
+    "compression_type": 2,
+    "raw_hex": "00"
+  },
+  "expected": {
+    "block": null,
+    "error": "unsupported_compression"
+  }
+}

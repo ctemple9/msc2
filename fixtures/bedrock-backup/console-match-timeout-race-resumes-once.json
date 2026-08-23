@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-backup",
+  "case": "console-match-timeout-race-resumes-once",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "resolveConsoleWaiter(_:matched:)",
+    "line": 443
+  },
+  "input": {
+    "events_same_deadline": [
+      "matching_line",
+      "timeout"
+    ]
+  },
+  "expected": {
+    "continuation_resume_count": 1,
+    "first_event_wins": true,
+    "waiter_removed": true
+  }
+}

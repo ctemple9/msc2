@@ -1,0 +1,21 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "health-attribute-double-sets-maximum",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 44
+  },
+  "input": {
+    "Attributes": [
+      {
+        "Name": "generic.maxHealth",
+        "Base": 24.5,
+        "base_type": "TAG_Double"
+      }
+    ]
+  },
+  "expected": {
+    "max_health": 24.5
+  }
+}

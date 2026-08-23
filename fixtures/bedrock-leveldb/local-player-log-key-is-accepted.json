@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "local-player-log-key-is-accepted",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "applyWriteBatch(_:into:)",
+    "line": 255
+  },
+  "input": {
+    "operations": [
+      {
+        "type": "value",
+        "key": "~local_player",
+        "value": "nbt"
+      }
+    ]
+  },
+  "expected": {
+    "records": {
+      "~local_player": "nbt"
+    }
+  }
+}

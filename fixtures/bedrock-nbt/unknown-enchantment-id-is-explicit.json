@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "unknown-enchantment-id-is-explicit",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "namespacedEnchantmentID(_:)",
+    "line": 251
+  },
+  "input": {
+    "id": 99
+  },
+  "expected": {
+    "namespaced_id": "minecraft:unknown_99"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "sst-truncated-footer-handle-is-rejected",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseSSTFile(at:into:)",
+    "line": 91
+  },
+  "input": {
+    "footer": {
+      "metaindex_handle": "80",
+      "index_handle": "unterminated-varint"
+    }
+  },
+  "expected": {
+    "records": {},
+    "error": "unavailable_or_corrupt"
+  }
+}

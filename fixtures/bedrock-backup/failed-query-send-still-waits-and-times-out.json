@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-backup",
+  "case": "failed-query-send-still-waits-and-times-out",
+  "source": {
+    "file": "AppViewModel+Backups.swift",
+    "test": "waitForBedrockSaveReady(timeout:)",
+    "line": 394
+  },
+  "input": {
+    "send_results": {
+      "save hold": true,
+      "save query": false
+    },
+    "console_lines": [],
+    "timeout_seconds": 10
+  },
+  "expected": {
+    "saves_paused": true,
+    "backup_proceeds": true,
+    "query_send_failure_is_fatal": false
+  }
+}

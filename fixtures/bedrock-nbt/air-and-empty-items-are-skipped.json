@@ -1,0 +1,24 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "air-and-empty-items-are-skipped",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseBedrockItem(_:slotOverride:)",
+    "line": 183
+  },
+  "input": {
+    "entries": [
+      {
+        "Name": "minecraft:air",
+        "Slot": 0
+      },
+      {
+        "Name": "",
+        "Slot": 1
+      }
+    ]
+  },
+  "expected": {
+    "items": []
+  }
+}

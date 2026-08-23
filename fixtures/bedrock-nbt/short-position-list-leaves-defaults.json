@@ -1,0 +1,26 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "short-position-list-leaves-defaults",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 96
+  },
+  "input": {
+    "Pos": {
+      "element_type": "TAG_Short",
+      "values": [
+        1,
+        64,
+        -2
+      ]
+    }
+  },
+  "expected": {
+    "position": [
+      0,
+      0,
+      0
+    ]
+  }
+}

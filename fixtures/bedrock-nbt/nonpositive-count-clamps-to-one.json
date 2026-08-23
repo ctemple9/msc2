@@ -1,0 +1,19 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "nonpositive-count-clamps-to-one",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "parseBedrockItem(_:slotOverride:)",
+    "line": 196
+  },
+  "input": {
+    "Name": "minecraft:stone",
+    "Slot": 0,
+    "Count": 0
+  },
+  "expected": {
+    "item": {
+      "count": 1
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "domain": "bedrock-nbt",
+  "case": "float-position-list-is-read",
+  "source": {
+    "file": "BedrockNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 96
+  },
+  "input": {
+    "Pos": {
+      "element_type": "TAG_Float",
+      "values": [
+        1.25,
+        64.5,
+        -2.75
+      ]
+    }
+  },
+  "expected": {
+    "position": [
+      1.25,
+      64.5,
+      -2.75
+    ]
+  }
+}

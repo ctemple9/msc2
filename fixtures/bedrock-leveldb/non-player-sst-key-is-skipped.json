@@ -1,0 +1,21 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "non-player-sst-key-is-skipped",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "parseDataBlock(_:into:)",
+    "line": 190
+  },
+  "input": {
+    "records": [
+      {
+        "key": "chunk_0_0",
+        "type": "value",
+        "value": "chunk"
+      }
+    ]
+  },
+  "expected": {
+    "records": {}
+  }
+}

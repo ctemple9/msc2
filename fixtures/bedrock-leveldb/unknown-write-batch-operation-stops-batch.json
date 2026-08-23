@@ -1,0 +1,26 @@
+{
+  "domain": "bedrock-leveldb",
+  "case": "unknown-write-batch-operation-stops-batch",
+  "source": {
+    "file": "BedrockLevelDB.swift",
+    "test": "applyWriteBatch(_:into:)",
+    "line": 275
+  },
+  "input": {
+    "operations": [
+      {
+        "type": 7,
+        "key": "player_1"
+      },
+      {
+        "type": "value",
+        "key": "player_2",
+        "value": "later"
+      }
+    ]
+  },
+  "expected": {
+    "records": {},
+    "later_operations_applied": false
+  }
+}

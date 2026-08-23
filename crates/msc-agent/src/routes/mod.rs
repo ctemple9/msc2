@@ -2,6 +2,7 @@
 
 pub mod backups;
 pub mod bedrock;
+pub mod bedrock_runtime;
 pub mod capabilities;
 pub mod commands;
 pub mod components;

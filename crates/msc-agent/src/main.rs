@@ -101,12 +101,15 @@ pub(crate) fn build_app() -> Router {
     let auth_state =
         auth::AuthState::persistent_service_store_with_secret_store(secret_store.clone());
     let console_state = ws::console::ConsoleState::default();
-    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::with_app_config_and_auth(
-        console_state.clone(),
-        operations_state.clone(),
-        app_config,
-        auth_state.clone(),
-    );
+    let bedrock_runtime = routes::bedrock_runtime::BedrockRuntimeSelection::production(app_config);
+    let lifecycle_state =
+        routes::lifecycle::LifecycleRoutesState::with_app_config_and_auth_and_bedrock(
+            console_state.clone(),
+            operations_state.clone(),
+            app_config,
+            auth_state.clone(),
+            bedrock_runtime,
+        );
     let notification_state = ws::notifications::NotificationState::default();
     let networking_state = routes::networking::NetworkingState::new(
         lifecycle_state.clone(),

@@ -43,6 +43,7 @@ use msc_infrastructure::secret_store::SecretStore;
 use tokio::task::JoinHandle;
 
 use crate::auth::{AuthState, AuthenticatedCredential};
+use crate::routes::bedrock_runtime::BedrockRuntimeSelection;
 use crate::routes::operations::{OperationsState, operation_error_response};
 use crate::ws::console::ConsoleState;
 
@@ -212,6 +213,7 @@ struct LifecycleRoutesInner {
     auth_state: Option<AuthState>,
     audit_log: &'static AuditLog<'static>,
     reconciliation: Mutex<BTreeMap<String, ReconciliationStatus>>,
+    bedrock_runtime: BedrockRuntimeSelection,
 }
 
 pub struct AgentServerRegistry {
@@ -253,6 +255,7 @@ impl LifecycleRoutesState {
             app_config,
             default_process_supervisor(),
             None,
+            BedrockRuntimeSelection::unavailable_for_tests(),
         )
     }
 
@@ -272,14 +275,32 @@ impl LifecycleRoutesState {
             app_config,
             default_process_supervisor(),
             None,
+            BedrockRuntimeSelection::unavailable_for_tests(),
         )
     }
 
+    #[allow(dead_code)]
     pub fn with_app_config_and_auth(
         console_state: ConsoleState,
         operations: OperationsState,
         app_config: &'static AgentAppConfigStore,
         auth_state: AuthState,
+    ) -> Self {
+        Self::with_app_config_and_auth_and_bedrock(
+            console_state,
+            operations,
+            app_config,
+            auth_state,
+            BedrockRuntimeSelection::unavailable_for_tests(),
+        )
+    }
+
+    pub fn with_app_config_and_auth_and_bedrock(
+        console_state: ConsoleState,
+        operations: OperationsState,
+        app_config: &'static AgentAppConfigStore,
+        auth_state: AuthState,
+        bedrock_runtime: BedrockRuntimeSelection,
     ) -> Self {
         Self::with_dependencies(
             console_state,
@@ -287,6 +308,7 @@ impl LifecycleRoutesState {
             app_config,
             default_process_supervisor(),
             Some(auth_state),
+            bedrock_runtime,
         )
     }
 
@@ -296,6 +318,7 @@ impl LifecycleRoutesState {
         app_config: &'static AgentAppConfigStore,
         process: Box<dyn ProcessSupervisor + Send + Sync>,
         auth_state: Option<AuthState>,
+        bedrock_runtime: BedrockRuntimeSelection,
     ) -> Self {
         let reconciliation = reconcile_servers_at_startup(&app_config.servers());
 
@@ -335,6 +358,7 @@ impl LifecycleRoutesState {
                 auth_state,
                 audit_log,
                 reconciliation: Mutex::new(reconciliation),
+                bedrock_runtime,
             }),
         }
     }
@@ -420,6 +444,7 @@ impl LifecycleRoutesState {
             app_config,
             Box::new(supervisor),
             None,
+            BedrockRuntimeSelection::unavailable_for_tests(),
         );
         (state, supervisor)
     }
@@ -611,6 +636,10 @@ impl LifecycleRoutesState {
     /// growing one accessor per field.
     pub fn app_config_snapshot(&self) -> AppConfig {
         self.inner.app_config.snapshot()
+    }
+
+    pub fn bedrock_runtime_state(&self) -> msc_api::dto::BedrockRuntimeStateDto {
+        self.inner.bedrock_runtime.state_dto()
     }
 
     /// Applies `update` to the durable `AppConfig` and persists it,

@@ -435,7 +435,7 @@ not advance.
 **Batch:** solo
 
 ### P10.31 — Select the Bedrock runtime in the production agent
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/capabilities.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/tests/bedrock_runtime_selection.rs`
 **What:** Build the eligible Linux-native, Windows-native, or Intel-macOS-sidecar runtime once in the real agent composition root and pass it through the production route state. `GET /v1/capabilities` must report that selected runtime's current state rather than a literal `false`/`null`; unavailable hosts must return the structured P10.29 result. Do not put VZ, guest-IP, process-tree, or platform inference in HTTP handlers, and do not let a test-only runtime factory become a production back door to claim support.
 **Verify:** `cargo nextest run -p msc-agent --test bedrock_runtime_selection`

@@ -1,7 +1,7 @@
 //! `GET /v1/capabilities` — `capability-model.md` §3's response.
 //! `agentVersion`/`apiMajor`/`apiMinor`/`hostOs` are real compile-time
-//! constants (P2.6's own distinction); everything else is placeholder
-//! detection, standing in for Phase 3/4 substrate work.
+//! constants (P2.6's own distinction). Bedrock is reported from the runtime
+//! selected during production composition, not from a route-local guess.
 
 use axum::{Extension, Json};
 use msc_api::dto::{
@@ -24,6 +24,9 @@ pub async fn capabilities(
         .active_server_id
         .as_ref()
         .and_then(|id| config.servers.iter().find(|server| &server.id == id));
+    let bedrock_runtime = networking.lifecycle.bedrock_runtime_state();
+    let bedrock_supported = bedrock_runtime.state == "available";
+    let bedrock_backend = bedrock_runtime.backend;
     Json(CapabilitiesDto {
         agent_version: env!("CARGO_PKG_VERSION").to_string(),
         api_major: API_MAJOR,
@@ -37,9 +40,9 @@ pub async fn capabilities(
             forge: true,
             neoforge: true,
             bedrock: BedrockSupportDto {
-                supported: false,
-                backend: None,
-                runtime: None,
+                supported: bedrock_supported,
+                backend: bedrock_backend,
+                runtime: Some(bedrock_runtime),
             },
         },
         helpers: HelpersDto {

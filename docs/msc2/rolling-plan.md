@@ -242,7 +242,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.10 — Add verified Bedrock distribution staging
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/bedrock_distribution.rs`, `crates/msc-application/src/bedrock_provisioning.rs`, `crates/msc-application/tests/bedrock_provisioning.rs`, `fixtures/bedrock-provisioning/`
 **What:** Implement the scoped official-BDS acquisition and staging path used by all three runtime backends. This is new MSC 2 behavior, not a port — MSC 1's own provisioner performs no checksum or signature verification at all. Add real checksum/identity verification and correct per-platform manifest-entry selection (MSC 1 always reads the `linux` entry, even for its own VM guest), retain provenance and version selection, preserve the Phase 7-style downgrade backup guard, and leave the prior working installation intact on failure; never make an unverified archive runnable.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_provisioning`

@@ -3,6 +3,7 @@ pub mod addon_provider;
 pub mod addon_update;
 pub mod app_config_schema;
 pub mod backup;
+pub mod bedrock;
 pub mod capability;
 pub mod commands;
 pub mod crash_analysis;

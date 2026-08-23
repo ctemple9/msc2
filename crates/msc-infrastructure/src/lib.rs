@@ -4,6 +4,8 @@ pub mod archive;
 pub mod atomic_write;
 pub mod audit_log;
 pub mod backup_store;
+pub mod bedrock_leveldb;
+pub mod bedrock_nbt;
 pub mod config_repository;
 pub mod console_buffer;
 pub mod credential_repository;

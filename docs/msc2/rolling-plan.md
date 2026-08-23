@@ -208,7 +208,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.6 — Freeze the Bedrock API, operation, and capability contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/bedrock/phase10-api.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/websocket-v1.json`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-api/tests/phase10_conformance.rs`
 **What:** Reconcile the frozen `/v1` baseline with Bedrock creation, lifecycle, settings, players, allowlist, permissions, metrics, logs, version changes, and runtime-unavailable states. Define additive DTO fields, permission categories, operation/cancellation semantics, error/help behavior, and platform capability disclosure before application code exists; do not add a Java-shaped route where a shared route already has a compatible home.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run -p msc-api --test phase10_conformance`
@@ -218,7 +218,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Shared domain and storage foundation
 
 ### P10.7 — Port pure Bedrock settings, console, and player rules
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/bedrock.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/bedrock.rs`, `fixtures/bedrock-properties/`, `fixtures/bedrock-console/`, `fixtures/bedrock-players/`
 **What:** Implement the fixture-backed parsing, validation, clamping, command selection, console-line classification, player identity extraction, and display-safe status rules. Keep process control, filesystem mutation, and LevelDB I/O outside `msc-domain`.
 **Verify:** `cargo nextest run -p msc-domain --test bedrock`
@@ -226,7 +226,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** safe
 
 ### P10.8 — Add bounded Bedrock NBT and LevelDB readers
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/bedrock_nbt.rs`, `crates/msc-infrastructure/src/bedrock_leveldb.rs`, `crates/msc-infrastructure/tests/bedrock_storage.rs`, `fixtures/bedrock-leveldb/`, `fixtures/bedrock-nbt/`
 **What:** Add read-only, bounded adapters for the fixture corpus: decode the MSC 1-required NBT/player fields, tolerate real LevelDB table and WAL layouts, and return explicit unavailable/corrupt outcomes without mutating a live world database. Preserve the existing path-safety and resource bounds.
 **Verify:** `cargo nextest run -p msc-infrastructure --test bedrock_storage`

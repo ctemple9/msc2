@@ -320,7 +320,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Shared application and public surfaces
 
 ### P10.19 — Reconcile Bedrock imports and creation
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/bedrock_service.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-application/tests/bedrock_imports.rs`, `fixtures/bedrock-world-layout/`
 **What:** Make Phase 5 imported Bedrock records authoritative only after their real BDS directory, level name, settings, and lifecycle implications are reconciled against the running-host truth. Implement Bedrock create/import with transactional rollback; clearly report any imported record that cannot run on its host rather than presenting it as ready.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_imports`

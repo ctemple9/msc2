@@ -44,6 +44,7 @@
 //! on it, but this step does not invent the write target itself.
 
 use msc_domain::app_config_schema::ConfigServer;
+use msc_domain::bedrock::render_raw_properties;
 use msc_domain::identity::{JavaServerFlavor, ServerType};
 use msc_domain::modpack_manifest;
 use msc_domain::provisioning::{self, ImportedWorldMetadata};
@@ -51,6 +52,7 @@ use msc_domain::world::{self, WorldSlot};
 use msc_domain::{nbt, server_versions};
 use msc_infrastructure::addon_provider::AddonTransport;
 use msc_infrastructure::archive::{self, ArchiveError};
+use msc_infrastructure::atomic_write::{AtomicWriteError, atomic_write};
 use msc_infrastructure::fs::{FileSystem, join_forward_slash};
 use msc_infrastructure::jar_provider::{self, JarProviderError, Transport};
 use msc_infrastructure::java_runtime_detection;
@@ -338,6 +340,100 @@ pub struct CreatedServer {
     /// returns, not by that shared tail itself (it has no java-executable
     /// argument to run the guard's own probe against).
     pub java_compatibility_warning: Option<String>,
+}
+
+/// The three world-source choices shared by MSC 1's Bedrock creation flow.
+#[derive(Debug, Clone)]
+pub enum BedrockWorldSource<'a> {
+    Fresh,
+    BackupZip(&'a Path),
+    ExistingFolder(&'a Path),
+}
+
+#[derive(Debug, Clone)]
+pub struct BedrockCreateRequest<'a> {
+    pub name: &'a str,
+    pub initial_world_name: Option<&'a str>,
+    pub bedrock_version: Option<&'a str>,
+    pub port: u16,
+    pub max_players: i64,
+    pub enable_playit: bool,
+    pub enable_xbox_broadcast: bool,
+    pub difficulty: &'a str,
+    pub gamemode: &'a str,
+    pub world_seed: Option<&'a str>,
+    pub world_source: BedrockWorldSource<'a>,
+}
+
+#[derive(Debug)]
+pub enum BedrockCreateError {
+    EmptyName,
+    EmptyDestinationName,
+    FolderAlreadyExists { path: PathBuf },
+    InvalidWorldSource { path: PathBuf, reason: String },
+    Archive(ArchiveError),
+    WorldSlot(WorldError),
+    AtomicWrite(AtomicWriteError),
+    Io(std::io::Error),
+}
+
+impl fmt::Display for BedrockCreateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyName => f.write_str("server name is empty"),
+            Self::EmptyDestinationName => f.write_str("server name produces an empty folder name"),
+            Self::FolderAlreadyExists { path } => {
+                write!(
+                    f,
+                    "a Bedrock server folder already exists at {}",
+                    path.display()
+                )
+            }
+            Self::InvalidWorldSource { path, reason } => {
+                write!(
+                    f,
+                    "invalid Bedrock world source {}: {reason}",
+                    path.display()
+                )
+            }
+            Self::Archive(error) => write!(f, "{error}"),
+            Self::WorldSlot(error) => write!(f, "{error}"),
+            Self::AtomicWrite(error) => write!(f, "{error}"),
+            Self::Io(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl std::error::Error for BedrockCreateError {}
+
+impl From<ArchiveError> for BedrockCreateError {
+    fn from(error: ArchiveError) -> Self {
+        Self::Archive(error)
+    }
+}
+
+impl From<WorldError> for BedrockCreateError {
+    fn from(error: WorldError) -> Self {
+        Self::WorldSlot(error)
+    }
+}
+
+impl From<AtomicWriteError> for BedrockCreateError {
+    fn from(error: AtomicWriteError) -> Self {
+        Self::AtomicWrite(error)
+    }
+}
+
+impl From<std::io::Error> for BedrockCreateError {
+    fn from(error: std::io::Error) -> Self {
+        Self::Io(error)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct CreatedBedrockServer {
+    pub config: ConfigServer,
+    pub world_slot: WorldSlot,
 }
 
 /// What a jar acquisition resolved to — mirrors `ServerJarDownloadResult`
@@ -1678,6 +1774,308 @@ fn apply_cross_play_templates_if_available(
         home_dir,
         &floodgate.filename,
     );
+}
+
+/// Resolve MSC 1's two accepted Bedrock import shapes: the selected folder
+/// itself, or one direct child containing `level.dat`.  A symlink is rejected
+/// instead of followed so an import cannot copy a live world outside the
+/// user-selected source tree.
+pub fn resolve_bedrock_world_folder(folder: &Path) -> Result<PathBuf, BedrockCreateError> {
+    let folder_type = std::fs::symlink_metadata(folder)?;
+    if !folder_type.is_dir() {
+        return Err(BedrockCreateError::InvalidWorldSource {
+            path: folder.to_path_buf(),
+            reason: "selected path is not a directory".to_owned(),
+        });
+    }
+
+    let level_dat = folder.join("level.dat");
+    if std::fs::symlink_metadata(&level_dat)
+        .map(|metadata| metadata.is_file())
+        .unwrap_or(false)
+    {
+        return Ok(folder.to_path_buf());
+    }
+    if std::fs::symlink_metadata(&level_dat).is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Err(BedrockCreateError::InvalidWorldSource {
+            path: level_dat,
+            reason: "level.dat is a symbolic link".to_owned(),
+        });
+    }
+
+    let mut candidates = Vec::new();
+    for entry in std::fs::read_dir(folder)? {
+        let entry = entry?;
+        let metadata = std::fs::symlink_metadata(entry.path())?;
+        if metadata.file_type().is_symlink() {
+            return Err(BedrockCreateError::InvalidWorldSource {
+                path: entry.path(),
+                reason: "symbolic links are not allowed in a Bedrock world import".to_owned(),
+            });
+        }
+        if !metadata.is_dir() {
+            continue;
+        }
+        let child_level_dat = entry.path().join("level.dat");
+        if std::fs::symlink_metadata(&child_level_dat)
+            .map(|metadata| metadata.is_file())
+            .unwrap_or(false)
+        {
+            candidates.push(entry.path());
+        } else if std::fs::symlink_metadata(&child_level_dat)
+            .is_ok_and(|metadata| metadata.file_type().is_symlink())
+        {
+            return Err(BedrockCreateError::InvalidWorldSource {
+                path: child_level_dat,
+                reason: "level.dat is a symbolic link".to_owned(),
+            });
+        }
+    }
+
+    if candidates.len() == 1 {
+        Ok(candidates.remove(0))
+    } else {
+        // This fallback is observable MSC 1 behavior. The creation caller
+        // separately requires level.dat, so an ambiguous wrapper is reported
+        // as unusable rather than registered as a ready server.
+        Ok(folder.to_path_buf())
+    }
+}
+
+fn sanitized_bedrock_level_name(raw: &str, fallback: &str) -> String {
+    msc_domain::world::sanitized_world_level_name(raw, fallback)
+}
+
+fn bedrock_folder_name(name: &str) -> String {
+    name.to_lowercase()
+        .replace(' ', "_")
+        .chars()
+        .filter(|character| character.is_alphanumeric() || *character == '_' || *character == '-')
+        .take(40)
+        .collect()
+}
+
+fn copy_bedrock_world_tree(
+    fs: &dyn FileSystem,
+    source: &Path,
+    destination: &Path,
+) -> Result<(), BedrockCreateError> {
+    let metadata = std::fs::symlink_metadata(source)?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(BedrockCreateError::InvalidWorldSource {
+            path: source.to_path_buf(),
+            reason: "world source must be a real directory".to_owned(),
+        });
+    }
+    fs.create_dir_all(destination)?;
+    for entry in std::fs::read_dir(source)? {
+        let entry = entry?;
+        let source_child = entry.path();
+        let destination_child = destination.join(entry.file_name());
+        let metadata = std::fs::symlink_metadata(&source_child)?;
+        if metadata.file_type().is_symlink() {
+            return Err(BedrockCreateError::InvalidWorldSource {
+                path: source_child,
+                reason: "symbolic links are not allowed in a Bedrock world import".to_owned(),
+            });
+        }
+        if metadata.is_dir() {
+            copy_bedrock_world_tree(fs, &source_child, &destination_child)?;
+        } else if metadata.is_file() {
+            fs.write(&destination_child, &std::fs::read(&source_child)?)?;
+        }
+    }
+    Ok(())
+}
+
+/// Create a native Bedrock server directory and its first persistent world
+/// slot. The directory is claimed before any file is written, and every
+/// later error removes the whole candidate, so callers never receive a
+/// partially-created server record.
+#[allow(clippy::too_many_arguments)]
+pub fn create_bedrock_server(
+    fs: &dyn FileSystem,
+    servers_root: &Path,
+    request: &BedrockCreateRequest<'_>,
+    now: &str,
+) -> Result<CreatedBedrockServer, BedrockCreateError> {
+    let safe_name = request.name.trim();
+    if safe_name.is_empty() {
+        return Err(BedrockCreateError::EmptyName);
+    }
+    let folder_name = bedrock_folder_name(safe_name);
+    if folder_name.is_empty() {
+        return Err(BedrockCreateError::EmptyDestinationName);
+    }
+    let bedrock_root = join_forward_slash(servers_root, std::ffi::OsStr::new("bedrock"));
+    let new_dir = join_forward_slash(&bedrock_root, folder_name.as_ref());
+    if let Some(parent) = new_dir.parent() {
+        fs.create_dir_all(parent)?;
+    }
+    if let Err(error) = fs.create_dir_exclusive(&new_dir) {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            return Err(BedrockCreateError::FolderAlreadyExists { path: new_dir });
+        }
+        return Err(error.into());
+    }
+
+    let result = (|| -> Result<CreatedBedrockServer, BedrockCreateError> {
+        let slot_name = initial_world_slot_name(safe_name, request.initial_world_name);
+        let imported_metadata = match &request.world_source {
+            BedrockWorldSource::Fresh => ImportedWorldMetadata::default(),
+            BedrockWorldSource::BackupZip(path) => {
+                if !std::fs::metadata(path).is_ok_and(|metadata| metadata.is_file()) {
+                    return Err(BedrockCreateError::InvalidWorldSource {
+                        path: (*path).to_path_buf(),
+                        reason: "backup ZIP does not exist".to_owned(),
+                    });
+                }
+                imported_metadata_from_zip(path, ServerType::Bedrock)
+            }
+            BedrockWorldSource::ExistingFolder(path) => {
+                let resolved = resolve_bedrock_world_folder(path)?;
+                let level_dat = resolved.join("level.dat");
+                if !std::fs::metadata(&level_dat).is_ok_and(|metadata| metadata.is_file()) {
+                    return Err(BedrockCreateError::InvalidWorldSource {
+                        path: resolved,
+                        reason: "no level.dat was found at the selected world root".to_owned(),
+                    });
+                }
+                imported_metadata_from_folder(&resolved, ServerType::Bedrock)
+            }
+        };
+        let world_seed = if matches!(request.world_source, BedrockWorldSource::Fresh) {
+            request
+                .world_seed
+                .map(str::trim)
+                .filter(|seed| !seed.is_empty())
+                .map(str::to_owned)
+        } else {
+            imported_metadata.seed.clone()
+        };
+        let effective_difficulty = imported_metadata
+            .difficulty
+            .as_deref()
+            .unwrap_or(request.difficulty);
+        let effective_gamemode = imported_metadata
+            .gamemode
+            .as_deref()
+            .unwrap_or(request.gamemode);
+        let initial_level_name = match &request.world_source {
+            BedrockWorldSource::ExistingFolder(path) => {
+                let resolved = resolve_bedrock_world_folder(path)?;
+                sanitized_bedrock_level_name(
+                    resolved
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or(""),
+                    &slot_name,
+                )
+            }
+            BedrockWorldSource::Fresh | BedrockWorldSource::BackupZip(_) => {
+                sanitized_bedrock_level_name(&slot_name, "Bedrock level")
+            }
+        };
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert("server-name".to_owned(), safe_name.to_owned());
+        properties.insert("level-name".to_owned(), initial_level_name.clone());
+        properties.insert("gamemode".to_owned(), effective_gamemode.to_owned());
+        properties.insert("difficulty".to_owned(), effective_difficulty.to_owned());
+        properties.insert("max-players".to_owned(), request.max_players.to_string());
+        properties.insert("server-port".to_owned(), request.port.to_string());
+        properties.insert("server-portv6".to_owned(), "19133".to_owned());
+        properties.insert("online-mode".to_owned(), "true".to_owned());
+        properties.insert("allow-cheats".to_owned(), "false".to_owned());
+        if let Some(seed) = world_seed.as_deref() {
+            properties.insert("level-seed".to_owned(), seed.to_owned());
+        }
+
+        atomic_write(
+            fs,
+            &new_dir.join("server.properties"),
+            render_raw_properties(&properties).as_bytes(),
+        )?;
+        atomic_write(fs, &new_dir.join("allowlist.json"), b"[]\n")?;
+        atomic_write(fs, &new_dir.join("permissions.json"), b"[]\n")?;
+
+        match &request.world_source {
+            BedrockWorldSource::Fresh => {}
+            BedrockWorldSource::BackupZip(path) => {
+                fs.create_dir_all(&new_dir.join("worlds"))?;
+                archive::extract_zip(path, &new_dir)?;
+            }
+            BedrockWorldSource::ExistingFolder(path) => {
+                let resolved = resolve_bedrock_world_folder(path)?;
+                copy_bedrock_world_tree(
+                    fs,
+                    &resolved,
+                    &new_dir.join("worlds").join(&initial_level_name),
+                )?;
+            }
+        }
+
+        let slot = match &request.world_source {
+            BedrockWorldSource::Fresh => {
+                let slot = world::build_fresh_slot(
+                    uuid::Uuid::new_v4().to_string().to_uppercase(),
+                    &slot_name,
+                    world_seed.as_deref(),
+                    ServerType::Bedrock,
+                    now.to_owned(),
+                );
+                world_store::save_metadata(fs, &new_dir, &slot)?;
+                slot
+            }
+            BedrockWorldSource::BackupZip(path) => worlds::import_zip_as_new_slot(
+                fs,
+                &new_dir,
+                ServerType::Bedrock,
+                Some(&initial_level_name),
+                path,
+                &slot_name,
+                now,
+            )?,
+            BedrockWorldSource::ExistingFolder(_) => worlds::create_slot_from_current_world(
+                fs,
+                &new_dir,
+                ServerType::Bedrock,
+                Some(&initial_level_name),
+                &slot_name,
+                imported_metadata.seed.as_deref(),
+                now,
+            )?,
+        };
+        world_store::set_active_slot_id(fs, &new_dir, Some(&slot.id))?;
+
+        let mut config = ConfigServer::new(
+            uuid::Uuid::new_v4().to_string().to_uppercase(),
+            safe_name,
+            new_dir.to_string_lossy(),
+            "",
+            0.0,
+            0.0,
+        );
+        config.server_type = ServerType::Bedrock;
+        config.bedrock_port = Some(i64::from(request.port));
+        config.bedrock_version = request
+            .bedrock_version
+            .map(str::trim)
+            .filter(|version| !version.is_empty() && *version != "LATEST")
+            .map(str::to_owned);
+        config.playit_enabled = request.enable_playit;
+        config.xbox_broadcast_enabled = request.enable_xbox_broadcast;
+
+        Ok(CreatedBedrockServer {
+            config,
+            world_slot: slot,
+        })
+    })();
+
+    if result.is_err() {
+        let _ = fs.remove(&new_dir);
+    }
+    result
 }
 
 /// Production `unzip_world_backup`: extracts a backup zip's own top-level

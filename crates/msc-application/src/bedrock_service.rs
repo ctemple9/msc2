@@ -11,10 +11,12 @@ use crate::bedrock_runtime::{
 };
 use crate::lifecycle::LifecycleState;
 use crate::operations::{LifecycleOperationError, LifecycleOperationSnapshot, LifecycleOperations};
+use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::bedrock::{
-    BedrockConsoleEvent, BedrockPlayer, BedrockPlayerEvent, backfill_allowlist_xuid,
-    classify_console_line,
+    BedrockConsoleEvent, BedrockPlayer, BedrockPlayerEvent, BedrockPropertiesModel,
+    backfill_allowlist_xuid, classify_console_line, parse_raw_properties,
 };
+use msc_domain::identity::ServerType;
 use msc_infrastructure::atomic_write::atomic_write;
 use msc_infrastructure::fs::FileSystem;
 use msc_infrastructure::metrics::{ProcessMetricsProvider, ProcessResourceUsage};
@@ -39,6 +41,151 @@ pub struct BedrockServerInfo {
     pub version: String,
     pub memory_gb: u32,
     pub bedrock_port: u16,
+}
+
+/// The part of an imported Bedrock directory that can be trusted after it
+/// has been read from the running host.  The persisted Phase 5 record is only
+/// an identifier and a hint; these values come from the directory that the
+/// runtime will actually use.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BedrockDirectoryTruth {
+    pub executable: PathBuf,
+    pub level_name: String,
+    pub max_players: i64,
+    pub server_port: u16,
+    pub server_port_v6: u16,
+    pub online_mode: bool,
+    pub allow_cheats: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BedrockImportReadiness {
+    Ready,
+    Unavailable { reason: String },
+}
+
+/// A Phase 5 Bedrock record after it has been reconciled with disk and the
+/// selected host backend.  Callers must use `readiness` before presenting the
+/// server as startable.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ReconciledBedrockImport {
+    pub config: ConfigServer,
+    pub directory: Option<BedrockDirectoryTruth>,
+    pub readiness: BedrockImportReadiness,
+}
+
+/// Re-read an imported Bedrock server before it enters the authoritative
+/// fleet.  Missing files and an unavailable host are ordinary, reportable
+/// states rather than application errors: the user needs to see why the
+/// imported record cannot run, while a corrupt filesystem read remains an
+/// actual failure.
+pub fn reconcile_bedrock_import(
+    fs: &dyn FileSystem,
+    config: &ConfigServer,
+    capabilities: &crate::bedrock_runtime::BedrockRuntimeCapabilities,
+) -> Result<ReconciledBedrockImport, io::Error> {
+    if config.server_type != ServerType::Bedrock {
+        return Ok(ReconciledBedrockImport {
+            config: config.clone(),
+            directory: None,
+            readiness: BedrockImportReadiness::Unavailable {
+                reason: "imported record is not a Bedrock server".to_owned(),
+            },
+        });
+    }
+
+    let server_dir = PathBuf::from(&config.server_dir);
+    let directory_exists = fs
+        .stat(&server_dir)
+        .map(|metadata| metadata.is_dir)
+        .unwrap_or(false);
+    if !directory_exists {
+        return Ok(ReconciledBedrockImport {
+            config: config.clone(),
+            directory: None,
+            readiness: BedrockImportReadiness::Unavailable {
+                reason: format!("Bedrock directory does not exist: {}", server_dir.display()),
+            },
+        });
+    }
+
+    let executable = ["bedrock_server", "bedrock_server.exe"]
+        .iter()
+        .map(|name| server_dir.join(name))
+        .find(|path| fs.stat(path).is_ok_and(|metadata| metadata.is_file));
+    let Some(executable) = executable else {
+        return Ok(ReconciledBedrockImport {
+            config: config.clone(),
+            directory: None,
+            readiness: BedrockImportReadiness::Unavailable {
+                reason: "Bedrock executable is missing from the imported directory".to_owned(),
+            },
+        });
+    };
+
+    let property_bytes = match fs.read(&server_dir.join("server.properties")) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(error),
+    };
+    let properties = parse_raw_properties(&String::from_utf8_lossy(&property_bytes));
+    let model = BedrockPropertiesModel::from_raw(&properties);
+    let directory = BedrockDirectoryTruth {
+        executable,
+        level_name: model.level_name,
+        max_players: model.max_players,
+        server_port: match u16::try_from(model.server_port) {
+            Ok(port) if port > 0 => port,
+            _ => {
+                return Ok(ReconciledBedrockImport {
+                    config: config.clone(),
+                    directory: None,
+                    readiness: BedrockImportReadiness::Unavailable {
+                        reason: format!(
+                            "Bedrock server.properties contains an unusable UDP port: {}",
+                            model.server_port
+                        ),
+                    },
+                });
+            }
+        },
+        server_port_v6: match u16::try_from(model.server_port_v6) {
+            Ok(port) if port > 0 => port,
+            _ => {
+                return Ok(ReconciledBedrockImport {
+                    config: config.clone(),
+                    directory: None,
+                    readiness: BedrockImportReadiness::Unavailable {
+                        reason: format!(
+                            "Bedrock server.properties contains an unusable IPv6 UDP port: {}",
+                            model.server_port_v6
+                        ),
+                    },
+                });
+            }
+        },
+        online_mode: model.online_mode,
+        allow_cheats: model.allow_cheats,
+    };
+
+    let mut authoritative_config = config.clone();
+    authoritative_config.bedrock_port = Some(i64::from(directory.server_port));
+    let readiness = if capabilities.supported {
+        BedrockImportReadiness::Ready
+    } else {
+        BedrockImportReadiness::Unavailable {
+            reason: capabilities
+                .unavailable_reason
+                .clone()
+                .unwrap_or_else(|| "Bedrock runtime is unavailable on this host".to_owned()),
+        }
+    };
+
+    Ok(ReconciledBedrockImport {
+        config: authoritative_config,
+        directory: Some(directory),
+        readiness,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq)]

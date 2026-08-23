@@ -135,12 +135,11 @@ pub(crate) fn existing_world_folders(
         .collect()
 }
 
-/// `server.properties`' `level-name` value, for Java servers only — no
-/// fixture in this domain names a Bedrock case (Bedrock's own runtime
-/// stays unavailable until Phase 10 per this phase's own deferral), so
-/// this reads only the one properties file every P6.11 fixture actually
-/// needs. Flagged narrowing, not a silent one.
-pub fn read_java_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Option<String> {
+/// The shared `server.properties` `level-name` value. Java and Bedrock use
+/// the same key, but Bedrock's `worlds/<level-name>/` directory makes it
+/// especially important that callers do not silently fall back to the
+/// generic Bedrock name when a real server directory already declares one.
+pub fn read_configured_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Option<String> {
     let bytes = fs.read(&server_dir.join("server.properties")).ok()?;
     let text = String::from_utf8_lossy(&bytes);
     for line in text.lines() {
@@ -155,6 +154,27 @@ pub fn read_java_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Option<St
         }
     }
     None
+}
+
+/// Compatibility-named Java entry point retained for callers that already
+/// know they are handling a Java server. The file format is shared with
+/// Bedrock; [`read_configured_level_name`] is the type-neutral entry point.
+pub fn read_java_level_name(fs: &dyn FileSystem, server_dir: &Path) -> Option<String> {
+    read_configured_level_name(fs, server_dir)
+}
+
+fn resolved_level_name(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+) -> String {
+    let configured = if raw_level_name.is_none() {
+        read_configured_level_name(fs, server_dir)
+    } else {
+        None
+    };
+    world::current_level_name(server_type, raw_level_name.or(configured.as_deref()))
 }
 
 fn has_archive(fs: &dyn FileSystem, server_dir: &Path, slot_id: &str) -> bool {
@@ -266,10 +286,9 @@ fn live_folders_proven_identical_to_archive(
 /// The idempotent P6.1 handoff. Call once per server before any world-
 /// mutation route is reachable for it — see the module doc for the
 /// dedicated-marker mechanism that makes a repeated call a no-op.
-/// `raw_level_name` is `server.properties`' `level-name` value for Java
-/// servers (`None` for Bedrock — see [`read_java_level_name`]'s doc);
-/// callers may pass `None` to have this function read it itself via
-/// [`read_java_level_name`], or supply an already-read value.
+/// `raw_level_name` is the already-read `server.properties` `level-name`;
+/// callers may pass `None` to have this function read it itself from the
+/// shared properties file, or supply an already-read value.
 pub fn reconcile_imported_worlds(
     fs: &dyn FileSystem,
     server_dir: &Path,
@@ -281,8 +300,8 @@ pub fn reconcile_imported_worlds(
         return Ok(ReconciliationOutcome::AlreadyReconciled);
     }
 
-    let owned_level_name = if raw_level_name.is_none() && server_type == ServerType::Java {
-        read_java_level_name(fs, server_dir)
+    let owned_level_name = if raw_level_name.is_none() {
+        read_configured_level_name(fs, server_dir)
     } else {
         None
     };
@@ -553,6 +572,12 @@ pub fn create_slot_from_current_world(
     seed: Option<&str>,
     now: &str,
 ) -> Result<WorldSlot, WorldError> {
+    let configured_level_name = if raw_level_name.is_none() {
+        read_configured_level_name(fs, server_dir)
+    } else {
+        None
+    };
+    let raw_level_name = raw_level_name.or(configured_level_name.as_deref());
     let level_name = world::current_level_name(server_type, raw_level_name);
     let folders = existing_world_folders(fs, server_dir, server_type, &level_name);
     if folders.is_empty() {
@@ -600,6 +625,12 @@ pub fn update_active_slot_from_current_world(
     raw_level_name: Option<&str>,
     slot: &WorldSlot,
 ) -> Result<WorldSlot, WorldError> {
+    let configured_level_name = if raw_level_name.is_none() {
+        read_configured_level_name(fs, server_dir)
+    } else {
+        None
+    };
+    let raw_level_name = raw_level_name.or(configured_level_name.as_deref());
     let level_name = world::current_level_name(server_type, raw_level_name);
     let folders = existing_world_folders(fs, server_dir, server_type, &level_name);
     if folders.is_empty() {
@@ -898,7 +929,12 @@ pub fn import_zip_as_new_slot(
         thumbnail_file_name: None,
         world_level_name: match server_type {
             ServerType::Java => infer_java_level_name_from_zip(&dest_zip),
-            ServerType::Bedrock => Some(world::current_level_name(server_type, raw_level_name)),
+            ServerType::Bedrock => Some(resolved_level_name(
+                fs,
+                server_dir,
+                server_type,
+                raw_level_name,
+            )),
         },
         world_seed: infer_imported_world_seed(source_zip_path, server_type),
         zip_size_bytes: zip_size_bytes(fs, &dest_zip),
@@ -1300,8 +1336,7 @@ fn resolve_activation_identity(
             apply_seed: false,
         })
     } else {
-        let current_level_name = read_java_level_name(fs, server_dir)
-            .unwrap_or_else(|| world::current_level_name(server_type, None));
+        let current_level_name = resolved_level_name(fs, server_dir, server_type, None);
         let candidate = stored_level_name.unwrap_or(slot.name.as_str());
         Some(WorldIdentity {
             level_name: world::sanitized_world_level_name(candidate, &current_level_name),
@@ -1354,8 +1389,7 @@ pub fn activate_slot(
 
     let (has_archive, identity) = resolve_activation_identity(fs, server_dir, server_type, slot)?;
 
-    let current_level_name = read_java_level_name(fs, server_dir)
-        .unwrap_or_else(|| world::current_level_name(server_type, None));
+    let current_level_name = resolved_level_name(fs, server_dir, server_type, None);
     let current_folders = existing_world_folders(fs, server_dir, server_type, &current_level_name);
 
     if !current_folders.is_empty() && !backup() {
@@ -1575,7 +1609,7 @@ pub fn rename_world(
         return Err(WorldError::ServerRunning);
     }
 
-    let old_level_name = world::current_level_name(server_type, raw_level_name);
+    let old_level_name = resolved_level_name(fs, server_dir, server_type, raw_level_name);
     if trimmed == old_level_name {
         return Ok(());
     }
@@ -1825,7 +1859,7 @@ pub fn replace_world(
     // candidate-name computation `rename_world` uses — decide both which
     // live folders exist to protect and which ones phase 2 moves aside.
     let base = world_base_dir(server_dir, server_type);
-    let current_level_name = world::current_level_name(server_type, raw_level_name);
+    let current_level_name = resolved_level_name(fs, server_dir, server_type, raw_level_name);
     let current_names = world::live_world_folder_candidates(server_type, &current_level_name);
     let current_folders_exist = current_names
         .iter()

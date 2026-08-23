@@ -328,7 +328,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.19a — Implement Bedrock world and backup operations
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/worlds.rs`, `crates/msc-application/tests/bedrock_world_backup.rs`, `fixtures/bedrock-backup/`
 **What:** Make Phase 6 world-slot data authoritative for Bedrock's flat `worlds/<level-name>/` layout, and implement Bedrock backup with save-hold/save-query coordination when running and transactional rollback on failure. Preserve MSC 1's own scope boundary: Bedrock has no live-backup restore path — restore always goes through the slot-based Worlds model, never a direct in-place live restore the way Java's does. Do not invent a Bedrock live-restore path MSC 1 never had.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_world_backup`

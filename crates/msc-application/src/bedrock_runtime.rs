@@ -195,6 +195,23 @@ pub trait BedrockRuntime {
 pub trait SidecarTransport {
     fn send_line(&mut self, line: &str) -> Result<(), String>;
     fn receive_line(&mut self) -> Result<Option<String>, String>;
+
+    /// A concrete child-process transport can distinguish an idle pipe from
+    /// EOF. The in-memory transport used by the protocol tests predates that
+    /// distinction, so its default maps `None` to terminal EOF.
+    fn receive_status(&mut self) -> Result<SidecarReceive, String> {
+        self.receive_line().map(|line| match line {
+            Some(line) => SidecarReceive::Line(line),
+            None => SidecarReceive::Eof,
+        })
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SidecarReceive {
+    Line(String),
+    Pending,
+    Eof,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -328,6 +345,10 @@ impl<T> SidecarRuntime<T> {
         &mut self.transport
     }
 
+    pub fn transport(&self) -> &T {
+        &self.transport
+    }
+
     fn require_state(
         &self,
         operation: &'static str,
@@ -357,15 +378,20 @@ impl<T> SidecarRuntime<T> {
     where
         T: SidecarTransport,
     {
-        let Some(line) = self
-            .transport
-            .receive_line()
-            .map_err(BedrockRuntimeError::Transport)?
-        else {
-            self.state = BedrockRuntimeState::Unavailable;
-            return Err(BedrockRuntimeError::SidecarEof);
-        };
-        decode_frame(&line)
+        loop {
+            match self
+                .transport
+                .receive_status()
+                .map_err(BedrockRuntimeError::Transport)?
+            {
+                SidecarReceive::Line(line) => return decode_frame(&line),
+                SidecarReceive::Pending => std::thread::yield_now(),
+                SidecarReceive::Eof => {
+                    self.state = BedrockRuntimeState::Unavailable;
+                    return Err(BedrockRuntimeError::SidecarEof);
+                }
+            }
+        }
     }
 
     fn remote_result(ok: bool, reason: Option<String>) -> Result<(), BedrockRuntimeError> {
@@ -464,13 +490,17 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
     }
 
     fn poll_event(&mut self) -> Result<Option<BedrockRuntimeEvent>, BedrockRuntimeError> {
-        let Some(line) = self
+        let status = self
             .transport
-            .receive_line()
-            .map_err(BedrockRuntimeError::Transport)?
-        else {
-            self.state = BedrockRuntimeState::Unavailable;
-            return Err(BedrockRuntimeError::SidecarEof);
+            .receive_status()
+            .map_err(BedrockRuntimeError::Transport)?;
+        let line = match status {
+            SidecarReceive::Line(line) => line,
+            SidecarReceive::Pending => return Ok(None),
+            SidecarReceive::Eof => {
+                self.state = BedrockRuntimeState::Unavailable;
+                return Err(BedrockRuntimeError::SidecarEof);
+            }
         };
         let frame = decode_frame(&line)?;
         match frame {
@@ -479,10 +509,7 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
                 port,
                 relay_up,
             } => {
-                self.require_state(
-                    "accept readiness",
-                    &[BedrockRuntimeState::Starting, BedrockRuntimeState::Running],
-                )?;
+                self.require_state("accept readiness", &[BedrockRuntimeState::Starting])?;
                 if !relay_up {
                     return Err(BedrockRuntimeError::Protocol(
                         "ready arrived before the relay was up".to_owned(),

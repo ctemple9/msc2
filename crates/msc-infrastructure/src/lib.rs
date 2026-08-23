@@ -8,6 +8,7 @@ pub mod bedrock_distribution;
 pub mod bedrock_leveldb;
 pub mod bedrock_native;
 pub mod bedrock_nbt;
+pub mod bedrock_sidecar;
 pub mod config_repository;
 pub mod console_buffer;
 pub mod credential_repository;

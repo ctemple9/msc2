@@ -294,7 +294,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### macOS sidecar runtime
 
 ### P10.16 — Implement the Rust macOS sidecar runtime client
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/tests/bedrock_macos.rs`, `fixtures/bedrock-sidecar/`
 **What:** Implement the macOS `BedrockRuntime` client over the frozen stdio JSON-lines protocol. It supervises the sidecar, validates message order and IDs, translates EOF and malformed frames into bounded failure states, and never embeds VZ-specific behavior in Rust.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_macos`

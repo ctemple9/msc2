@@ -6,6 +6,7 @@ pub mod audit_log;
 pub mod backup_store;
 pub mod bedrock_distribution;
 pub mod bedrock_leveldb;
+pub mod bedrock_native;
 pub mod bedrock_nbt;
 pub mod config_repository;
 pub mod console_buffer;

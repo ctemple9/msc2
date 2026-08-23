@@ -3,6 +3,7 @@ pub mod addon_dependencies;
 pub mod addon_updates;
 pub mod addons;
 pub mod backups;
+pub mod bedrock_linux;
 pub mod bedrock_provisioning;
 pub mod bedrock_runtime;
 pub mod client_export;

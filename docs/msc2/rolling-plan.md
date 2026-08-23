@@ -252,7 +252,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Native runtimes
 
 ### P10.11 — Implement the native Linux Bedrock runtime
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-infrastructure/src/bedrock_native.rs`, `crates/msc-application/src/bedrock_linux.rs`, `crates/msc-application/tests/bedrock_linux.rs`, `fixtures/bedrock-runtime/`
 **What:** Make the first concrete `BedrockRuntime` implementation a native Linux BDS process. Reuse the established process supervisor, preserve output framing and graceful-then-forced stop behavior, bind UDP directly to the host port (no relay stage — `UDPRelay` is confirmed VM-guest-specific per P10.1, and a native process never needs it), and expose truthful capability/unavailable results on unsupported hosts.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_linux`

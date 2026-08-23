@@ -170,3 +170,36 @@ exist for the host-side world files to remain valid. There is no MSC 1
 precedent for hot-swapping an appliance under a running guest — if a future
 sidecar needs that, it is new design, not a port, and should be called out
 as such rather than retrofitted into this contract.
+
+## Frozen frame vocabulary
+
+The Rust agent and Swift sidecar exchange one object per UTF-8 line. These
+are the only process-boundary messages:
+
+| Direction | `type` | Required fields | Meaning |
+|---|---|---|---|
+| agent → sidecar | `provision` | `server_dir`, `version` | Check the bundled VM resources and the shared host directory. |
+| sidecar → agent | `provisioned` | `ok`, optional `reason` | Provisioning accepted or rejected. |
+| agent → sidecar | `start` | `memory_gb`, `bedrock_port` | Accept a VM boot request; readiness is separate. |
+| sidecar → agent | `started` | `accepted`, optional `reason` | Boot request accepted or rejected. |
+| sidecar → agent | `ready` | `guest_ip`, `port`, `relay_up` | The guest has an address and the relay is usable. |
+| agent → sidecar | `stop` | — | Send BDS `stop` and arm the shared graceful timeout. |
+| agent → sidecar | `force-stop` | — | Stop immediately. |
+| agent → sidecar | `command` | `command` | Send raw command text to BDS. |
+| sidecar → agent | `command-result` | `ok`, optional `reason` | Command accepted or rejected. |
+| sidecar → agent | `console-line` | `line` | One already-framed guest console line. |
+| sidecar → agent | `terminated` | `reason` | `clean`, `guest-error:<message>`, or `start-failed:<message>`. |
+
+The Rust shared runtime exposes readiness, console, command, termination,
+metrics, and capability values without exposing `guest_ip`, relay state, VM
+types, or a native process API. A sidecar maps its `ready` frame to a generic
+reachable endpoint; native backends can report readiness without inventing a
+guest address. Metrics cross the boundary as numeric runtime values after the
+sidecar consumes its private `[MSCSTATS]` line, while native backends use the
+existing OS process-statistics substrate.
+
+`provision` establishes the fixed read-write mapping of `server_dir` to
+`/mnt` under the `world` virtio-fs tag. This is an invariant, not a separate
+wire message. Because the directory remains host-owned, a fresh VM can see
+the same world files after replacement; the sidecar never persists BDS state
+outside that directory.

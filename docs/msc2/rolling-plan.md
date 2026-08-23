@@ -234,7 +234,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.9 — Define the portable runtime and sidecar protocol boundary
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/tests/bedrock_runtime.rs`, `docs/msc2/sidecar-ipc-contract.md`, `fixtures/bedrock-runtime/`, `fixtures/bedrock-sidecar/`
 **What:** Define one `BedrockRuntime` abstraction and its platform-neutral lifecycle, readiness, console, command, termination, and capability vocabulary. The metrics vocabulary must be backend-agnostic: native backends report it from Phase 3/4's existing OS-level process-stats mechanism, the macOS backend from the sidecar's `[MSCSTATS]` parse — neither format belongs in the shared trait itself. Implement protocol encoding/decoding against the frozen JSON-lines contract with fake transports; do not put macOS VM types or native-process assumptions in the shared interface.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_runtime`

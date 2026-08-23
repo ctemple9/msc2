@@ -165,12 +165,14 @@ pub async fn list(State(state): State<BackupsRoutesState>) -> Response {
     let Some(server) = state.lifecycle.active_config_server() else {
         return Json(BackupsResponseDto {
             backups: Vec::new(),
+            runtime: None,
         })
         .into_response();
     };
     let entries = backups::list_backups(&StdFileSystem, Path::new(&server.server_dir));
     Json(BackupsResponseDto {
         backups: entries.iter().map(to_item_dto).collect(),
+        runtime: None,
     })
     .into_response()
 }
@@ -184,6 +186,7 @@ pub async fn get_config(State(state): State<BackupsRoutesState>) -> Response {
             auto_backup_max_count: 10,
             interval_options: INTERVAL_OPTIONS_MINUTES.to_vec(),
             note: Some("no_active_server".to_string()),
+            runtime: None,
         })
         .into_response();
     };
@@ -194,6 +197,7 @@ pub async fn get_config(State(state): State<BackupsRoutesState>) -> Response {
         auto_backup_max_count: server.auto_backup_max_count,
         interval_options: INTERVAL_OPTIONS_MINUTES.to_vec(),
         note: None,
+        runtime: None,
     })
     .into_response()
 }
@@ -243,7 +247,9 @@ pub async fn update_config(
                     auto_backup_max_count: updated.auto_backup_max_count,
                     interval_options: INTERVAL_OPTIONS_MINUTES.to_vec(),
                     note: None,
+                    runtime: None,
                 }),
+                runtime: None,
             })
             .into_response()
         }
@@ -286,6 +292,7 @@ pub async fn now(
     let response = Json(BackupNowResultDto {
         result: "backup_started".to_string(),
         operation_id: Some(operation_id.as_str().to_string()),
+        runtime: None,
     })
     .into_response();
     audit(
@@ -436,6 +443,7 @@ pub async fn restore(
     let response = Json(BackupRestoreResultDto {
         result: "restore_started".to_string(),
         operation_id: Some(operation_id.as_str().to_string()),
+        runtime: None,
     })
     .into_response();
     audit(
@@ -494,6 +502,7 @@ pub async fn delete(
             result: "deleted".to_string(),
             active_server_id: None,
             operation_id: None,
+            runtime: None,
         })
         .into_response(),
         Err(error) => error_response(

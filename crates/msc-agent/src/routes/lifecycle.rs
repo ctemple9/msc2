@@ -1060,6 +1060,7 @@ pub async fn start(
             result: "start_requested".to_string(),
             active_server_id: active_server_id.active_server_id,
             operation_id: active_server_id.operation_id,
+            runtime: None,
         })
         .into_response(),
         Err(error) => lifecycle_route_error_response(error),
@@ -1079,6 +1080,7 @@ pub async fn stop(
             result: "stop_requested".to_string(),
             active_server_id,
             operation_id: None,
+            runtime: None,
         })
         .into_response(),
         Err(error) => lifecycle_error_response(error),
@@ -1107,6 +1109,7 @@ pub async fn active_server(
             result: "activated".to_string(),
             active_server_id: Some(active_server_id),
             operation_id: None,
+            runtime: None,
         })
         .into_response(),
         Err(error) => active_server_selection_error_response(error),

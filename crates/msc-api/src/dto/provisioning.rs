@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::BedrockRuntimeStateDto;
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerCreateRequestDto {
@@ -65,6 +67,8 @@ pub struct ServerCreateResultDto {
     pub server_name: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub warnings: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

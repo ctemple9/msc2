@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::BedrockRuntimeStateDto;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoteApiStatus {
@@ -18,6 +20,8 @@ pub struct RemoteApiStatus {
     pub docker_container_running: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub docker_container_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -38,6 +42,8 @@ pub struct PerformanceSnapshotDto {
     pub world_size_mb: Option<PerformanceMetricNumberDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

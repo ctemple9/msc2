@@ -87,6 +87,7 @@ fn build_settings_response(
             editable: false,
             sections: Vec::new(),
             note: Some("no_active_server".to_string()),
+            runtime: None,
         };
     };
 
@@ -98,6 +99,7 @@ fn build_settings_response(
             editable: false,
             sections: Vec::new(),
             note: Some("no_active_server".to_string()),
+            runtime: None,
         };
     };
     if server.server_type == msc_domain::identity::ServerType::Bedrock {
@@ -109,6 +111,7 @@ fn build_settings_response(
             editable: true,
             sections: bedrock_sections(&settings.model),
             note: None,
+            runtime: None,
         };
     }
     let model = load_properties_model(fs, Path::new(&directory));
@@ -119,6 +122,7 @@ fn build_settings_response(
         editable: true,
         sections: java_sections(&model),
         note: None,
+        runtime: None,
     }
 }
 
@@ -161,6 +165,7 @@ fn apply_settings_update(
                         .collect(),
                 ),
                 sections: Some(bedrock_sections(&result.settings.model)),
+                runtime: None,
             })
             .into_response(),
             Ok(result) => Json(SettingsUpdateResultDto {
@@ -183,6 +188,7 @@ fn apply_settings_update(
                         .collect()
                 }),
                 sections: Some(bedrock_sections(&result.settings.model)),
+                runtime: None,
             })
             .into_response(),
             Err(error) => error_response(
@@ -207,6 +213,7 @@ fn apply_settings_update(
             applied_keys: Vec::new(),
             rejected,
             sections: Some(sections),
+            runtime: None,
         })
         .into_response();
     }
@@ -226,6 +233,7 @@ fn apply_settings_update(
                 applied_keys: result.applied,
                 rejected,
                 sections: Some(sections),
+                runtime: None,
             })
             .into_response()
         }

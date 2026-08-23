@@ -39,6 +39,7 @@ pub async fn capabilities(
             bedrock: BedrockSupportDto {
                 supported: false,
                 backend: None,
+                runtime: None,
             },
         },
         helpers: HelpersDto {

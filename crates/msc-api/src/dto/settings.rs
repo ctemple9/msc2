@@ -14,6 +14,8 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+use super::BedrockRuntimeStateDto;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SettingOptionDto {
     pub value: String,
@@ -59,6 +61,8 @@ pub struct SettingsResponseDto {
     pub sections: Vec<SettingsSectionDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -83,4 +87,6 @@ pub struct SettingsUpdateResultDto {
     pub rejected: Option<Vec<SettingRejectionDto>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sections: Option<Vec<SettingsSectionDto>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }

@@ -357,6 +357,7 @@ fn world_backup_conformance_backups_response_matches_schema() {
         "BackupsResponseDTO",
         &BackupsResponseDto {
             backups: vec![sample_backup_item()],
+            runtime: None,
         },
     );
 }
@@ -367,6 +368,7 @@ fn world_backup_conformance_backups_response_empty_matches_schema() {
         "BackupsResponseDTO",
         &BackupsResponseDto {
             backups: Vec::new(),
+            runtime: None,
         },
     );
 }
@@ -382,6 +384,7 @@ fn world_backup_conformance_backup_config_response_matches_schema() {
             auto_backup_max_count: 10,
             interval_options: vec![15, 30, 60, 120],
             note: None,
+            runtime: None,
         },
     );
 }
@@ -412,7 +415,9 @@ fn world_backup_conformance_backup_config_update_result_matches_schema() {
                 auto_backup_max_count: 10,
                 interval_options: vec![15, 30, 60, 120],
                 note: None,
+                runtime: None,
             }),
+            runtime: None,
         },
     );
 }
@@ -424,6 +429,7 @@ fn world_backup_conformance_backup_now_result_matches_schema() {
         &BackupNowResultDto {
             result: "backup_started".to_string(),
             operation_id: Some("01J8XG7K9QZR3F5T6M2N8P0VBF".to_string()),
+            runtime: None,
         },
     );
 }
@@ -445,6 +451,7 @@ fn world_backup_conformance_backup_restore_result_matches_schema() {
         &BackupRestoreResultDto {
             result: "restore_started".to_string(),
             operation_id: Some("01J8XG7K9QZR3F5T6M2N8P0VBG".to_string()),
+            runtime: None,
         },
     );
 }

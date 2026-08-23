@@ -12,7 +12,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use msc_api::dto::PermissionCategoryDto;
+use msc_api::dto::{BedrockRuntimeStateDto, PermissionCategoryDto};
 use msc_application::bedrock_players;
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +36,8 @@ struct PlayersResponse {
     count: usize,
     #[serde(skip_serializing_if = "Option::is_none")]
     note: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Serialize)]
@@ -52,6 +54,8 @@ struct AllowlistEntryDto {
 struct AllowlistResponse {
     server_type: String,
     entries: Vec<AllowlistEntryDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,6 +72,8 @@ struct AllowlistMutationResult {
     message: String,
     server_type: String,
     entries: Vec<AllowlistEntryDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    runtime: Option<BedrockRuntimeStateDto>,
 }
 
 pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
@@ -76,6 +82,7 @@ pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
             players: Vec::new(),
             count: 0,
             note: Some("no_active_server".to_owned()),
+            runtime: None,
         })
         .into_response();
     };
@@ -84,6 +91,7 @@ pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
             players: Vec::new(),
             count: 0,
             note: Some("not_bedrock".to_owned()),
+            runtime: None,
         })
         .into_response();
     }
@@ -110,6 +118,7 @@ pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
                 })
                 .collect(),
             note: None,
+            runtime: None,
         })
         .into_response(),
         Err(error) => error_response(
@@ -142,6 +151,7 @@ pub async fn get_allowlist(State(state): State<LifecycleRoutesState>) -> Respons
     Json(AllowlistResponse {
         server_type: "bedrock".to_owned(),
         entries: to_allowlist_dtos(entries),
+        runtime: None,
     })
     .into_response()
 }
@@ -189,6 +199,7 @@ pub async fn mutate_allowlist(
             message: action,
             server_type: "bedrock".to_owned(),
             entries: to_allowlist_dtos(entries),
+            runtime: None,
         })
         .into_response(),
         Err(error) => error_response(

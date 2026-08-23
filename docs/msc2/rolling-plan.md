@@ -402,11 +402,100 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.28 — Run and record the exact Phase 10 gate
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase10/phase10-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Check the literal Phase 10 gate against the shared fixtures, public API/CLI/iOS contract, separate compatibility matrix, real-or-unavailable runtime evidence, synthetic smoke, and exact CI candidate. This is the phase’s only full-workspace test run. It reports evidence only; the other agent decides in REVIEW whether the gate holds.
 **Verify:** `python3 tools/phase10/phase10-check.py --gate && bash tools/phase10/phase10-smoke.sh --synthetic && cargo nextest run --workspace`
 **Commit:** `P10.28: check Bedrock runtime gate`
+**Batch:** solo
+
+### Review correction plan — production Bedrock vertical slice
+
+P10.28's documentary and fixture evidence is retained, but the REVIEW found
+that the production agent still exposes Phase-9 Bedrock refusal paths. These
+correction steps close that gap. They must prove the real agent router and
+same-binary CLI use the runtime selection boundary; an isolated Axum router or
+a fake-only implementation is not enough. Until P10.38 passes, Phase 10 does
+not advance.
+
+### P10.29 — Make Bedrock runtime disclosure a real public DTO contract
+**Status:** awaiting verification
+**Files:** `crates/msc-api/src/dto/capabilities.rs`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-api/src/dto/status.rs`, `crates/msc-api/src/dto/settings.rs`, `crates/msc-api/src/dto/versions.rs`, `crates/msc-api/src/dto/provisioning.rs`, `crates/msc-api/src/dto/backups.rs`, `docs/msc2/api-contract/openapi.json`, `crates/msc-api/tests/phase10_conformance.rs`, `docs/msc2/bedrock/phase10-api.md`
+**What:** Implement the already-frozen additive `BedrockRuntimeStateDTO` and attach it wherever the Phase 10 API contract specifies: capabilities, create/import/list/status/lifecycle/command, settings, players/allowlist, performance, versions, backups, and console-unavailable results. Preserve all existing Java fields and old-client decoding. Define one structured unavailable mapping (`code`, `details.capability`, `serverType`, `state`, `backend`, `reasonCode`, `hostOs`, and documented `helpId`) rather than allowing each route to invent its own response. This step changes no host eligibility and makes no support claim.
+**Verify:** `python3 tools/api-contract-check.py --v1-summary && cargo nextest run -p msc-api --test phase10_conformance`
+**Commit:** `P10.29: add Bedrock runtime DTO disclosure`
+**Batch:** solo
+
+### P10.30 — Derive runtime eligibility from real host prerequisites
+**Status:** not started
+**Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/src/bedrock_linux.rs`, `crates/msc-application/src/bedrock_windows.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/src/bedrock_provisioning.rs`, `crates/msc-infrastructure/src/bedrock_distribution.rs`, `crates/msc-application/tests/bedrock_runtime_eligibility.rs`, `fixtures/bedrock-runtime/`
+**What:** Replace OS/CPU-only `supported` decisions with one agent-owned eligibility result. Linux and Windows are eligible only when the current host and a verified staged BDS distribution satisfy the runtime prerequisites; Intel macOS additionally requires the sidecar executable and its distributable appliance resources; Apple Silicon stays explicitly `unavailable` with D-028's `no_test_hardware` reason. A missing package, sidecar, appliance, or prerequisite must be an honest unavailable/provisioning-required state, never a false supported result. Keep the compatibility CSV as published evidence, not a runtime configuration file, and retain injectable fixture eligibility only inside tests.
+**Verify:** `cargo nextest run -p msc-application --test bedrock_runtime_eligibility`
+**Commit:** `P10.30: derive Bedrock runtime eligibility`
+**Batch:** solo
+
+### P10.31 — Select the Bedrock runtime in the production agent
+**Status:** not started
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/capabilities.rs`, `crates/msc-agent/src/routes/bedrock_runtime.rs`, `crates/msc-agent/tests/bedrock_runtime_selection.rs`
+**What:** Build the eligible Linux-native, Windows-native, or Intel-macOS-sidecar runtime once in the real agent composition root and pass it through the production route state. `GET /v1/capabilities` must report that selected runtime's current state rather than a literal `false`/`null`; unavailable hosts must return the structured P10.29 result. Do not put VZ, guest-IP, process-tree, or platform inference in HTTP handlers, and do not let a test-only runtime factory become a production back door to claim support.
+**Verify:** `cargo nextest run -p msc-agent --test bedrock_runtime_selection`
+**Commit:** `P10.31: select Bedrock runtime in agent`
+**Batch:** solo
+
+### P10.32 — Wire Bedrock creation, import, lifecycle, and operations through the real router
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/servers.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/commands.rs`, `crates/msc-agent/src/routes/status.rs`, `crates/msc-agent/src/routes/performance.rs`, `crates/msc-agent/src/ws/console.rs`, `crates/msc-agent/src/ws/operations.rs`, `crates/msc-agent/tests/bedrock_production_lifecycle.rs`
+**What:** Remove the obsolete “not available until Phase 10” Bedrock refusals and route Bedrock create/import, provision, start, stop, command, status, metrics, console, operation progress, cancellation, and recovery through the selected runtime and existing operation journal. Keep Java's lifecycle untouched. A runtime-unavailable host may import and inspect existing files where safe, but it must never present a record as started or accept a live mutation it cannot perform. The test must construct the same top-level router that `main.rs` serves, exercise its authenticated HTTP and WebSocket routes, and prove both an eligible fixture-backed runtime and the production unavailable state.
+**Verify:** `cargo nextest run -p msc-agent --test bedrock_production_lifecycle`
+**Commit:** `P10.32: wire Bedrock lifecycle through agent`
+**Batch:** solo
+
+### P10.33 — Complete Bedrock's shared data, world, backup, and version surfaces
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/bedrock.rs`, `crates/msc-agent/src/routes/settings.rs`, `crates/msc-agent/src/routes/versions.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/bedrock_production_surfaces.rs`
+**What:** Connect the existing Bedrock settings, player/XUID, allowlist, permissions, LevelDB/NBT, version/provisioning, worlds, backups, console-log, and metrics services to the production route state and P10.29 runtime disclosure. Retain the oracle boundary: file reads may work while the runtime is unavailable, live-dependent mutations return the structured capability error, and Bedrock backup restore remains the Phase-6 slot-based Worlds flow rather than a fabricated live restore. Remove every remaining public “until Phase 10” response. Exercise every affected route through the real agent router, including permission checks and unavailable behavior.
+**Verify:** `cargo nextest run -p msc-agent --test bedrock_production_surfaces`
+**Commit:** `P10.33: expose Bedrock shared data surfaces`
+**Batch:** solo
+
+### P10.34 — Prove the same production paths through CLI and copied iOS decoding
+**Status:** not started
+**Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/bedrock_production_cli.rs`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOSTests/Phase10BedrockContractTests.swift`, `tools/phase10/ios-contract-check.py`, `fixtures/dto-contract/`
+**What:** Drive the P10.32/P10.33 production router through the same-binary CLI, then decode recorded responses and unavailable errors with the copied iOS client models. Cover capability disclosure, import/create result, lifecycle operation, settings, players, allowlist, version state, and the Apple-Silicon unavailable result. The test fixtures must originate from the real agent response serializers, not hand-authored JSON that can drift from them. Preserve unknown backend and reason-code values additively for old iOS clients.
+**Verify:** `cargo nextest run -p msc-agent --test bedrock_production_cli && python3 tools/phase10/ios-contract-check.py`
+**Commit:** `P10.34: prove Bedrock CLI and iOS contract`
+**Batch:** solo
+
+### P10.35 — Replace the fake-only cross-backend smoke with a production-router smoke
+**Status:** not started
+**Files:** `tools/phase10/phase10-smoke.sh`, `crates/msc-agent/tests/support/bedrock_smoke.rs`, `crates/msc-agent/tests/bedrock_production_smoke.rs`, `docs/msc2/bedrock/evidence/phase10-synthetic-cross-backend.md`
+**What:** Make the cross-backend smoke instantiate the production agent router and its real runtime-selection/operation wiring for Linux-native, Windows-native, and Intel-macOS-sidecar fixture adapters. It must cover provision, create/import, lifecycle, console, command, player/settings/allowlist state, cancellation/recovery, capability disclosure, and an unavailable host without starting BDS, a VM, or a public provider. Keep the evidence explicit that this proves the public integration contract, not live BDS or VZ support.
+**Verify:** `bash tools/phase10/phase10-smoke.sh --synthetic`
+**Commit:** `P10.35: exercise production Bedrock smoke`
+**Batch:** stop-after
+
+### P10.36 — Make CI reject detached Bedrock implementations
+**Status:** not started
+**Files:** `.github/workflows/ci.yml`, `tools/phase10/phase10-production-check.py`, `tools/phase10/phase10-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/bedrock/evidence/phase10-ci.md`
+**What:** Add a fail-closed Phase 10 production check and run it in macOS, Linux, Windows, and headless CI alongside the production-router smoke. It must reject restored literal Bedrock refusals, a capabilities response detached from runtime selection, an API DTO missing the frozen runtime state, and a smoke that bypasses the production router. Preserve the existing no-download/no-live-BDS/no-VM/no-public-network CI boundary and the headless link proof.
+**Verify:** `python3 tools/phase10/phase10-production-check.py --check && git diff --check && rg -n 'phase10-production-check.py --check|phase10-smoke.sh --synthetic' .github/workflows/ci.yml`
+**Commit:** `P10.36: enforce Bedrock production wiring in CI`
+**Batch:** solo
+
+### P10.37 — Record the corrected exact tri-platform candidate
+**Status:** not started
+**Files:** `docs/msc2/bedrock/evidence/phase10-ci.md`, `docs/msc2/rolling-plan.md`
+**What:** Record the exact post-P10.36 commit and its green macOS, Linux, Windows, and headless CI run. The evidence must show that the production-router smoke and P10.36 check ran on that exact candidate, distinguish the candidate from this documentation commit, and retain the existing explicit limits on live BDS/VM/package claims.
+**Verify:** `test -s docs/msc2/bedrock/evidence/phase10-ci.md && rg -n 'commit|macOS|Linux|Windows|headless|production' docs/msc2/bedrock/evidence/phase10-ci.md`
+**Commit:** `P10.37: record corrected Bedrock CI candidate`
+**Batch:** stop-after
+
+### P10.38 — Re-run the literal Phase 10 gate against the production path
+**Status:** not started
+**Files:** `tools/phase10/phase10-check.py`, `tools/phase10/phase10-production-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Re-check the literal Phase 10 gate after the correction work. Require the shared fixtures, frozen API and copied-iOS contract, separate compatibility matrix, real-or-unavailable distribution/runtime evidence, production-router cross-backend smoke, fail-closed production check, corrected exact CI candidate, headless independence, and this phase's one final workspace suite. It reports evidence only; the other agent still decides in REVIEW whether the gate holds.
+**Verify:** `python3 tools/phase10/phase10-check.py --gate && python3 tools/phase10/phase10-production-check.py --check && bash tools/phase10/phase10-smoke.sh --synthetic && cargo nextest run --workspace`
+**Commit:** `P10.38: recheck Bedrock runtime gate`
 **Batch:** solo
 
 ## Phase 11 — Desktop and web clients

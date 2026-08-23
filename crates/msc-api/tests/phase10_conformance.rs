@@ -2,6 +2,7 @@
 //! These examples check the additive DTOs and the existing shared routes
 //! without pretending that a particular host has a usable BDS installation.
 
+use msc_api::dto::{BedrockRuntimeStateDto, HostOsDto, ServerCreateResultDto};
 use serde_json::{Value, json};
 use std::path::Path;
 
@@ -101,6 +102,43 @@ fn phase10_conformance_runtime_state_and_capability_unavailable_error() {
             }
         }),
     );
+}
+
+#[test]
+fn phase10_conformance_rust_runtime_field_is_additive_and_error_mapping_is_shared() {
+    let runtime = BedrockRuntimeStateDto {
+        state: "unavailable".to_owned(),
+        backend: None,
+        host_os: Some(HostOsDto::Macos),
+        reason_code: Some("no_test_hardware".to_owned()),
+        message: Some("Bedrock is unavailable on this host.".to_owned()),
+        help_id: Some("bedrock.runtime-unavailable".to_owned()),
+    };
+    let result = ServerCreateResultDto {
+        success: false,
+        message: "Bedrock is unavailable on this host.".to_owned(),
+        operation_id: None,
+        server_id: None,
+        server_name: None,
+        warnings: None,
+        runtime: Some(runtime.clone()),
+    };
+    let encoded = serde_json::to_value(&result).expect("serialize runtime disclosure");
+    assert_eq!(encoded["runtime"]["state"], "unavailable");
+    assert_eq!(encoded["runtime"]["reasonCode"], "no_test_hardware");
+
+    let old_client_shape: ServerCreateResultDto = serde_json::from_value(json!({
+        "success": true,
+        "message": "Java creation accepted."
+    }))
+    .expect("old Java response remains decodable");
+    assert!(old_client_shape.runtime.is_none());
+
+    let error = runtime.capability_unavailable_error();
+    assert_eq!(error.code, "capability_unavailable");
+    let details = error.details.as_ref().expect("structured details");
+    assert_eq!(details["capability"], "bedrock-runtime");
+    assert_eq!(details["serverType"], "bedrock");
 }
 
 #[test]

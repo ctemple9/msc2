@@ -12,6 +12,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::BedrockRuntimeStateDto;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VersionEntryDto {
@@ -37,6 +39,8 @@ pub struct VersionsResponseDto {
     pub versions: Vec<VersionEntryDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -55,6 +59,8 @@ pub struct VersionChangeResultDto {
     pub requires_restart: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

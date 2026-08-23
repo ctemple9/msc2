@@ -20,6 +20,7 @@ pub async fn performance(
         ram_max_mb: metric(snapshot.ram_max_mb, "performance.ram"),
         world_size_mb: metric(snapshot.world_size_mb, "performance.world-size"),
         server_type: snapshot.server_type,
+        runtime: None,
     })
 }
 

@@ -35,6 +35,7 @@ pub async fn command(
             result: "sent".to_string(),
             active_server_id,
             command,
+            runtime: None,
         })
         .into_response(),
         Err(error) => lifecycle_error_response(error),

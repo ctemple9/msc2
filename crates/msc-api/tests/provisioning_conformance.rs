@@ -162,6 +162,7 @@ fn provisioning_conformance_server_create_result() {
             server_id: None,
             server_name: Some("Survival Realm".to_string()),
             warnings: Some(vec!["example warning".to_string()]),
+            runtime: None,
         },
     );
 }

@@ -79,6 +79,7 @@ impl StatusRoutesState {
             server_type: snapshot.server_type,
             docker_container_running: None,
             docker_container_status: None,
+            runtime: None,
         }
     }
 
@@ -93,6 +94,7 @@ impl StatusRoutesState {
             ram_max_mb: metric(snapshot.ram_max_mb, "performance.ram"),
             world_size_mb: metric(snapshot.world_size_mb, "performance.world-size"),
             server_type: snapshot.server_type,
+            runtime: None,
         }
     }
 }
@@ -106,6 +108,7 @@ pub async fn status(State(state): State<LifecycleRoutesState>) -> Json<RemoteApi
         server_type: snapshot.server_type,
         docker_container_running: None,
         docker_container_status: None,
+        runtime: None,
     })
 }
 

@@ -5053,6 +5053,10 @@
           },
           "replaced": {
             "type": "boolean"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state for the imported record."
           }
         },
         "required": [
@@ -5528,6 +5532,10 @@
           },
           "note": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state while backup settings are read."
           }
         },
         "required": [
@@ -5564,6 +5572,10 @@
           },
           "config": {
             "$ref": "#/components/schemas/BackupConfigResponseDTO"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state after backup settings are applied."
           }
         },
         "required": [
@@ -5580,6 +5592,10 @@
           "operationId": {
             "type": "string",
             "description": "Operation id for progress polling (GET /v1/operations/{id}) or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, matching SimpleResult's P4 precedent."
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state for the backup operation."
           }
         },
         "required": [
@@ -5606,6 +5622,10 @@
           "operationId": {
             "type": "string",
             "description": "Operation id for progress polling (GET /v1/operations/{id}) or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, matching SimpleResult's P4 precedent."
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state for the restore operation."
           }
         },
         "required": [
@@ -8066,6 +8086,10 @@
             "items": {
               "$ref": "#/components/schemas/BackupItemDTO"
             }
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state for the active server's backup source."
           }
         },
         "required": [

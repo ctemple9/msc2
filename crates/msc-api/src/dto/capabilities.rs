@@ -7,6 +7,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::ErrorDto;
+
 /// `msc2-engineering.md` §8's first support matrix ("MSC agent host").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -43,7 +45,49 @@ pub enum BedrockBackendDto {
     VzSidecar,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Additive disclosure of the currently selected Bedrock runtime. The state
+/// is intentionally a string so a newer agent can add a state without making
+/// an older client unable to decode the rest of the response.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockRuntimeStateDto {
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backend: Option<BedrockBackendDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host_os: Option<HostOsDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason_code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+    #[serde(rename = "helpId", default, skip_serializing_if = "Option::is_none")]
+    pub help_id: Option<String>,
+}
+
+impl BedrockRuntimeStateDto {
+    /// Build the one public error envelope used when a Bedrock live
+    /// operation cannot run on the selected host/backend.
+    pub fn capability_unavailable_error(&self) -> ErrorDto {
+        ErrorDto {
+            code: "capability_unavailable".to_owned(),
+            message: self
+                .message
+                .clone()
+                .unwrap_or_else(|| "Bedrock runtime is unavailable.".to_owned()),
+            help_id: self.help_id.clone(),
+            details: Some(serde_json::json!({
+                "capability": "bedrock-runtime",
+                "serverType": "bedrock",
+                "state": self.state,
+                "backend": self.backend,
+                "reasonCode": self.reason_code,
+                "hostOs": self.host_os,
+            })),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BedrockSupportDto {
     pub supported: bool,
     /// Required-but-nullable on the wire (`capability-model.md` §3's
@@ -52,6 +96,10 @@ pub struct BedrockSupportDto {
     /// fields, this one is always serialized, never omitted.
     #[serde(default)]
     pub backend: Option<BedrockBackendDto>,
+    /// Authoritative current runtime state; `supported` and `backend` remain
+    /// for older clients that do not know this additive field.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 /// One boolean per Java flavor (`vanilla`, `paper`, `fabric`, `forge`,
@@ -59,7 +107,7 @@ pub struct BedrockSupportDto {
 /// deliberately narrower than `identity::JavaServerFlavor`'s full
 /// nine-case set. **Placeholder this phase**: real per-flavor detection is
 /// Phase 4/10 work.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ServerTypesDto {
     pub vanilla: bool,
     pub paper: bool,

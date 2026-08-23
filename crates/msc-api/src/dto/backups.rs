@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::BedrockRuntimeStateDto;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupItemDto {
@@ -26,6 +28,8 @@ pub struct BackupItemDto {
 pub struct BackupsResponseDto {
     #[serde(default)]
     pub backups: Vec<BackupItemDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -39,6 +43,8 @@ pub struct BackupConfigResponseDto {
     pub interval_options: Vec<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -59,6 +65,8 @@ pub struct BackupConfigUpdateResultDto {
     pub message: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub config: Option<BackupConfigResponseDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -67,6 +75,8 @@ pub struct BackupNowResultDto {
     pub result: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -81,6 +91,8 @@ pub struct BackupRestoreResultDto {
     pub result: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

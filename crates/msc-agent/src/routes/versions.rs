@@ -128,6 +128,7 @@ async fn fetch_versions_response(
                 "{} is not offered a version picker.",
                 flavor.raw_value()
             )),
+            runtime: None,
         };
     }
     let current_for_fetch = current_version.clone();
@@ -144,6 +145,7 @@ async fn fetch_versions_response(
             is_bedrock: false,
             versions: entries.into_iter().map(version_entry_to_dto).collect(),
             note: None,
+            runtime: None,
         },
         Ok(Err(error)) => VersionsResponseDto {
             supports_versions: true,
@@ -152,6 +154,7 @@ async fn fetch_versions_response(
             is_bedrock: false,
             versions: Vec::new(),
             note: Some(format!("Could not fetch versions: {error}")),
+            runtime: None,
         },
         Err(join_error) => VersionsResponseDto {
             supports_versions: true,
@@ -160,6 +163,7 @@ async fn fetch_versions_response(
             is_bedrock: false,
             versions: Vec::new(),
             note: Some(format!("Could not fetch versions: {join_error}")),
+            runtime: None,
         },
     }
 }
@@ -172,6 +176,7 @@ fn bedrock_versions_response(current_version: Option<String>) -> VersionsRespons
         is_bedrock: true,
         versions: Vec::new(),
         note: Some("Bedrock version listing is not available until Phase 10.".to_string()),
+        runtime: None,
     }
 }
 
@@ -186,6 +191,7 @@ pub async fn versions(State(state): State<LifecycleRoutesState>) -> Response {
             is_bedrock: false,
             versions: Vec::new(),
             note: Some("No active server.".to_string()),
+            runtime: None,
         })
         .into_response();
     };
@@ -325,6 +331,7 @@ pub async fn change_version(
         message: "Version change started.".to_string(),
         requires_restart: true,
         operation_id: Some(operation_id.as_str().to_string()),
+        runtime: None,
     })
     .into_response()
 }

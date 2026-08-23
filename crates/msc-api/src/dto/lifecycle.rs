@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 
+use super::BedrockRuntimeStateDto;
 use serde::{Deserialize, Serialize};
 
 /// `ServerImportRequestDTO`'s frozen shape (`docs/msc2/api-contract/openapi.json`).
@@ -105,6 +106,8 @@ pub struct ServerImportResultDto {
     pub skipped: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub replaced: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -120,6 +123,8 @@ pub struct ServerDto {
     pub game_port: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_address: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -141,6 +146,8 @@ pub struct CommandResultDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub active_server_id: Option<String>,
     pub command: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -151,4 +158,6 @@ pub struct SimpleResultDto {
     pub active_server_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub operation_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub runtime: Option<BedrockRuntimeStateDto>,
 }

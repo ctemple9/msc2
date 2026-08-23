@@ -227,6 +227,7 @@ fn dto_conformance_server_import_is_a_durable_accepted_operation() {
         imported: None,
         skipped: None,
         replaced: None,
+        runtime: None,
     };
     assert_conforms(
         &contract,
@@ -260,6 +261,7 @@ fn dto_conformance_capabilities_dto_matches_schema() {
             bedrock: BedrockSupportDto {
                 supported: false,
                 backend: None,
+                runtime: None,
             },
         },
         helpers: HelpersDto {
@@ -293,6 +295,7 @@ fn dto_conformance_capabilities_dto_with_bedrock_backend_matches_schema() {
             bedrock: BedrockSupportDto {
                 supported: true,
                 backend: Some(BedrockBackendDto::VzSidecar),
+                runtime: None,
             },
         },
         helpers: HelpersDto {
@@ -317,6 +320,7 @@ fn dto_conformance_status_running_matches_schema() {
         server_type: Some("paper".to_string()),
         docker_container_running: None,
         docker_container_status: None,
+        runtime: None,
     };
     let instance = serde_json::to_value(&example).unwrap();
     assert_conforms(&contract, schema, &instance, "RemoteAPIStatus");
@@ -335,6 +339,7 @@ fn dto_conformance_status_stopped_matches_schema() {
         server_type: None,
         docker_container_running: None,
         docker_container_status: None,
+        runtime: None,
     };
     let instance = serde_json::to_value(&example).unwrap();
     assert_conforms(&contract, schema, &instance, "RemoteAPIStatus");
@@ -368,6 +373,7 @@ fn dto_conformance_performance_snapshot_matches_schema() {
             help_id: Some("performance.world-size".to_string()),
         }),
         server_type: Some("paper".to_string()),
+        runtime: None,
     };
     let instance = serde_json::to_value(&example).unwrap();
     assert_conforms(&contract, schema, &instance, "PerformanceSnapshotDTO");

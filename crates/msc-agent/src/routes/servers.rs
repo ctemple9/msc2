@@ -60,6 +60,7 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
             java_flavor: server.java_flavor,
             game_port: server.game_port,
             host_address: None,
+            runtime: None,
         })
         .collect();
     Json(servers)
@@ -530,6 +531,7 @@ fn accepted_import_response(operation_id: &OperationId, message: &str) -> Respon
             imported: None,
             skipped: None,
             replaced: None,
+            runtime: None,
         }),
     )
         .into_response()
@@ -1302,6 +1304,7 @@ pub async fn create(
         server_id: None,
         server_name: Some(response_server_name),
         warnings: None,
+        runtime: None,
     })
     .into_response()
 }

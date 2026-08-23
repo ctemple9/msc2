@@ -19,6 +19,22 @@ ignore a Bedrock runtime description it does not know yet. A Bedrock response
 must never make `serverType: "bedrock"` look runnable without also reporting
 the runtime state.
 
+The shared Rust `BedrockRuntimeStateDto` is serialized as the additive
+`BedrockRuntimeStateDTO` object. `state` is required; `backend`, `hostOs`,
+`reasonCode`, `message`, and `helpId` are nullable/optional details. The
+optional `runtime` field is attached to the existing response DTOs rather
+than creating Bedrock-only routes: capabilities, create/import/list, status,
+start/stop/command results, settings, players/allowlist, performance,
+versions, and backup responses. Java responses omit the field, so older
+clients continue to decode their existing shapes.
+
+When a live operation cannot run, the shared error mapping is
+`ErrorDTO.code = "capability_unavailable"` with
+`details.capability = "bedrock-runtime"`, `details.serverType = "bedrock"`,
+and the same `state`, `backend`, `reasonCode`, and `hostOs` values as the
+runtime object. The optional `helpId` is copied to the error envelope; no
+route creates a second unavailable-response shape.
+
 ## 2. Creation and imported records
 
 `POST /v1/servers/create` accepts the existing `ServerCreateRequestDTO` with
@@ -178,4 +194,3 @@ terminal `OperationDTO`; no second Bedrock error frame is invented.
 The Phase 10 implementation must not expose sidecar JSON-lines frames,
 `[MSCSTATS]` text, guest IPs, or UDP relay details on any public route or
 websocket.
-

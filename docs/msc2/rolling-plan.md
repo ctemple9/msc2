@@ -370,7 +370,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Evidence and gate
 
 ### P10.24 — Record safe official-distribution evidence
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/bedrock/evidence/`, `tools/phase10/evidence-check.py`, `docs/msc2/bedrock/compatibility-matrix.csv`
 **What:** Record the reproducible official-distribution and package-identity evidence each runtime needs, or a precise unavailable result where licensing, host support, or safe access prevents it — including Apple Silicon Mac distribution, unavailable per D-028 (no test hardware). The checker must reject fabricated success and must link every supported matrix cell to its matching record.
 **Verify:** `python3 tools/phase10/evidence-check.py --distribution`
@@ -386,7 +386,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.26 — Run Phase 10 synthetic checks in tri-platform CI
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/ci.yml`, `tools/phase10/phase10-smoke.sh`, `tools/phase10/compatibility-check.py`, `tools/phase10/evidence-check.py`
 **What:** Extend the existing macOS/Linux/Windows jobs with the offline Phase 10 smoke and documentary checks, while preserving the headless no-GUI link proof. CI must use fakes and fixtures only; it must not download BDS, require a Mojang account, start a VM, or make public-network calls.
 **Verify:** `git diff --check && rg -n 'phase10-smoke.sh --synthetic|phase10/compatibility-check.py|phase10/evidence-check.py' .github/workflows/ci.yml`

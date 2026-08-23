@@ -156,6 +156,23 @@ jobs:
         shell: bash
         run: tools/phase9/phase9-smoke.sh --synthetic
 
+      # P10.26: all Bedrock checks are offline and use only committed fakes,
+      # fixtures, and documentary evidence. Keep them on every toolchain leg
+      # so the Phase 10 candidate proves the same contract on all platforms.
+      - name: Phase 10 Bedrock synthetic smoke
+        shell: bash
+        run: tools/phase10/phase10-smoke.sh --synthetic
+
+      - name: Phase 10 Bedrock compatibility check
+        shell: bash
+        run: python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv
+
+      - name: Phase 10 Bedrock evidence checks
+        shell: bash
+        run: |
+          python3 tools/phase10/evidence-check.py --distribution
+          python3 tools/phase10/evidence-check.py --runtimes
+
       - name: Collect headless artifact
         shell: bash
         run: |

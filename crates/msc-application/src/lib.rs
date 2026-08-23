@@ -7,6 +7,7 @@ pub mod bedrock_linux;
 pub mod bedrock_provisioning;
 pub mod bedrock_runtime;
 pub mod bedrock_service;
+pub mod bedrock_windows;
 pub mod client_export;
 pub mod commands;
 pub mod curseforge_manual;

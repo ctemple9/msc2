@@ -276,8 +276,8 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.14 — Implement the native Windows Bedrock runtime
-**Status:** not started
-**Files:** `crates/msc-application/src/bedrock_windows.rs`, `crates/msc-application/tests/bedrock_windows.rs`, `crates/msc-infrastructure/tests/bedrock_native_windows.rs`, `fixtures/bedrock-runtime/`
+**Status:** awaiting verification
+**Files:** `crates/msc-application/src/bedrock_windows.rs`, `crates/msc-application/tests/bedrock_windows.rs`, `crates/msc-infrastructure/src/bedrock_native.rs`, `crates/msc-infrastructure/tests/bedrock_native_windows.rs`, `fixtures/bedrock-runtime/`
 **What:** Add the second concrete `BedrockRuntime` as a native Windows BDS process, using the shared interface unchanged. Prove Windows process-tree ownership, path and file-lock behavior, direct UDP port binding (no relay stage, same as Linux), output framing, stop escalation, and service-session survival without adding Linux-only assumptions.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_windows && cargo nextest run -p msc-infrastructure --test bedrock_native_windows`
 **Commit:** `P10.14: add native Windows Bedrock runtime`

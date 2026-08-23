@@ -21,6 +21,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
 pub const BEDROCK_EXECUTABLE_NAME: &str = "bedrock_server";
+pub const WINDOWS_BEDROCK_EXECUTABLE_NAME: &str = "bedrock_server.exe";
 pub const BEDROCK_BIND_ADDRESS: IpAddr = IpAddr::V4(Ipv4Addr::UNSPECIFIED);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,6 +104,14 @@ pub fn linux_bedrock_spawn_request(server_dir: impl AsRef<Path>) -> ProcessSpawn
     let server_dir = server_dir.as_ref();
     ProcessSpawnRequest::new(
         server_dir.join(BEDROCK_EXECUTABLE_NAME),
+        server_dir.to_path_buf(),
+    )
+}
+
+pub fn windows_bedrock_spawn_request(server_dir: impl AsRef<Path>) -> ProcessSpawnRequest {
+    let server_dir = server_dir.as_ref();
+    ProcessSpawnRequest::new(
+        server_dir.join(WINDOWS_BEDROCK_EXECUTABLE_NAME),
         server_dir.to_path_buf(),
     )
 }

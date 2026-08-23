@@ -166,7 +166,9 @@ impl SecretStore for WindowsSecretStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use msc_infrastructure::secret_store::{contract_fixture_key, run_contract_fixture};
+    use msc_infrastructure::secret_store::{
+        CONTRACT_CASES, contract_fixture_key, run_contract_fixture,
+    };
     use std::path::{Path, PathBuf};
 
     /// A namespace no production key ever uses, so these tests can never
@@ -194,27 +196,9 @@ mod tests {
     }
 
     #[test]
-    fn secret_store_contract_round_trip_set_then_get() {
-        run_case("round-trip-set-then-get");
-    }
-
-    #[test]
-    fn secret_store_contract_get_of_unset_key_returns_none() {
-        run_case("get-of-unset-key-returns-none");
-    }
-
-    #[test]
-    fn secret_store_contract_set_overwrites_existing_key() {
-        run_case("set-overwrites-existing-key");
-    }
-
-    #[test]
-    fn secret_store_contract_delete_then_get_returns_none() {
-        run_case("delete-then-get-returns-none");
-    }
-
-    #[test]
-    fn secret_store_contract_delete_of_unset_key_is_noop() {
-        run_case("delete-of-unset-key-is-noop");
+    fn secret_store_contract() {
+        for case in CONTRACT_CASES {
+            run_case(case);
+        }
     }
 }

@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "newest-release-uses-semantic-version-order",
+  "source": {"file": "BedrockProvisioner.swift", "test": "resolveDownload newest release", "line": 144},
+  "input": {"request": "LATEST", "release": {"1.9.99": {"linux": {"url": "https://cdn/bedrock-server-1.9.99.1.zip"}}, "1.10.0": {"linux": {"url": "https://cdn/bedrock-server-1.10.0.2.zip"}}, "1.2.100": {"linux": {"url": "https://cdn/bedrock-server-1.2.100.1.zip"}}}},
+  "expected": {"version": "1.10.0.2", "url": "https://cdn/bedrock-server-1.10.0.2.zip", "ordering": "numeric component comparison, not lexical"},
+  "notes": "MSC 1 sorts manifest keys with versionLess, so 1.10 is newer than 1.9."
+}

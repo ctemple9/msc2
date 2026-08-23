@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "update-excludes-user-state-files",
+  "source": {"file": "BedrockProvisioner.swift", "test": "extract preservedFiles exclusion list", "line": 31},
+  "input": {"overwrite": true, "archive_entries": ["bedrock_server", "server.properties", "allowlist.json", "permissions.json", "whitelist.json", "resource_packs/vanilla.zip", "worlds/example/level.dat"]},
+  "expected": {"excluded_from_overwrite": ["server.properties", "allowlist.json", "permissions.json", "whitelist.json"], "overwritten": ["bedrock_server", "resource_packs/vanilla.zip"], "worlds_touched": false},
+  "notes": "MSC 1 passes each preserved filename to ditto on updates and intentionally never touches worlds/."
+}

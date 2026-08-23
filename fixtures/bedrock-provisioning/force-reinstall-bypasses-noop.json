@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "force-reinstall-bypasses-noop",
+  "source": {"file": "BedrockProvisioner.swift", "test": "ensureInstalled force update", "line": 92},
+  "input": {"installed_executable": true, "installed_version": "1.26.32.2", "resolved_target": "1.26.32.2", "force": true},
+  "expected": {"result": "download-and-extract", "progress_contains": "Updating Bedrock server", "download_started": true},
+  "notes": "The Update action forces a fresh download even when the marker already equals the target."
+}

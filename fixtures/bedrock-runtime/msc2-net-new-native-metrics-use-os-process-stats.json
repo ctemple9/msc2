@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "msc2-net-new-native-metrics-use-os-process-stats",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 native metrics boundary", "line": 1},
+  "input": {"backend": "native-linux", "process_stats": {"cpu_percent": 12.5, "memory_bytes": 1048576}, "console_lines": ["[MSCSTATS] cpu=99 memUsedMB=9"]},
+  "expected": {"metrics_source": "OS process stats", "cpu_percent": 12.5, "console_stats_consumed": false},
+  "notes": "MSC 2 net-new case: native backends reuse Phase 3/4 process statistics; the VM-only MSCSTATS line is not their metrics protocol."
+}

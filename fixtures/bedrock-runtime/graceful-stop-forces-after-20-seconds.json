@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "graceful-stop-forces-after-20-seconds",
+  "source": {"file": "VMBedrockServerBackend.swift", "test": "stop graceful timeout", "line": 360},
+  "input": {"running": true, "guest_did_not_power_off": true, "elapsed_seconds": 20},
+  "expected": {"action": "force-stop-vm", "timeout_seconds": 20, "clean_stop_command_sent_first": true},
+  "notes": "The fallback work item is scheduled for exactly twenty seconds after the graceful stop request."
+}

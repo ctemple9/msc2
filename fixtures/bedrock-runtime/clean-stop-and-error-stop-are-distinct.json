@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "clean-stop-and-error-stop-are-distinct",
+  "source": {"file": "VMBedrockServerBackend.swift", "test": "guestDidStop versus didStopWithError", "line": 437},
+  "input": {"events": ["guestDidStop", "didStopWithError: boot failed"]},
+  "expected": {"guestDidStop": {"termination_reason": "clean", "message_contains": "powered off"}, "didStopWithError": {"termination_reason": "error", "message_contains": "boot failed"}},
+  "notes": "Both paths tear down and fire termination once, but the user-visible reason remains clean versus error."
+}

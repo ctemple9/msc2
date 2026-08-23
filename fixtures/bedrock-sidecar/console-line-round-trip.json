@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "console-line-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "console stream section", "line": 122},
+  "input": {"direction": "sidecar-to-agent", "message": {"type": "console-line", "line": "Player connected: Alex"}},
+  "expected": {"forwarded_line": "Player connected: Alex", "line_count": 1, "mscstats_forwarded": false},
+  "notes": "Guest serial output is line-framed; sidecar-only performance lines are consumed rather than exposed as console lines."
+}

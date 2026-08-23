@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "terminated-clean-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "crash notification section", "line": 109},
+  "input": {"direction": "sidecar-to-agent", "message": {"type": "terminated", "reason": "clean"}},
+  "expected": {"agent_state": "stopped", "restart_class": "not-crash", "event_emitted_once": true},
+  "notes": "Normal guest poweroff is represented separately from guest errors and start failures."
+}

@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "provision-malformed-frame-rejected",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "provision framing failure", "line": 44},
+  "input": {"wire_line": "{\"type\":\"provision\",\"server_dir\":"},
+  "expected": {"result": "malformed-frame", "provision_started": false, "agent_error": "protocol-error"},
+  "notes": "MSC 2 sidecar framing case: an incomplete JSON object is rejected before any VM resource work begins."
+}

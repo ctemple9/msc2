@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "console-output-is-framed-on-newlines",
+  "source": {"file": "VMBedrockServerBackend.swift", "test": "handleIncoming newline framing", "line": 235},
+  "input": {"chunks": ["line one\nline", " two\n"]},
+  "expected": {"console_events": ["line one", "line two"], "partial_buffer_after_input": ""},
+  "notes": "MSC 1 accumulates bytes until LF and emits one output callback per complete line."
+}

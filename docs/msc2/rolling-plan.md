@@ -105,10 +105,15 @@ created, provisioned from verified official BDS files, started, observed,
 commanded, stopped, and recovered through the same public API, CLI, and copied
 iOS contract as a Java server. Linux and Windows use native BDS processes;
 macOS uses the already-frozen JSON-lines Swift-sidecar protocol over stdio and
-Virtualization.framework. Console output, readiness, metrics, rolling logs,
-players, allowlist, permissions, settings, worlds, and backups behave against
-the shared fixture corpus. No client claims Bedrock support on a platform or
-version that the published compatibility evidence does not prove.
+Virtualization.framework, verified on **Intel Macs only** — Apple Silicon is
+explicitly deferred per D-028 (MSC 1's VM appliance is a single-architecture,
+x86_64-only build, and the owner has no Apple Silicon hardware to build or
+verify the new arm64-appliance-plus-Rosetta-for-Linux path that would be
+needed) and must be recorded as unavailable, never silently omitted or
+claimed. Console output, readiness, metrics, rolling logs, players, allowlist,
+permissions, settings, worlds, and backups behave against the shared fixture
+corpus. No client claims Bedrock support on a platform or version that the
+published compatibility evidence does not prove.
 
 **Source oracle:** MSC 1 at `~/Documents/Swift Projects/minecraft-server-controller`,
 read-only. The Phase 10 source set begins with `BedrockPropertiesManager.swift`,
@@ -137,10 +142,14 @@ oracle. Phase 5 import records, Phase 6 world/backup behavior (including
 `WorldSlotManager.swift`'s Bedrock-specific import-metadata derivation), Phase
 9 networking and Geyser/Floodgate boundaries, D-014, and D-021 are mandatory
 reconciliation inputs. **D-007 (macOS Bedrock stays Swift behind a sidecar)
-and D-022 (separate Bedrock compatibility matrix) are both still status
-`Proposed`, not Approved** — this phase's entire native→native→sidecar,
-separate-matrix architecture is built on them, so P10.1 must say so plainly to
-Cameron rather than proceeding as if they were settled.
+and D-022 (separate Bedrock compatibility matrix) were both confirmed Approved
+by Cameron on 2026-08-22**, after reviewing the concrete Rust-bridge
+alternative and its risks; this phase's native→native→sidecar, separate-matrix
+architecture proceeds on that basis. **D-028 (new, 2026-08-22)** scopes the
+macOS backend to Intel Macs only for this phase — MSC 1's VM appliance is a
+single-architecture x86_64 build with no Rosetta-for-Linux support, and
+Apple Silicon has no owner-available test hardware, so it is deferred and
+recorded as unavailable rather than attempted or silently dropped.
 
 **Execution order and batches:** P10.1–P10.6 establish the boundary,
 evidence, fixtures, and contract. P10.7–P10.10 are the shared pure and storage
@@ -159,15 +168,15 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Scope, evidence, and contract
 
 ### P10.1 — Scope Bedrock runtimes and reconcile prior-phase handoffs
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/audit/msc2-symbol-ledger.csv`, `docs/msc2/rolling-plan.md`
-**What:** Read the complete Phase 10 oracle set against the current Rust workspace, Phase 5 Bedrock import records, Phase 6 worlds/backups (including `WorldSlotManager.swift`'s Bedrock import-metadata derivation), Phase 9 networking helpers, and the frozen sidecar contract. Record the exact Linux, Windows, and macOS boundaries; the owned ledger rows; native-versus-sidecar responsibilities; download/provisioning provenance (record plainly that MSC 1's own provisioner performs no checksum or signature verification at all — any verification MSC 2 adds is new, not ported); and every behavior that is new rather than silently presented as an MSC 1 port. Explicitly resolve the port plan's open sequencing question (§6): `UDPRelay.swift` is confirmed VM-specific host↔guest forwarding, not a general Bedrock need — a native Linux/Windows `bedrock_server` binds the host UDP port directly with no relay stage, so `fixtures/bedrock-udp/` holds only VM-relay cases and native UDP-bind cases live in `fixtures/bedrock-runtime/` instead. State plainly that this phase's architecture depends on D-007 and D-022, both still `Proposed`, and flag that to Cameron rather than treating them as settled. Write no Rust.
-**Verify:** `python3 -c "from pathlib import Path; s=Path('docs/msc2/bedrock/phase10-scope.md').read_text().lower(); required=['linux','windows','macos','sidecar','leveldb','allowlist','permissions','udp','phase 5','phase 6','phase 9','d-007','d-022','vm-specific']; missing=[x for x in required if x not in s]; assert not missing, missing; print('OK')"`
+**What:** Read the complete Phase 10 oracle set against the current Rust workspace, Phase 5 Bedrock import records, Phase 6 worlds/backups (including `WorldSlotManager.swift`'s Bedrock import-metadata derivation), Phase 9 networking helpers, and the frozen sidecar contract. Record the exact Linux, Windows, and macOS boundaries; the owned ledger rows; native-versus-sidecar responsibilities; download/provisioning provenance (record plainly that MSC 1's own provisioner performs no checksum or signature verification at all — any verification MSC 2 adds is new, not ported); and every behavior that is new rather than silently presented as an MSC 1 port. Explicitly resolve the port plan's open sequencing question (§6): `UDPRelay.swift` is confirmed VM-specific host↔guest forwarding, not a general Bedrock need — a native Linux/Windows `bedrock_server` binds the host UDP port directly with no relay stage, so `fixtures/bedrock-udp/` holds only VM-relay cases and native UDP-bind cases live in `fixtures/bedrock-runtime/` instead. Record that D-007 and D-022 are Approved (2026-08-22) and that D-028 scopes the macOS backend to Intel Macs only — MSC 1's single-architecture x86_64 appliance cannot boot on Apple Silicon at all (`Virtualization.framework` does not emulate a foreign CPU architecture), and no arm64 appliance or Rosetta-for-Linux wiring exists to port; record Apple Silicon as unavailable, not attempted this phase. Write no Rust.
+**Verify:** `python3 -c "from pathlib import Path; s=Path('docs/msc2/bedrock/phase10-scope.md').read_text().lower(); required=['linux','windows','macos','sidecar','leveldb','allowlist','permissions','udp','phase 5','phase 6','phase 9','d-007','d-022','d-028','apple silicon','intel']; missing=[x for x in required if x not in s]; assert not missing, missing; print('OK')"`
 **Commit:** `P10.1: scope Bedrock runtimes`
 **Batch:** solo
 
 ### P10.2 — Capture Bedrock files, settings, player, and console fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/bedrock-properties/`, `fixtures/bedrock-players/`, `fixtures/bedrock-console/`, `fixtures/bedrock-logging/`, `corpus/bedrock/`
 **What:** Extract exactly 24 `bedrock-properties` fixtures from `BedrockPropertiesManager.swift` (server.properties, allowlist.json, permissions.json — including the absence of any range clamping/validation, unrecognized enum values being silently ignored rather than rejected, and unknown keys surviving a round-trip write); 22 `bedrock-players` fixtures from `BedrockPlayerDataManager.swift`, `BedrockNameCache.swift`, `BedrockHiddenProfiles.swift`, and `AppViewModel+OutputHandling.swift`'s `backfillBedrockAllowlistXUIDIfNeeded` (the full LevelDB-key classification tree, name-cache and hidden-profile persistence, and the Java-server backfill guard); 16 `bedrock-console` fixtures from `AppViewModel+OutputHandling.swift`/`VMBedrockServerBackend.swift` (the `"Server started"` readiness substring match, version-line parsing, player connect/disconnect including reconnect and empty-gamertag edge cases, the `[MSCSTATS]` line, and the guest-IP discovery line); and 8 `bedrock-logging` fixtures from the Bedrock-specific console-to-`logs/latest.log` mirroring (`startBedrockLogFile`/`appendBedrockLogLine`/`closeBedrockLogFile`/`pruneRolledBedrockLogs` — Bedrock has no log file of its own, so this is a distinct mechanism from Java's rolling logs, including the exact keep-10 rotation boundary). Include malformed and legacy data; do not invent values that cannot be observed from the oracle.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-properties --expect 24 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-players --expect 22 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-console --expect 16 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-logging --expect 8`
@@ -175,7 +184,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.3 — Capture LevelDB, NBT, world-layout, and backup fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/bedrock-leveldb/`, `fixtures/bedrock-nbt/`, `fixtures/bedrock-world-layout/`, `fixtures/bedrock-backup/`, `corpus/bedrock/`
 **What:** Extract exactly 22 `bedrock-leveldb` fixtures from `BedrockLevelDB.swift` (both block-compression types and an invalid compression byte, footer/truncation rejection, WAL FULL/FIRST-MIDDLE-LAST record reassembly, an unknown WAL record type, varint overflow, and a fixture pinning the oracle's own filesystem-order-dependent `.ldb` conflict resolution — distinct from `.log` files, which are explicitly sorted newest-wins); 32 `bedrock-nbt` fixtures from `BedrockNBTReader.swift` (all three `PlayerStats` dimension branches and XP-formula bands, inventory item field-type variants, enchantment key variants, custom-name handling, and corrupt/truncated/bad-tag parse failures); 10 `bedrock-world-layout` fixtures from `AppViewModel+ServerCreation.swift`'s `resolvedBedrockWorldFolder` (direct `level.dat` hit, one-level-deep single-subdir match, ambiguous zero/multiple-subdir fallback, level-name sanitization, and a symlink-escape case against Phase 3's path safety) plus `WorldSlotManager.swift`'s Bedrock import-metadata derivation; and 10 `bedrock-backup` fixtures from `AppViewModel+Backups.swift`'s Bedrock branch (`save hold`→`save query` polling to ready, send-failure and timeout cases — timeout is explicitly not a failure in the oracle, it proceeds anyway — `save resume`, the console-line-wait race, and the fact that MSC 1 has no live-backup *restore* path for Bedrock at all: Bedrock restore redirects to the slot-based Worlds tab, a real scope boundary P10.19a must preserve, not an oversight). Record unsupported/corrupt inputs explicitly so later code never treats partial data as a valid player or world.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-leveldb --expect 22 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-nbt --expect 32 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-world-layout --expect 10 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-backup --expect 10`
@@ -183,7 +192,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.4 — Capture provisioning, runtime, sidecar, and UDP lifecycle fixtures
-**Status:** not started
+**Status:** DONE
 **Files:** `fixtures/bedrock-provisioning/`, `fixtures/bedrock-runtime/`, `fixtures/bedrock-sidecar/`, `fixtures/bedrock-udp/`, `corpus/bedrock/`
 **What:** Extract 10 MSC-1-characterized `bedrock-provisioning` fixtures from `BedrockProvisioner.swift`/`BedrockVersionFetcher.swift` (pinned/newest-release resolution, offline fallback, legacy-marker backfill, no-op/force-reinstall, and the preserved-file exclusion list) plus 6 labeled MSC 2 net-new cases (real checksum verification, per-platform manifest-entry dispatch — MSC 1 always reads the `linux` entry even for its own VM guest — corrupt-archive rejection, and atomic rollback on a failed update); **MSC 1's provisioner performs no checksum or signature verification at all**, so none of the net-new group is a port and the scope note must say so. Extract 6 MSC-1-characterized `bedrock-runtime` fixtures from the real, portable parts of `VMBedrockServerBackend.swift`/`AppViewModel+OutputHandling.swift` (the `"Server started"` readiness match, console framing, the `stop` command name and 20-second graceful-then-forced timeout, and clean-stop-vs-error-stop) plus 8 labeled MSC 2 net-new cases for native process supervision — reusing Phase 3/4's already-proven OS-level process-stats and crash-detection mechanism, not the VM's `[MSCSTATS]` line, which is sidecar-only plumbing — including native Windows process-tree ownership and native UDP port-bind/port-in-use cases (a direct bind, not a relay — see P10.1). Extract 16 `bedrock-sidecar` fixtures directly from `docs/msc2/sidecar-ipc-contract.md`'s ten message/behavior sections (one well-formed round trip each, plus malformed-frame/out-of-order/EOF variants for the six sections where framing failure is meaningfully distinct). Extract 5 `bedrock-udp` fixtures from `UDPRelay.swift` covering only VM-guest relay behavior (per-client-flow isolation, bidirectional pump start, cleanup on cancel, bind failure, and the DHCP-then-relay sequencing dependency) — do not add native UDP-bind cases here; those belong in `bedrock-runtime` per P10.1's resolution of the open UDPRelay sequencing question.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-provisioning --expect 16 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-runtime --expect 14 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-sidecar --expect 16 && python3 tools/fixture-runner/run.py --validate-dir fixtures/bedrock-udp --expect 5`
@@ -191,10 +200,10 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.5 — Publish Bedrock support and compatibility evidence rules
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/bedrock/compatibility-matrix.csv`, `docs/msc2/bedrock/evidence/README.md`, `tools/phase10/compatibility-check.py`
-**What:** Create the separate D-022 Bedrock compatibility matrix and its checker. It must distinguish agent-host support from BDS runtime support, name each native/sidecar backend, and require each advertised cell to cite reproducible evidence rather than inheriting the Java-server matrix.
-**Verify:** `python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv`
+**What:** Create the separate D-022 Bedrock compatibility matrix and its checker. It must distinguish agent-host support from BDS runtime support, name each native/sidecar backend, and require each advertised cell to cite reproducible evidence rather than inheriting the Java-server matrix. Per D-028, the checker must require a distinct Apple Silicon Mac row/cell whose status is exactly `unavailable` with a reason citing no test hardware — never merged with the Intel Mac cell, never `unsupported` (that would claim a tested negative this project never tested), and never silently absent from the matrix.
+**Verify:** `python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv --require-cell "macOS (Apple Silicon)=unavailable"`
 **Commit:** `P10.5: add Bedrock compatibility evidence rules`
 **Batch:** solo
 
@@ -295,7 +304,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### P10.17 — Build the Swift Virtualization sidecar
 **Status:** not started
 **Files:** `sidecar/bedrock/`, `sidecar/bedrock/Tests/`, `fixtures/bedrock-sidecar/`, `docs/msc2/bedrock/phase10-scope.md`
-**What:** Build the narrow macOS Swift executable that owns `Virtualization.framework` and implements exactly the frozen provision/start/ready/command/stop/force-stop/terminated/console protocol. It may share the server directory through virtio-fs but may not introduce a second management API or persist Bedrock state outside that directory.
+**What:** Build the narrow macOS Swift executable that owns `Virtualization.framework` and implements exactly the frozen provision/start/ready/command/stop/force-stop/terminated/console protocol. It may share the server directory through virtio-fs but may not introduce a second management API or persist Bedrock state outside that directory. Per D-028, the bundled kernel/initramfs appliance is Intel (x86_64) only, matching MSC 1's own single-architecture build; do not attempt an arm64 appliance or Rosetta-for-Linux wiring this phase, and make the host-architecture requirement an explicit, checked precondition rather than an unexplained failure to boot on Apple Silicon.
 **Verify:** `xcodebuild -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar test`
 **Commit:** `P10.17: add macOS Bedrock sidecar`
 **Batch:** solo
@@ -303,7 +312,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### P10.18 — Prove the macOS VM and UDP relay lifecycle
 **Status:** not started
 **Files:** `crates/msc-agent/tests/bedrock_macos_routes.rs`, `tools/phase10/macos-smoke.sh`, `docs/msc2/bedrock/evidence/`, `fixtures/bedrock-udp/`
-**What:** Run the complete agent-to-sidecar lifecycle against a disposable VM appliance: readiness only after DHCP and relay setup, console/command framing, graceful and forced shutdown, sidecar crash recovery, and host-directory persistence across a fresh VM. Record hardware or virtualization unavailability honestly rather than claiming a native-macOS BDS runtime.
+**What:** Run the complete agent-to-sidecar lifecycle against a disposable VM appliance on an Intel Mac: readiness only after DHCP and relay setup, console/command framing, graceful and forced shutdown, sidecar crash recovery, and host-directory persistence across a fresh VM. Record hardware or virtualization unavailability honestly rather than claiming a native-macOS BDS runtime, and record Apple Silicon specifically as out of scope per D-028 rather than untested-and-unmentioned.
 **Verify:** `bash tools/phase10/macos-smoke.sh --synthetic`
 **Commit:** `P10.18: prove macOS Bedrock sidecar lifecycle`
 **Batch:** stop-after
@@ -363,7 +372,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### P10.24 — Record safe official-distribution evidence
 **Status:** not started
 **Files:** `docs/msc2/bedrock/evidence/`, `tools/phase10/evidence-check.py`, `docs/msc2/bedrock/compatibility-matrix.csv`
-**What:** Record the reproducible official-distribution and package-identity evidence each runtime needs, or a precise unavailable result where licensing, host support, or safe access prevents it. The checker must reject fabricated success and must link every supported matrix cell to its matching record.
+**What:** Record the reproducible official-distribution and package-identity evidence each runtime needs, or a precise unavailable result where licensing, host support, or safe access prevents it — including Apple Silicon Mac distribution, unavailable per D-028 (no test hardware). The checker must reject fabricated success and must link every supported matrix cell to its matching record.
 **Verify:** `python3 tools/phase10/evidence-check.py --distribution`
 **Commit:** `P10.24: record Bedrock distribution evidence`
 **Batch:** solo
@@ -371,7 +380,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### P10.25 — Record native and sidecar runtime evidence
 **Status:** not started
 **Files:** `docs/msc2/bedrock/evidence/`, `docs/msc2/bedrock/compatibility-matrix.csv`, `tools/phase10/evidence-check.py`
-**What:** Record Linux-native, Windows-native, and macOS-sidecar lifecycle evidence using the same terms as the capability matrix: supported, unsupported, or unavailable. Include UDP reachability and clean/crash termination where a safe disposable environment exists; retain unavailable outcomes rather than replacing them with claims from a fake runtime.
+**What:** Record Linux-native, Windows-native, and macOS-sidecar (Intel) lifecycle evidence using the same terms as the capability matrix: supported, unsupported, or unavailable. Include UDP reachability and clean/crash termination where a safe disposable environment exists; retain unavailable outcomes rather than replacing them with claims from a fake runtime. Record Apple Silicon Mac evidence as unavailable per D-028, not omitted.
 **Verify:** `python3 tools/phase10/evidence-check.py --runtimes && python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv`
 **Commit:** `P10.25: record Bedrock runtime evidence`
 **Batch:** stop-after
@@ -470,3 +479,230 @@ the package manager, with MSC limited to an actionable availability notice.
 **Commit:** `P11.1: scope desktop and web clients`
 **Batch:** solo
 
+### P11.2 — Scaffold one standalone Svelte and Tauri client
+**Status:** not started
+**Files:** `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src/`, `clients/desktop-web/static/`, `clients/desktop-web/src-tauri/`, `clients/desktop-web/svelte.config.js`, `clients/desktop-web/vite.config.ts`, `clients/desktop-web/tsconfig.json`
+**What:** Create one TypeScript Svelte frontend with a static build suitable for both agent serving and a thin Tauri 2 shell. Keep `src-tauri` out of the root Cargo workspace until Phase 10 closes so this step cannot churn Phase 10's Cargo graph or `crates/`; give it its own lockfile and no server-management behavior. Establish formatting, type-checking, unit-test, production-build, and bundle-identity commands.
+**Verify:** `npm --prefix clients/desktop-web run verify:scaffold`
+**Commit:** `P11.2: scaffold shared Svelte client`
+**Batch:** solo
+
+### P11.3 — Generate TypeScript from the frozen OpenAPI contract
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/api/generate.ts`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `tools/phase11/generated-types-check.py`
+**What:** Generate the HTTP request/response type surface directly from `docs/msc2/api-contract/openapi.json`, preserving optional/additive fields needed for D-010 skew. Make regeneration deterministic and fail when checked-in output differs from the contract. Handwritten transport helpers may wrap generated types, but no hand-authored DTO mirror is permitted.
+**Verify:** `npm --prefix clients/desktop-web run api:check`
+**Commit:** `P11.3: generate TypeScript API types`
+**Batch:** solo
+
+### P11.4 — Build the contract-backed client test harness
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/testing/`, `clients/desktop-web/tests/contract/`, `clients/desktop-web/tests/fixtures/`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`
+**What:** Add deterministic fake HTTP, WebSocket, upload/download, operation, auth, capability, permission, old-agent/new-agent, and reconnect scenarios using generated DTO shapes. Include unknown optional fields and absent future capability keys so the UI proves additive skew tolerance. This becomes the reviewed test boundary later `safe` screen batches use; it must not emulate Bedrock or player-profile behavior that no finalized agent contract advertises.
+**Verify:** `npm --prefix clients/desktop-web run test:contract`
+**Commit:** `P11.4: add client contract harness`
+**Batch:** solo
+
+### P11.5 — Establish extensible information architecture and routing
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/navigation/`, `clients/desktop-web/src/routes/`, `clients/desktop-web/tests/navigation/`, `docs/msc2/clients/phase11-scope.md`
+**What:** Implement the descriptor registry, nested host/server route parameters, permission and capability predicates, lazy component loading, stable deep links, narrow/wide layouts, and unknown-section fallback. Prohibit a closed section enum, exhaustive section switch, fixed tab-count assumptions, and checks such as `hostOs == linux` standing in for capability discovery. Reserve but do not register or render Bedrock and player-profile route families; tests must prove a synthetic future descriptor can be added without editing the shell/router and remains hidden until its named advertised capability is present.
+**Verify:** `npm --prefix clients/desktop-web run test:navigation`
+**Commit:** `P11.5: add extensible client routing`
+**Batch:** solo
+
+### P11.6 — Make all connection and cache state host-scoped
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/hosts/`, `clients/desktop-web/src/lib/stores/`, `clients/desktop-web/tests/hosts/`
+**What:** Implement D-013's host registry, minimal host switcher, per-host connection/capability/permission/server/console/operation caches, active-server selection, stale-data isolation, and explicit host identity on every destructive confirmation. Credentials remain behind an injected credential adapter so the browser and Tauri mechanisms can land later without migrating store shapes. No singleton active host, global console buffer, or credential field may leak across hosts.
+**Verify:** `npm --prefix clients/desktop-web run test:hosts`
+**Commit:** `P11.6: add host-scoped client state`
+**Batch:** safe
+
+### P11.7 — Implement the generated HTTP and resilient stream client
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/api/`, `clients/desktop-web/src/lib/streams/`, `clients/desktop-web/src/lib/operations/`, `clients/desktop-web/tests/transport/`
+**What:** Build one host-aware transport over generated request/response types, `ErrorDTO`, version headers, capability refresh, bounded staged transfers, and cookie-or-bearer credential adapters. Add console, operation, and notification stream reconnect with bounded history, deduplication, cancellation, terminal-state recovery, and explicit unsupported/old-client states. Keep browser and desktop on the same calls; shell IPC may supply credentials or native services but never an alternative management API.
+**Verify:** `npm --prefix clients/desktop-web run test:transport`
+**Commit:** `P11.7: build shared API transport`
+**Batch:** safe
+
+### P11.8 — Build the responsive MSC design system and application shell
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/components/`, `clients/desktop-web/src/lib/styles/`, `clients/desktop-web/src/routes/+layout.svelte`, `clients/desktop-web/tests/visual/`
+**What:** Translate the copied iOS component structure and MSC 1 macOS design language into reusable tokens, cards, tables, forms, dialogs, alerts, empty/loading/error states, keyboard focus, reduced motion, and responsive sidebar/bottom-navigation shells. Preserve desktop's server-list/sidebar and always-available console concepts without baking today's section count into layout. The shell must visibly name the selected host and server and remain usable at phone, tablet, and desktop widths.
+**Verify:** `npm --prefix clients/desktop-web run test:visual-shell`
+**Commit:** `P11.8: build shared MSC interface shell`
+**Batch:** stop-after
+
+### P11.9 — Build fleet, provisioning, and lifecycle workflows
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/home/`, `clients/desktop-web/src/lib/sections/fleet/`, `clients/desktop-web/tests/screens/fleet.test.ts`, `docs/msc2/client-capability-matrix.csv`
+**What:** Implement status, active-server switching, create/import/rename/delete/EULA, Java family/version/runtime selection and install, templates, start/stop/restart, clear confirmations, capability/permission gates, and durable operation progress. Use the iOS create/import flows as the functional reference and desktop macOS views for hierarchy only. Update each delivered Desktop/Web matrix row in this same step; unsupported or agent-Planned routes stay `Planned`, never implied by a disabled decorative control.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-fleet && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.9: add fleet and lifecycle screens`
+**Batch:** safe
+
+### P11.10 — Build console, commands, operations, notifications, and performance
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/console/`, `clients/desktop-web/src/lib/sections/performance/`, `clients/desktop-web/src/lib/components/operations/`, `clients/desktop-web/src/lib/components/notifications/`, `clients/desktop-web/tests/screens/live.test.ts`, `docs/msc2/client-capability-matrix.csv`
+**What:** Implement the bounded live console with history/search/filter/pause/copy/clear-local-view, command history/favorites, operation progress/cancel/recovery, notification feed, performance metrics/charts, help affordances, and reconnect behavior. Use DOM/SVG/CSS rendering with a low-cost fallback rather than assuming Chromium-only WebGL/canvas behavior. Update the matching Desktop/Web matrix cells.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-live && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.10: add live server screens`
+**Batch:** safe
+
+### P11.11 — Build the online roster without claiming player profiles
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/players-online/`, `clients/desktop-web/tests/screens/players-online.test.ts`, `docs/msc2/client-capability-matrix.csv`
+**What:** Render only the generic online roster the connected agent actually advertises. Do not build the Bedrock allowlist/permissions UI in this phase. Keep the registered section identity distinct from the reserved future `profiles` route; do not call the frozen-but-unimplemented profile, skin, hidden-profile, session-history, UUID migration, or player-data mutation routes and do not present their matrix cells as implemented. Prove the online section still works when profile capability fields are unknown, absent, or later added.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-players-online && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.11: add online player roster`
+**Batch:** safe
+
+### P11.12 — Build worlds, backups, and staged transfer workflows
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/worlds/`, `clients/desktop-web/src/lib/sections/backups/`, `clients/desktop-web/src/lib/transfers/`, `clients/desktop-web/tests/screens/worlds-backups.test.ts`, `docs/msc2/client-capability-matrix.csv`
+**What:** Implement slot inventory/activation/create/rename/duplicate/delete/import/export/convert, direct active-world mutations where the API supports them, thumbnails, backup create/config/delete/restore, bounded uploads/downloads, transactional warnings, progress/cancel/recovery, and risk-appropriate confirmations. Update every genuinely delivered Desktop/Web matrix cell and leave unavailable agent paths visible only as truthful capability explanations.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-worlds-backups && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.12: add world and backup screens`
+**Batch:** safe
+
+### P11.13 — Build add-on, modpack, and component workflows
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/addons/`, `clients/desktop-web/src/lib/sections/components/`, `clients/desktop-web/tests/screens/addons.test.ts`, `docs/msc2/client-capability-matrix.csv`
+**What:** Implement installed add-ons, catalog search, install/update/toggle/remove/source actions, system-component state, client export, modpack inspect/import/replace, and D-027 manual browser-download then bounded staged-upload completion. Preserve provider-unavailable, dependency, pack-managed, cancellation, and provenance explanations. Update the matching Desktop/Web matrix rows; never hardcode provider or server-family lists where the contract supplies them.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-addons && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.13: add add-on and modpack screens`
+**Batch:** safe
+
+### P11.14 — Build settings, health, networking, helpers, and access administration
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/settings/`, `clients/desktop-web/src/lib/sections/health/`, `clients/desktop-web/src/lib/sections/connectivity/`, `clients/desktop-web/src/lib/sections/access/`, `clients/desktop-web/tests/screens/administration.test.ts`, `docs/msc2/client-capability-matrix.csv`
+**What:** Render schema-driven settings without a client-side field enum; implement health cards/problems/repairs, RAM/Java/Geyser, connectivity diagnostics, Playit, DuckDNS, Xbox Broadcast, resource packs, and named-token create/update/revoke with one-time-secret handling. Permission and capability filters must remove unavailable actions while keeping explanations. Agent-Planned files/watchdog/profile routes remain Planned rather than receiving fake screens. Update each delivered matrix row.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-administration && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.14: add administration screens`
+**Batch:** safe
+
+### P11.15 — Extract and validate the educational content corpus
+**Status:** not started
+**Files:** `content/help/`, `content/guides/`, `fixtures/help-content/`, `tools/phase11/help-content-check.py`, `docs/msc2/clients/phase11-scope.md`
+**What:** Extract MSC 1's 31-topic handbook, concept guide, router catalog/records/steps, troubleshooting content, and onboarding copy into the confirmed Markdown-with-YAML-front-matter and structured guide data formats. Preserve source citations and label content versus executable router rules; do not duplicate prose in Svelte. Record unresolved diagram assets honestly. Include coverage for every `helpId` already emitted by settings, health, diagnostics, performance, connectivity, and errors.
+**Verify:** `python3 tools/phase11/help-content-check.py --all`
+**Commit:** `P11.15: extract educational content`
+**Batch:** solo
+
+### P11.16 — Render contract-served help and guides in the shared client
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/help/`, `clients/desktop-web/src/lib/sections/handbook/`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/client-capability-matrix.csv`
+**What:** Build safe Markdown rendering, related-topic navigation, handbook/concept/router-guide readers, contextual `helpId` links, unknown-topic degradation, and client-owned onboarding anchors against the fake contract. Every explanation comes from a response or structured content fixture, never a screen-local copy. The registry must allow future Bedrock and profile topics/sections to appear additively without new shell logic.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-help && python3 tools/phase11/help-content-check.py --client`
+**Commit:** `P11.16: render shared help content`
+**Batch:** safe
+
+### P11.17 — Prove browser parity, accessibility, and responsive layouts
+**Status:** not started
+**Files:** `clients/desktop-web/tests/e2e/browser/`, `clients/desktop-web/playwright.config.ts`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`
+**What:** Exercise the production static bundle against the contract harness at narrow and wide widths, keyboard-only navigation, reduced motion, destructive confirmations, host switching, reconnect, upload/download, and deep-link reload. Run Chromium plus browser WebKit for fast compatibility feedback, while recording plainly that this is browser evidence and does not replace P11.19's native Linux WebKitGTK proof.
+**Verify:** `npm --prefix clients/desktop-web run test:e2e-browser`
+**Commit:** `P11.17: prove shared browser workflows`
+**Batch:** stop-after
+
+### P11.18 — Add the thin Tauri shell without desktop-only screens
+**Status:** not started
+**Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/tauri/`
+**What:** Load the exact production Svelte bundle and expose only narrow native adapters for credentials, file pickers, notifications, menus, window lifecycle, and later agent installation/update. Each native affordance must invoke a shared web workflow with a browser fallback; no route or screen may test `isTauri` to reveal desktop-only management behavior. Keep the standalone Tauri crate outside the root workspace while Phase 10 is active.
+**Verify:** `npm --prefix clients/desktop-web run test:tauri-boundary`
+**Commit:** `P11.18: add thin Tauri shell`
+**Batch:** solo
+
+### P11.19 — Exercise the real Linux Tauri renderer through WebKitGTK
+**Status:** not started
+**Files:** `clients/desktop-web/tests/e2e/tauri-linux/`, `clients/desktop-web/wdio.conf.ts`, `tools/phase11/linux-webkitgtk-smoke.sh`, `docs/msc2/clients/evidence/`
+**What:** On a Debian/Ubuntu desktop runner with `libwebkit2gtk-4.1`, `webkit2gtk-driver`, and Xvfb, launch the built Tauri binary and drive its real window through the native WebDriver path. Verify visible shell, navigation, CSS layout, forms, dialogs, live-console fallback, deep links, and one mutating fake workflow; record the WebKitGTK package/version and screenshot evidence. A Vite page opened in Chrome or Playwright's bundled WebKit does not satisfy this step.
+**Verify:** `bash tools/phase11/linux-webkitgtk-smoke.sh --native`
+**Commit:** `P11.19: prove Linux WebKitGTK rendering`
+**Batch:** stop-after
+
+### Group B — Phase 10-dependent Bedrock extension seam (must wait until Phase 10 closes; no Bedrock screens)
+
+### P11.20 — Regenerate against Phase 10 and prove capability-driven extension seams
+**Status:** not started — blocked on Phase 10
+**Files:** `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/navigation/`, `clients/desktop-web/tests/navigation/bedrock-extension.test.ts`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/clients/phase11-scope.md`
+**What:** Regenerate TypeScript from the exact post-Phase-10 OpenAPI document and consume its finalized capability advertisement without hand-written Bedrock DTOs or host-OS inference. Use a test-only future section descriptor to prove Bedrock navigation is absent when unsupported, can be registered when `serverTypes.bedrock` advertises support, survives unknown backend values additively, and fits existing layouts/routes without restructuring. Ship no Bedrock section, creation flow, settings, player, allowlist, world, backup, console, or runtime screen in Phase 11; keep those matrix cells Planned for the later Bedrock client group.
+**Verify:** `npm --prefix clients/desktop-web run api:check && npm --prefix clients/desktop-web run test:bedrock-extension && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.20: preserve Bedrock client extension seam`
+**Batch:** solo
+
+### Group C — Shared agent, auth, packaging, and gate work (must wait until Phase 10 closes)
+
+### P11.21 — Close the remaining desktop and browser authentication design
+**Status:** not started — blocked on Phase 10
+**Files:** `docs/msc2/clients/phase11-auth.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/auth-scope-phase2.md`, `docs/msc2/lifecycle/pairing-phase4.md`, `crates/msc-api/tests/phase11_auth_conformance.rs`
+**What:** Turn D-012's approved mechanisms and Phase 9 posture into one testable contract: same-machine Tauri bootstrap resistant to arbitrary local-process impersonation, per-host remote desktop pairing and secret-store keys, browser pairing-to-httpOnly-SameSite cookie exchange, session revocation/expiry, exact allowed-origin/CSP rules, CSRF tokens for cookie-authenticated mutations, and bearer exemption. Preserve loopback-by-default management and authenticated explicit-Tailscale access; per the owner-confirmed v1 choice above, keep general-LAN management unavailable and do not build certificate provisioning or a local trust system. Use additive versioned routes and `ErrorDTO`; do not put raw credentials in Svelte-accessible storage or URLs.
+**Verify:** `python3 tools/api-contract-check.py --v1-summary && cargo nextest run -p msc-api --test phase11_auth_conformance`
+**Commit:** `P11.21: freeze desktop and browser auth`
+**Batch:** solo
+
+### P11.22 — Implement browser sessions, origin policy, CSP, and CSRF
+**Status:** not started — blocked on Phase 10 and P11.21
+**Files:** `crates/msc-agent/src/auth/`, `crates/msc-agent/src/routes/browser_session.rs`, `crates/msc-agent/tests/browser_auth.rs`, `clients/desktop-web/src/lib/auth/browser.ts`, `clients/desktop-web/tests/auth/browser.test.ts`
+**What:** Implement the frozen browser pairing/session path on the existing credential registry, with one-use challenges, httpOnly cookies, revocation and restart behavior, exact origin checks, restrictive CSP, CSRF on every cookie-authenticated mutation, rate limits, and audit attribution. Prove bearer clients remain unaffected and a hostile origin/local script cannot turn ambient browser authority into a server mutation.
+**Verify:** `cargo nextest run -p msc-agent --test browser_auth && npm --prefix clients/desktop-web run test:auth-browser`
+**Commit:** `P11.22: add secure browser sessions`
+**Batch:** stop-after
+
+### P11.23 — Implement local and remote Tauri credentials per host
+**Status:** not started — blocked on Phase 10 and P11.21
+**Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/auth/desktop.ts`, `clients/desktop-web/tests/auth/desktop/`, `crates/msc-agent/src/auth/`, `crates/msc-agent/tests/desktop_auth.rs`
+**What:** Implement the chosen same-machine authorization handshake and remote pairing exchange, storing one credential per agent host ID in the platform credential store through the shell so secrets never enter browser storage. Verify local convenience does not become loopback-open authorization, remote credentials obey permission/expiry/revocation, switching hosts cannot reuse another host's credential, and the web build retains its cookie flow with no divergent screen.
+**Verify:** `cargo nextest run -p msc-agent --test desktop_auth && npm --prefix clients/desktop-web run test:auth-desktop`
+**Commit:** `P11.23: add per-host desktop credentials`
+**Batch:** stop-after
+
+### P11.24 — Serve embedded help content and port router-guide rules
+**Status:** not started — blocked on Phase 10
+**Files:** `crates/msc-domain/src/router_guides.rs`, `crates/msc-domain/tests/router_guides.rs`, `crates/msc-agent/src/help.rs`, `crates/msc-agent/src/routes/help.rs`, `crates/msc-agent/tests/help_routes.rs`, `content/help/`, `content/guides/`, `fixtures/help-content/`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/client-capability-matrix.csv`
+**What:** Embed the validated content corpus, implement `GET /v1/help/{helpId}` plus the additive handbook/concept/router-guide catalog routes required to browse it, and port the ledgered router matcher/fallback/composer/troubleshooting rules into Rust against fixtures. Return raw Markdown/structured steps for every client to render; unknown or version-new topics degrade through `ErrorDTO`. Do not absorb client onboarding anchors or presentation into the agent.
+**Verify:** `cargo nextest run -p msc-domain --test router_guides && cargo nextest run -p msc-agent --test help_routes && npm --prefix clients/desktop-web run test:screen-help`
+**Commit:** `P11.24: serve shared educational content`
+**Batch:** solo
+
+### P11.25 — Serve the same production bundle from the agent
+**Status:** not started — blocked on Phase 10
+**Files:** `crates/msc-agent/src/web_ui.rs`, `crates/msc-agent/tests/web_ui.rs`, `clients/desktop-web/`, `tools/phase11/bundle-identity-check.py`
+**What:** Embed or package the exact Svelte production output the Tauri shell loads, serve hashed assets with correct MIME/cache headers and CSP, support safe client-side deep-link fallback without shadowing `/v1`, and provide an explicit unavailable result when a headless package intentionally omits web assets. Prove byte identity between the browser-served and Tauri-loaded bundles and preserve D-011's no-GUI dependency boundary in the agent.
+**Verify:** `python3 tools/phase11/bundle-identity-check.py && cargo nextest run -p msc-agent --test web_ui`
+**Commit:** `P11.25: serve shared web bundle`
+**Batch:** stop-after
+
+### P11.26 — Install and manage the local agent through the shell
+**Status:** not started — blocked on Phase 10
+**Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/setup/`, `clients/desktop-web/tests/agent-install/`, `tools/phase11/agent-install-smoke.sh`, `packaging/`
+**What:** Add shell-only native commands behind shared setup screens to detect, install, start, stop, repair, and report the platform service and compatible agent/sidecar package. Closing the window must never stop the service or a server. Browser users see the same status/setup route with a truthful instruction/fallback when native install is unavailable; there is no desktop-only screen. Preserve existing service identity, privilege, headless, and rollback rules.
+**Verify:** `bash tools/phase11/agent-install-smoke.sh --synthetic`
+**Commit:** `P11.26: manage local agent installation`
+**Batch:** stop-after
+
+### P11.27 — Define and prove coordinated desktop, agent, and sidecar updates
+**Status:** not started — blocked on Phase 10
+**Files:** `docs/msc2/clients/phase11-update.md`, `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/updates/`, `packaging/`, `tools/phase11/update-smoke.sh`
+**What:** Implement the owner-confirmed prompted, signed macOS/Windows update policy as a compatibility-aware set: download and verify release identity before staging, ask before installation, keep the running agent until replacement is ready, preserve configuration/secrets/worlds, pair the exact compatible Bedrock sidecar where applicable, roll back a failed update, and allow app/agent version skew only within D-010's advertised window. Never install silently. Linux defers installation to its package manager and receives an actionable notice, not a second self-updater. Never merge MSC updates with server/loader/add-on update controls.
+**Verify:** `bash tools/phase11/update-smoke.sh --synthetic --all-platforms`
+**Commit:** `P11.27: add coordinated client updates`
+**Batch:** solo
+
+### P11.28 — Build and exercise desktop and web candidates on all three platforms
+**Status:** not started — blocked on Phase 10
+**Files:** `.github/workflows/ci.yml`, `tools/phase11/desktop-web-smoke.sh`, `clients/desktop-web/`, `docs/msc2/clients/evidence/`
+**What:** Add production frontend/type tests, agent-served browser smoke, and real Tauri builds to macOS, Windows, and Linux CI while preserving the headless no-GUI job. Exercise the same core workflow in browser and desktop modes; on Linux run P11.19's native WebKitGTK smoke, not a Chromium substitute. Record platform renderer/package versions and explicit unavailable signing/notarization evidence without claiming unperformed release distribution.
+**Verify:** `bash tools/phase11/desktop-web-smoke.sh --synthetic --all-surfaces`
+**Commit:** `P11.28: prove tri-platform clients`
+**Batch:** stop-after
+
+### P11.29 — Reconcile the capability matrix and run the exact Phase 11 gate
+**Status:** not started — blocked on Phase 10
+**Files:** `docs/msc2/client-capability-matrix.csv`, `tools/phase11/phase11-check.py`, `docs/msc2/clients/evidence/phase11-ci.md`, `docs/msc2/clients/phase11-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Check every contract and WebSocket operation against real Desktop/Web implementation evidence, leaving agent-Planned, Bedrock-screen, and player-profile rows explicitly Planned and no cell blank. Prove D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, capability/permission routing, D-026 served-content use, browser/Tauri auth, browser responsive behavior, native Linux WebKitGTK rendering, tri-platform packaging, headless independence, and the exact green CI candidate. This is Phase 11's only full-workspace run; the other agent decides in REVIEW whether the literal gate holds.
+**Verify:** `python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`
+**Commit:** `P11.29: check desktop and web gate`
+**Batch:** solo

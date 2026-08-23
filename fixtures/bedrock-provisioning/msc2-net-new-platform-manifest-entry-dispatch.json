@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "msc2-net-new-platform-manifest-entry-dispatch",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 platform manifest selection", "line": 1},
+  "input": {"host": "windows", "release": {"linux": "linux.zip", "windows": "windows.zip", "macos": "sidecar-assets.zip"}},
+  "expected": {"selected_entry": "windows", "selected_archive": "windows.zip", "linux_entry_used": false},
+  "notes": "MSC 2 net-new case: select the actual host/backend entry. MSC 1 always read the linux entry even though its destination was a macOS VM guest."
+}

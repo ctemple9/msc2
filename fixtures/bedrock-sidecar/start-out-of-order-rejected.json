@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "start-out-of-order-rejected",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "start ordering failure", "line": 63},
+  "input": {"received": [{"type": "start"}], "prior_messages": []},
+  "expected": {"result": "out-of-order", "start_accepted": false, "reason": "provision-required-first"},
+  "notes": "A start request cannot bypass the sidecar's provisioning precondition."
+}

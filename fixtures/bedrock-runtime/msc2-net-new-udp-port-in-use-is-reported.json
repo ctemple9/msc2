@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "msc2-net-new-udp-port-in-use-is-reported",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 native UDP bind failure", "line": 1},
+  "input": {"backend": "native-linux", "address": "0.0.0.0", "port": 19132, "existing_listener": true},
+  "expected": {"result": "unavailable", "reason": "udp-port-in-use", "process_started": false},
+  "notes": "MSC 2 net-new case: a direct bind failure is reported before claiming a running server."
+}

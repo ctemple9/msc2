@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "stop-eof-before-response-is-terminal",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "stop EOF handling", "line": 88},
+  "input": {"sent": {"type": "stop"}, "stdout": "", "eof": true},
+  "expected": {"result": "sidecar-eof", "agent_state": "runtime-unavailable", "forced_cleanup": true},
+  "notes": "EOF on the supervised sidecar stream is the crash-notification signal; it must not hang waiting for a reply."
+}

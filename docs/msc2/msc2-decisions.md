@@ -163,7 +163,7 @@ Three things follow, and conflating them is a mistake:
 
 ## D-007 — macOS Bedrock stays Swift behind a sidecar
 
-**Status:** Proposed · **Origin:** Claude + Codex audits · **Approved by:** —
+**Status:** **Approved** · **Origin:** Claude + Codex audits · **Approved by:** Cameron Temple · **Date:** 2026-08-22
 
 **Context.** Bedrock Dedicated Server has no macOS build. MSC 1 solves this with `VMBedrockServerBackend.swift` (451 lines) driving `Virtualization.framework`, verified working with a real device joining on 2026-06-30.
 
@@ -171,9 +171,13 @@ Three things follow, and conflating them is a mistake:
 
 **Rationale.** `Virtualization.framework` is bridgeable from Rust via `objc2`, so this is engineering judgement rather than impossibility. It is a delegate-heavy framework with an async VM lifecycle; hand-rolled bridging of working, proven code is high risk for no early product value.
 
+**Approval note (2026-08-22).** Confirmed with the owner directly, weighing the Rust-bridge alternative concretely: hand-declaring the `VZVirtualMachineDelegate` protocol from Rust via `objc2`, replicating the framework's one-queue-only access rule without Swift's `DispatchQueue` ergonomics, re-discovering undocumented quirks MSC 1 already paid for once (the `Pipe`-not-a-plain-file requirement noted in `VMBedrockServerBackend.swift`'s own comments), and bridging async completion blocks by hand — all with no compiler-enforced safety net at the `objc2` FFI boundary, unlike Swift calling this framework directly. Given the owner is still learning Rust, that failure mode (a runtime crash inside a closed-source framework, no Swift source to step through) is a worse trade than the sidecar's IPC surface. Confirmed sound; approved as originally proposed.
+
 **Sequencing constraint.** The shared runtime contract is proven on native Linux first, then Windows, then the sidecar — so macOS-specific assumptions cannot leak into the contract.
 
 **Revisit if:** the sidecar IPC proves more troublesome than the ObjC bridge would have been.
+
+**See also:** D-028 scopes this sidecar's Phase 10 delivery to Intel Macs only.
 
 ---
 
@@ -450,7 +454,7 @@ MSC 2 is a new project in a new repository (D-001), but that repository does not
 
 ## D-022 — MSC platform support and Bedrock platform support are separate matrices
 
-**Status:** Proposed · **Origin:** Codex review · **Approved by:** —
+**Status:** **Approved** · **Origin:** Codex review · **Approved by:** Cameron Temple · **Date:** 2026-08-22
 
 **Context.** Revision 1.0 said "native Linux Bedrock," which implies that any Linux distribution MSC supports is automatically a supported Bedrock Dedicated Server environment. That does not follow. BDS ships with its own distribution and library expectations, which are narrower than the set of systems on which the MSC agent can run.
 
@@ -458,9 +462,11 @@ MSC 2 is a new project in a new repository (D-001), but that repository does not
 
 1. **MSC agent** — where the agent itself is supported (broad: macOS, Windows, mainstream Linux including minimal Debian).
 2. **Java servers** — where Java Minecraft servers are supported (essentially wherever a supported JRE runs).
-3. **Bedrock runtime** — where Bedrock Dedicated Server is supported, per backend: native Linux (specific distributions and library requirements), native Windows, and the macOS VZ sidecar.
+3. **Bedrock runtime** — where Bedrock Dedicated Server is supported, per backend: native Linux (specific distributions and library requirements), native Windows, and the macOS VZ sidecar (per D-028, Intel Macs only for now).
 
 **Consequence.** A host may be a fully supported MSC agent host and a fully supported Java server host while not being a supported Bedrock host. The interface must say so plainly rather than failing at runtime.
+
+**Approval note (2026-08-22).** Approved alongside D-007 — this decision only settles the reporting structure (three matrices, not one), which doesn't turn on anything Phase 10's implementation work would still need to discover.
 
 ---
 
@@ -627,6 +633,20 @@ Every step of that sequence — the browser, the watched folder, and the server'
 
 ---
 
+## D-028 — Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred
+
+**Status:** Approved · **Origin:** Owner, surfaced during the Phase 10 cross-check · **Approved by:** Cameron Temple · **Date:** 2026-08-22
+
+**Context.** `VMBedrockServerBackend.swift` bundles exactly one kernel/initramfs pair (`vmlinuz-kata` / `appliance-initramfs.gz`) with no architecture branching anywhere in the file — contrast `JavaInstaller.swift:74-77`, which does branch on `#if arch(arm64)` for its own downloads. Bedrock Dedicated Server ships only as an x86_64 Linux binary, so that bundled appliance is x86_64. `Virtualization.framework` does not emulate a foreign CPU architecture: on an Apple Silicon host it can only boot an arm64 guest kernel — an x86_64 kernel simply will not boot, not "boots slowly" or "boots untested." Running BDS in a VM on Apple Silicon would require a new arm64 kernel/initramfs appliance plus Apple's Rosetta-for-Linux (`VZLinuxRosettaDirectoryShare`, macOS 13+) shared into that guest so its userspace can translate the x86_64 `bedrock_server` binary. MSC 1 has none of this — no Rosetta-for-Linux code anywhere in the Bedrock backend. The owner has no Apple Silicon hardware to build or validate that path.
+
+**Decision.** Phase 10's macOS Bedrock backend (D-007's Swift sidecar) is built, verified, and published as **Intel-only**. Apple Silicon Mac support for Bedrock is explicitly deferred, not silently unsupported: the D-022 compatibility matrix records it as **unavailable — no test hardware**, distinct from "unsupported" and never simply omitted. The `BedrockRuntime` trait and the sidecar protocol boundary must stay free of any x86_64-specific assumption that would need revisiting later — only the appliance and its packaging are Intel-only for now.
+
+**Consequences.** No CI job, smoke test, or evidence step (P10.13/15/18/24/25) may claim Apple Silicon Bedrock support. `docs/msc2/bedrock/compatibility-matrix.csv` carries an explicit Apple Silicon row/cell distinct from the Intel Mac cell. Native Linux and Windows Bedrock support (D-007's sequencing) are unaffected — this decision is scoped to the macOS sidecar backend only.
+
+**Revisit if:** the owner acquires Apple Silicon test hardware, or a contributor with such hardware can produce reproducible evidence for the arm64 appliance + Rosetta-for-Linux path.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -653,6 +673,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.6 | 2026-08-22 | D-007 and D-022 promoted to Approved, confirmed with the owner during the Phase 10 cross-check. D-028 added: Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred pending test hardware, recorded as "unavailable" in the D-022 matrix rather than omitted or claimed unsupported. |
 | 1.5 | 2026-08-21 | D-027 moved from Open to Approved (P8.1): Cameron chose option 1 (client-side download, agent-side staged-upload verification) for the CurseForge manual-download workflow. Detail moved to `docs/msc2/addons/phase8-scope.md`. |
 | 1.0 | 2026-07-29 | Initial register, 20 entries. |
 | 1.4 | 2026-07-30 | Added D-026 (educational content is served data, not client code) after the owner identified that MSC 1's teaching material — its largest distinctive asset — had no home in the MSC 2 architecture. |

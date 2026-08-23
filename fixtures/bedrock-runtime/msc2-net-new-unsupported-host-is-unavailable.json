@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "msc2-net-new-unsupported-host-is-unavailable",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 runtime capability disclosure", "line": 1},
+  "input": {"host": "freebsd", "backend": "native-bedrock"},
+  "expected": {"capability": "unavailable", "start_attempted": false, "reason": "no-supported-bedrock-backend"},
+  "notes": "MSC 2 net-new case: the shared runtime reports truthful capability state instead of pretending every agent host can run BDS."
+}

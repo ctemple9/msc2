@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "latest-request-backfills-legacy-marker",
+  "source": {"file": "BedrockProvisioner.swift", "test": "ensureInstalled legacy install latest marker", "line": 84},
+  "input": {"installed_executable": true, "installed_version": null, "request": "LATEST", "force": false, "resolved_target": "1.26.32.2"},
+  "expected": {"result": "record-marker-only", "marker_written": "1.26.32.2", "download_started": false},
+  "notes": "MSC 1 assumes a legacy executable is current for a latest request and writes .msc_bds_version rather than downloading again."
+}

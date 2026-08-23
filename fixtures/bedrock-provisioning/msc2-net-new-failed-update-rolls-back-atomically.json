@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "msc2-net-new-failed-update-rolls-back-atomically",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 failed update rollback", "line": 1},
+  "input": {"installed_version": "1.26.31.1", "target_version": "1.26.32.2", "update_failure": "extract-error"},
+  "expected": {"active_version": "1.26.31.1", "old_installation_intact": true, "marker_version": "1.26.31.1", "partial_target_visible": false},
+  "notes": "MSC 2 net-new case: stage and validate before replacing the active installation; a failed update leaves the previous working BDS runnable."
+}

@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "pinned-version-missing-throws",
+  "source": {"file": "BedrockProvisioner.swift", "test": "resolveDownload pinned version not found", "line": 142},
+  "input": {"request": "1.20.0.0", "release": {"1.26.32": {"linux": {"url": "https://cdn.example/bedrock-server-1.26.32.2.zip"}}}},
+  "expected": {"error": "Bedrock version 1.20.0.0 was not found in the download manifest.", "download_started": false},
+  "notes": "MSC 1 throws after exhausting the manifest; a pinned miss is not silently changed to newest."
+}

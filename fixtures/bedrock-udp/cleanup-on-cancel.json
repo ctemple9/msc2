@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-udp",
+  "case": "cleanup-on-cancel",
+  "source": {"file": "UDPRelay.swift", "test": "cancel closes listener and upstreams", "line": 39},
+  "input": {"listener": "active", "upstreams": ["a", "b"]},
+  "expected": {"listener_cancelled": true, "upstreams_cancelled": ["a", "b"], "upstream_map_empty": true},
+  "notes": "Teardown cancels all guest connections and removes the flow map so no relay state survives the VM."
+}

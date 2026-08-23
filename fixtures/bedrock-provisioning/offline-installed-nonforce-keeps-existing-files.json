@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "offline-installed-nonforce-keeps-existing-files",
+  "source": {"file": "BedrockProvisioner.swift", "test": "ensureInstalled offline fallback", "line": 73},
+  "input": {"installed_executable": true, "installed_version": "1.26.31.1", "manifest_request": "fails", "force": false},
+  "expected": {"result": "use-installed-files", "download_started": false, "progress_contains": "using installed files"},
+  "notes": "MSC 1 treats a manifest/network failure as non-fatal only when an install already exists and force is false."
+}

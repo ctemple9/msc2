@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "stop-sends-literal-stop-command",
+  "source": {"file": "VMBedrockServerBackend.swift", "test": "stop sends BDS command", "line": 357},
+  "input": {"running": true, "pending_force_stop": false},
+  "expected": {"command": "stop", "command_wire_bytes": "stop\n", "returns": true},
+  "notes": "MSC 1 sends the Bedrock console command stop and adds a newline when needed."
+}

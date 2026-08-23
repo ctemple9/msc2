@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "msc2-net-new-checksum-mismatch-rejects-archive",
+  "source": {"file": "msc2-decisions.md", "test": "P10.4 net-new verified distribution", "line": 1},
+  "input": {"archive": "bedrock-server-1.26.32.2.zip", "sha256": "actual", "manifest_sha256": "published"},
+  "expected": {"verification": "checksum-mismatch", "staged": false, "runnable": false},
+  "notes": "MSC 2 net-new case: a digest mismatch must refuse the archive; this is explicitly not an MSC 1 behavior."
+}

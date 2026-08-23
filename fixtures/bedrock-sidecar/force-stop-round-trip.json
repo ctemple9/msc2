@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "force-stop-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "force-stop message section", "line": 99},
+  "input": {"direction": "agent-to-sidecar", "message": {"type": "force-stop"}},
+  "expected": {"sidecar_action": "hard VZVirtualMachine.stop", "termination_callback_required": true},
+  "notes": "A hard VZ stop does not invoke the normal guestDidStop callback, so termination is emitted independently."
+}

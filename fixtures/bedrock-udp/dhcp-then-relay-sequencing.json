@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-udp",
+  "case": "dhcp-then-relay-sequencing",
+  "source": {"file": "VMBedrockServerBackend.swift", "test": "processLine DHCP guest IP then startRelay", "line": 258},
+  "input": {"console_lines": ["[appliance] dhcp: 192.168.64.7/24", "Server started"], "guest_ip_before_dhcp": null},
+  "expected": {"guest_ip": "192.168.64.7", "relay_started_after_line": 1, "relay_started_before_dhcp": false},
+  "notes": "UDPRelay is VM-specific: the backend waits for the appliance DHCP banner, learns the guest IP, then starts forwarding."
+}

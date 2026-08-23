@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "command-malformed-frame-rejected",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "command framing failure", "line": 133},
+  "input": {"message": {"type": "command", "command": 42}},
+  "expected": {"result": "malformed-frame", "command_sent": false, "reason": "command-must-be-string"},
+  "notes": "Protocol decoding fails before the sidecar writes anything to BDS stdin."
+}

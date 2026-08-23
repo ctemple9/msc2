@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "msc2-net-new-corrupt-archive-rejected",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 archive validation", "line": 1},
+  "input": {"archive": "bedrock-server-1.26.32.2.zip", "zip_structure": "truncated", "checksum": "matches-published"},
+  "expected": {"verification": "archive-corrupt", "staged": false, "runnable": false},
+  "notes": "MSC 2 net-new case: matching identity alone is insufficient when the archive cannot be read as a valid package."
+}

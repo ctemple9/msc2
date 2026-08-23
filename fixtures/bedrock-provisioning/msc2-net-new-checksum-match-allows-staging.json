@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "msc2-net-new-checksum-match-allows-staging",
+  "source": {"file": "msc2-decisions.md", "test": "P10.4 net-new verified distribution", "line": 1},
+  "input": {"archive": "bedrock-server-1.26.32.2.zip", "sha256": "abc123", "manifest_sha256": "abc123"},
+  "expected": {"verification": "passed", "staged": true, "runnable": true},
+  "notes": "MSC 2 net-new case: real archive identity verification is required before BDS staging; MSC 1 performed no checksum or signature verification."
+}

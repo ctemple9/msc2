@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "start-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "start message section", "line": 63},
+  "input": {"direction": "agent-to-sidecar", "message": {"type": "start", "memory_gb": 2, "bedrock_port": 19132}},
+  "expected": {"response": {"type": "started", "accepted": true}, "readiness_separate": true},
+  "notes": "Start is an asynchronous acceptance; it does not claim the VM or BDS is reachable yet."
+}

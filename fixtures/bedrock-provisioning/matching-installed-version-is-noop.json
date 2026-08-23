@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "matching-installed-version-is-noop",
+  "source": {"file": "BedrockProvisioner.swift", "test": "ensureInstalled up-to-date no-op", "line": 82},
+  "input": {"installed_executable": true, "installed_version": "1.26.32.2", "resolved_target": "1.26.32.2", "force": false},
+  "expected": {"result": "no-op", "download_started": false, "extraction_started": false},
+  "notes": "An executable plus a matching marker returns immediately when force is false."
+}

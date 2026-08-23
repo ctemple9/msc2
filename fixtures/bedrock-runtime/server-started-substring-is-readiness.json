@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "server-started-substring-is-readiness",
+  "source": {"file": "AppViewModel+OutputHandling.swift", "test": "Bedrock console readiness", "line": 1},
+  "input": {"line": "[2026-08-22 12:00:00 INFO] Server started successfully."},
+  "expected": {"ready": true, "match": "case-insensitive substring Server started"},
+  "notes": "MSC 1 recognizes readiness from the text, not an exact whole-line match."
+}

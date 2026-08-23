@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "msc2-net-new-unverified-archive-is-not-runnable",
+  "source": {"file": "msc2-decisions.md", "test": "P10.4 net-new verification boundary", "line": 1},
+  "input": {"archive": "bedrock-server-1.26.32.2.zip", "published_identity": null, "archive_parseable": true},
+  "expected": {"verification": "unverified", "staged": false, "runnable": false},
+  "notes": "MSC 2 net-new case: absence of a published identity must not silently become runnable software. MSC 1's lack of verification is preserved only as provenance, not as the MSC 2 safety rule."
+}

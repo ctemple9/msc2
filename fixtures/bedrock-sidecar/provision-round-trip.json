@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "provision-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "provision message section", "line": 44},
+  "input": {"direction": "agent-to-sidecar", "message": {"type": "provision", "server_dir": "/srv/bedrock", "version": "1.26.32.2"}},
+  "expected": {"response": {"type": "provisioned", "ok": true}, "framing": "one UTF-8 JSON object plus newline"},
+  "notes": "The sidecar checks bundled kernel/initramfs resources and the shared server directory before boot."
+}

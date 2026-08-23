@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "pinned-version-resolves-linux-url",
+  "source": {"file": "BedrockProvisioner.swift", "test": "resolveDownload pinned version match", "line": 136},
+  "input": {"request": "1.26.32.2", "release": {"1.26.32": {"linux": {"url": "https://cdn.example/bedrock-server-1.26.32.2.zip"}}}},
+  "expected": {"version": "1.26.32.2", "url": "https://cdn.example/bedrock-server-1.26.32.2.zip", "error": null},
+  "notes": "MSC 1 scans release entries and matches the requested version token in the Linux URL; it does not use a separate checksum or signature."
+}

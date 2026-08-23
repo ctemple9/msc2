@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "host-directory-persistence-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "host-directory persistence section", "line": 158},
+  "input": {"first_vm": "terminated", "host_server_dir": {"worlds/example/level.dat": "present"}, "second_vm": "fresh-configuration"},
+  "expected": {"second_vm_sees": ["worlds/example/level.dat"], "host_copy_required": false, "state_written_outside_server_dir": false},
+  "notes": "Persistence comes from the host-owned shared directory, not from retaining or hot-swapping a VM."
+}

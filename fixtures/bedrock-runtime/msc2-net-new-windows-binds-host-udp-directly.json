@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "msc2-net-new-windows-binds-host-udp-directly",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 native UDP boundary", "line": 1},
+  "input": {"backend": "native-windows", "address": "0.0.0.0", "port": 19132, "relay": false},
+  "expected": {"bind": "host-direct", "address": "0.0.0.0", "port": 19132, "relay_started": false},
+  "notes": "MSC 2 net-new case: Windows BDS owns the host UDP socket directly; no guest relay is inserted."
+}

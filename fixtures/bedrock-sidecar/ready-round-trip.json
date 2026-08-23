@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "ready-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "readiness signal section", "line": 77},
+  "input": {"direction": "sidecar-to-agent", "message": {"type": "ready", "guest_ip": "192.168.64.7", "port": 19132, "relay_up": true}},
+  "expected": {"agent_state": "reachable", "guest_ip": "192.168.64.7", "relay_required_before_event": true},
+  "notes": "Readiness follows DHCP discovery and relay startup, not merely VM start acceptance."
+}

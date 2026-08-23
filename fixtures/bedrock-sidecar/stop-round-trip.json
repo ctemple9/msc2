@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "stop-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "stop message section", "line": 88},
+  "input": {"direction": "agent-to-sidecar", "message": {"type": "stop"}},
+  "expected": {"sidecar_action": "send stop to BDS and arm 20-second fallback", "terminal_event": "terminated"},
+  "notes": "The agent and sidecar keep graceful stop distinct from force-stop."
+}

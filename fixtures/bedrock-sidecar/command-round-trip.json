@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "command-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "command input section", "line": 133},
+  "input": {"direction": "agent-to-sidecar", "message": {"type": "command", "command": "say hello"}},
+  "expected": {"response": {"type": "command-result", "ok": true}, "wire_text": "say hello\n"},
+  "notes": "The sidecar adds a trailing newline when the command does not already have one."
+}

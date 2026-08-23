@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-udp",
+  "case": "per-client-flow-isolation",
+  "source": {"file": "UDPRelay.swift", "test": "handleClient upstream dictionary", "line": 45},
+  "input": {"clients": ["client-a", "client-b"], "guest": "192.168.64.7:19132"},
+  "expected": {"upstream_connections": 2, "client_a_upstream_distinct_from_client_b": true, "flow_state_key": "ObjectIdentifier(client)"},
+  "notes": "Each NWConnection gets its own guest-side upstream; datagrams from one client are not merged with another."
+}

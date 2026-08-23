@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "shared-directory-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "shared-directory mapping section", "line": 144},
+  "input": {"server_dir": "/srv/bedrock", "virtio_fs_tag": "world", "guest_mount": "/mnt", "read_only": false},
+  "expected": {"mapping": "same host directory shared read-write", "guest_mount": "/mnt", "tag": "world"},
+  "notes": "The mapping is configuration state used to build each fresh VM; it is not a second management API message."
+}

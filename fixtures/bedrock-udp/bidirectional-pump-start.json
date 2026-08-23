@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-udp",
+  "case": "bidirectional-pump-start",
+  "source": {"file": "UDPRelay.swift", "test": "handleClient starts both pumps", "line": 49},
+  "input": {"client": "client-a", "upstream": "guest-a"},
+  "expected": {"pumps": ["client-to-guest", "guest-to-client"], "client_started": true, "upstream_started": true},
+  "notes": "The relay starts both NWConnections and installs a receive loop in each direction."
+}

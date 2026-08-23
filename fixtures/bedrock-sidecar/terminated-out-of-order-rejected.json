@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "terminated-out-of-order-rejected",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "terminated ordering failure", "line": 109},
+  "input": {"received": [{"type": "terminated", "reason": "clean"}], "prior_messages": [{"type": "provisioned"}]},
+  "expected": {"result": "out-of-order", "agent_state": "protocol-error", "duplicate_cleanup": false},
+  "notes": "A terminal event without an accepted start cannot be mistaken for a clean stop of a running server."
+}

@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-udp",
+  "case": "bind-failure",
+  "source": {"file": "UDPRelay.swift", "test": "init required endpoint bind", "line": 24},
+  "input": {"listen_host": "0.0.0.0", "listen_port": 19132, "port_already_bound": true},
+  "expected": {"initializer": "throws", "relay_started": false, "guest_connection_started": false},
+  "notes": "NWListener construction is the bind boundary; a bind error prevents start and no guest flow is created."
+}

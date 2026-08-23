@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "partial-console-line-flushes-on-eof",
+  "source": {"file": "VMBedrockServerBackend.swift", "test": "flushPendingOutput on EOF", "line": 421},
+  "input": {"chunks": ["final line without newline"], "eof": true},
+  "expected": {"console_events": ["final line without newline"], "discarded": false},
+  "notes": "The EOF path flushes a final partial serial-console line rather than dropping it."
+}

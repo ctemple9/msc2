@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-provisioning",
+  "case": "offline-fresh-install-still-fails",
+  "source": {"file": "BedrockProvisioner.swift", "test": "ensureInstalled offline without existing install", "line": 79},
+  "input": {"installed_executable": false, "installed_version": null, "manifest_request": "fails", "force": false},
+  "expected": {"result": "throws-original-resolution-error", "download_started": false},
+  "notes": "There is no offline version guess for a fresh install; the resolver error is rethrown."
+}

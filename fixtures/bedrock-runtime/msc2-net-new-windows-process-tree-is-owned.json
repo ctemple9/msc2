@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-runtime",
+  "case": "msc2-net-new-windows-process-tree-is-owned",
+  "source": {"file": "msc2-engineering.md", "test": "P10.4 Windows process ownership", "line": 1},
+  "input": {"backend": "native-windows", "root_process": "bedrock_server.exe", "child_processes": ["bedrock_server.exe", "helper.exe"], "stop_requested": true},
+  "expected": {"tree_owned": true, "child_processes_terminated": true, "orphaned_child": false},
+  "notes": "MSC 2 net-new case: Windows shutdown owns the BDS process tree, not just the first PID."
+}

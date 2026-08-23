@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "ready-malformed-frame-rejected",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "ready framing failure", "line": 77},
+  "input": {"message": {"type": "ready", "port": "19132", "relay_up": true}},
+  "expected": {"result": "malformed-frame", "ready_emitted": false, "reason": "port-must-be-integer"},
+  "notes": "The agent must not report reachability from a frame whose typed readiness fields cannot be decoded."
+}

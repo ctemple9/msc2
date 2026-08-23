@@ -1,0 +1,55 @@
+{
+  "schema": "msc2.phase10.runtime-evidence.v1",
+  "kind": "runtime",
+  "host": "macOS (Intel)",
+  "architecture": "x86_64",
+  "bedrock_backend": "macos-vz-swift-sidecar",
+  "status": "unavailable",
+  "distribution": {
+    "status": "unavailable",
+    "version": null,
+    "reason": "The current host is Intel macOS, but P10.24 captured no exact verified Linux guest BDS archive or distributable Intel appliance. A synthetic sidecar adapter cannot supply package or VM evidence."
+  },
+  "environment": {
+    "host_os": "macOS",
+    "host_os_version": "15.7.8 (24G824), Intel x86_64",
+    "required_resources": [
+      "Intel Mac with Virtualization.framework",
+      "distributable x86_64 kernel/initramfs appliance",
+      "exact verified x86_64 Linux BDS package",
+      "disposable VM world directory and host UDP relay"
+    ]
+  },
+  "checks": {
+    "lifecycle": {
+      "status": "unavailable",
+      "result": "A real Intel VM, sidecar process, and BDS lifecycle were not run without the required appliance and verified guest package."
+    },
+    "udp_reachability": {
+      "status": "unavailable",
+      "result": "Real DHCP, guest-to-host UDP relay, and Bedrock UDP reachability were not tested."
+    },
+    "clean_termination": {
+      "status": "unavailable",
+      "result": "Real sidecar/BDS clean termination was not observed."
+    },
+    "crash_termination": {
+      "status": "unavailable",
+      "result": "Real sidecar crash recovery was not observed."
+    }
+  },
+  "reproduction": {
+    "recorded_at": "2026-08-23",
+    "command": "bash tools/phase10/macos-smoke.sh --synthetic",
+    "result": "The committed synthetic sidecar-boundary proof is the only reproducible result; it does not change this Intel runtime status from unavailable."
+  },
+  "synthetic_boundary": {
+    "command": "bash tools/phase10/macos-smoke.sh --synthetic",
+    "result": "The Rust sidecar adapter's framing, readiness, command, graceful/forced-stop, and EOF-unavailable behavior passed through an in-memory transport; real UDP and VM boot were not involved.",
+    "proves_runtime_support": false
+  },
+  "limits": [
+    "No claim is made about Intel Virtualization.framework boot, guest BDS startup, UDP reachability, clean termination, or crash recovery.",
+    "A future supported record must include both the exact guest package identity and the distributable Intel appliance identity."
+  ]
+}

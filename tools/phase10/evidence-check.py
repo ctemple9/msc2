@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Phase 10 official Bedrock distribution evidence.
+"""Validate Phase 10 Bedrock distribution and runtime evidence.
 
 This check is deliberately separate from runtime checks.  A distribution can
 be documented without proving that a native process or VM can run on a host.
@@ -8,6 +8,7 @@ official package identity claim.
 
 Usage:
     evidence-check.py --distribution
+    evidence-check.py --runtimes
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 EVIDENCE_DIR = ROOT / "docs" / "msc2" / "bedrock" / "evidence"
 MATRIX_PATH = ROOT / "docs" / "msc2" / "bedrock" / "compatibility-matrix.csv"
 SCHEMA = "msc2.phase10.distribution-evidence.v1"
+RUNTIME_SCHEMA = "msc2.phase10.runtime-evidence.v1"
 MATRIX_HEADER = [
     "host",
     "architecture",
@@ -42,6 +44,8 @@ REQUIRED_CELLS = {
     ("macOS (Intel)", "x86_64", "macos-vz-swift-sidecar"),
     ("macOS (Apple Silicon)", "arm64", "macos-vz-swift-sidecar"),
 }
+RUNTIME_CHECKS = ("lifecycle", "udp_reachability", "clean_termination", "crash_termination")
+RUNTIME_STATUSES = {"supported", "unsupported", "unavailable"}
 SHA256 = re.compile(r"^[0-9a-fA-F]{64}$")
 
 
@@ -133,6 +137,61 @@ def validate_record(path: Path, record: object) -> tuple[str, str, str]:
     return tuple(record[field] for field in cell_fields)
 
 
+def validate_runtime_record(path: Path, record: object) -> tuple[tuple[str, str, str], str]:
+    require(isinstance(record, dict), f"{path}: record must be a JSON object")
+    require(record.get("schema") == RUNTIME_SCHEMA, f"{path}: schema must be {RUNTIME_SCHEMA!r}")
+    require(record.get("kind") == "runtime", f"{path}: kind is not runtime")
+
+    cell_fields = ("host", "architecture", "bedrock_backend")
+    for field in cell_fields:
+        require(isinstance(record.get(field), str) and record[field].strip(), f"{path}: missing {field}")
+
+    status = record.get("status")
+    require(status in RUNTIME_STATUSES, f"{path}: runtime status is invalid")
+
+    distribution = record.get("distribution")
+    require(isinstance(distribution, dict), f"{path}: distribution must be an object")
+    require(distribution.get("status") == "unavailable", f"{path}: distribution status must be unavailable")
+    require(
+        isinstance(distribution.get("reason"), str) and distribution["reason"].strip(),
+        f"{path}: unavailable distribution needs a reason",
+    )
+
+    environment = record.get("environment")
+    require(isinstance(environment, dict), f"{path}: environment must be an object")
+    for field in ("host_os", "host_os_version", "required_resources"):
+        value = environment.get(field)
+        if field == "required_resources":
+            require(isinstance(value, list) and value, f"{path}: environment missing {field}")
+        else:
+            require(isinstance(value, str) and value.strip(), f"{path}: environment missing {field}")
+
+    checks = record.get("checks")
+    require(isinstance(checks, dict), f"{path}: checks must be an object")
+    for field in RUNTIME_CHECKS:
+        check = checks.get(field)
+        require(isinstance(check, dict), f"{path}: checks missing {field}")
+        require(check.get("status") in RUNTIME_STATUSES, f"{path}: {field} status is invalid")
+        require(isinstance(check.get("result"), str) and check["result"].strip(), f"{path}: {field} needs a result")
+
+    reproduction = record.get("reproduction")
+    require(isinstance(reproduction, dict), f"{path}: reproduction must be an object")
+    for field in ("recorded_at", "command", "result"):
+        require(isinstance(reproduction.get(field), str) and reproduction[field].strip(), f"{path}: reproduction missing {field}")
+
+    synthetic = record.get("synthetic_boundary")
+    require(isinstance(synthetic, dict), f"{path}: synthetic_boundary must be an object")
+    for field in ("command", "result"):
+        require(isinstance(synthetic.get(field), str) and synthetic[field].strip(), f"{path}: synthetic_boundary missing {field}")
+    require(
+        synthetic.get("proves_runtime_support") is False,
+        f"{path}: synthetic boundary must not claim runtime support",
+    )
+    require(isinstance(record.get("limits"), list) and record["limits"], f"{path}: limits must be a non-empty list")
+
+    return tuple(record[field] for field in cell_fields), status
+
+
 def check_distribution() -> str:
     rows = load_matrix()
     records: dict[tuple[str, str, str], Path] = {}
@@ -141,6 +200,8 @@ def check_distribution() -> str:
     for path in sorted(EVIDENCE_DIR.glob("*.json")):
         try:
             record = json.loads(path.read_text(encoding="utf-8-sig"))
+            if isinstance(record, dict) and record.get("kind") == "runtime":
+                continue
             cell = validate_record(path, record)
         except (OSError, json.JSONDecodeError, EvidenceError) as error:
             errors.append(str(error))
@@ -189,14 +250,64 @@ def check_distribution() -> str:
     return f"ok: {len(records)} official distribution records; {len(rows)} matrix rows checked"
 
 
+def check_runtimes() -> str:
+    rows = load_matrix()
+    records: dict[tuple[str, str, str], tuple[Path, str]] = {}
+    errors: list[str] = []
+
+    for path in sorted(EVIDENCE_DIR.glob("*-runtime*.json")):
+        try:
+            record = json.loads(path.read_text(encoding="utf-8-sig"))
+            cell, status = validate_runtime_record(path, record)
+        except (OSError, json.JSONDecodeError, EvidenceError) as error:
+            errors.append(str(error))
+            continue
+        if cell in records:
+            errors.append(f"{path}: duplicate runtime evidence cell {cell!r} (already in {records[cell][0]})")
+        records[cell] = (path, status)
+
+    for cell in REQUIRED_CELLS:
+        if cell not in records:
+            errors.append(f"missing runtime evidence for {cell!r}")
+
+    matrix_by_cell = {
+        (row["host"], row["architecture"], row["bedrock_backend"]): row for row in rows
+    }
+    for cell, (record_path, status) in records.items():
+        row = matrix_by_cell.get(cell)
+        if row is None:
+            errors.append(f"runtime evidence {record_path}: cell is absent from compatibility matrix {cell!r}")
+            continue
+        if row["bedrock_runtime_status"] != status:
+            errors.append(
+                f"matrix cell {cell!r}: status {row['bedrock_runtime_status']!r} disagrees with runtime evidence {status!r}"
+            )
+        reference = row["bedrock_runtime_evidence"].strip()
+        raw_path = reference.split("#", 1)[0]
+        evidence_path = (ROOT / raw_path).resolve()
+        if evidence_path != record_path.resolve():
+            errors.append(f"matrix cell {cell!r}: runtime evidence is not linked to {record_path.name!r}")
+
+    for cell, row in matrix_by_cell.items():
+        if cell in REQUIRED_CELLS and row["bedrock_runtime_status"] == "planned":
+            errors.append(f"matrix cell {cell!r}: runtime evidence step left status planned")
+        if row["bedrock_runtime_status"] in RUNTIME_STATUSES and cell not in records:
+            errors.append(f"matrix cell {cell!r}: advertised runtime status has no runtime record")
+
+    if errors:
+        raise EvidenceError("\n".join(errors))
+    return f"ok: {len(records)} runtime records; {len(rows)} matrix rows checked"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--distribution", action="store_true", help="check official distribution evidence")
+    parser.add_argument("--runtimes", action="store_true", help="check native and sidecar runtime evidence")
     args = parser.parse_args()
-    if not args.distribution:
-        parser.error("choose --distribution")
+    if args.distribution == args.runtimes:
+        parser.error("choose exactly one of --distribution or --runtimes")
     try:
-        print(check_distribution())
+        print(check_distribution() if args.distribution else check_runtimes())
     except EvidenceError as error:
         print(f"FAIL: {error}", file=sys.stderr)
         return 1

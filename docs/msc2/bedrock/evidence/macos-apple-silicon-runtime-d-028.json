@@ -1,0 +1,55 @@
+{
+  "schema": "msc2.phase10.runtime-evidence.v1",
+  "kind": "runtime",
+  "host": "macOS (Apple Silicon)",
+  "architecture": "arm64",
+  "bedrock_backend": "macos-vz-swift-sidecar",
+  "status": "unavailable",
+  "distribution": {
+    "status": "unavailable",
+    "version": null,
+    "reason": "D-028 defers Apple Silicon Bedrock because there is no owner-available Apple Silicon test hardware and no arm64 appliance plus Rosetta-for-Linux path in the MSC 1 oracle."
+  },
+  "environment": {
+    "host_os": "Apple Silicon test host not available",
+    "host_os_version": "not observed on arm64 hardware",
+    "required_resources": [
+      "Apple Silicon Mac test hardware",
+      "new arm64 kernel/initramfs appliance",
+      "Rosetta-for-Linux guest integration",
+      "exact verified x86_64 Linux BDS package"
+    ]
+  },
+  "checks": {
+    "lifecycle": {
+      "status": "unavailable",
+      "result": "No Apple Silicon VM or sidecar lifecycle was attempted under D-028."
+    },
+    "udp_reachability": {
+      "status": "unavailable",
+      "result": "No Apple Silicon guest or UDP relay was available to test."
+    },
+    "clean_termination": {
+      "status": "unavailable",
+      "result": "No Apple Silicon sidecar/BDS process was available to observe."
+    },
+    "crash_termination": {
+      "status": "unavailable",
+      "result": "No Apple Silicon sidecar crash or recovery was available to observe."
+    }
+  },
+  "reproduction": {
+    "recorded_at": "2026-08-23",
+    "command": "not run",
+    "result": "D-028 requires this cell to remain unavailable until owner-available Apple Silicon hardware and the new arm64 appliance plus Rosetta-for-Linux path can be reproduced."
+  },
+  "synthetic_boundary": {
+    "command": "bash tools/phase10/macos-smoke.sh --synthetic",
+    "result": "The existing synthetic sidecar proof is architecture-neutral contract evidence and does not test or advertise Apple Silicon support.",
+    "proves_runtime_support": false
+  },
+  "limits": [
+    "This is unavailable, not a tested negative and not an Apple Silicon support claim.",
+    "Revisit only after the D-028 condition is met and the arm64 appliance plus Rosetta-for-Linux path has reproducible evidence."
+  ]
+}

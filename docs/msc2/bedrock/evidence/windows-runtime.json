@@ -1,0 +1,54 @@
+{
+  "schema": "msc2.phase10.runtime-evidence.v1",
+  "kind": "runtime",
+  "host": "Windows",
+  "architecture": "x86_64",
+  "bedrock_backend": "native-windows-bds",
+  "status": "unavailable",
+  "distribution": {
+    "status": "unavailable",
+    "version": null,
+    "reason": "P10.24 recorded no exact verified official BDS archive or SHA-256 identity, and this capture has no Windows execution host. The synthetic public-contract result is not native-runtime evidence."
+  },
+  "environment": {
+    "host_os": "Windows execution host not available in this capture",
+    "host_os_version": "not observed",
+    "required_resources": [
+      "Windows host matching the published BDS requirement",
+      "exact verified official BDS package",
+      "disposable world directory and UDP port"
+    ]
+  },
+  "checks": {
+    "lifecycle": {
+      "status": "unavailable",
+      "result": "Native provision/start/readiness/command/stop was not run without a verified package and Windows host."
+    },
+    "udp_reachability": {
+      "status": "unavailable",
+      "result": "Native host UDP bind and reachability were not tested."
+    },
+    "clean_termination": {
+      "status": "unavailable",
+      "result": "A native BDS clean stop was not observed."
+    },
+    "crash_termination": {
+      "status": "unavailable",
+      "result": "Native Windows process-tree crash handling and recovery were not observed."
+    }
+  },
+  "reproduction": {
+    "recorded_at": "2026-08-23",
+    "command": "pwsh -File tools/phase10/windows-smoke.ps1 -Synthetic",
+    "result": "The committed synthetic public-contract proof is the only reproducible result; it does not change this native runtime status from unavailable."
+  },
+  "synthetic_boundary": {
+    "command": "pwsh -File tools/phase10/windows-smoke.ps1 -Synthetic",
+    "result": "Fixture-backed API and CLI lifecycle behavior passed through a fake native Windows runtime.",
+    "proves_runtime_support": false
+  },
+  "limits": [
+    "No claim is made about native Windows BDS startup, UDP reachability, clean termination, process-tree ownership, or crash recovery.",
+    "A future supported record must include an exact official package identity and live disposable-host evidence."
+  ]
+}

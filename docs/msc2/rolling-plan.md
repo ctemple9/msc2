@@ -378,7 +378,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.25 — Record native and sidecar runtime evidence
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/bedrock/evidence/`, `docs/msc2/bedrock/compatibility-matrix.csv`, `tools/phase10/evidence-check.py`
 **What:** Record Linux-native, Windows-native, and macOS-sidecar (Intel) lifecycle evidence using the same terms as the capability matrix: supported, unsupported, or unavailable. Include UDP reachability and clean/crash termination where a safe disposable environment exists; retain unavailable outcomes rather than replacing them with claims from a fake runtime. Record Apple Silicon Mac evidence as unavailable per D-028, not omitted.
 **Verify:** `python3 tools/phase10/evidence-check.py --runtimes && python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv`

@@ -1,0 +1,54 @@
+{
+  "schema": "msc2.phase10.runtime-evidence.v1",
+  "kind": "runtime",
+  "host": "Linux (Debian 12)",
+  "architecture": "x86_64",
+  "bedrock_backend": "native-linux-bds",
+  "status": "unavailable",
+  "distribution": {
+    "status": "unavailable",
+    "version": null,
+    "reason": "P10.24 recorded no exact verified official BDS archive or SHA-256 identity, and this capture has no Linux execution host. The synthetic public-contract result is not native-runtime evidence."
+  },
+  "environment": {
+    "host_os": "Linux execution host not available in this capture",
+    "host_os_version": "not observed",
+    "required_resources": [
+      "Linux host matching the published BDS requirement",
+      "exact verified official BDS package",
+      "disposable world directory and UDP port"
+    ]
+  },
+  "checks": {
+    "lifecycle": {
+      "status": "unavailable",
+      "result": "Native provision/start/readiness/command/stop was not run without a verified package and Linux host."
+    },
+    "udp_reachability": {
+      "status": "unavailable",
+      "result": "Native host UDP bind and reachability were not tested."
+    },
+    "clean_termination": {
+      "status": "unavailable",
+      "result": "A native BDS clean stop was not observed."
+    },
+    "crash_termination": {
+      "status": "unavailable",
+      "result": "A native BDS crash and recovery were not observed."
+    }
+  },
+  "reproduction": {
+    "recorded_at": "2026-08-23",
+    "command": "bash tools/phase10/linux-smoke.sh --synthetic",
+    "result": "The committed synthetic public-contract proof is the only reproducible result; it does not change this native runtime status from unavailable."
+  },
+  "synthetic_boundary": {
+    "command": "bash tools/phase10/linux-smoke.sh --synthetic",
+    "result": "Fixture-backed API and CLI lifecycle behavior passed through a fake native-style runtime.",
+    "proves_runtime_support": false
+  },
+  "limits": [
+    "No claim is made about native Linux BDS startup, UDP reachability, clean termination, or crash recovery.",
+    "A future supported record must include an exact official package identity and live disposable-host evidence."
+  ]
+}

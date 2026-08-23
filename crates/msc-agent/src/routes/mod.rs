@@ -1,6 +1,7 @@
 //! Route handlers for `msc-agent`'s `/v1/` endpoints.
 
 pub mod backups;
+pub mod bedrock;
 pub mod capabilities;
 pub mod commands;
 pub mod components;

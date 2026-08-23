@@ -142,6 +142,11 @@ pub enum Command {
         #[command(subcommand)]
         command: SettingsCommand,
     },
+    /// Inspect Bedrock players or mutate its allowlist through shared API routes.
+    Bedrock {
+        #[command(subcommand)]
+        command: BedrockCommand,
+    },
     /// List, mutate, or convert world slots on the active server.
     World {
         #[command(subcommand)]
@@ -651,6 +656,24 @@ pub enum SettingsCommand {
 }
 
 #[derive(Debug, Clone, Subcommand)]
+pub enum BedrockCommand {
+    /// List player records discovered from the active Bedrock world's LevelDB.
+    Players,
+    /// Read or mutate the active Bedrock allowlist.
+    Allowlist {
+        #[command(subcommand)]
+        command: BedrockAllowlistCommand,
+    },
+}
+
+#[derive(Debug, Clone, Subcommand)]
+pub enum BedrockAllowlistCommand {
+    Get,
+    Add { name: String },
+    Remove { name: String },
+}
+
+#[derive(Debug, Clone, Subcommand)]
 pub enum WorldCommand {
     /// List world slots for the active server.
     List,
@@ -917,6 +940,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Send(args) => run_command(common, args).await,
         Command::Console { command } => run_console(common, command).await,
         Command::Settings { command } => run_settings(common, command).await,
+        Command::Bedrock { command } => run_bedrock(common, command).await,
         Command::World { command } => run_world(common, command).await,
         Command::Backup { command } => run_backup(common, command).await,
         Command::Version { command } => run_version(common, command).await,
@@ -925,6 +949,60 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Doctor { command } => run_doctor(common, command).await,
         Command::Addon { command } => run_addon(common, command).await,
         Command::Modpack { command } => run_modpack(common, command).await,
+    }
+}
+
+async fn run_bedrock(common: CommonArgs, command: BedrockCommand) -> Result<(), CliError> {
+    let client = RemoteClient::from_common(&common)?;
+    match command {
+        BedrockCommand::Players => {
+            let result: serde_json::Value = client.get_json("/v1/players").await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                let count = result["count"].as_u64().unwrap_or(0);
+                println!("players: {count}");
+                if let Some(players) = result["players"].as_array() {
+                    for player in players {
+                        println!("- {}", player["name"].as_str().unwrap_or("unknown"));
+                    }
+                }
+            }
+        }
+        BedrockCommand::Allowlist { command } => match command {
+            BedrockAllowlistCommand::Get => {
+                let result: serde_json::Value = client.get_json("/v1/allowlist").await?;
+                print_bedrock_json(&common, &result)?;
+            }
+            BedrockAllowlistCommand::Add { name } => {
+                let result: serde_json::Value = client
+                    .post_json(
+                        "/v1/allowlist",
+                        &serde_json::json!({"action": "add", "name": name}),
+                    )
+                    .await?;
+                print_bedrock_json(&common, &result)?;
+            }
+            BedrockAllowlistCommand::Remove { name } => {
+                let result: serde_json::Value = client
+                    .post_json(
+                        "/v1/allowlist",
+                        &serde_json::json!({"action": "remove", "name": name}),
+                    )
+                    .await?;
+                print_bedrock_json(&common, &result)?;
+            }
+        },
+    }
+    Ok(())
+}
+
+fn print_bedrock_json(common: &CommonArgs, value: &serde_json::Value) -> Result<(), CliError> {
+    if common.json {
+        print_json(value)
+    } else {
+        println!("{}", value["message"].as_str().unwrap_or("ok"));
+        Ok(())
     }
 }
 

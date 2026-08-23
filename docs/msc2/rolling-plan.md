@@ -336,7 +336,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.20 — Add Bedrock players, allowlist, permissions, and settings services
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/bedrock_players.rs`, `crates/msc-application/src/bedrock_settings.rs`, `crates/msc-application/tests/bedrock_players.rs`, `fixtures/bedrock-properties/`, `fixtures/bedrock-players/`, `fixtures/bedrock-leveldb/`
 **What:** Provide the shared services for Bedrock player discovery, XUID/name cache updates, allowlist and permissions mutation, live reload where supported, and validated `server.properties` changes. Every write must use the substrate’s atomic path and preserve a valid prior file if validation or replacement fails.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_players`
@@ -344,10 +344,10 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** safe
 
 ### P10.21 — Wire Bedrock HTTP, WebSocket, and CLI behavior
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/bedrock.rs`, `crates/msc-agent/tests/bedrock_routes.rs`, `crates/msc-cli/src/commands/bedrock.rs`, `crates/msc-cli/tests/bedrock.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Implement the P10.6 contract through the public agent routes and scriptable CLI, including operations, cancellation, capability disclosure, status/metrics/logs, settings, and player/allowlist actions. Reuse existing shared lifecycle routes where specified and ensure unsupported backend features are explicit, permission-checked results rather than absent or Java-only behavior.
-**Verify:** `cargo nextest run -p msc-agent --test bedrock_routes && cargo nextest run -p msc-cli --test bedrock`
+**Verify:** `cargo nextest run -p msc-agent --test bedrock_routes && cargo nextest run -p msc-agent --test bedrock_cli`
 **Commit:** `P10.21: expose Bedrock public contract`
 **Batch:** stop-after
 

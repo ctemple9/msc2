@@ -90,6 +90,27 @@ fn build_settings_response(
         };
     };
 
+    let Some(server) = state.active_config_server() else {
+        return SettingsResponseDto {
+            server_type: "java".to_string(),
+            server_name,
+            server_running: false,
+            editable: false,
+            sections: Vec::new(),
+            note: Some("no_active_server".to_string()),
+        };
+    };
+    if server.server_type == msc_domain::identity::ServerType::Bedrock {
+        let settings = msc_application::bedrock_settings::load(fs, Path::new(&directory));
+        return SettingsResponseDto {
+            server_type: "bedrock".to_string(),
+            server_name,
+            server_running: state.status_snapshot().running,
+            editable: true,
+            sections: bedrock_sections(&settings.model),
+            note: None,
+        };
+    }
     let model = load_properties_model(fs, Path::new(&directory));
     SettingsResponseDto {
         server_type: "java".to_string(),
@@ -114,6 +135,63 @@ fn apply_settings_update(
         );
     };
     let dir = Path::new(&directory);
+    if state
+        .active_config_server()
+        .is_some_and(|server| server.server_type == msc_domain::identity::ServerType::Bedrock)
+    {
+        let changes = changes
+            .iter()
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        let restart_required = state.status_snapshot().running;
+        return match msc_application::bedrock_settings::update(fs, dir, &changes) {
+            Ok(result) if result.applied_keys.is_empty() => Json(SettingsUpdateResultDto {
+                success: false,
+                message: "no_valid_changes".to_owned(),
+                restart_required,
+                applied_keys: Vec::new(),
+                rejected: Some(
+                    result
+                        .rejected
+                        .into_iter()
+                        .map(|rejection| SettingRejectionDto {
+                            key: rejection.key,
+                            reason: rejection.reason,
+                        })
+                        .collect(),
+                ),
+                sections: Some(bedrock_sections(&result.settings.model)),
+            })
+            .into_response(),
+            Ok(result) => Json(SettingsUpdateResultDto {
+                success: true,
+                message: if result.rejected.is_empty() {
+                    "saved".to_owned()
+                } else {
+                    "saved_with_rejections".to_owned()
+                },
+                restart_required,
+                applied_keys: result.applied_keys,
+                rejected: (!result.rejected.is_empty()).then(|| {
+                    result
+                        .rejected
+                        .into_iter()
+                        .map(|rejection| SettingRejectionDto {
+                            key: rejection.key,
+                            reason: rejection.reason,
+                        })
+                        .collect()
+                }),
+                sections: Some(bedrock_sections(&result.settings.model)),
+            })
+            .into_response(),
+            Err(error) => error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &error.to_string(),
+            ),
+        };
+    }
     let restart_required = state.status_snapshot().running;
 
     let mut model = load_properties_model(fs, dir);
@@ -431,6 +509,87 @@ fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
     };
 
     vec![world, server, network]
+}
+
+fn bedrock_sections(
+    model: &msc_domain::bedrock::BedrockPropertiesModel,
+) -> Vec<SettingsSectionDto> {
+    let field = |key: &str, label: &str, value: String, r#type: &str| SettingFieldDto {
+        key: key.to_owned(),
+        label: label.to_owned(),
+        r#type: r#type.to_owned(),
+        value,
+        min_int: None,
+        max_int: None,
+        unit: None,
+        max_length: None,
+        options: None,
+        help_id: None,
+    };
+    vec![
+        SettingsSectionDto {
+            id: "bedrock".to_owned(),
+            title: "Bedrock".to_owned(),
+            icon: "cube".to_owned(),
+            fields: vec![
+                field(
+                    "level-name",
+                    "Level Name",
+                    model.level_name.clone(),
+                    "string",
+                ),
+                field(
+                    "max-players",
+                    "Max Players",
+                    model.max_players.to_string(),
+                    "int",
+                ),
+                field(
+                    "online-mode",
+                    "Online Mode",
+                    model.online_mode.to_string(),
+                    "bool",
+                ),
+                field(
+                    "allow-cheats",
+                    "Allow Cheats",
+                    model.allow_cheats.to_string(),
+                    "bool",
+                ),
+                field(
+                    "difficulty",
+                    "Difficulty",
+                    model.difficulty.raw_value().to_owned(),
+                    "enum",
+                ),
+                field(
+                    "gamemode",
+                    "Gamemode",
+                    model.gamemode.raw_value().to_owned(),
+                    "enum",
+                ),
+            ],
+        },
+        SettingsSectionDto {
+            id: "network".to_owned(),
+            title: "Network".to_owned(),
+            icon: "network".to_owned(),
+            fields: vec![
+                field(
+                    "server-port",
+                    "Server Port (UDP)",
+                    model.server_port.to_string(),
+                    "int",
+                ),
+                field(
+                    "server-portv6",
+                    "Server Port (IPv6 UDP)",
+                    model.server_port_v6.to_string(),
+                    "int",
+                ),
+            ],
+        },
+    ]
 }
 
 fn bool_field(key: &str, label: &str, value: bool, help_id: Option<&str>) -> SettingFieldDto {

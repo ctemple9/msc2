@@ -228,11 +228,19 @@ pub(crate) fn build_app() -> Router {
         )
         .route("/health/problems", get(routes::health::health_problems))
         .route("/health/repair", post(routes::health::health_repair))
-        .with_state(lifecycle_state)
+        .with_state(lifecycle_state.clone())
         // A staged modpack is created by the shared upload route but
         // redeemed by server creation, so both route groups need this one
         // in-memory, purpose-tagged store.
         .layer(Extension(shared_staging));
+
+    let bedrock = Router::new()
+        .route("/players", get(routes::bedrock::players))
+        .route(
+            "/allowlist",
+            get(routes::bedrock::get_allowlist).post(routes::bedrock::mutate_allowlist),
+        )
+        .with_state(lifecycle_state.clone());
 
     // Every other route this phase wires runs behind the SecretStore-backed
     // bearer-token check — including both WebSocket upgrades, since the auth
@@ -241,6 +249,7 @@ pub(crate) fn build_app() -> Router {
     // special case is reached").
     let protected = Router::new()
         .merge(lifecycle)
+        .merge(bedrock)
         .route("/capabilities", get(routes::capabilities::capabilities))
         .route("/me", get(routes::capabilities::me))
         .merge(operations)

@@ -20,7 +20,8 @@ readiness, console lines, commands, termination, metrics, and capabilities
 without mentioning VZ, guest IPs, or a particular native process API.
 
 This architecture follows D-007 and D-022, both approved on 2026-08-22. D-028
-adds the explicit Intel-only macOS Bedrock precondition for this phase.
+adds the explicit Intel-only macOS Bedrock precondition for this phase. Apple
+Silicon remains unavailable under D-028 because no owner test hardware exists.
 
 ## Platform boundaries
 
@@ -300,3 +301,21 @@ the embedded `RemoteAPIServer` routes, and their copied iOS consumers.
 Those two architectural decisions are now settled for Phase 10. The remaining
 evidence gate is whether a particular host, appliance, or BDS version can be
 advertised as supported; an unavailable result must remain explicit.
+
+## P10.28 exact gate record
+
+The Phase 10 gate is tied to the exact code candidate recorded by P10.27:
+commit `2ccb1d0d509dcedb50e3f9c153845ee44934ff93`, tested by GitHub Actions run
+`32655288252`. The later P10.27 documentation commit is not substituted for
+that candidate. The run's macOS, Linux, Windows, and headless no-GUI jobs are
+recorded as green, while its synthetic-only limits remain explicit: it did not
+download BDS, start a live Bedrock server or VM, require a Mojang account, or
+make a public-network reachability claim.
+
+P10.28's gate checker validates the exact fixture counts, additive API and
+copied-iOS contract, native Linux/native Windows/Intel-macOS-sidecar boundary,
+separate compatibility matrix, real-or-unavailable distribution and runtime
+records, synthetic smoke wiring, and this exact CI candidate. Its Verify line
+then runs the synthetic public path and the workspace regression suite once;
+the result is evidence for REVIEW, not an agent declaration that the phase is
+closed.

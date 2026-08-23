@@ -394,7 +394,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.27 — Record the exact tri-platform Phase 10 candidate
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/bedrock/evidence/phase10-ci.md`, `docs/msc2/rolling-plan.md`
 **What:** Record the exact commit and green macOS/Linux/Windows/headless CI run that exercised P10.26’s candidate. Tie the evidence to that commit only; do not substitute a later documentation commit or a partial local run.
 **Verify:** `test -s docs/msc2/bedrock/evidence/phase10-ci.md && rg -n 'commit|macOS|Linux|Windows|headless' docs/msc2/bedrock/evidence/phase10-ci.md`
@@ -402,7 +402,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.28 — Run and record the exact Phase 10 gate
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase10/phase10-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Check the literal Phase 10 gate against the shared fixtures, public API/CLI/iOS contract, separate compatibility matrix, real-or-unavailable runtime evidence, synthetic smoke, and exact CI candidate. This is the phase’s only full-workspace test run. It reports evidence only; the other agent decides in REVIEW whether the gate holds.
 **Verify:** `python3 tools/phase10/phase10-check.py --gate && bash tools/phase10/phase10-smoke.sh --synthetic && cargo nextest run --workspace`

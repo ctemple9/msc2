@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-properties",
+  "case": "model-defaults-when-properties-are-empty",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readModel(serverDir:)",
+    "line": 142
+  },
+  "input": {
+    "raw": {}
+  },
+  "expected": {
+    "level_name": "Bedrock level",
+    "max_players": 10,
+    "online_mode": true,
+    "allow_cheats": false,
+    "difficulty": "easy",
+    "gamemode": "survival",
+    "server_port": 19132,
+    "server_port_v6": 19133
+  }
+}

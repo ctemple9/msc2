@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-console",
+  "case": "empty-connect-gamertag-is-ignored",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockPlayerEvent(clean:)",
+    "line": 567
+  },
+  "input": {
+    "line": "Player connected: , xuid: 1"
+  },
+  "expected": {
+    "player_event_parsed": false
+  }
+}

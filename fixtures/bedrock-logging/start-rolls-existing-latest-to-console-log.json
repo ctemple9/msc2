@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-logging",
+  "case": "start-rolls-existing-latest-to-console-log",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "startBedrockLogFile(serverDir:)",
+    "line": 109
+  },
+  "input": {
+    "latest_exists": true,
+    "existing_latest_contents": "old console"
+  },
+  "expected": {
+    "latest_moved_to": "logs/console-<timestamp>.log",
+    "new_latest_header": true
+  }
+}

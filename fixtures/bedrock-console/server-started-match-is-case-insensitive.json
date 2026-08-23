@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-console",
+  "case": "server-started-match-is-case-insensitive",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "handleServerOutputLine(_:clean:)",
+    "line": 42
+  },
+  "input": {
+    "is_bedrock": true,
+    "line": "SERVER STARTED"
+  },
+  "expected": {
+    "ready": true
+  }
+}

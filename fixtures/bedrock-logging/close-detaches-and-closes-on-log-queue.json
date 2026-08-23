@@ -1,0 +1,21 @@
+{
+  "domain": "bedrock-logging",
+  "case": "close-detaches-and-closes-on-log-queue",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "closeBedrockLogFile()",
+    "line": 145
+  },
+  "input": {
+    "handle_open": true,
+    "pending_writes": [
+      "one\n",
+      "two\n"
+    ]
+  },
+  "expected": {
+    "handle_detached": true,
+    "synchronize_before_close": true,
+    "close_after_pending_writes": true
+  }
+}

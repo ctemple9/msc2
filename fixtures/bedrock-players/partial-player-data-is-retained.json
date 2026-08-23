@@ -1,0 +1,31 @@
+{
+  "domain": "bedrock-players",
+  "case": "partial-player-data-is-retained",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 46
+  },
+  "input": {
+    "records": [
+      {
+        "key": "player_2535416361514257",
+        "stats": null,
+        "inventory": [
+          {
+            "name": "minecraft:stone"
+          }
+        ]
+      }
+    ]
+  },
+  "expected": {
+    "profiles": [
+      {
+        "xuid": "2535416361514257",
+        "username": null,
+        "inventory_count": 1
+      }
+    ]
+  }
+}

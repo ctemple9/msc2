@@ -1,0 +1,30 @@
+{
+  "domain": "bedrock-properties",
+  "case": "remove-permission-removes-matching-xuid",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "removePermission(xuid:serverDir:)",
+    "line": 280
+  },
+  "input": {
+    "existing": [
+      {
+        "permission": "operator",
+        "xuid": "1"
+      },
+      {
+        "permission": "member",
+        "xuid": "2"
+      }
+    ],
+    "remove": "1"
+  },
+  "expected": {
+    "entries": [
+      {
+        "permission": "member",
+        "xuid": "2"
+      }
+    ]
+  }
+}

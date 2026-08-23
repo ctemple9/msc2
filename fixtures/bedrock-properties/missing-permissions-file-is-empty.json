@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-properties",
+  "case": "missing-permissions-file-is-empty",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readPermissions(serverDir:)",
+    "line": 251
+  },
+  "input": {
+    "permissions_file_present": false
+  },
+  "expected": {
+    "entries": []
+  }
+}

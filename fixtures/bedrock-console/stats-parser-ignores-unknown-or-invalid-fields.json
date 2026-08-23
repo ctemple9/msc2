@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-console",
+  "case": "stats-parser-ignores-unknown-or-invalid-fields",
+  "source": {
+    "file": "VMBedrockServerBackend.swift",
+    "test": "parseStats(_:)",
+    "line": 284
+  },
+  "input": {
+    "line": "[MSCSTATS] cpu=bad memUsedMB=512 extra=7"
+  },
+  "expected": {
+    "cpu_percent": null,
+    "mem_used_mb": 512,
+    "mem_total_mb": null
+  }
+}

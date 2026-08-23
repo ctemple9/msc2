@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-console",
+  "case": "server-started-substring-marks-bedrock-ready",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "handleServerOutputLine(_:clean:)",
+    "line": 42
+  },
+  "input": {
+    "is_bedrock": true,
+    "line": "Server started successfully"
+  },
+  "expected": {
+    "ready": true
+  }
+}

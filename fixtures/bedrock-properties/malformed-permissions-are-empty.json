@@ -1,0 +1,21 @@
+{
+  "domain": "bedrock-properties",
+  "case": "malformed-permissions-are-empty",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readPermissions(serverDir:)",
+    "line": 252
+  },
+  "input": {
+    "permissions_json": [
+      {
+        "permission": "admin",
+        "xuid": "1"
+      }
+    ]
+  },
+  "expected": {
+    "entries": [],
+    "rejected": true
+  }
+}

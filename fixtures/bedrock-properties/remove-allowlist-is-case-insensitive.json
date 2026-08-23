@@ -1,0 +1,27 @@
+{
+  "domain": "bedrock-properties",
+  "case": "remove-allowlist-is-case-insensitive",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "removeFromAllowlist(name:serverDir:)",
+    "line": 238
+  },
+  "input": {
+    "existing": [
+      {
+        "name": "Alex"
+      },
+      {
+        "name": "Steve"
+      }
+    ],
+    "remove": "aLeX"
+  },
+  "expected": {
+    "entries": [
+      {
+        "name": "Steve"
+      }
+    ]
+  }
+}

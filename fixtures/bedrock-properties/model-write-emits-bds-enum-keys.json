@@ -1,0 +1,34 @@
+{
+  "domain": "bedrock-properties",
+  "case": "model-write-emits-bds-enum-keys",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "writeModel(_:serverDir:)",
+    "line": 178
+  },
+  "input": {
+    "raw": {},
+    "model": {
+      "level_name": "Realm",
+      "max_players": 20,
+      "online_mode": true,
+      "allow_cheats": false,
+      "difficulty": "peaceful",
+      "gamemode": "spectator",
+      "server_port": 19132,
+      "server_port_v6": 19133
+    }
+  },
+  "expected": {
+    "written": {
+      "level-name": "Realm",
+      "max-players": "20",
+      "online-mode": "true",
+      "allow-cheats": "false",
+      "difficulty": "peaceful",
+      "gamemode": "spectator",
+      "server-port": "19132",
+      "server-portv6": "19133"
+    }
+  }
+}

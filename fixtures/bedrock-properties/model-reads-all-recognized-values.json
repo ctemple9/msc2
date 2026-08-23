@@ -1,0 +1,31 @@
+{
+  "domain": "bedrock-properties",
+  "case": "model-reads-all-recognized-values",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readModel(serverDir:)",
+    "line": 144
+  },
+  "input": {
+    "raw": {
+      "level-name": "Realm",
+      "max-players": "42",
+      "online-mode": "false",
+      "allow-cheats": "true",
+      "server-port": "19140",
+      "server-portv6": "19141",
+      "difficulty": "hard",
+      "gamemode": "creative"
+    }
+  },
+  "expected": {
+    "level_name": "Realm",
+    "max_players": 42,
+    "online_mode": false,
+    "allow_cheats": true,
+    "difficulty": "hard",
+    "gamemode": "creative",
+    "server_port": 19140,
+    "server_port_v6": 19141
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "domain": "bedrock-players",
+  "case": "gamertag-lookup-non-200-returns-nil",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "xuidToGamertag(xuid:)",
+    "line": 106
+  },
+  "input": {
+    "http_status": 404,
+    "response": {
+      "gamertag": "Alex"
+    }
+  },
+  "expected": {
+    "gamertag": null
+  }
+}

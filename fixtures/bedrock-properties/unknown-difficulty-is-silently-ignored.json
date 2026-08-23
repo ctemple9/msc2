@@ -1,0 +1,18 @@
+{
+  "domain": "bedrock-properties",
+  "case": "unknown-difficulty-is-silently-ignored",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readModel(serverDir:) difficulty switch",
+    "line": 153
+  },
+  "input": {
+    "raw": {
+      "difficulty": "legendary"
+    }
+  },
+  "expected": {
+    "difficulty": "easy",
+    "rejected": false
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "domain": "bedrock-logging",
+  "case": "prune-keeps-ten-newest-rolled-logs",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "pruneRolledBedrockLogs(in:keeping:)",
+    "line": 157
+  },
+  "input": {
+    "rolled_logs": [
+      {
+        "name": "console-01.log",
+        "mtime": 1
+      },
+      {
+        "name": "console-02.log",
+        "mtime": 2
+      },
+      {
+        "name": "console-03.log",
+        "mtime": 3
+      },
+      {
+        "name": "console-04.log",
+        "mtime": 4
+      },
+      {
+        "name": "console-05.log",
+        "mtime": 5
+      },
+      {
+        "name": "console-06.log",
+        "mtime": 6
+      },
+      {
+        "name": "console-07.log",
+        "mtime": 7
+      },
+      {
+        "name": "console-08.log",
+        "mtime": 8
+      },
+      {
+        "name": "console-09.log",
+        "mtime": 9
+      },
+      {
+        "name": "console-10.log",
+        "mtime": 10
+      },
+      {
+        "name": "console-11.log",
+        "mtime": 11
+      }
+    ]
+  },
+  "expected": {
+    "kept": [
+      "console-02.log",
+      "console-03.log",
+      "console-04.log",
+      "console-05.log",
+      "console-06.log",
+      "console-07.log",
+      "console-08.log",
+      "console-09.log",
+      "console-10.log",
+      "console-11.log"
+    ],
+    "removed": [
+      "console-01.log"
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-players",
+  "case": "floodgate-id-with-dashes-is-normalized",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "uuidFromNoDashes(raw:)",
+    "line": 155
+  },
+  "input": {
+    "raw": "03c5ad1d-1111-2222-3333-444444444444"
+  },
+  "expected": {
+    "uuid": "03c5ad1d-1111-2222-3333-444444444444"
+  }
+}

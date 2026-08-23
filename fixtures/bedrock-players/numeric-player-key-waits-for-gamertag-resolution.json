@@ -1,0 +1,28 @@
+{
+  "domain": "bedrock-players",
+  "case": "numeric-player-key-waits-for-gamertag-resolution",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 37
+  },
+  "input": {
+    "records": [
+      {
+        "key": "player_2535416361514257",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      }
+    ]
+  },
+  "expected": {
+    "profiles": [
+      {
+        "xuid": "2535416361514257",
+        "username": null
+      }
+    ]
+  }
+}

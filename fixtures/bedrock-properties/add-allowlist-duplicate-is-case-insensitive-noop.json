@@ -1,0 +1,32 @@
+{
+  "domain": "bedrock-properties",
+  "case": "add-allowlist-duplicate-is-case-insensitive-noop",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "addToAllowlist(name:xuid:serverDir:)",
+    "line": 229
+  },
+  "input": {
+    "existing": [
+      {
+        "name": "Alex",
+        "xuid": null,
+        "ignoresPlayerLimit": false
+      }
+    ],
+    "add": {
+      "name": "aLeX",
+      "xuid": "999"
+    }
+  },
+  "expected": {
+    "entries": [
+      {
+        "name": "Alex",
+        "xuid": null,
+        "ignoresPlayerLimit": false
+      }
+    ],
+    "wrote": false
+  }
+}

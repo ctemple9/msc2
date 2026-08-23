@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-players",
+  "case": "empty-leveldb-player-data-returns-no-profiles",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 18
+  },
+  "input": {
+    "records": []
+  },
+  "expected": {
+    "profiles": []
+  }
+}

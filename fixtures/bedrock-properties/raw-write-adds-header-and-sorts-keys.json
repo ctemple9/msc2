@@ -1,0 +1,18 @@
+{
+  "domain": "bedrock-properties",
+  "case": "raw-write-adds-header-and-sorts-keys",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "writeRawProperties(_:serverDir:)",
+    "line": 194
+  },
+  "input": {
+    "properties": {
+      "z-key": "z",
+      "a-key": "a"
+    }
+  },
+  "expected": {
+    "file": "# Modified via MinecraftServerController\na-key=a\nz-key=z\n"
+  }
+}

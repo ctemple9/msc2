@@ -1,0 +1,29 @@
+{
+  "domain": "bedrock-properties",
+  "case": "set-permission-replaces-existing-xuid",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "setPermission(xuid:level:serverDir:)",
+    "line": 269
+  },
+  "input": {
+    "existing": [
+      {
+        "permission": "visitor",
+        "xuid": "1"
+      }
+    ],
+    "set": {
+      "xuid": "1",
+      "level": "member"
+    }
+  },
+  "expected": {
+    "entries": [
+      {
+        "permission": "member",
+        "xuid": "1"
+      }
+    ]
+  }
+}

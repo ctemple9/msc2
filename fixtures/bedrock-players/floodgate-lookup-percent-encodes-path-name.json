@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-players",
+  "case": "floodgate-lookup-percent-encodes-path-name",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "resolveFloodgateUUID(gamertag:)",
+    "line": 128
+  },
+  "input": {
+    "gamertag": "Alex Smith"
+  },
+  "expected": {
+    "request_path": "/v2/utils/uuid/bedrock_or_java/.Alex%20Smith?prefix=."
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "domain": "bedrock-properties",
+  "case": "permissions-decodes-three-accepted-levels",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "BedrockPermissionLevel",
+    "line": 82
+  },
+  "input": {
+    "json": [
+      {
+        "permission": "visitor",
+        "xuid": "1"
+      },
+      {
+        "permission": "member",
+        "xuid": "2"
+      },
+      {
+        "permission": "operator",
+        "xuid": "3"
+      }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "permission": "visitor",
+        "xuid": "1"
+      },
+      {
+        "permission": "member",
+        "xuid": "2"
+      },
+      {
+        "permission": "operator",
+        "xuid": "3"
+      }
+    ]
+  }
+}

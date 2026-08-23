@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-console",
+  "case": "non-version-line-does-not-change-version",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockVersion(clean:)",
+    "line": 279
+  },
+  "input": {
+    "line": "Starting Minecraft Bedrock server"
+  },
+  "expected": {
+    "running_version": null
+  }
+}

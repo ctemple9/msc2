@@ -1,0 +1,18 @@
+{
+  "domain": "bedrock-properties",
+  "case": "raw-properties-trims-comments-and-malformed-lines",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readRawProperties(serverDir:)",
+    "line": 123
+  },
+  "input": {
+    "server_properties": " # comment\n level-name =  My World  \nmalformed\nmax-players=10=extra\n\n"
+  },
+  "expected": {
+    "raw": {
+      "level-name": "My World",
+      "max-players": "10=extra"
+    }
+  }
+}

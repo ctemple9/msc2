@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-players",
+  "case": "bedrock-profile-has-no-java-dat-file",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 89
+  },
+  "input": {
+    "records": [
+      {
+        "key": "~local_player",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      }
+    ]
+  },
+  "expected": {
+    "dat_file_path": ""
+  }
+}

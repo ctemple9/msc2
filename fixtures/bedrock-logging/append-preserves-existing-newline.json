@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-logging",
+  "case": "append-preserves-existing-newline",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "appendBedrockLogLine(_:)",
+    "line": 133
+  },
+  "input": {
+    "line": "hello\n",
+    "handle_open": true
+  },
+  "expected": {
+    "written": "hello\n"
+  }
+}

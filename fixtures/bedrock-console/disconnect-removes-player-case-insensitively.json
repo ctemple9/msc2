@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-console",
+  "case": "disconnect-removes-player-case-insensitively",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockPlayerEvent(clean:)",
+    "line": 607
+  },
+  "input": {
+    "online_before": [
+      {
+        "name": "Alex",
+        "xuid": "1"
+      }
+    ],
+    "line": "Player disconnected: aLeX"
+  },
+  "expected": {
+    "online_after": [],
+    "count_history_append": 0
+  }
+}

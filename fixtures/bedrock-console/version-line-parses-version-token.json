@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-console",
+  "case": "version-line-parses-version-token",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockVersion(clean:)",
+    "line": 279
+  },
+  "input": {
+    "line": "Starting Minecraft Bedrock server version 1.21.80.3 (protocol 712)"
+  },
+  "expected": {
+    "running_version": "1.21.80.3"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "domain": "bedrock-properties",
+  "case": "add-allowlist-appends-new-entry",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "addToAllowlist(name:xuid:serverDir:)",
+    "line": 229
+  },
+  "input": {
+    "existing": [],
+    "add": {
+      "name": "Alex",
+      "xuid": "1234567890123456"
+    }
+  },
+  "expected": {
+    "entries": [
+      {
+        "name": "Alex",
+        "xuid": "1234567890123456",
+        "ignoresPlayerLimit": false
+      }
+    ],
+    "wrote": true
+  }
+}

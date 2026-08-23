@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-logging",
+  "case": "start-creates-latest-log-with-header",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "startBedrockLogFile(serverDir:)",
+    "line": 105
+  },
+  "input": {
+    "logs_dir_exists": false,
+    "latest_exists": false
+  },
+  "expected": {
+    "creates": [
+      "logs",
+      "logs/latest.log"
+    ],
+    "header_prefix": "=== MSC Bedrock console log — started "
+  }
+}

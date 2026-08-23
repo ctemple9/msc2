@@ -1,0 +1,27 @@
+{
+  "domain": "bedrock-console",
+  "case": "reconnect-updates-existing-player-without-duplicate",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockPlayerEvent(clean:)",
+    "line": 581
+  },
+  "input": {
+    "online_before": [
+      {
+        "name": "Alex",
+        "xuid": null
+      }
+    ],
+    "line": "Player connected: Alex, xuid: 2535416361514257"
+  },
+  "expected": {
+    "online_after": [
+      {
+        "name": "Alex",
+        "xuid": "2535416361514257"
+      }
+    ],
+    "count": 1
+  }
+}

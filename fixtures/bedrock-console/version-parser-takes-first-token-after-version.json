@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-console",
+  "case": "version-parser-takes-first-token-after-version",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockVersion(clean:)",
+    "line": 280
+  },
+  "input": {
+    "line": "Starting Minecraft Bedrock server version 1.20.0.01 extra words"
+  },
+  "expected": {
+    "running_version": "1.20.0.01"
+  }
+}

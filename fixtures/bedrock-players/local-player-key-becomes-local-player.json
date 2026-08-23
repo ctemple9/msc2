@@ -1,0 +1,29 @@
+{
+  "domain": "bedrock-players",
+  "case": "local-player-key-becomes-local-player",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 34
+  },
+  "input": {
+    "records": [
+      {
+        "key": "~local_player",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      }
+    ]
+  },
+  "expected": {
+    "profiles": [
+      {
+        "xuid": "local",
+        "username": "Local Player",
+        "dat_file_path": ""
+      }
+    ]
+  }
+}

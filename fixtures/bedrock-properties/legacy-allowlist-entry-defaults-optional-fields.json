@@ -1,0 +1,25 @@
+{
+  "domain": "bedrock-properties",
+  "case": "legacy-allowlist-entry-defaults-optional-fields",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "BedrockAllowlistEntry.init(from:)",
+    "line": 55
+  },
+  "input": {
+    "json": [
+      {
+        "name": "Alex"
+      }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "name": "Alex",
+        "xuid": null,
+        "ignores_player_limit": false
+      }
+    ]
+  }
+}

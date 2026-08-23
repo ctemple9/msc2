@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-properties",
+  "case": "missing-properties-returns-empty",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readRawProperties(serverDir:)",
+    "line": 123
+  },
+  "input": {
+    "server_properties_file_present": false
+  },
+  "expected": {
+    "raw": {}
+  }
+}

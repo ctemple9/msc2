@@ -1,0 +1,27 @@
+{
+  "domain": "bedrock-properties",
+  "case": "unknown-key-survives-model-round-trip",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "writeModel(_:serverDir:)",
+    "line": 178
+  },
+  "input": {
+    "raw": {
+      "level-name": "Old",
+      "motd": "keep this",
+      "unknown-setting": "preserve-me"
+    },
+    "model": {
+      "level_name": "New"
+    }
+  },
+  "expected": {
+    "written": {
+      "level-name": "New",
+      "motd": "keep this",
+      "unknown-setting": "preserve-me"
+    },
+    "unknown_key_preserved": true
+  }
+}

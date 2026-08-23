@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-players",
+  "case": "unclassified-player-key-is-skipped",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 74
+  },
+  "input": {
+    "records": [
+      {
+        "key": "other_record",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      }
+    ]
+  },
+  "expected": {
+    "profiles": []
+  }
+}

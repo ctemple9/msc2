@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-players",
+  "case": "floodgate-lookup-keeps-existing-dot",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "resolveFloodgateUUID(gamertag:)",
+    "line": 127
+  },
+  "input": {
+    "gamertag": ".Alex"
+  },
+  "expected": {
+    "request_path": "/v2/utils/uuid/bedrock_or_java/.Alex?prefix=."
+  }
+}

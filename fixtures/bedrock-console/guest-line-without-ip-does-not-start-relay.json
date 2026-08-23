@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-console",
+  "case": "guest-line-without-ip-does-not-start-relay",
+  "source": {
+    "file": "VMBedrockServerBackend.swift",
+    "test": "parseGuestIP(_:)",
+    "line": 303
+  },
+  "input": {
+    "line": "[appliance] dhcp: unavailable"
+  },
+  "expected": {
+    "guest_ip": null,
+    "relay_started": false
+  }
+}

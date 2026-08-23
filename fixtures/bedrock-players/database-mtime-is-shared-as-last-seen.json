@@ -1,0 +1,33 @@
+{
+  "domain": "bedrock-players",
+  "case": "database-mtime-is-shared-as-last-seen",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 30
+  },
+  "input": {
+    "records": [
+      {
+        "key": "~local_player",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      },
+      {
+        "key": "player_2535416361514257",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      }
+    ],
+    "db_modification_date": "2026-01-02T03:04:05Z"
+  },
+  "expected": {
+    "last_modified_for_all": [
+      "2026-01-02T03:04:05Z"
+    ]
+  }
+}

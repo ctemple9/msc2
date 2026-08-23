@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-logging",
+  "case": "exact-keep-ten-boundary-removes-only-eleventh",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "pruneRolledBedrockLogs(in:keeping:)",
+    "line": 157
+  },
+  "input": {
+    "rolled_log_count": 11,
+    "keeping": 10
+  },
+  "expected": {
+    "remaining_count": 10,
+    "removed_count": 1
+  }
+}

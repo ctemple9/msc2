@@ -1,0 +1,29 @@
+{
+  "domain": "bedrock-players",
+  "case": "server-uuid-key-gets-unknown-player-placeholder",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 38
+  },
+  "input": {
+    "records": [
+      {
+        "key": "player_server_03c5ad1d-1111-2222-3333-444444444444",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      }
+    ]
+  },
+  "expected": {
+    "profiles": [
+      {
+        "xuid": "server_03c5ad1d-1111-2222-3333-444444444444",
+        "username": "Unknown Player",
+        "uuid": "03c5ad1d-1111-2222-3333-444444444444"
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "domain": "bedrock-players",
+  "case": "gamertag-lookup-uses-geyser-xuid-endpoint",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "xuidToGamertag(xuid:)",
+    "line": 106
+  },
+  "input": {
+    "xuid": "2535416361514257"
+  },
+  "expected": {
+    "request_url": "https://api.geysermc.org/v2/xbox/gamertag/2535416361514257",
+    "user_agent": "MinecraftServerController/1.0",
+    "timeout_seconds": 10
+  }
+}

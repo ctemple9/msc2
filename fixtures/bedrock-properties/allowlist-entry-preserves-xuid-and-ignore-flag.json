@@ -1,0 +1,27 @@
+{
+  "domain": "bedrock-properties",
+  "case": "allowlist-entry-preserves-xuid-and-ignore-flag",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "BedrockAllowlistEntry.init(from:)",
+    "line": 55
+  },
+  "input": {
+    "json": [
+      {
+        "name": "Alex",
+        "xuid": "1234567890123456",
+        "ignoresPlayerLimit": true
+      }
+    ]
+  },
+  "expected": {
+    "entries": [
+      {
+        "name": "Alex",
+        "xuid": "1234567890123456",
+        "ignores_player_limit": true
+      }
+    ]
+  }
+}

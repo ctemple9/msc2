@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-properties",
+  "case": "out-of-range-values-are-not-clamped",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readModel(serverDir:)",
+    "line": 146
+  },
+  "input": {
+    "raw": {
+      "max-players": "-1",
+      "server-port": "0",
+      "server-portv6": "70000"
+    }
+  },
+  "expected": {
+    "max_players": -1,
+    "server_port": 0,
+    "server_port_v6": 70000,
+    "clamped": false
+  }
+}

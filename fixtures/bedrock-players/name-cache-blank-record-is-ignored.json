@@ -1,0 +1,24 @@
+{
+  "domain": "bedrock-players",
+  "case": "name-cache-blank-record-is-ignored",
+  "source": {
+    "file": "BedrockNameCache.swift",
+    "test": "record(xuid:name:serverDir:)",
+    "line": 43
+  },
+  "input": {
+    "existing": {
+      "1": "Old"
+    },
+    "record": {
+      "xuid": "  ",
+      "name": "Alex"
+    }
+  },
+  "expected": {
+    "mapping": {
+      "1": "Old"
+    },
+    "wrote": false
+  }
+}

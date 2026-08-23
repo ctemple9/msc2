@@ -1,0 +1,18 @@
+{
+  "domain": "bedrock-console",
+  "case": "stats-line-is-consumed-by-vm-before-console",
+  "source": {
+    "file": "VMBedrockServerBackend.swift",
+    "test": "processLine(_:)",
+    "line": 249
+  },
+  "input": {
+    "line": "[MSCSTATS] cpu=12.5 memUsedMB=512 memTotalMB=2048"
+  },
+  "expected": {
+    "emitted_console_line": false,
+    "cpu_percent": 12.5,
+    "mem_used_mb": 512,
+    "mem_total_mb": 2048
+  }
+}

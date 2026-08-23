@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-console",
+  "case": "connect-extracts-xuid-after-comma",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockPlayerEvent(clean:)",
+    "line": 578
+  },
+  "input": {
+    "line": "Player connected: Alex, xuid: 2535416361514257"
+  },
+  "expected": {
+    "online_players": [
+      {
+        "name": "Alex",
+        "xuid": "2535416361514257"
+      }
+    ],
+    "backfill_attempted": true,
+    "name_cache_recorded": true
+  }
+}

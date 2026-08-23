@@ -1,0 +1,18 @@
+{
+  "domain": "bedrock-properties",
+  "case": "unknown-gamemode-is-silently-ignored",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readModel(serverDir:) gamemode switch",
+    "line": 163
+  },
+  "input": {
+    "raw": {
+      "gamemode": "hardcore"
+    }
+  },
+  "expected": {
+    "gamemode": "survival",
+    "rejected": false
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "domain": "bedrock-properties",
+  "case": "invalid-integer-keeps-model-default",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readModel(serverDir:)",
+    "line": 146
+  },
+  "input": {
+    "raw": {
+      "max-players": "many",
+      "server-port": "not-a-port"
+    }
+  },
+  "expected": {
+    "max_players": 10,
+    "server_port": 19132,
+    "rejected": false
+  }
+}

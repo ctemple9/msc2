@@ -1,0 +1,26 @@
+{
+  "domain": "bedrock-players",
+  "case": "allowlist-xuid-backfill-is-java-server-guarded",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "backfillBedrockAllowlistXUIDIfNeeded(name:xuid:)",
+    "line": 648
+  },
+  "input": {
+    "selected_server_is_bedrock": false,
+    "allowlist": [
+      {
+        "name": "Alex",
+        "xuid": null
+      }
+    ],
+    "connect": {
+      "name": "Alex",
+      "xuid": "2535416361514257"
+    }
+  },
+  "expected": {
+    "allowlist_written": false,
+    "xuid": null
+  }
+}

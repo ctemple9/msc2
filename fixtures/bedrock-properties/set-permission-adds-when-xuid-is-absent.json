@@ -1,0 +1,24 @@
+{
+  "domain": "bedrock-properties",
+  "case": "set-permission-adds-when-xuid-is-absent",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "setPermission(xuid:level:serverDir:)",
+    "line": 269
+  },
+  "input": {
+    "existing": [],
+    "set": {
+      "xuid": "1",
+      "level": "operator"
+    }
+  },
+  "expected": {
+    "entries": [
+      {
+        "permission": "operator",
+        "xuid": "1"
+      }
+    ]
+  }
+}

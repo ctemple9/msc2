@@ -1,0 +1,23 @@
+{
+  "domain": "bedrock-console",
+  "case": "connect-adds-player-without-xuid",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "parseBedrockPlayerEvent(clean:)",
+    "line": 578
+  },
+  "input": {
+    "line": "Player connected: Alex"
+  },
+  "expected": {
+    "online_players": [
+      {
+        "name": "Alex",
+        "xuid": null
+      }
+    ],
+    "session_history": [
+      "Alex"
+    ]
+  }
+}

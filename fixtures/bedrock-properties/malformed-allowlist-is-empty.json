@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-properties",
+  "case": "malformed-allowlist-is-empty",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readAllowlist(serverDir:)",
+    "line": 212
+  },
+  "input": {
+    "allowlist_json": "not json"
+  },
+  "expected": {
+    "entries": []
+  }
+}

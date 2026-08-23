@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-console",
+  "case": "guest-dhcp-line-discovers-first-ip",
+  "source": {
+    "file": "VMBedrockServerBackend.swift",
+    "test": "parseGuestIP(_:)",
+    "line": 303
+  },
+  "input": {
+    "line": "[appliance] dhcp: 192.168.64.7/24"
+  },
+  "expected": {
+    "guest_ip": "192.168.64.7",
+    "relay_started": true
+  }
+}

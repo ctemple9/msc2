@@ -1,0 +1,24 @@
+{
+  "domain": "bedrock-players",
+  "case": "offline-uuid-key-is-skipped",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "scanProfiles(serverDir:levelName:)",
+    "line": 74
+  },
+  "input": {
+    "records": [
+      {
+        "key": "player_03c5ad1d-1111-2222-3333-444444444444",
+        "stats": {
+          "health": 20
+        },
+        "inventory": []
+      }
+    ]
+  },
+  "expected": {
+    "profiles": [],
+    "reason": "UUID-format XUIDs are discarded"
+  }
+}

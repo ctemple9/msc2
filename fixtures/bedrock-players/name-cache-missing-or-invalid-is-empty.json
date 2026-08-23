@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-players",
+  "case": "name-cache-missing-or-invalid-is-empty",
+  "source": {
+    "file": "BedrockNameCache.swift",
+    "test": "load(serverDir:)",
+    "line": 27
+  },
+  "input": {
+    "bedrock_names_json": "not json"
+  },
+  "expected": {
+    "mapping": {}
+  }
+}

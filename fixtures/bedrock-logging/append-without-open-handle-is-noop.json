@@ -1,0 +1,16 @@
+{
+  "domain": "bedrock-logging",
+  "case": "append-without-open-handle-is-noop",
+  "source": {
+    "file": "AppViewModel+OutputHandling.swift",
+    "test": "appendBedrockLogLine(_:)",
+    "line": 134
+  },
+  "input": {
+    "line": "hello",
+    "handle_open": false
+  },
+  "expected": {
+    "written": ""
+  }
+}

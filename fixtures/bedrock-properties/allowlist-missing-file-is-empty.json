@@ -1,0 +1,15 @@
+{
+  "domain": "bedrock-properties",
+  "case": "allowlist-missing-file-is-empty",
+  "source": {
+    "file": "BedrockPropertiesManager.swift",
+    "test": "readAllowlist(serverDir:)",
+    "line": 211
+  },
+  "input": {
+    "allowlist_file_present": false
+  },
+  "expected": {
+    "entries": []
+  }
+}

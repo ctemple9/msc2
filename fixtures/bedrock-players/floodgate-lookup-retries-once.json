@@ -1,0 +1,26 @@
+{
+  "domain": "bedrock-players",
+  "case": "floodgate-lookup-retries-once",
+  "source": {
+    "file": "BedrockPlayerDataManager.swift",
+    "test": "resolveFloodgateUUID(gamertag:)",
+    "line": 136
+  },
+  "input": {
+    "responses": [
+      {
+        "http_status": 503
+      },
+      {
+        "http_status": 200,
+        "body": {
+          "id": "03c5ad1d111122223333444444444444"
+        }
+      }
+    ]
+  },
+  "expected": {
+    "attempts": 2,
+    "uuid": "03c5ad1d-1111-2222-3333-444444444444"
+  }
+}

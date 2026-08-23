@@ -1,0 +1,22 @@
+{
+  "domain": "bedrock-players",
+  "case": "hidden-profile-hide-then-unhide-persists-set",
+  "source": {
+    "file": "BedrockHiddenProfiles.swift",
+    "test": "hide(xuid:serverDir:)/unhide(xuid:serverDir:)",
+    "line": 27
+  },
+  "input": {
+    "existing": [
+      "1"
+    ],
+    "hide": "2",
+    "then_unhide": "1"
+  },
+  "expected": {
+    "final_hidden": [
+      "2"
+    ],
+    "atomic_write": true
+  }
+}

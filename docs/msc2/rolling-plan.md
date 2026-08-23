@@ -268,8 +268,8 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** safe
 
 ### P10.13 — Exercise the Linux native runtime through the public contract
-**Status:** not started
-**Files:** `crates/msc-agent/tests/bedrock_linux_routes.rs`, `crates/msc-cli/tests/bedrock_linux.rs`, `tools/phase10/linux-smoke.sh`, `docs/msc2/bedrock/evidence/`
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/bedrock_linux_routes.rs`, `crates/msc-agent/tests/bedrock_linux_cli.rs`, `tools/phase10/linux-smoke.sh`, `docs/msc2/bedrock/evidence/`
 **What:** Drive the Linux runtime from HTTP and CLI through a disposable or fake BDS boundary, covering provision, start, status, command, stop, metrics, and explicit runtime unavailability. Record only reproducible evidence; do not use a real account, private world, or unrestricted public network access.
 **Verify:** `bash tools/phase10/linux-smoke.sh --synthetic`
 **Commit:** `P10.13: prove Linux Bedrock public path`

@@ -7,8 +7,8 @@
 
 use crate::bedrock_runtime::{
     BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeCapabilities,
-    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest,
-    BedrockTerminationReason,
+    BedrockRuntimeEligibility, BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimePaths,
+    BedrockRuntimeState, BedrockStartRequest, BedrockTerminationReason,
 };
 use msc_infrastructure::bedrock_native::{self, NativeBedrockHost};
 use msc_infrastructure::process::{
@@ -52,9 +52,13 @@ pub struct WindowsBedrockRuntime<'supervisor, C = SystemBedrockRuntimeClock> {
 
 impl<'supervisor> WindowsBedrockRuntime<'supervisor> {
     pub fn new(process_supervisor: &'supervisor dyn ProcessSupervisor) -> Self {
-        Self::with_host(
+        let paths = BedrockRuntimePaths {
+            server_dir: PathBuf::new(),
+            sidecar: None,
+        };
+        Self::with_eligibility(
             process_supervisor,
-            NativeBedrockHost::current(),
+            BedrockRuntimeEligibility::detect(&msc_infrastructure::fs::StdFileSystem, &paths),
             SystemBedrockRuntimeClock,
         )
     }
@@ -66,20 +70,37 @@ impl<'supervisor, C: BedrockRuntimeClock> WindowsBedrockRuntime<'supervisor, C> 
         host: NativeBedrockHost,
         clock: C,
     ) -> Self {
-        let supported = host == NativeBedrockHost::Windows;
+        let eligibility = if host == NativeBedrockHost::Windows {
+            BedrockRuntimeEligibility::synthetic_available(
+                crate::bedrock_runtime::BedrockHost::Windows,
+                BedrockRuntimeBackend::Native,
+            )
+        } else {
+            BedrockRuntimeEligibility::for_host(
+                &msc_infrastructure::fs::FakeFileSystem::new(),
+                crate::bedrock_runtime::BedrockHost::Other,
+                &BedrockRuntimePaths {
+                    server_dir: PathBuf::new(),
+                    sidecar: None,
+                },
+            )
+        };
+        Self::with_eligibility(process_supervisor, eligibility, clock)
+    }
+
+    pub fn with_eligibility(
+        process_supervisor: &'supervisor dyn ProcessSupervisor,
+        eligibility: BedrockRuntimeEligibility,
+        clock: C,
+    ) -> Self {
+        let supported =
+            eligibility.state == crate::bedrock_runtime::BedrockRuntimeEligibilityState::Available;
         let state = if supported {
             BedrockRuntimeState::New
         } else {
             BedrockRuntimeState::Unavailable
         };
-        let capabilities = if supported {
-            BedrockRuntimeCapabilities::supported(BedrockRuntimeBackend::Native)
-        } else {
-            BedrockRuntimeCapabilities::unavailable(
-                BedrockRuntimeBackend::Native,
-                "no-supported-bedrock-backend",
-            )
-        };
+        let capabilities = eligibility.capabilities_for(BedrockRuntimeBackend::Native);
         Self {
             process_supervisor,
             clock,

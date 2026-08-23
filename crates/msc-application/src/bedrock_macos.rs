@@ -5,9 +5,10 @@
 //! deliberately has no VM types or guest boot logic.
 
 use crate::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend, BedrockRuntimeCapabilities,
-    BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState, BedrockStartRequest,
-    SidecarReceive, SidecarRuntime, SidecarTransport,
+    BedrockHost, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
+    BedrockRuntimeCapabilities, BedrockRuntimeEligibility, BedrockRuntimeError,
+    BedrockRuntimeEvent, BedrockRuntimePaths, BedrockRuntimeState, BedrockSidecarResources,
+    BedrockStartRequest, SidecarReceive, SidecarRuntime, SidecarTransport,
 };
 use msc_infrastructure::bedrock_sidecar::{
     BedrockSidecarProcess, SidecarReceive as ProcessSidecarReceive,
@@ -38,20 +39,6 @@ impl MacosBedrockHost {
         )))]
         {
             Self::Other
-        }
-    }
-
-    fn capabilities(self) -> BedrockRuntimeCapabilities {
-        match self {
-            Self::Intel => BedrockRuntimeCapabilities::supported(BedrockRuntimeBackend::Sidecar),
-            Self::AppleSilicon => BedrockRuntimeCapabilities::unavailable(
-                BedrockRuntimeBackend::Sidecar,
-                "apple-silicon-unavailable-no-test-hardware",
-            ),
-            Self::Other => BedrockRuntimeCapabilities::unavailable(
-                BedrockRuntimeBackend::Sidecar,
-                "macos-bedrock-sidecar-requires-macos",
-            ),
         }
     }
 }
@@ -121,9 +108,33 @@ pub struct MacosBedrockRuntime<T> {
 
 impl<T: SidecarTransport> MacosBedrockRuntime<T> {
     pub fn with_transport(transport: T, host: MacosBedrockHost) -> Self {
+        let eligibility = match host {
+            MacosBedrockHost::Intel => BedrockRuntimeEligibility::synthetic_available(
+                BedrockHost::MacosIntel,
+                BedrockRuntimeBackend::Sidecar,
+            ),
+            MacosBedrockHost::AppleSilicon => BedrockRuntimeEligibility {
+                host: BedrockHost::MacosAppleSilicon,
+                backend: None,
+                state: crate::bedrock_runtime::BedrockRuntimeEligibilityState::Unavailable,
+                reason_code: Some("apple-silicon-unavailable-no-test-hardware".to_owned()),
+                message: "Bedrock is unavailable on Apple Silicon under D-028.".to_owned(),
+            },
+            MacosBedrockHost::Other => BedrockRuntimeEligibility {
+                host: BedrockHost::Other,
+                backend: None,
+                state: crate::bedrock_runtime::BedrockRuntimeEligibilityState::Unavailable,
+                reason_code: Some("macos-bedrock-sidecar-requires-macos".to_owned()),
+                message: "Bedrock has no macOS sidecar backend for this host.".to_owned(),
+            },
+        };
+        Self::with_eligibility(transport, eligibility)
+    }
+
+    pub fn with_eligibility(transport: T, eligibility: BedrockRuntimeEligibility) -> Self {
         Self {
             inner: SidecarRuntime::new(transport),
-            capabilities: host.capabilities(),
+            capabilities: eligibility.capabilities_for(BedrockRuntimeBackend::Sidecar),
         }
     }
 
@@ -155,10 +166,26 @@ impl<'supervisor> MacosBedrockRuntime<SidecarProcessTransport<'supervisor>> {
         executable_path: impl Into<PathBuf>,
         working_directory: impl Into<PathBuf>,
     ) -> Result<Self, BedrockRuntimeError> {
-        let transport =
-            SidecarProcessTransport::spawn(process_supervisor, executable_path, working_directory)
-                .map_err(|error| BedrockRuntimeError::Transport(error.to_string()))?;
-        Ok(Self::with_transport(transport, MacosBedrockHost::current()))
+        let executable_path = executable_path.into();
+        let working_directory = working_directory.into();
+        let transport = SidecarProcessTransport::spawn(
+            process_supervisor,
+            &executable_path,
+            &working_directory,
+        )
+        .map_err(|error| BedrockRuntimeError::Transport(error.to_string()))?;
+        let eligibility = BedrockRuntimeEligibility::detect(
+            &msc_infrastructure::fs::StdFileSystem,
+            &BedrockRuntimePaths {
+                server_dir: working_directory.clone(),
+                sidecar: Some(BedrockSidecarResources {
+                    executable: executable_path,
+                    kernel: working_directory.join("vmlinuz-kata"),
+                    initramfs: working_directory.join("appliance-initramfs.gz"),
+                }),
+            },
+        );
+        Ok(Self::with_eligibility(transport, eligibility))
     }
 
     pub fn spawn_from_paths(

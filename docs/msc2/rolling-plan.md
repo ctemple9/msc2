@@ -427,7 +427,7 @@ not advance.
 **Batch:** solo
 
 ### P10.30 — Derive runtime eligibility from real host prerequisites
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/src/bedrock_linux.rs`, `crates/msc-application/src/bedrock_windows.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/src/bedrock_provisioning.rs`, `crates/msc-infrastructure/src/bedrock_distribution.rs`, `crates/msc-application/tests/bedrock_runtime_eligibility.rs`, `fixtures/bedrock-runtime/`
 **What:** Replace OS/CPU-only `supported` decisions with one agent-owned eligibility result. Linux and Windows are eligible only when the current host and a verified staged BDS distribution satisfy the runtime prerequisites; Intel macOS additionally requires the sidecar executable and its distributable appliance resources; Apple Silicon stays explicitly `unavailable` with D-028's `no_test_hardware` reason. A missing package, sidecar, appliance, or prerequisite must be an honest unavailable/provisioning-required state, never a false supported result. Keep the compatibility CSV as published evidence, not a runtime configuration file, and retain injectable fixture eligibility only inside tests.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_runtime_eligibility`

@@ -1,0 +1,1 @@
+{"input":{"host":"linux","files":"executable-without-provenance"},"expected":{"state":"provisioning_required","backend":"native","reasonCode":"bds_distribution_unverified"}}

@@ -1,0 +1,1 @@
+{"input":{"host":"macos-intel","files":"verified-distribution-and-sidecar-appliance"},"expected":{"state":"available","backend":"sidecar","reasonCode":null}}

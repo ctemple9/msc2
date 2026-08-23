@@ -7,7 +7,12 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt;
+use std::path::{Path, PathBuf};
 
+use msc_infrastructure::bedrock_distribution::{
+    self, BedrockPlatform, InstalledBedrockDistribution,
+};
+use msc_infrastructure::fs::FileSystem;
 use msc_infrastructure::process::ProcessId;
 
 pub const SIDECAR_SHARED_DIRECTORY_TAG: &str = "world";
@@ -18,6 +23,246 @@ pub const SIDECAR_GUEST_MOUNT: &str = "/mnt";
 pub enum BedrockRuntimeBackend {
     Native,
     Sidecar,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BedrockRuntimeEligibilityState {
+    Available,
+    ProvisioningRequired,
+    Unavailable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BedrockHost {
+    Linux,
+    Windows,
+    MacosIntel,
+    MacosAppleSilicon,
+    Other,
+}
+
+impl BedrockHost {
+    pub const fn current() -> Self {
+        #[cfg(target_os = "linux")]
+        {
+            return Self::Linux;
+        }
+        #[cfg(target_os = "windows")]
+        {
+            return Self::Windows;
+        }
+        #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+        {
+            return Self::MacosIntel;
+        }
+        #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+        {
+            return Self::MacosAppleSilicon;
+        }
+        #[allow(unreachable_code)]
+        Self::Other
+    }
+
+    pub const fn host_os(self) -> &'static str {
+        match self {
+            Self::Linux => "linux",
+            Self::Windows => "windows",
+            Self::MacosIntel | Self::MacosAppleSilicon => "macos",
+            Self::Other => "other",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BedrockSidecarResources {
+    pub executable: PathBuf,
+    pub kernel: PathBuf,
+    pub initramfs: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BedrockRuntimePaths {
+    pub server_dir: PathBuf,
+    pub sidecar: Option<BedrockSidecarResources>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BedrockRuntimeEligibility {
+    pub host: BedrockHost,
+    pub backend: Option<BedrockRuntimeBackend>,
+    pub state: BedrockRuntimeEligibilityState,
+    pub reason_code: Option<String>,
+    pub message: String,
+}
+
+impl BedrockRuntimeEligibility {
+    /// Detect the real host and inspect only files owned by the agent. The
+    /// compatibility CSV is deliberately not read here: it is published
+    /// evidence, not a runtime switch.
+    pub fn detect(fs: &dyn FileSystem, paths: &BedrockRuntimePaths) -> Self {
+        Self::for_host(fs, BedrockHost::current(), paths)
+    }
+
+    /// The host parameter is injectable so fixture tests can exercise all
+    /// platform branches on one machine. Production composition uses
+    /// [`Self::detect`] and therefore cannot claim another host by config.
+    pub fn for_host(fs: &dyn FileSystem, host: BedrockHost, paths: &BedrockRuntimePaths) -> Self {
+        match host {
+            BedrockHost::Linux => Self::native(fs, host, paths, BedrockPlatform::Linux),
+            BedrockHost::Windows => Self::native(fs, host, paths, BedrockPlatform::Windows),
+            BedrockHost::MacosIntel => Self::sidecar(fs, host, paths),
+            BedrockHost::MacosAppleSilicon => Self {
+                host,
+                backend: None,
+                state: BedrockRuntimeEligibilityState::Unavailable,
+                reason_code: Some("no_test_hardware".to_owned()),
+                message: "Bedrock is unavailable on Apple Silicon under D-028.".to_owned(),
+            },
+            BedrockHost::Other => Self {
+                host,
+                backend: None,
+                state: BedrockRuntimeEligibilityState::Unavailable,
+                reason_code: Some("unsupported_host".to_owned()),
+                message: "Bedrock has no runtime backend for this host.".to_owned(),
+            },
+        }
+    }
+
+    /// Synthetic runtime eligibility used by the existing backend unit tests.
+    /// It is intentionally separate from [`Self::detect`], which always
+    /// checks the real filesystem and host.
+    pub fn synthetic_available(host: BedrockHost, backend: BedrockRuntimeBackend) -> Self {
+        Self {
+            host,
+            backend: Some(backend),
+            state: BedrockRuntimeEligibilityState::Available,
+            reason_code: None,
+            message: "Bedrock runtime is available.".to_owned(),
+        }
+    }
+
+    pub fn capabilities_for(&self, backend: BedrockRuntimeBackend) -> BedrockRuntimeCapabilities {
+        if self.backend == Some(backend) && self.state == BedrockRuntimeEligibilityState::Available
+        {
+            BedrockRuntimeCapabilities::supported(backend)
+        } else {
+            BedrockRuntimeCapabilities::unavailable(
+                backend,
+                self.reason_code
+                    .clone()
+                    .unwrap_or_else(|| "bedrock-provisioning-required".to_owned()),
+            )
+        }
+    }
+
+    fn native(
+        fs: &dyn FileSystem,
+        host: BedrockHost,
+        paths: &BedrockRuntimePaths,
+        platform: BedrockPlatform,
+    ) -> Self {
+        Self::from_distribution(
+            host,
+            BedrockRuntimeBackend::Native,
+            bedrock_distribution::inspect_installed_distribution(fs, &paths.server_dir, platform),
+        )
+    }
+
+    fn sidecar(fs: &dyn FileSystem, host: BedrockHost, paths: &BedrockRuntimePaths) -> Self {
+        let distribution = bedrock_distribution::inspect_installed_distribution(
+            fs,
+            &paths.server_dir,
+            BedrockPlatform::Macos,
+        );
+        let missing_distribution = match distribution {
+            InstalledBedrockDistribution::Missing => Some("bds_distribution_required"),
+            InstalledBedrockDistribution::Unverified => Some("bds_distribution_unverified"),
+            InstalledBedrockDistribution::Verified(_) => None,
+        };
+        if let Some(reason_code) = missing_distribution {
+            return Self::provisioning(host, BedrockRuntimeBackend::Sidecar, reason_code);
+        }
+        let Some(resources) = paths.sidecar.as_ref() else {
+            return Self::provisioning(
+                host,
+                BedrockRuntimeBackend::Sidecar,
+                "sidecar_resources_required",
+            );
+        };
+        if !is_file(fs, &resources.executable) || !is_executable(fs, &resources.executable) {
+            return Self::provisioning(
+                host,
+                BedrockRuntimeBackend::Sidecar,
+                "sidecar_executable_required",
+            );
+        }
+        if !is_file(fs, &resources.kernel) || !is_file(fs, &resources.initramfs) {
+            return Self::provisioning(
+                host,
+                BedrockRuntimeBackend::Sidecar,
+                "sidecar_appliance_required",
+            );
+        }
+        Self {
+            host,
+            backend: Some(BedrockRuntimeBackend::Sidecar),
+            state: BedrockRuntimeEligibilityState::Available,
+            reason_code: None,
+            message: "Bedrock runtime is available.".to_owned(),
+        }
+    }
+
+    fn native_or_sidecar_message(reason_code: &str) -> String {
+        match reason_code {
+            "bds_distribution_unverified" => {
+                "A verified Bedrock distribution is required before start.".to_owned()
+            }
+            _ => "A verified Bedrock distribution must be provisioned before start.".to_owned(),
+        }
+    }
+
+    fn from_distribution(
+        host: BedrockHost,
+        backend: BedrockRuntimeBackend,
+        distribution: InstalledBedrockDistribution,
+    ) -> Self {
+        match distribution {
+            InstalledBedrockDistribution::Verified(_) => Self {
+                host,
+                backend: Some(backend),
+                state: BedrockRuntimeEligibilityState::Available,
+                reason_code: None,
+                message: "Bedrock runtime is available.".to_owned(),
+            },
+            InstalledBedrockDistribution::Missing => {
+                Self::provisioning(host, backend, "bds_distribution_required")
+            }
+            InstalledBedrockDistribution::Unverified => {
+                Self::provisioning(host, backend, "bds_distribution_unverified")
+            }
+        }
+    }
+
+    fn provisioning(host: BedrockHost, backend: BedrockRuntimeBackend, reason_code: &str) -> Self {
+        Self {
+            host,
+            backend: Some(backend),
+            state: BedrockRuntimeEligibilityState::ProvisioningRequired,
+            reason_code: Some(reason_code.to_owned()),
+            message: Self::native_or_sidecar_message(reason_code),
+        }
+    }
+}
+
+fn is_file(fs: &dyn FileSystem, path: &Path) -> bool {
+    fs.stat(path).is_ok_and(|metadata| metadata.is_file)
+}
+
+fn is_executable(fs: &dyn FileSystem, path: &Path) -> bool {
+    fs.stat(path)
+        .is_ok_and(|metadata| metadata.is_file && metadata.executable)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]

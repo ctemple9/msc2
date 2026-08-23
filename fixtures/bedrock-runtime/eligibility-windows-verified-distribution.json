@@ -1,0 +1,1 @@
+{"input":{"host":"windows","files":"verified-windows-provenance"},"expected":{"state":"available","backend":"native","reasonCode":null}}

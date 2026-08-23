@@ -15,7 +15,7 @@ use std::fmt;
 use std::path::Path;
 
 pub const BEDROCK_MANIFEST_URL: &str = "https://raw.githubusercontent.com/kittizz/bedrock-server-downloads/refs/heads/main/bedrock-server-downloads.json";
-const VERSION_MARKER: &str = ".msc_bds_version";
+const VERSION_MARKER: &str = bedrock_distribution::BEDROCK_VERSION_MARKER;
 const PRESERVED_FILES: [&str; 4] = [
     "server.properties",
     "allowlist.json",
@@ -149,6 +149,7 @@ pub fn ensure_installed(
         request.server_dir,
         &staged.root,
         &target.version,
+        &target,
         already_installed,
     );
     let _ = fs.remove(&staging_root);
@@ -190,6 +191,7 @@ fn promote(
     server_dir: &Path,
     staged_root: &Path,
     version: &str,
+    release: &bedrock_distribution::BedrockRelease,
     already_installed: bool,
 ) -> Result<(), BedrockProvisioningError> {
     let parent = server_dir.parent().ok_or_else(|| {
@@ -220,6 +222,7 @@ fn promote(
         already_installed,
     )?;
     write_marker(fs, &candidate, version)?;
+    write_provenance(fs, &candidate, release)?;
 
     if !already_installed {
         fs.rename(&candidate, server_dir)
@@ -235,6 +238,25 @@ fn promote(
     }
     let _ = fs.remove(&backup);
     Ok(())
+}
+
+fn write_provenance(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    release: &bedrock_distribution::BedrockRelease,
+) -> Result<(), BedrockProvisioningError> {
+    let bytes = serde_json::to_vec(&bedrock_distribution::BedrockDistributionProvenance {
+        version: release.version.clone(),
+        platform: release.platform,
+        sha256: release.sha256.clone(),
+    })
+    .map_err(|error| BedrockProvisioningError::Filesystem(error.to_string()))?;
+    msc_infrastructure::atomic_write::atomic_write(
+        fs,
+        &server_dir.join(bedrock_distribution::BEDROCK_PROVENANCE_MARKER),
+        &bytes,
+    )
+    .map_err(|error| BedrockProvisioningError::Filesystem(error.to_string()))
 }
 
 fn copy_tree(

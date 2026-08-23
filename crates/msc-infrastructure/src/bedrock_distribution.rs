@@ -10,7 +10,7 @@
 use crate::download_staging::sha256_hex;
 use crate::fs::FileSystem;
 use msc_domain::version::is_downgrade;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{Cursor, Read};
@@ -20,11 +20,31 @@ use zip::ZipArchive;
 pub const BEDROCK_MANIFEST_MAX_BYTES: u64 = 20 * 1024 * 1024;
 pub const BEDROCK_ARCHIVE_MAX_BYTES: u64 = 500 * 1024 * 1024;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum BedrockPlatform {
     Linux,
     Windows,
     Macos,
+}
+
+/// A successful archive verification must leave durable provenance beside the
+/// promoted files.  A version marker alone cannot distinguish a provisioner
+/// result from a hand-copied executable, so eligibility never treats it as
+/// proof of a runnable distribution.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BedrockDistributionProvenance {
+    pub version: String,
+    pub platform: BedrockPlatform,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InstalledBedrockDistribution {
+    Missing,
+    Unverified,
+    Verified(BedrockDistributionProvenance),
 }
 
 impl BedrockPlatform {
@@ -35,6 +55,50 @@ impl BedrockPlatform {
             Self::Macos => "macos",
         }
     }
+
+    pub const fn executable_name(self) -> &'static str {
+        match self {
+            Self::Windows => "bedrock_server.exe",
+            Self::Linux | Self::Macos => "bedrock_server",
+        }
+    }
+}
+
+pub const BEDROCK_VERSION_MARKER: &str = ".msc_bds_version";
+pub const BEDROCK_PROVENANCE_MARKER: &str = ".msc_bds_provenance.json";
+
+/// Inspects a promoted installation without downloading or modifying it.
+/// Missing files and missing provenance are intentionally separate states so
+/// the application can tell the user whether to provision or whether an
+/// existing directory is not trusted as a managed distribution.
+pub fn inspect_installed_distribution(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    platform: BedrockPlatform,
+) -> InstalledBedrockDistribution {
+    let executable = server_dir.join(platform.executable_name());
+    if !fs.stat(&executable).is_ok_and(|metadata| metadata.is_file) {
+        return InstalledBedrockDistribution::Missing;
+    }
+
+    let provenance = fs
+        .read(&server_dir.join(BEDROCK_PROVENANCE_MARKER))
+        .ok()
+        .and_then(|bytes| serde_json::from_slice::<BedrockDistributionProvenance>(&bytes).ok());
+    let Some(provenance) = provenance else {
+        return InstalledBedrockDistribution::Unverified;
+    };
+    if provenance.platform != platform
+        || provenance.version.trim().is_empty()
+        || provenance.sha256.len() != 64
+        || !provenance
+            .sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+    {
+        return InstalledBedrockDistribution::Unverified;
+    }
+    InstalledBedrockDistribution::Verified(provenance)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -221,6 +285,7 @@ pub fn stage_archive(
     let mut archive = ZipArchive::new(Cursor::new(bytes))
         .map_err(|error| BedrockDistributionError::ArchiveCorrupt(error.to_string()))?;
     let mut has_executable = false;
+    let expected_executable = Path::new(release.platform.executable_name());
     for index in 0..archive.len() {
         let mut entry = archive
             .by_index(index)
@@ -244,9 +309,9 @@ pub fn stage_archive(
         entry
             .read_to_end(&mut contents)
             .map_err(|error| BedrockDistributionError::ArchiveCorrupt(error.to_string()))?;
-        let executable = entry.unix_mode().is_some_and(|mode| mode & 0o111 != 0)
-            || path == Path::new("bedrock_server");
-        if path == Path::new("bedrock_server") {
+        let executable =
+            entry.unix_mode().is_some_and(|mode| mode & 0o111 != 0) || path == expected_executable;
+        if path == expected_executable {
             has_executable = executable;
         }
         if executable {

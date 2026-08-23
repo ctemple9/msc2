@@ -1,0 +1,1 @@
+{"input":{"host":"macos-intel","files":"verified-distribution-and-sidecar-without-appliance"},"expected":{"state":"provisioning_required","backend":"sidecar","reasonCode":"sidecar_appliance_required"}}

@@ -1,0 +1,31 @@
+{
+  "domain": "dto-contract",
+  "case": "bedrock-settings-production",
+  "source": {
+    "file": "bedrock_production_cli.rs",
+    "test": "production_cli_decodes_bedrock_surfaces_and_unavailable_runtime",
+    "line": 1
+  },
+  "input": {
+    "route": "GET /v1/settings",
+    "serializer": "SettingsResponseDto",
+    "value": {
+      "serverType": "bedrock",
+      "serverName": "CLI Bedrock",
+      "serverRunning": false,
+      "editable": true,
+      "sections": [],
+      "runtime": {
+        "state": "available",
+        "backend": "native",
+        "hostOs": "linux",
+        "message": "Bedrock runtime is available."
+      }
+    }
+  },
+  "expected": {
+    "serverType": "bedrock",
+    "runtime.state": "available"
+  },
+  "notes": "The settings route keeps runtime state additive to the shared Java-compatible settings shape."
+}

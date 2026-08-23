@@ -1,0 +1,23 @@
+{
+  "domain": "dto-contract",
+  "case": "bedrock-import-result-production",
+  "source": {
+    "file": "bedrock_production_cli.rs",
+    "test": "production_cli_decodes_bedrock_surfaces_and_unavailable_runtime",
+    "line": 1
+  },
+  "input": {
+    "route": "POST /v1/servers/import",
+    "serializer": "ServerImportResultDto",
+    "value": {
+      "success": true,
+      "message": "Server import accepted.",
+      "operationId": "op-bedrock-import"
+    }
+  },
+  "expected": {
+    "success": true,
+    "operationId": "op-bedrock-import"
+  },
+  "notes": "Import acceptance is operation-backed; the CLI records the terminal OperationDto after polling the accepted response."
+}

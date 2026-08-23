@@ -1,0 +1,33 @@
+{
+  "domain": "dto-contract",
+  "case": "bedrock-versions-production",
+  "source": {
+    "file": "bedrock_production_cli.rs",
+    "test": "production_cli_decodes_bedrock_surfaces_and_unavailable_runtime",
+    "line": 1
+  },
+  "input": {
+    "route": "GET /v1/versions",
+    "serializer": "VersionsResponseDto",
+    "value": {
+      "supportsVersions": true,
+      "flavorName": "bedrock",
+      "currentVersion": "1.21.80.3",
+      "isBedrock": true,
+      "versions": [],
+      "note": "Bedrock versions are limited to the verified distribution selected for this runtime.",
+      "runtime": {
+        "state": "available",
+        "backend": "native",
+        "hostOs": "linux",
+        "message": "Bedrock runtime is available."
+      }
+    }
+  },
+  "expected": {
+    "isBedrock": true,
+    "currentVersion": "1.21.80.3",
+    "runtime.state": "available"
+  },
+  "notes": "Version state is the verified distribution state, not a public-provider catalogue claim."
+}

@@ -130,4 +130,63 @@ final class Phase10BedrockContractTests: XCTestCase {
             $0.request.value(forHTTPHeaderField: "Authorization") == "Bearer \(token)"
         })
     }
+
+    func testProductionResultsKeepUnknownBedrockValuesAdditive() throws {
+        let json = """
+        {
+          "success": true,
+          "message": "Bedrock server creation started.",
+          "operationId": "op-bedrock-create",
+          "runtime": {
+            "state": "future_state",
+            "backend": "future-backend",
+            "hostOs": "linux",
+            "reasonCode": "future_reason_code"
+          }
+        }
+        """.data(using: .utf8)!
+
+        let create = try JSONDecoder().decode(ServerCreateResultDTO.self, from: json)
+        XCTAssertEqual(create.runtime?.backend, "future-backend")
+        XCTAssertEqual(create.runtime?.reasonCode, "future_reason_code")
+
+        let importJSON = """
+        {
+          "success": true,
+          "message": "Server import accepted.",
+          "operationId": "op-bedrock-import",
+          "runtime": {"state": "provisioning_required", "reasonCode": "missing_bds"}
+        }
+        """.data(using: .utf8)!
+        let imported = try JSONDecoder().decode(ServerImportResultDTO.self, from: importJSON)
+        XCTAssertEqual(imported.runtime?.state, "provisioning_required")
+
+        let lifecycleJSON = """
+        {
+          "result": "start_requested",
+          "activeServerId": "bedrock-cli",
+          "operationId": "op-bedrock-start",
+          "runtime": {"state": "unavailable", "reasonCode": "no_test_hardware"}
+        }
+        """.data(using: .utf8)!
+        let lifecycle = try JSONDecoder().decode(SimpleResult.self, from: lifecycleJSON)
+        XCTAssertEqual(lifecycle.runtime?.reasonCode, "no_test_hardware")
+
+        let versionsJSON = """
+        {
+          "supportsVersions": false,
+          "flavorName": "bedrock",
+          "currentVersion": null,
+          "isBedrock": true,
+          "versions": [],
+          "note": "Bedrock versions are limited to the verified distribution selected for this runtime.",
+          "runtime": {
+            "state": "unavailable",
+            "reasonCode": "no_test_hardware"
+          }
+        }
+        """.data(using: .utf8)!
+        let versions = try JSONDecoder().decode(VersionsResponseDTO.self, from: versionsJSON)
+        XCTAssertEqual(versions.runtime?.reasonCode, "no_test_hardware")
+    }
 }

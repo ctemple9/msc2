@@ -451,7 +451,7 @@ not advance.
 **Batch:** solo
 
 ### P10.33 — Complete Bedrock's shared data, world, backup, and version surfaces
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/bedrock.rs`, `crates/msc-agent/src/routes/settings.rs`, `crates/msc-agent/src/routes/versions.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/src/routes/backups.rs`, `crates/msc-agent/tests/bedrock_production_surfaces.rs`
 **What:** Connect the existing Bedrock settings, player/XUID, allowlist, permissions, LevelDB/NBT, version/provisioning, worlds, backups, console-log, and metrics services to the production route state and P10.29 runtime disclosure. Retain the oracle boundary: file reads may work while the runtime is unavailable, live-dependent mutations return the structured capability error, and Bedrock backup restore remains the Phase-6 slot-based Worlds flow rather than a fabricated live restore. Remove every remaining public “until Phase 10” response. Exercise every affected route through the real agent router, including permission checks and unavailable behavior.
 **Verify:** `cargo nextest run -p msc-agent --test bedrock_production_surfaces`
@@ -459,7 +459,7 @@ not advance.
 **Batch:** solo
 
 ### P10.34 — Prove the same production paths through CLI and copied iOS decoding
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/bedrock_production_cli.rs`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOSTests/Phase10BedrockContractTests.swift`, `tools/phase10/ios-contract-check.py`, `fixtures/dto-contract/`
 **What:** Drive the P10.32/P10.33 production router through the same-binary CLI, then decode recorded responses and unavailable errors with the copied iOS client models. Cover capability disclosure, import/create result, lifecycle operation, settings, players, allowlist, version state, and the Apple-Silicon unavailable result. The test fixtures must originate from the real agent response serializers, not hand-authored JSON that can drift from them. Preserve unknown backend and reason-code values additively for old iOS clients.
 **Verify:** `cargo nextest run -p msc-agent --test bedrock_production_cli && python3 tools/phase10/ios-contract-check.py`

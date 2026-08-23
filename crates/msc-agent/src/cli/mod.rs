@@ -15,30 +15,31 @@ use msc_api::dto::{
     ActiveServerRequestDto, AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto,
     AddonsResponseDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
     BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
-    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, BroadcastAuthPromptDto,
-    BroadcastAutoStartDto, BroadcastCredentialsDto, BroadcastJarDownloadResultDto,
-    BroadcastSimpleResultDto, BroadcastStatusDto, CapabilitiesDto, CatalogInstallRequestDto,
-    CatalogInstallResultDto, CatalogSearchResponseDto, ClientExportResponseDto, CommandRequestDto,
-    CommandResultDto, ComponentUpdateRequestDto, ConnectivityResponseDto, DuckDnsStatusResponseDto,
-    DuckDnsUpdateRequestDto, ErrorDto, HealthProblemsResponseDto, HealthRepairRequestDto,
-    HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto, JavaConfigSetRequestDto,
-    JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
-    ModpackImportRequestDto, ModpackImportResultDto, ModpackInspectionRequestDto,
-    ModpackInspectionResultDto, ModpackManualFileRequestDto, ModpackManualFileResultDto,
-    OperationDto, OperationStateDto, PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus,
-    ResourcePackActivateRequestDto, ResourcePackMutationResultDto, ResourcePacksResponseDto,
-    ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto,
-    ServerDto, ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto,
-    ServerImportResultDto, ServerImportScanResponseDto, ServerRenameRequestDto,
-    ServerRenameResultDto, SettingsResponseDto, SettingsUpdateRequestDto, SettingsUpdateResultDto,
-    SimpleResultDto, StagedUploadBeginRequestDto, StagedUploadBeginResultDto,
-    StagedUploadCompleteResultDto, StagedUploadPurposeDto, TemplateMutationRequestDto,
-    TemplateMutationResultDto, TemplatesResponseDto, VersionChangeRequestDto,
-    VersionChangeResultDto, VersionsResponseDto, WorldActivateRequestDto, WorldActivateResultDto,
-    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
-    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
-    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
-    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, BedrockRuntimeStateDto,
+    BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
+    BroadcastJarDownloadResultDto, BroadcastSimpleResultDto, BroadcastStatusDto, CapabilitiesDto,
+    CatalogInstallRequestDto, CatalogInstallResultDto, CatalogSearchResponseDto,
+    ClientExportResponseDto, CommandRequestDto, CommandResultDto, ComponentUpdateRequestDto,
+    ConnectivityResponseDto, DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto,
+    HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto,
+    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
+    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
+    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
+    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
+    PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
+    ResourcePackMutationResultDto, ResourcePacksResponseDto, ServerCreateRequestDto,
+    ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
+    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
+    ServerImportScanResponseDto, ServerRenameRequestDto, ServerRenameResultDto,
+    SettingsResponseDto, SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
+    StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
+    StagedUploadPurposeDto, TemplateMutationRequestDto, TemplateMutationResultDto,
+    TemplatesResponseDto, VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto,
+    WorldActivateRequestDto, WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto,
+    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
+    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto, WorldRenameRequestDto,
+    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
+    WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -384,8 +385,7 @@ pub enum ServerCommand {
 pub struct ServerCreateArgs {
     /// Display name for the new server.
     name: String,
-    /// `java` (default) or `bedrock` — Bedrock is refused with
-    /// `capability_unavailable` until Phase 10.
+    /// `java` (default) or `bedrock`.
     #[arg(long = "type")]
     server_type: Option<String>,
     /// `paper` (default), `purpur`, `vanilla`, `fabric`, `neoforge`, or
@@ -967,6 +967,7 @@ async fn run_bedrock(common: CommonArgs, command: BedrockCommand) -> Result<(), 
                         println!("- {}", player["name"].as_str().unwrap_or("unknown"));
                     }
                 }
+                print_runtime_value(result.get("runtime"));
             }
         }
         BedrockCommand::Allowlist { command } => match command {
@@ -1002,6 +1003,7 @@ fn print_bedrock_json(common: &CommonArgs, value: &serde_json::Value) -> Result<
         print_json(value)
     } else {
         println!("{}", value["message"].as_str().unwrap_or("ok"));
+        print_runtime_value(value.get("runtime"));
         Ok(())
     }
 }
@@ -1129,6 +1131,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 client.post_json("/v1/servers/import", &body).await?;
             if !common.json {
                 println!("{}", result.message);
+                print_runtime(&result.runtime);
             }
             finish_operation(
                 &client,
@@ -1268,6 +1271,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 if let Some(name) = &result.server_name {
                     println!("name: {name}");
                 }
+                print_runtime(&result.runtime);
             }
             finish_operation(
                 &client,
@@ -1437,6 +1441,7 @@ async fn run_command(common: CommonArgs, args: CommandArgs) -> Result<(), CliErr
         if let Some(active_server_id) = result.active_server_id {
             println!("active server id: {active_server_id}");
         }
+        print_runtime(&result.runtime);
     }
     Ok(())
 }
@@ -1480,6 +1485,7 @@ async fn run_capabilities(common: CommonArgs) -> Result<(), CliError> {
         println!("playit: {}", result.helpers.playit);
         println!("duckdns: {}", result.helpers.duckdns);
         println!("geyser: {}", result.helpers.geyser);
+        print_runtime(&result.server_types.bedrock.runtime);
         Ok(())
     }
 }
@@ -2235,6 +2241,7 @@ fn print_versions(response: &VersionsResponseDto) {
     if let Some(note) = &response.note {
         println!("note: {note}");
     }
+    print_runtime(&response.runtime);
     for entry in &response.versions {
         let latest = if entry.is_latest { " (latest)" } else { "" };
         println!("{} {}{}", entry.id, entry.display_label, latest);
@@ -3259,6 +3266,7 @@ fn print_status(status: &RemoteApiStatus) {
     if let Some(server_type) = &status.server_type {
         println!("server type: {server_type}");
     }
+    print_runtime(&status.runtime);
 }
 
 fn print_simple_result(prefix: &str, result: &SimpleResultDto) {
@@ -3269,6 +3277,7 @@ fn print_simple_result(prefix: &str, result: &SimpleResultDto) {
     if let Some(operation_id) = &result.operation_id {
         println!("operation id: {operation_id}");
     }
+    print_runtime(&result.runtime);
 }
 
 fn print_settings(settings: &SettingsResponseDto) {
@@ -3277,6 +3286,7 @@ fn print_settings(settings: &SettingsResponseDto) {
     if let Some(note) = &settings.note {
         println!("note: {note}");
     }
+    print_runtime(&settings.runtime);
     for section in &settings.sections {
         println!("[{}]", section.title);
         for field in &section.fields {
@@ -3287,6 +3297,7 @@ fn print_settings(settings: &SettingsResponseDto) {
 
 fn print_settings_update(result: &SettingsUpdateResultDto) {
     println!("{}", result.message);
+    print_runtime(&result.runtime);
     if !result.applied_keys.is_empty() {
         println!("applied: {}", result.applied_keys.join(", "));
     }
@@ -3294,6 +3305,34 @@ fn print_settings_update(result: &SettingsUpdateResultDto) {
         for rejection in rejected {
             println!("rejected {}: {}", rejection.key, rejection.reason);
         }
+    }
+}
+
+fn print_runtime(runtime: &Option<BedrockRuntimeStateDto>) {
+    if let Some(runtime) = runtime {
+        println!("bedrock runtime: {}", runtime.state);
+        if let Some(backend) = runtime.backend {
+            println!("bedrock backend: {backend:?}");
+        }
+        if let Some(reason) = &runtime.reason_code {
+            println!("bedrock reason: {reason}");
+        }
+    }
+}
+
+fn print_runtime_value(runtime: Option<&serde_json::Value>) {
+    let Some(runtime) = runtime.filter(|value| !value.is_null()) else {
+        return;
+    };
+    println!(
+        "bedrock runtime: {}",
+        runtime["state"].as_str().unwrap_or("unknown")
+    );
+    if let Some(backend) = runtime["backend"].as_str() {
+        println!("bedrock backend: {backend}");
+    }
+    if let Some(reason) = runtime["reasonCode"].as_str() {
+        println!("bedrock reason: {reason}");
     }
 }
 

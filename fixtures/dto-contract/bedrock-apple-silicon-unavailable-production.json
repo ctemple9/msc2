@@ -1,0 +1,26 @@
+{
+  "domain": "dto-contract",
+  "case": "bedrock-apple-silicon-unavailable-production",
+  "source": {
+    "file": "bedrock_runtime_selection.rs",
+    "test": "production_agent_reports_the_selected_bedrock_runtime",
+    "line": 1
+  },
+  "input": {
+    "route": "GET /v1/capabilities",
+    "serializer": "BedrockRuntimeStateDto",
+    "value": {
+      "state": "unavailable",
+      "hostOs": "macos",
+      "reasonCode": "no_test_hardware",
+      "message": "Bedrock is unavailable on Apple Silicon under D-028.",
+      "helpId": "bedrock.runtime-unavailable"
+    }
+  },
+  "expected": {
+    "state": "unavailable",
+    "reasonCode": "no_test_hardware",
+    "helpId": "bedrock.runtime-unavailable"
+  },
+  "notes": "This is the structured unavailable result required by D-028; Apple Silicon is not omitted or represented as supported."
+}

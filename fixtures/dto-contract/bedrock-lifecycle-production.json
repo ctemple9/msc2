@@ -1,0 +1,29 @@
+{
+  "domain": "dto-contract",
+  "case": "bedrock-lifecycle-production",
+  "source": {
+    "file": "bedrock_production_cli.rs",
+    "test": "production_cli_decodes_bedrock_surfaces_and_unavailable_runtime",
+    "line": 1
+  },
+  "input": {
+    "route": "POST /v1/start",
+    "serializer": "SimpleResultDto",
+    "value": {
+      "result": "start_requested",
+      "activeServerId": "bedrock-cli",
+      "operationId": "op-bedrock-start",
+      "runtime": {
+        "state": "available",
+        "backend": "native",
+        "hostOs": "linux",
+        "message": "Bedrock runtime is available."
+      }
+    }
+  },
+  "expected": {
+    "result": "start_requested",
+    "runtime.state": "available"
+  },
+  "notes": "The lifecycle result and its runtime disclosure are serialized by the production route and decoded by the CLI and copied iOS model."
+}

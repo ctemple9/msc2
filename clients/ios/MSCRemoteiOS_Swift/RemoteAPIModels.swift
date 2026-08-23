@@ -278,6 +278,9 @@ struct ServerImportResultDTO: Codable, Equatable {
     let imported: Int?
     let skipped: Int?
     let replaced: Bool?
+    /// Additive Bedrock runtime disclosure from the production import path.
+    /// Older agents omit this field and continue to decode as Java imports.
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 // MARK: - Console
@@ -331,12 +334,14 @@ struct SimpleResult: Codable, Equatable {
     let result: String
     let activeServerId: String?
     let operationId: String?
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 struct CommandResult: Codable, Equatable {
     let result: String
     let activeServerId: String?
     let command: String
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 // MARK: - Performance
@@ -1274,6 +1279,7 @@ struct VersionChangeResultDTO: Codable, Equatable {
     /// contract — it's a thrown `RemoteAPIError.httpStatus` with that
     /// code instead (see that case's own doc).
     let operationId: String?
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 // MARK: - Playit tunnel (P12)

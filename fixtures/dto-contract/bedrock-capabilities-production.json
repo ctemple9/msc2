@@ -1,0 +1,32 @@
+{
+  "domain": "dto-contract",
+  "case": "bedrock-capabilities-production",
+  "source": {
+    "file": "bedrock_production_cli.rs",
+    "test": "production_cli_decodes_bedrock_surfaces_and_unavailable_runtime",
+    "line": 1
+  },
+  "input": {
+    "route": "GET /v1/capabilities",
+    "serializer": "CapabilitiesDto",
+    "value": {
+      "serverTypes": {
+        "bedrock": {
+          "supported": true,
+          "backend": "native",
+          "runtime": {
+            "state": "available",
+            "backend": "native",
+            "hostOs": "linux",
+            "message": "Bedrock runtime is available."
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "serverTypes.bedrock.runtime.state": "available",
+    "serverTypes.bedrock.runtime.backend": "native"
+  },
+  "notes": "Recorded from the production Linux fixture agent; the response is emitted by the Rust DTO serializer and consumed by the same-binary CLI."
+}

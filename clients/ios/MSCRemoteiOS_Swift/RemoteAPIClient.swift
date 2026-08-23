@@ -400,7 +400,8 @@ final class RemoteAPIClient {
         return SimpleResult(
             result: "restart_requested",
             activeServerId: startResult.activeServerId,
-            operationId: startResult.operationId
+            operationId: startResult.operationId,
+            runtime: startResult.runtime
         )
     }
 

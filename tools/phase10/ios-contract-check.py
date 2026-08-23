@@ -19,6 +19,17 @@ IOS_TESTS = ROOT / "clients/ios/MSCRemoteiOSTests"
 PROJECT = ROOT / "clients/ios/MSCRemoteiOS.xcodeproj/project.pbxproj"
 OPENAPI = ROOT / "docs/msc2/api-contract/openapi.json"
 MATRIX = ROOT / "docs/msc2/client-capability-matrix.csv"
+PRODUCTION_FIXTURES = [
+    "bedrock-capabilities-production.json",
+    "bedrock-create-result-production.json",
+    "bedrock-import-result-production.json",
+    "bedrock-lifecycle-production.json",
+    "bedrock-settings-production.json",
+    "bedrock-players-production.json",
+    "bedrock-allowlist-production.json",
+    "bedrock-versions-production.json",
+    "bedrock-apple-silicon-unavailable-production.json",
+]
 
 
 def fail(problems, message):
@@ -116,6 +127,7 @@ def check_ios_sources(problems):
         "RemoteAPIStatus",
         "ServerDTO",
         "ServerCreateResultDTO",
+        "ServerImportResultDTO",
         "PerformanceSnapshotDTO",
         "PlayersResponse",
         "AllowlistResponseDTO",
@@ -141,6 +153,10 @@ def check_ios_sources(problems):
     error = struct_block(models, "ErrorDTO")
     if "details" not in error:
         fail(problems, "iOS ErrorDTO is missing structured details")
+
+    for name in ("SimpleResult", "CommandResult", "VersionChangeResultDTO"):
+        if "runtime" not in struct_block(models, name):
+            fail(problems, f"iOS {name} is missing additive runtime decoding")
 
     client = sources["RemoteAPIClient.swift"]
     for marker in (
@@ -207,11 +223,49 @@ def check_matrix(problems):
             fail(problems, f"matrix claims a desktop/web surface during Phase 10: {row['method']} {row['path']}")
 
 
+def check_production_fixtures(problems):
+    fixture_root = ROOT / "fixtures/dto-contract"
+    for name in PRODUCTION_FIXTURES:
+        path = fixture_root / name
+        if not path.exists():
+            fail(problems, f"missing production response fixture: {path}")
+            continue
+        try:
+            document = json.loads(path.read_text())
+        except json.JSONDecodeError as error:
+            fail(problems, f"production response fixture is invalid JSON: {path}: {error}")
+            continue
+        value = document.get("input", {}).get("value")
+        if document.get("domain") != "dto-contract":
+            fail(problems, f"production fixture has the wrong domain: {path}")
+        if document.get("input", {}).get("serializer") not in {
+            "CapabilitiesDto",
+            "ServerCreateResultDto",
+            "ServerImportResultDto",
+            "SimpleResultDto",
+            "SettingsResponseDto",
+            "PlayersResponse",
+            "AllowlistResponse",
+            "VersionsResponseDto",
+            "BedrockRuntimeStateDto",
+        }:
+            fail(problems, f"production fixture does not name a Rust response serializer: {path}")
+        if not isinstance(value, dict):
+            fail(problems, f"production fixture does not contain a wire response object: {path}")
+
+    apple = fixture_root / "bedrock-apple-silicon-unavailable-production.json"
+    if apple.exists():
+        value = json.loads(apple.read_text())["input"]["value"]
+        if value.get("state") != "unavailable" or value.get("reasonCode") != "no_test_hardware":
+            fail(problems, "Apple Silicon fixture must remain explicitly unavailable with no_test_hardware")
+
+
 def main():
     problems = []
     check_openapi(problems)
     check_ios_sources(problems)
     check_matrix(problems)
+    check_production_fixtures(problems)
     if problems:
         for problem in problems:
             print(f"error: {problem}", file=sys.stderr)

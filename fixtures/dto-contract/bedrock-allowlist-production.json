@@ -1,0 +1,31 @@
+{
+  "domain": "dto-contract",
+  "case": "bedrock-allowlist-production",
+  "source": {
+    "file": "bedrock_production_cli.rs",
+    "test": "production_cli_decodes_bedrock_surfaces_and_unavailable_runtime",
+    "line": 1
+  },
+  "input": {
+    "route": "GET /v1/allowlist",
+    "serializer": "AllowlistResponse",
+    "value": {
+      "serverType": "bedrock",
+      "entries": [
+        {"name": "Alex", "xuid": "123", "ignoresPlayerLimit": false}
+      ],
+      "runtime": {
+        "state": "available",
+        "backend": "native",
+        "hostOs": "linux",
+        "message": "Bedrock runtime is available."
+      }
+    }
+  },
+  "expected": {
+    "serverType": "bedrock",
+    "entries[0].xuid": "123",
+    "runtime.state": "available"
+  },
+  "notes": "The XUID is preserved as a string for the copied iOS allowlist model."
+}

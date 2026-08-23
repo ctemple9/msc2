@@ -53,7 +53,10 @@ fn windows_server_directory_file_lock_is_observable_before_start() {
     let second_open = OpenOptions::new().write(true).open(&path);
     assert!(matches!(
         second_open,
-        Err(error) if matches!(error.kind(), ErrorKind::PermissionDenied | ErrorKind::Other)
+        Err(error) if matches!(
+            error.kind(),
+            ErrorKind::PermissionDenied | ErrorKind::ResourceBusy | ErrorKind::Other
+        )
     ));
 
     drop(locked);

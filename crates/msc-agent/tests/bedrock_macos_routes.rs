@@ -15,7 +15,6 @@ use msc_application::bedrock_runtime::{
 use serde_json::{Value, json};
 use std::collections::VecDeque;
 use std::fs;
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -481,7 +480,7 @@ fn fresh_sidecar_runtime_reuses_host_directory_after_previous_vm_ends() {
         replacement.sidecar().directory_mapping().unwrap().tag,
         "world"
     );
-    let _ = fs::remove_dir_all(PathBuf::from(marker).parent().unwrap().parent().unwrap());
+    let _ = fs::remove_dir_all(marker.parent().unwrap().parent().unwrap());
 }
 
 #[test]

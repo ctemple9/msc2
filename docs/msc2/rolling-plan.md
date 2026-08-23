@@ -284,8 +284,8 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.15 — Exercise the Windows native runtime through the public contract
-**Status:** not started
-**Files:** `crates/msc-agent/tests/bedrock_windows_routes.rs`, `crates/msc-cli/tests/bedrock_windows.rs`, `tools/phase10/windows-smoke.ps1`, `docs/msc2/bedrock/evidence/`
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/bedrock_windows_routes.rs`, `crates/msc-agent/tests/bedrock_windows_cli.rs`, `tools/phase10/windows-smoke.ps1`, `docs/msc2/bedrock/evidence/`
 **What:** Exercise the same public lifecycle and unavailable-state contract on Windows, including a service-owned server surviving client exit and a failure that leaves no orphaned BDS process. Keep the smoke reproducible and separate an unavailable real BDS package from a passing fake-runtime test.
 **Verify:** `pwsh -File tools/phase10/windows-smoke.ps1 -Synthetic`
 **Commit:** `P10.15: prove Windows Bedrock public path`

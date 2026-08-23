@@ -399,3 +399,74 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Verify:** `python3 tools/phase10/phase10-check.py --gate && bash tools/phase10/phase10-smoke.sh --synthetic && cargo nextest run --workspace`
 **Commit:** `P10.28: check Bedrock runtime gate`
 **Batch:** solo
+
+## Phase 11 — Desktop and web clients
+
+**Gate** (`msc2-port-plan.md` §3): one Svelte frontend is delivered through
+both the Tauri desktop shell and the agent-served browser UI, built against
+the proven API while preserving MSC 1's information architecture and design
+language. `GET /v1/help/{helpId}` resolves the embedded handbook, concept, and
+router-guide content, and clients consume that contract rather than carrying
+their own divergent teaching text. UI completion never gates headless agent
+correctness.
+
+**Working exit criteria:** macOS, Windows, and Linux desktop builds and the
+browser load the same generated frontend bundle and expose every Phase
+11-owned capability that the connected agent advertises and the calling token
+permits. All client state is host-keyed, the current host and active server are
+always visible, reconnecting restores bounded console and operation state, and
+dangerous actions remain explicit. TypeScript DTOs are generated from
+`docs/msc2/api-contract/openapi.json`; no handwritten mirror DTOs are allowed.
+The agent serves the same static bundle plus embedded educational content, and
+the Desktop/Web column of `client-capability-matrix.csv` is updated with every
+surface rather than filled in retrospectively. Browser cookie auth and Tauri
+local/remote auth close Phase 11's remaining D-012 scope without weakening
+Phase 9's loopback-by-default, explicit-Tailscale-only posture. Linux proof
+must launch the real Tauri binary through WebKitGTK under a display server and
+interact with it; a Chromium-only browser run is not Linux desktop evidence.
+
+**Extensibility boundary:** navigation and routing are a registry of section
+descriptors keyed by stable strings and capability predicates, not a closed
+enum, exhaustive switch, or fixed tab array. The route families
+`/hosts/:hostId/servers/:serverId/bedrock/*` and
+`/hosts/:hostId/servers/:serverId/profiles/*` are reserved without shipping
+either screen. A later Bedrock client group registers its sections only when
+`GET /v1/capabilities` advertises the Phase 10 backend; it never infers support
+from the host OS or client build. A later player-profiles phase must first port
+the ledgered agent workflows (profile loads, Mojang/Floodgate resolution,
+manual Bedrock identification, UUID migration/data mutation, hidden profiles,
+and skin storage/serving), extend the public contract and capability response,
+regenerate TypeScript, then register its section. Phase 11's registry,
+host/server-scoped route parameters, lazy section loading, permission filters,
+and unknown-capability tolerance are the seam that later phase consumes; none
+of that work should require replacing Phase 11 navigation.
+
+**Parallel execution rule:** the first group below is completely independent
+of Phase 10 and may execute while Phase 10 owns `crates/`. It uses only the
+already-frozen Phase 2 contract and client/test/document trees, keeps the Tauri
+crate standalone from the root Cargo workspace, and does not edit
+`.github/workflows/ci.yml`. Every later group is explicitly blocked until
+Phase 10 closes because it either consumes Phase 10's final additive contract,
+touches `crates/`, changes shared CI/packaging, or relies on the exact Phase 10
+candidate. Never continue a batch after a failed Verify.
+
+**Owner choices confirmed during PLAN (2026-08-22):** general-LAN management
+remains unavailable for v1. Browser management stays on loopback or an
+explicitly configured Tailscale path, and Tailscale never replaces
+authentication or permission checks; Phase 11 does not build a local
+certificate authority or ask users to bypass browser certificate warnings.
+On macOS and Windows, MSC may download and verify a coordinated desktop,
+agent, and compatible sidecar update, but it asks before installation; it does
+not silently install automatically. Linux update installation remains owned by
+the package manager, with MSC limited to an actionable availability notice.
+
+### Group A — Phase 10-independent client foundation and Java surfaces (may execute before Phase 10 closes)
+
+### P11.1 — Scope the client rebuild from the iOS oracle and capability matrix
+**Status:** awaiting verification
+**Files:** `docs/msc2/clients/phase11-scope.md`, `docs/msc2/audit/msc2-symbol-ledger.csv`, `tools/phase11/scope-check.py`, `docs/msc2/rolling-plan.md`
+**What:** Read all 53 copied iOS client files as the primary behavioral and screen-structure reference, then use the MSC 1 macOS views only for the desktop information architecture and visual language. Map every current OpenAPI/WebSocket operation and matrix row to a Phase 11 screen, shared infrastructure, honest future state, or explicitly out-of-scope agent gap. Record the D-003 same-screen rule, D-013 host scoping, D-023 matrix-update rule, D-026 help ownership, D-021 client resource bounds, and the exact Bedrock/player-profile extensibility handoffs above. Do not assign the player-profile agent rows to Phase 11 merely because their old DTOs remain in the frozen baseline.
+**Verify:** `python3 tools/phase11/scope-check.py docs/msc2/clients/phase11-scope.md docs/msc2/client-capability-matrix.csv`
+**Commit:** `P11.1: scope desktop and web clients`
+**Batch:** solo
+

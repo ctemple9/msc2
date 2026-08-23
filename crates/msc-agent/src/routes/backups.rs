@@ -28,6 +28,7 @@ use msc_infrastructure::world_store;
 
 use crate::auth::AuthenticatedCredential;
 use crate::backup_scheduler::BackupScheduler;
+use crate::routes::bedrock::{require_runtime, runtime_for};
 use crate::routes::lifecycle::{
     LifecycleRoutesState, ReconciliationStatus, error_response, invalid_body,
     reconciliation_degraded_response, require_permission,
@@ -172,7 +173,7 @@ pub async fn list(State(state): State<BackupsRoutesState>) -> Response {
     let entries = backups::list_backups(&StdFileSystem, Path::new(&server.server_dir));
     Json(BackupsResponseDto {
         backups: entries.iter().map(to_item_dto).collect(),
-        runtime: None,
+        runtime: runtime_for(&state.lifecycle),
     })
     .into_response()
 }
@@ -186,7 +187,7 @@ pub async fn get_config(State(state): State<BackupsRoutesState>) -> Response {
             auto_backup_max_count: 10,
             interval_options: INTERVAL_OPTIONS_MINUTES.to_vec(),
             note: Some("no_active_server".to_string()),
-            runtime: None,
+            runtime: runtime_for(&state.lifecycle),
         })
         .into_response();
     };
@@ -197,7 +198,7 @@ pub async fn get_config(State(state): State<BackupsRoutesState>) -> Response {
         auto_backup_max_count: server.auto_backup_max_count,
         interval_options: INTERVAL_OPTIONS_MINUTES.to_vec(),
         note: None,
-        runtime: None,
+        runtime: runtime_for(&state.lifecycle),
     })
     .into_response()
 }
@@ -247,9 +248,9 @@ pub async fn update_config(
                     auto_backup_max_count: updated.auto_backup_max_count,
                     interval_options: INTERVAL_OPTIONS_MINUTES.to_vec(),
                     note: None,
-                    runtime: None,
+                    runtime: runtime_for(&state.lifecycle),
                 }),
-                runtime: None,
+                runtime: runtime_for(&state.lifecycle),
             })
             .into_response()
         }
@@ -273,6 +274,9 @@ pub async fn now(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
+    if let Some(response) = require_runtime(&lifecycle) {
+        return response;
+    }
     let server = match active_server_or_response(&lifecycle) {
         Ok(server) => server,
         Err(response) => return response,
@@ -292,7 +296,7 @@ pub async fn now(
     let response = Json(BackupNowResultDto {
         result: "backup_started".to_string(),
         operation_id: Some(operation_id.as_str().to_string()),
-        runtime: None,
+        runtime: runtime_for(&lifecycle),
     })
     .into_response();
     audit(
@@ -339,11 +343,12 @@ pub async fn restore(
     // needed to observe them); missing-source is re-checked inside
     // `restore_backup` itself and surfaces from there.
     if server.server_type == ServerType::Bedrock {
-        return error_response(
+        let runtime = runtime_for(&lifecycle).expect("Bedrock server has runtime disclosure");
+        return (
             StatusCode::CONFLICT,
-            "capability_unavailable",
-            "Live-world restore is currently supported for Java servers only.",
-        );
+            Json(runtime.capability_unavailable_error()),
+        )
+            .into_response();
     }
     let running = lifecycle.status_snapshot().running;
     if running {
@@ -443,7 +448,7 @@ pub async fn restore(
     let response = Json(BackupRestoreResultDto {
         result: "restore_started".to_string(),
         operation_id: Some(operation_id.as_str().to_string()),
-        runtime: None,
+        runtime: runtime_for(&lifecycle),
     })
     .into_response();
     audit(
@@ -502,7 +507,7 @@ pub async fn delete(
             result: "deleted".to_string(),
             active_server_id: None,
             operation_id: None,
-            runtime: None,
+            runtime: runtime_for(&lifecycle),
         })
         .into_response(),
         Err(error) => error_response(

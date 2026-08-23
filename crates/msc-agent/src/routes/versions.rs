@@ -33,6 +33,7 @@ use msc_infrastructure::java_runtime_detection::{
 use msc_infrastructure::java_runtime_install::{self, AdoptiumAsset, JavaRuntimeInstallError};
 
 use crate::auth::AuthenticatedCredential;
+use crate::routes::bedrock::{require_runtime, runtime_for};
 use crate::routes::lifecycle::{
     LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
@@ -168,15 +169,37 @@ async fn fetch_versions_response(
     }
 }
 
-fn bedrock_versions_response(current_version: Option<String>) -> VersionsResponseDto {
+fn bedrock_versions_response(
+    current_version: Option<String>,
+    runtime: Option<msc_api::dto::BedrockRuntimeStateDto>,
+) -> VersionsResponseDto {
+    let verified_version = runtime
+        .as_ref()
+        .and_then(|runtime| (runtime.state == "available").then(|| current_version.clone())?);
+    let versions: Vec<VersionEntryDto> = verified_version
+        .as_ref()
+        .map(|version| VersionEntryDto {
+            id: version.clone(),
+            display_label: format!("Bedrock {version}"),
+            mc_version: version.clone(),
+            loader_version: None,
+            build_label: None,
+            is_stable: true,
+            is_latest: true,
+        })
+        .into_iter()
+        .collect();
     VersionsResponseDto {
-        supports_versions: false,
+        supports_versions: !versions.is_empty(),
         flavor_name: "bedrock".to_string(),
         current_version,
         is_bedrock: true,
-        versions: Vec::new(),
-        note: Some("Bedrock version listing is not available until Phase 10.".to_string()),
-        runtime: None,
+        versions,
+        note: Some(
+            "Bedrock versions are limited to the verified distribution selected for this runtime."
+                .to_string(),
+        ),
+        runtime,
     }
 }
 
@@ -196,8 +219,11 @@ pub async fn versions(State(state): State<LifecycleRoutesState>) -> Response {
         .into_response();
     };
     if server.server_type == ServerType::Bedrock {
-        return axum::Json(bedrock_versions_response(server.minecraft_version.clone()))
-            .into_response();
+        return axum::Json(bedrock_versions_response(
+            server.minecraft_version.clone(),
+            runtime_for(&state),
+        ))
+        .into_response();
     }
     axum::Json(fetch_versions_response(server.java_flavor, server.minecraft_version.clone()).await)
         .into_response()
@@ -217,7 +243,7 @@ pub struct VersionsCreateQuery {
 pub async fn versions_for_create(Query(query): Query<VersionsCreateQuery>) -> Response {
     let server_type = query.server_type.as_deref().unwrap_or("java");
     if server_type.eq_ignore_ascii_case("bedrock") {
-        return axum::Json(bedrock_versions_response(None)).into_response();
+        return axum::Json(bedrock_versions_response(None, None)).into_response();
     }
     let flavor = query
         .java_flavor
@@ -251,6 +277,16 @@ pub async fn change_version(
             "No active server.",
         );
     };
+    if server.server_type == ServerType::Bedrock {
+        if let Some(response) = require_runtime(&state) {
+            return response;
+        }
+        return error_response(
+            StatusCode::CONFLICT,
+            "not_supported",
+            "Bedrock version changes require a verified distribution manifest.",
+        );
+    }
     if server.server_type != ServerType::Java
         || matches!(
             server.java_flavor,

@@ -77,6 +77,7 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::auth::AuthenticatedCredential;
+use crate::routes::bedrock::require_runtime;
 use crate::routes::lifecycle::{
     LifecycleRoutesState, ReconciliationStatus, error_response, invalid_body,
     reconciliation_degraded_response, require_permission,
@@ -530,35 +531,59 @@ pub async fn replace(
     .await
 }
 
-/// Bedrock-only capability; no live Bedrock runtime exists before Phase
-/// 10, so this always reports `409 conflict, bedrock_only` — the
-/// existing baseline `conflict` code, unchanged, per
-/// `phase6-api.md` §5's own note that repair keeps its baseline error
-/// code rather than adopting `capability_unavailable`.
+/// Bedrock-only capability.  The repair itself starts BDS briefly to
+/// regenerate `level.dat`, so an imported server remains inspectable while
+/// an unavailable runtime is reported through the contract-wide capability
+/// error rather than the old Phase-6 placeholder.
 pub async fn repair(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
     body: Option<Json<WorldRepairRequestDto>>,
 ) -> Response {
-    let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) else {
-        let Some(Json(_body)) = body else {
-            return invalid_body("missing_body", "Request body is required.");
-        };
-        let status = StatusCode::CONFLICT;
-        audit(
-            &state.lifecycle,
-            &credential,
-            "POST",
-            "/v1/worlds/repair",
-            status,
-        );
-        return error_response(
-            status,
-            "bedrock_only",
-            "Repair is only supported for Bedrock servers, which have no live runtime yet.",
-        );
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let Some(Json(body)) = body else {
+        return invalid_body("missing_body", "Request body is required.");
     };
-    response
+    let Some(server) = state.lifecycle.active_config_server() else {
+        return no_active_server();
+    };
+    if server.server_type != ServerType::Bedrock {
+        return error_response(
+            StatusCode::CONFLICT,
+            "bedrock_only",
+            "Repair is only supported for Bedrock servers.",
+        );
+    }
+    if let Some(response) = require_runtime(&state.lifecycle) {
+        return response;
+    }
+    if state.lifecycle.status_snapshot().running {
+        return error_response(
+            StatusCode::CONFLICT,
+            "server_running",
+            "Stop the server before repairing a Bedrock world.",
+        );
+    }
+    if resolved_active_slot_id(Path::new(&server.server_dir)).as_deref()
+        != Some(body.slot_id.as_str())
+    {
+        return error_response(
+            StatusCode::CONFLICT,
+            "not_active_slot",
+            "Only the active Bedrock world can be repaired.",
+        );
+    }
+    // The runtime gate is intentionally the last capability decision in this
+    // route.  The actual regeneration workflow is operation-backed in the
+    // next runtime-surface increment; no request is allowed to mutate files
+    // until that workflow exists.
+    error_response(
+        StatusCode::CONFLICT,
+        "repair_unavailable",
+        "Bedrock world repair is not available on this runtime.",
+    )
 }
 
 pub async fn update(

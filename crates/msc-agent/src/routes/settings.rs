@@ -35,6 +35,7 @@ use msc_infrastructure::atomic_write::atomic_write;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 
 use crate::auth::AuthenticatedCredential;
+use crate::routes::bedrock::runtime_for;
 use crate::routes::lifecycle::{
     LifecycleRoutesState, error_response, invalid_body, require_permission,
 };
@@ -87,7 +88,7 @@ fn build_settings_response(
             editable: false,
             sections: Vec::new(),
             note: Some("no_active_server".to_string()),
-            runtime: None,
+            runtime: runtime_for(state),
         };
     };
 
@@ -99,7 +100,7 @@ fn build_settings_response(
             editable: false,
             sections: Vec::new(),
             note: Some("no_active_server".to_string()),
-            runtime: None,
+            runtime: runtime_for(state),
         };
     };
     if server.server_type == msc_domain::identity::ServerType::Bedrock {
@@ -111,7 +112,7 @@ fn build_settings_response(
             editable: true,
             sections: bedrock_sections(&settings.model),
             note: None,
-            runtime: None,
+            runtime: runtime_for(state),
         };
     }
     let model = load_properties_model(fs, Path::new(&directory));
@@ -165,7 +166,7 @@ fn apply_settings_update(
                         .collect(),
                 ),
                 sections: Some(bedrock_sections(&result.settings.model)),
-                runtime: None,
+                runtime: runtime_for(state),
             })
             .into_response(),
             Ok(result) => Json(SettingsUpdateResultDto {
@@ -188,7 +189,7 @@ fn apply_settings_update(
                         .collect()
                 }),
                 sections: Some(bedrock_sections(&result.settings.model)),
-                runtime: None,
+                runtime: runtime_for(state),
             })
             .into_response(),
             Err(error) => error_response(

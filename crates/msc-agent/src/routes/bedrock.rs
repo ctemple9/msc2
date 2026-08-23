@@ -21,6 +21,24 @@ use crate::routes::lifecycle::{
     LifecycleRoutesState, error_response, invalid_body, require_permission,
 };
 
+pub(crate) fn runtime_for(state: &LifecycleRoutesState) -> Option<BedrockRuntimeStateDto> {
+    state
+        .active_config_server()
+        .filter(|server| server.server_type == msc_domain::identity::ServerType::Bedrock)
+        .map(|_| state.bedrock_runtime_state())
+}
+
+pub(crate) fn require_runtime(state: &LifecycleRoutesState) -> Option<Response> {
+    let runtime = runtime_for(state)?;
+    (runtime.state != "available").then(|| {
+        (
+            StatusCode::CONFLICT,
+            Json(runtime.capability_unavailable_error()),
+        )
+            .into_response()
+    })
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PlayerDto {
@@ -82,7 +100,7 @@ pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
             players: Vec::new(),
             count: 0,
             note: Some("no_active_server".to_owned()),
-            runtime: None,
+            runtime: runtime_for(&state),
         })
         .into_response();
     };
@@ -118,7 +136,7 @@ pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
                 })
                 .collect(),
             note: None,
-            runtime: None,
+            runtime: runtime_for(&state),
         })
         .into_response(),
         Err(error) => error_response(
@@ -151,7 +169,7 @@ pub async fn get_allowlist(State(state): State<LifecycleRoutesState>) -> Respons
     Json(AllowlistResponse {
         server_type: "bedrock".to_owned(),
         entries: to_allowlist_dtos(entries),
-        runtime: None,
+        runtime: runtime_for(&state),
     })
     .into_response()
 }
@@ -178,6 +196,9 @@ pub async fn mutate_allowlist(
             "The active server is not Bedrock.",
         );
     }
+    // The file-backed allowlist remains editable while BDS is unavailable;
+    // the next start reads the same durable file.  Live-dependent Bedrock
+    // operations use `require_runtime` at their route boundary instead.
     let Json(body) = match body {
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
@@ -199,7 +220,7 @@ pub async fn mutate_allowlist(
             message: action,
             server_type: "bedrock".to_owned(),
             entries: to_allowlist_dtos(entries),
-            runtime: None,
+            runtime: runtime_for(&state),
         })
         .into_response(),
         Err(error) => error_response(

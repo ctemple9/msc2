@@ -3,7 +3,7 @@
   "info": {
     "title": "MSC 2 v1 API contract",
     "version": "v1",
-    "description": "The versioned HTTP contract MSC 2's skeletal agent (Phase 2) and every later phase implement against. Assembled per docs/msc2/rolling-plan.md P2.8 from the P0.23/P0.30/P0.32 MSC 1 baseline (docs/msc2/api-baseline/openapi.json) plus this phase's own designs: the /v1/ namespace and ErrorDTO envelope (P2.4, versioning-and-errors.md), the operation routes and OperationDTO (P2.5, operation-model.md), the capabilities route (P2.6, capability-model.md), helpId placement (P2.2, helpid-contract.md), and the permission-category annotation on every route (P2.1, permission-vocabulary.csv). The console and operation-progress WebSocket channels (P2.7) are documented separately in docs/msc2/api-contract/websocket-v1.json, matching the baseline's own precedent (P0.24) of keeping WS channels out of the OpenAPI paths object. Everything sourced from P2.4/P2.5/P2.6/P2.2's own documents carries their Proposed/Confirmed status forward -- this file does not itself promote anything to Approved."
+    "description": "The versioned HTTP contract MSC 2's skeletal agent (Phase 2) and every later phase implement against. Assembled per docs/msc2/rolling-plan.md P2.8 from the P0.23/P0.30/P0.32 MSC 1 baseline (docs/msc2/api-baseline/openapi.json) plus this phase's own designs: the /v1/ namespace and ErrorDTO envelope (P2.4, versioning-and-errors.md), the operation routes and OperationDTO (P2.5, operation-model.md), the capabilities route (P2.6, capability-model.md), helpId placement (P2.2, helpid-contract.md), and the permission-category annotation on every route (P2.1, permission-vocabulary.csv). Phase 10 extends the shared routes additively for Bedrock runtime state, without adding a parallel /v1/bedrock route family. The console and operation-progress WebSocket channels (P2.7) are documented separately in docs/msc2/api-contract/websocket-v1.json, matching the baseline's own precedent (P0.24) of keeping WS channels out of the OpenAPI paths object. Everything sourced from P2.4/P2.5/P2.6/P2.2's own documents carries their Proposed/Confirmed status forward -- this file does not itself promote anything to Approved."
   },
   "paths": {
     "/v1/servers/create": {
@@ -2592,9 +2592,21 @@
               }
             },
             "x-error-code": "invalid_body"
+          },
+          "409": {
+            "description": "capability_unavailable when a Bedrock runtime cannot supply the command",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "capability_unavailable"
           }
         },
-        "x-permission-category": "serverControl"
+        "x-permission-category": "serverControl",
+        "x-notes": "Shared command route. For Bedrock, one leading slash is stripped; allowlist/save/operator commands are translated to Bedrock files and commands behind this route."
       }
     },
     "/v1/start": {
@@ -2610,9 +2622,21 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "capability_unavailable when the selected Bedrock runtime cannot start",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "capability_unavailable"
           }
         },
-        "x-permission-category": "serverControl"
+        "x-permission-category": "serverControl",
+        "x-notes": "The shared start route selects native Linux/Windows BDS or the Intel-macOS Swift sidecar from the reconciled runtime state."
       }
     },
     "/v1/stop": {
@@ -2628,9 +2652,21 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "capability_unavailable when the selected Bedrock runtime cannot stop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "capability_unavailable"
           }
         },
-        "x-permission-category": "serverControl"
+        "x-permission-category": "serverControl",
+        "x-notes": "Stop uses the shared graceful-then-forced lifecycle policy; once graceful termination begins, the associated operation is not cancelable."
       }
     },
     "/v1/allowlist": {
@@ -4801,7 +4837,8 @@
             "type": "boolean"
           },
           "bedrockVersion": {
-            "type": "string"
+            "type": "string",
+            "description": "Requested BDS release for serverType=bedrock. The agent resolves and verifies the platform-appropriate distribution entry."
           },
           "dockerImage": {
             "type": "string"
@@ -4842,6 +4879,10 @@
             "items": {
               "type": "string"
             }
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state. Older clients may ignore this additive field."
           }
         },
         "required": [
@@ -5452,6 +5493,10 @@
           "operationId": {
             "type": "string",
             "description": "Phase 7 addition (P7.9): operation id for progress polling or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, same pattern as ServerCreateResultDTO.operationId."
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state after a version request."
           }
         },
         "required": [
@@ -6420,6 +6465,10 @@
           },
           "command": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state for a Bedrock command result."
           }
         },
         "required": [
@@ -6439,6 +6488,10 @@
           "operationId": {
             "type": "string",
             "description": "Phase 4 lifecycle operation id for progress polling or /v1/operations/{id}/stream; optional so older clients can ignore it."
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state associated with the lifecycle request."
           }
         },
         "required": [
@@ -6474,6 +6527,10 @@
             "items": {
               "$ref": "#/components/schemas/AllowlistEntryDTO"
             }
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state; file reads may remain available while the runtime is unavailable."
           }
         },
         "required": [
@@ -6513,6 +6570,9 @@
             "items": {
               "$ref": "#/components/schemas/AllowlistEntryDTO"
             }
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO"
           }
         },
         "required": [
@@ -6550,6 +6610,10 @@
           },
           "note": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state for the player data source."
           }
         },
         "required": [
@@ -7016,6 +7080,10 @@
           },
           "hostAddress": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional current Bedrock runtime state for an imported or created server."
           }
         },
         "required": [
@@ -7045,6 +7113,10 @@
           },
           "dockerContainerStatus": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state for the active Bedrock server."
           }
         },
         "required": [
@@ -7077,6 +7149,10 @@
           },
           "serverType": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state for this performance source."
           }
         },
         "required": [
@@ -7638,6 +7714,10 @@
           },
           "note": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state."
           }
         },
         "required": [
@@ -8102,6 +8182,10 @@
           },
           "note": {
             "type": "string"
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional runtime state; settings can be readable before a runtime is runnable."
           }
         },
         "required": [
@@ -8170,6 +8254,10 @@
             "items": {
               "$ref": "#/components/schemas/SettingsSectionDTO"
             }
+          },
+          "runtime": {
+            "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+            "description": "Optional Bedrock runtime state after settings are applied."
           }
         },
         "required": [
@@ -8212,6 +8300,67 @@
           "message"
         ]
       },
+      "BedrockRuntimeStateDTO": {
+        "type": "object",
+        "description": "Phase 10 runtime disclosure shared by existing v1 DTOs. It describes the current Bedrock backend state, not the separate published compatibility matrix.",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "available",
+              "provisioning_required",
+              "unavailable"
+            ]
+          },
+          "backend": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "native",
+              "vz-sidecar",
+              null
+            ]
+          },
+          "hostOs": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "macos",
+              "linux",
+              "windows",
+              null
+            ]
+          },
+          "reasonCode": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "no_test_hardware",
+              "unsupported_host",
+              "missing_sidecar",
+              "missing_bds",
+              "not_provisioned",
+              "verification_failed",
+              "port_unavailable",
+              "sidecar_unavailable",
+              "not_detected",
+              null
+            ]
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "helpId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional educational topic for the runtime reason."
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
       "ErrorDTO": {
         "type": "object",
         "description": "One error envelope for every non-2xx response across every /v1/ route (P2.4 SS5-6, a D-006-point-3 correction unifying the baseline's split Error/typed-DTO failure pattern).",
@@ -8232,7 +8381,29 @@
           "details": {
             "type": "object",
             "nullable": true,
-            "description": "Optional free-form structured context."
+            "description": "Optional free-form structured context. Bedrock capability_unavailable responses use the listed fields when present.",
+            "properties": {
+              "capability": {
+                "type": "string"
+              },
+              "serverType": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string"
+              },
+              "backend": {
+                "type": "string",
+                "nullable": true
+              },
+              "reasonCode": {
+                "type": "string"
+              },
+              "hostOs": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": true
           }
         },
         "required": [
@@ -8291,6 +8462,10 @@
             "type": "string",
             "nullable": true,
             "description": "Human-readable, meant for direct display."
+          },
+          "cancelable": {
+            "type": "boolean",
+            "description": "Optional additive disclosure. False once a stop operation has entered graceful termination or another operation-specific non-cancelable boundary."
           },
           "result": {
             "type": "object",
@@ -8402,6 +8577,10 @@
                       "vz-sidecar",
                       null
                     ]
+                  },
+                  "runtime": {
+                    "$ref": "#/components/schemas/BedrockRuntimeStateDTO",
+                    "description": "Authoritative current runtime state; supported/backend remain for older clients."
                   }
                 },
                 "required": [
@@ -8418,7 +8597,7 @@
               "neoforge",
               "bedrock"
             ],
-            "description": "Placeholder this phase (P2.6 SS3) -- real per-flavor detection is Phase 4/10 work."
+            "description": "Java flags and Bedrock runtime state are host capabilities. Bedrock uses the separate D-022 compatibility matrix for published evidence."
           },
           "helpers": {
             "type": "object",

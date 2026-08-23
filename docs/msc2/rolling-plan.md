@@ -208,7 +208,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.6 — Freeze the Bedrock API, operation, and capability contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/bedrock/phase10-api.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/websocket-v1.json`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-api/tests/phase10_conformance.rs`
 **What:** Reconcile the frozen `/v1` baseline with Bedrock creation, lifecycle, settings, players, allowlist, permissions, metrics, logs, version changes, and runtime-unavailable states. Define additive DTO fields, permission categories, operation/cancellation semantics, error/help behavior, and platform capability disclosure before application code exists; do not add a Java-shaped route where a shared route already has a compatible home.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run -p msc-api --test phase10_conformance`

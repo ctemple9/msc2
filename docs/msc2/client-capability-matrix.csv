@@ -1,8 +1,8 @@
 method,path,operation_id,msc1_capability,permission_category,agent_status,desktop_web_status,ios_status,cli_status,notes
 POST,/v1/active-server,,Select which registered server is active,serverControl,Implemented,Planned,Implemented,Implemented,
 GET,/v1/addons,,Installed add-ons (mods/plugins) with update status,none,Implemented,Planned,Implemented,Implemented,P8.9: note field added for honest provider-unavailable reporting (phase8-api.md SS4)
-GET,/v1/allowlist,,Get the Bedrock allowlist,none,Planned,Planned,Planned,Planned,
-POST,/v1/allowlist,,Add or remove a Bedrock allowlist entry,players,Planned,Planned,Planned,Planned,
+GET,/v1/allowlist,,Get the Bedrock allowlist,none,Planned,Planned,Planned,Planned,"P10.6: shared route; additive runtime state distinguishes readable allowlist.json from an unavailable BDS runtime"
+POST,/v1/allowlist,,Add or remove a Bedrock allowlist entry,players,Planned,Planned,Planned,Planned,"P10.6: shared route; Bedrock writes allowlist.json and reports capability_unavailable through ErrorDTO when live runtime support is required"
 GET,/v1/backups,,Backups available for the active server,none,Implemented,Planned,Implemented,Implemented,
 GET,/v1/backups/config,,Get auto-backup configuration,none,Implemented,Planned,Implemented,Implemented,
 POST,/v1/backups/config,,Update auto-backup configuration,settings,Implemented,Planned,Implemented,Implemented,
@@ -22,7 +22,7 @@ GET,/v1/broadcast/status,,Get Xbox/Bedrock broadcast running status,none,Impleme
 POST,/v1/broadcast/stop,,Stop Xbox broadcast,broadcast,Implemented,Planned,Planned,Implemented,
 GET,/v1/capabilities,,Report agent capabilities for this host and this token,none,Implemented,Planned,Implemented,Implemented,
 GET,/v1/catalog/search,,"Search the Modrinth add-on catalog for the active server (query params q, offset)",none,Implemented,Planned,Implemented,Implemented,
-POST,/v1/command,,Send a console command to the active server,serverControl,Implemented,Planned,Implemented,Implemented,
+POST,/v1/command,,Send a console command to the active server,serverControl,Implemented,Planned,Implemented,Implemented,"P10.6: shared command route; Bedrock strips one leading slash and translates allowlist/save/operator behavior behind the same API"
 GET,/v1/components,,Installed system components (Paper/Geyser/Floodgate/flavor jar) and update status,none,Implemented,Planned,Implemented,Planned,"P9.10: Geyser/Floodgate detection reports installed helpers and explicitly marks their update information unavailable; CLI has no dedicated system-components inventory command yet"
 GET,/v1/components/client-export,,"Package selected components/add-ons for client-side install (query param selected, comma-separated ids)",none,Implemented,Planned,Implemented,Implemented,"P8.9 correction: zipBase64 removed (never shipped), stagedDownloadId added for exportKind=zip -- avoids ~33% base64 overhead on a modded pack's export (phase8-api.md SS2)"
 POST,/v1/components/install,,Install an add-on from the Modrinth catalog into the active server,addons,Implemented,Planned,Implemented,Implemented,"P8.9: async correction, 202+operationId, stagedUploadId local-JAR-install shape, installedDependencies (phase8-api.md SS2/SS4)"
@@ -38,7 +38,7 @@ POST,/v1/config/ram,,Update the active server's RAM allocation,settings,Implemen
 GET,/v1/connectivity,,"Reachability summary: join address, method, playit/broadcast status",none,Implemented,Planned,Planned,Implemented,
 WS,/v1/console/stream,,console channel,none,Implemented,Planned,Implemented,Planned,"P0.24 baseline channel, versioned path (P2.7)"
 WS,/v1/notifications/stream,,Server/player and helper/connectivity notification feed,none,Implemented,Planned,Planned,Planned,"P9.13 read-only history/live channel; native notification presentation remains client-owned"
-GET,/v1/console/tail,,"Last N console lines (query param n, default 200, clamped 1-2000)",none,Implemented,Planned,Implemented,Implemented,cli: `msc console tail`
+GET,/v1/console/tail,,"Last N console lines (query param n, default 200, clamped 1-2000)",none,Implemented,Planned,Implemented,Implemented,"cli: `msc console tail`; P10.6: Bedrock console-to-log mirroring uses this shared bounded log surface"
 GET,/v1/duckdns,,Get the configured DuckDNS hostname,none,Implemented,Planned,Planned,Implemented,
 POST,/v1/duckdns,,Update the DuckDNS hostname,settings,Implemented,Planned,Planned,Implemented,
 GET,/v1/files,,Browse the active server's directory (admin-only; query param path). 409 reuses the same shape with note=no_active_server.,admin,Planned,Planned,Planned,Planned,
@@ -57,8 +57,8 @@ POST,/v1/operations,,Create a long-running operation,serverControl,Implemented,P
 GET,/v1/operations/{id},,Read an operation's current state,none,Implemented,Planned,Implemented,Implemented,"iOS and CLI poll durable world, backup, conversion, and import operations"
 POST,/v1/operations/{id}/cancel,,Request cancellation of an operation,serverControl,Implemented,Planned,Implemented,Implemented,"iOS conversion UI and CLI polling request cooperative cancellation"
 WS,/v1/operations/{id}/stream,,operation-progress channel,none,Implemented,Planned,Planned,Planned,no MSC 1 equivalent (operation-model.md SS1)
-GET,/v1/performance,,"Latest performance snapshot (TPS, players, CPU, RAM, world size)",none,Implemented,Planned,Implemented,Planned,
-GET,/v1/players,,List currently-online players,none,Planned,Planned,Planned,Planned,
+GET,/v1/performance,,"Latest performance snapshot (TPS, players, CPU, RAM, world size)",none,Implemented,Planned,Implemented,Planned,"P10.6: shared metric DTO; native process stats and sidecar [MSCSTATS] stay backend-private"
+GET,/v1/players,,List currently-online players,none,Planned,Planned,Planned,Planned,"P10.6: shared player route; Bedrock XUIDs and runtime state are additive"
 POST,/v1/players/hidden,,Hide or unhide a player profile,players,Planned,Planned,Planned,Planned,
 GET,/v1/players/profiles,,List all-time player profiles with stats,none,Planned,Planned,Planned,Planned,
 POST,/v1/players/skin-override,,Set or clear a manual skin lookup override for a player,players,Planned,Planned,Planned,Planned,
@@ -78,21 +78,21 @@ POST,/v1/servers/eula,,Accept the Minecraft EULA for a server,fleet,Implemented,
 POST,/v1/servers/import,,"Scan, import, or rescan existing servers",fleet,Implemented,Planned,Implemented,Implemented,"P6.46: copied iOS follows accepted raw/ZIP and transfer imports to their durable terminal result"
 POST,/v1/servers/rename,,Rename a server,fleet,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift already wired against RemoteAPIClient.renameServer; no shape mismatch found"
 GET,/v1/session-log,,Join/leave event history for the active server,none,Planned,Planned,Planned,Planned,
-GET,/v1/settings,,"Typed server.properties schema for the active server, as sections of fields",none,Implemented,Planned,Planned,Implemented,
-POST,/v1/settings,,"Apply a sparse set of settings changes (key -> string value), validated and clamped per field",settings,Implemented,Planned,Planned,Implemented,
+GET,/v1/settings,,"Typed server.properties schema for the active server, as sections of fields",none,Implemented,Planned,Planned,Implemented,"P10.6: same settings route covers Bedrock server.properties; raw unknown-key preservation stays below the API validation layer"
+POST,/v1/settings,,"Apply a sparse set of settings changes (key -> string value), validated and clamped per field",settings,Implemented,Planned,Planned,Implemented,"P10.6: Bedrock settings use additive runtime state and retain the shared validation/error envelope"
 GET,/v1/staged-downloads/{id},downloadStagedBytes,Download bytes from a previously prepared staged export,worlds,Implemented,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
 POST,/v1/staged-uploads,beginStagedUpload,Begin a bounded staged upload,none,Implemented,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4). P8.9 correction: x-permission-category worlds -> none, three new purposes added (phase8-api.md SS5) -- the real route still enforces worlds until P8.13/P8.14/P8.20 update it."
 PUT,/v1/staged-uploads/{id},uploadStagedBytes,Upload bytes into a previously begun staging slot,none,Implemented,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4). P8.9 correction: x-permission-category worlds -> none (phase8-api.md SS5) -- the real route still enforces worlds until P8.13/P8.14/P8.20 update it."
-POST,/v1/start,,Start the active server,serverControl,Implemented,Planned,Implemented,Implemented,
-GET,/v1/status,,"Current run status (active server, pid, running state)",none,Implemented,Planned,Implemented,Implemented,
-POST,/v1/stop,,Stop the active server,serverControl,Implemented,Planned,Implemented,Implemented,
+POST,/v1/start,,Start the active server,serverControl,Implemented,Planned,Implemented,Implemented,"P10.6: shared lifecycle route selects native BDS or Intel-macOS sidecar from reconciled runtime state"
+GET,/v1/status,,"Current run status (active server, pid, running state)",none,Implemented,Planned,Implemented,Implemented,"P10.6: additive Bedrock runtime state distinguishes imported/configured from runnable"
+POST,/v1/stop,,Stop the active server,serverControl,Implemented,Planned,Implemented,Implemented,"P10.6: shared graceful-then-forced stop semantics; sidecar details stay private"
 GET,/v1/templates,,List available Paper/plugin templates,none,Implemented,Planned,Planned,Implemented,"iOS has no Templates screen at all yet (not one of the copied MSC 1 screens this phase's own scope names) -- CLI (msc template list/export/create) is the only P7.25/26 client surface"
 POST,/v1/templates,,"Export the active server as a template, or create a server from one",fleet,Implemented,Planned,Planned,Implemented,"iOS has no Templates screen at all yet -- see GET /v1/templates' own note"
 GET,/v1/users,,List named-access users,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; admin-only durable registry read
 POST,/v1/users,,Create a named-access user,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; raw token is returned only on this one-time create response
 POST,/v1/users/revoke,,Revoke a named-access user,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; revocation is durable and restart-safe
 POST,/v1/users/update,,Update a named-access user's label/role/permissions/expiry,admin,Implemented,Planned,Planned,Planned,P9.12 route mounted; raw bearer is never returned
-GET,/v1/versions,,Available server JAR versions for the active server's flavor,none,Implemented,Planned,Implemented,Implemented,"iOS: ServerVersionView.swift already wired against RemoteAPIClient.getVersions; no shape mismatch found"
+GET,/v1/versions,,Available server JAR versions for the active server's flavor,none,Implemented,Planned,Implemented,Implemented,"iOS: ServerVersionView.swift already wired against RemoteAPIClient.getVersions; P10.6: Bedrock uses verified BDS manifest provenance through this shared route"
 GET,/v1/versions/create,,"Available versions for the create-server flow (query params serverType, javaFlavor)",none,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift's create-server flow already wired against RemoteAPIClient.getCreateVersions; no shape mismatch found"
 POST,/v1/watchdog/disable,,Disable the watchdog,settings,Planned,Planned,Planned,Planned,
 POST,/v1/watchdog/enable,,Enable the watchdog,settings,Planned,Planned,Planned,Planned,
@@ -108,7 +108,7 @@ POST,/v1/worlds/import,importWorldSlot,Import a staged world ZIP as a new slot,w
 POST,/v1/worlds/rename,,Rename a world slot,worlds,Implemented,Planned,Implemented,Implemented,"slot metadata rename only, no file I/O -- see phase6-api.md SS1's naming-trap note"
 POST,/v1/worlds/rename-active-world,renameActiveWorld,Directly rename the active/live world's on-disk folders,worlds,Implemented,Planned,Planned,Planned,"direct live-world folder rename (renameWorld) -- distinct from POST /v1/worlds/rename, phase6-api.md SS1"
 POST,/v1/worlds/replace-active-world,replaceActiveWorld,Directly replace the active/live world's on-disk content (starts asynchronously),worlds,Implemented,Planned,Planned,Implemented,"P6.34: direct live-world replacement (replaceWorld) -- distinct from POST /v1/worlds/replace (copySlotIntoExisting, a saved-slot-to-saved-slot copy); accepts only a bounded staged upload plus the new level name, never a server-local path; phase6-api.md SS9/SS10"
-POST,/v1/worlds/repair,,Repair a Bedrock world's level.dat,worlds,Planned,Planned,Implemented,Planned,Bedrock-only; live workflow stays unavailable until Phase 10 (capability_unavailable)
+POST,/v1/worlds/repair,,Repair a Bedrock world's level.dat,worlds,Planned,Planned,Implemented,Planned,"Bedrock-only; P10.6 freezes the shared route and capability_unavailable/error-help behavior before runtime implementation"
 POST,/v1/worlds/replace,,Copy a saved slot's content into another existing slot,worlds,Implemented,Planned,Implemented,Implemented,"corrected post-review: copySlotIntoExisting, not the live world (replaceWorld); copyWorldSlotContent removed as a duplicate"
 POST,/v1/worlds/update,updateActiveWorldSlot,Save the current live world into the active slot,worlds,Implemented,Planned,Planned,Planned,
 GET,/v1/worlds/{slotId}/thumbnail,getWorldSlotThumbnail,"A world slot's thumbnail image, if one was generated",none,Implemented,Planned,Planned,Planned,"generation is automatic on slot create/update, no separate write route"

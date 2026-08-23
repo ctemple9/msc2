@@ -1,5 +1,5 @@
 {
-  "description": "MSC 2's v1 WebSocket surface. `console` carries P0.24's baseline channel, `operation-progress` pushes P2.5's OperationDTO, and P9.4 adds `notifications` for the server/player events MSC 1 actually emits plus Phase 9 helper/connectivity events. `status`, `players`, and `metrics` remain HTTP-polled until a later phase needs push delivery.",
+  "description": "MSC 2's v1 WebSocket surface. `console` carries P0.24's baseline channel, `operation-progress` pushes P2.5's OperationDTO, and P9.4 adds `notifications` for the server/player events MSC 1 actually emits plus Phase 9 helper/connectivity events. Phase 10 carries Bedrock console and lifecycle work through these same shared channels; no sidecar or UDP-relay frames are public. `status`, `players`, and `metrics` remain HTTP-polled until a later phase needs push delivery.",
   "version": "v1",
   "channels": [
     {
@@ -144,7 +144,7 @@
           "onExceeded": "server sends a close frame and tears down the connection"
         }
       },
-      "notes": "Reuses console's exact upgrade mechanics, auth check, and inbound-frame handling (same axum WS infrastructure, not a per-channel reimplementation) — the only things genuinely new to this channel are the path, the not-found existence check ahead of the upgrade, the OperationDTO payload, and the single-snapshot-then-live delivery model plus its terminal-state auto-close, both driven by OperationDTO being a mutable snapshot rather than an append-only log. See docs/msc2/api-contract/operation-model.md §5 (this document is the streaming-transport design that section explicitly deferred) and P2.9 for the Rust OperationState type this channel observes."
+      "notes": "Reuses console's exact upgrade mechanics, auth check, and inbound-frame handling (same axum WS infrastructure, not a per-channel reimplementation) — the only things genuinely new to this channel are the path, the not-found existence check ahead of the upgrade, the OperationDTO payload, and the single-snapshot-then-live delivery model plus its terminal-state auto-close, both driven by OperationDTO being a mutable snapshot rather than an append-only log. Bedrock provisioning/start/stop/version operations use this shared payload; a runtime-unavailable operation ends with the same ErrorDTO in its terminal snapshot, and no sidecar JSON-lines frame or guest-network detail is exposed. See docs/msc2/api-contract/operation-model.md §5 (this document is the streaming-transport design that section explicitly deferred) and P2.9 for the Rust OperationState type this channel observes."
     }
   ],
   "notDesignedHere": [

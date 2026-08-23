@@ -360,8 +360,8 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.23 — Add one synthetic cross-backend Bedrock smoke
-**Status:** not started
-**Files:** `tools/phase10/phase10-smoke.sh`, `crates/msc-agent/tests/bedrock_routes.rs`, `crates/msc-cli/tests/bedrock.rs`, `docs/msc2/bedrock/evidence/`
+**Status:** awaiting verification
+**Files:** `tools/phase10/phase10-smoke.sh`, `crates/msc-agent/tests/bedrock_routes.rs`, `crates/msc-agent/tests/bedrock_cli.rs`, `crates/msc-agent/tests/support/bedrock_smoke.rs`, `docs/msc2/bedrock/evidence/`
 **What:** Add one offline public-path smoke that runs the same fixture-backed API and CLI workflow against Linux-native, Windows-native, and macOS-sidecar fakes. It must cover provision, lifecycle, console, command, player/settings state, cancellation/recovery, runtime-unavailable disclosure, and ensure no test needs a live provider or personal world.
 **Verify:** `bash tools/phase10/phase10-smoke.sh --synthetic`
 **Commit:** `P10.23: add Bedrock cross-backend smoke`

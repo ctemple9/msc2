@@ -1,7 +1,7 @@
 # Phase 10 scope: Bedrock runtimes
 
-**Status:** P10.1 scope and handoff reconciliation. No Rust implementation is
-part of this step.
+**Status:** P10.17 sidecar implementation recorded. The Rust client boundary
+from P10.16 remains unchanged; this step adds the Swift VZ owner behind it.
 
 **Sources read:** the Phase 10 oracle set named in `rolling-plan.md`, the
 Phase 5 import and migration notes, the Phase 6 worlds/backups notes, the
@@ -19,10 +19,8 @@ sidecar, and that sidecar owns the Linux VM and its BDS process through
 readiness, console lines, commands, termination, metrics, and capabilities
 without mentioning VZ, guest IPs, or a particular native process API.
 
-This architecture depends on D-007 and D-022. **Both decisions are still
-`Proposed`, not Approved.** The implementation order below therefore records a
-dependency on Cameron's review; it does not silently treat either decision as
-settled.
+This architecture follows D-007 and D-022, both approved on 2026-08-22. D-028
+adds the explicit Intel-only macOS Bedrock precondition for this phase.
 
 ## Platform boundaries
 
@@ -90,6 +88,18 @@ The sidecar is not a second management API and must not persist Bedrock state
 outside the shared server directory. The existing contract's `provision`,
 `start`, `ready`, `stop`, `force-stop`, `terminated`, `console-line`, and
 `command` messages remain the only process boundary.
+
+P10.17's `sidecar/bedrock/BedrockSidecar` executable implements that boundary
+over stdin/stdout JSON lines. Its controller validates the Intel host
+precondition, virtualization availability, the bundled `vmlinuz-kata` and
+`appliance-initramfs.gz` resources, and the host server directory before
+accepting `provision`; builds a fresh NAT, serial-console, and read-write
+virtio-fs configuration for each start; forwards guest console lines; consumes
+`[MSCSTATS]`; and starts the UDP relay only after a DHCP line yields a guest IP
+and the listener is ready. The executable emits one terminal `terminated`
+event for clean guest shutdown, VM errors, failed starts, and forced stops.
+The appliance binaries remain distribution resources, documented in the
+sidecar's Resources README rather than checked into the source tree.
 
 ## What is ported and what is new
 
@@ -283,11 +293,10 @@ the embedded `RemoteAPIServer` routes, and their copied iOS consumers.
 - `BedrockSkinFetcher.swift` is excluded from the Phase 10 agent capability;
   player skin/avatar presentation remains Phase 11 work.
 - The sidecar contract is already frozen and is not reopened as a second API.
-- D-007, “macOS Bedrock stays Swift behind a sidecar,” is **Proposed**.
+- D-007, “macOS Bedrock stays Swift behind a sidecar,” is **Approved**.
 - D-022, “MSC platform support and Bedrock platform support are separate
-  matrices,” is **Proposed**.
+  matrices,” is **Approved**.
 
-The last two items are questions for Cameron before the phase architecture is
-treated as approved. Until then, P10 implementation can document and fixture
-the proposed boundary, but it must not claim that the decisions have been
-owner-approved.
+Those two architectural decisions are now settled for Phase 10. The remaining
+evidence gate is whether a particular host, appliance, or BDS version can be
+advertised as supported; an unavailable result must remain explicit.

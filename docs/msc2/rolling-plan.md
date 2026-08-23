@@ -218,7 +218,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Shared domain and storage foundation
 
 ### P10.7 — Port pure Bedrock settings, console, and player rules
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/bedrock.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/bedrock.rs`, `fixtures/bedrock-properties/`, `fixtures/bedrock-console/`, `fixtures/bedrock-players/`
 **What:** Implement the fixture-backed parsing, validation, clamping, command selection, console-line classification, player identity extraction, and display-safe status rules. Keep process control, filesystem mutation, and LevelDB I/O outside `msc-domain`.
 **Verify:** `cargo nextest run -p msc-domain --test bedrock`
@@ -226,7 +226,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** safe
 
 ### P10.8 — Add bounded Bedrock NBT and LevelDB readers
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/bedrock_nbt.rs`, `crates/msc-infrastructure/src/bedrock_leveldb.rs`, `crates/msc-infrastructure/tests/bedrock_storage.rs`, `fixtures/bedrock-leveldb/`, `fixtures/bedrock-nbt/`
 **What:** Add read-only, bounded adapters for the fixture corpus: decode the MSC 1-required NBT/player fields, tolerate real LevelDB table and WAL layouts, and return explicit unavailable/corrupt outcomes without mutating a live world database. Preserve the existing path-safety and resource bounds.
 **Verify:** `cargo nextest run -p msc-infrastructure --test bedrock_storage`
@@ -234,7 +234,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.9 — Define the portable runtime and sidecar protocol boundary
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/tests/bedrock_runtime.rs`, `docs/msc2/sidecar-ipc-contract.md`, `fixtures/bedrock-runtime/`, `fixtures/bedrock-sidecar/`
 **What:** Define one `BedrockRuntime` abstraction and its platform-neutral lifecycle, readiness, console, command, termination, and capability vocabulary. The metrics vocabulary must be backend-agnostic: native backends report it from Phase 3/4's existing OS-level process-stats mechanism, the macOS backend from the sidecar's `[MSCSTATS]` parse — neither format belongs in the shared trait itself. Implement protocol encoding/decoding against the frozen JSON-lines contract with fake transports; do not put macOS VM types or native-process assumptions in the shared interface.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_runtime`
@@ -242,7 +242,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.10 — Add verified Bedrock distribution staging
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/bedrock_distribution.rs`, `crates/msc-application/src/bedrock_provisioning.rs`, `crates/msc-application/tests/bedrock_provisioning.rs`, `fixtures/bedrock-provisioning/`
 **What:** Implement the scoped official-BDS acquisition and staging path used by all three runtime backends. This is new MSC 2 behavior, not a port — MSC 1's own provisioner performs no checksum or signature verification at all. Add real checksum/identity verification and correct per-platform manifest-entry selection (MSC 1 always reads the `linux` entry, even for its own VM guest), retain provenance and version selection, preserve the Phase 7-style downgrade backup guard, and leave the prior working installation intact on failure; never make an unverified archive runnable.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_provisioning`
@@ -252,7 +252,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### Native runtimes
 
 ### P10.11 — Implement the native Linux Bedrock runtime
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/bedrock_native.rs`, `crates/msc-application/src/bedrock_linux.rs`, `crates/msc-application/tests/bedrock_linux.rs`, `fixtures/bedrock-runtime/`
 **What:** Make the first concrete `BedrockRuntime` implementation a native Linux BDS process. Reuse the established process supervisor, preserve output framing and graceful-then-forced stop behavior, bind UDP directly to the host port (no relay stage — `UDPRelay` is confirmed VM-guest-specific per P10.1, and a native process never needs it), and expose truthful capability/unavailable results on unsupported hosts.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_linux`
@@ -260,7 +260,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.12 — Integrate Linux Bedrock lifecycle, metrics, and logs
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/bedrock_service.rs`, `crates/msc-application/tests/bedrock_service.rs`, `fixtures/bedrock-console/`, `fixtures/bedrock-logging/`, `fixtures/bedrock-backup/`
 **What:** Connect the Linux runtime to server readiness, command delivery, metrics (sourced from Phase 3/4's existing OS-level process-stats mechanism, not the VM-only `[MSCSTATS]` protocol), player events, rolling Bedrock logs, save-hold backup coordination, restart recovery, and operation journal state. The service must report a crash separately from a clean stop and must bound retained console and log state under D-021.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_service`
@@ -268,7 +268,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** safe
 
 ### P10.13 — Exercise the Linux native runtime through the public contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/tests/bedrock_linux_routes.rs`, `crates/msc-agent/tests/bedrock_linux_cli.rs`, `tools/phase10/linux-smoke.sh`, `docs/msc2/bedrock/evidence/`
 **What:** Drive the Linux runtime from HTTP and CLI through a disposable or fake BDS boundary, covering provision, start, status, command, stop, metrics, and explicit runtime unavailability. Record only reproducible evidence; do not use a real account, private world, or unrestricted public network access.
 **Verify:** `bash tools/phase10/linux-smoke.sh --synthetic`
@@ -276,7 +276,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.14 — Implement the native Windows Bedrock runtime
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/bedrock_windows.rs`, `crates/msc-application/tests/bedrock_windows.rs`, `crates/msc-infrastructure/src/bedrock_native.rs`, `crates/msc-infrastructure/tests/bedrock_native_windows.rs`, `fixtures/bedrock-runtime/`
 **What:** Add the second concrete `BedrockRuntime` as a native Windows BDS process, using the shared interface unchanged. Prove Windows process-tree ownership, path and file-lock behavior, direct UDP port binding (no relay stage, same as Linux), output framing, stop escalation, and service-session survival without adding Linux-only assumptions.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_windows && cargo nextest run -p msc-infrastructure --test bedrock_native_windows`
@@ -284,7 +284,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.15 — Exercise the Windows native runtime through the public contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/tests/bedrock_windows_routes.rs`, `crates/msc-agent/tests/bedrock_windows_cli.rs`, `tools/phase10/windows-smoke.ps1`, `docs/msc2/bedrock/evidence/`
 **What:** Exercise the same public lifecycle and unavailable-state contract on Windows, including a service-owned server surviving client exit and a failure that leaves no orphaned BDS process. Keep the smoke reproducible and separate an unavailable real BDS package from a passing fake-runtime test.
 **Verify:** `pwsh -File tools/phase10/windows-smoke.ps1 -Synthetic`
@@ -294,7 +294,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 ### macOS sidecar runtime
 
 ### P10.16 — Implement the Rust macOS sidecar runtime client
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-infrastructure/src/bedrock_sidecar.rs`, `crates/msc-application/src/bedrock_macos.rs`, `crates/msc-application/tests/bedrock_macos.rs`, `fixtures/bedrock-sidecar/`
 **What:** Implement the macOS `BedrockRuntime` client over the frozen stdio JSON-lines protocol. It supervises the sidecar, validates message order and IDs, translates EOF and malformed frames into bounded failure states, and never embeds VZ-specific behavior in Rust.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_macos`
@@ -302,7 +302,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.17 — Build the Swift Virtualization sidecar
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `sidecar/bedrock/`, `sidecar/bedrock/Tests/`, `fixtures/bedrock-sidecar/`, `docs/msc2/bedrock/phase10-scope.md`
 **What:** Build the narrow macOS Swift executable that owns `Virtualization.framework` and implements exactly the frozen provision/start/ready/command/stop/force-stop/terminated/console protocol. It may share the server directory through virtio-fs but may not introduce a second management API or persist Bedrock state outside that directory. Per D-028, the bundled kernel/initramfs appliance is Intel (x86_64) only, matching MSC 1's own single-architecture build; do not attempt an arm64 appliance or Rosetta-for-Linux wiring this phase, and make the host-architecture requirement an explicit, checked precondition rather than an unexplained failure to boot on Apple Silicon.
 **Verify:** `xcodebuild -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar test`

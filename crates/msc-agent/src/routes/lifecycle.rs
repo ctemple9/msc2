@@ -859,6 +859,7 @@ impl LifecycleRoutesState {
         Ok(active)
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn start_active_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
         self.drain_active_process_events();
         if self.active_bedrock_server().is_some() {
@@ -954,11 +955,14 @@ impl LifecycleRoutesState {
         Ok(self.active_server_id())
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn stop_active_bedrock_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
         self.drain_bedrock_events();
         let active = self
             .active_bedrock_server()
-            .ok_or_else(|| LifecycleRouteError::Lifecycle(LifecycleError::NoActiveServer))?;
+            .ok_or(LifecycleRouteError::Lifecycle(
+                LifecycleError::NoActiveServer,
+            ))?;
         let operation_id = self.inner.operations.begin_lifecycle(
             "bedrock-stop",
             Some(active.id.clone()),
@@ -985,6 +989,7 @@ impl LifecycleRoutesState {
         Ok(self.active_server_id())
     }
 
+    #[allow(clippy::result_large_err)]
     pub fn send_bedrock_command(
         &self,
         command: &str,
@@ -992,7 +997,9 @@ impl LifecycleRoutesState {
         self.drain_bedrock_events();
         let active = self
             .active_bedrock_server()
-            .ok_or_else(|| LifecycleRouteError::Lifecycle(LifecycleError::NoActiveServer))?;
+            .ok_or(LifecycleRouteError::Lifecycle(
+                LifecycleError::NoActiveServer,
+            ))?;
         self.inner
             .bedrock_runtime
             .command(command)
@@ -1075,10 +1082,13 @@ impl LifecycleRoutesState {
         }
     }
 
+    #[allow(clippy::result_large_err)]
     fn start_active_bedrock_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
         let active = self
             .active_bedrock_server()
-            .ok_or_else(|| LifecycleRouteError::Lifecycle(LifecycleError::NoActiveServer))?;
+            .ok_or(LifecycleRouteError::Lifecycle(
+                LifecycleError::NoActiveServer,
+            ))?;
         let operation_id = self.inner.operations.begin_lifecycle(
             "bedrock-start",
             Some(active.id.clone()),
@@ -1166,11 +1176,7 @@ impl LifecycleRoutesState {
     }
 
     fn drain_bedrock_events(&self) {
-        loop {
-            let event = match self.inner.bedrock_runtime.poll_event() {
-                Ok(Some(event)) => event,
-                Ok(None) | Err(_) => break,
-            };
+        while let Ok(Some(event)) = self.inner.bedrock_runtime.poll_event() {
             match event {
                 BedrockRuntimeEvent::ConsoleLine(line) => {
                     self.inner

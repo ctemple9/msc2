@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SCOPE_PATH = ROOT / "docs/msc2/bedrock/phase10-scope.md"
 CI_EVIDENCE_PATH = ROOT / "docs/msc2/bedrock/evidence/phase10-ci.md"
 SMOKE_PATH = ROOT / "tools/phase10/phase10-smoke.sh"
+PRODUCTION_CHECK_PATH = ROOT / "tools/phase10/phase10-production-check.py"
 WORKFLOW_PATH = ROOT / ".github/workflows/ci.yml"
 FIXTURE_RUNNER = ROOT / "tools/fixture-runner/run.py"
 
@@ -162,6 +163,7 @@ def check_public_gate_wiring() -> str:
     workflow = read_text(WORKFLOW_PATH)
     for marker in (
         "phase10-smoke.sh --synthetic",
+        "phase10-production-check.py --check",
         "phase10/compatibility-check.py",
         "phase10/evidence-check.py --distribution",
         "phase10/evidence-check.py --runtimes",
@@ -249,6 +251,12 @@ def check_gate() -> list[str]:
         run_check(
             "Bedrock runtime evidence",
             [sys.executable, "tools/phase10/evidence-check.py", "--runtimes"],
+        )
+    )
+    messages.append(
+        run_check(
+            "Bedrock production wiring",
+            [sys.executable, str(PRODUCTION_CHECK_PATH), "--check"],
         )
     )
     messages.extend(

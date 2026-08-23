@@ -319,3 +319,23 @@ records, synthetic smoke wiring, and this exact CI candidate. Its Verify line
 then runs the synthetic public path and the workspace regression suite once;
 the result is evidence for REVIEW, not an agent declaration that the phase is
 closed.
+
+## P10.36 production wiring guard
+
+The Phase 10 production check is a fail-closed source audit that runs beside
+the synthetic production-router smoke on Linux, Windows, and macOS, and in the
+headless no-GUI job. It rejects three regressions that fixture counts alone
+cannot see: a restored literal Bedrock refusal in production Rust, a
+`GET /v1/capabilities` response that invents Bedrock support instead of using
+the `BedrockRuntimeSelection` chosen by the composition root, and any frozen
+API response DTO that loses its additive `BedrockRuntimeStateDto` field. It
+also requires the smoke to launch the real `msc serve` composition root and
+checks that the smoke source remains offline: committed fixtures and loopback
+HTTP only, with no BDS download, provider, public-network, or
+Virtualization.framework activity.
+
+The check is intentionally source-level and does not claim live BDS or VM
+support. The executable lifecycle and public integration proof remain
+`phase10-smoke.sh --synthetic`; the check makes it harder for that proof to
+be replaced with a detached fake harness or for the production path to drift
+back to Phase 9's pre-Bedrock refusal behavior.

@@ -475,7 +475,7 @@ not advance.
 **Batch:** stop-after
 
 ### P10.36 — Make CI reject detached Bedrock implementations
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/ci.yml`, `tools/phase10/phase10-production-check.py`, `tools/phase10/phase10-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/bedrock/evidence/phase10-ci.md`
 **What:** Add a fail-closed Phase 10 production check and run it in macOS, Linux, Windows, and headless CI alongside the production-router smoke. It must reject restored literal Bedrock refusals, a capabilities response detached from runtime selection, an API DTO missing the frozen runtime state, and a smoke that bypasses the production router. Preserve the existing no-download/no-live-BDS/no-VM/no-public-network CI boundary and the headless link proof.
 **Verify:** `python3 tools/phase10/phase10-production-check.py --check && git diff --check && rg -n 'phase10-production-check.py --check|phase10-smoke.sh --synthetic' .github/workflows/ci.yml`

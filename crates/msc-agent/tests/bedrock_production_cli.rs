@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::ServerType;
 
-const TOKEN: &str = "msc2_bedrock_production_cli_testsecret";
+const TOKEN: &str = "msc2_bedrock-production-cli_testsecret";
 
 #[test]
 fn production_cli_decodes_bedrock_surfaces_and_unavailable_runtime() {
@@ -233,6 +233,10 @@ impl Fixture {
                 self.data_dir.join("credentials.json"),
             )
             .env("MSC2_OPERATION_JOURNAL_DIR", self.data_dir.join("journal"))
+            .env(
+                "MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR",
+                self.data_dir.join("secrets"),
+            )
             .env("MSC2_TEST_BOOTSTRAP_TOKEN", TOKEN)
             .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service)
             .stdout(Stdio::null())

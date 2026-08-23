@@ -673,8 +673,12 @@ impl ProductionFixture {
             )
             .env("MSC2_OPERATION_JOURNAL_DIR", self.data_dir.join("journal"))
             .env(
+                "MSC2_LINUX_FOREGROUND_SECRET_STORE_DIR",
+                self.data_dir.join("secrets"),
+            )
+            .env(
                 "MSC2_TEST_BOOTSTRAP_TOKEN",
-                "msc2_bedrock_production_smoke_testsecret",
+                "msc2_bedrock-production-smoke_testsecret",
             )
             .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service)
             .stdout(std::process::Stdio::null())
@@ -710,7 +714,7 @@ impl ProductionFixture {
                 "--base-url",
                 &format!("http://127.0.0.1:{}", self.port),
                 "--token",
-                "msc2_bedrock_production_smoke_testsecret",
+                "msc2_bedrock-production-smoke_testsecret",
                 "--json",
             ])
             .args(args)
@@ -741,7 +745,7 @@ fn raw_http(port: u16, method: &str, path: &str, body: Option<&str>) -> String {
         std::net::TcpStream::connect(std::net::SocketAddr::from(([127, 0, 0, 1], port))).unwrap();
     let body = body.unwrap_or_default();
     let request = format!(
-        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer msc2_bedrock_production_smoke_testsecret\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        "{method} {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer msc2_bedrock-production-smoke_testsecret\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
         body.len()
     );
     stream.write_all(request.as_bytes()).unwrap();

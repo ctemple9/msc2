@@ -1367,6 +1367,7 @@ pub async fn create(
     .into_response()
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_create_bedrock_server(
     state: LifecycleRoutesState,
     operation_id: OperationId,
@@ -1383,9 +1384,10 @@ fn run_create_bedrock_server(
 ) {
     let should_cancel = state.operations().cancellation_check(&operation_id);
     if should_cancel() {
-        let _ = state
-            .operations()
-            .cancel(&operation_id, "Bedrock server creation cancelled before it started.");
+        let _ = state.operations().cancel(
+            &operation_id,
+            "Bedrock server creation cancelled before it started.",
+        );
         return;
     }
     let request = msc_application::provisioning::BedrockCreateRequest {
@@ -3000,20 +3002,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_route_refuses_bedrock_with_capability_unavailable() {
+    async fn create_route_accepts_bedrock_creation_operation() {
         let state = route_state();
         let mut body = create_request("Bedrock Realm");
         body.server_type = Some("bedrock".to_string());
         let response = call_create(&state, body).await;
-        assert_eq!(response.status(), StatusCode::CONFLICT);
+        assert_eq!(response.status(), StatusCode::OK);
         let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
             .await
             .unwrap();
-        assert!(
-            String::from_utf8(bytes.to_vec())
-                .unwrap()
-                .contains("capability_unavailable")
-        );
+        let body: ServerCreateResultDto = serde_json::from_slice(&bytes).unwrap();
+        assert!(body.success);
+        assert_eq!(body.message, "Bedrock server creation started.");
+        assert!(body.operation_id.is_some());
     }
 
     #[tokio::test]

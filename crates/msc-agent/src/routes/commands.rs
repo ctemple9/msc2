@@ -31,6 +31,9 @@ pub async fn command(
     };
 
     if state.active_bedrock_server().is_some() {
+        // Bedrock accepts client-style slash commands but exposes the canonical
+        // slash-free command in both the runtime payload and response DTO.
+        let command = command.strip_prefix('/').unwrap_or(&command).to_string();
         return match state.send_bedrock_command(&command) {
             Ok(active_server_id) => Json(CommandResultDto {
                 result: "sent".to_string(),

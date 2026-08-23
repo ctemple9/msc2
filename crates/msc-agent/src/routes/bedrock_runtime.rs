@@ -4,7 +4,9 @@
 //! here means HTTP handlers only report the selected result; they do not need
 //! to know how a native process or a macOS sidecar is built.
 
-use std::path::{Path, PathBuf};
+#[cfg(target_os = "macos")]
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use msc_api::dto::{BedrockBackendDto, BedrockRuntimeStateDto, HostOsDto};
@@ -323,6 +325,7 @@ fn backend_dto(backend: BedrockRuntimeBackend) -> BedrockBackendDto {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn unavailable_eligibility(
     host: BedrockHost,
     backend: BedrockRuntimeBackend,

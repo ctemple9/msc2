@@ -163,6 +163,10 @@ jobs:
         shell: bash
         run: bash tools/phase10/phase10-smoke.sh --synthetic
 
+      - name: Phase 10 Bedrock production wiring check
+        shell: bash
+        run: python3 tools/phase10/phase10-production-check.py --check
+
       - name: Phase 10 Bedrock compatibility check
         shell: bash
         run: python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv
@@ -203,3 +207,6 @@ jobs:
 
       - name: Verify headless artifacts link no GUI frameworks
         run: python3 tools/phase4/headless-link-check.py --all-artifacts target/phase4-headless
+
+      - name: Phase 10 Bedrock production wiring check
+        run: python3 tools/phase10/phase10-production-check.py --check

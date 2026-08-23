@@ -11,6 +11,7 @@ use msc_infrastructure::bedrock_native::NativeBedrockHost;
 use msc_infrastructure::process::FakeProcessSupervisor;
 use std::cell::Cell;
 use std::net::UdpSocket;
+use std::path::Path;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
@@ -82,8 +83,8 @@ fn native_linux_runtime_uses_bedrock_server_and_direct_udp_port() {
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].0.raw(), pid);
     assert_eq!(
-        requests[0].1.executable_path.to_str(),
-        Some("/srv/bedrock/bedrock_server")
+        requests[0].1.executable_path,
+        Path::new("/srv/bedrock").join("bedrock_server")
     );
     assert_eq!(
         requests[0].1.working_directory.to_str(),

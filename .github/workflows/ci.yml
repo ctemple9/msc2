@@ -161,7 +161,7 @@ jobs:
       # so the Phase 10 candidate proves the same contract on all platforms.
       - name: Phase 10 Bedrock synthetic smoke
         shell: bash
-        run: tools/phase10/phase10-smoke.sh --synthetic
+        run: bash tools/phase10/phase10-smoke.sh --synthetic
 
       - name: Phase 10 Bedrock compatibility check
         shell: bash

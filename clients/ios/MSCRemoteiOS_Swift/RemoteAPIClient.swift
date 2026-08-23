@@ -14,7 +14,7 @@ enum RemoteAPIError: LocalizedError {
     /// statuses instead (`openapi.json`'s own 409/429 responses) — this
     /// case is what actually carries that code across the wire boundary
     /// now, previously discarded entirely by `bestEffortErrorMessage`.
-    case httpStatus(Int, code: String?, message: String?)
+    case httpStatus(Int, code: String?, message: String?, details: ErrorDetailsDTO?)
     case decodingFailed
     case network(String)
 
@@ -22,7 +22,12 @@ enum RemoteAPIError: LocalizedError {
     /// caller wants to switch on (`"server_running"`, `"download_in_progress"`,
     /// ...), never present for any other case.
     var apiErrorCode: String? {
-        if case .httpStatus(_, let code, _) = self { return code }
+        if case .httpStatus(_, let code, _, _) = self { return code }
+        return nil
+    }
+
+    var apiErrorDetails: ErrorDetailsDTO? {
+        if case .httpStatus(_, _, _, let details) = self { return details }
         return nil
     }
 
@@ -36,7 +41,7 @@ enum RemoteAPIError: LocalizedError {
             return "Blocked: WS is only allowed for local/private addresses. Use LAN/VPN or WSS."
         case .missingToken:
             return "Token is missing."
-        case .httpStatus(let code, _, let message):
+        case .httpStatus(let code, _, let message, _):
             if let message, !message.isEmpty {
                 return "HTTP \(code): \(message)"
             }
@@ -53,6 +58,7 @@ final class RemoteAPIClient {
     private struct ErrorEnvelope: Decodable {
         let code: String
         let message: String
+        let details: ErrorDetailsDTO?
     }
 
     private let baseURL: URL
@@ -196,6 +202,7 @@ final class RemoteAPIClient {
         let serverType: String?
         let dockerContainerRunning: Bool?
         let dockerContainerStatus: String?
+        let runtime: BedrockRuntimeStateDTO?
     }
 
     func getStatus() async throws -> RemoteAPIStatus {
@@ -205,7 +212,15 @@ final class RemoteAPIClient {
                                pid: dto.pid,
                                serverType: dto.serverType.flatMap(ServerType.init(rawValue:)),
                                dockerContainerRunning: dto.dockerContainerRunning,
-                               dockerContainerStatus: dto.dockerContainerStatus)
+                               dockerContainerStatus: dto.dockerContainerStatus,
+                               runtime: dto.runtime)
+    }
+
+    /// GET /capabilities -> CapabilitiesDTO. The Bedrock runtime nested under
+    /// `serverTypes.bedrock.runtime` is authoritative when present; the
+    /// older supported/backend booleans remain decoded for skew tolerance.
+    func getCapabilities() async throws -> CapabilitiesDTO {
+        try await get(path: "/capabilities", query: [:], as: CapabilitiesDTO.self)
     }
 
     func getServers() async throws -> [ServerDTO] {
@@ -1156,7 +1171,8 @@ final class RemoteAPIClient {
             guard (200...299).contains(http.statusCode) else {
                 let body = bestEffortErrorMessage(from: data)
                 let code = bestEffortErrorCode(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, code: code, message: body)
+                let details = bestEffortErrorDetails(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: code, message: body, details: details)
             }
 
             do {
@@ -1195,7 +1211,8 @@ final class RemoteAPIClient {
             guard (200...299).contains(http.statusCode) else {
                 let body = bestEffortErrorMessage(from: data)
                 let code = bestEffortErrorCode(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, code: code, message: body)
+                let details = bestEffortErrorDetails(from: data)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: code, message: body, details: details)
             }
 
             do {
@@ -1232,7 +1249,8 @@ final class RemoteAPIClient {
             guard (200...299).contains(http.statusCode) else {
                 let responseBody = bestEffortErrorMessage(from: data)
                 let responseCode = bestEffortErrorCode(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, code: responseCode, message: responseBody)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: responseCode, message: responseBody,
+                                                details: bestEffortErrorDetails(from: data))
             }
 
             do {
@@ -1265,7 +1283,8 @@ final class RemoteAPIClient {
             guard (200...299).contains(http.statusCode) else {
                 let responseBody = bestEffortErrorMessage(from: data)
                 let responseCode = bestEffortErrorCode(from: data)
-                throw RemoteAPIError.httpStatus(http.statusCode, code: responseCode, message: responseBody)
+                throw RemoteAPIError.httpStatus(http.statusCode, code: responseCode, message: responseBody,
+                                                details: bestEffortErrorDetails(from: data))
             }
 
             return data
@@ -1312,5 +1331,9 @@ final class RemoteAPIClient {
 
     private func bestEffortErrorCode(from data: Data) -> String? {
         (try? JSONDecoder().decode(ErrorEnvelope.self, from: data))?.code
+    }
+
+    private func bestEffortErrorDetails(from data: Data) -> ErrorDetailsDTO? {
+        (try? JSONDecoder().decode(ErrorEnvelope.self, from: data))?.details
     }
 }

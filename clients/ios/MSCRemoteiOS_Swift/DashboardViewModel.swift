@@ -4,6 +4,7 @@ import Combine
 @MainActor
 final class DashboardViewModel: ObservableObject {
     @Published var status: RemoteAPIStatus? = nil
+    @Published var capabilities: CapabilitiesDTO? = nil
     @Published var servers: [ServerDTO] = []
     @Published var consoleTail: [ConsoleLineDTO] = []
     @Published var consoleStream: [ConsoleLineDTO] = []
@@ -93,6 +94,7 @@ final class DashboardViewModel: ObservableObject {
         connectedRole = nil
         connectedName = nil
         connectedPermissions = nil
+        capabilities = nil
     }
 
     func requireClient() throws -> RemoteAPIClient {
@@ -124,6 +126,7 @@ final class DashboardViewModel: ObservableObject {
             // leaves the previous values in place.
             async let s2 = try? client.getServers()
             async let s3 = try? client.getConsoleTail(n: tailN)
+            async let s4 = try? client.getCapabilities()
 
             let fetchedStatus = try await client.getStatus()
             status = fetchedStatus
@@ -131,6 +134,7 @@ final class DashboardViewModel: ObservableObject {
 
             if let fetchedServers = await s2 { servers = fetchedServers }
             if let fetchedTail = await s3 { consoleTail = fetchedTail }
+            if let fetchedCapabilities = await s4 { capabilities = fetchedCapabilities }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -220,7 +224,8 @@ final class DashboardViewModel: ObservableObject {
                 return ServerDTO(id: server.id, name: newName, directory: server.directory,
                                  serverType: server.serverType, javaFlavor: server.javaFlavor,
                                  gamePort: server.gamePort,
-                                 hostAddress: server.hostAddress)
+                                 hostAddress: server.hostAddress,
+                                 runtime: server.runtime)
             }
             return nil
         } catch {
@@ -469,14 +474,46 @@ final class DashboardViewModel: ObservableObject {
         }
     }
 
+    private func remoteErrorMessage(_ error: Error) -> String {
+        guard let apiError = error as? RemoteAPIError,
+              apiError.apiErrorCode == "capability_unavailable",
+              let details = apiError.apiErrorDetails else {
+            return error.localizedDescription
+        }
+        return BedrockRuntimeStateDTO(
+            state: details.state ?? "unavailable",
+            backend: details.backend,
+            hostOs: details.hostOs,
+            reasonCode: details.reasonCode,
+            message: nil,
+            helpId: nil
+        ).displayMessage
+    }
+
+    private func operationFailureMessage(_ error: ErrorDTO?, fallback: String) -> String {
+        guard let error else { return fallback }
+        guard error.code == "capability_unavailable", let details = error.details else {
+            return error.message
+        }
+        return BedrockRuntimeStateDTO(
+            state: details.state ?? "unavailable",
+            backend: details.backend,
+            hostOs: details.hostOs,
+            reasonCode: details.reasonCode,
+            message: error.message,
+            helpId: error.helpId
+        ).displayMessage
+    }
+
     func start(baseURL: URL, token: String) async -> Bool {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
         do {
-            _ = try await requireClient().start()
-            return true
+            let client = try requireClient()
+            let result = try await client.start()
+            return try await acceptedOperationSucceeded(result.operationId, client: client)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = remoteErrorMessage(error)
             return false
         }
     }
@@ -485,10 +522,11 @@ final class DashboardViewModel: ObservableObject {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
         do {
-            _ = try await requireClient().stop()
-            return true
+            let client = try requireClient()
+            let result = try await client.stop()
+            return try await acceptedOperationSucceeded(result.operationId, client: client)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = remoteErrorMessage(error)
             return false
         }
     }
@@ -497,10 +535,11 @@ final class DashboardViewModel: ObservableObject {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
         do {
-            _ = try await requireClient().restart()
-            return true
+            let client = try requireClient()
+            let result = try await client.restart()
+            return try await acceptedOperationSucceeded(result.operationId, client: client)
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = remoteErrorMessage(error)
             return false
         }
     }
@@ -513,6 +552,29 @@ final class DashboardViewModel: ObservableObject {
             return true
         } catch {
             errorMessage = error.localizedDescription
+            return false
+        }
+    }
+
+    /// A 2xx lifecycle response means the operation was admitted, not that a
+    /// Bedrock process is ready. Older agents omit operationId and retain the
+    /// synchronous behavior, so both response generations remain supported.
+    private func acceptedOperationSucceeded(_ operationId: String?, client: RemoteAPIClient) async throws -> Bool {
+        guard let operationId else { return true }
+        activeOperation = nil
+        let operation = try await client.pollOperationToTerminal(id: operationId) { [weak self] update in
+            self?.activeOperation = update
+        }
+        switch operation.state {
+        case .succeeded:
+            return true
+        case .failed, .cancelled:
+            errorMessage = operationFailureMessage(
+                operation.error,
+                fallback: "The Bedrock lifecycle operation did not complete."
+            )
+            return false
+        case .queued, .running:
             return false
         }
     }
@@ -1090,7 +1152,7 @@ final class DashboardViewModel: ObservableObject {
         do {
             allowlistResponse = try await requireClient().getAllowlist()
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = remoteErrorMessage(error)
         }
     }
 
@@ -1102,11 +1164,14 @@ final class DashboardViewModel: ObservableObject {
         do {
             let result = try await requireClient().mutateAllowlist(action: action, name: name)
             guard result.success else { return result.message }
-            allowlistResponse = AllowlistResponseDTO(serverType: result.serverType, entries: result.entries)
+            allowlistResponse = AllowlistResponseDTO(serverType: result.serverType,
+                                                     entries: result.entries,
+                                                     runtime: result.runtime)
             return nil
         } catch {
-            errorMessage = error.localizedDescription
-            return error.localizedDescription
+            let message = remoteErrorMessage(error)
+            errorMessage = message
+            return message
         }
     }
 
@@ -1115,7 +1180,11 @@ final class DashboardViewModel: ObservableObject {
     func fetchSettings(baseURL: URL, token: String) async {
         updateCredentials(baseURL: baseURL, token: token)
         guard let client = try? requireClient() else { return }
-        settingsResponse = try? await client.getSettings()
+        do {
+            settingsResponse = try await client.getSettings()
+        } catch {
+            errorMessage = remoteErrorMessage(error)
+        }
     }
 
     /// Applies a sparse change set. Returns the result (nil on transport error).
@@ -1131,12 +1200,13 @@ final class DashboardViewModel: ObservableObject {
                     serverRunning: current.serverRunning,
                     editable: current.editable,
                     sections: fresh,
-                    note: current.note
+                    note: current.note,
+                    runtime: result.runtime ?? current.runtime
                 )
             }
             return result
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = remoteErrorMessage(error)
             return nil
         }
     }
@@ -1317,8 +1387,9 @@ final class DashboardViewModel: ObservableObject {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
         do {
-            _ = try await requireClient().createBackupNow()
-            return true
+            let client = try requireClient()
+            let result = try await client.createBackupNow()
+            return try await acceptedOperationSucceeded(result.operationId, client: client)
         } catch {
             errorMessage = error.localizedDescription
             return false
@@ -1329,8 +1400,9 @@ final class DashboardViewModel: ObservableObject {
         updateCredentials(baseURL: baseURL, token: token)
         errorMessage = nil
         do {
-            _ = try await requireClient().restoreBackup(backupId: backupId)
-            return true
+            let client = try requireClient()
+            let result = try await client.restoreBackup(backupId: backupId)
+            return try await acceptedOperationSucceeded(result.operationId, client: client)
         } catch {
             errorMessage = error.localizedDescription
             return false

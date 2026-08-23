@@ -111,6 +111,11 @@ struct AllowlistView: View {
                     .padding(.bottom, MSCRemoteStyle.spaceSM)
             }
 
+            if let runtime = vm.allowlistResponse?.runtime, !runtime.isAvailable {
+                runtimeNotice(runtime)
+                    .padding(.bottom, MSCRemoteStyle.spaceSM)
+            }
+
             if let response = vm.allowlistResponse {
                 if response.entries.isEmpty {
                     emptyState(icon: "person.crop.circle.badge.checkmark",
@@ -242,6 +247,26 @@ struct AllowlistView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, MSCRemoteStyle.spaceLG)
+    }
+
+    private func runtimeNotice(_ runtime: BedrockRuntimeStateDTO) -> some View {
+        HStack(alignment: .top, spacing: MSCRemoteStyle.spaceSM) {
+            Image(systemName: runtime.isUnavailable ? "exclamationmark.triangle" : "arrow.down.circle")
+                .foregroundStyle(runtime.isUnavailable ? MSCRemoteStyle.warning : MSCRemoteStyle.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(runtime.isUnavailable ? "Bedrock runtime unavailable" : "Bedrock runtime needs setup")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(MSCRemoteStyle.textPrimary)
+                Text(runtime.displayMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(MSCRemoteStyle.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(MSCRemoteStyle.spaceMD)
+        .background(MSCRemoteStyle.bgElevated)
+        .clipShape(RoundedRectangle(cornerRadius: MSCRemoteStyle.radiusSM, style: .continuous))
     }
 
     // MARK: - Actions

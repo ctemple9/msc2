@@ -42,6 +42,9 @@ struct PlayersView: View {
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: MSCRemoteStyle.spaceLG) {
                             playerCountCard
+                            if let runtime = vm.players?.runtime, !runtime.isAvailable {
+                                runtimeNotice(runtime)
+                            }
                             if activeServerType == .bedrock {
                                 allowlistLinkCard
                             }
@@ -75,13 +78,14 @@ struct PlayersView: View {
 
     private func refresh() async {
         guard let baseURL = resolvedBaseURL, let token = resolvedToken else { return }
+        async let online: () = vm.fetchPlayers(baseURL: baseURL, token: token)
         async let p: () = vm.fetchPlayerProfiles(baseURL: baseURL, token: token)
         async let s: () = vm.fetchSessionLog(baseURL: baseURL, token: token)
         if activeServerType == .bedrock {
             async let a: () = vm.fetchAllowlist(baseURL: baseURL, token: token)
-            _ = await (p, s, a)
+            _ = await (online, p, s, a)
         } else {
-            _ = await (p, s)
+            _ = await (online, p, s)
         }
     }
 
@@ -148,6 +152,24 @@ struct PlayersView: View {
             }
         }
         .mscCard()
+    }
+
+    private func runtimeNotice(_ runtime: BedrockRuntimeStateDTO) -> some View {
+        HStack(alignment: .top, spacing: MSCRemoteStyle.spaceSM) {
+            Image(systemName: runtime.isUnavailable ? "exclamationmark.triangle" : "arrow.down.circle")
+                .foregroundStyle(runtime.isUnavailable ? MSCRemoteStyle.warning : MSCRemoteStyle.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(runtime.isUnavailable ? "Bedrock runtime unavailable" : "Bedrock runtime needs setup")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(MSCRemoteStyle.textPrimary)
+                Text(runtime.displayMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(MSCRemoteStyle.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .mscCard(padding: MSCRemoteStyle.spaceMD)
     }
 
     private func profileRow(_ profile: PlayerProfileDTO) -> some View {

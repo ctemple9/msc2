@@ -1,8 +1,8 @@
 method,path,operation_id,msc1_capability,permission_category,agent_status,desktop_web_status,ios_status,cli_status,notes
 POST,/v1/active-server,,Select which registered server is active,serverControl,Implemented,Planned,Implemented,Implemented,
 GET,/v1/addons,,Installed add-ons (mods/plugins) with update status,none,Implemented,Planned,Implemented,Implemented,P8.9: note field added for honest provider-unavailable reporting (phase8-api.md SS4)
-GET,/v1/allowlist,,Get the Bedrock allowlist,none,Planned,Planned,Planned,Planned,"P10.6: shared route; additive runtime state distinguishes readable allowlist.json from an unavailable BDS runtime"
-POST,/v1/allowlist,,Add or remove a Bedrock allowlist entry,players,Planned,Planned,Planned,Planned,"P10.6: shared route; Bedrock writes allowlist.json and reports capability_unavailable through ErrorDTO when live runtime support is required"
+GET,/v1/allowlist,,Get the Bedrock allowlist,none,Planned,Planned,Implemented,Planned,"P10.6: shared route; additive runtime state distinguishes readable allowlist.json from an unavailable BDS runtime. P10.22: iOS decodes entries, XUIDs, and runtime state and shows unavailable/setup state explicitly"
+POST,/v1/allowlist,,Add or remove a Bedrock allowlist entry,players,Planned,Planned,Implemented,Planned,"P10.6: shared route; Bedrock writes allowlist.json and reports capability_unavailable through ErrorDTO when live runtime support is required. P10.22: iOS applies the echoed list and structured unavailable details"
 GET,/v1/backups,,Backups available for the active server,none,Implemented,Planned,Implemented,Implemented,
 GET,/v1/backups/config,,Get auto-backup configuration,none,Implemented,Planned,Implemented,Implemented,
 POST,/v1/backups/config,,Update auto-backup configuration,settings,Implemented,Planned,Implemented,Implemented,
@@ -58,11 +58,11 @@ GET,/v1/operations/{id},,Read an operation's current state,none,Implemented,Plan
 POST,/v1/operations/{id}/cancel,,Request cancellation of an operation,serverControl,Implemented,Planned,Implemented,Implemented,"iOS conversion UI and CLI polling request cooperative cancellation"
 WS,/v1/operations/{id}/stream,,operation-progress channel,none,Implemented,Planned,Planned,Planned,no MSC 1 equivalent (operation-model.md SS1)
 GET,/v1/performance,,"Latest performance snapshot (TPS, players, CPU, RAM, world size)",none,Implemented,Planned,Implemented,Planned,"P10.6: shared metric DTO; native process stats and sidecar [MSCSTATS] stay backend-private"
-GET,/v1/players,,List currently-online players,none,Planned,Planned,Planned,Planned,"P10.6: shared player route; Bedrock XUIDs and runtime state are additive"
-POST,/v1/players/hidden,,Hide or unhide a player profile,players,Planned,Planned,Planned,Planned,
-GET,/v1/players/profiles,,List all-time player profiles with stats,none,Planned,Planned,Planned,Planned,
-POST,/v1/players/skin-override,,Set or clear a manual skin lookup override for a player,players,Planned,Planned,Planned,Planned,
-GET,/v1/players/{profileId}/skin,,"A player's skin image (base64), by profile id. Handled outside the main route switch via a path.hasPrefix/hasSuffix match, not a `case` in it -- the one MSC 1 route with a path parameter.",none,Planned,Planned,Planned,Planned,
+GET,/v1/players,,List currently-online players,none,Planned,Planned,Implemented,Planned,"P10.6: shared player route; Bedrock XUIDs and runtime state are additive. P10.22: iOS presents the online roster and handles optional UUID/XUID data; profile presentation remains deferred"
+POST,/v1/players/hidden,,Hide or unhide a player profile,players,Planned,Planned,Planned,Planned,"P10.22: intentionally unavailable on iOS in this step; hidden-profile presentation remains deferred to later client work"
+GET,/v1/players/profiles,,List all-time player profiles with stats,none,Planned,Planned,Planned,Planned,"P10.22: intentionally unavailable on iOS in this step; profile presentation remains deferred to later client work"
+POST,/v1/players/skin-override,,Set or clear a manual skin lookup override for a player,players,Planned,Planned,Planned,Planned,"P10.22: intentionally unavailable on iOS in this step; skin override presentation remains deferred to later client work"
+GET,/v1/players/{profileId}/skin,,"A player's skin image (base64), by profile id. Handled outside the main route switch via a path.hasPrefix/hasSuffix match, not a `case` in it -- the one MSC 1 route with a path parameter.",none,Planned,Planned,Planned,Planned,"P10.22: intentionally unavailable on iOS in this step; skin presentation remains deferred to later client work"
 GET,/v1/playit,,Get Playit tunnel status,none,Implemented,Planned,Planned,Implemented,
 POST,/v1/playit/start,,Start the Playit tunnel,networking,Implemented,Planned,Planned,Implemented,
 POST,/v1/playit/stop,,Stop the Playit tunnel,networking,Implemented,Planned,Planned,Implemented,
@@ -78,8 +78,8 @@ POST,/v1/servers/eula,,Accept the Minecraft EULA for a server,fleet,Implemented,
 POST,/v1/servers/import,,"Scan, import, or rescan existing servers",fleet,Implemented,Planned,Implemented,Implemented,"P6.46: copied iOS follows accepted raw/ZIP and transfer imports to their durable terminal result"
 POST,/v1/servers/rename,,Rename a server,fleet,Implemented,Planned,Implemented,Implemented,"iOS: DashboardView.swift already wired against RemoteAPIClient.renameServer; no shape mismatch found"
 GET,/v1/session-log,,Join/leave event history for the active server,none,Planned,Planned,Planned,Planned,
-GET,/v1/settings,,"Typed server.properties schema for the active server, as sections of fields",none,Implemented,Planned,Planned,Implemented,"P10.6: same settings route covers Bedrock server.properties; raw unknown-key preservation stays below the API validation layer"
-POST,/v1/settings,,"Apply a sparse set of settings changes (key -> string value), validated and clamped per field",settings,Implemented,Planned,Planned,Implemented,"P10.6: Bedrock settings use additive runtime state and retain the shared validation/error envelope"
+GET,/v1/settings,,"Typed server.properties schema for the active server, as sections of fields",none,Implemented,Planned,Implemented,Implemented,"P10.6: same settings route covers Bedrock server.properties; raw unknown-key preservation stays below the API validation layer. P10.22: iOS renders schema fields, helpId topics, and runtime state"
+POST,/v1/settings,,"Apply a sparse set of settings changes (key -> string value), validated and clamped per field",settings,Implemented,Planned,Implemented,Implemented,"P10.6: Bedrock settings use additive runtime state and retain the shared validation/error envelope. P10.22: iOS preserves the echoed sections and runtime state"
 GET,/v1/staged-downloads/{id},downloadStagedBytes,Download bytes from a previously prepared staged export,worlds,Implemented,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4)"
 POST,/v1/staged-uploads,beginStagedUpload,Begin a bounded staged upload,none,Implemented,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4). P8.9 correction: x-permission-category worlds -> none, three new purposes added (phase8-api.md SS5) -- the real route still enforces worlds until P8.13/P8.14/P8.20 update it."
 PUT,/v1/staged-uploads/{id},uploadStagedBytes,Upload bytes into a previously begun staging slot,none,Implemented,Planned,Implemented,Planned,"bounded staging, not an arbitrary remote path (phase6-api.md SS4). P8.9 correction: x-permission-category worlds -> none (phase8-api.md SS5) -- the real route still enforces worlds until P8.13/P8.14/P8.20 update it."

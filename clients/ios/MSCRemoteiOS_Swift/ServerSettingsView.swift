@@ -63,6 +63,9 @@ struct ServerSettingsView: View {
                         loadingCard
                     } else {
                         if response?.serverRunning == true { restartHintBanner }
+                        if let runtime = response?.runtime, !runtime.isAvailable {
+                            runtimeNotice(runtime)
+                        }
                         if !canEdit { readOnlyBanner }
                         if let resultBanner { resultBannerView(resultBanner) }
                         if !rejections.isEmpty { rejectionsCard }
@@ -343,6 +346,24 @@ struct ServerSettingsView: View {
             Text("Read-only — connect with an admin token to edit.")
                 .font(.system(size: 12))
                 .foregroundStyle(MSCRemoteStyle.textTertiary)
+            Spacer(minLength: 0)
+        }
+        .mscCard(padding: MSCRemoteStyle.spaceMD)
+    }
+
+    private func runtimeNotice(_ runtime: BedrockRuntimeStateDTO) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: runtime.isUnavailable ? "exclamationmark.triangle" : "arrow.down.circle")
+                .foregroundStyle(runtime.isUnavailable ? MSCRemoteStyle.warning : MSCRemoteStyle.accent)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(runtime.isUnavailable ? "Bedrock runtime unavailable" : "Bedrock runtime needs setup")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(MSCRemoteStyle.textPrimary)
+                Text(runtime.displayMessage)
+                    .font(.system(size: 11))
+                    .foregroundStyle(MSCRemoteStyle.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer(minLength: 0)
         }
         .mscCard(padding: MSCRemoteStyle.spaceMD)

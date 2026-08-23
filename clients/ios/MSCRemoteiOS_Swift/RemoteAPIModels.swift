@@ -24,6 +24,67 @@ enum ServerType: String, Codable, Hashable {
     }
 }
 
+/// Additive Bedrock runtime disclosure from the shared v1 contract.
+///
+/// The strings intentionally stay open on the client. The agent owns the
+/// platform vocabulary, and an older iOS build must still be able to show a
+/// useful unavailable state when a newer agent adds a reason code.
+struct BedrockRuntimeStateDTO: Codable, Equatable {
+    let state: String
+    let backend: String?
+    let hostOs: String?
+    let reasonCode: String?
+    let message: String?
+    let helpId: String?
+
+    var isAvailable: Bool { state == "available" }
+    var isUnavailable: Bool { state == "unavailable" }
+
+    var displayMessage: String {
+        if let message, !message.isEmpty { return message }
+        switch reasonCode {
+        case "no_test_hardware": return "Bedrock is unavailable because this host has no test hardware."
+        case "missing_bds": return "Verified Bedrock server files are not installed."
+        case "missing_sidecar", "sidecar_unavailable": return "The Bedrock macOS sidecar is unavailable."
+        case "verification_failed": return "The Bedrock files failed verification."
+        case "port_unavailable": return "The Bedrock game port is unavailable."
+        case "unsupported_host": return "Bedrock is not supported on this host."
+        default: return state == "provisioning_required" ? "Bedrock needs verified files before it can start." : "Bedrock runtime status: \(state)."
+        }
+    }
+}
+
+struct BedrockSupportDTO: Codable, Equatable {
+    let supported: Bool
+    let backend: String?
+    let runtime: BedrockRuntimeStateDTO?
+}
+
+struct ServerTypesDTO: Codable, Equatable {
+    let vanilla: Bool
+    let paper: Bool
+    let fabric: Bool
+    let forge: Bool
+    let neoforge: Bool
+    let bedrock: BedrockSupportDTO
+}
+
+struct HelpersDTO: Codable, Equatable {
+    let playit: Bool
+    let duckdns: Bool
+    let geyser: Bool
+}
+
+struct CapabilitiesDTO: Codable, Equatable {
+    let agentVersion: String
+    let apiMajor: Int
+    let apiMinor: Int
+    let hostOs: String
+    let permissions: [String]
+    let serverTypes: ServerTypesDTO
+    let helpers: HelpersDTO
+}
+
 enum RemoteJavaServerCategory: String, Codable, CaseIterable, Hashable {
     case standard
     case modded
@@ -107,6 +168,8 @@ struct RemoteAPIStatus: Codable, Equatable {
     /// Bedrock-only container hints. Nil for Java servers and older macOS builds.
     let dockerContainerRunning: Bool?
     let dockerContainerStatus: String?
+    /// Additive Bedrock runtime state. Nil from older agents and Java responses.
+    let runtime: BedrockRuntimeStateDTO?
 
     var resolvedServerType: ServerType { serverType ?? .java }
 }
@@ -123,6 +186,8 @@ struct ServerDTO: Codable, Identifiable, Equatable {
     let gamePort: Int?
     /// Host address for the join card back (DuckDNS domain or public IP). Nil = not configured.
     let hostAddress: String?
+    /// Additive Bedrock runtime state for this imported or created server.
+    let runtime: BedrockRuntimeStateDTO?
 
     var resolvedServerType: ServerType { serverType ?? .java }
     var resolvedJavaFlavor: RemoteJavaServerFlavor { javaFlavor ?? .paper }
@@ -169,6 +234,7 @@ struct ServerCreateResultDTO: Codable, Equatable {
     let serverId: String?
     let serverName: String?
     let warnings: [String]?
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 struct ServerEULAResultDTO: Codable, Equatable {
@@ -309,6 +375,7 @@ struct PerformanceSnapshotDTO: Decodable, Equatable {
     /// Server type of the currently active server.
     /// Nil when connecting to an older macOS app — treated as .java.
     let serverType: ServerType?
+    let runtime: BedrockRuntimeStateDTO?
 
     var resolvedServerType: ServerType { serverType ?? .java }
 
@@ -321,6 +388,7 @@ struct PerformanceSnapshotDTO: Decodable, Equatable {
         case ramMaxMB
         case worldSizeMB
         case serverType
+        case runtime
     }
 
     init(from decoder: Decoder) throws {
@@ -335,6 +403,7 @@ struct PerformanceSnapshotDTO: Decodable, Equatable {
 
         let rawServerType = try container.decodeIfPresent(String.self, forKey: .serverType)
         serverType = rawServerType.flatMap(ServerType.init(rawValue:))
+        runtime = try container.decodeIfPresent(BedrockRuntimeStateDTO.self, forKey: .runtime)
     }
 
     private static func decodeMetric(
@@ -369,6 +438,7 @@ struct PlayersResponse: Codable, Equatable {
     let count: Int
     /// Optional context note from macOS. Currently used for Bedrock player-list caveats.
     let note: String?
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 // MARK: - Allowlist (Bedrock)
@@ -389,6 +459,7 @@ struct AllowlistEntryDTO: Codable, Identifiable, Equatable {
 struct AllowlistResponseDTO: Codable, Equatable {
     let serverType: String
     let entries: [AllowlistEntryDTO]
+    let runtime: BedrockRuntimeStateDTO?
 
     var isBedrock: Bool { serverType == "bedrock" }
 }
@@ -400,6 +471,7 @@ struct AllowlistMutationResultDTO: Codable, Equatable {
     let message: String
     let serverType: String
     let entries: [AllowlistEntryDTO]
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 // MARK: - Components
@@ -544,6 +616,10 @@ struct SettingOptionDTO: Codable, Equatable, Identifiable {
 struct SettingFieldDTO: Codable, Equatable, Identifiable {
     let key: String
     let label: String
+    /// Phase 10 uses a stable help topic id instead of copying prose into
+    /// every client. `help` remains a display-only compatibility value for
+    /// older agents that still send inline text.
+    let helpId: String?
     let help: String?
     /// "bool" | "int" | "string" | "enum"
     let type: String
@@ -555,6 +631,40 @@ struct SettingFieldDTO: Codable, Equatable, Identifiable {
     let options: [SettingOptionDTO]?
 
     var id: String { key }
+
+    private enum CodingKeys: String, CodingKey {
+        case key, label, type, value, minInt, maxInt, unit, maxLength, options, helpId, help
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        key = try c.decode(String.self, forKey: .key)
+        label = try c.decode(String.self, forKey: .label)
+        type = try c.decode(String.self, forKey: .type)
+        value = try c.decode(String.self, forKey: .value)
+        minInt = try c.decodeIfPresent(Int.self, forKey: .minInt)
+        maxInt = try c.decodeIfPresent(Int.self, forKey: .maxInt)
+        unit = try c.decodeIfPresent(String.self, forKey: .unit)
+        maxLength = try c.decodeIfPresent(Int.self, forKey: .maxLength)
+        options = try c.decodeIfPresent([SettingOptionDTO].self, forKey: .options)
+        helpId = try c.decodeIfPresent(String.self, forKey: .helpId)
+        let legacyHelp = try c.decodeIfPresent(String.self, forKey: .help)
+        help = legacyHelp ?? helpId.map { "More help: \($0)" }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(key, forKey: .key)
+        try c.encode(label, forKey: .label)
+        try c.encode(type, forKey: .type)
+        try c.encode(value, forKey: .value)
+        try c.encodeIfPresent(minInt, forKey: .minInt)
+        try c.encodeIfPresent(maxInt, forKey: .maxInt)
+        try c.encodeIfPresent(unit, forKey: .unit)
+        try c.encodeIfPresent(maxLength, forKey: .maxLength)
+        try c.encodeIfPresent(options, forKey: .options)
+        try c.encodeIfPresent(helpId, forKey: .helpId)
+    }
 }
 
 struct SettingsSectionDTO: Codable, Equatable, Identifiable {
@@ -571,6 +681,7 @@ struct SettingsResponseDTO: Codable, Equatable {
     let editable: Bool
     let sections: [SettingsSectionDTO]
     let note: String?
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 struct SettingRejectionDTO: Codable, Equatable, Identifiable {
@@ -586,6 +697,7 @@ struct SettingsUpdateResultDTO: Codable, Equatable {
     let appliedKeys: [String]
     let rejected: [SettingRejectionDTO]?
     let sections: [SettingsSectionDTO]?
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 // MARK: - Broadcast
@@ -1041,6 +1153,15 @@ struct OperationProgressDTO: Codable, Equatable {
     let total: Int
 }
 
+struct ErrorDetailsDTO: Codable, Equatable {
+    let capability: String?
+    let serverType: String?
+    let state: String?
+    let backend: String?
+    let reasonCode: String?
+    let hostOs: String?
+}
+
 /// `versioning-and-errors.md` §5-6's single error envelope. Distinct from
 /// `RemoteAPIClient`'s private `ErrorEnvelope` (which only ever extracts a
 /// display message from a non-2xx body) because `OperationDTO.error`
@@ -1049,6 +1170,7 @@ struct ErrorDTO: Codable, Equatable {
     let code: String
     let message: String
     let helpId: String?
+    let details: ErrorDetailsDTO?
 }
 
 struct OperationDTO: Decodable, Equatable {
@@ -1058,6 +1180,8 @@ struct OperationDTO: Decodable, Equatable {
     let state: OperationStateDTO
     let progress: OperationProgressDTO?
     let statusLine: String?
+    /// Optional disclosure: false once a stop has entered graceful termination.
+    let cancelable: Bool?
     /// Only ever a flat string map for every Phase 6 operation type this
     /// client polls (`world-activate`/`world-conversion`/`backup-now`/
     /// `backup-restore` all encode a `BTreeMap<String, String>`
@@ -1070,7 +1194,7 @@ struct OperationDTO: Decodable, Equatable {
     let error: ErrorDTO?
 
     private enum CodingKeys: String, CodingKey {
-        case id, type, target, state, progress, statusLine, result, error
+        case id, type, target, state, progress, statusLine, cancelable, result, error
     }
 
     init(from decoder: Decoder) throws {
@@ -1081,6 +1205,7 @@ struct OperationDTO: Decodable, Equatable {
         state = try container.decode(OperationStateDTO.self, forKey: .state)
         progress = try container.decodeIfPresent(OperationProgressDTO.self, forKey: .progress)
         statusLine = try container.decodeIfPresent(String.self, forKey: .statusLine)
+        cancelable = try container.decodeIfPresent(Bool.self, forKey: .cancelable)
         result = try? container.decodeIfPresent([String: String].self, forKey: .result)
         error = try container.decodeIfPresent(ErrorDTO.self, forKey: .error)
     }
@@ -1134,6 +1259,7 @@ struct VersionsResponseDTO: Codable, Equatable {
     let isBedrock: Bool
     let versions: [VersionEntryDTO]
     let note: String?
+    let runtime: BedrockRuntimeStateDTO?
 }
 
 struct VersionChangeResultDTO: Codable, Equatable {

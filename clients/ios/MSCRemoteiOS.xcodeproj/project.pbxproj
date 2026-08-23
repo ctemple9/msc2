@@ -69,6 +69,7 @@
 		7A58DB3BB01D4E6A8152E312 /* Phase6WorldBackupViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */; };
 		1D8208B4649D4D2CB0E321B8 /* Phase6ServerImportOperationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50D264E2BA6D42F0B2B58EEB /* Phase6ServerImportOperationTests.swift */; };
 		8E9A0D1C2B3A4F5E6D7C8B9A /* Phase8ComponentsAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D6C5B4A3928171615141312 /* Phase8ComponentsAPITests.swift */; };
+		A10B22B10000000000000001 /* Phase10BedrockContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10B22A10000000000000001 /* Phase10BedrockContractTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -137,6 +138,7 @@
 		C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase6WorldBackupViewModelTests.swift; sourceTree = "<group>"; };
 		50D264E2BA6D42F0B2B58EEB /* Phase6ServerImportOperationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase6ServerImportOperationTests.swift; sourceTree = "<group>"; };
 		7D6C5B4A3928171615141312 /* Phase8ComponentsAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase8ComponentsAPITests.swift; sourceTree = "<group>"; };
+		A10B22A10000000000000001 /* Phase10BedrockContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Phase10BedrockContractTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -258,6 +260,7 @@
 				C35A944900614D8A90B645F0 /* Phase6WorldBackupViewModelTests.swift */,
 				50D264E2BA6D42F0B2B58EEB /* Phase6ServerImportOperationTests.swift */,
 				7D6C5B4A3928171615141312 /* Phase8ComponentsAPITests.swift */,
+				A10B22A10000000000000001 /* Phase10BedrockContractTests.swift */,
 			);
 			path = MSCRemoteiOSTests;
 			sourceTree = "<group>";
@@ -434,6 +437,7 @@
 				7A58DB3BB01D4E6A8152E312 /* Phase6WorldBackupViewModelTests.swift in Sources */,
 				1D8208B4649D4D2CB0E321B8 /* Phase6ServerImportOperationTests.swift in Sources */,
 				8E9A0D1C2B3A4F5E6D7C8B9A /* Phase8ComponentsAPITests.swift in Sources */,
+				A10B22B10000000000000001 /* Phase10BedrockContractTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

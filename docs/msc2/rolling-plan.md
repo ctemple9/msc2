@@ -352,7 +352,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** stop-after
 
 ### P10.22 — Update the copied iOS Bedrock client contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/ios/MSCRemoteiOS_Swift/`, `clients/ios/MSCRemoteiOSTests/`, `docs/msc2/client-capability-matrix.csv`, `tools/phase10/ios-contract-check.py`
 **What:** Update the copied iOS client’s Bedrock DTO decoding and supported lifecycle/settings/player flows against the P10.6 public contract, while keeping presentation-specific behavior client-owned. The MSC 1 oracle remains read-only. Record each delivered or intentionally unavailable capability in the matrix; do not claim a desktop/web surface before Phase 11.
 **Verify:** `python3 tools/phase10/ios-contract-check.py`

@@ -222,10 +222,21 @@ impl<C: BedrockRuntimeClock> BedrockRuntime for LinuxBedrockRuntime<'_, C> {
         self.state
     }
 
+    fn process_id(&self) -> Option<ProcessId> {
+        self.process_id()
+    }
+
     fn provision(&mut self, request: BedrockProvisionRequest) -> Result<(), BedrockRuntimeError> {
         self.require_supported()?;
-        self.require_state("provision", &[BedrockRuntimeState::New])?;
+        self.require_state(
+            "provision",
+            &[BedrockRuntimeState::New, BedrockRuntimeState::Stopped],
+        )?;
         self.server_dir = Some(PathBuf::from(request.server_dir));
+        self.pending_events.clear();
+        self.graceful_stop_at = None;
+        self.force_stop_sent = false;
+        self.ready_reported = false;
         self.state = BedrockRuntimeState::Provisioned;
         Ok(())
     }

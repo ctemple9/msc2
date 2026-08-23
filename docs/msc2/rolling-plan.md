@@ -260,7 +260,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.12 — Integrate Linux Bedrock lifecycle, metrics, and logs
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/bedrock_service.rs`, `crates/msc-application/tests/bedrock_service.rs`, `fixtures/bedrock-console/`, `fixtures/bedrock-logging/`, `fixtures/bedrock-backup/`
 **What:** Connect the Linux runtime to server readiness, command delivery, metrics (sourced from Phase 3/4's existing OS-level process-stats mechanism, not the VM-only `[MSCSTATS]` protocol), player events, rolling Bedrock logs, save-hold backup coordination, restart recovery, and operation journal state. The service must report a crash separately from a clean stop and must bound retained console and log state under D-021.
 **Verify:** `cargo nextest run -p msc-application --test bedrock_service`

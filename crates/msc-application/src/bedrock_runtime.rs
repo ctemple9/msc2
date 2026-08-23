@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::fmt;
 
+use msc_infrastructure::process::ProcessId;
+
 pub const SIDECAR_SHARED_DIRECTORY_TAG: &str = "world";
 pub const SIDECAR_GUEST_MOUNT: &str = "/mnt";
 
@@ -174,6 +176,12 @@ impl std::error::Error for BedrockRuntimeError {}
 pub trait BedrockRuntime {
     fn capabilities(&self) -> &BedrockRuntimeCapabilities;
     fn state(&self) -> BedrockRuntimeState;
+    /// Native runtimes expose their child process for the shared OS metrics
+    /// provider. Sidecar runtimes leave this unset because their metrics are
+    /// reported by the sidecar boundary instead.
+    fn process_id(&self) -> Option<ProcessId> {
+        None
+    }
     fn provision(&mut self, request: BedrockProvisionRequest) -> Result<(), BedrockRuntimeError>;
     fn start(&mut self, request: BedrockStartRequest) -> Result<(), BedrockRuntimeError>;
     fn stop(&mut self) -> Result<(), BedrockRuntimeError>;

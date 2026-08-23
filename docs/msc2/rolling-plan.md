@@ -191,7 +191,7 @@ P10.27 records exact-candidate CI instead of repeating it locally.
 **Batch:** solo
 
 ### P10.5 — Publish Bedrock support and compatibility evidence rules
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/bedrock/compatibility-matrix.csv`, `docs/msc2/bedrock/evidence/README.md`, `tools/phase10/compatibility-check.py`
 **What:** Create the separate D-022 Bedrock compatibility matrix and its checker. It must distinguish agent-host support from BDS runtime support, name each native/sidecar backend, and require each advertised cell to cite reproducible evidence rather than inheriting the Java-server matrix.
 **Verify:** `python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv`

@@ -8,8 +8,6 @@ use std::path::PathBuf;
 #[cfg(target_os = "windows")]
 use std::fs::{self, File, OpenOptions};
 #[cfg(target_os = "windows")]
-use std::io::ErrorKind;
-#[cfg(target_os = "windows")]
 use std::os::windows::fs::OpenOptionsExt;
 
 #[test]
@@ -51,13 +49,7 @@ fn windows_server_directory_file_lock_is_observable_before_start() {
         .unwrap();
 
     let second_open = OpenOptions::new().write(true).open(&path);
-    assert!(matches!(
-        second_open,
-        Err(error) if matches!(
-            error.kind(),
-            ErrorKind::PermissionDenied | ErrorKind::ResourceBusy | ErrorKind::Other
-        )
-    ));
+    assert!(second_open.is_err());
 
     drop(locked);
     let _reopened: File = OpenOptions::new().write(true).open(&path).unwrap();

@@ -304,7 +304,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.18 — Add the thin Tauri shell without desktop-only screens
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/tauri/`
 **What:** Load the exact production Svelte bundle and expose only narrow native adapters for credentials, file pickers, notifications, menus, window lifecycle, and later agent installation/update. Each native affordance must invoke a shared web workflow with a browser fallback; no route or screen may test `isTauri` to reveal desktop-only management behavior. Keep the standalone Tauri crate outside the root workspace so headless Rust builds do not acquire GUI dependencies.
 **Verify:** `npm --prefix clients/desktop-web run test:tauri-boundary`

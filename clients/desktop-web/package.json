@@ -22,6 +22,7 @@
     "test:screen-addons": "vitest run tests/screens/addons.test.ts",
     "test:screen-administration": "vitest run tests/screens/administration.test.ts",
     "test:screen-help": "vitest run tests/screens/help.test.ts",
+    "test:tauri-boundary": "vitest run tests/tauri",
     "test:e2e-browser": "npm run build && playwright test",
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",
     "api:check": "npm run api:generate -- --check && python3 ../../tools/phase11/generated-types-check.py",
@@ -30,6 +31,9 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.4.0",
+    "@tauri-apps/plugin-fs": "^2.4.0",
+    "@tauri-apps/plugin-notification": "^2.3.0",
     "svelte": "^5.38.7"
   },
   "devDependencies": {

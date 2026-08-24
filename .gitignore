@@ -13,6 +13,8 @@ dist/
 
 # Tauri
 src-tauri/target/
+clients/desktop-web/src-tauri/target/
+clients/desktop-web/src-tauri/gen/
 
 # macOS
 .DS_Store

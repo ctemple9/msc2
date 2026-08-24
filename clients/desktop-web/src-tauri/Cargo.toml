@@ -1,0 +1,22 @@
+[package]
+name = "msc2-desktop-web"
+version = "0.1.0"
+description = "Thin Tauri shell for the shared MSC 2 client"
+authors = ["Cameron Temple"]
+edition = "2021"
+
+[lib]
+name = "msc2_desktop_web_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[workspace]

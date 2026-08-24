@@ -569,7 +569,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.2 — Scaffold one standalone Svelte and Tauri client
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src/`, `clients/desktop-web/static/`, `clients/desktop-web/src-tauri/`, `clients/desktop-web/svelte.config.js`, `clients/desktop-web/vite.config.ts`, `clients/desktop-web/tsconfig.json`
 **What:** Create one TypeScript Svelte frontend with a static build suitable for both agent serving and a thin Tauri 2 shell. Keep `src-tauri` out of the root Cargo workspace until Phase 10 closes so this step cannot churn Phase 10's Cargo graph or `crates/`; give it its own lockfile and no server-management behavior. Establish formatting, type-checking, unit-test, production-build, and bundle-identity commands.
 **Verify:** `npm --prefix clients/desktop-web run verify:scaffold`

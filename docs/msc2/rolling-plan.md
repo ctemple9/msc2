@@ -159,7 +159,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.4 — Build the contract-backed client test harness
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/testing/`, `clients/desktop-web/tests/contract/`, `clients/desktop-web/tests/fixtures/`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`
 **What:** Add deterministic fake HTTP, WebSocket, upload/download, operation, auth, capability, permission, old-agent/new-agent, and reconnect scenarios using generated DTO shapes. Include unknown optional fields and absent future capability keys so the UI proves additive skew tolerance. This becomes the reviewed test boundary later `safe` screen batches use; it must not invent Bedrock screens or player-profile behavior. The separate P11.20 seam test consumes the real Bedrock capability/runtime-state contract.
 **Verify:** `npm --prefix clients/desktop-web run test:contract`

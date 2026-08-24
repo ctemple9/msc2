@@ -1,0 +1,20 @@
+[
+  {
+    "ts": "2026-08-24T00:00:00Z",
+    "source": "server",
+    "level": "info",
+    "text": "Preparing"
+  },
+  {
+    "ts": "2026-08-24T00:00:01Z",
+    "source": "server",
+    "level": "info",
+    "text": "Done"
+  },
+  {
+    "ts": "2026-08-24T00:00:02Z",
+    "source": "server",
+    "level": "warn",
+    "text": "Ready"
+  }
+]

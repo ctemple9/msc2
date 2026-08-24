@@ -1,0 +1,36 @@
+{
+  "agentVersion": "0.2.0",
+  "apiMajor": 1,
+  "apiMinor": 2,
+  "hostOs": "linux",
+  "helpers": {
+    "duckdns": false,
+    "geyser": true,
+    "playit": false,
+    "futureHelper": "ignored-by-older-client"
+  },
+  "permissions": ["serverControl", "players", "worlds"],
+  "serverTypes": {
+    "bedrock": {
+      "backend": "native",
+      "supported": true,
+      "runtime": {
+        "state": "available",
+        "backend": "native",
+        "hostOs": "linux",
+        "futureReason": "ignored-by-older-client"
+      },
+      "futureServerType": {
+        "advertised": true
+      }
+    },
+    "fabric": true,
+    "forge": false,
+    "neoforge": false,
+    "paper": true,
+    "vanilla": true
+  },
+  "futureCapability": {
+    "profileRoutes": false
+  }
+}

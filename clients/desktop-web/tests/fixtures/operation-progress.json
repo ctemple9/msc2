@@ -1,0 +1,32 @@
+[
+  {
+    "id": "op-install-1",
+    "type": "addon-install",
+    "target": "paper-home",
+    "state": "queued",
+    "statusLine": "Queued"
+  },
+  {
+    "id": "op-install-1",
+    "type": "addon-install",
+    "target": "paper-home",
+    "state": "running",
+    "progress": {
+      "current": 1,
+      "total": 2
+    },
+    "statusLine": "Downloading"
+  },
+  {
+    "id": "op-install-1",
+    "type": "addon-install",
+    "target": "paper-home",
+    "state": "succeeded",
+    "progress": {
+      "current": 2,
+      "total": 2
+    },
+    "statusLine": "Installed",
+    "result": null
+  }
+]

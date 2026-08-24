@@ -1,0 +1,23 @@
+{
+  "agentVersion": "0.1.0",
+  "apiMajor": 1,
+  "apiMinor": 0,
+  "hostOs": "linux",
+  "helpers": {
+    "duckdns": false,
+    "geyser": false,
+    "playit": false
+  },
+  "permissions": ["serverControl", "players"],
+  "serverTypes": {
+    "bedrock": {
+      "backend": null,
+      "supported": false
+    },
+    "fabric": true,
+    "forge": false,
+    "neoforge": false,
+    "paper": true,
+    "vanilla": true
+  }
+}

@@ -1,3 +1,5 @@
+@import './lib/styles/tokens.css';
+
 :root {
   font-family:
     Inter,
@@ -7,8 +9,8 @@
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  color: #e8eef2;
-  background: #101820;
+  color: var(--msc-text);
+  background: var(--msc-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -16,76 +18,14 @@
 * {
   box-sizing: border-box;
 }
-
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
 }
-
-button {
-  border: 0;
-  border-radius: 0.65rem;
-  padding: 0.75rem 1rem;
-  color: #101820;
-  background: #8fe3cf;
+button,
+input,
+select,
+textarea {
   font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-button:hover {
-  background: #b2f1e2;
-}
-
-.app-shell {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-  padding: 1.5rem;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(143, 227, 207, 0.16), transparent 32rem), #101820;
-}
-
-.welcome-card {
-  width: min(100%, 32rem);
-  padding: clamp(1.5rem, 5vw, 3rem);
-  border: 1px solid rgba(232, 238, 242, 0.16);
-  border-radius: 1.25rem;
-  background: rgba(24, 37, 46, 0.9);
-  box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, 0.24);
-}
-
-.eyebrow {
-  margin: 0 0 0.75rem;
-  color: #8fe3cf;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-h1 {
-  margin: 0;
-  font-size: clamp(2.5rem, 10vw, 4.5rem);
-  line-height: 0.95;
-}
-
-.welcome-copy {
-  max-width: 26rem;
-  margin: 1.5rem 0;
-  color: #b8c6cd;
-  line-height: 1.6;
-}
-
-.status {
-  margin: 0 0 1rem;
-  color: #f4d58d;
-}
-
-small {
-  display: block;
-  margin-top: 1.5rem;
-  color: #8498a2;
-  font-size: 0.75rem;
 }

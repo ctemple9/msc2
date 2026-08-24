@@ -4,16 +4,30 @@
   export let fallbackMs = 900;
   let visible = true;
   let reducedMotion = false;
+  let videoFailed = false;
+  let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+
+  function finish(): void {
+    visible = false;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
+  }
+
+  function handleVideoError(): void {
+    videoFailed = true;
+    fallbackTimer = setTimeout(finish, fallbackMs);
+  }
 
   onMount(() => {
     reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
-    const finish = () => (visible = false);
     if (reducedMotion) {
-      finish();
+      visible = false;
       return;
     }
-    const timer = window.setTimeout(finish, fallbackMs);
-    return () => window.clearTimeout(timer);
+    const timer = window.setTimeout(finish, 12_000);
+    return () => {
+      window.clearTimeout(timer);
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+    };
   });
 </script>
 
@@ -24,36 +38,53 @@
     role="status"
     aria-label="Opening Minecraft Server Controller"
   >
-    <span aria-hidden="true">◆ ◆ ◆</span>
+    {#if !videoFailed}
+      <video
+        class="splash-video"
+        autoplay
+        muted
+        playsinline
+        preload="auto"
+        aria-hidden="true"
+        onended={finish}
+        onerror={handleVideoError}
+      >
+        <source src="/splash_intro.mp4" type="video/mp4" />
+      </video>
+    {:else}
+      <span class="splash-fallback" aria-hidden="true">◆ ◆ ◆</span>
+    {/if}
   </div>
 {/if}
 
 <style>
-  /* MSC 1's bundled splash_intro was not extractable. This bounded CSS mark is the reviewed replacement. */
   .splash {
     position: fixed;
     inset: 0;
     z-index: 50;
     display: grid;
     place-items: center;
+    color: white;
+    background: rgb(26 24 22);
+  }
+
+  .splash-video {
+    display: block;
+    width: min(25vw, 25vh);
+    height: auto;
+    max-width: 25rem;
+    max-height: 90vh;
+    object-fit: contain;
+  }
+
+  .splash-fallback {
     color: var(--msc-accent);
-    background: var(--msc-bg);
     font-size: 2rem;
     letter-spacing: 0.5rem;
-    animation: settle 0.65s ease-out both;
   }
+
   .splash.reduced {
     animation: none;
-  }
-  @keyframes settle {
-    0% {
-      opacity: 0;
-      transform: scale(1.04);
-    }
-    100% {
-      opacity: 1;
-      transform: scale(1);
-    }
   }
   @media (prefers-reduced-motion: reduce) {
     .splash {

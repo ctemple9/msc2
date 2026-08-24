@@ -51,5 +51,9 @@ describe('shared help and onboarding screens', () => {
     expect(helpSource).toContain('hideCard');
     expect(splashSource).toContain('prefers-reduced-motion');
     expect(splashSource).toContain('fallbackMs');
+    expect(splashSource).toContain('/splash_intro.mp4');
+    expect(splashSource).toContain('autoplay');
+    expect(splashSource).toContain('onended={finish}');
+    expect(splashSource).toContain('onerror={handleVideoError}');
   });
 });

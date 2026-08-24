@@ -29,8 +29,8 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     await waitForText('header', 'Local agent');
     if (motionMode === 'fallback') {
       await browser.waitUntil(async () => !(await $('.splash').isExisting()), {
-        timeout: 5_000,
-        timeoutMsg: 'The bounded splash fallback did not finish in the native renderer.',
+        timeout: 15_000,
+        timeoutMsg: 'The splash playback or fallback did not finish in the native renderer.',
       });
     }
 
@@ -63,7 +63,7 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     });
     await browser.refresh();
     if (motionMode === 'fallback') {
-      await browser.waitUntil(async () => !(await $('.splash').isExisting()), { timeout: 5_000 });
+      await browser.waitUntil(async () => !(await $('.splash').isExisting()), { timeout: 15_000 });
     }
 
     await (await $('//nav[@aria-label="Sections"]//button[contains(., "Handbook")]')).click();

@@ -1,23 +1,24 @@
 # Phase 10 CI candidate
 
-The exact Phase 10 candidate is commit
-`2ccb1d0d509dcedb50e3f9c153845ee44934ff93`. GitHub Actions run
-[`32655288252`](https://github.com/ctemple9/msc2/actions/runs/32655288252)
-completed successfully on 2026-08-23 and exercised that commit directly.
-The later P10.27 documentation commit is not the tested candidate.
+The exact corrected post-P10.36 candidate is commit
+`3226f7b4573fa0c3b058f134ccf79f0cd99388cb`. GitHub Actions run
+[`32692896100`](https://github.com/ctemple9/msc2/actions/runs/32692896100)
+completed successfully on 2026-08-24 and exercised that commit directly.
+The later P10.37 documentation commit is not the tested candidate.
 
 ## Green jobs
 
 | Evidence | GitHub job | Result |
 |---|---:|---|
-| macOS toolchain and Phase 10 synthetic, compatibility, and evidence checks | `97232910629` | success |
-| Linux toolchain (`ubuntu-latest`) and Phase 10 synthetic, compatibility, and evidence checks | `97232910758` | success |
-| Windows toolchain and Phase 10 synthetic, compatibility, and evidence checks | `97232910707` | success |
-| Native headless artifacts link no GUI frameworks | `97234439713` | success |
+| macOS toolchain, full workspace regression, production-router smoke, P10.36 check, compatibility, and evidence checks | `97329642447` | success |
+| Linux toolchain (`ubuntu-latest`), full workspace regression, production-router smoke, P10.36 check, compatibility, and evidence checks | `97329642474` | success |
+| Windows toolchain, full workspace regression, production-router smoke, P10.36 check, compatibility, and evidence checks | `97329642355` | success |
+| Native headless artifact link check, including the P10.36 check | `97331600727` | success |
 
-Each platform job also completed its build, formatting, Clippy, full workspace
-test, and headless-artifact collection steps before the final headless link
-check consumed the native artifacts.
+Each platform job completed its build, formatting, Clippy, full workspace test,
+the production-router smoke, the P10.36 production wiring check, compatibility
+and evidence checks, and headless-artifact collection. The separate headless
+job then consumed those native artifacts and completed its no-GUI link check.
 
 ## Limits
 
@@ -38,5 +39,5 @@ returned to production Rust, and that the cross-backend smoke launches the
 real `msc serve` composition root. It does not download BDS, start a live
 Bedrock server or VM, contact a provider, or make a public-network claim.
 
-The exact post-P10.36 CI candidate and its results are recorded by P10.37;
+The exact post-P10.36 CI candidate and its results are recorded above by P10.37;
 this note does not substitute this documentation change for that candidate.

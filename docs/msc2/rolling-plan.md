@@ -459,7 +459,7 @@ not advance.
 **Batch:** solo
 
 ### P10.34 — Prove the same production paths through CLI and copied iOS decoding
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/bedrock_production_cli.rs`, `clients/ios/MSCRemoteiOS_Swift/RemoteAPIModels.swift`, `clients/ios/MSCRemoteiOSTests/Phase10BedrockContractTests.swift`, `tools/phase10/ios-contract-check.py`, `fixtures/dto-contract/`
 **What:** Drive the P10.32/P10.33 production router through the same-binary CLI, then decode recorded responses and unavailable errors with the copied iOS client models. Cover capability disclosure, import/create result, lifecycle operation, settings, players, allowlist, version state, and the Apple-Silicon unavailable result. The test fixtures must originate from the real agent response serializers, not hand-authored JSON that can drift from them. Preserve unknown backend and reason-code values additively for old iOS clients.
 **Verify:** `cargo nextest run -p msc-agent --test bedrock_production_cli && python3 tools/phase10/ios-contract-check.py`
@@ -467,7 +467,7 @@ not advance.
 **Batch:** solo
 
 ### P10.35 — Replace the fake-only cross-backend smoke with a production-router smoke
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `tools/phase10/phase10-smoke.sh`, `crates/msc-agent/tests/support/bedrock_smoke.rs`, `crates/msc-agent/tests/bedrock_production_smoke.rs`, `docs/msc2/bedrock/evidence/phase10-synthetic-cross-backend.md`
 **What:** Make the cross-backend smoke instantiate the production agent router and its real runtime-selection/operation wiring for Linux-native, Windows-native, and Intel-macOS-sidecar fixture adapters. It must cover provision, create/import, lifecycle, console, command, player/settings/allowlist state, cancellation/recovery, capability disclosure, and an unavailable host without starting BDS, a VM, or a public provider. Keep the evidence explicit that this proves the public integration contract, not live BDS or VZ support.
 **Verify:** `bash tools/phase10/phase10-smoke.sh --synthetic`
@@ -475,7 +475,7 @@ not advance.
 **Batch:** stop-after
 
 ### P10.36 — Make CI reject detached Bedrock implementations
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `.github/workflows/ci.yml`, `tools/phase10/phase10-production-check.py`, `tools/phase10/phase10-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/bedrock/evidence/phase10-ci.md`
 **What:** Add a fail-closed Phase 10 production check and run it in macOS, Linux, Windows, and headless CI alongside the production-router smoke. It must reject restored literal Bedrock refusals, a capabilities response detached from runtime selection, an API DTO missing the frozen runtime state, and a smoke that bypasses the production router. Preserve the existing no-download/no-live-BDS/no-VM/no-public-network CI boundary and the headless link proof.
 **Verify:** `python3 tools/phase10/phase10-production-check.py --check && git diff --check && rg -n 'phase10-production-check.py --check|phase10-smoke.sh --synthetic' .github/workflows/ci.yml`
@@ -483,9 +483,9 @@ not advance.
 **Batch:** solo
 
 ### P10.37 — Record the corrected exact tri-platform candidate
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/bedrock/evidence/phase10-ci.md`, `docs/msc2/rolling-plan.md`
-**What:** Record the exact post-P10.36 commit and its green macOS, Linux, Windows, and headless CI run. The evidence must show that the production-router smoke and P10.36 check ran on that exact candidate, distinguish the candidate from this documentation commit, and retain the existing explicit limits on live BDS/VM/package claims.
+**What:** Record the exact post-P10.36 commit and its green macOS, Linux, Windows, and headless CI run. The evidence must show that each platform completed the workspace regression suite as well as the production-router smoke and P10.36 check on that exact candidate; distinguish the candidate from this documentation commit, and retain the existing explicit limits on live BDS/VM/package claims. This exact CI record is the correction plan's single full-workspace regression proof.
 **Verify:** `test -s docs/msc2/bedrock/evidence/phase10-ci.md && rg -n 'commit|macOS|Linux|Windows|headless|production' docs/msc2/bedrock/evidence/phase10-ci.md`
 **Commit:** `P10.37: record corrected Bedrock CI candidate`
 **Batch:** stop-after
@@ -493,8 +493,8 @@ not advance.
 ### P10.38 — Re-run the literal Phase 10 gate against the production path
 **Status:** not started
 **Files:** `tools/phase10/phase10-check.py`, `tools/phase10/phase10-production-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/rolling-plan.md`
-**What:** Re-check the literal Phase 10 gate after the correction work. Require the shared fixtures, frozen API and copied-iOS contract, separate compatibility matrix, real-or-unavailable distribution/runtime evidence, production-router cross-backend smoke, fail-closed production check, corrected exact CI candidate, headless independence, and this phase's one final workspace suite. It reports evidence only; the other agent still decides in REVIEW whether the gate holds.
-**Verify:** `python3 tools/phase10/phase10-check.py --gate && python3 tools/phase10/phase10-production-check.py --check && bash tools/phase10/phase10-smoke.sh --synthetic && cargo nextest run --workspace`
+**What:** Re-check the literal Phase 10 gate after the correction work. Require the shared fixtures, frozen API and copied-iOS contract, separate compatibility matrix, real-or-unavailable distribution/runtime evidence, production-router cross-backend smoke, fail-closed production check, corrected exact CI candidate, and headless independence. The exact P10.37 CI candidate supplies this correction plan's full-workspace regression evidence, so this local gate command deliberately does not repeat it. It reports evidence only; the other agent still decides in REVIEW whether the gate holds.
+**Verify:** `python3 tools/phase10/phase10-check.py --gate && python3 tools/phase10/phase10-production-check.py --check && bash tools/phase10/phase10-smoke.sh --synthetic`
 **Commit:** `P10.38: recheck Bedrock runtime gate`
 **Batch:** solo
 

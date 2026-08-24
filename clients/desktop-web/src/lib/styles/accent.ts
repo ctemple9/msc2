@@ -52,6 +52,7 @@ export const ACCENT_PRESETS: readonly AccentChoice[] = [
 ];
 
 const STORAGE_KEY = 'msc.accent';
+const SERVER_TYPES_STORAGE_KEY = 'msc.server-types';
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
 function customChoice(color: string): AccentChoice {
@@ -94,4 +95,12 @@ export function storedAccent(): string {
   return value && (ACCENT_PRESETS.some((preset) => preset.id === value) || HEX_COLOR.test(value))
     ? value
     : 'green';
+}
+
+export function resetSetupPreferences(): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(SERVER_TYPES_STORAGE_KEY);
+  }
+  applyAccent('green');
 }

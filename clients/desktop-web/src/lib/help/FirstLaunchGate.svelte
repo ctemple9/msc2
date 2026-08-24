@@ -4,6 +4,7 @@
   import ActionButton from '../components/ActionButton.svelte';
   import SetupIntro from './SetupIntro.svelte';
   import { firstLaunchStage, nextTourStep, type FirstLaunchState } from './onboarding';
+  import { resetSetupPreferences } from '../styles/accent';
   import type { ConceptGuide, OnboardingGuide } from './types';
 
   export let api: ScreenApi;
@@ -23,10 +24,23 @@
 
   function readState(): FirstLaunchState {
     if (!onboarding) return state;
+    const setupComplete = localStorage.getItem('msc.setup-complete') === 'true';
+    const conceptGuideSeen = localStorage.getItem('msc.concept-guide-seen') === 'true';
+    const tourComplete = localStorage.getItem(onboarding.reopen.persistenceKey) === 'true';
+    if (setupComplete) {
+      localStorage.setItem('msc.setup-ever-completed', 'true');
+    } else if (
+      !conceptGuideSeen &&
+      !tourComplete &&
+      localStorage.getItem('msc.setup-ever-completed') === 'true'
+    ) {
+      resetSetupPreferences();
+      localStorage.removeItem('msc.setup-ever-completed');
+    }
     return {
-      setupComplete: localStorage.getItem('msc.setup-complete') === 'true',
-      conceptGuideSeen: localStorage.getItem('msc.concept-guide-seen') === 'true',
-      tourComplete: localStorage.getItem(onboarding.reopen.persistenceKey) === 'true',
+      setupComplete,
+      conceptGuideSeen,
+      tourComplete,
     };
   }
   function writeState(next: FirstLaunchState): void {
@@ -144,11 +158,18 @@
   }
   .gate {
     width: min(100%, 38rem);
+    max-height: calc(100vh - 2rem);
     padding: 1.5rem;
+    overflow-y: auto;
     border: 1px solid var(--msc-border);
     border-radius: var(--msc-radius-lg);
     background: var(--msc-surface-raised);
     box-shadow: var(--msc-shadow);
+    scrollbar-width: none;
+  }
+  .gate::-webkit-scrollbar {
+    display: none;
+    width: 0;
   }
   .gate h2 {
     margin: 0;

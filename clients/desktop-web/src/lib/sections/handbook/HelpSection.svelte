@@ -12,6 +12,7 @@
   } from '../../help/types';
   import ActionButton from '../../components/ActionButton.svelte';
   import SetupIntro from '../../help/SetupIntro.svelte';
+  import { resetSetupPreferences } from '../../styles/accent';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
   import type { ScreenProps } from '../shared/types';
   import { call } from '../shared/types';
@@ -42,12 +43,25 @@
   }
   function readLaunchState(): FirstLaunchState {
     if (typeof localStorage === 'undefined') return defaultState;
+    const setupComplete = localStorage.getItem(storageKey('setup-complete')) === 'true';
+    const conceptGuideSeen = localStorage.getItem(storageKey('concept-guide-seen')) === 'true';
+    const tourComplete = onboarding
+      ? localStorage.getItem(onboarding.reopen.persistenceKey) === 'true'
+      : false;
+    if (setupComplete) {
+      localStorage.setItem(storageKey('setup-ever-completed'), 'true');
+    } else if (
+      !conceptGuideSeen &&
+      !tourComplete &&
+      localStorage.getItem(storageKey('setup-ever-completed')) === 'true'
+    ) {
+      resetSetupPreferences();
+      localStorage.removeItem(storageKey('setup-ever-completed'));
+    }
     return {
-      setupComplete: localStorage.getItem(storageKey('setup-complete')) === 'true',
-      conceptGuideSeen: localStorage.getItem(storageKey('concept-guide-seen')) === 'true',
-      tourComplete: onboarding
-        ? localStorage.getItem(onboarding.reopen.persistenceKey) === 'true'
-        : false,
+      setupComplete,
+      conceptGuideSeen,
+      tourComplete,
     };
   }
   function saveLaunchState(next: FirstLaunchState): void {

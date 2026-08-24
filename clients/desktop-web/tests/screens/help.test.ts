@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import gateSource from '../../src/lib/help/FirstLaunchGate.svelte?raw';
 import helpSource from '../../src/lib/sections/handbook/HelpSection.svelte?raw';
 import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import splashSource from '../../src/lib/help/SplashGate.svelte?raw';
@@ -57,6 +58,9 @@ describe('shared help and onboarding screens', () => {
     expect(setupText).toContain('Pick an Accent Color');
     expect(setupText).toContain('This setup takes about 2 minutes.');
     expect(setupText).toContain('aria-pressed');
+    expect(gateSource).toContain('max-height: calc(100vh - 2rem)');
+    expect(gateSource).toContain('scrollbar-width: none');
+    expect(helpSource).toContain('resetSetupPreferences');
     expect(helpSource).toContain("'/v1/guides/onboarding'");
     expect(helpSource).toContain('That topic is not available on this agent');
     expect(helpSource).toContain('data-onboarding-anchor');

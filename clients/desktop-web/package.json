@@ -15,6 +15,7 @@
     "test:bedrock-extension": "vitest run tests/navigation/bedrock-extension.test.ts",
     "test:hosts": "vitest run tests/hosts",
     "test:transport": "vitest run tests/transport",
+    "test:auth-browser": "vitest run tests/auth/browser.test.ts",
     "test:visual-shell": "vitest run tests/visual",
     "test:screen-fleet": "vitest run tests/screens/fleet.test.ts",
     "test:screen-live": "vitest run tests/screens/live.test.ts",

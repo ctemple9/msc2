@@ -14,7 +14,7 @@ use std::process::ExitCode;
 
 use axum::Extension;
 use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use clap::Parser;
 
 #[derive(Parser)]
@@ -122,8 +122,33 @@ pub(crate) fn build_app() -> Router {
     // P7.24 replaces its Phase 2 canned card with real health-card data,
     // which needs the same `LifecycleRoutesState` every protected route
     // reads.
+    let browser_pairings = Router::new()
+        .route(
+            "/auth/pairings",
+            post(routes::browser_session::create_pairing),
+        )
+        .layer(Extension(auth_state.clone()))
+        .route_layer(axum::middleware::from_fn_with_state(
+            auth_state.clone(),
+            auth::require_bearer_token,
+        ));
+    let browser_public = Router::new()
+        .route(
+            "/auth/browser-sessions",
+            post(routes::browser_session::exchange_browser_session),
+        )
+        .layer(Extension(auth_state.clone()));
+    let browser_protected = Router::new()
+        .route("/auth/csrf", get(routes::browser_session::csrf_token))
+        .route(
+            "/auth/browser-sessions/current",
+            delete(routes::browser_session::logout_browser_session),
+        );
+
     let public = Router::new()
         .route("/health", get(routes::health::health))
+        .merge(browser_pairings)
+        .merge(browser_public)
         .with_state(lifecycle_state.clone());
 
     // P6.17: one scheduled-backup timer per configured server, started
@@ -269,12 +294,38 @@ pub(crate) fn build_app() -> Router {
         .merge(backups)
         .merge(templates)
         .merge(users)
+        .merge(browser_protected)
         .layer(Extension(networking_state))
         .layer(Extension(auth_state.clone()))
         .route_layer(axum::middleware::from_fn_with_state(
             auth_state,
-            auth::require_bearer_token,
+            auth::require_management_auth,
         ));
 
-    Router::new().nest("/v1", public.merge(protected))
+    Router::new()
+        .nest("/v1", public.merge(protected))
+        .layer(axum::middleware::from_fn(security_headers))
+}
+
+async fn security_headers(
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let mut response = next.run(request).await;
+    let headers = response.headers_mut();
+    headers.insert(
+        "Content-Security-Policy",
+        axum::http::HeaderValue::from_static(
+            "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:",
+        ),
+    );
+    headers.insert(
+        "X-Content-Type-Options",
+        axum::http::HeaderValue::from_static("nosniff"),
+    );
+    headers.insert(
+        "Referrer-Policy",
+        axum::http::HeaderValue::from_static("no-referrer"),
+    );
+    response
 }

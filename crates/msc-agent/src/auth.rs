@@ -12,6 +12,9 @@
 //! value at `remote-api.token.<credential-id>` is the authority for whether
 //! a token can authenticate.
 
+#[path = "auth/browser.rs"]
+mod browser;
+
 use std::collections::{HashMap, VecDeque};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -42,11 +45,19 @@ use serde_json::Value;
 use sha1::{Digest, Sha1};
 use subtle::ConstantTimeEq;
 
+#[allow(unused_imports)]
+pub(crate) use browser::{
+    BrowserSessionError, CreateBrowserPairing, cleared_session_cookie, request_has_exact_origin,
+    request_uses_https, session_cookie,
+};
+
 const TOKEN_PREFIX: &str = "msc2";
 const SECRET_STORE_KEY_PREFIX: &str = "remote-api.token.";
 const HASH_ALGORITHM: &str = "sha1-salted-v1";
 const AUTH_FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const AUTH_FAILURE_LIMIT: usize = 10;
+const PAIRING_CREATE_WINDOW: Duration = Duration::from_secs(5);
+const PAIRING_CREATE_LIMIT: usize = 10;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -63,6 +74,16 @@ pub struct AuthenticatedCredential {
     pub label: String,
     pub role: CredentialRole,
     pub permissions: Vec<PermissionCategoryDto>,
+}
+
+/// The browser-only information retained while a request is authenticated by
+/// an httpOnly session cookie. It is deliberately separate from
+/// `AuthenticatedCredential`: route handlers receive the same permission
+/// principal whichever supported credential form authenticated the request.
+#[derive(Debug, Clone)]
+pub(crate) struct BrowserSessionAuthentication {
+    pub session_id: String,
+    pub csrf_token: String,
 }
 
 #[derive(Debug, Clone)]
@@ -132,6 +153,7 @@ struct AuthStateInner {
     secret_store: Arc<dyn SecretStore + Send + Sync>,
     registry: Mutex<HashMap<String, CredentialRecord>>,
     failures: Mutex<HashMap<String, VecDeque<Instant>>>,
+    pairing_creations: Mutex<HashMap<String, VecDeque<Instant>>>,
     audit_events: Mutex<Vec<AuthAuditEvent>>,
     /// Where the non-secret registry is durably persisted, if at all --
     /// `None` for the in-memory-only constructors tests use.
@@ -252,6 +274,7 @@ impl AuthState {
                 secret_store,
                 registry: Mutex::new(registry),
                 failures: Mutex::new(HashMap::new()),
+                pairing_creations: Mutex::new(HashMap::new()),
                 audit_events: Mutex::new(Vec::new()),
                 credential_store,
             }),
@@ -409,6 +432,29 @@ impl AuthState {
             .get(credential_id)
             .filter(|record| !record.revoked)
             .map(|record| summary_from_record(credential_id, record, SystemTime::now()))
+    }
+
+    pub(crate) fn credential_for_browser_session(
+        &self,
+        credential_id: &str,
+    ) -> Result<AuthenticatedCredential, BrowserSessionError> {
+        let registry = self.inner.registry.lock().unwrap();
+        let record = registry
+            .get(credential_id)
+            .ok_or(BrowserSessionError::Unauthorized)?;
+        if record.revoked
+            || record
+                .expires_at
+                .is_some_and(|expiry| SystemTime::now() >= expiry)
+        {
+            return Err(BrowserSessionError::Unauthorized);
+        }
+        Ok(AuthenticatedCredential {
+            credential_id: credential_id.to_string(),
+            label: record.label.clone(),
+            role: record.role,
+            permissions: record.permissions.clone(),
+        })
     }
 
     /// Migrates a P5.8 legacy owner token into the Phase 4 credential
@@ -618,6 +664,11 @@ impl AuthState {
         }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn bearer_is_authenticated(&self, headers: &HeaderMap, client_key: &str) -> bool {
+        self.authenticate_headers(headers, client_key).is_ok()
+    }
+
     fn try_authenticate(&self, headers: &HeaderMap) -> Result<AuthenticatedCredential, AuthError> {
         let token = bearer_token(headers).ok_or(AuthError::Missing)?;
         let (credential_id, secret) = parse_token(token).ok_or(AuthError::Malformed)?;
@@ -698,6 +749,28 @@ impl AuthState {
                 code: code.to_string(),
             });
     }
+
+    pub(crate) fn record_browser_audit(&self, actor: &str, status: StatusCode, code: &str) {
+        self.record_audit(actor, status, code);
+    }
+
+    pub(crate) fn browser_failure_is_rate_limited(&self, client_key: &str) -> bool {
+        self.record_failure_is_limited(client_key)
+    }
+
+    pub(crate) fn browser_pairing_creation_is_rate_limited(&self, actor: &str) -> bool {
+        let now = Instant::now();
+        let mut attempts = self.inner.pairing_creations.lock().unwrap();
+        let entries = attempts.entry(actor.to_string()).or_default();
+        while entries
+            .front()
+            .is_some_and(|oldest| now.duration_since(*oldest) > PAIRING_CREATE_WINDOW)
+        {
+            entries.pop_front();
+        }
+        entries.push_back(now);
+        entries.len() > PAIRING_CREATE_LIMIT
+    }
 }
 
 pub async fn require_bearer_token(
@@ -714,6 +787,82 @@ pub async fn require_bearer_token(
         Err(AuthError::SecretStore(message)) => internal_error(message),
         Err(_) => unauthorized(),
     }
+}
+
+/// Authenticates an existing management route. Bearer credentials take
+/// precedence over a browser cookie so a desktop/iOS/CLI request keeps its
+/// established behavior even if a browser session happens to be present.
+pub(crate) async fn require_management_auth(
+    State(auth): State<AuthState>,
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let bearer_was_present = request.headers().contains_key(header::AUTHORIZATION);
+    if bearer_was_present {
+        return match auth.authenticate_headers(request.headers(), "unknown-client") {
+            Ok(credential) => {
+                request.extensions_mut().insert(credential);
+                next.run(request).await
+            }
+            Err(AuthError::RateLimited) => rate_limited(),
+            Err(AuthError::SecretStore(message)) => internal_error(message),
+            Err(_) => unauthorized(),
+        };
+    }
+
+    let session = match auth.authenticate_browser_session(request.headers()) {
+        Ok(session) => session,
+        Err(BrowserSessionError::Unauthorized | BrowserSessionError::Expired) => {
+            return unauthorized();
+        }
+        Err(BrowserSessionError::Store(message)) => return internal_error(message),
+        Err(BrowserSessionError::Consumed) => return unauthorized(),
+    };
+
+    if request.headers().contains_key(header::ORIGIN)
+        && !browser::request_has_exact_origin(request.headers())
+    {
+        return forbidden(
+            "wrong_origin",
+            "Browser requests must come from this agent origin.",
+        );
+    }
+    if !is_safe_method(request.method())
+        && !browser_mutation_is_authorized(request.headers(), &session.csrf_token)
+    {
+        return forbidden(
+            "csrf_invalid",
+            "A valid CSRF token is required for browser mutations.",
+        );
+    }
+
+    let credential = match auth.credential_for_browser_session(&session.credential_id) {
+        Ok(credential) => credential,
+        Err(_) => return unauthorized(),
+    };
+    request.extensions_mut().insert(credential);
+    request
+        .extensions_mut()
+        .insert(BrowserSessionAuthentication {
+            session_id: session.session_id,
+            csrf_token: session.csrf_token,
+        });
+    next.run(request).await
+}
+
+pub(crate) fn browser_mutation_is_authorized(headers: &HeaderMap, csrf_token: &str) -> bool {
+    browser::request_has_exact_origin(headers)
+        && headers
+            .get("X-MSC-CSRF")
+            .and_then(|value| value.to_str().ok())
+            .is_some_and(|token| constant_time_eq(token, csrf_token))
+}
+
+fn is_safe_method(method: &axum::http::Method) -> bool {
+    matches!(
+        *method,
+        axum::http::Method::GET | axum::http::Method::HEAD | axum::http::Method::OPTIONS
+    )
 }
 
 fn bearer_token(headers: &HeaderMap) -> Option<&str> {
@@ -1052,6 +1201,14 @@ fn internal_error(message: String) -> Response {
         "internal_error",
         &format!("Authentication store error: {message}"),
     )
+}
+
+pub(crate) fn forbidden(code: &str, message: &str) -> Response {
+    error_response(StatusCode::FORBIDDEN, code, message)
+}
+
+pub(crate) fn constant_time_eq(left: &str, right: &str) -> bool {
+    left.as_bytes().ct_eq(right.as_bytes()).into()
 }
 
 fn error_response(status: StatusCode, code: &str, message: &str) -> Response {

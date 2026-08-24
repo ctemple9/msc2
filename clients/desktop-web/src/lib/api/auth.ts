@@ -1,5 +1,9 @@
 export interface TransportCredentialAdapter {
   headersFor(hostId: string): Promise<Readonly<Record<string, string>>>;
+  headersForRequest?(
+    hostId: string,
+    method: 'DELETE' | 'GET' | 'POST' | 'PUT',
+  ): Promise<Readonly<Record<string, string>>>;
   requestCredentials?: RequestCredentials;
 }
 

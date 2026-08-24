@@ -185,7 +185,9 @@ export class ApiClient {
     path: string,
     options: JsonRequestOptions = {},
   ): Promise<Response> {
-    const authHeaders = await this.credentialAdapter.headersFor(this.hostId);
+    const authHeaders = this.credentialAdapter.headersForRequest
+      ? await this.credentialAdapter.headersForRequest(this.hostId, method)
+      : await this.credentialAdapter.headersFor(this.hostId);
     const headers: Record<string, string> = {
       Accept: 'application/json',
       'X-MSC-Client-Api-Version': this.clientApiVersion,

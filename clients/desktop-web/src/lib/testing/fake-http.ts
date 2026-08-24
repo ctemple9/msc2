@@ -88,7 +88,7 @@ export class FakeHttp {
   async request<T>(
     method: HttpMethod,
     path: string,
-    options: Omit<HttpRequest, 'method' | 'path'> = {},
+    options: Partial<Omit<HttpRequest, 'method' | 'path'>> = {},
   ): Promise<FakeResponse<T>> {
     const request: HttpRequest = {
       method,

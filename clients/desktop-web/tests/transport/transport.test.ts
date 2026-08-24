@@ -52,17 +52,37 @@ describe('shared host-aware transport', () => {
     expect(calls).toBe(0);
   });
 
+  it('stops a staged download at the configured client memory ceiling', async () => {
+    const client = new ApiClient({
+      baseUrl: 'http://alpha.test',
+      hostId: 'alpha',
+      fetchImpl: async () =>
+        new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'X-MSC-Api-Version': '1.0' },
+        }),
+    });
+
+    await expect(client.downloadBytes('download', 2)).rejects.toThrow('exceeds 2 bytes');
+  });
+
   it('deduplicates bounded stream history and retains the latest entries after reconnect', () => {
     let close: (() => void) | undefined;
+    const retries: (() => void)[] = [];
     const stream = new ReconnectingStream<{ id: string; text: string }>({
       maxHistory: 2,
       connector: {
         connect: (handlers) => {
           close = handlers.onClose;
+          handlers.onOpen();
           return { close: () => undefined };
         },
       },
       dedupeKey: (value) => value.id,
+      retryDelayMs: 0,
+      schedule: (retry) => {
+        retries.push(retry);
+        return retries.length as unknown as ReturnType<typeof setTimeout>;
+      },
     });
     stream.connect();
     stream.receive({ id: 'one', text: 'one' });
@@ -70,10 +90,10 @@ describe('shared host-aware transport', () => {
     stream.receive({ id: 'two', text: 'two' });
     stream.receive({ id: 'three', text: 'three' });
     close?.();
-    stream.connect();
+    retries.shift()?.();
 
     expect(stream.historySnapshot.map((item) => item.id)).toEqual(['two', 'three']);
-    expect(stream.state).toBe('reconnecting');
+    expect(stream.state).toBe('live');
   });
 
   it('keeps terminal operations available for recovery and removes them only explicitly', () => {

@@ -4,7 +4,10 @@
   import { ApiClient } from './lib/api/client';
   import ActionButton from './lib/components/ActionButton.svelte';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
-  import type { SectionDescriptor } from './lib/navigation/types';
+  import { createClientRouter } from './routes/router';
+  import UnknownSection from './routes/UnknownSection.svelte';
+  import { buildSectionPath } from './lib/navigation/route';
+  import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { ScreenApi } from './lib/sections/shared/types';
   import './lib/sections/shared/screen.css';
 
@@ -108,10 +111,12 @@
       load: () => import('./lib/sections/access/AccessSection.svelte'),
     },
   ];
+  const router = createClientRouter(sections);
+  const hostId = 'local-agent';
 
   const client = new ApiClient({
     baseUrl: typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin,
-    hostId: 'local-agent',
+    hostId,
   });
   const screenApi: ScreenApi = {
     get: <T,>(path: string) => client.requestJson<T>('GET', path),
@@ -120,21 +125,73 @@
     download: (id) => client.downloadBytes(id),
   };
 
-  let activeSection = 'home';
-  // Dynamic section modules come from the registry; their shared props are
-  // intentionally supplied by the shell rather than an exhaustive switch.
+  let activeSection = '';
   let activeComponent: any;
   let selectedServerId = 'survival';
-  let shellMessage = 'Ready for an agent connection';
+  let permissions: readonly string[] = [];
+  let capabilities: Capabilities | null = null;
+  let shellMessage = 'Connecting to the selected host…';
+
+  $: navigationContext = capabilities
+    ? ({
+        hostId,
+        serverId: selectedServerId,
+        permissions,
+        capabilities,
+      } satisfies NavigationContext)
+    : null;
+  $: visibleSections = navigationContext ? router.visibleSections(navigationContext) : [];
 
   onMount(() => {
-    void selectSection(activeSection);
+    const restoreRoute = async () => {
+      try {
+        capabilities = await client.getCapabilities();
+        const me = await client.requestJson<{ permissions: string[] }>('GET', '/v1/me');
+        permissions = me.permissions;
+        shellMessage = 'Connected to Local agent';
+        await selectFromLocation();
+      } catch (error) {
+        shellMessage = `Unable to establish the selected host context: ${String(error)}`;
+      }
+    };
+    const onPopState = () => void selectFromLocation();
+    void restoreRoute();
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   });
 
-  async function selectSection(id: string): Promise<void> {
-    const section = sections.find((candidate) => candidate.id === id) ?? sections[0];
+  async function selectSection(id: string, updateUrl = true): Promise<void> {
+    const section = router.get(id);
+    if (
+      !section ||
+      !navigationContext ||
+      !router.visibleSections(navigationContext).includes(section)
+    ) {
+      shellMessage = 'That section is unavailable for the selected host or credential.';
+      return;
+    }
     activeSection = section.id;
     activeComponent = (await section.load()).default;
+    if (updateUrl) {
+      history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
+    }
+  }
+
+  async function selectFromLocation(): Promise<void> {
+    if (!navigationContext) return;
+    if (window.location.pathname === '/') {
+      await selectSection('home');
+      return;
+    }
+    const resolution = router.resolve(window.location.pathname, navigationContext);
+    if (resolution.kind !== 'section' || resolution.match.hostId !== hostId) {
+      activeSection = '';
+      activeComponent = UnknownSection;
+      shellMessage = 'This link is unavailable for the currently selected host.';
+      return;
+    }
+    if (resolution.match.serverId) selectedServerId = resolution.match.serverId;
+    await selectSection(resolution.descriptor.id, false);
   }
 
   function acknowledgeShell(): void {
@@ -150,18 +207,22 @@
   hostLabel="Local agent"
   serverLabel={selectedServerId === 'survival' ? 'Survival' : selectedServerId}
   connectionLabel="Disconnected"
-  {sections}
+  sections={visibleSections}
   {activeSection}
   onSection={(id) => void selectSection(id)}
-  onHostSwitcher={() => (shellMessage = 'Host switching is ready for the injected registry')}
-  onConsole={() => (shellMessage = 'Console is always available for the selected server')}
+  onHostSwitcher={() =>
+    (shellMessage = 'Host switching will be available after per-host pairing lands.')}
+  onConsole={() => void selectSection('console')}
 >
   {#if activeComponent}
     <svelte:component
       this={activeComponent}
       api={screenApi}
+      {hostId}
       serverId={selectedServerId}
+      {permissions}
       onServerSelected={(id: string) => (selectedServerId = id)}
+      onFleet={() => void selectSection('fleet')}
     />
   {:else}
     <div class="dashboard" data-bundle-id={bundleIdentity.id} data-client-surface="shared">
@@ -171,7 +232,7 @@
           >Acknowledge shell</ActionButton
         >
       </div>
-      <p class="intro-copy">{shellMessage}</p>
+      <p class="intro-copy" role="status">{shellMessage}</p>
     </div>
   {/if}
 </ApplicationShell>

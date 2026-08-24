@@ -12,5 +12,6 @@ describe('online roster', () => {
   });
   it('does not claim a profile route', () => {
     expect(Object.values(playerPaths)).not.toContain('/v1/players/profiles');
+    expect(Object.values(playerPaths)).not.toContain('/v1/session-log');
   });
 });

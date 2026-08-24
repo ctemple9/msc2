@@ -1,16 +1,14 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import ActionButton from '../../components/ActionButton.svelte';
   import CapabilityNotice from '../shared/CapabilityNotice.svelte';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
-  import { call, dateLabel } from '../shared/types';
+  import { call } from '../shared/types';
   import { demoPlayers, playerPaths, playerSearch } from './model';
 
   export let api: ScreenProps['api'] = undefined;
   let players = demoPlayers;
   let search = '';
-  let session: Schema['SessionLogResponseDTO'] = { events: [] };
   let refreshed = false;
   $: filtered = playerSearch(players, search);
 
@@ -22,7 +20,6 @@
       playerPaths.players,
     );
     players = response.players;
-    session = await call(api, session, playerPaths.sessions);
   });
 </script>
 
@@ -69,20 +66,6 @@
           >{/each}</tbody
       >
     </table>
-  </section>
-  <section class="screen-card">
-    <div class="screen-card-header">
-      <h3>Recent join and leave events</h3>
-      <ActionButton kind="quiet" label="Open session history" onclick={() => (refreshed = true)}
-        >Refresh</ActionButton
-      >
-    </div>
-    {#if session.events.length}<div class="notification-feed">
-        {#each session.events.slice(-8).reverse() as event (event.id)}<div class="notification-row">
-            <strong>{event.playerName}</strong><span>{dateLabel(event.timestamp)}</span>
-            <p>{event.eventType}</p>
-          </div>{/each}
-      </div>{:else}<p class="muted">No session events loaded yet.</p>{/if}
   </section>
   {#if refreshed}<p class="muted" role="status">
       Roster refreshed without requesting profile data.

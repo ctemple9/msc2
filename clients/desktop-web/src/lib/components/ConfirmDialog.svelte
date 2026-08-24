@@ -2,6 +2,7 @@
   export let open = false;
   export let title = 'Confirm action';
   export let message = '';
+  export let context = 'Host: selected host';
   export let confirmLabel = 'Confirm';
   export let onConfirm: (() => void) | undefined = undefined;
   export let onClose: (() => void) | undefined = undefined;
@@ -14,7 +15,7 @@
     onclick={(event) => event.target === event.currentTarget && onClose?.()}
   >
     <dialog open class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title">
-      <p class="eyebrow">This changes the selected host</p>
+      <p class="eyebrow">{context}</p>
       <h2 id="dialog-title">{title}</h2>
       <p class="message">{message}</p>
       <div class="dialog-actions">

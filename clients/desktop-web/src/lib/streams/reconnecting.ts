@@ -4,6 +4,7 @@ export interface StreamHandle {
 
 export interface StreamConnector<T> {
   connect(handlers: {
+    onOpen: () => void;
     onMessage: (value: T) => void;
     onClose: () => void;
     onError: (error: unknown) => void;
@@ -16,6 +17,10 @@ export interface ReconnectingStreamOptions<T> {
   dedupeKey?: (value: T) => string;
   onUpdate?: (history: readonly T[]) => void;
   onState?: (state: StreamState) => void;
+  retryDelayMs?: number;
+  maxReconnectAttempts?: number;
+  schedule?: (retry: () => void, delayMs: number) => ReturnType<typeof setTimeout>;
+  cancelSchedule?: (handle: ReturnType<typeof setTimeout>) => void;
 }
 
 export type StreamState = 'idle' | 'connecting' | 'live' | 'reconnecting' | 'closed' | 'cancelled';
@@ -27,11 +32,17 @@ export class ReconnectingStream<T> {
   private readonly keyFor: (value: T) => string;
   private readonly onUpdate?: ReconnectingStreamOptions<T>['onUpdate'];
   private readonly onState?: ReconnectingStreamOptions<T>['onState'];
+  private readonly retryDelayMs: number;
+  private readonly maxReconnectAttempts: number;
+  private readonly schedule: NonNullable<ReconnectingStreamOptions<T>['schedule']>;
+  private readonly cancelSchedule: NonNullable<ReconnectingStreamOptions<T>['cancelSchedule']>;
   private readonly history: T[] = [];
   private readonly seen = new Set<string>();
   private handle: StreamHandle | null = null;
   private stateValue: StreamState = 'idle';
   private terminal = false;
+  private reconnectAttempts = 0;
+  private retryHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options: ReconnectingStreamOptions<T>) {
     this.connector = options.connector;
@@ -39,6 +50,10 @@ export class ReconnectingStream<T> {
     this.keyFor = options.dedupeKey ?? ((value) => JSON.stringify(value));
     this.onUpdate = options.onUpdate;
     this.onState = options.onState;
+    this.retryDelayMs = options.retryDelayMs ?? 500;
+    this.maxReconnectAttempts = options.maxReconnectAttempts ?? 8;
+    this.schedule = options.schedule ?? ((retry, delayMs) => setTimeout(retry, delayMs));
+    this.cancelSchedule = options.cancelSchedule ?? ((handle) => clearTimeout(handle));
   }
 
   get state(): StreamState {
@@ -53,6 +68,10 @@ export class ReconnectingStream<T> {
     if (this.terminal || this.stateValue === 'live' || this.stateValue === 'connecting') return;
     this.setState(this.stateValue === 'idle' ? 'connecting' : 'reconnecting');
     this.handle = this.connector.connect({
+      onOpen: () => {
+        this.reconnectAttempts = 0;
+        this.setState('live');
+      },
       onMessage: (value) => this.receive(value),
       onClose: () => this.handleClosed(),
       onError: () => this.handleClosed(),
@@ -60,6 +79,10 @@ export class ReconnectingStream<T> {
   }
 
   receive(value: T): void {
+    if (this.stateValue === 'connecting' || this.stateValue === 'reconnecting') {
+      this.reconnectAttempts = 0;
+      this.setState('live');
+    }
     const key = this.keyFor(value);
     if (this.seen.has(key)) return;
     this.seen.add(key);
@@ -73,6 +96,7 @@ export class ReconnectingStream<T> {
 
   close(): void {
     this.terminal = true;
+    this.cancelPendingRetry();
     this.handle?.close();
     this.handle = null;
     this.setState('closed');
@@ -80,6 +104,7 @@ export class ReconnectingStream<T> {
 
   cancel(): void {
     this.terminal = true;
+    this.cancelPendingRetry();
     this.handle?.close();
     this.handle = null;
     this.setState('cancelled');
@@ -88,6 +113,7 @@ export class ReconnectingStream<T> {
   markTerminal(value?: T): void {
     if (value !== undefined) this.receive(value);
     this.terminal = true;
+    this.cancelPendingRetry();
     this.handle?.close();
     this.handle = null;
     this.setState('closed');
@@ -95,7 +121,22 @@ export class ReconnectingStream<T> {
 
   private handleClosed(): void {
     this.handle = null;
-    if (!this.terminal) this.setState('reconnecting');
+    if (this.terminal) return;
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.setState('closed');
+      return;
+    }
+    this.reconnectAttempts += 1;
+    this.setState('reconnecting');
+    this.retryHandle = this.schedule(() => {
+      this.retryHandle = null;
+      this.connect();
+    }, this.retryDelayMs);
+  }
+
+  private cancelPendingRetry(): void {
+    if (this.retryHandle !== null) this.cancelSchedule(this.retryHandle);
+    this.retryHandle = null;
   }
 
   private setState(state: StreamState): void {
@@ -112,7 +153,7 @@ export class BrowserWebSocketConnector<T> implements StreamConnector<T> {
 
   connect(handlers: Parameters<StreamConnector<T>['connect']>[0]): StreamHandle {
     const socket = new WebSocket(this.url, this.protocols);
-    socket.onopen = () => undefined;
+    socket.onopen = () => handlers.onOpen();
     socket.onmessage = (event) => {
       try {
         handlers.onMessage(JSON.parse(String(event.data)) as T);

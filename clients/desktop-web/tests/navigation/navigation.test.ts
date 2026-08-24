@@ -3,6 +3,7 @@ import { sectionsForLayout, layoutForWidth } from '../../src/lib/navigation/layo
 import { hasCapability } from '../../src/lib/navigation/predicates';
 import { NavigationRegistry } from '../../src/lib/navigation/registry';
 import { buildSectionPath, parseRoute } from '../../src/lib/navigation/route';
+import appSource from '../../src/App.svelte?raw';
 import type {
   Capabilities,
   NavigationContext,
@@ -134,5 +135,12 @@ describe('client navigation', () => {
     expect(layoutForWidth(760)).toBe('wide');
     expect(sectionsForLayout(registry, context(), 400).sections).toHaveLength(2);
     expect(sectionsForLayout(registry, context(), 1200).sections).toHaveLength(2);
+  });
+
+  it('boots the shared shell from host capabilities and token permissions', () => {
+    expect(appSource).toContain('client.getCapabilities()');
+    expect(appSource).toContain("'/v1/me'");
+    expect(appSource).toContain('router.visibleSections(navigationContext)');
+    expect(appSource).toContain('buildSectionPath(section, hostId, selectedServerId)');
   });
 });

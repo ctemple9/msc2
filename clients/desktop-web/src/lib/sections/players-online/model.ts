@@ -14,4 +14,4 @@ export function playerSearch(
   );
 }
 
-export const playerPaths = { players: '/v1/players', sessions: '/v1/session-log' } as const;
+export const playerPaths = { players: '/v1/players' } as const;

@@ -8,6 +8,7 @@
   import { call, dateLabel, errorMessage, mutate } from '../shared/types';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'selected host';
   let users: Schema['UserSummaryDTO'][] = [];
   let label = '';
   let role = 'operator';
@@ -145,6 +146,7 @@
     open={pendingRevoke !== null}
     title="Revoke this token?"
     message="Existing clients using this named token will lose access immediately."
+    context={`Host: ${hostId} · Token: ${users.find((user) => user.id === pendingRevoke)?.label ?? pendingRevoke ?? 'unknown'}`}
     confirmLabel="Revoke token"
     onConfirm={revoke}
     onClose={() => (pendingRevoke = null)}

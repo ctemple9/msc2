@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 11 is in progress — P11.1 is awaiting verification, and P11.2–P11.29 are unblocked.
-> **Next move:** VERIFY P11.1 with `python3 tools/phase11/scope-check.py docs/msc2/clients/phase11-scope.md docs/msc2/client-capability-matrix.csv`; Cameron alone marks it DONE.
+> ## STATUS: Phase 11 is in progress — P11.1–P11.14 are verified and DONE; P11.15 is next.
+> **Next move:** EXECUTE P11.15 with `python3 tools/phase11/help-content-check.py --all`; its status remains awaiting verification until Cameron runs that command.
 > **Last updated:** 2026-08-24
 
 **Previous phases (Setup through Phase 10) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
@@ -151,7 +151,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.3 — Generate TypeScript from the frozen OpenAPI contract
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/api/generate.ts`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `tools/phase11/generated-types-check.py`
 **What:** Generate the HTTP request/response type surface directly from the current frozen `docs/msc2/api-contract/openapi.json`, preserving optional/additive fields needed for D-010 skew, including `BedrockRuntimeStateDTO` even though Phase 11 ships no Bedrock screens. Make regeneration deterministic and fail when checked-in output differs from the contract. Handwritten transport helpers may wrap generated types, but no hand-authored DTO mirror is permitted.
 **Verify:** `npm --prefix clients/desktop-web run api:check`
@@ -159,7 +159,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.4 — Build the contract-backed client test harness
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/testing/`, `clients/desktop-web/tests/contract/`, `clients/desktop-web/tests/fixtures/`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`
 **What:** Add deterministic fake HTTP, WebSocket, upload/download, operation, auth, capability, permission, old-agent/new-agent, and reconnect scenarios using generated DTO shapes. Include unknown optional fields and absent future capability keys so the UI proves additive skew tolerance. This becomes the reviewed test boundary later `safe` screen batches use; it must not invent Bedrock screens or player-profile behavior. The separate P11.20 seam test consumes the real Bedrock capability/runtime-state contract.
 **Verify:** `npm --prefix clients/desktop-web run test:contract`
@@ -167,7 +167,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.5 — Establish extensible information architecture and routing
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/navigation/`, `clients/desktop-web/src/routes/`, `clients/desktop-web/tests/navigation/`, `docs/msc2/clients/phase11-scope.md`
 **What:** Implement the descriptor registry, nested host/server route parameters, permission and capability predicates, lazy component loading, stable deep links, narrow/wide layouts, and unknown-section fallback. Prohibit a closed section enum, exhaustive section switch, fixed tab-count assumptions, and checks such as `hostOs == linux` standing in for capability discovery. Reserve but do not register or render Bedrock and player-profile route families; tests must prove a synthetic future descriptor can be added without editing the shell/router and remains hidden until its named advertised capability is present.
 **Verify:** `npm --prefix clients/desktop-web run test:navigation`
@@ -175,7 +175,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.6 — Make all connection and cache state host-scoped
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/hosts/`, `clients/desktop-web/src/lib/stores/`, `clients/desktop-web/tests/hosts/`
 **What:** Implement D-013's host registry, minimal host switcher, per-host connection/capability/permission/server/console/operation caches, active-server selection, stale-data isolation, and explicit host identity on every destructive confirmation. Credentials remain behind an injected credential adapter so the browser and Tauri mechanisms can land later without migrating store shapes. No singleton active host, global console buffer, or credential field may leak across hosts.
 **Verify:** `npm --prefix clients/desktop-web run test:hosts`
@@ -183,7 +183,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.7 — Implement the generated HTTP and resilient stream client
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/api/`, `clients/desktop-web/src/lib/streams/`, `clients/desktop-web/src/lib/operations/`, `clients/desktop-web/tests/transport/`
 **What:** Build one host-aware transport over generated request/response types, `ErrorDTO`, version headers, capability refresh, bounded staged transfers, and cookie-or-bearer credential adapters. Add console, operation, and notification stream reconnect with bounded history, deduplication, cancellation, terminal-state recovery, and explicit unsupported/old-client states. Keep browser and desktop on the same calls; shell IPC may supply credentials or native services but never an alternative management API.
 **Verify:** `npm --prefix clients/desktop-web run test:transport`
@@ -191,7 +191,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.8 — Build the responsive MSC design system and application shell
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/components/`, `clients/desktop-web/src/lib/styles/`, `clients/desktop-web/src/routes/+layout.svelte`, `clients/desktop-web/tests/visual/`
 **What:** Translate the copied iOS component structure and MSC 1 macOS design language into reusable tokens, cards, tables, forms, dialogs, alerts, empty/loading/error states, keyboard focus, reduced motion, and responsive sidebar/bottom-navigation shells. Preserve desktop's server-list/sidebar and always-available console concepts without baking today's section count into layout. Include the client-owned first-launch/splash seam needed for the setup sheet, Concept Guide, Handbook handoff, guided-tour overlay, and animation/fallback behavior; do not replace that sequence with a generic welcome screen. The shell must visibly name the selected host and server and remain usable at phone, tablet, and desktop widths.
 **Verify:** `npm --prefix clients/desktop-web run test:visual-shell`
@@ -199,7 +199,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.9 — Build fleet, provisioning, and lifecycle workflows
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/home/`, `clients/desktop-web/src/lib/sections/fleet/`, `clients/desktop-web/tests/screens/fleet.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Implement status, active-server switching, create/import/rename/delete/EULA, Java family/version/runtime selection and install, templates, start/stop/restart, clear confirmations, capability/permission gates, and durable operation progress. Use the iOS create/import flows as the functional reference and desktop macOS views for hierarchy only. Update each delivered Desktop/Web matrix row in this same step; unsupported or agent-Planned routes stay `Planned`, never implied by a disabled decorative control.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-fleet && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
@@ -207,7 +207,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.10 — Build console, commands, operations, notifications, and performance
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/console/`, `clients/desktop-web/src/lib/sections/performance/`, `clients/desktop-web/src/lib/components/operations/`, `clients/desktop-web/src/lib/components/notifications/`, `clients/desktop-web/tests/screens/live.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Implement the bounded live console with history/search/filter/pause/copy/clear-local-view, command history/favorites, operation progress/cancel/recovery, notification feed, performance metrics/charts, help affordances, and reconnect behavior. Use DOM/SVG/CSS rendering with a low-cost fallback rather than assuming Chromium-only WebGL/canvas behavior. Update the matching Desktop/Web matrix cells.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-live && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
@@ -215,7 +215,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.11 — Build the online roster without claiming player profiles
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/players-online/`, `clients/desktop-web/tests/screens/players-online.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Render only the generic online roster the connected agent actually advertises. Do not build the Bedrock allowlist/permissions UI in this phase. Keep the registered section identity distinct from the reserved future `profiles` route; do not call the frozen-but-unimplemented profile, skin, hidden-profile, session-history, UUID migration, or player-data mutation routes and do not present their matrix cells as implemented. Prove the online section still works when profile capability fields are unknown, absent, or later added.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-players-online && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
@@ -223,7 +223,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.12 — Build worlds, backups, and staged transfer workflows
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/worlds/`, `clients/desktop-web/src/lib/sections/backups/`, `clients/desktop-web/src/lib/transfers/`, `clients/desktop-web/tests/screens/worlds-backups.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Implement slot inventory/activation/create/rename/duplicate/delete/import/export/convert, direct active-world mutations where the API supports them, thumbnails, backup create/config/delete/restore, bounded uploads/downloads, transactional warnings, progress/cancel/recovery, and risk-appropriate confirmations. Update every genuinely delivered Desktop/Web matrix cell and leave unavailable agent paths visible only as truthful capability explanations.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-worlds-backups && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
@@ -231,7 +231,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.13 — Build add-on, modpack, and component workflows
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/addons/`, `clients/desktop-web/src/lib/sections/components/`, `clients/desktop-web/tests/screens/addons.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Implement installed add-ons, catalog search, install/update/toggle/remove/source actions, system-component state, client export, modpack inspect/import/replace, and D-027 manual browser-download then bounded staged-upload completion. Preserve provider-unavailable, dependency, pack-managed, cancellation, and provenance explanations. Update the matching Desktop/Web matrix rows; never hardcode provider or server-family lists where the contract supplies them.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-addons && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
@@ -239,12 +239,45 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.14 — Build settings, health, networking, helpers, and access administration
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/settings/`, `clients/desktop-web/src/lib/sections/health/`, `clients/desktop-web/src/lib/sections/connectivity/`, `clients/desktop-web/src/lib/sections/access/`, `clients/desktop-web/tests/screens/administration.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Render schema-driven settings without a client-side field enum; implement health cards/problems/repairs, RAM/Java/Geyser, connectivity diagnostics, Playit, DuckDNS, Xbox Broadcast, resource packs, and named-token create/update/revoke with one-time-secret handling. Permission and capability filters must remove unavailable actions while keeping explanations. Agent-Planned files/watchdog/profile routes remain Planned rather than receiving fake screens. Update each delivered matrix row.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-administration && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
 **Commit:** `P11.14: add administration screens`
 **Batch:** safe
+
+### terra clean up
+
+#### Review findings
+
+- The original P11.5–P11.8 foundations were not connected to the running
+  shell: it selected hard-coded sections and a hard-coded host/server instead
+  of loading the token's permissions and the host's advertised capabilities.
+- Reconnecting streams changed label but never scheduled a retry, and staged
+  downloads had no client-side memory ceiling.
+- The P11.11 roster requested `/v1/session-log` and presented a join/leave
+  history even though that route is deliberately deferred with player profiles.
+- The capability matrix overstated deferred Bedrock/world and shared-context
+  routes as delivered. It also marked live WebSocket channels implemented while
+  the shell still reads the bounded HTTP snapshots; those channels wait for the
+  authenticated wiring in P11.21–P11.23. A rejected world mutation also
+  changed local UI state, and destructive confirmations did not name their
+  exact host and target.
+- The focused tests covered helpers but did not protect all of those integration
+  boundaries against regression.
+
+#### Items completed in this cleanup
+
+- Connect the shell to `/v1/capabilities` and `/v1/me`, use the descriptor
+  registry to filter routes, and retain host/server identity in the route.
+- Give streams bounded automatic reconnect attempts and give staged downloads a
+  512 MiB client-memory ceiling.
+- Remove the deferred session-history request and restore its matrix row to
+  `Planned`.
+- Correct the affected capability-matrix claims, preserve state after rejected
+  world actions, name host plus target in destructive confirmations, and leave
+  live streams honestly `Planned` until their authentication boundary exists.
+- Add regression coverage for the stream/download and deferred-route boundaries.
 
 ### P11.15 — Extract and validate the educational content corpus
 **Status:** not started

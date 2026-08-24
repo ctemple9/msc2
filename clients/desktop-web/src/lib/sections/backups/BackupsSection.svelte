@@ -10,6 +10,7 @@
   import { demoBackups, backupPaths } from './model';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'selected host';
   export let operations: readonly Schema['OperationDTO'][] = [];
   let backups = demoBackups;
   let pending: 'restore' | 'delete' | null = null;
@@ -139,6 +140,7 @@
     open={pending !== null}
     title={pending === 'restore' ? 'Restore this backup?' : 'Delete this backup?'}
     message="The selected host and backup are shown above; confirm only if this is the intended server."
+    context={`Host: ${hostId} · Backup: ${backups.find((backup) => backup.id === pendingId)?.displayName ?? pendingId ?? 'unknown'}`}
     confirmLabel={pending === 'restore' ? 'Restore backup' : 'Delete backup'}
     onConfirm={confirm}
     onClose={() => (pending = null)}

@@ -29,7 +29,6 @@ export const worldPaths = {
   import: '/v1/worlds/import',
   export: '/v1/worlds/export',
   activate: '/v1/worlds/activate',
-  repair: '/v1/worlds/repair',
   replaceActive: '/v1/worlds/replace-active-world',
   convert: '/v1/worlds/convert',
 } as const;

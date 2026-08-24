@@ -9,6 +9,7 @@
   import { demoWorlds, worldPaths } from './model';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'selected host';
   let worlds = demoWorlds;
   let activeSlotId = 'world-1';
   let newName = '';
@@ -45,13 +46,15 @@
     newName = '';
   }
   async function activate(id: string): Promise<void> {
-    await action(worldPaths.activate, { slotId: id });
+    const result = await action(worldPaths.activate, { slotId: id });
+    if (!result) return;
     activeSlotId = id;
     worlds = worlds.map((world) => ({ ...world, isActive: world.id === id }));
   }
   async function deleteWorld(): Promise<void> {
     if (!pendingDelete) return;
-    await action(worldPaths.delete, { slotId: pendingDelete });
+    const result = await action(worldPaths.delete, { slotId: pendingDelete });
+    if (!result) return;
     worlds = worlds.filter((world) => world.id !== pendingDelete);
     pendingDelete = null;
   }
@@ -180,6 +183,7 @@
     open={pendingDelete !== null}
     title="Delete this saved world?"
     message="This removes the selected slot. The active world cannot be deleted while it is active."
+    context={`Host: ${hostId} · World slot: ${worlds.find((world) => world.id === pendingDelete)?.name ?? pendingDelete ?? 'unknown'}`}
     confirmLabel="Delete world"
     onConfirm={deleteWorld}
     onClose={() => (pendingDelete = null)}

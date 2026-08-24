@@ -11,6 +11,7 @@ export interface ApiClientOptions {
   fetchImpl?: FetchLike;
   credentialAdapter?: TransportCredentialAdapter;
   clientApiVersion?: string;
+  maxDownloadBytes?: number;
   onCapabilities?: (capabilities: components['schemas']['CapabilitiesDTO']) => void;
 }
 
@@ -39,6 +40,7 @@ export class ApiClient {
   private readonly fetchImpl: FetchLike;
   private readonly credentialAdapter: TransportCredentialAdapter;
   private readonly clientApiVersion: string;
+  private readonly maxDownloadBytes: number;
   private readonly onCapabilities?: ApiClientOptions['onCapabilities'];
   private refreshingCapabilities = false;
   private capabilitiesValue: components['schemas']['CapabilitiesDTO'] | null = null;
@@ -51,6 +53,7 @@ export class ApiClient {
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.credentialAdapter = options.credentialAdapter ?? cookieCredentialAdapter();
     this.clientApiVersion = options.clientApiVersion ?? '1.0';
+    this.maxDownloadBytes = options.maxDownloadBytes ?? 512 * 1024 * 1024;
     this.onCapabilities = options.onCapabilities;
   }
 
@@ -138,8 +141,41 @@ export class ApiClient {
     return this.uploadBytes(slot.uploadPath, bytes, slot.maxBytes);
   }
 
-  async downloadBytes(stagedDownloadId: string): Promise<Uint8Array> {
-    return this.requestBytes('GET', `/v1/staged-downloads/${encodeURIComponent(stagedDownloadId)}`);
+  async downloadBytes(
+    stagedDownloadId: string,
+    maxBytes = this.maxDownloadBytes,
+  ): Promise<Uint8Array> {
+    const response = await this.request(
+      'GET',
+      `/v1/staged-downloads/${encodeURIComponent(stagedDownloadId)}`,
+    );
+    const declaredLength = Number(response.headers.get('Content-Length'));
+    if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+      throw new Error(`staged download exceeds ${maxBytes} bytes`);
+    }
+    if (!response.body) return new Uint8Array(await response.arrayBuffer());
+
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = [];
+    let received = 0;
+    try {
+      while (true) {
+        const next = await reader.read();
+        if (next.done) break;
+        received += next.value.byteLength;
+        if (received > maxBytes) throw new Error(`staged download exceeds ${maxBytes} bytes`);
+        chunks.push(next.value);
+      }
+    } finally {
+      reader.releaseLock();
+    }
+    const bytes = new Uint8Array(received);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return bytes;
   }
 
   private async request(

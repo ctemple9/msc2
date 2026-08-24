@@ -17,5 +17,7 @@ describe('shared MSC shell contract', () => {
     expect(confirmDialogSource).toContain('role="alertdialog"');
     expect(applicationShellSource).toContain(':focus-visible');
     expect(applicationShellSource).toContain('max-width: 759px');
+    expect(confirmDialogSource).toContain('export let context');
+    expect(confirmDialogSource).toContain('{context}');
   });
 });

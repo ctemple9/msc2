@@ -11,6 +11,7 @@
   import { demoServers, demoStatus, fleetMutationPaths, selectedServer } from './model';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'selected host';
   export let permissions: readonly string[] = [];
   export let onServerSelected: ((id: string) => void) | undefined = undefined;
 
@@ -388,6 +389,7 @@
     open={pendingDelete !== null}
     title="Delete this server?"
     message="The selected host will remove the server record. The agent refuses this while it is running."
+    context={`Host: ${hostId} · Server: ${servers.find((server) => server.id === pendingDelete)?.name ?? pendingDelete ?? 'unknown'}`}
     confirmLabel="Delete server"
     onConfirm={deleteServer}
     onClose={() => (pendingDelete = null)}

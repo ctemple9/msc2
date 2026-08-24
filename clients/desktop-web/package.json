@@ -11,6 +11,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test:unit": "vitest run",
     "test:contract": "vitest run tests/contract",
+    "test:navigation": "vitest run tests/navigation",
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",
     "api:check": "npm run api:generate -- --check && python3 ../../tools/phase11/generated-types-check.py",
     "bundle:identity": "node ./tools/verify-bundle-identity.mjs",

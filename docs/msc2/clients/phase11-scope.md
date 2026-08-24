@@ -114,6 +114,21 @@ tree, so D-003's same-screen rule is structural rather than a test convention.
   authentication. General-LAN management, a local certificate authority, and
   bypassing browser certificate warnings are not client features in v1.
 
+### P11.5 routing contract
+
+The shared client owns a descriptor registry keyed by stable section IDs and
+URL segments. A descriptor declares whether it is host- or server-scoped, its
+permission and capability predicates, and a lazy component loader. The route
+shape is `/hosts/:hostId/<section>` for host sections and
+`/hosts/:hostId/servers/:serverId/<section>` for server sections; parameters
+and remaining deep-link segments are encoded and decoded as data, never stored
+in a global active-route enum. Unknown sections resolve to the shared fallback
+while preserving the URL. The reserved `bedrock/*` and `profiles/*` families
+also resolve to that boundary without registering or rendering a Phase 11
+screen. Capability predicates read the advertised capability response; they
+never infer support from `hostOs`. Narrow and wide layouts consume the same
+filtered descriptor list and do not assume a fixed number of sections.
+
 ## Screen and infrastructure ownership
 
 | Phase 11 area | Planned client responsibility | Deliberate non-claim |

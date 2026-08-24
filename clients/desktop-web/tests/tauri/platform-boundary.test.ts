@@ -24,6 +24,22 @@ function nativeDependencies(): TauriPlatformDependencies {
     showMenu: vi.fn(async () => undefined),
     closeWindow: vi.fn(async () => undefined),
     onCloseRequested: vi.fn(async () => () => undefined),
+    agentServiceStatus: vi.fn(async () => ({
+      available: true,
+      platform: 'macos',
+      serviceName: 'com.ctemple.msc2.agent',
+      state: 'running' as const,
+      pid: 42,
+      detail: 'Running as the installing user.',
+    })),
+    manageAgentService: vi.fn(async () => ({
+      available: true,
+      platform: 'macos',
+      serviceName: 'com.ctemple.msc2.agent',
+      state: 'running' as const,
+      pid: 42,
+      detail: 'Running as the installing user.',
+    })),
   };
 }
 
@@ -42,6 +58,8 @@ describe('Tauri boundary', () => {
     expect(fallback).toHaveBeenCalledOnce();
     expect(notifyFallback).toHaveBeenCalledTimes(4);
     expect(await browser.credentialFor('remote-host')).toBeNull();
+    expect((await browser.agentServiceStatus()).state).toBe('unavailable');
+    expect((await browser.manageAgentService('install')).available).toBe(false);
   });
 
   it('uses native adapters only as a substitute for the same shared workflows', async () => {
@@ -70,6 +88,9 @@ describe('Tauri boundary', () => {
     expect(fileFallback).not.toHaveBeenCalled();
     expect(workflowFallback).not.toHaveBeenCalled();
     expect(await desktop.credentialFor('remote-host')).toBeNull();
+    expect((await desktop.agentServiceStatus()).state).toBe('running');
+    await desktop.manageAgentService('repair');
+    expect(dependencies.manageAgentService).toHaveBeenCalledWith('repair');
   });
 
   it('treats cancelling a native file picker as a user choice', async () => {
@@ -95,5 +116,7 @@ describe('Tauri boundary', () => {
     expect(routeAndScreenSources).not.toContain('isTauri');
     expect(workspaceSource).not.toContain('clients/desktop-web/src-tauri');
     expect(config.build.frontendDist).toBe('../dist');
+    expect(routeAndScreenSources).toContain("segment: 'local-agent'");
+    expect(routeAndScreenSources).not.toContain('invoke<AgentServiceStatus>');
   });
 });

@@ -1,0 +1,104 @@
+<script lang="ts">
+  import { onMount } from 'svelte';
+  import ActionButton from '../../components/ActionButton.svelte';
+  import StatePanel from '../../components/StatePanel.svelte';
+  import SurfaceCard from '../../components/SurfaceCard.svelte';
+  import { getPlatform, type AgentServiceAction, type AgentServiceStatus } from '../../platform';
+  import ScreenHeader from '../shared/ScreenHeader.svelte';
+
+  let status: AgentServiceStatus | undefined;
+  let busy = false;
+
+  onMount(() => void refresh());
+
+  async function refresh(): Promise<void> {
+    status = await (await getPlatform()).agentServiceStatus();
+  }
+
+  async function manage(action: AgentServiceAction): Promise<void> {
+    busy = true;
+    try {
+      status = await (await getPlatform()).manageAgentService(action);
+    } finally {
+      busy = false;
+    }
+  }
+</script>
+
+<div class="screen">
+  <ScreenHeader
+    eyebrow="This computer"
+    title="Local agent"
+    description="The background agent keeps Minecraft servers running after this window closes."
+    status={status?.state ?? 'Checking'}
+    statusTone={status?.state === 'running' ? 'positive' : 'warning'}
+    actionLabel="Refresh service status"
+    onAction={refresh}
+  />
+
+  <div class="screen-grid two">
+    <SurfaceCard eyebrow="Background service" title={status?.serviceName ?? 'MSC agent'}>
+      <p class="metric-large">{status?.state ?? 'Checking'}</p>
+      <p class="muted">{status?.detail ?? 'Looking for the local service.'}</p>
+      {#if status?.pid}<p class="muted">Service process: {status.pid}</p>{/if}
+    </SurfaceCard>
+
+    <SurfaceCard eyebrow="Service actions" title="Keep servers independent of the window">
+      {#if status?.available}
+        <div class="actions">
+          {#if status.state === 'not-installed'}
+            <ActionButton
+              label="Install and start local agent"
+              disabled={busy}
+              onclick={() => manage('install')}
+            >
+              Install and start
+            </ActionButton>
+          {:else}
+            <ActionButton
+              label="Start local agent"
+              disabled={busy || status.state === 'running'}
+              onclick={() => manage('start')}
+            >
+              Start agent
+            </ActionButton>
+            <ActionButton
+              kind="quiet"
+              label="Stop local agent"
+              disabled={busy || status.state !== 'running'}
+              onclick={() => manage('stop')}
+            >
+              Stop agent
+            </ActionButton>
+            <ActionButton
+              kind="quiet"
+              label="Repair local agent service"
+              disabled={busy}
+              onclick={() => manage('repair')}
+            >
+              Repair service
+            </ActionButton>
+          {/if}
+        </div>
+      {:else}
+        <StatePanel
+          kind="empty"
+          title="Headless install"
+          message={status?.detail ?? 'Use the headless package on this host.'}
+        />
+      {/if}
+      <p class="muted">
+        Stopping this service is explicit. Closing the app window never stops the service or any
+        Minecraft server it manages.
+      </p>
+    </SurfaceCard>
+  </div>
+</div>
+
+<style>
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+  }
+</style>

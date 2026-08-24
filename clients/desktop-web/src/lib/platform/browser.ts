@@ -1,5 +1,7 @@
 import type {
   AgentAction,
+  AgentServiceAction,
+  AgentServiceStatus,
   DesktopNotification,
   FilePickerRequest,
   MenuEntry,
@@ -40,5 +42,21 @@ export function createBrowserPlatform(): PlatformAdapter {
     requestAgentAction: async (_action: AgentAction, browserFallback: () => Promise<void>) => {
       await browserFallback();
     },
+    agentServiceStatus: async (): Promise<AgentServiceStatus> => ({
+      available: false,
+      platform: 'browser',
+      serviceName: 'com.ctemple.msc2.agent',
+      state: 'unavailable',
+      detail:
+        'This browser cannot install a local background service. Install the headless package for this host, then return here to connect.',
+    }),
+    manageAgentService: async (_action: AgentServiceAction): Promise<AgentServiceStatus> => ({
+      available: false,
+      platform: 'browser',
+      serviceName: 'com.ctemple.msc2.agent',
+      state: 'unavailable',
+      detail:
+        'Local service controls need the installed desktop shell. The same agent remains manageable from this browser after headless installation.',
+    }),
   };
 }

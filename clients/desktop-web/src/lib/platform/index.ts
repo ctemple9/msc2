@@ -5,6 +5,8 @@ import type { PlatformAdapter } from './types';
 
 export type {
   AgentAction,
+  AgentServiceAction,
+  AgentServiceStatus,
   DesktopNotification,
   FilePickerRequest,
   MenuEntry,

@@ -1,11 +1,38 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use msc_infrastructure::secret_store::SecretStore;
+use msc_infrastructure::service::{
+    ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
+    ServiceStatusReport,
+};
 use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
 const DESKTOP_SECRET_SERVICE: &str = "com.ctemple.msc2.desktop";
+const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
+const AGENT_PORT: u16 = 48400;
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+enum AgentServiceAction {
+    Install,
+    Start,
+    Stop,
+    Repair,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AgentServiceStatus {
+    available: bool,
+    platform: &'static str,
+    service_name: &'static str,
+    state: &'static str,
+    pid: Option<u32>,
+    detail: String,
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -163,6 +190,156 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     })
 }
 
+/// Reports the service separately from the browser's connection state. It does
+/// not start anything: opening or closing the desktop shell is never a server
+/// lifecycle action.
+#[tauri::command]
+fn agent_service_status() -> Result<AgentServiceStatus, String> {
+    service_manager()?
+        .execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(AGENT_SERVICE_NAME),
+        })
+        .map(report_status)
+        .map_err(|error| error.to_string())
+}
+
+/// The shared setup screen has this narrow native seam for an explicit local
+/// service action. Platform registration may trigger the OS elevation flow;
+/// routine agent operation remains under the installing user's account.
+#[tauri::command]
+fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus, String> {
+    let manager = service_manager()?;
+    let service_name = ServiceName::new(AGENT_SERVICE_NAME);
+    let report = match action {
+        AgentServiceAction::Install | AgentServiceAction::Repair => {
+            let request = agent_install_request()?;
+            manager
+                .execute(ServiceManagerCommand::Install(request))
+                .map_err(|error| error.to_string())?;
+            manager
+                .execute(ServiceManagerCommand::Start { service_name })
+                .map_err(|error| error.to_string())?
+        }
+        AgentServiceAction::Start => manager
+            .execute(ServiceManagerCommand::Start { service_name })
+            .map_err(|error| error.to_string())?,
+        AgentServiceAction::Stop => manager
+            .execute(ServiceManagerCommand::Stop { service_name })
+            .map_err(|error| error.to_string())?,
+    };
+    Ok(report_status(report))
+}
+
+fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
+    #[cfg(target_os = "macos")]
+    {
+        return Ok(Box::new(
+            msc_platform_macos::service::MacosLaunchdServiceManager::new(),
+        ));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return Ok(Box::new(
+            msc_platform_windows::service::WindowsServiceManager::new(),
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return Ok(Box::new(
+            msc_platform_linux::service::LinuxSystemdServiceManager::new(),
+        ));
+    }
+    #[allow(unreachable_code)]
+    Err("This desktop platform has no MSC service manager.".to_string())
+}
+
+fn agent_install_request() -> Result<ServiceInstallRequest, String> {
+    let binary_path = packaged_agent_path()?;
+    if !binary_path.is_file() {
+        return Err(format!(
+            "The compatible agent package is missing at {}. Reinstall this desktop app before registering the service.",
+            binary_path.display()
+        ));
+    }
+    let working_directory = agent_data_directory()?;
+    std::fs::create_dir_all(working_directory.join("logs"))
+        .map_err(|error| format!("Could not create the agent data directory: {error}"))?;
+    Ok(ServiceInstallRequest::new(
+        AGENT_SERVICE_NAME,
+        binary_path,
+        &working_directory,
+        working_directory.join("logs/agent.log"),
+        AGENT_PORT,
+    )
+    .args(["serve", "--bind", "127.0.0.1:48400"])
+    .run_user(installing_user()?))
+}
+
+fn packaged_agent_path() -> Result<PathBuf, String> {
+    let desktop_binary = std::env::current_exe()
+        .map_err(|error| format!("Could not locate the desktop application: {error}"))?;
+    let directory = desktop_binary
+        .parent()
+        .ok_or_else(|| "The desktop application has no containing directory.".to_string())?;
+    #[cfg(target_os = "macos")]
+    return Ok(directory.join("../Resources/agent/msc"));
+    #[cfg(target_os = "windows")]
+    return Ok(directory.join("agent/msc.exe"));
+    #[cfg(target_os = "linux")]
+    return Ok(directory.join("../lib/msc2/agent/msc"));
+    #[allow(unreachable_code)]
+    Err("This desktop platform has no agent-package layout.".to_string())
+}
+
+fn agent_data_directory() -> Result<PathBuf, String> {
+    let home = std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .ok_or_else(|| "Could not determine the installing user's home directory.".to_string())?;
+    #[cfg(target_os = "macos")]
+    return Ok(home.join("Library/Application Support/MSC 2"));
+    #[cfg(target_os = "windows")]
+    return Ok(home.join("AppData/Roaming/MSC2"));
+    #[cfg(target_os = "linux")]
+    return Ok(home.join(".local/share/msc2"));
+    #[allow(unreachable_code)]
+    Err("This desktop platform has no agent data directory.".to_string())
+}
+
+fn installing_user() -> Result<String, String> {
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .map_err(|_| "Could not determine the installing user for the service.".to_string())?;
+    if user.trim().is_empty() {
+        return Err("Could not determine the installing user for the service.".to_string());
+    }
+    Ok(user)
+}
+
+fn report_status(report: ServiceStatusReport) -> AgentServiceStatus {
+    let (state, detail) = match report.state {
+        ServiceState::NotInstalled => {
+            ("not-installed", "The local agent service is not installed.")
+        }
+        ServiceState::Stopped => (
+            "stopped",
+            "The local agent service is installed but stopped.",
+        ),
+        ServiceState::Running => (
+            "running",
+            "The local agent service is running independently of this window.",
+        ),
+    };
+    AgentServiceStatus {
+        available: true,
+        platform: std::env::consts::OS,
+        service_name: AGENT_SERVICE_NAME,
+        state,
+        pid: report.pid,
+        detail: detail.to_string(),
+    }
+}
+
 fn credential_key(agent_host_id: &str) -> String {
     format!("{DESKTOP_CREDENTIAL_KEY_PREFIX}{agent_host_id}")
 }
@@ -224,8 +401,41 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .invoke_handler(tauri::generate_handler![
             desktop_exchange_pairing,
-            desktop_authorized_request
+            desktop_authorized_request,
+            agent_service_status,
+            manage_agent_service
         ])
         .run(tauri::generate_context!())
         .expect("error while running the MSC 2 desktop shell");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use msc_infrastructure::service::FakeServiceManager;
+
+    #[test]
+    fn agent_service_report_never_claims_window_ownership() {
+        let manager = FakeServiceManager::new();
+        let request = ServiceInstallRequest::new(
+            AGENT_SERVICE_NAME,
+            "/opt/msc/msc",
+            "/tmp/msc",
+            "/tmp/msc/agent.log",
+            AGENT_PORT,
+        )
+        .run_user("owner");
+        manager
+            .execute(ServiceManagerCommand::Install(request))
+            .expect("synthetic service installs");
+        let report = manager
+            .execute(ServiceManagerCommand::Start {
+                service_name: ServiceName::new(AGENT_SERVICE_NAME),
+            })
+            .expect("synthetic service starts");
+
+        let status = report_status(report);
+        assert_eq!(status.state, "running");
+        assert!(status.detail.contains("independently of this window"));
+    }
 }

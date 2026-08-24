@@ -22,6 +22,13 @@
       load: () => import('./lib/sections/home/HomeSection.svelte'),
     },
     {
+      id: 'agent-setup',
+      label: 'Local agent',
+      segment: 'local-agent',
+      scope: 'host',
+      load: () => import('./lib/sections/setup/AgentSetupSection.svelte'),
+    },
+    {
       id: 'handbook',
       label: 'Handbook',
       segment: 'handbook',
@@ -173,6 +180,7 @@
       await selectFromLocation();
     } catch (error) {
       shellMessage = `Unable to establish the selected host context: ${String(error)}`;
+      await selectSection('agent-setup');
     }
   }
 
@@ -197,7 +205,9 @@
 
   async function selectSection(id: string, updateUrl = true): Promise<void> {
     const section = router.get(id);
-    if (!section || !navigationContext) {
+    // Setup is deliberately reachable before an agent exists or a browser has
+    // paired: its truthful fallback is how this host becomes manageable.
+    if (!section || (!navigationContext && section.id !== 'agent-setup')) {
       shellMessage = 'That section is unavailable for the selected host or credential.';
       return;
     }

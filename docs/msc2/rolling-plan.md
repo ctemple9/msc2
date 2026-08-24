@@ -372,7 +372,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.26 — Install and manage the local agent through the shell
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/setup/`, `clients/desktop-web/tests/agent-install/`, `tools/phase11/agent-install-smoke.sh`, `packaging/`
 **What:** Add shell-only native commands behind shared setup screens to detect, install, start, stop, repair, and report the platform service and compatible agent/sidecar package. Closing the window must never stop the service or a server. Browser users see the same status/setup route with a truthful instruction/fallback when native install is unavailable; there is no desktop-only screen. Preserve existing service identity, privilege, headless, and rollback rules.
 **Verify:** `bash tools/phase11/agent-install-smoke.sh --synthetic`

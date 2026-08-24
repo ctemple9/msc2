@@ -1,5 +1,7 @@
 import type {
   AgentAction,
+  AgentServiceAction,
+  AgentServiceStatus,
   DesktopNotification,
   FilePickerRequest,
   MenuEntry,
@@ -46,17 +48,21 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     requestAgentAction: async (_action: AgentAction, browserFallback: () => Promise<void>) => {
       await browserFallback();
     },
+    agentServiceStatus: dependencies.agentServiceStatus,
+    manageAgentService: dependencies.manageAgentService,
   };
 }
 
 export async function loadTauriPlatform(): Promise<PlatformAdapter> {
-  const [{ open }, { readFile }, notification, { Menu }, { getCurrentWindow }] = await Promise.all([
-    import('@tauri-apps/plugin-dialog'),
-    import('@tauri-apps/plugin-fs'),
-    import('@tauri-apps/plugin-notification'),
-    import('@tauri-apps/api/menu'),
-    import('@tauri-apps/api/window'),
-  ]);
+  const [{ open }, { readFile }, notification, { Menu }, { getCurrentWindow }, { invoke }] =
+    await Promise.all([
+      import('@tauri-apps/plugin-dialog'),
+      import('@tauri-apps/plugin-fs'),
+      import('@tauri-apps/plugin-notification'),
+      import('@tauri-apps/api/menu'),
+      import('@tauri-apps/api/window'),
+      import('@tauri-apps/api/core'),
+    ]);
 
   return createTauriPlatform({
     async pickFile(request: FilePickerRequest): Promise<PickedFile | null> {
@@ -91,6 +97,9 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     },
     closeWindow: () => getCurrentWindow().close(),
     onCloseRequested: (handler: () => void) => getCurrentWindow().onCloseRequested(handler),
+    agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),
+    manageAgentService: (action: AgentServiceAction) =>
+      invoke<AgentServiceStatus>('manage_agent_service', { action }),
   });
 }
 

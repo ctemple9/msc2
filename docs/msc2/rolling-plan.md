@@ -91,6 +91,11 @@ local/remote auth close Phase 11's remaining D-012 scope without weakening
 Phase 9's loopback-by-default, explicit-Tailscale-only posture. Linux proof
 must launch the real Tauri binary through WebKitGTK under a display server and
 interact with it; a Chromium-only browser run is not Linux desktop evidence.
+The gate also requires fresh-profile evidence for MSC 1's first-launch
+experience: setup sheet, Concept Guide, Handbook handoff, guided tour ordering
+and anchors, skip/reopen state, splash playback or fallback, reduced-motion
+behavior, and the boundary between agent-owned first-server initiation and
+client-owned presentation.
 
 **Extensibility boundary:** navigation and routing are a registry of section
 descriptors keyed by stable strings and capability predicates, not a closed
@@ -188,7 +193,7 @@ the package manager, with MSC limited to an actionable availability notice.
 ### P11.8 — Build the responsive MSC design system and application shell
 **Status:** not started
 **Files:** `clients/desktop-web/src/lib/components/`, `clients/desktop-web/src/lib/styles/`, `clients/desktop-web/src/routes/+layout.svelte`, `clients/desktop-web/tests/visual/`
-**What:** Translate the copied iOS component structure and MSC 1 macOS design language into reusable tokens, cards, tables, forms, dialogs, alerts, empty/loading/error states, keyboard focus, reduced motion, and responsive sidebar/bottom-navigation shells. Preserve desktop's server-list/sidebar and always-available console concepts without baking today's section count into layout. The shell must visibly name the selected host and server and remain usable at phone, tablet, and desktop widths.
+**What:** Translate the copied iOS component structure and MSC 1 macOS design language into reusable tokens, cards, tables, forms, dialogs, alerts, empty/loading/error states, keyboard focus, reduced motion, and responsive sidebar/bottom-navigation shells. Preserve desktop's server-list/sidebar and always-available console concepts without baking today's section count into layout. Include the client-owned first-launch/splash seam needed for the setup sheet, Concept Guide, Handbook handoff, guided-tour overlay, and animation/fallback behavior; do not replace that sequence with a generic welcome screen. The shell must visibly name the selected host and server and remain usable at phone, tablet, and desktop widths.
 **Verify:** `npm --prefix clients/desktop-web run test:visual-shell`
 **Commit:** `P11.8: build shared MSC interface shell`
 **Batch:** stop-after
@@ -243,8 +248,8 @@ the package manager, with MSC limited to an actionable availability notice.
 
 ### P11.15 — Extract and validate the educational content corpus
 **Status:** not started
-**Files:** `content/help/`, `content/guides/`, `fixtures/help-content/`, `tools/phase11/help-content-check.py`, `docs/msc2/clients/phase11-scope.md`
-**What:** Extract MSC 1's 31-topic handbook, concept guide, router catalog/records/steps, troubleshooting content, and onboarding copy into the confirmed Markdown-with-YAML-front-matter and structured guide data formats. Preserve source citations and label content versus executable router rules; do not duplicate prose in Svelte. Record unresolved diagram assets honestly. Include coverage for every `helpId` already emitted by settings, health, diagnostics, performance, connectivity, and errors, including the `bedrock.runtime-unavailable` later-audit requirement.
+**Files:** `content/help/`, `content/guides/`, `fixtures/help-content/`, `fixtures/onboarding/`, `tools/phase11/help-content-check.py`, `docs/msc2/clients/phase11-scope.md`
+**What:** Extract MSC 1's 31-topic handbook, concept guide, router catalog/records/steps, troubleshooting content, and onboarding copy into the confirmed Markdown-with-YAML-front-matter and structured guide data formats. Preserve source citations and label content versus executable router rules; do not duplicate prose in Svelte. Record unresolved diagram assets honestly. Include the Concept Guide page order, onboarding step content/order, skip/reopen wording, and the source mapping for every first-launch explanation; visual anchoring and animation remain client-owned. Include coverage for every `helpId` already emitted by settings, health, diagnostics, performance, connectivity, and errors, including the `bedrock.runtime-unavailable` later-audit requirement. Add deterministic onboarding fixtures proving fresh-install, already-seen, skipped, reopened, and unknown/future-topic cases.
 **Verify:** `python3 tools/phase11/help-content-check.py --all`
 **Commit:** `P11.15: extract educational content`
 **Batch:** solo
@@ -252,7 +257,7 @@ the package manager, with MSC limited to an actionable availability notice.
 ### P11.16 — Render contract-served help and guides in the shared client
 **Status:** not started
 **Files:** `clients/desktop-web/src/lib/help/`, `clients/desktop-web/src/lib/sections/handbook/`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/client-capability-matrix.csv`
-**What:** Build safe Markdown rendering, related-topic navigation, handbook/concept/router-guide readers, contextual `helpId` links, unknown-topic degradation, and client-owned onboarding anchors against the fake contract. Every explanation comes from a response or structured content fixture, never a screen-local copy. The registry must allow future Bedrock and profile topics/sections to appear additively without new shell logic.
+**What:** Build safe Markdown rendering, related-topic navigation, handbook/concept/router-guide readers, contextual `helpId` links, unknown-topic degradation, and client-owned onboarding anchors against the fake contract. Implement and test the fresh-install sequence of setup sheet → Concept Guide → guided tour, including the exact step ordering, user-action pauses, form-card hide/resume behavior, completion state, skip behavior, Handbook handoff, and reopen-from-preferences behavior. Implement the splash animation seam with a bounded fallback and reduced-motion path; preserve the source asset or record an explicit reviewed replacement. Every explanation comes from a response or structured content fixture, never a screen-local copy. The registry must allow future Bedrock and profile topics/sections to appear additively without new shell logic.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && python3 tools/phase11/help-content-check.py --client`
 **Commit:** `P11.16: render shared help content`
 **Batch:** safe
@@ -260,7 +265,7 @@ the package manager, with MSC limited to an actionable availability notice.
 ### P11.17 — Prove browser parity, accessibility, and responsive layouts
 **Status:** not started
 **Files:** `clients/desktop-web/tests/e2e/browser/`, `clients/desktop-web/playwright.config.ts`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`
-**What:** Exercise the production static bundle against the contract harness at narrow and wide widths, keyboard-only navigation, reduced motion, destructive confirmations, host switching, reconnect, upload/download, and deep-link reload. Run Chromium plus browser WebKit for fast compatibility feedback, while recording plainly that this is browser evidence and does not replace P11.19's native Linux WebKitGTK proof.
+**What:** Exercise the production static bundle against the contract harness at narrow and wide widths, keyboard-only navigation, reduced motion, destructive confirmations, host switching, reconnect, upload/download, and deep-link reload. Add a fresh-profile onboarding walkthrough proving setup completion, Concept Guide → tour sequencing, step ordering and anchors, user-action pauses, skip/resume/reopen flags, Handbook handoff, splash playback/fallback, and reduced-motion behavior. Run Chromium plus browser WebKit for fast compatibility feedback, while recording plainly that this is browser evidence and does not replace P11.19's native Linux WebKitGTK proof.
 **Verify:** `npm --prefix clients/desktop-web run test:e2e-browser`
 **Commit:** `P11.17: prove shared browser workflows`
 **Batch:** stop-after
@@ -276,7 +281,7 @@ the package manager, with MSC limited to an actionable availability notice.
 ### P11.19 — Exercise the real Linux Tauri renderer through WebKitGTK
 **Status:** not started
 **Files:** `clients/desktop-web/tests/e2e/tauri-linux/`, `clients/desktop-web/wdio.conf.ts`, `tools/phase11/linux-webkitgtk-smoke.sh`, `docs/msc2/clients/evidence/`
-**What:** On a Debian/Ubuntu desktop runner with `libwebkit2gtk-4.1`, `webkit2gtk-driver`, and Xvfb, launch the built Tauri binary and drive its real window through the native WebDriver path. Verify visible shell, navigation, CSS layout, forms, dialogs, live-console fallback, deep links, and one mutating fake workflow; record the WebKitGTK package/version and screenshot evidence. A Vite page opened in Chrome or Playwright's bundled WebKit does not satisfy this step.
+**What:** On a Debian/Ubuntu desktop runner with `libwebkit2gtk-4.1`, `webkit2gtk-driver`, and Xvfb, launch the built Tauri binary and drive its real window through the native WebDriver path. Verify visible shell, navigation, CSS layout, forms, dialogs, live-console fallback, deep links, one mutating fake workflow, and the fresh-profile onboarding entry path including the reduced-motion/fallback branch; record the WebKitGTK package/version and screenshot evidence. A Vite page opened in Chrome or Playwright's bundled WebKit does not satisfy this step.
 **Verify:** `bash tools/phase11/linux-webkitgtk-smoke.sh --native`
 **Commit:** `P11.19: prove Linux WebKitGTK rendering`
 **Batch:** stop-after
@@ -360,7 +365,7 @@ the package manager, with MSC limited to an actionable availability notice.
 ### P11.29 — Reconcile the capability matrix and run the exact Phase 11 gate
 **Status:** not started
 **Files:** `docs/msc2/client-capability-matrix.csv`, `tools/phase11/phase11-check.py`, `docs/msc2/clients/evidence/phase11-ci.md`, `docs/msc2/clients/phase11-scope.md`, `docs/msc2/rolling-plan.md`
-**What:** Check every contract and WebSocket operation against real Desktop/Web implementation evidence, leaving agent-Planned, Bedrock-screen, and player-profile rows explicitly Planned and no cell blank. Prove D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, capability/permission routing, D-026 served-content use, browser/Tauri auth, browser responsive behavior, native Linux WebKitGTK rendering, tri-platform packaging, headless independence, and the exact green CI candidate. This is Phase 11's only full-workspace run; the other agent decides in REVIEW whether the literal gate holds.
+**What:** Check every contract and WebSocket operation against real Desktop/Web implementation evidence, leaving agent-Planned, Bedrock-screen, and player-profile rows explicitly Planned and no cell blank. Prove D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, capability/permission routing, D-026 served-content use, browser/Tauri auth, browser responsive behavior, native Linux WebKitGTK rendering, tri-platform packaging, headless independence, and the exact green CI candidate. Also require the onboarding preservation contract in `phase11-scope.md`: fresh-profile setup → Concept Guide → guided tour → Handbook behavior, step/anchor coverage, skip/reopen persistence, splash playback/fallback, reduced-motion behavior, and honest separation of agent-owned first-server initiation from client-owned presentation. This is Phase 11's only full-workspace run; the other agent decides in REVIEW whether the literal gate holds.
 **Verify:** `python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`
 **Commit:** `P11.29: check desktop and web gate`
 **Batch:** solo

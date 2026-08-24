@@ -41,6 +41,26 @@ following responsibilities are carried forward from those files:
 | `SettingsView.swift`, `SettingsStore.swift`, `SettingsPairingCard.swift`, `SettingsConnectionTestSection.swift`, `SettingsJoinCardSection.swift`, `TailscaleHelpSheet.swift`, `NetworkSafety.swift`, `KeychainTokenStore.swift` | Per-host connection state, pairing/token lifecycle, loopback/private-host safety, notification preferences, join-card preferences, and Tailscale guidance. The Phase 11 auth steps still have to close browser cookies and Tauri local/remote credentials; P11.1 reserves their shared screen seam. |
 | `AllowlistView.swift`, `PlayersView.swift`/`PlayerRow.swift`, `UsersView.swift`, `QuickGuideView.swift`, `MaintenanceView.swift`, `SplashGateView.swift`, `HapticHelpers.swift`, `NotificationManager.swift`, `MSCNotificationDelegate.swift` | Existing Bedrock/player/profile, access-administration, guide, lifecycle, and native-presentation evidence. Profile/skin/hidden-player behavior is not silently promoted into Phase 11; the educational prose becomes served content, and native haptics/notifications get web fallbacks. |
 
+### First-launch and onboarding preservation contract
+
+The MSC 1 first-launch experience is a behavior to preserve, not merely a
+visual reference. The implementation and evidence must trace these source
+areas separately:
+
+| MSC 1 source | Behavior that must survive | MSC 2 owner |
+|---|---|---|
+| `SetupWizardView.swift` | Fresh-install setup sheet, page order, required Java/server-root checks, optional helper pages, back/next behavior, and completion persistence. | Shared client presentation; agent setup/probes |
+| `AppViewModel+ServerSettings.swift` | Setup dismissal → Concept Guide handoff → onboarding-tour handoff, one-time flags, skip behavior, reopen-from-preferences behavior, and presentation timing needed to avoid overlapping sheets. | Shared client |
+| `ConceptGuideView.swift`, `ServerHandbookView.swift`, `ServerHandbookTopics.swift` | Concept Guide page order and explanations, Handbook entry point, 31 handbook topics, and the relationship between the guide and the Handbook. | Agent-served content; shared client rendering |
+| `OnboardingManager.swift`, `OnboardingOverlayView.swift`, and onboarding anchors in the wizard/details views | The guided tour's step order, titles, instructions, user-action pauses, form-card hiding/resume behavior, spotlight anchors, completion state, and restart behavior. | Shared client |
+| `SplashGateView.swift`, bundled `splash_intro` asset | Cold-launch splash behavior, playback completion/fallback, safety timeout, and reduced-motion/accessibility degradation. | Shared client/platform adapter |
+| `AppViewModel+ServerControls.swift` | First-server initiation, readiness-driven sequencing, automatic stop/start behavior, and first-start completion state. | Agent; client displays progress and completion |
+
+The source inventory is complete only when each row has either a delivered
+implementation or an explicit, evidence-backed deviation. “Onboarding text
+was extracted” alone is not sufficient: the fresh-install sequence, state
+transitions, anchors, and animation/fallback behavior must also be exercised.
+
 ### Desktop information architecture and visual language
 
 The macOS oracle supplies a hierarchy, not a screen fork. The shared client
@@ -73,6 +93,8 @@ tree, so D-003's same-screen rule is structural rather than a test convention.
   `helpId` and structured content; they do not carry a second prose corpus.
   The P11.15/P11.16 steps own extraction and rendering. `QuickGuideView.swift`
   is evidence of anchors and content shape, not permission to duplicate text.
+  The first-launch sequence and its client-owned presentation behavior are
+  covered by the explicit preservation contract above.
 * **D-021 resource bounds:** console history, operation snapshots, reconnect
   queues, notifications, performance points, catalog results, and staged
   transfer state all have explicit client bounds. A browser tab or Tauri window
@@ -102,7 +124,7 @@ tree, so D-003's same-screen rule is structural rather than a test convention.
 | Worlds, backups, transfers | Java-capable slot/world/backup workflows, staged upload/download, conversion, thumbnails when advertised, risk-aware confirmation and recovery. | Bedrock-specific rows remain capability explanations until the later Bedrock client group; Bedrock backup restore keeps the agent's slot-based boundary. |
 | Add-ons and components | Installed add-ons, catalog, install/update/toggle/remove/source, component state, client export, modpack inspect/import/manual-file completion. | No fake provider success and no client-owned copy of agent dependency/provenance rules. |
 | Administration | Schema-driven settings, RAM/Java/Geyser helper settings, health/problems/repairs, connectivity, Playit, DuckDNS, Xbox Broadcast, resource packs, named-token access. | Agent-Planned watchdog/files/profile operations remain future or unavailable explanations, not pretend controls. |
-| Help and onboarding | Render agent-served Markdown/structured guides, contextual `helpId`, related topics, unknown-topic degradation, and client-owned anchors. | No screen-local handbook or router-guide prose. |
+| Help and onboarding | Render agent-served Markdown/structured guides, contextual `helpId`, related topics, unknown-topic degradation, the fresh-install setup → Concept Guide → tour sequence, tour anchors and pauses, Handbook reopening, and client-owned splash/animation fallbacks. | No screen-local handbook or router-guide prose; no silent replacement of the first-launch experience with a generic welcome screen. |
 | Shared infrastructure | Generated DTOs, host-keyed stores, auth adapters, capability/permission filtering, operation/reconnect state, staged-transfer transport, WebSocket framing, error/help routing, and the exact bundle identity between browser and Tauri. | P11.1 does not implement any frontend, Tauri crate, browser session, or agent route. |
 
 ## Route and matrix appendix

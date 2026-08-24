@@ -18,9 +18,9 @@ overdue D-023 matrix", against the two things it must stay true to:
      real contract has exactly one row in the matrix -- no operation the
      contract defines is silently untracked, and no row in the matrix names
      an operation the contract doesn't (or no longer) define.
-  3. rolling-plan.md's own Phase 6 rule that desktop_web_status is Planned
-     on every row this phase, without exception ("Desktop/web screens stay
-     Phase 11... that is not an exception").
+  3. Status values remain explicit. Phase 11 changes delivered desktop/web
+     rows to Implemented; the Phase 6-era "all desktop/web rows are Planned"
+     rule is historical and must not reject the first real Phase 11 surfaces.
 
 Stdlib only, in the style of tools/api-contract-check.py (P2.8) and
 tools/phase6/corpus-check.py (P6.2).
@@ -119,12 +119,6 @@ def check_matrix(csv_path, contract_ops=None):
             val = rec[col]
             if val not in STATUS_VALUES:
                 problems.append(f"line {i}: {col}={val!r} not one of {sorted(STATUS_VALUES)}")
-
-        if rec["desktop_web_status"] != "Planned":
-            problems.append(
-                f"line {i}: desktop_web_status={rec['desktop_web_status']!r}, "
-                f"must be Planned this phase (rolling-plan.md Phase 6 preamble)"
-            )
 
         for col in STATUS_COLUMNS:
             if rec[col] == "Intentional exception" and not DECISION_RE.search(rec["notes"]):

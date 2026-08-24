@@ -1,33 +1,144 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { bundleIdentity } from './lib/bundle-identity';
+  import { ApiClient } from './lib/api/client';
   import ActionButton from './lib/components/ActionButton.svelte';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
-  import StatePanel from './lib/components/StatePanel.svelte';
-  import SurfaceCard from './lib/components/SurfaceCard.svelte';
   import type { SectionDescriptor } from './lib/navigation/types';
+  import type { ScreenApi } from './lib/sections/shared/types';
+  import './lib/sections/shared/screen.css';
 
   const sections: SectionDescriptor[] = [
     {
-      id: 'overview',
-      label: 'Overview',
-      segment: 'overview',
+      id: 'home',
+      label: 'Home',
+      segment: 'home',
       scope: 'server',
-      load: async () => ({ default: 'overview' }),
+      load: () => import('./lib/sections/home/HomeSection.svelte'),
+    },
+    {
+      id: 'fleet',
+      label: 'Fleet',
+      segment: 'fleet',
+      scope: 'server',
+      requiredPermissions: ['fleet'],
+      load: () => import('./lib/sections/fleet/FleetSection.svelte'),
+    },
+    {
+      id: 'console',
+      label: 'Console',
+      segment: 'console',
+      scope: 'server',
+      load: () => import('./lib/sections/console/ConsoleSection.svelte'),
+    },
+    {
+      id: 'performance',
+      label: 'Performance',
+      segment: 'performance',
+      scope: 'server',
+      load: () => import('./lib/sections/performance/PerformanceSection.svelte'),
+    },
+    {
+      id: 'players-online',
+      label: 'Players',
+      segment: 'players-online',
+      scope: 'server',
+      load: () => import('./lib/sections/players-online/PlayersOnlineSection.svelte'),
+    },
+    {
+      id: 'worlds',
+      label: 'Worlds',
+      segment: 'worlds',
+      scope: 'server',
+      requiredPermissions: ['worlds'],
+      load: () => import('./lib/sections/worlds/WorldsSection.svelte'),
+    },
+    {
+      id: 'backups',
+      label: 'Backups',
+      segment: 'backups',
+      scope: 'server',
+      requiredPermissions: ['worlds'],
+      load: () => import('./lib/sections/backups/BackupsSection.svelte'),
+    },
+    {
+      id: 'addons',
+      label: 'Add-ons',
+      segment: 'addons',
+      scope: 'server',
+      requiredPermissions: ['addons'],
+      load: () => import('./lib/sections/addons/AddonsSection.svelte'),
+    },
+    {
+      id: 'components',
+      label: 'Components',
+      segment: 'components',
+      scope: 'server',
+      load: () => import('./lib/sections/components/ComponentsSection.svelte'),
     },
     {
       id: 'settings',
       label: 'Settings',
       segment: 'settings',
       scope: 'server',
-      load: async () => ({ default: 'settings' }),
+      requiredPermissions: ['settings'],
+      load: () => import('./lib/sections/settings/SettingsSection.svelte'),
+    },
+    {
+      id: 'health',
+      label: 'Health',
+      segment: 'health',
+      scope: 'server',
+      load: () => import('./lib/sections/health/HealthSection.svelte'),
+    },
+    {
+      id: 'connectivity',
+      label: 'Networking',
+      segment: 'connectivity',
+      scope: 'server',
+      requiredPermissions: ['networking'],
+      load: () => import('./lib/sections/connectivity/ConnectivitySection.svelte'),
+    },
+    {
+      id: 'access',
+      label: 'Access',
+      segment: 'access',
+      scope: 'server',
+      requiredPermissions: ['admin'],
+      load: () => import('./lib/sections/access/AccessSection.svelte'),
     },
   ];
 
-  let activeSection = 'overview';
+  const client = new ApiClient({
+    baseUrl: typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin,
+    hostId: 'local-agent',
+  });
+  const screenApi: ScreenApi = {
+    get: <T,>(path: string) => client.requestJson<T>('GET', path),
+    post: <T,>(path: string, body?: unknown) => client.requestJson<T>('POST', path, { body }),
+    upload: (purpose, bytes) => client.stagedUpload({ purpose }, bytes),
+    download: (id) => client.downloadBytes(id),
+  };
+
+  let activeSection = 'home';
+  // Dynamic section modules come from the registry; their shared props are
+  // intentionally supplied by the shell rather than an exhaustive switch.
+  let activeComponent: any;
+  let selectedServerId = 'survival';
   let shellMessage = 'Ready for an agent connection';
 
+  onMount(() => {
+    void selectSection(activeSection);
+  });
+
+  async function selectSection(id: string): Promise<void> {
+    const section = sections.find((candidate) => candidate.id === id) ?? sections[0];
+    activeSection = section.id;
+    activeComponent = (await section.load()).default;
+  }
+
   function acknowledgeShell(): void {
-    shellMessage = 'The shared client shell is running';
+    shellMessage = 'Shared client workflows are ready for the selected host';
   }
 </script>
 
@@ -37,122 +148,54 @@
 
 <ApplicationShell
   hostLabel="Local agent"
-  serverLabel="Survival"
+  serverLabel={selectedServerId === 'survival' ? 'Survival' : selectedServerId}
   connectionLabel="Disconnected"
   {sections}
   {activeSection}
-  onSection={(id) => (activeSection = id)}
+  onSection={(id) => void selectSection(id)}
   onHostSwitcher={() => (shellMessage = 'Host switching is ready for the injected registry')}
   onConsole={() => (shellMessage = 'Console is always available for the selected server')}
 >
-  <div class="dashboard" data-bundle-id={bundleIdentity.id} data-client-surface="shared">
-    <div class="intro-row">
-      <div>
+  {#if activeComponent}
+    <svelte:component
+      this={activeComponent}
+      api={screenApi}
+      serverId={selectedServerId}
+      onServerSelected={(id: string) => (selectedServerId = id)}
+    />
+  {:else}
+    <div class="dashboard" data-bundle-id={bundleIdentity.id} data-client-surface="shared">
+      <div class="intro-row">
         <p class="eyebrow">Minecraft Server Controller</p>
-        <h2>Keep the important state in view.</h2>
-        <p class="intro-copy">
-          The same responsive interface will run in the desktop shell and the agent-served browser.
-        </p>
+        <ActionButton label="Acknowledge shell" onclick={acknowledgeShell}
+          >Acknowledge shell</ActionButton
+        >
       </div>
-      <ActionButton label="Acknowledge shell" onclick={acknowledgeShell}
-        >Acknowledge shell</ActionButton
-      >
+      <p class="intro-copy">{shellMessage}</p>
     </div>
-
-    <div class="card-grid">
-      <SurfaceCard eyebrow="Connection" title="Host status" tone="accent">
-        <p class="metric">Not connected</p>
-        <p class="card-copy">
-          Connection, capability, and permission state will remain keyed to Local agent.
-        </p>
-      </SurfaceCard>
-      <SurfaceCard eyebrow="Active server" title="Survival">
-        <StatePanel
-          kind="empty"
-          title="No live data yet"
-          message="The selected server's status will appear here without changing the shell layout."
-        />
-      </SurfaceCard>
-      <SurfaceCard eyebrow="Console" title="Always available">
-        <p class="card-copy">
-          Console history is bounded per host and reconnects without showing another host's lines.
-        </p>
-        <p class="status" role="status">{shellMessage}</p>
-      </SurfaceCard>
-    </div>
-
-    <small class="bundle-note">Bundle {bundleIdentity.id} · v{bundleIdentity.version}</small>
-  </div>
+  {/if}
 </ApplicationShell>
 
 <style>
   .dashboard {
     display: grid;
-    gap: 1.5rem;
+    gap: 1rem;
   }
   .intro-row {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
-    gap: 1.5rem;
+    gap: 1rem;
+    align-items: center;
   }
   .eyebrow {
-    margin: 0 0 0.55rem;
+    margin: 0;
     color: var(--msc-accent);
-    font-size: 0.72rem;
     font-weight: 800;
     letter-spacing: 0.12em;
     text-transform: uppercase;
   }
-  h2 {
-    max-width: 35rem;
-    margin: 0;
-    font-size: clamp(1.7rem, 5vw, 3rem);
-    line-height: 1.05;
-  }
-  .intro-copy,
-  .card-copy {
-    max-width: 38rem;
+  .intro-copy {
     color: var(--msc-muted);
     line-height: 1.6;
-  }
-  .card-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
-  }
-  .metric {
-    margin: 0;
-    color: var(--msc-warning);
-    font-size: 1.5rem;
-    font-weight: 800;
-  }
-  .status {
-    margin: 1rem 0 0;
-    color: var(--msc-warning);
-    font-size: 0.82rem;
-  }
-  .bundle-note {
-    color: var(--msc-subtle);
-  }
-  @media (max-width: 900px) {
-    .card-grid {
-      grid-template-columns: 1fr 1fr;
-    }
-    .card-grid :global(.surface-card:last-child) {
-      grid-column: 1 / -1;
-    }
-  }
-  @media (max-width: 600px) {
-    .intro-row {
-      display: grid;
-      align-items: start;
-    }
-    .card-grid {
-      grid-template-columns: 1fr;
-    }
-    .card-grid :global(.surface-card:last-child) {
-      grid-column: auto;
-    }
   }
 </style>

@@ -9,6 +9,7 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import { buildSectionPath } from './lib/navigation/route';
+  import { restoreAccent } from './lib/styles/accent';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { ScreenApi } from './lib/sections/shared/types';
   import './lib/sections/shared/screen.css';
@@ -197,6 +198,7 @@
   }
 
   onMount(() => {
+    restoreAccent();
     const onPopState = () => void selectFromLocation();
     void restoreHostContext();
     window.addEventListener('popstate', onPopState);

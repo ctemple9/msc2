@@ -26,7 +26,7 @@ test('walks a fresh profile through setup, Concept Guide, tour pauses, handoff, 
 }) => {
   await page.goto('/hosts/local-agent/servers/survival/handbook');
   const gate = page.locator('.gate');
-  await gate.getByRole('button', { name: 'Finish setup' }).click();
+  await gate.getByRole('button', { name: 'Next' }).click();
   await expect(gate.getByRole('heading', { name: 'One server. Your worlds.' })).toBeVisible();
   await gate.getByRole('button', { name: 'Continue to tour' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();

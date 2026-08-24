@@ -53,8 +53,8 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
       `the native shell did not load capability-filtered sections: ${visibleSectionLabels.join(', ')}`,
     );
 
-    await waitForText('.gate', 'Finish setup');
-    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Finish setup"]')).click();
+    await waitForText('.gate', 'Next');
+    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
     await waitForText('.gate', 'One server. Your worlds.');
     await browser.execute(() => {
       localStorage.setItem('msc.setup-complete', 'true');

@@ -11,6 +11,7 @@
     RouterGuideCatalog,
   } from '../../help/types';
   import ActionButton from '../../components/ActionButton.svelte';
+  import SetupIntro from '../../help/SetupIntro.svelte';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
   import type { ScreenProps } from '../shared/types';
   import { call } from '../shared/types';
@@ -205,10 +206,7 @@
           >
         </div>
         {#if launchStage === 'setup'}
-          <p class="muted">
-            Finish the setup sheet before the Concept Guide and guided tour begin.
-          </p>
-          <ActionButton label="Finish setup" onclick={completeSetup}>Finish setup</ActionButton>
+          <SetupIntro compact headingId="handbook-first-launch-title" onComplete={completeSetup} />
         {:else if launchStage === 'concept-guide'}
           <p class="muted">Read the Concept Guide above, then continue to the guided tour.</p>
           <ActionButton label="Continue to tour" onclick={finishConcept}>Continue</ActionButton>

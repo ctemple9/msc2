@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import type { ScreenApi } from '../sections/shared/types';
   import ActionButton from '../components/ActionButton.svelte';
+  import SetupIntro from './SetupIntro.svelte';
   import { firstLaunchStage, nextTourStep, type FirstLaunchState } from './onboarding';
   import type { ConceptGuide, OnboardingGuide } from './types';
 
@@ -80,13 +81,7 @@
       data-onboarding-stage={stage}
     >
       {#if stage === 'setup'}
-        <p class="eyebrow">First launch</p>
-        <h2 id="first-launch-title">Set up MSC</h2>
-        <p>Complete the initial setup before opening the Concept Guide and guided tour.</p>
-        <ActionButton
-          label="Finish setup"
-          onclick={() => writeState({ ...state, setupComplete: true })}>Finish setup</ActionButton
-        >
+        <SetupIntro onComplete={() => writeState({ ...state, setupComplete: true })} />
       {:else if stage === 'concept-guide'}
         {@const page = concept.pages[conceptPage]}
         <p class="eyebrow">{page.eyebrow}</p>

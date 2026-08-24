@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import helpSource from '../../src/lib/sections/handbook/HelpSection.svelte?raw';
+import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import splashSource from '../../src/lib/help/SplashGate.svelte?raw';
 import { renderMarkdown } from '../../src/lib/help/markdown';
 import { firstLaunchStage, nextTourStep } from '../../src/lib/help/onboarding';
@@ -44,7 +45,13 @@ describe('shared help and onboarding screens', () => {
   });
 
   it('uses contract fixtures for every explanation and retains an additive unknown-topic boundary', () => {
+    const setupText = setupSource.replace(/\s+/g, ' ');
     expect(helpSource).toContain("'/v1/help/catalog'");
+    expect(setupText).toContain('What is Minecraft Server Controller?');
+    expect(setupText).toContain('Start and stop Java and Bedrock servers with one click');
+    expect(setupText).toContain('Pick an Accent Color');
+    expect(setupText).toContain('This setup takes about 2 minutes.');
+    expect(setupText).toContain('aria-pressed');
     expect(helpSource).toContain("'/v1/guides/onboarding'");
     expect(helpSource).toContain('That topic is not available on this agent');
     expect(helpSource).toContain('data-onboarding-anchor');

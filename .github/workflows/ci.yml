@@ -76,6 +76,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The browser and Tauri candidates are built from this one lockfile on
+      # every native runner. The separate headless job below does not install
+      # Node or link any GUI framework.
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: clients/desktop-web/package-lock.json
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -106,6 +116,42 @@ jobs:
         run: |
           rustc --version
           cargo --version
+
+      - name: Install shared client dependencies
+        working-directory: clients/desktop-web
+        run: npm ci
+
+      - name: Install browser test engines (Linux)
+        if: matrix.platform == 'linux'
+        working-directory: clients/desktop-web
+        run: npx playwright install --with-deps chromium webkit
+
+      - name: Install browser test engines (macOS and Windows)
+        if: matrix.platform != 'linux'
+        working-directory: clients/desktop-web
+        run: npx playwright install chromium webkit
+
+      # The Linux proof has to drive the real system renderer, rather than
+      # silently treating Playwright's bundled WebKit as desktop evidence.
+      - name: Install Linux WebKitGTK desktop-test dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            curl \
+            dbus-x11 \
+            file \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssl-dev \
+            libwebkit2gtk-4.1-0 \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            webkit2gtk-driver \
+            wget \
+            xvfb
+          cargo install tauri-driver --version 2.8.1 --locked
 
       - name: Build
         run: cargo build --workspace
@@ -176,6 +222,43 @@ jobs:
         run: |
           python3 tools/phase10/evidence-check.py --distribution
           python3 tools/phase10/evidence-check.py --runtimes
+
+      - name: Validate the production shared client
+        working-directory: clients/desktop-web
+        run: npm run verify:scaffold
+
+      # This exercises msc-agent's production fallback, not a second static
+      # server, so the browser candidate cannot drift from the served bundle.
+      - name: Agent-served browser bundle smoke
+        run: cargo nextest run -p msc-agent --test web_ui
+
+      - name: Browser core workflow smoke
+        working-directory: clients/desktop-web
+        run: npm run test:e2e-browser
+
+      - name: Build real Tauri candidate (macOS and Windows)
+        if: matrix.platform != 'linux'
+        working-directory: clients/desktop-web
+        run: npm exec tauri build -- --debug --no-bundle
+
+      - name: Exercise the Linux WebKitGTK Tauri candidate
+        if: matrix.platform == 'linux'
+        shell: bash
+        run: bash tools/phase11/linux-webkitgtk-smoke.sh --native
+
+      - name: Record desktop and web runner evidence
+        shell: bash
+        run: |
+          bash tools/phase11/desktop-web-smoke.sh \
+            --record-platform "${{ matrix.platform }}" \
+            "target/phase11-client-evidence/${{ matrix.platform }}.md"
+
+      - name: Upload desktop and web runner evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-web-evidence-${{ matrix.platform }}
+          path: target/phase11-client-evidence
+          if-no-files-found: error
 
       - name: Collect headless artifact
         shell: bash

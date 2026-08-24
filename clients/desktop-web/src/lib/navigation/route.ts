@@ -71,6 +71,9 @@ export function buildSectionPath(
     }
     parts.push('servers', serverId);
   }
+  if (descriptor.routeFamily) {
+    parts.push(descriptor.routeFamily);
+  }
   parts.push(descriptor.segment, ...tail);
   return `/${parts.map(encodeURIComponent).join('/')}`;
 }

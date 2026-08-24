@@ -1,4 +1,9 @@
+import type { components } from '../api/generated';
 import type { Capabilities, CapabilityPredicate } from './types';
+
+type BedrockCapabilityAdvertisement =
+  components['schemas']['CapabilitiesDTO']['serverTypes']['bedrock'];
+type BedrockRuntimeState = components['schemas']['BedrockRuntimeStateDTO'];
 
 export function hasPermission(permission: string): (permissions: readonly string[]) => boolean {
   return (permissions) => permissions.includes(permission);
@@ -13,6 +18,16 @@ export function capabilityValue<T>(
   predicate: (value: T) => boolean,
 ): CapabilityPredicate {
   return (capabilities) => predicate(readCapability(capabilities, path) as T);
+}
+
+export function hasUsableBedrockRuntime(capabilities: Capabilities | null | undefined): boolean {
+  const bedrock: BedrockCapabilityAdvertisement | undefined = capabilities?.serverTypes.bedrock;
+  if (!bedrock?.supported) {
+    return false;
+  }
+
+  const runtime: BedrockRuntimeState | undefined = bedrock.runtime;
+  return runtime?.state === undefined || runtime.state === 'available';
 }
 
 function readCapability(

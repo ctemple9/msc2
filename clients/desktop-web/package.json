@@ -12,6 +12,7 @@
     "test:unit": "vitest run",
     "test:contract": "vitest run tests/contract",
     "test:navigation": "vitest run tests/navigation",
+    "test:bedrock-extension": "vitest run tests/navigation/bedrock-extension.test.ts",
     "test:hosts": "vitest run tests/hosts",
     "test:transport": "vitest run tests/transport",
     "test:visual-shell": "vitest run tests/visual",

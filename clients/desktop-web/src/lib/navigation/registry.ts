@@ -12,7 +12,9 @@ export class NavigationRegistry {
     if (
       [...this.descriptors.values()].some(
         (existing) =>
-          existing.segment === descriptor.segment && existing.scope === descriptor.scope,
+          existing.segment === descriptor.segment &&
+          existing.routeFamily === descriptor.routeFamily &&
+          existing.scope === descriptor.scope,
       )
     ) {
       throw new Error(
@@ -48,12 +50,11 @@ export class NavigationRegistry {
     if (match.kind === 'invalid') {
       return { kind: 'invalid', match, reason: 'invalid-path' };
     }
-    if (match.kind === 'reserved') {
-      return { kind: 'reserved', match, reason: 'reserved-family' };
-    }
-
     const descriptor = this.findForMatch(match);
     if (!descriptor) {
+      if (match.kind === 'reserved') {
+        return { kind: 'reserved', match, reason: 'reserved-family' };
+      }
       return { kind: 'unknown', match, reason: 'missing-section' };
     }
     if (!this.canAccess(descriptor, context)) {
@@ -76,6 +77,19 @@ export class NavigationRegistry {
   }
 
   private findForMatch(match: ReturnType<typeof parseRoute>): SectionDescriptor | undefined {
+    if (match.kind === 'reserved') {
+      const segment = match.tail[0];
+      if (!segment || !match.reservedFamily) {
+        return undefined;
+      }
+      const scope = routeScope(match);
+      return [...this.descriptors.values()].find(
+        (descriptor) =>
+          descriptor.routeFamily === match.reservedFamily &&
+          descriptor.segment === segment &&
+          descriptor.scope === scope,
+      );
+    }
     if (!match.sectionSegment) {
       return undefined;
     }

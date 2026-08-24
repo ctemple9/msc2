@@ -24,6 +24,9 @@ export type SectionDescriptor = {
   id: string;
   label: string;
   segment: string;
+  // A later feature group may claim a reserved URL family without changing the
+  // shell or treating the family name as a closed client-side enum.
+  routeFamily?: string;
   scope: SectionScope;
   requiredPermissions?: readonly string[];
   isAvailable?: CapabilityPredicate;

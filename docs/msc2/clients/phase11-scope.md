@@ -165,6 +165,15 @@ screen. Capability predicates read the advertised capability response; they
 never infer support from `hostOs`. Narrow and wide layouts consume the same
 filtered descriptor list and do not assume a fixed number of sections.
 
+P11.20 proves the Bedrock seam with a test-only descriptor under the reserved
+`bedrock` family. That descriptor reads the generated `serverTypes.bedrock`
+advertisement and optional `BedrockRuntimeStateDTO`: it is visible only when
+the agent advertises support and a present runtime state is `available`. Its
+predicate deliberately ignores backend and reason strings, so an agent can add
+new values without requiring a client release. No Bedrock descriptor is
+registered in the production registry, and no matrix cell changes to
+`Implemented` from this seam evidence.
+
 ## Screen and infrastructure ownership
 
 | Phase 11 area | Planned client responsibility | Deliberate non-claim |

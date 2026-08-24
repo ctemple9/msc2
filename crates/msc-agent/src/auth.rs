@@ -14,6 +14,8 @@
 
 #[path = "auth/browser.rs"]
 mod browser;
+#[path = "auth/desktop.rs"]
+mod desktop;
 
 use std::collections::{HashMap, VecDeque};
 use std::ffi::OsString;
@@ -50,6 +52,7 @@ pub(crate) use browser::{
     BrowserSessionError, CreateBrowserPairing, cleared_session_cookie, request_has_exact_origin,
     request_uses_https, session_cookie,
 };
+pub(crate) use desktop::{CreateDesktopPairing, DesktopPairingError};
 
 const TOKEN_PREFIX: &str = "msc2";
 const SECRET_STORE_KEY_PREFIX: &str = "remote-api.token.";

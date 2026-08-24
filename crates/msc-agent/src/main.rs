@@ -138,6 +138,12 @@ pub(crate) fn build_app() -> Router {
             post(routes::browser_session::exchange_browser_session),
         )
         .layer(Extension(auth_state.clone()));
+    let desktop_public = Router::new()
+        .route(
+            "/auth/desktop-pairings",
+            post(routes::desktop_session::exchange_desktop_pairing),
+        )
+        .layer(Extension(auth_state.clone()));
     let browser_protected = Router::new()
         .route("/auth/csrf", get(routes::browser_session::csrf_token))
         .route(
@@ -149,6 +155,7 @@ pub(crate) fn build_app() -> Router {
         .route("/health", get(routes::health::health))
         .merge(browser_pairings)
         .merge(browser_public)
+        .merge(desktop_public)
         .with_state(lifecycle_state.clone());
 
     // P6.17: one scheduled-backup timer per configured server, started

@@ -13,8 +13,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::{
     AuthState, AuthenticatedCredential, BrowserSessionAuthentication, BrowserSessionError,
-    CreateBrowserPairing, CredentialRole, cleared_session_cookie, forbidden,
-    request_has_exact_origin, request_uses_https, session_cookie,
+    CreateBrowserPairing, CreateDesktopPairing, CredentialRole, DesktopPairingError,
+    cleared_session_cookie, forbidden, request_has_exact_origin, request_uses_https,
+    session_cookie,
 };
 use crate::routes::lifecycle::{error_response, invalid_body, require_permission};
 
@@ -62,10 +63,10 @@ pub async fn create_pairing(
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_body", "Request body must be valid JSON."),
     };
-    if request.client_kind != "browser" {
+    if request.client_kind != "browser" && request.client_kind != "desktop" {
         return invalid_body(
             "invalid_client_kind",
-            "This endpoint creates browser pairing codes only.",
+            "The pairing client kind is not recognized.",
         );
     }
     let Some(role) = parse_role(&request.role) else {
@@ -87,36 +88,80 @@ pub async fn create_pairing(
             "Try again later.",
         );
     }
-    // The frozen contract exposes ISO-8601 expiry for a later desktop grant.
-    // Browser pairings in this step deliberately use the session's bounded
-    // lifetime rather than accepting a date string with an ad-hoc parser.
-    if request.expires_at.is_some() {
+    // Browser sessions use their own bounded lifetime. Desktop expiry is
+    // validated by the native pairing exchange in P11.23; this route does
+    // not invent a second date parser for the public string field.
+    if request.client_kind == "browser" && request.expires_at.is_some() {
         return invalid_body(
             "invalid_expiry",
             "Browser pairing expiry is managed by the agent session policy.",
         );
     }
-    let created = match auth.create_browser_pairing(CreateBrowserPairing {
-        label: label.to_string(),
-        role,
-        permissions: request.permissions,
-        expires_at: None,
-    }) {
-        Ok(created) => created,
-        Err(BrowserSessionError::Store(message)) => {
-            return error_response(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "internal_error",
-                &message,
-            );
-        }
-        Err(_) => {
-            return error_response(
-                StatusCode::TOO_MANY_REQUESTS,
-                "rate_limited",
-                "Try again later.",
-            );
-        }
+    let (pairing_code, agent_host_id, expires_at) = if request.client_kind == "browser" {
+        let created = match auth.create_browser_pairing(CreateBrowserPairing {
+            label: label.to_string(),
+            role,
+            permissions: request.permissions,
+            expires_at: None,
+        }) {
+            Ok(created) => created,
+            Err(BrowserSessionError::Store(message)) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    &message,
+                );
+            }
+            Err(_) => {
+                return error_response(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "rate_limited",
+                    "Try again later.",
+                );
+            }
+        };
+        let agent_host_id = match auth.agent_host_id() {
+            Ok(host_id) => host_id,
+            Err(DesktopPairingError::Store(message)) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    &message,
+                );
+            }
+            Err(_) => unreachable!("agent-host-id creation only has store failures"),
+        };
+        (created.pairing_code, agent_host_id, created.expires_at)
+    } else {
+        // Expiry remains optional in the frozen DTO. The bearer registry is
+        // still the sole expiry authority once the code is redeemed.
+        let created = match auth.create_desktop_pairing(CreateDesktopPairing {
+            label: label.to_string(),
+            role,
+            permissions: request.permissions,
+            expires_at: None,
+        }) {
+            Ok(created) => created,
+            Err(DesktopPairingError::Store(message)) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    &message,
+                );
+            }
+            Err(_) => {
+                return error_response(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "rate_limited",
+                    "Try again later.",
+                );
+            }
+        };
+        (
+            created.pairing_code,
+            created.agent_host_id,
+            created.expires_at,
+        )
     };
     auth.record_browser_audit(
         &credential.label,
@@ -124,13 +169,14 @@ pub async fn create_pairing(
         "browser_pairing_created",
     );
     Json(PairingCreateResult {
-        pairing_code: created.pairing_code,
-        // The durable installation identity required by remote desktop pairing
-        // is P11.23 work. Browser pairing has no host-store consumer, so this
-        // value is intentionally not derived from an address or URL.
-        agent_host_id: "browser-session-agent".to_string(),
-        client_kind: "browser",
-        expires_at: unix_timestamp(created.expires_at),
+        pairing_code,
+        agent_host_id,
+        client_kind: if request.client_kind == "browser" {
+            "browser"
+        } else {
+            "desktop"
+        },
+        expires_at: unix_timestamp(expires_at),
     })
     .into_response()
 }

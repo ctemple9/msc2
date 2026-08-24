@@ -8,6 +8,7 @@ mod backup_scheduler;
 mod cli;
 mod help;
 mod routes;
+mod web_ui;
 mod ws;
 
 use std::net::SocketAddr;
@@ -315,6 +316,7 @@ pub(crate) fn build_app() -> Router {
 
     Router::new()
         .nest("/v1", public.merge(protected))
+        .fallback(get(web_ui::serve))
         .layer(axum::middleware::from_fn(security_headers))
 }
 

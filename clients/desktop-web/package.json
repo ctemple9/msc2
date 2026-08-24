@@ -31,6 +31,7 @@
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",
     "api:check": "npm run api:generate -- --check && python3 ../../tools/phase11/generated-types-check.py",
     "bundle:identity": "node ./tools/verify-bundle-identity.mjs",
+    "bundle:package-agent": "npm run build && node ./tools/package-agent-bundle.mjs",
     "verify:scaffold": "npm run format:check && npm run check && npm run test:unit && npm run build && npm run bundle:identity"
   },
   "dependencies": {

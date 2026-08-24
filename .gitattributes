@@ -1,0 +1,3 @@
+# Vite's minified assets are copied byte-for-byte into the headless agent.
+# Do not normalize their significant end-of-line bytes during diff checks.
+crates/msc-agent/web-ui/** -whitespace

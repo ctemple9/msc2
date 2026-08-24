@@ -1,0 +1,1 @@
+{"case":"skipped","initial":{"tourComplete":false},"action":"skip-tour","expected":{"tourComplete":true,"showTour":false,"canReopenFromPreferences":true}}

@@ -1,0 +1,11 @@
+{
+  "source": "P11.15 inventory of emitted contextual help IDs; later help-serving code must resolve every id below.",
+  "ids": [
+    "settings.difficulty", "settings.motd", "settings.online-mode", "settings.player-idle-timeout", "settings.server-port", "settings.spawn-protection",
+    "health.component-jars", "health.directory", "health.java", "health.last-startup", "health.ram", "health.tick-lag",
+    "diagnostics.crash.duplicate", "diagnostics.crash.incompatible-version", "diagnostics.crash.load-error", "diagnostics.crash.missing-dependency", "diagnostics.crash.unknown",
+    "performance.cpu", "performance.ram", "performance.tps", "performance.world-size",
+    "connectivity.changed", "connectivity.diagnostic-unavailable", "bedrock.runtime-unavailable",
+    "operations.cancel-not-legal", "operations.not-found", "servers.not-found", "versioning.unsupported-client"
+  ]
+}

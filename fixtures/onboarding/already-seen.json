@@ -1,0 +1,1 @@
+{"case":"already-seen","initial":{"tourComplete":true,"conceptGuideSeen":true},"expected":{"showSetup":false,"showConceptGuide":false,"showTour":false}}

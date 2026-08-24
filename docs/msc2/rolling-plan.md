@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 11 is in progress — P11.1–P11.14 are verified and DONE; P11.15 is next.
-> **Next move:** EXECUTE P11.15 with `python3 tools/phase11/help-content-check.py --all`; its status remains awaiting verification until Cameron runs that command.
+> ## STATUS: Phase 11 is in progress — P11.1–P11.14 are verified and DONE; P11.15 awaits verification.
+> **Next move:** VERIFY P11.15 with `python3 tools/phase11/help-content-check.py --all`; its status remains awaiting verification until Cameron runs that command.
 > **Last updated:** 2026-08-24
 
 **Previous phases (Setup through Phase 10) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
@@ -280,7 +280,7 @@ the package manager, with MSC limited to an actionable availability notice.
 - Add regression coverage for the stream/download and deferred-route boundaries.
 
 ### P11.15 — Extract and validate the educational content corpus
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `content/help/`, `content/guides/`, `fixtures/help-content/`, `fixtures/onboarding/`, `tools/phase11/help-content-check.py`, `docs/msc2/clients/phase11-scope.md`
 **What:** Extract MSC 1's 31-topic handbook, concept guide, router catalog/records/steps, troubleshooting content, and onboarding copy into the confirmed Markdown-with-YAML-front-matter and structured guide data formats. Preserve source citations and label content versus executable router rules; do not duplicate prose in Svelte. Record unresolved diagram assets honestly. Include the Concept Guide page order, onboarding step content/order, skip/reopen wording, and the source mapping for every first-launch explanation; visual anchoring and animation remain client-owned. Include coverage for every `helpId` already emitted by settings, health, diagnostics, performance, connectivity, and errors, including the `bedrock.runtime-unavailable` later-audit requirement. Add deterministic onboarding fixtures proving fresh-install, already-seen, skipped, reopened, and unknown/future-topic cases.
 **Verify:** `python3 tools/phase11/help-content-check.py --all`

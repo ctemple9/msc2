@@ -1,0 +1,1 @@
+{"case":"fresh-install","initial":{"tourComplete":false,"conceptGuideSeen":false},"expected":{"showSetup":true,"thenConceptGuide":true,"thenTour":true,"firstStep":"welcome"}}

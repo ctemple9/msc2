@@ -1,0 +1,15 @@
+{
+  "source": {"path": "MSCmacOS/MSCmacOS Swift/RouterPortForwardGuidesFoundation.swift", "symbol": "v1TroubleshootingTopics"},
+  "contentBoundary": "Topic copy is data. Rule evaluation remains executable behavior in crates/msc-domain/src/router/troubleshooting.rs and fallback_tree.rs.",
+  "topics": [
+    {"id":"local_ip_changed","title":"Your host's local IP changed","summary":"The router may still forward to an old device address."},
+    {"id":"double_nat","title":"You may be behind two routers","summary":"Forwarding on the wrong router does not expose the server."},
+    {"id":"cgnat","title":"Your ISP may be using CGNAT","summary":"Some internet plans do not provide a public IPv4 address to forward through."},
+    {"id":"wrong_router","title":"You configured the wrong device","summary":"The provider name is not always the device doing routing."},
+    {"id":"wrong_device","title":"The port forward may point to the wrong target device","summary":"The rule must target the computer hosting MSC."},
+    {"id":"firewall_blocked","title":"A firewall may be blocking the port","summary":"A correct router rule still needs the host firewall to permit the server port."},
+    {"id":"wrong_protocol","title":"The forwarding protocol may be wrong","summary":"The router rule must use the protocol the selected server requires."},
+    {"id":"router_reboot_required","title":"Your router may need to apply the change","summary":"Some routers do not activate a new rule until settings are saved or the router restarts."},
+    {"id":"no_admin_access","title":"You may not have router admin access","summary":"A landlord, parent, ISP, or administrator may control the router settings."}
+  ]
+}

@@ -61,6 +61,38 @@ implementation or an explicit, evidence-backed deviation. “Onboarding text
 was extracted” alone is not sufficient: the fresh-install sequence, state
 transitions, anchors, and animation/fallback behavior must also be exercised.
 
+### P11.15 educational-content handoff
+
+P11.15 extracts the data that must not be rewritten in a Svelte component:
+
+- `content/help/handbook/` has one Markdown-with-front-matter file for every
+  one of the 31 `HandbookTopic` cases. Its front matter cites the exact MSC 1
+  content symbol, preserving both the topic order/category and the source of
+  its explanation.
+- `content/help/concept/` and `content/guides/concept-guide.json` preserve the
+  seven Concept Guide pages and their order. `ConceptGuideDiagrams.swift`
+  remains cited but its drawings are honestly recorded as unresolved assets:
+  P11.16 owns a reviewed client rendering or replacement. It also owns visual
+  anchoring and any animation/reduced-motion fallback.
+- `content/guides/onboarding.json` preserves first-launch content, ordering,
+  branching, form-card hide/resume behavior, skip wording, and the
+  `msc_onboarding_tour_complete` persistence key. Its complete per-step source
+  mapping lives in `content/guides/onboarding-source-map.json`. The matching
+  fixtures cover fresh installation, already-seen state, skipping, reopening
+  from Preferences, and an unknown future topic.
+- `content/guides/router-catalog.json` and
+  `content/guides/router-troubleshooting.json` contain catalog records and
+  human-readable guidance only. They explicitly cite the existing Rust matcher,
+  fallback, composer, runtime replacement, and troubleshooting engine as
+  executable behavior rather than duplicating a second implementation.
+- `fixtures/help-content/help-id-coverage.json` is the named inventory for
+  currently emitted settings, health, diagnostics, performance, connectivity,
+  operation/error, and `bedrock.runtime-unavailable` pointers. The checker
+  requires a Markdown topic for every one.
+
+No content is served or rendered by P11.15. P11.24 embeds and serves it; P11.16
+renders it in the shared client.
+
 ### Desktop information architecture and visual language
 
 The macOS oracle supplies a hierarchy, not a screen fork. The shared client

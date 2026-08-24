@@ -1,0 +1,1 @@
+{"case":"reopened","initial":{"tourComplete":true},"action":"restart-tour-from-preferences","expected":{"tourComplete":false,"showTour":true,"firstStep":"welcome"}}

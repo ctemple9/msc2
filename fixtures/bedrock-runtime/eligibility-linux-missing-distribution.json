@@ -1,1 +1,1 @@
-{"input":{"host":"linux","files":"missing"},"expected":{"state":"provisioning_required","backend":"native","reasonCode":"bds_distribution_required"}}
+{"domain":"bedrock-runtime","case":"eligibility-linux-missing-distribution","source":{"file":"crates/msc-application/tests/bedrock_runtime_eligibility.rs","test":"native_runtime_requires_a_verified_distribution_on_the_current_host","line":70},"input":{"host":"linux","files":"missing"},"expected":{"state":"provisioning_required","backend":"native","reasonCode":"bds_distribution_required"}}

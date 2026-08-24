@@ -1,1 +1,1 @@
-{"input":{"host":"windows","files":"verified-windows-provenance"},"expected":{"state":"available","backend":"native","reasonCode":null}}
+{"domain":"bedrock-runtime","case":"eligibility-windows-verified-distribution","source":{"file":"crates/msc-application/tests/bedrock_runtime_eligibility.rs","test":"windows_uses_the_windows_distribution_and_executable","line":93},"input":{"host":"windows","files":"verified-windows-provenance"},"expected":{"state":"available","backend":"native","reasonCode":null}}

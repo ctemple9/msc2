@@ -36,7 +36,7 @@ FIXTURES = {
     "bedrock-world-layout": 10,
     "bedrock-backup": 10,
     "bedrock-provisioning": 16,
-    "bedrock-runtime": 14,
+    "bedrock-runtime": 21,
     "bedrock-sidecar": 16,
     "bedrock-udp": 5,
 }
@@ -157,8 +157,8 @@ def check_scope() -> str:
 def check_public_gate_wiring() -> str:
     smoke = read_text(SMOKE_PATH)
     require(
-        "--synthetic" in smoke and "bedrock_routes" in smoke and "bedrock_cli" in smoke,
-        "smoke: synthetic Bedrock HTTP and CLI tests are not wired",
+        "--synthetic" in smoke and "bedrock_production_smoke" in smoke,
+        "smoke: synthetic production-router Bedrock test is not wired",
     )
     workflow = read_text(WORKFLOW_PATH)
     for marker in (
@@ -204,7 +204,10 @@ def check_exact_ci_candidate() -> str:
 
     runs = set(re.findall(r"actions/runs/(\d+)", evidence))
     require(len(runs) == 1, "CI evidence: expected exactly one recorded GitHub Actions run")
-    require("The later P10.27 documentation commit is not the tested candidate." in evidence, "CI evidence: candidate/documentation distinction is missing")
+    require(
+        re.search(r"The later P10\.\d+ documentation commit is not the tested candidate\.", evidence),
+        "CI evidence: candidate/documentation distinction is missing",
+    )
     require(evidence.count("| success |") >= 4, "CI evidence: all macOS, Linux, Windows, and headless results are not recorded as success")
     lower = re.sub(r"\s+", " ", evidence.lower())
     for platform in ("macos", "linux", "windows", "headless"):

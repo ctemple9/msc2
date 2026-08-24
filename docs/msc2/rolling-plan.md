@@ -483,7 +483,7 @@ not advance.
 **Batch:** solo
 
 ### P10.37 — Record the corrected exact tri-platform candidate
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/bedrock/evidence/phase10-ci.md`, `docs/msc2/rolling-plan.md`
 **What:** Record the exact post-P10.36 commit and its green macOS, Linux, Windows, and headless CI run. The evidence must show that each platform completed the workspace regression suite as well as the production-router smoke and P10.36 check on that exact candidate; distinguish the candidate from this documentation commit, and retain the existing explicit limits on live BDS/VM/package claims. This exact CI record is the correction plan's single full-workspace regression proof.
 **Verify:** `test -s docs/msc2/bedrock/evidence/phase10-ci.md && rg -n 'commit|macOS|Linux|Windows|headless|production' docs/msc2/bedrock/evidence/phase10-ci.md`
@@ -491,7 +491,7 @@ not advance.
 **Batch:** stop-after
 
 ### P10.38 — Re-run the literal Phase 10 gate against the production path
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `tools/phase10/phase10-check.py`, `tools/phase10/phase10-production-check.py`, `docs/msc2/bedrock/phase10-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Re-check the literal Phase 10 gate after the correction work. Require the shared fixtures, frozen API and copied-iOS contract, separate compatibility matrix, real-or-unavailable distribution/runtime evidence, production-router cross-backend smoke, fail-closed production check, corrected exact CI candidate, and headless independence. The exact P10.37 CI candidate supplies this correction plan's full-workspace regression evidence, so this local gate command deliberately does not repeat it. It reports evidence only; the other agent still decides in REVIEW whether the gate holds.
 **Verify:** `python3 tools/phase10/phase10-check.py --gate && python3 tools/phase10/phase10-production-check.py --check && bash tools/phase10/phase10-smoke.sh --synthetic`

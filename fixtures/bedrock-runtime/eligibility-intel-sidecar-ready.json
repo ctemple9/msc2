@@ -1,1 +1,1 @@
-{"input":{"host":"macos-intel","files":"verified-distribution-and-sidecar-appliance"},"expected":{"state":"available","backend":"sidecar","reasonCode":null}}
+{"domain":"bedrock-runtime","case":"eligibility-intel-sidecar-ready","source":{"file":"crates/msc-application/tests/bedrock_runtime_eligibility.rs","test":"intel_sidecar_requires_both_distribution_and_distributable_resources","line":127},"input":{"host":"macos-intel","files":"verified-distribution-and-sidecar-appliance"},"expected":{"state":"available","backend":"sidecar","reasonCode":null}}

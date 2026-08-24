@@ -1,1 +1,1 @@
-{"input":{"host":"macos-apple-silicon","files":"irrelevant-under-d-028"},"expected":{"state":"unavailable","backend":null,"reasonCode":"no_test_hardware"}}
+{"domain":"bedrock-runtime","case":"eligibility-apple-silicon-no-test-hardware","source":{"file":"crates/msc-application/tests/bedrock_runtime_eligibility.rs","test":"apple_silicon_is_unavailable_even_when_fixture_files_exist","line":135},"input":{"host":"macos-apple-silicon","files":"irrelevant-under-d-028"},"expected":{"state":"unavailable","backend":null,"reasonCode":"no_test_hardware"}}

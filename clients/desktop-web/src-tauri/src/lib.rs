@@ -9,6 +9,8 @@ use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
+mod update;
+
 const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
 const DESKTOP_SECRET_SERVICE: &str = "com.ctemple.msc2.desktop";
 const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
@@ -230,6 +232,14 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
     Ok(report_status(report))
 }
 
+/// Copies a complete, signed release set into immutable staging. It cannot
+/// install anything; a platform installer is launched only after the shared
+/// client has collected a separate, explicit confirmation for this release.
+#[tauri::command]
+fn stage_coordinated_update(request: update::StageRequest) -> Result<update::StageResult, String> {
+    update::stage(request, &agent_data_directory()?)
+}
+
 fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
     #[cfg(target_os = "macos")]
     {
@@ -403,7 +413,8 @@ pub fn run() {
             desktop_exchange_pairing,
             desktop_authorized_request,
             agent_service_status,
-            manage_agent_service
+            manage_agent_service,
+            stage_coordinated_update
         ])
         .run(tauri::generate_context!())
         .expect("error while running the MSC 2 desktop shell");

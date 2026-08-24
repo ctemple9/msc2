@@ -27,6 +27,7 @@
     "test:screen-help": "vitest run tests/screens/help.test.ts",
     "test:tauri-boundary": "vitest run tests/tauri",
     "test:agent-install": "vitest run tests/agent-install",
+    "test:updates": "vitest run tests/updates",
     "test:e2e-tauri-linux": "wdio run wdio.conf.ts",
     "test:e2e-browser": "npm run build && playwright test",
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",

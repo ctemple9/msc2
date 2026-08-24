@@ -1,0 +1,19 @@
+{
+  "releaseSet": "desktop-agent-sidecar",
+  "releasePublicKeyBuildSetting": "MSC2_RELEASE_PUBLIC_KEY_HEX",
+  "manifestSignature": "Ed25519 over the canonical JSON manifest",
+  "macos": {
+    "requiredArtifacts": ["desktop", "agent", "sidecar"],
+    "installer": "signed desktop artifact"
+  },
+  "windows": {
+    "requiredArtifacts": ["desktop", "agent"],
+    "forbiddenArtifacts": ["sidecar"],
+    "installer": "signed desktop artifact"
+  },
+  "linux": {
+    "installation": "package-manager-only"
+  },
+  "preservedData": ["configuration", "secrets", "worlds", "server-files"],
+  "excludedUpdateFamilies": ["minecraft-server", "loader", "add-on", "modpack"]
+}

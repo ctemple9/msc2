@@ -312,7 +312,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.19 — Exercise the real Linux Tauri renderer through WebKitGTK
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/tests/e2e/tauri-linux/`, `clients/desktop-web/wdio.conf.ts`, `tools/phase11/linux-webkitgtk-smoke.sh`, `docs/msc2/clients/evidence/`
 **What:** On a Debian/Ubuntu desktop runner with `libwebkit2gtk-4.1`, `webkit2gtk-driver`, and Xvfb, launch the built Tauri binary and drive its real window through the native WebDriver path. Verify visible shell, navigation, CSS layout, forms, dialogs, live-console fallback, deep links, one mutating fake workflow, and the fresh-profile onboarding entry path including the reduced-motion/fallback branch; record the WebKitGTK package/version and screenshot evidence. A Vite page opened in Chrome or Playwright's bundled WebKit does not satisfy this step.
 **Verify:** `bash tools/phase11/linux-webkitgtk-smoke.sh --native`

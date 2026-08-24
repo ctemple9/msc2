@@ -126,7 +126,12 @@
 
   function createClient(id: string): ApiClient {
     return new ApiClient({
-      baseUrl: typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin,
+      // Native-renderer smoke tests point the production bundle at the same
+      // deterministic contract harness as browser tests. Normal builds keep
+      // the agent-serving origin, so this does not add a second API path.
+      baseUrl:
+        import.meta.env.VITE_MSC_API_BASE_URL ??
+        (typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin),
       hostId: id,
     });
   }

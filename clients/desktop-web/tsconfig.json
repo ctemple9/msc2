@@ -13,7 +13,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "types": ["vite/client"]
+    "types": ["vite/client", "@wdio/globals/types"]
   },
   "include": ["src/**/*.ts", "src/**/*.svelte", "tests/**/*.ts", "vite.config.ts"]
 }

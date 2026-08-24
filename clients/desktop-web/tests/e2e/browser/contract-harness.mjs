@@ -129,6 +129,24 @@ function bytes(response, body) {
 
 createServer(async (request, response) => {
   const url = new URL(request.url ?? '/', `http://${request.headers.host}`);
+  // The native Tauri binary has a tauri:// origin, unlike browser tests that
+  // load this harness's page. Keep this CORS allowance inside the deterministic
+  // test server so both surfaces exercise the same fake contract.
+  // The shared client always includes credentials. CORS therefore has to echo
+  // the native Tauri origin rather than using `*`, which WebKitGTK rejects for
+  // credentialed requests.
+  const origin = request.headers.origin;
+  if (origin) response.setHeader('access-control-allow-origin', origin);
+  response.setHeader('access-control-allow-credentials', 'true');
+  response.setHeader(
+    'access-control-allow-headers',
+    'content-type, authorization, x-msc-client-api-version',
+  );
+  response.setHeader('access-control-allow-methods', 'GET, POST, PUT, OPTIONS');
+  if (request.method === 'OPTIONS') {
+    response.writeHead(204);
+    return response.end();
+  }
   if (url.pathname === '/v1/capabilities') return json(response, {});
   if (url.pathname === '/v1/me')
     return json(response, {

@@ -23,6 +23,11 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+html,
+body,
+#app {
+  background: var(--msc-bg);
+}
 button,
 input,
 select,

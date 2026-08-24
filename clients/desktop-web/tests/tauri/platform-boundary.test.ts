@@ -116,6 +116,7 @@ describe('Tauri boundary', () => {
     expect(routeAndScreenSources).not.toContain('isTauri');
     expect(workspaceSource).not.toContain('clients/desktop-web/src-tauri');
     expect(config.build.frontendDist).toBe('../dist');
+    expect(config.app.windows[0].backgroundColor).toBe('#1a1816');
     expect(routeAndScreenSources).toContain("segment: 'local-agent'");
     expect(routeAndScreenSources).not.toContain('invoke<AgentServiceStatus>');
   });

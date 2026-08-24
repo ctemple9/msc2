@@ -49,6 +49,11 @@ describe('shared help and onboarding screens', () => {
     expect(helpSource).toContain("'/v1/help/catalog'");
     expect(setupText).toContain('What is Minecraft Server Controller?');
     expect(setupText).toContain('Start and stop Java and Bedrock servers with one click');
+    expect(setupText).toContain('Server Type');
+    expect(setupText).toContain('Paper');
+    expect(setupText).toContain('NeoForge');
+    expect(setupText).toContain('Geyser crossplay');
+    expect(setupText).toContain('setup-page-in');
     expect(setupText).toContain('Pick an Accent Color');
     expect(setupText).toContain('This setup takes about 2 minutes.');
     expect(setupText).toContain('aria-pressed');

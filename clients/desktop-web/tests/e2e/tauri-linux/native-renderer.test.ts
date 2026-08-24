@@ -55,6 +55,8 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
 
     await waitForText('.gate', 'Next');
     await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
+    await waitForText('.gate', 'Server Type');
+    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
     await waitForText('.gate', 'One server. Your worlds.');
     await browser.execute(() => {
       localStorage.setItem('msc.setup-complete', 'true');

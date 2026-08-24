@@ -288,6 +288,21 @@ agent accepts management traffic only on loopback; with Tailscale configured,
 only that path may reach management and every request remains bearer-authenticated.
 Player-facing listeners never provide a management path.
 
+**Phase 11 contract addendum (P11.21).** The proposed implementation contract
+is now frozen in `docs/msc2/clients/phase11-auth.md` and its additive `/v1`
+surface is checked by `crates/msc-api/tests/phase11_auth_conformance.rs`.
+It resolves the six design gaps without changing the approved transport
+boundary: local desktop bootstrap is a package-identity- and installation-key-
+bound local-IPC proof, never an open loopback exception; remote desktop pairing
+returns a one-time bearer credential only to the Tauri backend, which stores it
+under `msc.desktop.host-token.<agent-host-id>`; browser pairing exchanges a
+one-use code for a durable, revocable httpOnly `SameSite=Strict` session; exact
+same-origin checks, a restrictive CSP, and `X-MSC-CSRF` protect cookie-authenticated
+mutations; and bearer requests remain CSRF-exempt. The contract deliberately
+does **not** enable general-LAN management, certificate provisioning, a local
+CA, or browser certificate bypass. This is a proposed technical resolution,
+not a retroactive owner approval of the previously Proposed D-012 details.
+
 ---
 
 ## D-013 — Multi-host data model from day one

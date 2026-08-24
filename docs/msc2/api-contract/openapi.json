@@ -5,6 +5,13 @@
     "version": "v1",
     "description": "The versioned HTTP contract MSC 2's skeletal agent (Phase 2) and every later phase implement against. Assembled per docs/msc2/rolling-plan.md P2.8 from the P0.23/P0.30/P0.32 MSC 1 baseline (docs/msc2/api-baseline/openapi.json) plus this phase's own designs: the /v1/ namespace and ErrorDTO envelope (P2.4, versioning-and-errors.md), the operation routes and OperationDTO (P2.5, operation-model.md), the capabilities route (P2.6, capability-model.md), helpId placement (P2.2, helpid-contract.md), and the permission-category annotation on every route (P2.1, permission-vocabulary.csv). Phase 10 extends the shared routes additively for Bedrock runtime state, without adding a parallel /v1/bedrock route family. The console and operation-progress WebSocket channels (P2.7) are documented separately in docs/msc2/api-contract/websocket-v1.json, matching the baseline's own precedent (P0.24) of keeping WS channels out of the OpenAPI paths object. Everything sourced from P2.4/P2.5/P2.6/P2.2's own documents carries their Proposed/Confirmed status forward -- this file does not itself promote anything to Approved."
   },
+  "x-authentication": {
+    "default": "Every /v1 operation requires either Authorization: Bearer <credential> or the msc2_session cookie. Bearer takes precedence when both are present; all existing x-permission-category checks still apply.",
+    "browserOrigin": "A browser Origin header must exactly match the canonical loopback or explicitly configured Tailscale management origin. No permissive CORS response is sent.",
+    "cookieMutation": "Cookie-authenticated non-GET/HEAD/OPTIONS requests require the matching X-MSC-CSRF header. Bearer-authenticated requests are exempt.",
+    "sessionCookie": "msc2_session is opaque, httpOnly, SameSite=Strict, Path=/v1, and uses Secure when the canonical origin is HTTPS. Session idle lifetime is 8 hours; absolute lifetime is 30 days.",
+    "localDesktopBootstrap": "Same-machine desktop bootstrap is package-identity- and installation-key-bound local IPC, never an HTTP loopback exception. See docs/msc2/clients/phase11-auth.md."
+  },
   "paths": {
     "/v1/servers/create": {
       "post": {
@@ -3642,6 +3649,276 @@
           }
         },
         "x-permission-category": "none"
+      }
+    },
+    "/v1/auth/pairings": {
+      "post": {
+        "summary": "Create a one-use pairing code for a browser or desktop client",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairingCreateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Pairing code created; the code is shown only in this response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PairingCreateResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "403": {
+            "description": "forbidden (non-admin credential)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "forbidden"
+          },
+          "429": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "rate_limited"
+          }
+        },
+        "operationId": "createPairing",
+        "x-permission-category": "admin",
+        "x-authentication": "bearer-admin"
+      }
+    },
+    "/v1/auth/browser-sessions": {
+      "post": {
+        "summary": "Exchange a browser pairing code for the current browser session",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowserSessionExchangeRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Session created; sets the httpOnly msc2_session cookie"
+          },
+          "400": {
+            "description": "invalid_body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "403": {
+            "description": "forbidden (wrong Origin)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "forbidden"
+          },
+          "409": {
+            "description": "pairing_consumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "pairing_consumed"
+          },
+          "410": {
+            "description": "pairing_expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "pairing_expired"
+          },
+          "429": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "rate_limited"
+          }
+        },
+        "operationId": "exchangeBrowserSession",
+        "x-permission-category": "none",
+        "x-authentication": "same-origin-pairing-code"
+      }
+    },
+    "/v1/auth/csrf": {
+      "get": {
+        "summary": "Get the current browser session's CSRF token",
+        "responses": {
+          "200": {
+            "description": "CSRF token; Cache-Control is no-store",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CsrfTokenResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "getCsrfToken",
+        "x-permission-category": "none",
+        "x-authentication": "browser-session"
+      }
+    },
+    "/v1/auth/browser-sessions/current": {
+      "delete": {
+        "summary": "Revoke the current browser session",
+        "responses": {
+          "204": {
+            "description": "Session revoked and msc2_session cleared"
+          },
+          "401": {
+            "description": "unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "unauthorized"
+          },
+          "403": {
+            "description": "forbidden (wrong Origin or missing/bad X-MSC-CSRF)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "forbidden"
+          }
+        },
+        "operationId": "logoutBrowserSession",
+        "x-permission-category": "none",
+        "x-authentication": "browser-session-csrf"
+      }
+    },
+    "/v1/auth/desktop-pairings": {
+      "post": {
+        "summary": "Exchange a desktop pairing code for a host-scoped bearer credential",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DesktopPairingExchangeRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Credential created; token is returned once to the Tauri backend",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DesktopCredentialResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "409": {
+            "description": "pairing_consumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "pairing_consumed"
+          },
+          "410": {
+            "description": "pairing_expired",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "pairing_expired"
+          },
+          "429": {
+            "description": "rate_limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "rate_limited"
+          }
+        },
+        "operationId": "exchangeDesktopPairing",
+        "x-permission-category": "none",
+        "x-authentication": "desktop-pairing-code"
       }
     },
     "/v1/worlds": {
@@ -8383,6 +8660,137 @@
         },
         "required": [
           "state"
+        ]
+      },
+      "PairingCreateRequestDTO": {
+        "type": "object",
+        "description": "An administrator's requested browser or desktop grant. The resulting code is one-use and shown once.",
+        "properties": {
+          "clientKind": {
+            "type": "string",
+            "enum": [
+              "browser",
+              "desktop"
+            ]
+          },
+          "label": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "guest",
+              "named"
+            ]
+          },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true,
+            "description": "Optional credential expiry. Pairing-code expiry is always ten minutes."
+          }
+        },
+        "required": [
+          "clientKind",
+          "label",
+          "role",
+          "permissions"
+        ]
+      },
+      "PairingCreateResultDTO": {
+        "type": "object",
+        "properties": {
+          "pairingCode": {
+            "type": "string",
+            "description": "Raw 256-bit pairing code, returned only by POST /v1/auth/pairings."
+          },
+          "agentHostId": {
+            "type": "string"
+          },
+          "clientKind": {
+            "type": "string",
+            "enum": [
+              "browser",
+              "desktop"
+            ]
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pairingCode",
+          "agentHostId",
+          "clientKind",
+          "expiresAt"
+        ]
+      },
+      "BrowserSessionExchangeRequestDTO": {
+        "type": "object",
+        "properties": {
+          "pairingCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pairingCode"
+        ]
+      },
+      "CsrfTokenResponseDTO": {
+        "type": "object",
+        "properties": {
+          "csrfToken": {
+            "type": "string",
+            "description": "Opaque token echoed in X-MSC-CSRF for cookie-authenticated mutations."
+          },
+          "expiresAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "csrfToken",
+          "expiresAt"
+        ]
+      },
+      "DesktopPairingExchangeRequestDTO": {
+        "type": "object",
+        "properties": {
+          "pairingCode": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "pairingCode"
+        ]
+      },
+      "DesktopCredentialResultDTO": {
+        "type": "object",
+        "properties": {
+          "agentHostId": {
+            "type": "string"
+          },
+          "credentialId": {
+            "type": "string"
+          },
+          "token": {
+            "type": "string",
+            "description": "Raw bearer credential, returned only once to the Tauri backend; never expose it to Svelte."
+          },
+          "expiresAt": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "agentHostId",
+          "credentialId",
+          "token"
         ]
       },
       "ErrorDTO": {

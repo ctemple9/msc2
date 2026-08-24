@@ -1,15 +1,14 @@
 export type HelpTopic = {
-  id: string;
-  kind: 'handbook' | 'concept' | 'contextual' | string;
+  helpId: string;
   title: string;
-  category?: string;
+  category: string;
   analogy?: string;
-  markdown: string;
+  body: string;
   relatedIds: readonly string[];
 };
 
 export type HelpCatalog = {
-  topics: readonly Pick<HelpTopic, 'id' | 'kind' | 'title' | 'category'>[];
+  topics: readonly Pick<HelpTopic, 'helpId' | 'title' | 'category'>[];
 };
 
 export type ConceptGuide = {

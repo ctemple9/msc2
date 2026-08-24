@@ -33,7 +33,7 @@ import json
 import sys
 
 CONTRACT_PATH = "docs/msc2/api-contract/openapi.json"
-EXPECTED_TOTAL = 115  # 88 baseline (P0.23 --total) + 5 P2.8 + 12 P6.8 (copyWorldSlotContent removed post-review; folded into /v1/worlds/replace) + 1 P6.34 (POST /v1/worlds/replace-active-world, replaceActiveWorld) + 1 P7.9 (POST /v1/java-runtimes/install, installJavaRuntime, D-006 addendum) + 3 P8.9 (POST /v1/modpacks/inspect, POST /v1/modpacks/import, POST /v1/modpacks/{operationId}/manual-file, docs/msc2/addons/phase8-api.md SS3) + 5 P11.21 (browser/desktop pairing and browser session routes)
+EXPECTED_TOTAL = 119  # 88 baseline (P0.23 --total) + 5 P2.8 + 12 P6.8 (copyWorldSlotContent removed post-review; folded into /v1/worlds/replace) + 1 P6.34 (POST /v1/worlds/replace-active-world, replaceActiveWorld) + 1 P7.9 (POST /v1/java-runtimes/install, installJavaRuntime, D-006 addendum) + 3 P8.9 (POST /v1/modpacks/inspect, POST /v1/modpacks/import, POST /v1/modpacks/{operationId}/manual-file, docs/msc2/addons/phase8-api.md SS3) + 5 P11.21 (browser/desktop pairing and browser session routes) + 4 P11.24 (content catalog and structured guide routes)
 
 # helpid-contract.md SS4's table: schema -> field(s) that must carry helpId.
 HELPID_FIELDS = {

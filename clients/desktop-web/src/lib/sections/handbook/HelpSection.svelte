@@ -65,7 +65,7 @@
     onboarding = await call(api, onboarding, '/v1/guides/onboarding');
     launchState = readLaunchState();
     topicId =
-      new URLSearchParams(window.location.search).get('topic') ?? catalog.topics[0]?.id ?? '';
+      new URLSearchParams(window.location.search).get('topic') ?? catalog.topics[0]?.helpId ?? '';
     await selectTopic(topicId);
     loaded = true;
   });
@@ -110,21 +110,21 @@
     <div class="guide-layout">
       <aside class="screen-card topic-list" aria-label="Handbook topics">
         <h3>Handbook</h3>
-        {#each catalog.topics as item (item.id)}
+        {#each catalog.topics as item (item.helpId)}
           <button
-            class:active={item.id === topicId}
+            class:active={item.helpId === topicId}
             type="button"
-            onclick={() => void selectTopic(item.id)}>{item.title}</button
+            onclick={() => void selectTopic(item.helpId)}>{item.title}</button
           >
         {/each}
       </aside>
       <article class="screen-card topic-reader">
         {#if topic}
-          <p class="eyebrow">{topic.category ?? topic.kind}</p>
+          <p class="eyebrow">{topic.category}</p>
           <h2>{topic.title}</h2>
           {#if topic.analogy}<p class="analogy">Think of it like this: {topic.analogy}</p>{/if}
           <div class="markdown" data-safe-markdown="true">
-            {@html renderMarkdown(topic.markdown)}
+            {@html renderMarkdown(topic.body)}
           </div>
           {#if topic.relatedIds.length}
             <h3>Related topics</h3>

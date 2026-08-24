@@ -10,6 +10,7 @@ pub mod components;
 pub mod desktop_session;
 pub mod geyser;
 pub mod health;
+pub mod help;
 pub mod lifecycle;
 pub mod network_diagnostics;
 pub mod networking;

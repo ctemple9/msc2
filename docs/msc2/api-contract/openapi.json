@@ -4254,6 +4254,81 @@
         "x-notes": "helpid-contract.md SS3."
       }
     },
+    "/v1/help/catalog": {
+      "get": {
+        "summary": "List available educational content topics",
+        "x-permission-category": "none",
+        "responses": {
+          "200": {
+            "description": "HelpCatalogDTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HelpCatalogDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "P11.24. The agent owns the catalog; clients own its presentation."
+      }
+    },
+    "/v1/guides/concept-guide": {
+      "get": {
+        "summary": "Read the structured Concept Guide",
+        "x-permission-category": "none",
+        "responses": {
+          "200": {
+            "description": "ConceptGuideDTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConceptGuideDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/guides/onboarding": {
+      "get": {
+        "summary": "Read the structured first-launch guide",
+        "x-permission-category": "none",
+        "responses": {
+          "200": {
+            "description": "OnboardingGuideDTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OnboardingGuideDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "P11.24. Anchors and animation remain client-owned."
+      }
+    },
+    "/v1/guides/router-catalog": {
+      "get": {
+        "summary": "List router guides and troubleshooting topics",
+        "x-permission-category": "none",
+        "responses": {
+          "200": {
+            "description": "RouterGuideCatalogDTO.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouterGuideCatalogDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-notes": "P11.24. The agent returns structured data; matcher, fallback, composer, runtime replacement, and troubleshooting evaluation remain domain rules."
+      }
+    },
     "/v1/worlds/update": {
       "post": {
         "summary": "Save the current live world into the active slot",
@@ -9097,6 +9172,44 @@
           "category",
           "relatedIds"
         ]
+      },
+      "HelpCatalogDTO": {
+        "type": "object",
+        "properties": {
+          "topics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "helpId": { "type": "string" },
+                "title": { "type": "string" },
+                "category": { "type": "string" }
+              },
+              "required": ["helpId", "title", "category"]
+            }
+          }
+        },
+        "required": ["topics"]
+      },
+      "ConceptGuideDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "pages": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["id", "pages"]
+      },
+      "OnboardingGuideDTO": {
+        "type": "object",
+        "description": "Structured first-launch copy. Anchoring and presentation remain client-owned."
+      },
+      "RouterGuideCatalogDTO": {
+        "type": "object",
+        "properties": {
+          "guides": { "type": "array", "items": { "type": "object" } },
+          "troubleshooting": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["guides", "troubleshooting"]
       },
       "PerformanceMetricNumberDTO": {
         "type": "object",

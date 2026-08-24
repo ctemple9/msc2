@@ -6,6 +6,7 @@ mod auth;
 mod backup_operations;
 mod backup_scheduler;
 mod cli;
+mod help;
 mod routes;
 mod ws;
 
@@ -116,6 +117,8 @@ pub(crate) fn build_app() -> Router {
         operations_state.clone(),
         secret_store.clone(),
     );
+    let help_content =
+        help::HelpContent::embedded().expect("embedded educational content must be valid");
 
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).
@@ -301,6 +304,7 @@ pub(crate) fn build_app() -> Router {
         .merge(backups)
         .merge(templates)
         .merge(users)
+        .merge(routes::help::router(help_content))
         .merge(browser_protected)
         .layer(Extension(networking_state))
         .layer(Extension(auth_state.clone()))

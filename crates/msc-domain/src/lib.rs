@@ -21,6 +21,7 @@ pub mod plugin_source;
 pub mod properties;
 pub mod provisioning;
 pub mod router;
+pub mod router_guides;
 pub mod server_versions;
 pub mod settings_schema;
 pub mod slug;

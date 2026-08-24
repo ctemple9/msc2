@@ -21,6 +21,8 @@
     "test:screen-worlds-backups": "vitest run tests/screens/worlds-backups.test.ts",
     "test:screen-addons": "vitest run tests/screens/addons.test.ts",
     "test:screen-administration": "vitest run tests/screens/administration.test.ts",
+    "test:screen-help": "vitest run tests/screens/help.test.ts",
+    "test:e2e-browser": "npm run build && playwright test",
     "api:generate": "node --experimental-strip-types ./src/lib/api/generate.ts",
     "api:check": "npm run api:generate -- --check && python3 ../../tools/phase11/generated-types-check.py",
     "bundle:identity": "node ./tools/verify-bundle-identity.mjs",
@@ -31,6 +33,7 @@
     "svelte": "^5.38.7"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@sveltejs/vite-plugin-svelte": "^6.1.0",
     "@tauri-apps/cli": "^2.8.0",
     "openapi-typescript": "7.13.0",

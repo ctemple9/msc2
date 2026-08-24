@@ -16,6 +16,7 @@
   let seed = '';
   let rename = '';
   let stagedUploadId = '';
+  let stagedDownloadId = '';
   let pendingDelete: string | null = null;
   let notice = '';
 
@@ -64,7 +65,29 @@
   }
   async function exportWorld(id: string): Promise<void> {
     const result = await action<Schema['WorldExportResultDTO']>(worldPaths.export, { slotId: id });
-    if (result?.stagedDownloadId) notice = 'Export staged and ready to download.';
+    if (result?.stagedDownloadId) {
+      stagedDownloadId = result.stagedDownloadId;
+      notice = 'Export staged and ready to download.';
+    }
+  }
+  async function downloadExport(): Promise<void> {
+    if (!stagedDownloadId || !api?.download) return;
+    try {
+      const bytes = await api.download(stagedDownloadId);
+      const bytesBuffer = bytes.buffer.slice(
+        bytes.byteOffset,
+        bytes.byteOffset + bytes.byteLength,
+      ) as ArrayBuffer;
+      const url = URL.createObjectURL(new Blob([bytesBuffer], { type: 'application/zip' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'world-export.zip';
+      link.click();
+      URL.revokeObjectURL(url);
+      notice = 'World export downloaded.';
+    } catch (error) {
+      notice = errorMessage(error);
+    }
   }
 </script>
 
@@ -103,6 +126,11 @@
                   kind="quiet"
                   label="Export world"
                   onclick={() => exportWorld(world.id)}>Export</ActionButton
+                >{#if stagedDownloadId}<ActionButton
+                    kind="quiet"
+                    label="Download world export"
+                    onclick={downloadExport}>Download</ActionButton
+                  >{/if}
                 ><ActionButton
                   kind="danger"
                   label="Delete world"

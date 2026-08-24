@@ -7,6 +7,8 @@
   import { call, bytesLabel, dateLabel } from '../shared/types';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'local-agent';
+  export let serverId = 'survival';
   let snapshot: Schema['PerformanceSnapshotDTO'] = { ts: new Date().toISOString() };
   let refreshed = false;
 
@@ -39,6 +41,8 @@
       title="Runtime metrics unavailable"
       message={snapshot.runtime.message ?? 'The selected runtime cannot provide live metrics.'}
       helpId={snapshot.runtime.helpId}
+      {hostId}
+      {serverId}
     />{/if}
   <div class="screen-grid three">
     <section class="screen-card">

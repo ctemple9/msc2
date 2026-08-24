@@ -80,6 +80,10 @@ P11.15 extracts the data that must not be rewritten in a Svelte component:
   mapping lives in `content/guides/onboarding-source-map.json`. The matching
   fixtures cover fresh installation, already-seen state, skipping, reopening
   from Preferences, and an unknown future topic.
+- P11.16 replaces the unresolved, non-extracted `splash_intro` asset with a
+  bounded CSS mark. It is explicitly a reviewed presentation replacement, not
+  a claim that the original animation asset was preserved; reduced-motion
+  users bypass it immediately.
 - `content/guides/router-catalog.json` and
   `content/guides/router-troubleshooting.json` contain catalog records and
   human-readable guidance only. They explicitly cite the existing Rust matcher,

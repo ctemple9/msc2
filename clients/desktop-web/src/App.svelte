@@ -4,6 +4,8 @@
   import { ApiClient } from './lib/api/client';
   import ActionButton from './lib/components/ActionButton.svelte';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
+  import FirstLaunchGate from './lib/help/FirstLaunchGate.svelte';
+  import SplashGate from './lib/help/SplashGate.svelte';
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import { buildSectionPath } from './lib/navigation/route';
@@ -18,6 +20,13 @@
       segment: 'home',
       scope: 'server',
       load: () => import('./lib/sections/home/HomeSection.svelte'),
+    },
+    {
+      id: 'handbook',
+      label: 'Handbook',
+      segment: 'handbook',
+      scope: 'server',
+      load: () => import('./lib/sections/handbook/HelpSection.svelte'),
     },
     {
       id: 'fleet',
@@ -112,18 +121,26 @@
     },
   ];
   const router = createClientRouter(sections);
-  const hostId = 'local-agent';
+  const hostIds = ['local-agent', 'demo-agent'] as const;
+  let hostId: (typeof hostIds)[number] = 'local-agent';
 
-  const client = new ApiClient({
-    baseUrl: typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin,
-    hostId,
-  });
-  const screenApi: ScreenApi = {
-    get: <T,>(path: string) => client.requestJson<T>('GET', path),
-    post: <T,>(path: string, body?: unknown) => client.requestJson<T>('POST', path, { body }),
-    upload: (purpose, bytes) => client.stagedUpload({ purpose }, bytes),
-    download: (id) => client.downloadBytes(id),
-  };
+  function createClient(id: string): ApiClient {
+    return new ApiClient({
+      baseUrl: typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin,
+      hostId: id,
+    });
+  }
+  function createScreenApi(): ScreenApi {
+    return {
+      get: <T,>(path: string) => client.requestJson<T>('GET', path),
+      post: <T,>(path: string, body?: unknown) => client.requestJson<T>('POST', path, { body }),
+      upload: (purpose, bytes) => client.stagedUpload({ purpose }, bytes),
+      download: (id) => client.downloadBytes(id),
+    };
+  }
+
+  let client = createClient(hostId);
+  let screenApi: ScreenApi = createScreenApi();
 
   let activeSection = '';
   let activeComponent: any;
@@ -142,31 +159,40 @@
     : null;
   $: visibleSections = navigationContext ? router.visibleSections(navigationContext) : [];
 
+  async function restoreHostContext(): Promise<void> {
+    try {
+      capabilities = await client.getCapabilities();
+      const me = await client.requestJson<{ permissions: string[] }>('GET', '/v1/me');
+      permissions = me.permissions;
+      shellMessage = `Connected to ${hostId === 'local-agent' ? 'Local agent' : 'Demo agent'}`;
+      await selectFromLocation();
+    } catch (error) {
+      shellMessage = `Unable to establish the selected host context: ${String(error)}`;
+    }
+  }
+
+  async function switchHost(): Promise<void> {
+    const nextIndex = (hostIds.indexOf(hostId) + 1) % hostIds.length;
+    hostId = hostIds[nextIndex];
+    selectedServerId = 'survival';
+    permissions = [];
+    capabilities = null;
+    client = createClient(hostId);
+    screenApi = createScreenApi();
+    history.replaceState({}, '', '/');
+    await restoreHostContext();
+  }
+
   onMount(() => {
-    const restoreRoute = async () => {
-      try {
-        capabilities = await client.getCapabilities();
-        const me = await client.requestJson<{ permissions: string[] }>('GET', '/v1/me');
-        permissions = me.permissions;
-        shellMessage = 'Connected to Local agent';
-        await selectFromLocation();
-      } catch (error) {
-        shellMessage = `Unable to establish the selected host context: ${String(error)}`;
-      }
-    };
     const onPopState = () => void selectFromLocation();
-    void restoreRoute();
+    void restoreHostContext();
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   });
 
   async function selectSection(id: string, updateUrl = true): Promise<void> {
     const section = router.get(id);
-    if (
-      !section ||
-      !navigationContext ||
-      !router.visibleSections(navigationContext).includes(section)
-    ) {
+    if (!section || !navigationContext) {
       shellMessage = 'That section is unavailable for the selected host or credential.';
       return;
     }
@@ -204,15 +230,14 @@
 </svelte:head>
 
 <ApplicationShell
-  hostLabel="Local agent"
+  hostLabel={hostId === 'local-agent' ? 'Local agent' : 'Demo agent'}
   serverLabel={selectedServerId === 'survival' ? 'Survival' : selectedServerId}
-  connectionLabel="Disconnected"
+  connectionLabel={capabilities ? 'Connected' : 'Disconnected'}
   sections={visibleSections}
   {activeSection}
-  onSection={(id) => void selectSection(id)}
-  onHostSwitcher={() =>
-    (shellMessage = 'Host switching will be available after per-host pairing lands.')}
-  onConsole={() => void selectSection('console')}
+  selectSection={(id) => void selectSection(id)}
+  switchHost={() => void switchHost()}
+  openConsole={() => void selectSection('console')}
 >
   {#if activeComponent}
     <svelte:component
@@ -236,6 +261,9 @@
     </div>
   {/if}
 </ApplicationShell>
+
+<SplashGate />
+<FirstLaunchGate api={screenApi} />
 
 <style>
   .dashboard {

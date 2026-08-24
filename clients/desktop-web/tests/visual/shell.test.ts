@@ -7,7 +7,7 @@ describe('shared MSC shell contract', () => {
   it('keeps host/server context, console access, and registry-driven sections in the shell', () => {
     expect(applicationShellSource).toContain('hostLabel');
     expect(applicationShellSource).toContain('serverLabel');
-    expect(applicationShellSource).toContain('onConsole');
+    expect(applicationShellSource).toContain('openConsole');
     expect(applicationShellSource).toContain('{#each sections as section');
     expect(applicationShellSource).not.toContain('sections.slice(0, 5)');
   });

@@ -8,9 +8,9 @@
   export let connectionLabel = 'Disconnected';
   export let sections: readonly SectionDescriptor[] = [];
   export let activeSection = '';
-  export let onSection: ((id: string) => void) | undefined = undefined;
-  export let onHostSwitcher: (() => void) | undefined = undefined;
-  export let onConsole: (() => void) | undefined = undefined;
+  export let selectSection: ((id: string) => void) | undefined = undefined;
+  export let switchHost: (() => void) | undefined = undefined;
+  export let openConsole: (() => void) | undefined = undefined;
 </script>
 
 <div class="application-shell">
@@ -28,9 +28,7 @@
         status={connectionLabel}
         tone={connectionLabel === 'Connected' ? 'positive' : 'warning'}
       />
-      <ActionButton kind="quiet" label="Switch host" onclick={onHostSwitcher}
-        >Switch host</ActionButton
-      >
+      <ActionButton kind="quiet" label="Switch host" onclick={switchHost}>Switch host</ActionButton>
     </div>
 
     <nav class="section-list" aria-label="Sections">
@@ -39,7 +37,7 @@
           class:active={section.id === activeSection}
           type="button"
           aria-current={section.id === activeSection ? 'page' : undefined}
-          onclick={() => onSection?.(section.id)}
+          onclick={() => selectSection?.(section.id)}
         >
           <span>{section.label}</span>
           <span class="route-hint">{section.segment}</span>
@@ -48,7 +46,7 @@
     </nav>
 
     <div class="sidebar-footer">
-      <ActionButton kind="quiet" label="Open console" onclick={onConsole}>Console</ActionButton>
+      <ActionButton kind="quiet" label="Open console" onclick={openConsole}>Console</ActionButton>
     </div>
   </aside>
 
@@ -60,7 +58,7 @@
       </div>
       <div class="topbar-actions">
         <span class="mobile-context">{hostLabel} · {serverLabel}</span>
-        <ActionButton kind="quiet" label="Open console" onclick={onConsole}>Console</ActionButton>
+        <ActionButton kind="quiet" label="Open console" onclick={openConsole}>Console</ActionButton>
       </div>
     </header>
 
@@ -74,10 +72,10 @@
           class:active={section.id === activeSection}
           type="button"
           aria-current={section.id === activeSection ? 'page' : undefined}
-          onclick={() => onSection?.(section.id)}>{section.label}</button
+          onclick={() => selectSection?.(section.id)}>{section.label}</button
         >
       {/each}
-      <button type="button" onclick={onConsole}>Console</button>
+      <button type="button" onclick={openConsole}>Console</button>
     </nav>
   </main>
 </div>

@@ -3,10 +3,13 @@
   import ActionButton from '../../components/ActionButton.svelte';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
   import CapabilityNotice from '../shared/CapabilityNotice.svelte';
+  import HelpLink from '../../help/HelpLink.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'local-agent';
+  export let serverId = 'survival';
   let settings: Schema['SettingsResponseDTO'] = {
     editable: false,
     sections: [],
@@ -144,7 +147,7 @@
                     ...changes,
                     [field.key]: (event.currentTarget as HTMLInputElement).value,
                   })}
-              />{/if}{#if field.helpId}<small class="field-help">Help: {field.helpId}</small>{/if}
+              />{/if}{#if field.helpId}<HelpLink helpId={field.helpId} {hostId} {serverId} />{/if}
           </div>{/each}
       </div>
     </section>{:else}<CapabilityNotice

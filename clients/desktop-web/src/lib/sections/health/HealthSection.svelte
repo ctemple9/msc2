@@ -2,10 +2,13 @@
   import { onMount } from 'svelte';
   import ActionButton from '../../components/ActionButton.svelte';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
+  import HelpLink from '../../help/HelpLink.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
 
   export let api: ScreenProps['api'] = undefined;
+  export let hostId = 'local-agent';
+  export let serverId = 'survival';
   let health: Schema['HealthResponseDTO'] = {
     cards: [],
     overallSeverity: 'unknown',
@@ -85,7 +88,7 @@
         <div>
           <strong>{problem.kindTitle}</strong>
           <p>{problem.offenderName} · {problem.rawExcerpt}</p>
-          {#if problem.helpId}<small class="field-help">Help: {problem.helpId}</small>{/if}
+          {#if problem.helpId}<HelpLink helpId={problem.helpId} {hostId} {serverId} />{/if}
         </div>
         <div class="screen-actions">
           {#each problem.availableActions as action}<ActionButton

@@ -50,7 +50,9 @@ export class ApiClient {
   constructor(options: ApiClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.hostId = options.hostId;
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // `window.fetch` requires its window receiver in real browsers. Wrapping it
+    // keeps the injected-test seam while avoiding an illegal-invocation error.
+    this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
     this.credentialAdapter = options.credentialAdapter ?? cookieCredentialAdapter();
     this.clientApiVersion = options.clientApiVersion ?? '1.0';
     this.maxDownloadBytes = options.maxDownloadBytes ?? 512 * 1024 * 1024;

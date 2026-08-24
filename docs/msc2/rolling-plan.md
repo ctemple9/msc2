@@ -288,7 +288,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.16 — Render contract-served help and guides in the shared client
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/help/`, `clients/desktop-web/src/lib/sections/handbook/`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Build safe Markdown rendering, related-topic navigation, handbook/concept/router-guide readers, contextual `helpId` links, unknown-topic degradation, and client-owned onboarding anchors against the fake contract. Implement and test the fresh-install sequence of setup sheet → Concept Guide → guided tour, including the exact step ordering, user-action pauses, form-card hide/resume behavior, completion state, skip behavior, Handbook handoff, and reopen-from-preferences behavior. Implement the splash animation seam with a bounded fallback and reduced-motion path; preserve the source asset or record an explicit reviewed replacement. Every explanation comes from a response or structured content fixture, never a screen-local copy. The registry must allow future Bedrock and profile topics/sections to appear additively without new shell logic.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && python3 tools/phase11/help-content-check.py --client`
@@ -296,7 +296,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.17 — Prove browser parity, accessibility, and responsive layouts
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/tests/e2e/browser/`, `clients/desktop-web/playwright.config.ts`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`
 **What:** Exercise the production static bundle against the contract harness at narrow and wide widths, keyboard-only navigation, reduced motion, destructive confirmations, host switching, reconnect, upload/download, and deep-link reload. Add a fresh-profile onboarding walkthrough proving setup completion, Concept Guide → tour sequencing, step ordering and anchors, user-action pauses, skip/resume/reopen flags, Handbook handoff, splash playback/fallback, and reduced-motion behavior. Run Chromium plus browser WebKit for fast compatibility feedback, while recording plainly that this is browser evidence and does not replace P11.19's native Linux WebKitGTK proof.
 **Verify:** `npm --prefix clients/desktop-web run test:e2e-browser`

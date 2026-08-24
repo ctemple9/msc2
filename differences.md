@@ -4,6 +4,28 @@
 the current MSC 2 desktop/web client before deciding how MSC 2 should change.
 This is an evidence log, not an implementation plan or a decision record.
 
+## Agent handoff instructions
+
+Each difference ID is handled in its own conversation. When Cameron says
+“clean up” a specific step, use this document as the context for that step:
+
+1. Read the ID’s MSC 1 observation, MSC 2 observation, user impact, evidence,
+   and notes before changing anything.
+2. Inspect the relevant MSC 2 code and, when needed, the corresponding MSC 1
+   source. Preserve the product outcome described here; do not broaden the
+   work to unrelated gaps.
+3. Implement the smallest parity change that closes that ID, then run the
+   relevant targeted verification and report what was checked.
+4. Update that row’s notes with the result. Cross off the ID and add `DONE`
+   only when the change is implemented and verified. Leave it open if work is
+   partial, blocked, or awaiting Cameron’s verification.
+5. Commit the implementation and this row update together, following the
+   repository’s normal phase/step commit rules. Do not edit MSC 1.
+
+The entries below are the source of truth for the observed UI gaps. They are
+not permission to redesign unrelated areas or to silently change approved
+product decisions.
+
 ## Setup parity boundary
 
 **In scope:** the first time an operator opens MSC on a host, from the opening

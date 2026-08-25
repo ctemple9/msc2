@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
-> **Next move:** EXECUTE P12.1 (build the app shell).
+> **Next move:** EXECUTE P12.1a (build the sidebar player avatar), or skip ahead to P12.2 (Overview tab) and return to it later.
 > **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
 > **Last updated:** 2026-08-25
 
@@ -64,7 +64,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **9** | Networking and helpers | complete |
 | **10** | Bedrock runtimes | complete |
 | **11** | Desktop and web clients | agent layer done (P11.28g–j); UI verification (P11.28k, P11.29) folded into Phase 12 |
-| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.0 done, next: EXECUTE P12.1** |
+| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.1 done, next: EXECUTE P12.1a** |
 | 13 | Terminal UI (deferred from v1) | not started |
 
 ---
@@ -552,9 +552,9 @@ code. The rest apply the locked system to each screen, one at a time.
 **Batch:** solo
 
 ### P12.1 — Build the app shell (S1)
-**Status:** awaiting verification
+**Status:** DONE. Cameron verified the running shell against `renderings/shell.html` and the MSC 1 screenshots on 2026-08-25.
 **Files:** `src/App.svelte`, `src/lib/components/ApplicationShell.svelte`, shell subcomponents, `src/lib/navigation/`
-**What:** Build the shell skeleton per `renderings/shell.html` and MSC 1 (`ContentView`, `SidebarView`, `DetailsHeaderSectionView`, `MSCTabBar`): window chrome + `bannerColor` system + terrain banner (static-faithful, animation deferred), sidebar control rail with the **host-aware picker** (Host ▸ Server + Manage…) and collapsible sections, header, 8-tab strip (selected pill = `bannerColor`), and the docked collapsible console *frame* (console behavior is P12.10). Wire it to the kept navigation/host stores. Adjustment round (2026-08-25): dropped the picker's connection-status dot — it had no visible label, so it read as antiAIslop tell #12 (a "meaningless status dot"); connection state is already stated by the agent-unavailable panel.
+**What:** Build the shell skeleton per `renderings/shell.html` and MSC 1 (`ContentView`, `SidebarView`, `DetailsHeaderSectionView`, `MSCTabBar`): window chrome + `bannerColor` system + terrain banner (static-faithful, animation deferred), sidebar control rail with the **host-aware picker** (Host ▸ Server + Manage…) and collapsible sections, header, 8-tab strip (selected pill = `bannerColor`), and the docked collapsible console *frame* (console behavior is P12.10). Wire it to the kept navigation/host stores. Adjustment rounds (2026-08-25): dropped the picker's connection-status dot — it had no visible label, so it read as antiAIslop tell #12 (a "meaningless status dot"); connection state is already stated by the agent-unavailable panel. Made the console dock manually resizable (drag the handle above it), matching MSC 1 ContentView.swift's consoleDivider — drag-past-the-floor-and-release collapses it. Found during review: the real player-avatar feature (Java/Bedrock skin lookup) wasn't assigned to any P12.x step — recorded as new step P12.1a rather than built here.
 **Verify:** `cd clients/desktop-web && npm run dev`; compare the running shell to `renderings/shell.html` and `~/Documents/MSCSS/Main View` + `SIdebar`; run the anti-slop checklist. Structural: `npm run test:visual-shell`.
 **Commit:** `P12.1: build the app shell`
 **Batch:** solo

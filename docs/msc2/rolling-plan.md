@@ -426,3 +426,11 @@ the package manager, with MSC limited to an actionable availability notice.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check -p msc-api -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
 **Commit:** `P11.29b: add native setup pickers and Java verification`
 **Batch:** stop-after
+
+### P11.29c — Make Xbox helper verification stateful in the test host
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `clients/desktop-web/playwright.config.ts`
+**What:** Keep the deterministic browser/Tauri test host’s Xbox helper status consistent with its download endpoint, return the helper filename, and exercise the setup flow through the verified-download message so a successful fake download cannot be reported as missing.
+**Verify:** `npm --prefix clients/desktop-web run test:e2e-browser`
+**Commit:** `P11.29c: make Xbox helper verification stateful in the test host`
+**Batch:** stop-after

@@ -117,6 +117,7 @@ const worlds = [
   },
 ];
 const statusRequests = new Map();
+let broadcastJar = { installed: false, filename: null };
 
 function json(response, body, status = 200) {
   response.writeHead(status, { 'content-type': 'application/json' });
@@ -187,9 +188,19 @@ createServer(async (request, response) => {
       runtimes: [{ name: 'Java 21', executablePath: 'java', majorVersion: 21 }],
     });
   if (url.pathname === '/v1/broadcast/jar-status')
-    return json(response, { installed: false, downloading: false });
-  if (url.pathname === '/v1/broadcast/download-jar' && request.method === 'POST')
-    return json(response, { success: true, message: 'downloaded' });
+    return json(response, {
+      installed: broadcastJar.installed,
+      downloading: false,
+      filename: broadcastJar.filename,
+    });
+  if (url.pathname === '/v1/broadcast/download-jar' && request.method === 'POST') {
+    broadcastJar = { installed: true, filename: 'MCXboxBroadcastStandalone.jar' };
+    return json(response, {
+      success: true,
+      message: 'downloaded',
+      filename: broadcastJar.filename,
+    });
+  }
   if (url.pathname === '/v1/status') {
     const client = request.headers['user-agent'] ?? 'unknown';
     const count = (statusRequests.get(client) ?? 0) + 1;

@@ -34,6 +34,8 @@ test('walks a fresh profile through setup, Concept Guide, tour pauses, handoff, 
   await expect(gate.getByRole('heading', { name: 'playit.gg' })).toBeVisible();
   await gate.getByRole('button', { name: 'Skip' }).click();
   await expect(gate.getByRole('heading', { name: 'Xbox Broadcast' })).toBeVisible();
+  await gate.getByRole('button', { name: 'Download Now' }).click();
+  await expect(gate.getByText('Verified downloaded: MCXboxBroadcastStandalone.jar')).toBeVisible();
   await gate.getByRole('button', { name: 'Skip' }).click();
   await expect(gate.getByRole('heading', { name: 'Tailscale' })).toBeVisible();
   await gate.getByRole('button', { name: 'Skip' }).click();

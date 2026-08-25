@@ -554,9 +554,17 @@ code. The rest apply the locked system to each screen, one at a time.
 ### P12.1 — Build the app shell (S1)
 **Status:** awaiting verification
 **Files:** `src/App.svelte`, `src/lib/components/ApplicationShell.svelte`, shell subcomponents, `src/lib/navigation/`
-**What:** Build the shell skeleton per `renderings/shell.html` and MSC 1 (`ContentView`, `SidebarView`, `DetailsHeaderSectionView`, `MSCTabBar`): window chrome + `bannerColor` system + terrain banner (static-faithful, animation deferred), sidebar control rail with the **host-aware picker** (Host ▸ Server + connection dot + Manage…) and collapsible sections, header, 8-tab strip (selected pill = `bannerColor`), and the docked collapsible console *frame* (console behavior is P12.10). Wire it to the kept navigation/host stores.
+**What:** Build the shell skeleton per `renderings/shell.html` and MSC 1 (`ContentView`, `SidebarView`, `DetailsHeaderSectionView`, `MSCTabBar`): window chrome + `bannerColor` system + terrain banner (static-faithful, animation deferred), sidebar control rail with the **host-aware picker** (Host ▸ Server + Manage…) and collapsible sections, header, 8-tab strip (selected pill = `bannerColor`), and the docked collapsible console *frame* (console behavior is P12.10). Wire it to the kept navigation/host stores. Adjustment round (2026-08-25): dropped the picker's connection-status dot — it had no visible label, so it read as antiAIslop tell #12 (a "meaningless status dot"); connection state is already stated by the agent-unavailable panel.
 **Verify:** `cd clients/desktop-web && npm run dev`; compare the running shell to `renderings/shell.html` and `~/Documents/MSCSS/Main View` + `SIdebar`; run the anti-slop checklist. Structural: `npm run test:visual-shell`.
 **Commit:** `P12.1: build the app shell`
+**Batch:** solo
+
+### P12.1a — Build the sidebar player avatar
+**Status:** not started
+**Files:** `src/lib/components/shell/ControlSidebar.svelte`, a new `src/lib/components/shell/PlayerAvatar.svelte`
+**What:** Replace P12.1's inert "Your avatar" placeholder with MSC 1's real `PlayerAvatarView`: a Java/Bedrock segmented toggle, username/gamertag entry (Add/Change), and the rendered full-body skin. Persist the chosen edition and identity client-locally per MSC 1's `minecraftUsername`/`minecraftBedrockGamertag`/`minecraftAvatarEditionRawValue` config fields (this is personal app identity, not per-server agent data — same "client-local until a real field exists" treatment P12.1 gave `bannerColor`). The Java path is a plain public image fetch (`minotar.net/body/{username}/160`) and can be built in full. The Bedrock path in MSC 1 delegates to `BedrockSkinFetcher` (join-cache, then live Xbox lookup, then dotted-gamertag fallback) — that resolver depends on the player-profile/Xbox work Phase 11's scope doc explicitly defers to a later phase, so Bedrock here should degrade honestly (a truthful "not available yet" state), not fake a working lookup. Reference MSC 1 `PlayerAvatarView.swift` and the `SIdebar` screenshot. The idle-sway animation is MSC 1's only avatar flourish; keep it or drop it per antiAIslop's "motion must serve a purpose" call at build time.
+**Verify:** `npm run dev`, add a Java username, confirm the skin renders and persists across reload; confirm Bedrock shows an honest unavailable state; compare to MSC 1 + anti-slop checklist.
+**Commit:** `P12.1a: build the sidebar player avatar`
 **Batch:** solo
 
 ### P12.2 — Overview tab

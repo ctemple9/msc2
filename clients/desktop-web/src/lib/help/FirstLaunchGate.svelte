@@ -8,6 +8,7 @@
   import type { ConceptGuide, OnboardingGuide } from './types';
 
   export let api: ScreenApi;
+  export let agentReady = false;
 
   let concept: ConceptGuide | null = null;
   let onboarding: OnboardingGuide | null = null;
@@ -21,7 +22,8 @@
   };
 
   $: stage = firstLaunchStage(state);
-  $: onboardingOpen = ready && onboarding !== null && concept !== null && stage !== 'complete';
+  $: onboardingOpen =
+    agentReady && ready && onboarding !== null && concept !== null && stage !== 'complete';
 
   function setPageScrollLocked(locked: boolean): void {
     if (typeof document === 'undefined' || !document.body) return;
@@ -74,6 +76,7 @@
   }
 
   onMount(() => {
+    if (!agentReady) return;
     const load = async () => {
       try {
         [concept, onboarding] = await Promise.all([
@@ -97,7 +100,7 @@
   onDestroy(() => setPageScrollLocked(false));
 </script>
 
-{#if ready && onboarding && concept && stage !== 'complete'}
+{#if agentReady && ready && onboarding && concept && stage !== 'complete'}
   <div class="gate-backdrop" role="presentation">
     <section
       class="gate"

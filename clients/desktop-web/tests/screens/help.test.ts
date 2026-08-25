@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import appSource from '../../src/App.svelte?raw';
 import gateSource from '../../src/lib/help/FirstLaunchGate.svelte?raw';
 import helpSource from '../../src/lib/sections/handbook/HelpSection.svelte?raw';
 import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
@@ -74,6 +75,10 @@ describe('shared help and onboarding screens', () => {
     expect(gateSource).toContain('max-height: calc(100vh - 2rem)');
     expect(gateSource).toContain('scrollbar-width: none');
     expect(gateSource).toContain('msc-onboarding-open');
+    expect(gateSource).toContain('agentReady');
+    expect(appSource).toContain("agentReadiness = 'ready'");
+    expect(appSource).toContain('readiness={agentReadiness}');
+    expect(appSource).toContain('agentReady={agentReadiness === \'ready\'}');
     expect(helpSource).toContain('resetSetupPreferences');
     expect(helpSource).toContain("'/v1/guides/onboarding'");
     expect(helpSource).toContain('That topic is not available on this agent');

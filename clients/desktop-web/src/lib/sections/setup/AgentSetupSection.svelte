@@ -3,11 +3,38 @@
   import ActionButton from '../../components/ActionButton.svelte';
   import StatePanel from '../../components/StatePanel.svelte';
   import SurfaceCard from '../../components/SurfaceCard.svelte';
-  import { getPlatform, type AgentServiceAction, type AgentServiceStatus } from '../../platform';
+  import {
+    getPlatform,
+    type AgentReadiness,
+    type AgentServiceAction,
+    type AgentServiceStatus,
+  } from '../../platform';
   import ScreenHeader from '../shared/ScreenHeader.svelte';
+
+  export let readiness: AgentReadiness = 'starting';
+  export let onAgentRetry: (() => void) | undefined = undefined;
+
+  const readinessTitles: Record<AgentReadiness, string> = {
+    missing: 'Agent not installed',
+    stopped: 'Agent stopped',
+    starting: 'Agent starting',
+    ready: 'Agent ready',
+    incompatible: 'Agent version incompatible',
+    unavailable: 'Agent unavailable',
+  };
+  const readinessMessages: Record<AgentReadiness, string> = {
+    missing: 'Install the local agent to continue. MSC will not install it automatically.',
+    stopped: 'The installed agent is stopped. Start it, then reconnect to this computer.',
+    starting: 'The agent is starting. Reconnect after its health endpoint responds.',
+    ready: 'The local agent is ready for server management.',
+    incompatible: 'This agent cannot serve the current client. Install a compatible update.',
+    unavailable: 'MSC cannot reach or authenticate with the local agent. Reconnect or repair it.',
+  };
 
   let status: AgentServiceStatus | undefined;
   let busy = false;
+  $: readinessTitle = readinessTitles[readiness];
+  $: readinessMessage = readinessMessages[readiness];
 
   onMount(() => void refresh());
 
@@ -19,6 +46,7 @@
     busy = true;
     try {
       status = await (await getPlatform()).manageAgentService(action);
+      if (status.state === 'running') await onAgentRetry?.();
     } finally {
       busy = false;
     }
@@ -30,13 +58,22 @@
     eyebrow="This computer"
     title="Local agent"
     description="The background agent keeps Minecraft servers running after this window closes."
-    status={status?.state ?? 'Checking'}
-    statusTone={status?.state === 'running' ? 'positive' : 'warning'}
-    actionLabel="Refresh service status"
-    onAction={refresh}
+    status={readinessTitle}
+    statusTone={readiness === 'ready'
+      ? 'positive'
+      : readiness === 'incompatible'
+        ? 'danger'
+        : 'warning'}
+    actionLabel={onAgentRetry ? 'Reconnect' : 'Refresh service status'}
+    onAction={onAgentRetry ?? refresh}
   />
 
   <div class="screen-grid two">
+    <SurfaceCard eyebrow="Connection readiness" title={readinessTitle}>
+      <p class="metric-large">{readiness === 'ready' ? 'Ready' : 'Action needed'}</p>
+      <p class="muted">{readinessMessage}</p>
+    </SurfaceCard>
+
     <SurfaceCard eyebrow="Background service" title={status?.serviceName ?? 'MSC agent'}>
       <p class="metric-large">{status?.state ?? 'Checking'}</p>
       <p class="muted">{status?.detail ?? 'Looking for the local service.'}</p>

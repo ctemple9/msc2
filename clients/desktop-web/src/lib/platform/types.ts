@@ -23,6 +23,13 @@ export interface MenuEntry {
 
 export type AgentAction = 'install' | 'update';
 export type AgentServiceAction = 'install' | 'start' | 'stop' | 'repair';
+export type AgentReadiness =
+  | 'missing'
+  | 'stopped'
+  | 'starting'
+  | 'ready'
+  | 'incompatible'
+  | 'unavailable';
 
 export interface AgentServiceStatus {
   readonly available: boolean;

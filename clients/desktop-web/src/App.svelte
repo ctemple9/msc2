@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { bundleIdentity } from './lib/bundle-identity';
-  import { ApiClient } from './lib/api/client';
+  import { ApiClient, ApiError } from './lib/api/client';
   import ActionButton from './lib/components/ActionButton.svelte';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
   import FirstLaunchGate from './lib/help/FirstLaunchGate.svelte';
@@ -9,7 +9,13 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import { buildSectionPath } from './lib/navigation/route';
-  import { createAgentTransport, prepareLocalAgent } from './lib/platform';
+  import {
+    AgentHealthTimeoutError,
+    createAgentTransport,
+    prepareLocalAgent,
+    type AgentReadiness,
+    type AgentServiceStatus,
+  } from './lib/platform';
   import { restoreAccent } from './lib/styles/accent';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { ScreenApi } from './lib/sections/shared/types';
@@ -140,6 +146,7 @@
 
   let client: ApiClient | undefined;
   let clientReady = false;
+  let agentReadiness: AgentReadiness = 'starting';
 
   function requireClient(): ApiClient {
     if (!client) throw new Error('The selected host client is still initializing.');
@@ -175,27 +182,69 @@
     : null;
   $: visibleSections = navigationContext ? router.visibleSections(navigationContext) : [];
 
-  async function restoreHostContext(): Promise<void> {
+  function readinessForService(status: AgentServiceStatus): AgentReadiness {
+    switch (status.state) {
+      case 'not-installed':
+        return 'missing';
+      case 'stopped':
+        return 'stopped';
+      case 'running':
+        return 'starting';
+      case 'unavailable':
+        return 'unavailable';
+    }
+  }
+
+  function readinessForError(error: unknown): AgentReadiness {
+    if (
+      error instanceof ApiError &&
+      (error.status === 426 || error.error.code === 'client_version_unsupported')
+    ) {
+      return 'incompatible';
+    }
+    if (error instanceof AgentHealthTimeoutError) return 'starting';
+    return 'unavailable';
+  }
+
+  async function restoreHostContext(): Promise<boolean> {
     try {
       const selectedClient = requireClient();
       capabilities = await selectedClient.getCapabilities();
       const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
       permissions = me.permissions;
+      agentReadiness = 'ready';
       shellMessage = 'Connected to Local agent';
       await selectFromLocation();
+      return true;
     } catch (error) {
+      capabilities = null;
+      permissions = [];
+      agentReadiness = readinessForError(error);
       shellMessage = `Unable to establish the selected host context: ${String(error)}`;
       await selectSection('agent-setup');
+      return false;
     }
   }
 
   async function initializeClient(): Promise<void> {
+    clientReady = false;
+    capabilities = null;
+    permissions = [];
+    agentReadiness = 'starting';
     try {
-      await prepareLocalAgent();
+      const serviceStatus = await prepareLocalAgent();
+      if (serviceStatus) {
+        agentReadiness = readinessForService(serviceStatus);
+        if (serviceStatus.state !== 'running') {
+          shellMessage = serviceStatus.detail;
+          await selectSection('agent-setup');
+          return;
+        }
+      }
       client = await createClient(hostId);
-      clientReady = true;
-      await restoreHostContext();
+      clientReady = await restoreHostContext();
     } catch (error) {
+      agentReadiness = readinessForError(error);
       shellMessage = `Unable to prepare the local agent connection: ${String(error)}`;
       await selectSection('agent-setup');
     }
@@ -266,6 +315,8 @@
       {hostId}
       serverId={selectedServerId}
       {permissions}
+      readiness={agentReadiness}
+      onAgentRetry={() => void initializeClient()}
       onServerSelected={(id: string) => (selectedServerId = id)}
       onFleet={() => void selectSection('fleet')}
     />
@@ -283,7 +334,7 @@
 </ApplicationShell>
 
 <SplashGate />
-{#if clientReady}<FirstLaunchGate api={screenApi} />{/if}
+{#if clientReady}<FirstLaunchGate api={screenApi} agentReady={agentReadiness === 'ready'} />{/if}
 
 <style>
   .dashboard {

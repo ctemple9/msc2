@@ -4,7 +4,12 @@ import { cookieCredentialAdapter, desktopCredentialAdapter } from '../api/auth';
 import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from '../auth/desktop';
 import { createBrowserPlatform } from './browser';
 import { loadTauriPlatform } from './tauri';
-import type { AgentServiceAction, AgentServiceStatus, PlatformAdapter } from './types';
+import type {
+  AgentReadiness,
+  AgentServiceAction,
+  AgentServiceStatus,
+  PlatformAdapter,
+} from './types';
 
 export const LOCAL_AGENT_ORIGIN = 'http://127.0.0.1:48001';
 
@@ -25,8 +30,16 @@ export interface AgentHealthCheckOptions {
   readonly delayMs?: number;
 }
 
+export class AgentHealthTimeoutError extends Error {
+  constructor() {
+    super('The local agent service is running but its health endpoint did not respond.');
+    this.name = 'AgentHealthTimeoutError';
+  }
+}
+
 export type {
   AgentAction,
+  AgentReadiness,
   AgentServiceAction,
   AgentServiceStatus,
   DesktopNotification,
@@ -57,7 +70,7 @@ export async function prepareInstalledAgent(
     if (await healthCheck()) return status;
     if (attempt + 1 < attempts) await delay(delayMs);
   }
-  throw new Error('The local agent service is running but its health endpoint did not respond.');
+  throw new AgentHealthTimeoutError();
 }
 
 /** Browser users have no native service to prepare; Tauri users do. */

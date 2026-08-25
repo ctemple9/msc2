@@ -362,7 +362,23 @@ fn detect_physical_ram_gb() -> i64 {
 }
 
 pub async fn health(State(state): State<LifecycleRoutesState>) -> Response {
-    Json(health_response_for(&state)).into_response()
+    let mut response = Json(health_response_for(&state)).into_response();
+    // This route already runs outside the bearer-auth gate (see module doc)
+    // and carries no secrets, so a permissive CORS allowance is safe here —
+    // unlike every authenticated route, which stays same-origin-only. A
+    // Tauri window's own webview loads its dev-mode UI from a plain
+    // `http://` devUrl origin distinct from the agent's, and the shell's
+    // pre-credential readiness probe (`localAgentHealthCheck`,
+    // `clients/desktop-web/src/lib/platform/index.ts`) uses a bare browser
+    // `fetch()` to this one route before any native-bridge credential
+    // exists — without this header that probe is silently CORS-blocked and
+    // the shell never gets past "Agent starting" in a dev-mode desktop
+    // build, even though the agent is actually healthy.
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        axum::http::HeaderValue::from_static("*"),
+    );
+    response
 }
 
 // ---------- GET /v1/health/problems ----------

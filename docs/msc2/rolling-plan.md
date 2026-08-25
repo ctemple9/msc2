@@ -1,7 +1,8 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
-> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. Next: P12.3 (Players tab).
+> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. Next: P12.2b (Java player-data NBT fixtures) — see the 2026-08-25 note below. P12.3 (Players tab) is blocked until P12.2b–P12.2f land.
+> **P12.3 blocked on missing backend (decided 2026-08-25):** before rebuilding the Players tab, Cameron flagged that MSC 1's Players tab includes a read-only Java player inventory/stats viewer (`PlayerNBTReader.swift` + `PlayerInventoryView.swift`, hosted in `PlayerProfileDetailSheet.swift`) that never made it past the file-inventory audit into an actual phase step — no domain crate, no API route, and P12.3's own `What:` line never mentioned it. Investigation found `GET /v1/players/profiles` is **already frozen in the API contract** (`docs/msc2/api-contract/openapi.json`: `PlayerProfileDTO`/`PlayerStatsDTO`/`InventoryItemDTO`, plus `POST /v1/players/hidden`, `POST /v1/players/skin-override`, `GET /v1/players/{profileId}/skin`) but has **no handler at all** — today `GET /v1/players` only serves Bedrock (`crates/msc-agent/src/routes/bedrock.rs`; a Java server gets `note: "not_bedrock"`, empty list). This is a straight port against an already-frozen contract, not new API design. Cameron chose to block P12.3 and build the backend first (steps P12.2b–P12.2f below) rather than ship Players tab without it. Online Now / Seen This Session / Session Log are unaffected — those are console-derived (already built in P11.11) and stay in P12.3 itself. **Open question for Cameron, not yet decided:** MSC 1's detail sheet also has 5 player-data mutation actions (migrate to offline UUID, migrate to manual UUID, copy, duplicate, delete) that are **not** in the frozen contract at all — decide separately whether those get added to the contract and built, or are dropped from MSC 2 scope (CLAUDE.md rule 9: don't build around a vision gap quietly).
 > **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
 > **Last updated:** 2026-08-25
 
@@ -64,7 +65,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **9** | Networking and helpers | complete |
 | **10** | Bedrock runtimes | complete |
 | **11** | Desktop and web clients | agent layer done (P11.28g–j); UI verification (P11.28k, P11.29) folded into Phase 12 |
-| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.2 DONE, next: P12.3** |
+| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.2 DONE, next: P12.2b (Players tab blocked on backend)** |
 | 13 | Terminal UI (deferred from v1) | not started |
 
 ---
@@ -591,10 +592,50 @@ code. The rest apply the locked system to each screen, one at a time.
 **Commit:** `P12.2: rebuild the Overview tab`
 **Batch:** solo
 
-### P12.3 — Players tab
+### P12.2b — Extract Java player-data NBT fixtures
 **Status:** not started
+**Files:** `fixtures/player-nbt/`
+**What:** Extract fixtures characterizing `PlayerNBTReader.swift`'s Java player `.dat` parsing (378 lines, gzip-compressed big-endian NBT): the `extractStats` fields (health/maxHealth/foodLevel/xpLevel/xpTotal/gameMode/posX/posY/posZ/dimensionDisplay/score — these already match `PlayerStatsDTO` in `docs/msc2/api-contract/openapi.json` field-for-field, confirming the frozen contract was modeled on this exact reader) and `extractInventory` (slot/itemID/iconName/count/displayName/enchantments/damage — matching `InventoryItemDTO`), plus corrupt/truncated/non-compound-root failure cases (same three-way split P6.7 used for `level.dat`). `crates/msc-domain/src/nbt.rs` (P6.9) already implements a general big-endian tag-level reader — this step's characterization must say explicitly which of `PlayerNBTReader`'s behavior is generic tag parsing already covered by `nbt.rs` versus player-`.dat`-specific extraction rules, so P12.2c doesn't rebuild the reader from scratch. Per the P6.3/P6.7 real-evidence precedent, Cameron needs to generate at least one real player `.dat` sample (a real player joining a Java server MSC 1 manages, with a few stacked/enchanted/damaged inventory items) rather than a synthetic one; git-ignore the raw bytes the same way `fixtures/world-nbt/samples/` does.
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/player-nbt`
+**Commit:** `P12.2b: extract Java player-data NBT fixtures`
+**Batch:** solo
+
+### P12.2c — Port the Java player NBT reader
+**Status:** not started
+**Files:** `crates/msc-domain/src/player_nbt.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/player_nbt.rs`
+**What:** Port `extractStats`/`extractInventory` against the P12.2b fixtures, reusing `nbt.rs`'s existing tag-level reader per that step's findings rather than re-implementing gzip/tag parsing — same domain-module convention P6.9 established (pure computation only, no filesystem access; I/O stays in `msc-infrastructure`/callers).
+**Verify:** `cargo fmt --check && cargo clippy -p msc-domain --all-targets -- -D warnings && cargo nextest run -p msc-domain player_nbt`
+**Commit:** `P12.2c: port the Java player NBT reader`
+**Batch:** solo
+
+### P12.2d — Port the Java player-profile pipeline
+**Status:** not started
+**Files:** `crates/msc-application/src/player_profiles.rs`, `crates/msc-application/tests/player_profiles.rs`
+**What:** Port `loadPlayerProfiles` (`AppViewModel+PlayerProfiles.swift:77`) for Java: scan `playerdata/*.dat`, merge `usercache.json` (username) and `ops.json` (`isOp`), mark `isOnline` from `output_reducer.rs`'s existing `online_players()` list (already tracks live Java names — no new tracking needed), read stats+inventory via P12.2c, and a hidden-profile set persisted as a JSON sidecar under the server dir, mirroring `bedrock_players.rs`'s name-cache pattern. Shape the result so P12.2e can merge it with Bedrock's existing `BedrockPlayerRecord` (`bedrock_players.rs`) into one `PlayerProfileDTO` list. Do not port UUID/Mojang resolution, skin override, or the migrate/copy/duplicate/delete mutation actions here — skin is P12.2f; the mutation actions are the open question recorded in this file's 2026-08-25 note above and are out of scope until Cameron decides on them.
+**Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application player_profiles`
+**Commit:** `P12.2d: port the Java player-profile pipeline`
+**Batch:** solo
+
+### P12.2e — Wire GET /v1/players/profiles and POST /v1/players/hidden
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/players.rs` (new — the shared `/v1/players` route currently lives misnamed inside `routes/bedrock.rs`), `crates/msc-agent/src/main.rs`
+**What:** Implement the two already-frozen, currently-unimplemented routes from `docs/msc2/api-contract/openapi.json` — `GET /v1/players/profiles` → `PlayerProfilesResponseDTO` and `POST /v1/players/hidden` — for Java (P12.2d) and Bedrock (existing `bedrock_players.rs`), merged into one list. Leave `skinOverrideIdentifier`/`hasSkinFileOverride` present but unpopulated (P12.2f). Consider whether `routes/bedrock.rs`'s existing `/v1/players` (online-only) and `/allowlist` handlers should move into this new file now that it's serving both server types, since the file's own doc comment already says these are deliberately shared, non-Bedrock-specific routes.
+**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent players`
+**Commit:** `P12.2e: wire GET /v1/players/profiles and POST /v1/players/hidden`
+**Batch:** solo
+
+### P12.2f — Wire player skin resolution and override
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/players.rs`, `crates/msc-application/src/player_skin.rs` (new)
+**What:** Port `playerSkinProvider` (`AppViewModel+APIWiringContent.swift`, ~68 lines; symbol-ledger row 52, "player data remains in scope and this presentation path is deferred to Phase 11" — still undone): multi-source skin resolution (manual lookup override → Bedrock gamertag avatar → Java `mc-heads.net` avatar → local skin file), face crop, base64 PNG encode for `GET /v1/players/{profileId}/skin`; `POST /v1/players/skin-override` to set/clear the manual lookup override or upload a skin file. The Bedrock avatar path depends on Xbox lookup that Phase 11's scope doc already deferred — degrade honestly (a truthful "not available yet" state, same treatment P12.1a gave the sidebar avatar's Bedrock path) rather than faking it.
+**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent player_skin`
+**Commit:** `P12.2f: wire player skin resolution and override`
+**Batch:** solo
+
+### P12.3 — Players tab
+**Status:** not started — blocked until P12.2b–P12.2f land (see this file's 2026-08-25 note above)
 **Files:** `src/lib/sections/players-online/`
-**What:** Rebuild Players — Online Now / Seen This Session, Session Log (filter + clear), Player Data (profiles, sort). Reference MSC 1 `DetailsPlayersTabView` + player profile/session views and the Players screenshot.
+**What:** Rebuild Players — Online Now / Seen This Session, Session Log (filter + clear), Player Data (profiles, sort, stats + inventory detail sheet, hidden toggle, skin/avatar). Reference MSC 1 `DetailsPlayersTabView` + `PlayerProfilesCard`/`PlayerProfileDetailSheet`/`PlayerInventoryView` and the Players screenshot.
 **Verify:** `npm run dev`, open Players; compare to MSC 1 + checklist. Structural: `npm run test:screen-players-online`.
 **Commit:** `P12.3: rebuild the Players tab`
 **Batch:** solo

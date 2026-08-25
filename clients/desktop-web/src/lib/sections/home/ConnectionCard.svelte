@@ -22,6 +22,26 @@
   $: isBedrockServer = serverType === 'bedrock';
   $: hasGeyser = !isBedrockServer && geyser?.isGeyserInstalled && geyser?.port !== undefined;
 
+  $: sourceTag = !showPublic
+    ? 'LAN'
+    : connectivity?.joinAddressSource === 'playit'
+      ? 'playit.gg'
+      : connectivity?.joinAddressSource === 'duckdns'
+        ? 'DuckDNS'
+        : connectivity?.joinAddressSource === 'public_ip'
+          ? 'Public IP'
+          : 'Unavailable';
+
+  // Local shows the real port and states the address honestly (the agent
+  // doesn't report a LAN IP yet). Public swaps in the resolved join
+  // address but keeps the same port field — a tunnel/DNS name generally
+  // still forwards to the same numeric port, and the contract has no
+  // separate "public port" concept for the plain case.
+  $: javaIp = showPublic ? (connectivity?.joinAddress ?? null) : null;
+  $: javaIpFallback = showPublic ? 'Not available yet' : 'Not reported by this host yet';
+  $: geyserIp = showPublic ? (connectivity?.joinAddress ?? null) : (geyser?.address ?? null);
+  $: geyserIpFallback = showPublic ? 'Not available yet' : '0.0.0.0';
+
   function mask(value: string): string {
     return showAddresses ? value : '•'.repeat(Math.min(value.length, 15));
   }
@@ -65,94 +85,70 @@
     </div>
   </div>
 
-  {#if showPublic}
-    <div class="columns single">
-      <div class="cell">
-        <div class="cell-header">
-          <span class="dot" class:online={connectivity?.joinAddress}></span>
-          <span class="platform-label">Join address</span>
-          <span class="source-tag"
-            >{connectivity?.joinAddressSource === 'playit'
-              ? 'playit.gg'
-              : connectivity?.joinAddressSource === 'duckdns'
-                ? 'DuckDNS'
-                : connectivity?.joinAddressSource === 'public_ip'
-                  ? 'Public IP'
-                  : 'Unavailable'}</span
-          >
-        </div>
-        {#if connectivity?.joinAddress}
-          <span class="label">Address</span>
-          <p class="value mono">{mask(connectivity.joinAddress)}</p>
+  <div class="columns" class:single={isBedrockServer}>
+    <div class="cell">
+      <div class="cell-header">
+        <span class="dot" class:online={!showPublic || !!javaIp}></span>
+        <span class="platform-label"
+          >{isBedrockServer ? 'Bedrock · Dedicated' : 'Java · PC / Mac'}</span
+        >
+        <span class="source-tag">{sourceTag}</span>
+      </div>
+      <span class="label">IP</span>
+      {#if javaIp}
+        <p class="value mono">{mask(javaIp)}</p>
+      {:else}
+        <p class="value mono muted-value">{javaIpFallback}</p>
+      {/if}
+      <span class="label">Port</span>
+      <p class="value mono">{gamePort !== undefined ? mask(String(gamePort)) : '—'}</p>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={gamePort === undefined}
+        onclick={() => gamePort !== undefined && copy('Java', String(gamePort))}
+      >
+        {copiedLabel === 'Java' ? 'Copied' : 'Copy port'}
+      </Button>
+    </div>
+
+    {#if !isBedrockServer}
+      {#if hasGeyser}
+        <div class="cell">
+          <div class="cell-header">
+            <span class="dot" class:online={!showPublic || !!geyserIp}></span>
+            <span class="platform-label">Bedrock (Geyser)</span>
+            <span class="source-tag">{sourceTag}</span>
+          </div>
+          <span class="label">IP</span>
+          {#if geyserIp}
+            <p class="value mono">{mask(geyserIp)}</p>
+          {:else}
+            <p class="value mono muted-value">{geyserIpFallback}</p>
+          {/if}
+          <span class="label">Port</span>
+          <p class="value mono">{mask(String(geyser?.port))}</p>
           <Button
             variant="secondary"
             size="sm"
-            onclick={() => connectivity?.joinAddress && copy('Public', connectivity.joinAddress)}
+            disabled={!geyserIp}
+            onclick={() => geyserIp && copy('Bedrock', `${geyserIp}:${geyser?.port}`)}
           >
-            {copiedLabel === 'Public' ? 'Copied' : 'Copy address'}
+            {copiedLabel === 'Bedrock' ? 'Copied' : 'Copy address'}
           </Button>
-        {:else}
-          <p class="unavailable">{connectivity?.detail ?? 'No public join address yet.'}</p>
-        {/if}
-      </div>
-    </div>
-  {:else}
-    <div class="columns" class:single={isBedrockServer}>
-      <div class="cell">
-        <div class="cell-header">
-          <span class="dot online"></span>
-          <span class="platform-label"
-            >{isBedrockServer ? 'Bedrock · Dedicated' : 'Java · PC / Mac'}</span
-          >
-          <span class="source-tag">LAN</span>
         </div>
-        <span class="label">IP</span>
-        <p class="value mono muted-value">Not reported by this host yet</p>
-        <span class="label">Port</span>
-        <p class="value mono">{gamePort !== undefined ? mask(String(gamePort)) : '—'}</p>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={gamePort === undefined}
-          onclick={() => gamePort !== undefined && copy('Java', String(gamePort))}
-        >
-          {copiedLabel === 'Java' ? 'Copied' : 'Copy port'}
-        </Button>
-      </div>
-
-      {#if !isBedrockServer}
-        {#if hasGeyser}
-          <div class="cell">
-            <div class="cell-header">
-              <span class="dot online"></span>
-              <span class="platform-label">Bedrock (Geyser)</span>
-              <span class="source-tag">LAN</span>
-            </div>
-            <span class="label">IP</span>
-            <p class="value mono">{mask(geyser?.address ?? '0.0.0.0')}</p>
-            <span class="label">Port</span>
-            <p class="value mono">{mask(String(geyser?.port))}</p>
-            <Button
-              variant="secondary"
-              size="sm"
-              onclick={() => copy('Bedrock', `${geyser?.address ?? ''}:${geyser?.port}`)}
-            >
-              {copiedLabel === 'Bedrock' ? 'Copied' : 'Copy address'}
-            </Button>
+      {:else}
+        <div class="cell ghost">
+          <div class="cell-header">
+            <span class="dot"></span>
+            <span class="platform-label muted">Bedrock (Geyser)</span>
           </div>
-        {:else}
-          <div class="cell ghost">
-            <div class="cell-header">
-              <span class="dot"></span>
-              <span class="platform-label muted">Bedrock (Geyser)</span>
-            </div>
-            <p class="unavailable">Not configured</p>
-            <p class="unavailable-hint">Enable in Settings</p>
-          </div>
-        {/if}
+          <p class="unavailable">Not configured</p>
+          <p class="unavailable-hint">Enable in Settings</p>
+        </div>
       {/if}
-    </div>
-  {/if}
+    {/if}
+  </div>
 </Card>
 
 <style>

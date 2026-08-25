@@ -96,6 +96,8 @@
     {running}
     {sidebarCollapsed}
     onToggleSidebar={toggleSidebar}
+    {consoleCollapsed}
+    onToggleConsole={toggleConsole}
     {onHelp}
     {onSettings}
     {onRefresh}

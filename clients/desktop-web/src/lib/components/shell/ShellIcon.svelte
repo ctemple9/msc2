@@ -3,6 +3,7 @@
   // never on informational elements (docs/msc2/antiAIslop.md #6, #7).
   export let name:
     | 'sidebar'
+    | 'console'
     | 'help'
     | 'settings'
     | 'refresh'
@@ -16,6 +17,7 @@
 
   const paths: Record<string, string> = {
     sidebar: 'M4 5h16v14H4zM9 5v14',
+    console: 'M4 5h16v14H4zM4 15h16',
     help: 'M9.5 9a2.5 2.5 0 1 1 3.4 2.3c-.9.4-1.4 1-1.4 1.9v.3M12 17h.01',
     settings:
       'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 13a7.4 7.4 0 0 0 0-2l2.02-1.58-1.92-3.32-2.38.96a7.4 7.4 0 0 0-1.72-1L14.5 2.6h-3.85l-.4 2.55a7.4 7.4 0 0 0-1.72 1l-2.38-.96-1.92 3.32L6.23 10a7.4 7.4 0 0 0 0 2l-2.02 1.58 1.92 3.32 2.38-.96a7.4 7.4 0 0 0 1.72 1l.4 2.55h3.85l.4-2.55a7.4 7.4 0 0 0 1.72-1l2.38.96 1.92-3.32z',

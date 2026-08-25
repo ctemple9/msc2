@@ -66,38 +66,45 @@
 </script>
 
 <Card padding="14px 16px">
-  <div class="overline">
-    <Icon name="waveform" size={12} />
-    <span class="msc2-type-overline">Live Stats</span>
-  </div>
+  <div class="stats-body">
+    <div class="overline">
+      <Icon name="waveform" size={12} />
+      <span class="msc2-type-overline">Live Stats</span>
+    </div>
 
-  {#if unavailable}
-    <p class="unavailable">
-      {snapshot?.runtime?.message ?? 'This runtime does not report live metrics.'}
-    </p>
-  {:else}
-    <div class="gauges">
-      {#each gauges as gauge (gauge.label)}
-        <div class="gauge">
-          <div class="track">
-            {#if gauge.hasData && gauge.fraction > 0}
-              <div
-                class="fill"
-                style="height: {gauge.fraction * 100}%; background: {toneColor[gauge.tone]};"
-              ></div>
-            {/if}
-            <div class="readout">
-              <span class="v">{gauge.value}</span>
-              <span class="l">{gauge.label}</span>
+    {#if unavailable}
+      <p class="unavailable">
+        {snapshot?.runtime?.message ?? 'This runtime does not report live metrics.'}
+      </p>
+    {:else}
+      <div class="gauges">
+        {#each gauges as gauge (gauge.label)}
+          <div class="gauge">
+            <div class="track">
+              {#if gauge.hasData && gauge.fraction > 0}
+                <div
+                  class="fill"
+                  style="height: {gauge.fraction * 100}%; background: {toneColor[gauge.tone]};"
+                ></div>
+              {/if}
+              <div class="readout">
+                <span class="v">{gauge.value}</span>
+                <span class="l">{gauge.label}</span>
+              </div>
             </div>
           </div>
-        </div>
-      {/each}
-    </div>
-  {/if}
+        {/each}
+      </div>
+    {/if}
+  </div>
 </Card>
 
 <style>
+  .stats-body {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
   .overline {
     display: flex;
     align-items: center;
@@ -114,7 +121,8 @@
   .gauges {
     display: flex;
     gap: 8px;
-    height: 128px;
+    flex: 1;
+    min-height: 0;
   }
   .gauge {
     flex: 1;

@@ -10,6 +10,8 @@
   export let running = false;
   export let sidebarCollapsed = false;
   export let onToggleSidebar: () => void;
+  export let consoleCollapsed = false;
+  export let onToggleConsole: () => void;
   export let onHelp: (() => void) | undefined = undefined;
   export let onSettings: (() => void) | undefined = undefined;
   export let onRefresh: (() => void) | undefined = undefined;
@@ -42,6 +44,14 @@
       onclick={onToggleSidebar}
     >
       <ShellIcon name="sidebar" />
+    </button>
+    <button
+      type="button"
+      class="icon-btn"
+      aria-label={consoleCollapsed ? 'Show console' : 'Hide console'}
+      onclick={onToggleConsole}
+    >
+      <ShellIcon name="console" />
     </button>
     <button
       type="button"

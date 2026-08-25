@@ -155,7 +155,6 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
-    max-width: 1100px;
   }
   .zone {
     display: flex;

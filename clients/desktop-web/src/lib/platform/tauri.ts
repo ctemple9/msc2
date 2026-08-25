@@ -51,6 +51,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
     requestAgentAction: async (_action: AgentAction, browserFallback: () => Promise<void>) => {
       await browserFallback();
     },
+    agentHealthCheck: dependencies.agentHealthCheck,
     agentServiceStatus: dependencies.agentServiceStatus,
     manageAgentService: dependencies.manageAgentService,
   };
@@ -120,6 +121,7 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     closeWindow: () => getCurrentWindow().close(),
     openExternal: (url: string) => invoke('open_external_url', { url }),
     onCloseRequested: (handler: () => void) => getCurrentWindow().onCloseRequested(handler),
+    agentHealthCheck: () => invoke<boolean>('agent_health_check'),
     agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),
     manageAgentService: (action: AgentServiceAction) =>
       invoke<AgentServiceStatus>('manage_agent_service', { action }),

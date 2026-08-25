@@ -41,6 +41,7 @@ describe('local agent installation boundary', () => {
   it('starts an installed stopped agent and waits for its health endpoint', async () => {
     const platform: AgentPreparationPlatform = {
       kind: 'tauri',
+      agentHealthCheck: vi.fn(async () => true),
       agentServiceStatus: vi.fn(async () => status('stopped')),
       manageAgentService: vi.fn(async () => status('running')),
     };
@@ -56,6 +57,7 @@ describe('local agent installation boundary', () => {
   it('does not install a missing service during automatic launch', async () => {
     const platform: AgentPreparationPlatform = {
       kind: 'tauri',
+      agentHealthCheck: vi.fn(async () => true),
       agentServiceStatus: vi.fn(async () => status('not-installed')),
       manageAgentService: vi.fn(async () => status('running')),
     };
@@ -66,5 +68,10 @@ describe('local agent installation boundary', () => {
     });
     expect(platform.manageAgentService).not.toHaveBeenCalled();
     expect(healthCheck).not.toHaveBeenCalled();
+  });
+
+  it('shows native service errors instead of leaving install feedback blank', () => {
+    expect(setupSource).toContain('errorMessage = String(error)');
+    expect(setupSource).toContain('Could not change the agent service');
   });
 });

@@ -27,6 +27,7 @@ function nativeDependencies(): TauriPlatformDependencies {
     closeWindow: vi.fn(async () => undefined),
     openExternal: vi.fn(async () => undefined),
     onCloseRequested: vi.fn(async () => () => undefined),
+    agentHealthCheck: vi.fn(async () => true),
     agentServiceStatus: vi.fn(async () => ({
       available: true,
       platform: 'macos',
@@ -99,6 +100,7 @@ describe('Tauri boundary', () => {
     expect(fileFallback).not.toHaveBeenCalled();
     expect(workflowFallback).not.toHaveBeenCalled();
     expect(await desktop.credentialFor('remote-host')).toBeNull();
+    expect(await desktop.agentHealthCheck()).toBe(true);
     expect((await desktop.agentServiceStatus()).state).toBe('running');
     await desktop.manageAgentService('repair');
     expect(dependencies.manageAgentService).toHaveBeenCalledWith('repair');

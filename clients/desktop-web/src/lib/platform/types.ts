@@ -24,12 +24,7 @@ export interface MenuEntry {
 export type AgentAction = 'install' | 'update';
 export type AgentServiceAction = 'install' | 'start' | 'stop' | 'repair';
 export type AgentReadiness =
-  | 'missing'
-  | 'stopped'
-  | 'starting'
-  | 'ready'
-  | 'incompatible'
-  | 'unavailable';
+  'missing' | 'stopped' | 'starting' | 'ready' | 'incompatible' | 'unavailable';
 
 export interface AgentServiceStatus {
   readonly available: boolean;
@@ -60,6 +55,7 @@ export interface PlatformAdapter {
   onCloseRequested(handler: () => void): Promise<() => void>;
   credentialFor(hostId: string): Promise<string | null>;
   requestAgentAction(action: AgentAction, browserFallback: () => Promise<void>): Promise<void>;
+  agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
 }
@@ -73,6 +69,7 @@ export interface TauriPlatformDependencies {
   closeWindow(): Promise<void>;
   openExternal(url: string): Promise<void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
+  agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
 }

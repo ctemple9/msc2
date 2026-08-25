@@ -19,7 +19,39 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use security_framework::os::macos::code_signing::{
+    Flags, GuestAttributes, SecCode, SecRequirement,
+};
+
 const EXPECTED_PORT_ENV: &str = "MSC2_EXPECTED_PORT";
+
+/// The installation key lives as a plain 0600 file next to the rest of the
+/// secret store's encrypted files, not in the System keychain — see
+/// `secret_store.rs`'s module doc for why keychain-rooted secrets were
+/// dropped. The agent and its desktop shell always run as the same regular
+/// user, so both sides just read/write this same file directly; nothing
+/// needs an elevated install step to provision it.
+pub const LOCAL_BOOTSTRAP_KEY_FILE_NAME: &str = "local-bootstrap.key";
+
+pub fn local_bootstrap_key_path(secrets_dir: &Path) -> PathBuf {
+    secrets_dir.join(LOCAL_BOOTSTRAP_KEY_FILE_NAME)
+}
+
+/// Verifies the live process behind a local socket against the designated
+/// requirement recorded when the desktop package was installed. The kernel
+/// supplies the PID; the agent never trusts a PID or executable path supplied
+/// by the client.
+pub fn verify_process_code_identity(pid: u32, requirement: &str) -> Result<(), String> {
+    let mut attributes = GuestAttributes::new();
+    attributes.set_pid(pid as libc::pid_t);
+    let code = SecCode::copy_guest_with_attribues(None, &attributes, Flags::NONE)
+        .map_err(|error| format!("looking up bootstrap peer code: {error}"))?;
+    let requirement: SecRequirement = requirement
+        .parse()
+        .map_err(|error| format!("invalid installed desktop requirement: {error}"))?;
+    code.check_validity(Flags::NONE, &requirement)
+        .map_err(|error| format!("bootstrap peer failed code-identity validation: {error}"))
+}
 
 #[derive(Debug, Default, Clone, Copy)]
 pub struct SystemLaunchctl;
@@ -227,6 +259,122 @@ impl<L: Launchctl> MacosLaunchdServiceManager<L> {
     fn plist_path(&self, service_name: &str) -> PathBuf {
         self.plist_root.join(format!("{service_name}.plist"))
     }
+}
+
+/// Installs and starts the real LaunchDaemon through macOS's administrator
+/// prompt. The desktop process remains unprivileged; only the plist copy and
+/// launchd registration run in the elevated shell. Neither secret this
+/// bootstrap path uses needs privileged provisioning any more (see
+/// `secret_store.rs`'s module doc): the caller is expected to have already
+/// written the installation key file itself, unprivileged, at
+/// `local_bootstrap_key_path` under `MSC2_MACOS_SECRET_STORE_DIR`, before
+/// calling this — checked here so a missing key fails closed with a clear
+/// error instead of installing a service that can never complete bootstrap.
+pub fn install_and_start_elevated(
+    request: ServiceInstallRequest,
+) -> Result<ServiceStatusReport, ServiceError> {
+    let secrets_dir = request
+        .environment
+        .get("MSC2_MACOS_SECRET_STORE_DIR")
+        .ok_or_else(|| {
+            ServiceError::InvalidDefinition(
+                "MSC2_MACOS_SECRET_STORE_DIR is missing from the install request".to_string(),
+            )
+        })?;
+    let bootstrap_key_path = local_bootstrap_key_path(Path::new(secrets_dir));
+    if !bootstrap_key_path.is_file() {
+        return Err(ServiceError::InvalidDefinition(format!(
+            "the local bootstrap installation key is missing at {}",
+            bootstrap_key_path.display()
+        )));
+    }
+    validate_request(&request)?;
+    let plist_path = PathBuf::from(format!(
+        "/Library/LaunchDaemons/{}.plist",
+        request.service_name.as_str()
+    ));
+    let temporary_plist = std::env::temp_dir().join(format!(
+        "msc2-{}.{}.plist",
+        request.service_name.as_str(),
+        std::process::id()
+    ));
+    let plist = LaunchDaemonPlist::from_request(&request).to_xml();
+    fs::write(&temporary_plist, plist).map_err(|error| {
+        ServiceError::Platform(format!(
+            "writing temporary LaunchDaemon plist {}: {error}",
+            temporary_plist.display()
+        ))
+    })?;
+
+    let destination = shell_quote(&plist_path.display().to_string());
+    let temporary = shell_quote(&temporary_plist.display().to_string());
+    let service_target = shell_quote(&format!("system/{}", request.service_name.as_str()));
+    let command = format!(
+        "if [ -e {destination} ]; then /bin/launchctl bootout system {destination} >/dev/null 2>&1 || true; fi; \
+/usr/bin/install -o root -g wheel -m 644 {temporary} {destination}; \
+/bin/launchctl bootstrap system {destination}; \
+/bin/launchctl kickstart -k {service_target}"
+    );
+
+    let result = run_as_administrator(&command);
+    let _ = fs::remove_file(&temporary_plist);
+    result?;
+
+    wait_for_service(&request.service_name)
+}
+
+/// Starts an already-installed LaunchDaemon through the same OS-owned
+/// elevation boundary used for installation.
+pub fn start_elevated(service_name: &str) -> Result<ServiceStatusReport, ServiceError> {
+    run_as_administrator(&format!(
+        "/bin/launchctl kickstart -k {}",
+        shell_quote(&format!("system/{service_name}"))
+    ))?;
+    wait_for_service(&msc_infrastructure::service::ServiceName::new(service_name))
+}
+
+fn wait_for_service(
+    service_name: &msc_infrastructure::service::ServiceName,
+) -> Result<ServiceStatusReport, ServiceError> {
+    let manager = MacosLaunchdServiceManager::new();
+    let mut latest = ServiceStatusReport::not_installed(service_name.as_str().to_string());
+    for _ in 0..40 {
+        latest = manager.execute(ServiceManagerCommand::Status {
+            service_name: service_name.clone(),
+        })?;
+        if latest.state == ServiceState::Running {
+            return Ok(latest);
+        }
+        std::thread::sleep(std::time::Duration::from_millis(250));
+    }
+    Ok(latest)
+}
+
+fn run_as_administrator(command: &str) -> Result<(), ServiceError> {
+    let script =
+        "on run argv\n  do shell script (item 1 of argv) with administrator privileges\nend run";
+    let output = Command::new("/usr/bin/osascript")
+        .args(["-e", script, "--", command])
+        .output()
+        .map_err(|error| {
+            ServiceError::Platform(format!("starting macOS elevation prompt: {error}"))
+        })?;
+    if output.status.success() {
+        return Ok(());
+    }
+    let detail = String::from_utf8_lossy(&output.stderr).trim().to_string();
+    Err(ServiceError::Platform(if detail.is_empty() {
+        format!(
+            "macOS administrator authorization failed: {}",
+            output.status
+        )
+    } else {
+        format!("macOS administrator authorization failed: {detail}")
+    }))
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
 }
 
 fn validate_request(request: &ServiceInstallRequest) -> Result<(), ServiceError> {

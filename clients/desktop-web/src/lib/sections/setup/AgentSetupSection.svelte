@@ -33,6 +33,7 @@
 
   let status: AgentServiceStatus | undefined;
   let busy = false;
+  let errorMessage = '';
   $: readinessTitle = readinessTitles[readiness];
   $: readinessMessage = readinessMessages[readiness];
 
@@ -44,9 +45,12 @@
 
   async function manage(action: AgentServiceAction): Promise<void> {
     busy = true;
+    errorMessage = '';
     try {
       status = await (await getPlatform()).manageAgentService(action);
       if (status.state === 'running') await onAgentRetry?.();
+    } catch (error) {
+      errorMessage = String(error);
     } finally {
       busy = false;
     }
@@ -130,6 +134,10 @@
       </p>
     </SurfaceCard>
   </div>
+
+  {#if errorMessage}
+    <StatePanel kind="error" title="Could not change the agent service" message={errorMessage} />
+  {/if}
 </div>
 
 <style>

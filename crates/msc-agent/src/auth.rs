@@ -16,6 +16,9 @@
 mod browser;
 #[path = "auth/desktop.rs"]
 mod desktop;
+#[cfg(target_os = "macos")]
+#[path = "auth/local_bootstrap.rs"]
+mod local_bootstrap;
 
 use std::collections::{HashMap, VecDeque};
 use std::ffi::OsString;
@@ -150,6 +153,17 @@ pub struct AuthAuditEvent {
 #[derive(Clone)]
 pub struct AuthState {
     inner: Arc<AuthStateInner>,
+}
+
+pub(crate) fn production_auth_state() -> AuthState {
+    let secret_store = production_secret_store()
+        .unwrap_or_else(|error| panic!("failed to initialize production secret store: {error}"));
+    AuthState::persistent_service_store_with_secret_store(secret_store)
+}
+
+#[cfg(target_os = "macos")]
+pub(crate) fn spawn_local_bootstrap(auth: AuthState) {
+    local_bootstrap::spawn(auth);
 }
 
 struct AuthStateInner {

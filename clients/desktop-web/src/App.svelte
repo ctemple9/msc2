@@ -143,7 +143,7 @@
 
   async function createClient(id: string): Promise<ApiClient> {
     const transport = await createAgentTransport(id);
-    return new ApiClient({ ...transport, hostId: id });
+    return new ApiClient({ ...transport, hostId: transport.hostId });
   }
 
   const defaultStatus: Schema['RemoteAPIStatus'] = { running: false };

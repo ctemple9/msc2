@@ -63,6 +63,27 @@ struct DesktopPairingRecord {
 }
 
 impl AuthState {
+    /// Mints the first local desktop credential after the platform bootstrap
+    /// channel has proved the signed package and installation secret.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn issue_local_bootstrap_credential(
+        &self,
+    ) -> Result<DesktopCredential, DesktopPairingError> {
+        let issued = self
+            .issue_credential(
+                "local-desktop",
+                CredentialRole::Admin,
+                super::all_permissions(),
+                None,
+            )
+            .map_err(DesktopPairingError::from)?;
+        Ok(DesktopCredential {
+            agent_host_id: self.agent_host_id()?,
+            issued,
+            expires_at: None,
+        })
+    }
+
     /// Returns an opaque installation identity. It is intentionally neither a
     /// network address nor a display label: a desktop secret follows this
     /// value when an administrator changes an agent's address.

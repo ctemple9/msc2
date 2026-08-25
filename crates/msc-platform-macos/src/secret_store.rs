@@ -1,7 +1,17 @@
-//! `SecretStore` (P3.8) for macOS. The production store follows the
-//! P4.40 amendment: privileged install/update work provisions one root
-//! key in the System keychain, while routine LaunchDaemon operation writes
-//! a mutable agent-owned encrypted file store under the durable data root.
+//! `SecretStore` (P3.8) for macOS.
+//!
+//! The production store was originally designed around a System-keychain-
+//! rooted encryption key (the P4.40 amendment), but that requires the
+//! keychain item's ACL to explicitly and correctly trust the agent binary
+//! for no-prompt reads from a non-interactive LaunchDaemon (no user session
+//! to answer an "allow access?" prompt) — a narrow, easy-to-get-wrong OS
+//! trust boundary that repeatedly failed in practice (stale ACLs surviving
+//! reinstalls, "User interaction is not allowed" with no way to self-heal
+//! without discarding every previously-stored secret). The agent and its
+//! desktop shell always run as the same regular user, so the same
+//! filesystem-permission boundary that already protects every other
+//! encrypted secret file here protects the root key too — the root key is
+//! now just another 0600 file next to them, self-provisioned on first use.
 //! Direct per-secret Keychain writes stay available for tests and foreground
 //! local smoke harnesses against the user's default keychain, not for
 //! production LaunchDaemon auth.
@@ -11,6 +21,7 @@ use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
 use msc_infrastructure::atomic_write::atomic_write;
 use msc_infrastructure::fs::StdFileSystem;
 use msc_infrastructure::secret_store::{Result, SecretStore, SecretStoreError};
+use rand::RngCore;
 use security_framework::os::macos::keychain::SecKeychain;
 use security_framework_sys::base::errSecItemNotFound;
 use std::fs;
@@ -20,12 +31,7 @@ use std::path::{Path, PathBuf};
 
 /// Fixed `service` value for direct Keychain test entries.
 const SERVICE: &str = "com.msc2.agent";
-const ROOT_SERVICE: &str = "com.msc2.agent.root";
-const ROOT_ACCOUNT: &str = "credential-root-v1";
-
-/// Path `docs/msc2/substrate/secret-storage.md` §10 confirmed: the System
-/// keychain, not the per-user login keychain.
-const SYSTEM_KEYCHAIN_PATH: &str = "/Library/Keychains/System.keychain";
+const ROOT_KEY_FILE_NAME: &str = ".root-key";
 const NONCE_LEN: usize = 12;
 const KEY_LEN: usize = 32;
 
@@ -38,29 +44,18 @@ enum MacosSecretStoreBackend {
         keychain: SecKeychain,
         service: String,
     },
-    EncryptedSystemRoot {
-        keychain: SecKeychain,
-        root_service: String,
-        root_account: String,
+    EncryptedFileRoot {
         secrets_dir: PathBuf,
     },
 }
 
 impl MacosSecretStore {
-    /// Opens the System-keychain-rooted production store. The item named
-    /// by `MSC2_MACOS_SECRET_ROOT_SERVICE`/`MSC2_MACOS_SECRET_ROOT_ACCOUNT`
-    /// (or the defaults above) must already exist; install/service scripts
-    /// provision it during their privileged window.
+    /// Opens the file-rooted production store (see the module doc for why
+    /// this moved off the System keychain). Self-provisions its root key on
+    /// first use; no install-time keychain provisioning step is needed.
     pub fn system() -> Result<Self> {
-        let keychain = SecKeychain::open(SYSTEM_KEYCHAIN_PATH)
-            .map_err(|e| SecretStoreError(format!("opening System keychain: {e}")))?;
         Ok(Self {
-            backend: MacosSecretStoreBackend::EncryptedSystemRoot {
-                keychain,
-                root_service: std::env::var("MSC2_MACOS_SECRET_ROOT_SERVICE")
-                    .unwrap_or_else(|_| ROOT_SERVICE.to_string()),
-                root_account: std::env::var("MSC2_MACOS_SECRET_ROOT_ACCOUNT")
-                    .unwrap_or_else(|_| ROOT_ACCOUNT.to_string()),
+            backend: MacosSecretStoreBackend::EncryptedFileRoot {
                 secrets_dir: macos_secret_store_dir(),
             },
         })
@@ -96,6 +91,13 @@ impl MacosSecretStore {
                 service: service.into(),
             },
         })
+    }
+
+    /// Reads the user-keychain installation secret shared by the signed
+    /// desktop shell and the same-user LaunchDaemon bootstrap listener.
+    pub fn user_keychain_value(service: &str, account: &str) -> Result<Option<String>> {
+        let store = Self::default_keychain_for_service(service.to_string())?;
+        store.get(account)
     }
 
     #[cfg(test)]
@@ -135,17 +137,30 @@ impl MacosSecretStore {
         }
     }
 
-    fn root_key(
-        keychain: &SecKeychain,
-        root_service: &str,
-        root_account: &str,
-    ) -> Result<[u8; KEY_LEN]> {
-        let encoded = Self::direct_get(keychain, root_service, root_account)?.ok_or_else(|| {
-            SecretStoreError(format!(
-                "macOS credential root is not provisioned at service {root_service}, account {root_account}"
-            ))
-        })?;
-        decode_hex_key(&encoded)
+    /// Loads this store's root key from `<secrets_dir>/.root-key`, generating
+    /// and persisting a fresh one on first use. Losing this file makes every
+    /// secret it protects unrecoverable, same as losing the keychain item
+    /// it replaced would have.
+    fn root_key(secrets_dir: &Path) -> Result<[u8; KEY_LEN]> {
+        ensure_owner_only_dir(secrets_dir)?;
+        let path = secrets_dir.join(ROOT_KEY_FILE_NAME);
+        match fs::read_to_string(&path) {
+            Ok(encoded) => decode_hex_key(encoded.trim()),
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                let mut key = [0u8; KEY_LEN];
+                rand::rngs::OsRng.fill_bytes(&mut key);
+                let encoded = encode_hex_key(&key);
+                atomic_write(&StdFileSystem, &path, encoded.as_bytes()).map_err(|err| {
+                    SecretStoreError(format!("writing {}: {err}", path.display()))
+                })?;
+                set_owner_only_file(&path)?;
+                Ok(key)
+            }
+            Err(err) => Err(SecretStoreError(format!(
+                "reading {}: {err}",
+                path.display()
+            ))),
+        }
     }
 
     fn encrypted_path(secrets_dir: &Path, key: &str) -> PathBuf {
@@ -159,12 +174,7 @@ impl SecretStore for MacosSecretStore {
             MacosSecretStoreBackend::DirectKeychain { keychain, service } => {
                 Self::direct_get(keychain, service, key)
             }
-            MacosSecretStoreBackend::EncryptedSystemRoot {
-                keychain,
-                root_service,
-                root_account,
-                secrets_dir,
-            } => {
+            MacosSecretStoreBackend::EncryptedFileRoot { secrets_dir } => {
                 let path = Self::encrypted_path(secrets_dir, key);
                 let contents = match fs::read(&path) {
                     Ok(bytes) => bytes,
@@ -181,7 +191,7 @@ impl SecretStore for MacosSecretStore {
                         "{key}: stored value is truncated"
                     )));
                 }
-                let root_key = Self::root_key(keychain, root_service, root_account)?;
+                let root_key = Self::root_key(secrets_dir)?;
                 let cipher = ChaCha20Poly1305::new(Key::from_slice(&root_key));
                 let (nonce_bytes, ciphertext) = contents.split_at(NONCE_LEN);
                 let plaintext = cipher
@@ -199,14 +209,9 @@ impl SecretStore for MacosSecretStore {
             MacosSecretStoreBackend::DirectKeychain { keychain, service } => {
                 Self::direct_set(keychain, service, key, value)
             }
-            MacosSecretStoreBackend::EncryptedSystemRoot {
-                keychain,
-                root_service,
-                root_account,
-                secrets_dir,
-            } => {
+            MacosSecretStoreBackend::EncryptedFileRoot { secrets_dir } => {
                 ensure_owner_only_dir(secrets_dir)?;
-                let root_key = Self::root_key(keychain, root_service, root_account)?;
+                let root_key = Self::root_key(secrets_dir)?;
                 let cipher = ChaCha20Poly1305::new(Key::from_slice(&root_key));
                 let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
                 let ciphertext = cipher
@@ -228,7 +233,7 @@ impl SecretStore for MacosSecretStore {
             MacosSecretStoreBackend::DirectKeychain { keychain, service } => {
                 Self::direct_delete(keychain, service, key)
             }
-            MacosSecretStoreBackend::EncryptedSystemRoot { secrets_dir, .. } => {
+            MacosSecretStoreBackend::EncryptedFileRoot { secrets_dir } => {
                 let path = Self::encrypted_path(secrets_dir, key);
                 match fs::remove_file(&path) {
                     Ok(()) => Ok(()),
@@ -264,6 +269,10 @@ fn macos_secret_store_dir() -> PathBuf {
 
 fn encode_key(key: &str) -> String {
     key.bytes().map(|byte| format!("{byte:02x}")).collect()
+}
+
+fn encode_hex_key(key: &[u8; KEY_LEN]) -> String {
+    key.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
 fn decode_hex_key(encoded: &str) -> Result<[u8; KEY_LEN]> {

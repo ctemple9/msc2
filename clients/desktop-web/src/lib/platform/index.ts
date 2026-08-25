@@ -15,12 +15,14 @@ export const LOCAL_AGENT_ORIGIN = 'http://127.0.0.1:48001';
 
 export interface AgentTransport {
   readonly baseUrl: string;
+  readonly hostId: string;
   readonly fetchImpl?: FetchLike;
   readonly credentialAdapter: ReturnType<typeof cookieCredentialAdapter>;
 }
 
 export interface AgentPreparationPlatform {
   readonly kind: PlatformAdapter['kind'];
+  agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;
 }
@@ -77,7 +79,7 @@ export async function prepareInstalledAgent(
 export async function prepareLocalAgent(): Promise<AgentServiceStatus | null> {
   const platform = await getPlatform();
   if (platform.kind !== 'tauri') return null;
-  return prepareInstalledAgent(platform);
+  return prepareInstalledAgent(platform, () => platform.agentHealthCheck());
 }
 
 /** Selects authentication at the shell boundary, before ApiClient is built. */
@@ -85,14 +87,18 @@ export async function createAgentTransport(hostId: string): Promise<AgentTranspo
   const configuredBaseUrl = import.meta.env.VITE_MSC_API_BASE_URL;
   if (isTauri()) {
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
+    const authenticatedHostId =
+      hostId === 'local-agent' ? (await auth.bootstrapLocal()).agentHostId : hostId;
     return {
       baseUrl: configuredBaseUrl ?? LOCAL_AGENT_ORIGIN,
-      fetchImpl: auth.fetchForHost(hostId),
+      hostId: authenticatedHostId,
+      fetchImpl: auth.fetchForHost(authenticatedHostId),
       credentialAdapter: desktopCredentialAdapter(),
     };
   }
 
   return {
+    hostId,
     baseUrl:
       configuredBaseUrl ??
       (typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin),

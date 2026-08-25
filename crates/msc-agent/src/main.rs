@@ -70,12 +70,21 @@ async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
 
     println!("msc listening on {bind}");
 
-    axum::serve(listener, build_app())
+    let auth_state = auth::production_auth_state();
+    #[cfg(target_os = "macos")]
+    auth::spawn_local_bootstrap(auth_state.clone());
+
+    axum::serve(listener, build_app_with_auth(auth_state))
         .await
         .map_err(|err| cli::CliError::internal(format!("server error: {err}")))
 }
 
+#[allow(dead_code)]
 pub(crate) fn build_app() -> Router {
+    build_app_with_auth(auth::production_auth_state())
+}
+
+fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     let secret_store = auth::production_secret_store()
         .unwrap_or_else(|error| panic!("failed to initialize production secret store: {error}"));
 
@@ -100,8 +109,6 @@ pub(crate) fn build_app() -> Router {
         )
         .expect("failed to load durable MSC 2 application config"),
     ));
-    let auth_state =
-        auth::AuthState::persistent_service_store_with_secret_store(secret_store.clone());
     let console_state = ws::console::ConsoleState::default();
     let bedrock_runtime = routes::bedrock_runtime::BedrockRuntimeSelection::production(app_config);
     let lifecycle_state =

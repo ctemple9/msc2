@@ -16,6 +16,7 @@ export interface DesktopResponse {
  * store and adds it only while forwarding a request to that host's origin.
  */
 export interface DesktopCredentialBridge {
+  bootstrapLocal(): Promise<DesktopPairingResult>;
   exchangePairing(request: { baseUrl: string; pairingCode: string }): Promise<DesktopPairingResult>;
   authorizedRequest(request: {
     agentHostId: string;
@@ -31,6 +32,10 @@ export class DesktopSessionAuth {
 
   async redeemRemotePairing(baseUrl: string, pairingCode: string): Promise<DesktopPairingResult> {
     return this.bridge.exchangePairing({ baseUrl, pairingCode });
+  }
+
+  async bootstrapLocal(): Promise<DesktopPairingResult> {
+    return this.bridge.bootstrapLocal();
   }
 
   /**
@@ -62,6 +67,7 @@ export class DesktopSessionAuth {
 export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredentialBridge> {
   const { invoke } = await import('@tauri-apps/api/core');
   return {
+    bootstrapLocal: () => invoke<DesktopPairingResult>('desktop_bootstrap_local'),
     exchangePairing: (request) =>
       invoke<DesktopPairingResult>('desktop_exchange_pairing', { request }),
     authorizedRequest: (request) =>

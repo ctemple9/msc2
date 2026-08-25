@@ -4,6 +4,7 @@ import { DesktopSessionAuth, type DesktopCredentialBridge } from '../../../src/l
 
 function bridge(): DesktopCredentialBridge {
   return {
+    bootstrapLocal: vi.fn(async () => ({ agentHostId: 'agent-local' })),
     exchangePairing: vi.fn(async () => ({ agentHostId: 'agent-beta' })),
     authorizedRequest: vi.fn(async () => ({
       status: 200,

@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 11 is in progress — P11.1–P11.14 are verified and DONE; P11.15 awaits verification.
-> **Next move:** VERIFY P11.15 with `python3 tools/phase11/help-content-check.py --all`; its status remains awaiting verification until Cameron runs that command.
+> ## STATUS: Phase 11 is in progress — the original P11.1–P11.28 delivery is recorded, parity follow-ups are reorganized as P11.28a–P11.28f, and the real-client prerequisites are planned as P11.28g–P11.28k.
+> **Next move:** EXECUTE P11.28g, after Cameron reviews this reordered plan. The Phase 11 gate remains P11.29 and must wait until the real desktop/agent path and first-time setup have been exercised.
 > **Last updated:** 2026-08-24
 
 **Previous phases (Setup through Phase 10) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
@@ -395,58 +395,98 @@ the package manager, with MSC limited to an actionable availability notice.
 **Commit:** `P11.28: prove tri-platform clients`
 **Batch:** stop-after
 
-### P11.29 — Reconcile the capability matrix and run the exact Phase 11 gate
-**Status:** not started
-**Files:** `docs/msc2/client-capability-matrix.csv`, `tools/phase11/phase11-check.py`, `docs/msc2/clients/evidence/phase11-ci.md`, `docs/msc2/clients/phase11-scope.md`, `docs/msc2/rolling-plan.md`
-**What:** Check every contract and WebSocket operation against real Desktop/Web implementation evidence, leaving agent-Planned, Bedrock-screen, and player-profile rows explicitly Planned and no cell blank. Prove D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, capability/permission routing, D-026 served-content use, browser/Tauri auth, browser responsive behavior, native Linux WebKitGTK rendering, tri-platform packaging, headless independence, and the exact green CI candidate. Also require the onboarding preservation contract in `phase11-scope.md`: fresh-profile setup → Concept Guide → guided tour → Handbook behavior, step/anchor coverage, skip/reopen persistence, splash playback/fallback, reduced-motion behavior, and honest separation of agent-owned first-server initiation from client-owned presentation. This is Phase 11's only full-workspace run; the other agent decides in REVIEW whether the literal gate holds.
-**Verify:** `python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`
-**Commit:** `P11.29: check desktop and web gate`
-**Batch:** solo
-
-### P11.29i — Port the remaining MSC 1 first-time setup pages
+### P11.28a — Port the remaining MSC 1 first-time setup pages
 **Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/help/FirstLaunchGate.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `clients/desktop-web/tests/e2e/browser/`, `clients/desktop-web/tests/e2e/tauri-linux/`, `crates/msc-agent/src/routes/capabilities.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/src/routes/versions.rs`, `crates/msc-api/src/dto/`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/client-capability-matrix.csv`, `differences.md`
 **What:** Port MSC 1’s Server Setup, Playit.gg, Xbox Broadcast, Tailscale, and You’re All Set pages into the existing MSC 2 first-launch flow. Use real agent probes for the servers root, Java 21+, Bedrock runtime, Xbox helper, and Tailscale; keep optional services skippable; persist the selected server types; and hand off explicitly to first-server creation through the existing Concept Guide.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run build && npm --prefix clients/desktop-web run api:generate -- --check && cargo check -p msc-api -p msc-agent && cargo nextest run -p msc-api --test dto_conformance`
-**Commit:** `P11.29i: port remaining first-time setup pages`
+**Commit:** `P11.28a: port remaining first-time setup pages`
 **Batch:** stop-after
 
-### P11.29a — Repair first-time setup controls and host probes
+### P11.28b — Repair first-time setup controls and host probes
 **Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/tests/tauri/platform-boundary.test.ts`
 **What:** Keep Bedrock selectable when the selected built-in runtime is in `provisioning_required`, open setup links through the operating system’s default browser in Tauri, verify the Xbox helper after download by re-reading the agent’s status and filename, and make Tailscale checks visibly report Checking, installed, not installed, or unavailable.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check -p msc-api -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
-**Commit:** `P11.29a: repair first-time setup controls`
+**Commit:** `P11.28b: repair first-time setup controls`
 **Batch:** stop-after
 
-### P11.29b — Add native setup pickers and Java verification
+### P11.28c — Add native setup pickers and Java verification
 **Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/screens/help.test.ts`, `clients/desktop-web/tests/tauri/platform-boundary.test.ts`, `crates/msc-agent/src/routes/versions.rs`
 **What:** Use the native Tauri dialog for the servers-root folder and Java executable Browse actions, retain a manual path fallback in browser mode, and include manually configured Java outside standard search roots in the agent’s real version probe so Check for Java and Use PATH report truthfully.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check -p msc-api -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
-**Commit:** `P11.29b: add native setup pickers and Java verification`
+**Commit:** `P11.28c: add native setup pickers and Java verification`
 **Batch:** stop-after
 
-### P11.29c — Make Xbox helper verification stateful in the test host
+### P11.28d — Make Xbox helper verification stateful in the test host
 **Status:** awaiting verification
 **Files:** `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `clients/desktop-web/playwright.config.ts`
-**What:** Keep the deterministic browser/Tauri test host’s Xbox helper status consistent with its download endpoint, return the helper filename, and exercise the setup flow through the verified-download message so a successful fake download cannot be reported as missing.
+**What:** Keep the deterministic browser/Tauri test host’s Xbox helper status consistent with its download endpoint, return the helper filename, and exercise the setup flow through the verified-download message so a successful fake download cannot be reported as missing. This remains test-only and must not become a production host.
 **Verify:** `npm --prefix clients/desktop-web run test:e2e-browser`
-**Commit:** `P11.29c: make Xbox helper verification stateful in the test host`
+**Commit:** `P11.28d: make Xbox helper verification stateful in the test host`
 **Batch:** stop-after
 
-### P11.29d — Wire Tailscale checks through every setup surface
+### P11.28e — Wire Tailscale checks through every setup surface
 **Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`, `clients/desktop-web/tests/screens/help.test.ts`
 **What:** Pass the agent API into the Handbook’s compact first-launch setup, which was previously rendered without it, and make the Tailscale Check button report an unavailable connection instead of silently returning when no API is present.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run build`
-**Commit:** `P11.29d: wire Tailscale checks through every setup surface`
+**Commit:** `P11.28e: wire Tailscale checks through every setup surface`
 **Batch:** stop-after
 
-### P11.29e — Reserve port 48001 for MSC2
+### P11.28f — Reserve port 48001 for MSC2
 **Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-domain/src/app_config_schema.rs`, `clients/desktop-web/src-tauri/src/lib.rs`, `packaging/agent-service-layout.json`, platform service tests, `docs/msc2/`, `tools/`, `corpus/server-dirs/README.md`
 **What:** Move MSC2’s default management/service port from 48400 to 48001 so it can run beside MSC1 without collisions. Keep MSC1 and historical audit/iOS references on 48400, while updating MSC2’s agent defaults, Tauri installer, service metadata, live-test examples, and assertions.
 **Verify:** `cargo fmt --all -- --check && cargo test -p msc-infrastructure --test service_model && cargo test -p msc-platform-macos --test service_plist && cargo test -p msc-platform-linux --test systemd_unit && cargo test -p msc-platform-windows --test service_definition && cargo check -p msc-agent -p msc-domain && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml && bash tools/phase11/agent-install-smoke.sh --synthetic`
-**Commit:** `P11.29e: reserve port 48001 for MSC2`
+**Commit:** `P11.28f: reserve port 48001 for MSC2`
 **Batch:** stop-after
+
+### P11.28g — Remove fake hosts from the shipped client
+**Status:** not started
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/navigation/`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/`, `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`
+**What:** Remove the hard-coded `demo-agent` and fake host switch from the production shell. Keep D-013’s host-keyed architecture for real configured hosts, but make the initial desktop host the actual local agent and keep fake HTTP/contract-host behavior exclusively in test entry points. The shipped app must never present a fake host as a selectable destination.
+**Verify:** `npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && ! rg -n "demo-agent" clients/desktop-web/src`
+**Commit:** `P11.28g: remove fake hosts from the shipped client`
+**Batch:** stop-after
+
+### P11.28h — Connect the Tauri client to the real local agent
+**Status:** not started
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/api/`, `clients/desktop-web/src/lib/auth/desktop.ts`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/auth/desktop/`, `clients/desktop-web/tests/tauri/`
+**What:** Wire `DesktopSessionAuth` and its native authorized-request bridge into the real `ApiClient` instead of falling back to cookie authentication in Tauri. Use `http://127.0.0.1:48001` as the local agent origin, obtain/store a host-scoped credential through the approved desktop pairing/bootstrap path, and keep browser sessions on the browser cookie adapter. Do not add a shell-token environment-variable shortcut to the shipped client.
+**Verify:** `npm --prefix clients/desktop-web run test:auth-desktop && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Commit:** `P11.28h: connect Tauri to the real local agent`
+**Batch:** stop-after
+
+### P11.28i — Start the installed local agent without terminal commands
+**Status:** not started
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/tests/agent-install/`, `clients/desktop-web/tests/tauri/`, `tools/phase11/`
+**What:** On desktop launch, inspect the local service through the existing native service adapter. Start an installed-but-stopped MSC2 agent automatically and wait for its health endpoint on `48001`; when the service is not installed, expose one explicit Install action that uses the existing packaged-agent/service path and elevation boundary. Closing the window must not stop the agent or Minecraft servers, and normal operation must not require a terminal.
+**Verify:** `bash tools/phase11/agent-install-smoke.sh --synthetic && npm --prefix clients/desktop-web run test:tauri-boundary && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Commit:** `P11.28i: start the local agent from the desktop shell`
+**Batch:** stop-after
+
+### P11.28j — Show an honest first-run and agent-unavailable state
+**Status:** not started
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src/lib/help/FirstLaunchGate.svelte`, `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/tests/screens/`, `clients/desktop-web/tests/agent-install/`
+**What:** Replace the generic connection failure path with a clear state model for missing, stopped, starting, ready, incompatible, and unavailable agents. Give the operator the next safe action—install, start, repair, or reconnect—without showing the first-time setup as complete before the real local agent is ready. Preserve browser users’ truthful no-native-service fallback.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build`
+**Commit:** `P11.28j: show real agent readiness states`
+**Batch:** stop-after
+
+### P11.28k — Walk the real client and agent through first-time setup
+**Status:** not started
+**Files:** `tools/phase11/real-client-agent-smoke.sh`, `clients/desktop-web/tests/e2e/`, `docs/msc2/clients/evidence/`, `differences.md`
+**What:** Add a real-agent smoke path that launches or connects to MSC2 on `48001`, opens the actual Tauri client, authenticates through the real desktop credential path, and exercises the first-time setup from the opening screen through the final first-server handoff. Cover the server-root picker, Java check, Bedrock disclosure, optional helper links/checks, helper download state, Back/Next/Skip behavior, and restart/reopen behavior. Record fake-harness-only coverage separately and update `differences.md` only from this real-client evidence.
+**Verify:** `bash tools/phase11/real-client-agent-smoke.sh --macos`
+**Commit:** `P11.28k: prove real client and agent setup`
+**Batch:** stop-after
+
+### P11.29 — Reconcile the capability matrix and run the exact Phase 11 gate
+**Status:** not started
+**Files:** `docs/msc2/client-capability-matrix.csv`, `tools/phase11/phase11-check.py`, `docs/msc2/clients/evidence/phase11-ci.md`, `docs/msc2/clients/phase11-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Run only after P11.28a–P11.28k. Check every contract and WebSocket operation against real Desktop/Web implementation evidence, leaving agent-Planned, Bedrock-screen, and player-profile rows explicitly Planned and no cell blank. Prove D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, capability/permission routing, D-026 served-content use, browser/Tauri auth, browser responsive behavior, native Linux WebKitGTK rendering, tri-platform packaging, headless independence, and the exact green CI candidate. Also require the onboarding preservation contract in `phase11-scope.md`: fresh-profile setup → Concept Guide → guided tour → Handbook behavior, step/anchor coverage, skip/reopen persistence, splash playback/fallback, reduced-motion behavior, and honest separation of agent-owned first-server initiation from client-owned presentation. This is Phase 11's only full-workspace run; the other agent decides in REVIEW whether the literal gate holds.
+**Verify:** `python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`
+**Commit:** `P11.29: check desktop and web gate`
+**Batch:** solo

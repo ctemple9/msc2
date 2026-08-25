@@ -452,7 +452,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.28h — Connect the Tauri client to the real local agent
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/api/`, `clients/desktop-web/src/lib/auth/desktop.ts`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/auth/desktop/`, `clients/desktop-web/tests/tauri/`
 **What:** Wire `DesktopSessionAuth` and its native authorized-request bridge into the real `ApiClient` instead of falling back to cookie authentication in Tauri. Use `http://127.0.0.1:48001` as the local agent origin, obtain/store a host-scoped credential through the approved desktop pairing/bootstrap path, and keep browser sessions on the browser cookie adapter. Do not add a shell-token environment-variable shortcut to the shipped client.
 **Verify:** `npm --prefix clients/desktop-web run test:auth-desktop && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`

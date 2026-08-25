@@ -9,6 +9,7 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import { buildSectionPath } from './lib/navigation/route';
+  import { createAgentTransport } from './lib/platform';
   import { restoreAccent } from './lib/styles/accent';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { ScreenApi } from './lib/sections/shared/types';
@@ -132,28 +133,30 @@
   const localAgentHostId = 'local-agent';
   let hostId = localAgentHostId;
 
-  function createClient(id: string): ApiClient {
-    return new ApiClient({
-      // Native-renderer smoke tests point the production bundle at the same
-      // deterministic contract harness as browser tests. Normal builds keep
-      // the agent-serving origin, so this does not add a second API path.
-      baseUrl:
-        import.meta.env.VITE_MSC_API_BASE_URL ??
-        (typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin),
-      hostId: id,
-    });
+  async function createClient(id: string): Promise<ApiClient> {
+    const transport = await createAgentTransport(id);
+    return new ApiClient({ ...transport, hostId: id });
   }
+
+  let client: ApiClient | undefined;
+  let clientReady = false;
+
+  function requireClient(): ApiClient {
+    if (!client) throw new Error('The selected host client is still initializing.');
+    return client;
+  }
+
   function createScreenApi(): ScreenApi {
     return {
-      get: <T,>(path: string) => client.requestJson<T>('GET', path),
-      post: <T,>(path: string, body?: unknown) => client.requestJson<T>('POST', path, { body }),
-      upload: (purpose, bytes) => client.stagedUpload({ purpose }, bytes),
-      download: (id) => client.downloadBytes(id),
+      get: <T,>(path: string) => requireClient().requestJson<T>('GET', path),
+      post: <T,>(path: string, body?: unknown) =>
+        requireClient().requestJson<T>('POST', path, { body }),
+      upload: (purpose, bytes) => requireClient().stagedUpload({ purpose }, bytes),
+      download: (id) => requireClient().downloadBytes(id),
     };
   }
 
-  let client = createClient(hostId);
-  let screenApi: ScreenApi = createScreenApi();
+  const screenApi: ScreenApi = createScreenApi();
 
   let activeSection = '';
   let activeComponent: any;
@@ -174,8 +177,9 @@
 
   async function restoreHostContext(): Promise<void> {
     try {
-      capabilities = await client.getCapabilities();
-      const me = await client.requestJson<{ permissions: string[] }>('GET', '/v1/me');
+      const selectedClient = requireClient();
+      capabilities = await selectedClient.getCapabilities();
+      const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
       permissions = me.permissions;
       shellMessage = 'Connected to Local agent';
       await selectFromLocation();
@@ -185,10 +189,21 @@
     }
   }
 
+  async function initializeClient(): Promise<void> {
+    try {
+      client = await createClient(hostId);
+      clientReady = true;
+      await restoreHostContext();
+    } catch (error) {
+      shellMessage = `Unable to prepare the local agent connection: ${String(error)}`;
+      await selectSection('agent-setup');
+    }
+  }
+
   onMount(() => {
     restoreAccent();
     const onPopState = () => void selectFromLocation();
-    void restoreHostContext();
+    void initializeClient();
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   });
@@ -267,7 +282,7 @@
 </ApplicationShell>
 
 <SplashGate />
-<FirstLaunchGate api={screenApi} />
+{#if clientReady}<FirstLaunchGate api={screenApi} />{/if}
 
 <style>
   .dashboard {

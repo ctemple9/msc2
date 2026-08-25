@@ -15,6 +15,14 @@ export function cookieCredentialAdapter(): TransportCredentialAdapter {
   };
 }
 
+/** Native Tauri requests authenticate inside the shell's authorized bridge. */
+export function desktopCredentialAdapter(): TransportCredentialAdapter {
+  return {
+    headersFor: async () => ({}),
+    requestCredentials: 'omit',
+  };
+}
+
 /** The shell supplies a token on demand; the transport never persists it. */
 export function bearerCredentialAdapter(
   tokenFor: (hostId: string) => string | Promise<string>,

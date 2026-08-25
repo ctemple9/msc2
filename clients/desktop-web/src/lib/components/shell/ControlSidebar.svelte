@@ -47,7 +47,6 @@
       <p class="overline">Server controls</p>
 
       <div class="picker" style="background: {bannerColorAccent(bannerColor, 0.12)};">
-        <span class="dot" class:ok={connected} class:error={!connected} aria-hidden="true"></span>
         <span class="sr-only">{connected ? 'Connected' : 'Disconnected'}</span>
         <span class="picker-label">{hostLabel} ▸ {activeServer?.name ?? 'No server'}</span>
         <ShellIcon name="selector" size={14} />
@@ -143,18 +142,6 @@
   }
   .picker:focus-within {
     border-color: var(--msc2-hairline-field-focus);
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-  .dot.ok {
-    background: var(--msc2-status-ok);
-  }
-  .dot.error {
-    background: var(--msc2-status-error);
   }
   .sr-only {
     position: absolute;

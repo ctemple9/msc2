@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
-> **Next move:** EXECUTE P12.0 (implement the locked design system), after Cameron reviews this plan.
+> **Next move:** EXECUTE P12.1 (build the app shell).
 > **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
 > **Last updated:** 2026-08-25
 
@@ -64,7 +64,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **9** | Networking and helpers | complete |
 | **10** | Bedrock runtimes | complete |
 | **11** | Desktop and web clients | agent layer done (P11.28g–j); UI verification (P11.28k, P11.29) folded into Phase 12 |
-| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.0 awaiting verification** |
+| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.0 done, next: EXECUTE P12.1** |
 | 13 | Terminal UI (deferred from v1) | not started |
 
 ---
@@ -544,7 +544,7 @@ as the reference specimens; their steps below turn those locked specimens into
 code. The rest apply the locked system to each screen, one at a time.
 
 ### P12.0 — Implement the locked design system (S0) as code
-**Status:** awaiting verification. Implemented in `src/lib/styles/tokens.css` (new `--msc2-*` tokens appended alongside the untouched Phase 11 `--msc-*` tokens, which unconverted screens still use) and `src/lib/components/base/` (Card, Button, SegmentedControl, Toggle, Field, NumberField, Select, Badge, ListRow, EmptyState, StatusDot, Sheet). A dev-only component gallery lives at `clients/desktop-web/gallery.html` (open via `npm run dev`, then visit `/gallery.html`) for the visual comparison this step's Verify calls for — it is not linked from the shipped app. `src/app.css`'s root font-family now points at the locked system-sans stack instead of Inter, since the type scale depends on it.
+**Status:** DONE. Implemented in `src/lib/styles/tokens.css` (new `--msc2-*` tokens appended alongside the untouched Phase 11 `--msc-*` tokens, which unconverted screens still use) and `src/lib/components/base/` (Card, Button, SegmentedControl, Toggle, Field, NumberField, Select, Badge, ListRow, EmptyState, StatusDot, Sheet). A dev-only component gallery lives at `clients/desktop-web/gallery.html` (open via `npm run dev`, then visit `/gallery.html`) for the visual comparison this step's Verify calls for — it is not linked from the shipped app. `src/app.css`'s root font-family now points at the locked system-sans stack instead of Inter, since the type scale depends on it.
 **Files:** `src/lib/styles/tokens.css`, `src/lib/styles/`, `src/lib/components/` (base components), reference `docs/msc2/renderings/`
 **What:** Turn the locked S0 specimens into real code: `tokens.css` (4 surface tiers, status ramp, spacing/radius scales, the 7-role type scale, opacity text steps) and the base Svelte components matching the specimens exactly — `Card`, the button set (Primary/Start/Stop/Secondary/Destructive/GhostIcon in md/sm), `SegmentedControl`, `Toggle` (green-on), `Field`/`NumberField`/`Select`, `Badge` (category/status), `ListRow`, `EmptyState`, `StatusDot`, and the `Sheet` frame with the three fixed widths (480/640/820). No screen wiring yet.
 **Verify:** `cd clients/desktop-web && npm run test:unit`, then `npm run dev` and visually compare each rendered base component to its `docs/msc2/renderings/*.html` reference; run the `antiAIslop.md` checklist against the component gallery.

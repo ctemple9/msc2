@@ -410,3 +410,11 @@ the package manager, with MSC limited to an actionable availability notice.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run build && npm --prefix clients/desktop-web run api:generate -- --check && cargo check -p msc-api -p msc-agent && cargo nextest run -p msc-api --test dto_conformance`
 **Commit:** `P11.29i: port remaining first-time setup pages`
 **Batch:** stop-after
+
+### P11.29a — Repair first-time setup controls and host probes
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/tests/tauri/platform-boundary.test.ts`
+**What:** Keep Bedrock selectable when the selected built-in runtime is in `provisioning_required`, open setup links through the operating system’s default browser in Tauri, verify the Xbox helper after download by re-reading the agent’s status and filename, and make Tailscale checks visibly report Checking, installed, not installed, or unavailable.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check -p msc-api -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Commit:** `P11.29a: repair first-time setup controls`
+**Batch:** stop-after

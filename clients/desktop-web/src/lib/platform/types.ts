@@ -47,6 +47,7 @@ export interface PlatformAdapter {
   notify(notification: DesktopNotification, browserFallback: () => Promise<void>): Promise<void>;
   showMenu(entries: readonly MenuEntry[], browserFallback: () => Promise<void>): Promise<void>;
   closeWindow(browserFallback: () => Promise<void>): Promise<void>;
+  openExternal(url: string): Promise<void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   credentialFor(hostId: string): Promise<string | null>;
   requestAgentAction(action: AgentAction, browserFallback: () => Promise<void>): Promise<void>;
@@ -59,6 +60,7 @@ export interface TauriPlatformDependencies {
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;
   closeWindow(): Promise<void>;
+  openExternal(url: string): Promise<void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   agentServiceStatus(): Promise<AgentServiceStatus>;
   manageAgentService(action: AgentServiceAction): Promise<AgentServiceStatus>;

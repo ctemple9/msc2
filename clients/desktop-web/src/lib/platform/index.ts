@@ -26,3 +26,7 @@ export function getPlatform(): Promise<PlatformAdapter> {
     : Promise.resolve(createBrowserPlatform());
   return platform;
 }
+
+export async function openExternal(url: string): Promise<void> {
+  await (await getPlatform()).openExternal(url);
+}

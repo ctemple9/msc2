@@ -23,6 +23,7 @@ function nativeDependencies(): TauriPlatformDependencies {
     notify: vi.fn(async () => undefined),
     showMenu: vi.fn(async () => undefined),
     closeWindow: vi.fn(async () => undefined),
+    openExternal: vi.fn(async () => undefined),
     onCloseRequested: vi.fn(async () => () => undefined),
     agentServiceStatus: vi.fn(async () => ({
       available: true,
@@ -77,6 +78,7 @@ describe('Tauri boundary', () => {
       workflowFallback,
     );
     await desktop.closeWindow(workflowFallback);
+    await desktop.openExternal('https://example.test');
 
     expect(dependencies.pickFile).toHaveBeenCalledWith({
       label: 'World archive',
@@ -85,6 +87,7 @@ describe('Tauri boundary', () => {
     expect(dependencies.notify).toHaveBeenCalledOnce();
     expect(dependencies.showMenu).toHaveBeenCalledOnce();
     expect(dependencies.closeWindow).toHaveBeenCalledOnce();
+    expect(dependencies.openExternal).toHaveBeenCalledWith('https://example.test');
     expect(fileFallback).not.toHaveBeenCalled();
     expect(workflowFallback).not.toHaveBeenCalled();
     expect(await desktop.credentialFor('remote-host')).toBeNull();

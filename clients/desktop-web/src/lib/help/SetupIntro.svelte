@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import ActionButton from '../components/ActionButton.svelte';
   import type { Capabilities } from '../navigation/types';
+  import { getPlatform, openExternal, type PlatformKind } from '../platform';
   import type { ScreenApi } from '../sections/shared/types';
   import {
     ACCENT_PRESETS,
@@ -38,7 +39,10 @@
   let javaRuntimes: Array<{ executablePath: string; majorVersion?: number }> = [];
   let xboxStatus: 'checking' | 'installed' | 'not-installed' | 'downloading' | 'unavailable' =
     'checking';
+  let xboxFilename = '';
   let tailscaleStatus: 'unknown' | 'installed' | 'not-installed' | 'unavailable' = 'unknown';
+  let tailscaleChecking = false;
+  let platformKind: PlatformKind | null = null;
   let rootMessage = '';
   let javaMessage = '';
   let xboxMessage = '';
@@ -47,7 +51,9 @@
   $: bedrockAdvertisement = capabilities?.serverTypes?.bedrock;
   $: bedrockReady =
     bedrockAdvertisement?.runtime?.state === 'available' ||
+    bedrockAdvertisement?.runtime?.state === 'provisioning_required' ||
     (bedrockAdvertisement?.runtime === undefined && bedrockAdvertisement?.supported === true);
+  $: bedrockProvisioning = bedrockAdvertisement?.runtime?.state === 'provisioning_required';
   $: bedrockReason =
     bedrockAdvertisement?.runtime?.message ??
     (capabilities === null
@@ -59,6 +65,7 @@
     selected = storedAccent();
     if (selected.startsWith('#')) customColor = selected;
     applyAccent(selected);
+    void getPlatform().then((platform) => (platformKind = platform.kind));
     if (typeof localStorage !== 'undefined') {
       try {
         const stored = JSON.parse(localStorage.getItem('msc.server-types') ?? '{}') as {
@@ -152,6 +159,7 @@
         : result.installed
           ? 'installed'
           : 'not-installed';
+      xboxFilename = result.filename ?? '';
     } catch {
       xboxStatus = 'unavailable';
     }
@@ -160,6 +168,12 @@
   function updateTailscaleFromCapabilities(): void {
     const state = capabilities?.helpers?.tailscale;
     tailscaleStatus = state === true ? 'installed' : state === false ? 'not-installed' : 'unknown';
+  }
+
+  function openExternalLink(event: MouseEvent, url: string): void {
+    if (platformKind !== 'tauri') return;
+    event.preventDefault();
+    void openExternal(url);
   }
 
   function chooseAccent(choice: AccentChoice): void {
@@ -215,8 +229,15 @@
     xboxStatus = 'downloading';
     xboxMessage = '';
     try {
-      await api.post('/v1/broadcast/download-jar');
-      xboxStatus = 'installed';
+      const result = await api.post<{ filename?: string }>('/v1/broadcast/download-jar');
+      xboxFilename = result.filename ?? '';
+      await probeXbox();
+      xboxMessage =
+        xboxStatus === 'installed'
+          ? xboxFilename
+            ? `Verified downloaded: ${xboxFilename}`
+            : 'Verified downloaded and present in the agent helper cache.'
+          : 'The download completed, but the agent could not verify the helper file.';
     } catch {
       xboxStatus = 'unavailable';
       xboxMessage = 'The helper can be downloaded after the agent is ready for broadcast access.';
@@ -224,9 +245,12 @@
   }
 
   async function checkTailscale(): Promise<void> {
+    if (!api || tailscaleChecking) return;
+    tailscaleChecking = true;
+    tailscaleStatus = 'unknown';
     tailscaleMessage = '';
     try {
-      capabilities = await api!.get<Capabilities>('/v1/capabilities');
+      capabilities = await api.get<Capabilities>('/v1/capabilities');
       updateTailscaleFromCapabilities();
       if (tailscaleStatus === 'unknown') {
         tailscaleStatus = 'unavailable';
@@ -235,6 +259,8 @@
     } catch {
       tailscaleStatus = 'unavailable';
       tailscaleMessage = 'The selected agent could not check Tailscale.';
+    } finally {
+      tailscaleChecking = false;
     }
   }
 
@@ -424,7 +450,9 @@
               ><span class="type-icon">◆</span><span
                 ><strong>Bedrock Servers</strong><small
                   >{bedrockReady
-                    ? 'Mobile, console &amp; Windows'
+                    ? bedrockProvisioning
+                      ? 'Built in · prepared on first use'
+                      : 'Mobile, console &amp; Windows'
                     : 'Unavailable on this host'}</small
                 ></span
               ><span class="type-check">{wantsBedrock ? '✓' : '○'}</span></button
@@ -544,7 +572,9 @@
               </div>
             </div>
             <p class="inline-message success">
-              ✓ Ready. The selected agent reports a usable Bedrock runtime.
+              ✓ {bedrockProvisioning
+                ? 'Ready. The built-in runtime will be prepared when you create your first Bedrock server.'
+                : 'Ready. The selected agent reports a usable Bedrock runtime.'}
             </p>
           </section>{/if}
       {:else if setupPage === 3}
@@ -580,7 +610,11 @@
               </p>
             </div>
           </div>
-          <a href="https://playit.gg/login" target="_blank" rel="noreferrer"
+          <a
+            href="https://playit.gg/login"
+            target="_blank"
+            rel="noreferrer"
+            onclick={(event) => openExternalLink(event, 'https://playit.gg/login')}
             >Sign up at playit.gg →</a
           >
           <p class="inline-message warning">
@@ -630,7 +664,12 @@
             Creating a new Outlook account gives you a fresh Xbox Live identity — free and takes
             under a minute.
           </p>
-          <a class="orange-link" href="https://signup.live.com" target="_blank" rel="noreferrer"
+          <a
+            class="orange-link"
+            href="https://signup.live.com"
+            target="_blank"
+            rel="noreferrer"
+            onclick={(event) => openExternalLink(event, 'https://signup.live.com')}
             >Create a new Microsoft / Outlook account →</a
           >
         </section>
@@ -658,6 +697,7 @@
               >Download Now</button
             >
           </div>
+          {#if xboxFilename}<p class="probe-status success">Verified file: {xboxFilename}</p>{/if}
           {#if xboxMessage}<p class="inline-message warning">{xboxMessage}</p>{/if}
         </section>
         <p class="inline-message info">
@@ -698,20 +738,29 @@
           </div>
           <div class="helper-row">
             <span class:success={tailscaleStatus === 'installed'}
-              >{tailscaleStatus === 'installed'
-                ? '✓ Installed'
-                : tailscaleStatus === 'not-installed'
-                  ? 'Not installed'
-                  : tailscaleStatus === 'unavailable'
-                    ? 'Check unavailable'
-                    : 'Not checked yet'}</span
-            ><button type="button" onclick={() => void checkTailscale()}>Check</button>
+              >{tailscaleChecking
+                ? 'Checking…'
+                : tailscaleStatus === 'installed'
+                  ? '✓ Installed'
+                  : tailscaleStatus === 'not-installed'
+                    ? 'Not installed'
+                    : tailscaleStatus === 'unavailable'
+                      ? 'Check unavailable'
+                      : 'Not checked yet'}</span
+            ><button
+              type="button"
+              disabled={tailscaleChecking}
+              onclick={() => void checkTailscale()}
+              >{tailscaleChecking ? 'Checking…' : 'Check'}</button
+            >
           </div>
           {#if tailscaleStatus === 'not-installed'}<p class="inline-message info">
               Tailscale isn’t installed. <a
                 href="https://tailscale.com/download"
                 target="_blank"
-                rel="noreferrer">Download it free from tailscale.com →</a
+                rel="noreferrer"
+                onclick={(event) => openExternalLink(event, 'https://tailscale.com/download')}
+                >Download it free from tailscale.com →</a
               >
             </p>{:else if tailscaleStatus === 'installed'}<p class="inline-message success">
               Tailscale is installed. Enable it and join your tailnet to access servers remotely.

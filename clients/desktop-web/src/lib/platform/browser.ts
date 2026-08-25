@@ -32,6 +32,14 @@ export function createBrowserPlatform(): PlatformAdapter {
     closeWindow: async (browserFallback: () => Promise<void>) => {
       await browserFallback();
     },
+    openExternal: async (url: string) => {
+      if (typeof document === 'undefined') throw new Error('External links need a browser window.');
+      const link = document.createElement('a');
+      link.href = url;
+      link.target = '_blank';
+      link.rel = 'noreferrer noopener';
+      link.click();
+    },
     onCloseRequested: async (handler: () => void) => {
       if (typeof window === 'undefined') return () => undefined;
       const listener = () => handler();

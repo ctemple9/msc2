@@ -403,6 +403,38 @@ fn desktop_secret_store() -> Result<Box<dyn SecretStore>, String> {
     Err("No desktop credential store is available for this platform.".to_string())
 }
 
+/// Opens a user-approved HTTPS link in the host operating system's default
+/// browser. Tauri's webview does not reliably hand external anchors to the OS,
+/// so this command keeps setup links working on every desktop platform.
+#[tauri::command]
+fn open_external_url(url: String) -> Result<(), String> {
+    let parsed = Url::parse(&url).map_err(|_| "External link is not a valid URL.".to_string())?;
+    if parsed.scheme() != "https" || parsed.host_str().is_none() {
+        return Err("Only HTTPS links with a host may be opened.".to_string());
+    }
+
+    #[cfg(target_os = "macos")]
+    let status = std::process::Command::new("open").arg(&url).status();
+    #[cfg(target_os = "windows")]
+    let status = std::process::Command::new("cmd")
+        .args(["/C", "start", "", &url])
+        .status();
+    #[cfg(target_os = "linux")]
+    let status = std::process::Command::new("xdg-open").arg(&url).status();
+
+    status
+        .map_err(|error| format!("Could not open the default browser: {error}"))
+        .and_then(|status| {
+            if status.success() {
+                Ok(())
+            } else {
+                Err(format!(
+                    "The default browser rejected the link (status {status})."
+                ))
+            }
+        })
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -412,6 +444,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             desktop_exchange_pairing,
             desktop_authorized_request,
+            open_external_url,
             agent_service_status,
             manage_agent_service,
             stage_coordinated_update

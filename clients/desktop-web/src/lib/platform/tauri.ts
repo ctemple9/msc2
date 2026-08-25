@@ -41,6 +41,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
         await browserFallback();
       }
     },
+    openExternal: (url: string) => dependencies.openExternal(url),
     onCloseRequested: dependencies.onCloseRequested,
     // P11.23 supplies per-host pairing and secret-store behavior. This seam
     // deliberately cannot fabricate a local token before that contract exists.
@@ -96,6 +97,7 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
       await menu.popup();
     },
     closeWindow: () => getCurrentWindow().close(),
+    openExternal: (url: string) => invoke('open_external_url', { url }),
     onCloseRequested: (handler: () => void) => getCurrentWindow().onCloseRequested(handler),
     agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),
     manageAgentService: (action: AgentServiceAction) =>

@@ -106,7 +106,7 @@
       data-onboarding-stage={stage}
     >
       {#if stage === 'setup'}
-        <SetupIntro onComplete={() => writeState({ ...state, setupComplete: true })} />
+        <SetupIntro {api} onComplete={() => writeState({ ...state, setupComplete: true })} />
       {:else if stage === 'concept-guide'}
         {@const page = concept.pages[conceptPage]}
         <p class="eyebrow">{page.eyebrow}</p>

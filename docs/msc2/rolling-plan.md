@@ -402,3 +402,11 @@ the package manager, with MSC limited to an actionable availability notice.
 **Verify:** `python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`
 **Commit:** `P11.29: check desktop and web gate`
 **Batch:** solo
+
+### P11.29i — Port the remaining MSC 1 first-time setup pages
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/help/FirstLaunchGate.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `clients/desktop-web/tests/e2e/browser/`, `clients/desktop-web/tests/e2e/tauri-linux/`, `crates/msc-agent/src/routes/capabilities.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/src/routes/versions.rs`, `crates/msc-api/src/dto/`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/client-capability-matrix.csv`, `differences.md`
+**What:** Port MSC 1’s Server Setup, Playit.gg, Xbox Broadcast, Tailscale, and You’re All Set pages into the existing MSC 2 first-launch flow. Use real agent probes for the servers root, Java 21+, Bedrock runtime, Xbox helper, and Tailscale; keep optional services skippable; persist the selected server types; and hand off explicitly to first-server creation through the existing Concept Guide.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run build && npm --prefix clients/desktop-web run api:generate -- --check && cargo check -p msc-api -p msc-agent && cargo nextest run -p msc-api --test dto_conformance`
+**Commit:** `P11.29i: port remaining first-time setup pages`
+**Batch:** stop-after

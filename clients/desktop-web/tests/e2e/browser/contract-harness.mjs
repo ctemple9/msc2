@@ -147,7 +147,11 @@ createServer(async (request, response) => {
     response.writeHead(204);
     return response.end();
   }
-  if (url.pathname === '/v1/capabilities') return json(response, {});
+  if (url.pathname === '/v1/capabilities')
+    return json(response, {
+      helpers: { tailscale: false },
+      serverTypes: { bedrock: { supported: false, backend: null } },
+    });
   if (url.pathname === '/v1/me')
     return json(response, {
       permissions: ['admin', 'fleet', 'worlds', 'addons', 'settings', 'networking'],
@@ -175,6 +179,17 @@ createServer(async (request, response) => {
   if (url.pathname === '/v1/guides/onboarding') return json(response, onboarding);
   if (url.pathname === '/v1/guides/router-catalog')
     return json(response, { guides: [], troubleshooting: [] });
+  if (url.pathname === '/v1/config/servers-root')
+    return json(response, { path: '/Users/camerontemple/MinecraftServers' });
+  if (url.pathname === '/v1/config/java-runtime') return json(response, { executablePath: '' });
+  if (url.pathname === '/v1/java-runtimes')
+    return json(response, {
+      runtimes: [{ name: 'Java 21', executablePath: 'java', majorVersion: 21 }],
+    });
+  if (url.pathname === '/v1/broadcast/jar-status')
+    return json(response, { installed: false, downloading: false });
+  if (url.pathname === '/v1/broadcast/download-jar' && request.method === 'POST')
+    return json(response, { success: true, message: 'downloaded' });
   if (url.pathname === '/v1/status') {
     const client = request.headers['user-agent'] ?? 'unknown';
     const count = (statusRequests.get(client) ?? 0) + 1;

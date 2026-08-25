@@ -11,7 +11,8 @@ const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(sourceDirectory, '../../../../..');
 const contractPath = resolve(repositoryRoot, 'docs/msc2/api-contract/openapi.json');
 const outputPath = resolve(sourceDirectory, 'generated.ts');
-const generatedHeader = '// Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.';
+const generatedHeader =
+  '// Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.';
 
 async function generatedSource(): Promise<string> {
   const contractText = await readFile(contractPath, 'utf8');
@@ -20,7 +21,10 @@ async function generatedSource(): Promise<string> {
     additionalProperties: true,
     alphabetize: true,
   });
-  const types = await prettier.format(astToString(ast), { parser: 'typescript' });
+  const types = await prettier.format(astToString(ast), {
+    parser: 'typescript',
+    singleQuote: false,
+  });
   const contractHash = createHash('sha256').update(contractText).digest('hex');
 
   return `${generatedHeader}\n// Contract SHA-256: ${contractHash}\n\n${types.trim()}\n`;

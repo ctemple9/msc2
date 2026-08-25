@@ -262,6 +262,10 @@ pub(crate) fn build_app() -> Router {
             get(routes::versions::get_java_config).post(routes::versions::set_java_config),
         )
         .route(
+            "/config/servers-root",
+            get(routes::versions::get_servers_root).post(routes::versions::set_servers_root),
+        )
+        .route(
             "/config/ram",
             get(routes::versions::get_ram_config).post(routes::versions::set_ram_config),
         )

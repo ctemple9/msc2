@@ -124,6 +124,10 @@ pub struct HelpersDto {
     pub playit: bool,
     pub duckdns: bool,
     pub geyser: bool,
+    /// Optional so a client can stay compatible with agents built before the
+    /// first-launch Tailscale probe existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tailscale: Option<bool>,
 }
 
 /// `GET /v1/me`'s response shape (`openapi.json`'s `MeResponseDTO`): the

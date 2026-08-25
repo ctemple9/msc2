@@ -29,6 +29,16 @@ test('walks a fresh profile through setup, Concept Guide, tour pauses, handoff, 
   await gate.getByRole('button', { name: 'Next' }).click();
   await expect(gate.getByRole('heading', { name: 'Server Type' })).toBeVisible();
   await gate.getByRole('button', { name: 'Next' }).click();
+  await expect(gate.getByRole('heading', { name: 'Server Setup' })).toBeVisible();
+  await gate.getByRole('button', { name: 'Next' }).click();
+  await expect(gate.getByRole('heading', { name: 'playit.gg' })).toBeVisible();
+  await gate.getByRole('button', { name: 'Skip' }).click();
+  await expect(gate.getByRole('heading', { name: 'Xbox Broadcast' })).toBeVisible();
+  await gate.getByRole('button', { name: 'Skip' }).click();
+  await expect(gate.getByRole('heading', { name: 'Tailscale' })).toBeVisible();
+  await gate.getByRole('button', { name: 'Skip' }).click();
+  await expect(gate.getByRole('heading', { name: 'You’re All Set' })).toBeVisible();
+  await gate.getByRole('button', { name: 'Get Started' }).click();
   await expect(gate.getByRole('heading', { name: 'One server. Your worlds.' })).toBeVisible();
   await gate.getByRole('button', { name: 'Continue to tour' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();

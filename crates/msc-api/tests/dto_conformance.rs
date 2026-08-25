@@ -268,6 +268,7 @@ fn dto_conformance_capabilities_dto_matches_schema() {
             playit: false,
             duckdns: false,
             geyser: false,
+            tailscale: None,
         },
     };
     let instance = serde_json::to_value(&example).unwrap();
@@ -302,6 +303,7 @@ fn dto_conformance_capabilities_dto_with_bedrock_backend_matches_schema() {
             playit: true,
             duckdns: false,
             geyser: true,
+            tailscale: Some(true),
         },
     };
     let instance = serde_json::to_value(&example).unwrap();

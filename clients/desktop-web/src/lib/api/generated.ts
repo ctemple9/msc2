@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 4135e7f8d43b5e4bcd2d7e732c3fd33558c60a9865c59ae467ed977eed22727f
+// Contract SHA-256: a10f61971790b85ae469b278ee1c1424c97fa0dc24395f4585fce1530ef0375e
 
 export interface paths {
   "/v1/active-server": {
@@ -1545,6 +1545,84 @@ export interface paths {
           };
         };
         /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorDTO"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/config/servers-root": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get the folder where this agent stores servers */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Current servers root */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ServersRootResponseDTO"];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Set the folder where this agent stores servers */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ServersRootSetRequestDTO"];
+        };
+      };
+      responses: {
+        /** @description Servers root updated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ServersRootResponseDTO"];
+          };
+        };
+        /** @description invalid_servers_root */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ErrorDTO"];
+          };
+        };
+        /** @description set_failed */
         500: {
           headers: {
             [name: string]: unknown;
@@ -5177,6 +5255,8 @@ export interface components {
         duckdns: boolean;
         geyser: boolean;
         playit: boolean;
+        /** @description Optional installed-state probe for the Tailscale helper. Absent on older agents. */
+        tailscale?: boolean;
       } & {
         [key: string]: unknown;
       };
@@ -6207,6 +6287,16 @@ export interface components {
       name?: string;
       serverId?: string;
       success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    ServersRootResponseDTO: {
+      path: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ServersRootSetRequestDTO: {
+      path: string;
     } & {
       [key: string]: unknown;
     };

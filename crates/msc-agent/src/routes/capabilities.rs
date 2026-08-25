@@ -55,7 +55,25 @@ pub async fn capabilities(
                 )
                 .geyser_installed
             }),
+            tailscale: Some(tailscale_is_installed()),
         },
+    })
+}
+
+fn tailscale_is_installed() -> bool {
+    let candidates = [
+        "tailscale",
+        "/usr/local/bin/tailscale",
+        "/opt/homebrew/bin/tailscale",
+        "/Applications/Tailscale.app/Contents/MacOS/Tailscale",
+        r"C:\Program Files\Tailscale\tailscale.exe",
+        r"C:\Program Files (x86)\Tailscale\tailscale.exe",
+    ];
+    candidates.iter().any(|candidate| {
+        std::process::Command::new(candidate)
+            .arg("version")
+            .output()
+            .is_ok_and(|output| output.status.success())
     })
 }
 

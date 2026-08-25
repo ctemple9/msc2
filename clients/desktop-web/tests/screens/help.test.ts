@@ -54,6 +54,15 @@ describe('shared help and onboarding screens', () => {
     expect(setupText).toContain('Paper');
     expect(setupText).toContain('NeoForge');
     expect(setupText).toContain('Geyser crossplay');
+    expect(setupText).toContain('Servers Root Folder');
+    expect(setupText).toContain('Java Executable');
+    expect(setupText).toContain('playit.gg');
+    expect(setupText).toContain('Xbox Broadcast');
+    expect(setupText).toContain('Tailscale');
+    expect(setupText).toContain('You’re All Set');
+    expect(setupText).toContain('Get Started');
+    expect(setupText).toContain('/v1/config/servers-root');
+    expect(setupText).toContain('/v1/java-runtimes');
     expect(setupText).toContain('setup-page-in');
     expect(setupText).toContain('Pick an Accent Color');
     expect(setupText).toContain('This setup takes about 2 minutes.');

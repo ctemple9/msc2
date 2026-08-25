@@ -16,13 +16,13 @@ async function waitForText(selector: string, expected: string): Promise<void> {
 
 describe('Linux WebKitGTK native Tauri renderer', () => {
   it('renders and drives the production desktop bundle through the native driver', async () => {
-    await browser.waitUntil(async () => (await $('nav[aria-label="Sections"]').isDisplayed()), {
+    await browser.waitUntil(async () => await $('nav[aria-label="Sections"]').isDisplayed(), {
       timeout: 15_000,
       timeoutMsg: 'The native Tauri window did not render the shared navigation shell.',
     });
     await browser.execute(() => localStorage.clear());
     await browser.refresh();
-    await browser.waitUntil(async () => (await $('nav[aria-label="Sections"]').isDisplayed()), {
+    await browser.waitUntil(async () => await $('nav[aria-label="Sections"]').isDisplayed(), {
       timeout: 15_000,
       timeoutMsg: 'The native Tauri window did not render after clearing its profile.',
     });
@@ -57,6 +57,18 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
     await waitForText('.gate', 'Server Type');
     await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
+    await waitForText('.gate', 'Server Setup');
+    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Next"]')).click();
+    await waitForText('.gate', 'playit.gg');
+    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Skip"]')).click();
+    await waitForText('.gate', 'Xbox Broadcast');
+    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Skip"]')).click();
+    await waitForText('.gate', 'Tailscale');
+    await (await $('//*[contains(@class, "gate")]//button[normalize-space() = "Skip"]')).click();
+    await waitForText('.gate', 'You’re All Set');
+    await (
+      await $('//*[contains(@class, "gate")]//button[normalize-space() = "Get Started"]')
+    ).click();
     await waitForText('.gate', 'One server. Your worlds.');
     await browser.execute(() => {
       localStorage.setItem('msc.setup-complete', 'true');
@@ -75,7 +87,9 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     await waitForText('main', 'Servers');
     await (await $('[aria-label="Delete server"]')).click();
     await waitForText('[role="alertdialog"]', 'HOST: LOCAL-AGENT · SERVER: SURVIVAL');
-    await (await $('//dialog[@role="alertdialog"]//button[normalize-space() = "Delete server"]')).click();
+    await (
+      await $('//dialog[@role="alertdialog"]//button[normalize-space() = "Delete server"]')
+    ).click();
     await waitForText('main', 'Server record removed.');
 
     await (await $('//nav[@aria-label="Sections"]//button[contains(., "Console")]')).click();
@@ -91,7 +105,11 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     );
     if (motionMode === 'reduced') {
       assert.equal(reducedMotion, true, 'the native WebKitGTK renderer reports reduced motion');
-      assert.equal(await $('.splash').isExisting(), false, 'reduced motion omits the splash animation');
+      assert.equal(
+        await $('.splash').isExisting(),
+        false,
+        'reduced motion omits the splash animation',
+      );
     } else {
       assert.equal(reducedMotion, false, 'the fallback run keeps native motion enabled');
     }

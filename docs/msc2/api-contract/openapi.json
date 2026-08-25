@@ -1416,6 +1416,72 @@
         "x-permission-category": "settings"
       }
     },
+    "/v1/config/servers-root": {
+      "get": {
+        "summary": "Get the folder where this agent stores servers",
+        "responses": {
+          "200": {
+            "description": "Current servers root",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServersRootResponseDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "none"
+      },
+      "post": {
+        "summary": "Set the folder where this agent stores servers",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServersRootSetRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Servers root updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServersRootResponseDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_servers_root",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "500": {
+            "description": "set_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "settings"
+      }
+    },
     "/v1/config/ram": {
       "get": {
         "summary": "Get the active server's RAM allocation",
@@ -6002,6 +6068,28 @@
         },
         "required": []
       },
+      "ServersRootResponseDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
+      "ServersRootSetRequestDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path"
+        ]
+      },
       "RAMConfigResponseDTO": {
         "type": "object",
         "properties": {
@@ -9117,6 +9205,10 @@
               },
               "geyser": {
                 "type": "boolean"
+              },
+              "tailscale": {
+                "type": "boolean",
+                "description": "Optional installed-state probe for the Tailscale helper. Absent on older agents."
               }
             },
             "required": [

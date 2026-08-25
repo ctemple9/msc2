@@ -513,13 +513,9 @@ pub async fn download_broadcast_jar(
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Broadcast) {
         return response;
     }
-    let server = match state.active_server() {
-        Ok(server) => server,
-        Err(response) => return response,
-    };
     let operation = match state.operations.begin_lifecycle(
         "broadcast-jar-download",
-        Some(server.id.clone()),
+        None,
         "Downloading Xbox Broadcast JAR.",
     ) {
         Ok(id) => id,

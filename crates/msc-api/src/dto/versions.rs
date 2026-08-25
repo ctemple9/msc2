@@ -92,6 +92,18 @@ pub struct JavaConfigSetRequestDto {
     pub executable_path: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServersRootResponseDto {
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServersRootSetRequestDto {
+    pub path: String,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JavaRuntimeInstallRequestDto {

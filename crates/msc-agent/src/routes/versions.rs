@@ -17,7 +17,8 @@ use msc_api::dto::{
     JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeDto, JavaRuntimeInstallRequestDto,
     JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, PermissionCategoryDto,
     RamConfigResponseDto, RamConfigUpdateRequestDto, RamConfigUpdateResultDto,
-    VersionChangeRequestDto, VersionChangeResultDto, VersionEntryDto, VersionsResponseDto,
+    ServersRootResponseDto, ServersRootSetRequestDto, VersionChangeRequestDto,
+    VersionChangeResultDto, VersionEntryDto, VersionsResponseDto,
 };
 use msc_application::server_versions::{
     self, ChangeVersionError, ChangeVersionRequest, VersionListEntry,
@@ -642,6 +643,71 @@ pub async fn set_java_config(
             .into_response()
         }
         Err(TryMutateError::Domain(())) => unreachable!("set_java_config's update never fails"),
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "set_failed",
+            &error.to_string(),
+        ),
+    }
+}
+
+// ---------- GET/POST /v1/config/servers-root ----------
+
+pub async fn get_servers_root(State(state): State<LifecycleRoutesState>) -> Response {
+    axum::Json(ServersRootResponseDto {
+        path: state.servers_root().to_string_lossy().into_owned(),
+    })
+    .into_response()
+}
+
+pub async fn set_servers_root(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<axum::Json<ServersRootSetRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Settings) {
+        return response;
+    }
+    let axum::Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let path = body.path.trim();
+    if path.is_empty() || !Path::new(path).is_absolute() {
+        return invalid_body(
+            "invalid_servers_root",
+            "The servers root must be a non-empty absolute folder path.",
+        );
+    }
+    let path = PathBuf::from(path);
+    if let Err(error) = std::fs::create_dir_all(&path) {
+        return error_response(
+            StatusCode::BAD_REQUEST,
+            "invalid_servers_root",
+            &format!("Could not create the servers root: {error}"),
+        );
+    }
+    if !path.is_dir() {
+        return invalid_body(
+            "invalid_servers_root",
+            "The servers root must point to a folder.",
+        );
+    }
+    let path_string = path.to_string_lossy().into_owned();
+    let result = state.try_mutate_config(|config| {
+        config.servers_root = path_string.clone();
+        config.paper_template_dir = path.join("_paper_templates").to_string_lossy().into_owned();
+        config.plugin_template_dir = path
+            .join("_plugin_templates")
+            .to_string_lossy()
+            .into_owned();
+        Ok::<(), ()>(())
+    });
+    match result {
+        Ok(()) => axum::Json(ServersRootResponseDto { path: path_string }).into_response(),
+        Err(TryMutateError::Domain(())) => {
+            unreachable!("servers-root update cannot fail domain validation")
+        }
         Err(TryMutateError::Save(error)) => error_response(
             StatusCode::INTERNAL_SERVER_ERROR,
             "set_failed",

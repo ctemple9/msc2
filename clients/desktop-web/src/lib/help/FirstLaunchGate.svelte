@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import type { ScreenApi } from '../sections/shared/types';
   import ActionButton from '../components/ActionButton.svelte';
   import SetupIntro from './SetupIntro.svelte';
@@ -21,6 +21,15 @@
   };
 
   $: stage = firstLaunchStage(state);
+  $: onboardingOpen = ready && onboarding !== null && concept !== null && stage !== 'complete';
+
+  function setPageScrollLocked(locked: boolean): void {
+    if (typeof document === 'undefined' || !document.body) return;
+    document.documentElement.classList.toggle('msc-onboarding-open', locked);
+    document.body.classList.toggle('msc-onboarding-open', locked);
+  }
+
+  $: setPageScrollLocked(onboardingOpen);
 
   function readState(): FirstLaunchState {
     if (!onboarding) return state;
@@ -84,6 +93,8 @@
     window.addEventListener('msc:restart-tour', onRestart);
     return () => window.removeEventListener('msc:restart-tour', onRestart);
   });
+
+  onDestroy(() => setPageScrollLocked(false));
 </script>
 
 {#if ready && onboarding && concept && stage !== 'complete'}
@@ -170,6 +181,10 @@
   .gate::-webkit-scrollbar {
     display: none;
     width: 0;
+  }
+  :global(html.msc-onboarding-open),
+  :global(body.msc-onboarding-open) {
+    overflow: hidden;
   }
   .gate h2 {
     margin: 0;

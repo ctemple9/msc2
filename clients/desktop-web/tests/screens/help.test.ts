@@ -60,6 +60,7 @@ describe('shared help and onboarding screens', () => {
     expect(setupText).toContain('aria-pressed');
     expect(gateSource).toContain('max-height: calc(100vh - 2rem)');
     expect(gateSource).toContain('scrollbar-width: none');
+    expect(gateSource).toContain('msc-onboarding-open');
     expect(helpSource).toContain('resetSetupPreferences');
     expect(helpSource).toContain("'/v1/guides/onboarding'");
     expect(helpSource).toContain('That topic is not available on this agent');

@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSC 2 — locked shared primitives</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>body{margin:0;background:#050506;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}</style>
+</head>
+<body>
+<!-- LOCKED S0 REFERENCE — the shared primitive kit every tab reuses. Governed by docs/msc2/antiAIslop.md.
+     Segmented control: neutral selected fill #2A2A30 on chrome track (NOT accent-tinted).
+     Toggle: on = brand green #4DC778, off = neutral #3A3A40 (green = enabled, Mac-native, matches Start).
+     Field/number/select: dark inset #141417, 1px hairline, radius 8, focus = brighter NEUTRAL ring (no glow).
+     Badges: category = neutral #2A2A30 (labels like Java/Paper); status = colored tint (Active/Up to date green, Missing red).
+     List rows: one surface, hairline dividers inset past the icon — NOT a card per row.
+     Empty state: centered muted icon, title, one line, optional action. No decoration. -->
+<div style="background:#0D0D0F;border-radius:14px;padding:24px;max-width:620px;color:rgba(255,255,255,0.95);">
+
+  <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">Segmented control</div>
+  <div style="display:inline-flex;background:#141417;border:1px solid rgba(255,255,255,0.06);border-radius:9px;padding:3px;gap:2px;margin-bottom:24px;">
+    <span style="font-size:12px;color:rgba(255,255,255,0.55);padding:5px 14px;border-radius:6px;">Peaceful</span>
+    <span style="font-size:12px;color:rgba(255,255,255,0.55);padding:5px 14px;border-radius:6px;">Easy</span>
+    <span style="font-size:12px;color:rgba(255,255,255,0.95);font-weight:500;padding:5px 14px;border-radius:6px;background:#2A2A30;">Normal</span>
+    <span style="font-size:12px;color:rgba(255,255,255,0.55);padding:5px 14px;border-radius:6px;">Hard</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px 32px;margin-bottom:24px;">
+    <div>
+      <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">Toggles</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><span style="font-size:13px;">PvP</span><span style="width:38px;height:22px;border-radius:11px;background:#4DC778;position:relative;display:inline-block;"><span style="position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:#fff;"></span></span></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:13px;">Hardcore</span><span style="width:38px;height:22px;border-radius:11px;background:#3A3A40;position:relative;display:inline-block;"><span style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#d0d0d0;"></span></span></div>
+    </div>
+    <div>
+      <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">Field · number · select</div>
+      <input value="Test" style="width:100%;box-sizing:border-box;font-size:13px;color:#fff;background:#141417;border:1px solid rgba(255,255,255,0.10);border-radius:8px;padding:7px 10px;margin-bottom:8px;outline:none;">
+      <div style="display:flex;gap:8px;">
+        <input value="20" style="width:70px;font-size:13px;color:#fff;background:#141417;border:1px solid rgba(255,255,255,0.10);border-radius:8px;padding:7px 10px;outline:none;">
+        <div style="flex:1;display:flex;align-items:center;justify-content:space-between;font-size:13px;color:#fff;background:#141417;border:1px solid rgba(255,255,255,0.25);border-radius:8px;padding:7px 10px;">Normal <i class="ti ti-chevron-down" style="font-size:15px;color:rgba(255,255,255,0.5);" aria-hidden="true"></i></div>
+      </div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:6px;">right = focused (neutral ring, no glow)</div>
+    </div>
+  </div>
+
+  <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">Badges — category (neutral) vs status (colored)</div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:24px;">
+    <span style="font-size:11px;font-weight:500;color:rgba(255,255,255,0.8);background:#2A2A30;padding:3px 9px;border-radius:6px;">Java</span>
+    <span style="font-size:11px;font-weight:500;color:rgba(255,255,255,0.8);background:#2A2A30;padding:3px 9px;border-radius:6px;">Paper</span>
+    <span style="font-size:11px;color:rgba(255,255,255,0.3);">·</span>
+    <span style="font-size:11px;font-weight:500;color:#4DC778;background:rgba(77,199,120,0.14);padding:3px 9px;border-radius:6px;">Active</span>
+    <span style="font-size:11px;font-weight:500;color:#4DC778;background:rgba(77,199,120,0.14);padding:3px 9px;border-radius:6px;">Up to date</span>
+    <span style="font-size:11px;font-weight:500;color:#E24B4A;background:rgba(226,75,74,0.14);padding:3px 9px;border-radius:6px;">Missing</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;">
+    <div>
+      <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">List rows (divided, not carded)</div>
+      <div style="background:#1C1C21;border-radius:12px;overflow:hidden;">
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;"><i class="ti ti-folder" style="font-size:17px;color:rgba(255,255,255,0.45);" aria-hidden="true"></i><div style="flex:1;"><div style="font-size:13px;">config</div><div style="font-size:11px;color:rgba(255,255,255,0.45);">2 minutes ago</div></div><i class="ti ti-chevron-right" style="font-size:15px;color:rgba(255,255,255,0.3);" aria-hidden="true"></i></div>
+        <div style="height:1px;background:rgba(255,255,255,0.06);margin-left:41px;"></div>
+        <div style="display:flex;align-items:center;gap:10px;padding:11px 14px;"><i class="ti ti-file" style="font-size:17px;color:rgba(255,255,255,0.45);" aria-hidden="true"></i><div style="flex:1;"><div style="font-size:13px;">server.properties</div><div style="font-size:11px;color:rgba(255,255,255,0.45);">2 minutes ago · 1 KB</div></div><i class="ti ti-chevron-right" style="font-size:15px;color:rgba(255,255,255,0.3);" aria-hidden="true"></i></div>
+      </div>
+    </div>
+    <div>
+      <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">Empty state</div>
+      <div style="background:#1C1C21;border-radius:12px;padding:26px 16px;text-align:center;">
+        <i class="ti ti-box" style="font-size:30px;color:rgba(255,255,255,0.28);" aria-hidden="true"></i>
+        <div style="font-size:14px;font-weight:500;margin-top:10px;">No resource packs</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.45);margin-top:4px;line-height:1.5;">Add a .zip pack, or drag one here.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

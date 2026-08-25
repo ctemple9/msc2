@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSC 2 — locked shell skeleton (S1)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>body{margin:0;background:#050506;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}</style>
+</head>
+<body>
+<!-- LOCKED S1 REFERENCE — the app shell skeleton. Governed by docs/msc2/antiAIslop.md.
+     bannerColor (here bronze #C57B3D) is the per-server identity accent and appears in EXACTLY four
+     places: the running terrain banner, a faint header wash, the selected tab pill, and sidebar selection.
+     Host-aware picker: "● Local ▸ Survival" (green connection dot) opens a menu grouped by host; Manage…
+     opens the hosts+servers sheet. Docked console on terminal tier #0A0A0C, collapsible, filter chips.
+     Terrain banner = the ONE sanctioned flourish (approximated here as flat blocky bands; the real one is
+     the live scene with a day counter — static-faithful first, animation deferred to polish).
+     NOTE: this is drawn at ~680px; the real window is wider — tabs get FULL labels (Performance, Components),
+     the sidebar breathes more, content is roomier. Judge the structure, not these cramped proportions. -->
+<div style="background:#0D0D0F;border-radius:12px;overflow:hidden;color:rgba(255,255,255,0.95);border:1px solid rgba(255,255,255,0.07);max-width:680px;">
+
+  <div style="display:flex;align-items:center;gap:10px;background:#141417;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="display:flex;gap:6px;"><span style="width:10px;height:10px;border-radius:50%;background:#ED6A5E;"></span><span style="width:10px;height:10px;border-radius:50%;background:#F5BF4F;"></span><span style="width:10px;height:10px;border-radius:50%;background:#61C554;"></span></div>
+    <div style="font-size:11px;font-weight:600;color:rgba(255,255,255,0.9);white-space:nowrap;">Minecraft Server Controller</div>
+    <div style="flex:1;height:26px;border-radius:6px;overflow:hidden;position:relative;background:#E08A2B;">
+      <div style="position:absolute;left:0;right:0;bottom:0;height:9px;background:#7A5230;"></div>
+      <div style="position:absolute;left:0;right:0;bottom:6px;height:4px;background:#6AB04A;"></div>
+      <span style="position:absolute;left:22%;bottom:9px;width:6px;height:8px;background:#3B7A3B;"></span>
+      <span style="position:absolute;left:46%;bottom:9px;width:7px;height:7px;background:#4A6BB0;"></span>
+      <span style="position:absolute;left:70%;bottom:9px;width:6px;height:8px;background:#3B7A3B;"></span>
+      <span style="position:absolute;right:6px;top:4px;font-size:10px;font-weight:600;color:rgba(255,255,255,0.85);">248</span>
+    </div>
+    <div style="display:flex;gap:4px;color:rgba(255,255,255,0.6);">
+      <i class="ti ti-layout-sidebar" style="font-size:15px;" aria-hidden="true"></i>
+      <i class="ti ti-help-circle" style="font-size:15px;" aria-hidden="true"></i>
+      <i class="ti ti-settings" style="font-size:15px;" aria-hidden="true"></i>
+      <i class="ti ti-refresh" style="font-size:15px;" aria-hidden="true"></i>
+    </div>
+  </div>
+
+  <div style="display:flex;">
+
+    <div style="width:172px;flex-shrink:0;background:#141417;padding:12px 11px;border-right:1px solid rgba(255,255,255,0.05);min-height:340px;display:flex;flex-direction:column;">
+      <div style="font-size:9px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:8px;">Server controls</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;background:#0D0D0F;border:1px solid rgba(255,255,255,0.10);border-radius:8px;padding:7px 9px;margin-bottom:4px;">
+        <span style="display:flex;align-items:center;gap:6px;"><span style="width:6px;height:6px;border-radius:50%;background:#4DC778;"></span>Local ▸ Survival</span><i class="ti ti-selector" style="font-size:14px;color:rgba(255,255,255,0.5);" aria-hidden="true"></i>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:14px;">
+        <button style="flex:1;font-size:12px;font-weight:600;color:#0D2416;background:#4DC778;border:none;border-radius:7px;padding:6px 10px;display:inline-flex;align-items:center;justify-content:center;gap:5px;cursor:pointer;"><i class="ti ti-player-play" style="font-size:13px;" aria-hidden="true"></i>Start</button>
+        <button style="font-size:12px;font-weight:500;color:rgba(255,255,255,0.9);background:transparent;border:1px solid rgba(255,255,255,0.14);border-radius:7px;padding:6px 10px;cursor:pointer;">Manage…</button>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.75);padding:7px 4px;border-top:1px solid rgba(255,255,255,0.05);"><span>Console access</span><i class="ti ti-chevron-right" style="font-size:13px;color:rgba(255,255,255,0.35);" aria-hidden="true"></i></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.75);padding:7px 4px;border-top:1px solid rgba(255,255,255,0.05);"><span>How to connect</span><i class="ti ti-chevron-right" style="font-size:13px;color:rgba(255,255,255,0.35);" aria-hidden="true"></i></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.75);padding:7px 4px;border-top:1px solid rgba(255,255,255,0.05);"><span>Maintenance</span><i class="ti ti-chevron-down" style="font-size:13px;color:rgba(255,255,255,0.35);" aria-hidden="true"></i></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:rgba(255,255,255,0.75);padding:7px 4px;border-top:1px solid rgba(255,255,255,0.05);border-bottom:1px solid rgba(255,255,255,0.05);"><span>Quick commands</span><i class="ti ti-chevron-right" style="font-size:13px;color:rgba(255,255,255,0.35);" aria-hidden="true"></i></div>
+      </div>
+      <div style="flex:1;"></div>
+      <div style="display:flex;align-items:center;gap:8px;padding-top:10px;border-top:1px solid rgba(255,255,255,0.05);">
+        <span style="width:26px;height:26px;border-radius:6px;background:#2A2A30;display:inline-flex;align-items:center;justify-content:center;"><i class="ti ti-user" style="font-size:15px;color:rgba(255,255,255,0.5);" aria-hidden="true"></i></span>
+        <span style="font-size:11px;color:rgba(255,255,255,0.5);">Your avatar</span>
+      </div>
+    </div>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;">
+
+      <div style="padding:12px 16px;background:#141417;border-bottom:1px solid rgba(255,255,255,0.05);position:relative;">
+        <div style="position:absolute;inset:0;background:rgba(197,123,61,0.06);pointer-events:none;"></div>
+        <div style="position:relative;display:flex;align-items:center;gap:8px;">
+          <span style="font-size:19px;font-weight:600;">Survival</span>
+          <span style="font-size:10px;font-weight:500;color:rgba(255,255,255,0.8);background:#2A2A30;padding:2px 7px;border-radius:5px;">Java</span>
+          <span style="font-size:10px;font-weight:500;color:rgba(255,255,255,0.8);background:#2A2A30;padding:2px 7px;border-radius:5px;">Paper</span>
+          <span style="flex:1;"></span>
+          <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#4DC778;"><span style="width:6px;height:6px;border-radius:50%;background:#4DC778;"></span>Running</span>
+        </div>
+        <div style="position:relative;font-size:11px;color:rgba(255,255,255,0.45);margin-top:2px;">/Users/cameron/MinecraftServers/java/test</div>
+      </div>
+
+      <div style="padding:10px 14px 0;">
+        <div style="display:flex;background:#141417;border:1px solid rgba(255,255,255,0.06);border-radius:9px;padding:3px;gap:1px;overflow:hidden;">
+          <span style="font-size:10.5px;font-weight:500;color:rgba(255,255,255,0.95);padding:5px 8px;border-radius:6px;background:rgba(197,123,61,0.24);white-space:nowrap;">⌂ Overview</span>
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);padding:5px 8px;white-space:nowrap;">Players</span>
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);padding:5px 8px;white-space:nowrap;">Worlds</span>
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);padding:5px 8px;white-space:nowrap;">Packs</span>
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);padding:5px 8px;white-space:nowrap;">Perf.</span>
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);padding:5px 8px;white-space:nowrap;">Components</span>
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);padding:5px 8px;white-space:nowrap;">Settings</span>
+          <span style="font-size:10.5px;color:rgba(255,255,255,0.55);padding:5px 8px;white-space:nowrap;">Files</span>
+        </div>
+      </div>
+
+      <div style="flex:1;padding:14px;background:#0D0D0F;">
+        <div style="font-size:9px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.35);text-transform:uppercase;margin-bottom:10px;">Status</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="background:#1C1C21;border-radius:12px;height:74px;box-shadow:0 1px 2px rgba(0,0,0,0.3);"></div>
+          <div style="background:#1C1C21;border-radius:12px;height:74px;box-shadow:0 1px 2px rgba(0,0,0,0.3);"></div>
+        </div>
+      </div>
+
+      <div style="background:#0A0A0C;border-top:1px solid rgba(255,255,255,0.05);padding:8px 12px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px;">
+          <i class="ti ti-chevron-up" style="font-size:13px;color:rgba(255,255,255,0.5);" aria-hidden="true"></i>
+          <span style="font-size:9px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;">Console</span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.85);background:#1C1C21;padding:2px 8px;border-radius:5px;">All</span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.5);padding:2px 6px;">Server</span>
+          <span style="font-size:10px;color:rgba(255,255,255,0.5);padding:2px 6px;">Warnings</span>
+        </div>
+        <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:rgba(255,255,255,0.75);line-height:1.5;">[02:11:43 INFO]: Done (5.231s)! For help, type "help"</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:7px;">
+          <div style="flex:1;font-size:11px;color:rgba(255,255,255,0.4);background:#141417;border:1px solid rgba(255,255,255,0.08);border-radius:7px;padding:5px 9px;">Enter command…</div>
+          <button style="font-size:11px;font-weight:600;color:#14141A;background:#EDEDED;border:none;border-radius:7px;padding:5px 12px;cursor:pointer;">Send</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

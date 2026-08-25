@@ -155,7 +155,17 @@ Later audit: Phase 11 must prove clients consume the help-content contract inste
 
 **UI completion never gates headless agent correctness.**
 
-### Phase 12 — Terminal UI
+### Phase 12 — Client redesign (MSC 1 visual + behavioral fidelity)
+
+Phase 11 shipped a working desktop/web client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — the very thing the Phase 11 note above says that phase was meant to preserve. Phase 12 rebuilds the **presentation layer only** (Svelte views, the shell, the design system) so MSC 2 looks *and behaves* like MSC 1, **refreshed** into one consistent, deliberately-designed system — while keeping the entire Phase 11 data / agent / auth / platform layer intact (the keep/replace line is recorded in the rolling plan).
+
+Governed by the anti-slop design law (`docs/msc2/antiAIslop.md`, hard rule #11) and the locked design-system reference specimens (`docs/msc2/renderings/`). Multi-host (D-013) is preserved through a host-aware server picker, not a rival navigation model.
+
+Because this is a *design* phase, its verification is deliberately different from the Rust phases: each screen is verified by Cameron's **visual review against MSC 1** plus the anti-slop checklist, not a single runnable command, and a screen may take several adjustment commits. This departure is recorded in the rolling plan.
+
+**Exit criteria (gate):** every MSC 1 screen and sheet has a rebuilt MSC 2 counterpart that (a) matches MSC 1's shape and behavior — verified screen-by-screen against MSC 1 by Cameron — and (b) passes the `antiAIslop.md` checklist. The data/agent layer is unchanged in contract, and no screen exists in the desktop app that is absent from the web UI (D-003 corollary).
+
+### Phase 13 — Terminal UI
 
 The `ratatui` dashboard. Deferred from v1 (D-015); built only once the API has stopped moving.
 

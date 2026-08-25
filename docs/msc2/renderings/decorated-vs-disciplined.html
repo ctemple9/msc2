@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MSC 2 — decorated vs disciplined (teaching)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
+<style>body{margin:0;background:#050506;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}</style>
+</head>
+<body>
+<!-- TEACHING REFERENCE (not a component). LEFT = the AI-slop version we reject. RIGHT = locked.
+     Left trips docs/msc2/antiAIslop.md tells #1/#2/#11: colored side rail, colored icon, 1px border,
+     same-hue clustering. Right spends color only on the dot + label. Build the RIGHT one. -->
+<div style="background:#0D0D0F;border-radius:14px;padding:22px;max-width:640px;font-family:inherit;">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+    <div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.6px;color:rgba(255,140,80,0.85);text-transform:uppercase;margin-bottom:10px;">Decorated · reject</div>
+      <div style="position:relative;background:#1C1C21;border:1px solid rgba(255,255,255,0.09);border-radius:12px;padding:14px 14px 14px 20px;box-shadow:0 1px 3px rgba(0,0,0,0.45);overflow:hidden;margin-bottom:10px;">
+        <div style="position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:#4DC778;"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;"><i class="ti ti-puzzle" style="font-size:18px;color:#4DC778;" aria-hidden="true"></i><span style="font-size:14px;font-weight:500;color:rgba(255,255,255,0.95);">Components</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#4DC778;display:inline-block;"></span><span style="font-size:12px;color:#4DC778;font-weight:500;">OK</span></div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.5);">1 component — up to date</div>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:10px;line-height:1.5;">colored side rail · colored icon · 1px border · same-hue clustering</div>
+    </div>
+
+    <div>
+      <div style="font-size:11px;font-weight:600;letter-spacing:0.6px;color:rgba(77,199,120,0.9);text-transform:uppercase;margin-bottom:10px;">Disciplined · locked</div>
+      <div style="background:#1C1C21;border-radius:12px;padding:15px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.3);margin-bottom:10px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;"><i class="ti ti-puzzle" style="font-size:17px;color:rgba(255,255,255,0.45);" aria-hidden="true"></i><span style="font-size:14px;font-weight:500;color:rgba(255,255,255,0.95);">Components</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#4DC778;display:inline-block;"></span><span style="font-size:12px;color:#4DC778;font-weight:500;">OK</span></div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.5);">1 component — up to date</div>
+      </div>
+      <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:10px;line-height:1.5;">no rail · neutral icon · borderless on tier contrast · color only on the dot + label</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

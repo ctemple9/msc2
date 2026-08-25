@@ -27,3 +27,106 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * S0 — the locked design system (Phase 12). Authority: docs/msc2/renderings/
+ * (status-card.html, buttons-and-type.html, primitives.html, shell.html,
+ * decorated-vs-disciplined.html), governed by docs/msc2/antiAIslop.md.
+ * The --msc-* tokens above this line belong to the Phase 11 client and stay
+ * in place until each screen is rebuilt against this system (P12.1–P12.17);
+ * do not repurpose their names for S0 concepts.
+ * ------------------------------------------------------------------------- */
+:root {
+  /* Surface tiers (70% of the color budget) */
+  --msc2-tier-atmosphere: #0d0d0f;
+  --msc2-tier-chrome: #141417;
+  --msc2-tier-content: #1c1c21;
+  --msc2-tier-terminal: #0a0a0c;
+
+  /* Status ramp (part of the 10% accent budget — spend only on defined states) */
+  --msc2-status-ok: #4dc778;
+  --msc2-status-ok-tint: rgba(77, 199, 120, 0.14);
+  --msc2-status-warn: #ff9140;
+  --msc2-status-warn-tint: rgba(255, 145, 64, 0.14);
+  --msc2-status-error: #e24b4a;
+  --msc2-status-error-tint: rgba(226, 75, 74, 0.14);
+  --msc2-status-bedrock: #59a1ff;
+  --msc2-status-bedrock-tint: rgba(89, 161, 255, 0.14);
+
+  /* Text — white opacity steps (the quiet 20%) */
+  --msc2-text-primary: rgba(255, 255, 255, 0.95);
+  --msc2-text-secondary: rgba(255, 255, 255, 0.55);
+  --msc2-text-tertiary: rgba(255, 255, 255, 0.4);
+
+  /* Neutral fills — Primary button, segmented selection, category badge, chips */
+  --msc2-neutral-fill: #ededed;
+  --msc2-neutral-fill-ink: #14141a;
+  --msc2-neutral-elevated: #2a2a30;
+  --msc2-neutral-muted: #3a3a40;
+
+  /* Hairlines */
+  --msc2-hairline: rgba(255, 255, 255, 0.14);
+  --msc2-hairline-faint: rgba(255, 255, 255, 0.07);
+  --msc2-hairline-subtle: rgba(255, 255, 255, 0.06);
+  --msc2-hairline-field: rgba(255, 255, 255, 0.1);
+  --msc2-hairline-field-focus: rgba(255, 255, 255, 0.25);
+
+  /* Spacing scale (4pt) */
+  --msc2-space-1: 2px;
+  --msc2-space-2: 4px;
+  --msc2-space-3: 8px;
+  --msc2-space-4: 12px;
+  --msc2-space-5: 16px;
+  --msc2-space-6: 20px;
+  --msc2-space-7: 24px;
+  --msc2-space-8: 32px;
+
+  /* Radius scale */
+  --msc2-radius-1: 6px;
+  --msc2-radius-2: 10px;
+  --msc2-radius-3: 14px;
+  --msc2-radius-4: 18px;
+
+  /* Shadow — the one whisper shadow; only for elements that genuinely float */
+  --msc2-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --msc2-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  /* Type — system sans, no serif reflex */
+  --msc2-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --msc2-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Type scale — 7 roles. Weight 600 titles / 500 mid / 400 body, nothing heavier. */
+.msc2-type-page {
+  font-size: 21px;
+  font-weight: 600;
+}
+.msc2-type-section {
+  font-size: 15px;
+  font-weight: 500;
+}
+.msc2-type-card {
+  font-size: 13px;
+  font-weight: 500;
+}
+.msc2-type-body {
+  font-size: 13px;
+  font-weight: 400;
+}
+.msc2-type-meta {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--msc2-text-secondary);
+}
+.msc2-type-overline {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--msc2-text-tertiary);
+}
+.msc2-type-mono {
+  font-family: var(--msc2-font-mono);
+  font-size: 12px;
+  font-weight: 400;
+}

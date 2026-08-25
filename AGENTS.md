@@ -18,6 +18,7 @@ MSC 2 is a cross-platform Minecraft server manager: a **Rust agent** that runs a
 | `docs/msc2/msc2-product.md` | What MSC 2 is, in plain language |
 | `docs/msc2/msc2-port-plan.md` | The phases and their **exit gates** |
 | `docs/msc2/rolling-plan.md` | **Current state.** Which phase, which step, what's done |
+| `docs/msc2/antiAIslop.md` | **Design law.** Anti-AI-slop guiding principle — **required reading before any design, styling, or frontend work** |
 
 `docs/msc2/audit/` holds the MSC 1 analysis — including two per-file inventory CSVs used during extraction.
 
@@ -85,6 +86,7 @@ Rules:
 8. **MSC 1 is the oracle.** It lives at `~/Documents/Swift Projects/minecraft-server-controller` and must never be modified. Read it freely; write to it never.
 9. **If something contradicts the vision, stop and say so.** Don't build around it quietly.
 10. **No AI names in repo-visible identifiers.** Do not create filenames, directory names, branch names, tags, artifact names, or other repo-visible identifiers containing assistant/vendor/product names such as Codex, Claude, ChatGPT, or OpenAI. The required instruction filename `CLAUDE.md` is the only filename exception unless Cameron explicitly approves another one.
+11. **No signs of AI slop.** The MSC 2 redesign must not look vibe-coded, generic, or like any other app — every visual decision is deliberate and specific to MSC. Before any design, styling, or frontend work, read `docs/msc2/antiAIslop.md` and hold every screen to its checklist. Owner-approved guiding principle; as binding as the rest of this list.
 
 ## Conventions
 

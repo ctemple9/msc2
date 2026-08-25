@@ -1,8 +1,9 @@
 # MSC 2 — Rolling Plan
 
-> ## STATUS: Phase 11 is in progress — the original P11.1–P11.28 delivery is recorded, parity follow-ups are reorganized as P11.28a–P11.28f, and the real-client prerequisites are planned as P11.28g–P11.28k.
-> **Next move:** EXECUTE P11.28g, after Cameron reviews this reordered plan. The Phase 11 gate remains P11.29 and must wait until the real desktop/agent path and first-time setup have been exercised.
-> **Last updated:** 2026-08-24
+> ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
+> **Next move:** EXECUTE P12.0 (implement the locked design system), after Cameron reviews this plan.
+> **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
+> **Last updated:** 2026-08-25
 
 **Previous phases (Setup through Phase 10) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -62,8 +63,9 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **8** | Mods, plugins, modpacks | complete |
 | **9** | Networking and helpers | complete |
 | **10** | Bedrock runtimes | complete |
-| **11** | Desktop and web clients | **in progress — P11.1 awaiting verification** |
-| 12 | Terminal UI (deferred from v1) | not started |
+| **11** | Desktop and web clients | agent layer done (P11.28g–j); UI verification (P11.28k, P11.29) folded into Phase 12 |
+| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.0 awaiting verification** |
+| 13 | Terminal UI (deferred from v1) | not started |
 
 ---
 
@@ -280,7 +282,7 @@ the package manager, with MSC limited to an actionable availability notice.
 - Add regression coverage for the stream/download and deferred-route boundaries.
 
 ### P11.15 — Extract and validate the educational content corpus
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `content/help/`, `content/guides/`, `fixtures/help-content/`, `fixtures/onboarding/`, `tools/phase11/help-content-check.py`, `docs/msc2/clients/phase11-scope.md`
 **What:** Extract MSC 1's 31-topic handbook, concept guide, router catalog/records/steps, troubleshooting content, and onboarding copy into the confirmed Markdown-with-YAML-front-matter and structured guide data formats. Preserve source citations and label content versus executable router rules; do not duplicate prose in Svelte. Record unresolved diagram assets honestly. Include the Concept Guide page order, onboarding step content/order, skip/reopen wording, and the source mapping for every first-launch explanation; visual anchoring and animation remain client-owned. Include coverage for every `helpId` already emitted by settings, health, diagnostics, performance, connectivity, and errors, including the `bedrock.runtime-unavailable` later-audit requirement. Add deterministic onboarding fixtures proving fresh-install, already-seen, skipped, reopened, and unknown/future-topic cases.
 **Verify:** `python3 tools/phase11/help-content-check.py --all`
@@ -288,7 +290,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.16 — Render contract-served help and guides in the shared client
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/help/`, `clients/desktop-web/src/lib/sections/handbook/`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/client-capability-matrix.csv`
 **What:** Build safe Markdown rendering, related-topic navigation, handbook/concept/router-guide readers, contextual `helpId` links, unknown-topic degradation, and client-owned onboarding anchors against the fake contract. Implement and test the fresh-install sequence of setup sheet → Concept Guide → guided tour, including the exact step ordering, user-action pauses, form-card hide/resume behavior, completion state, skip behavior, Handbook handoff, and reopen-from-preferences behavior. Implement the splash animation seam with a bounded fallback and reduced-motion path; preserve the source asset or record an explicit reviewed replacement. Every explanation comes from a response or structured content fixture, never a screen-local copy. The registry must allow future Bedrock and profile topics/sections to appear additively without new shell logic.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && python3 tools/phase11/help-content-check.py --client`
@@ -296,7 +298,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** safe
 
 ### P11.17 — Prove browser parity, accessibility, and responsive layouts
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/tests/e2e/browser/`, `clients/desktop-web/playwright.config.ts`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`
 **What:** Exercise the production static bundle against the contract harness at narrow and wide widths, keyboard-only navigation, reduced motion, destructive confirmations, host switching, reconnect, upload/download, and deep-link reload. Add a fresh-profile onboarding walkthrough proving setup completion, Concept Guide → tour sequencing, step ordering and anchors, user-action pauses, skip/resume/reopen flags, Handbook handoff, splash playback/fallback, and reduced-motion behavior. Run Chromium plus browser WebKit for fast compatibility feedback, while recording plainly that this is browser evidence and does not replace P11.19's native Linux WebKitGTK proof.
 **Verify:** `npm --prefix clients/desktop-web run test:e2e-browser`
@@ -304,7 +306,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.18 — Add the thin Tauri shell without desktop-only screens
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/tauri/`
 **What:** Load the exact production Svelte bundle and expose only narrow native adapters for credentials, file pickers, notifications, menus, window lifecycle, and later agent installation/update. Each native affordance must invoke a shared web workflow with a browser fallback; no route or screen may test `isTauri` to reveal desktop-only management behavior. Keep the standalone Tauri crate outside the root workspace so headless Rust builds do not acquire GUI dependencies.
 **Verify:** `npm --prefix clients/desktop-web run test:tauri-boundary`
@@ -312,7 +314,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.19 — Exercise the real Linux Tauri renderer through WebKitGTK
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/tests/e2e/tauri-linux/`, `clients/desktop-web/wdio.conf.ts`, `tools/phase11/linux-webkitgtk-smoke.sh`, `docs/msc2/clients/evidence/`
 **What:** On a Debian/Ubuntu desktop runner with `libwebkit2gtk-4.1`, `webkit2gtk-driver`, and Xvfb, launch the built Tauri binary and drive its real window through the native WebDriver path. Verify visible shell, navigation, CSS layout, forms, dialogs, live-console fallback, deep links, one mutating fake workflow, and the fresh-profile onboarding entry path including the reduced-motion/fallback branch; record the WebKitGTK package/version and screenshot evidence. A Vite page opened in Chrome or Playwright's bundled WebKit does not satisfy this step.
 **Verify:** `bash tools/phase11/linux-webkitgtk-smoke.sh --native`
@@ -322,7 +324,7 @@ the package manager, with MSC limited to an actionable availability notice.
 ### Group B — Bedrock extension seam (ready after Group A; no Bedrock screens)
 
 ### P11.20 — Prove capability-driven Bedrock extension seams
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/navigation/`, `clients/desktop-web/tests/navigation/bedrock-extension.test.ts`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/clients/phase11-scope.md`
 **What:** Recheck generated TypeScript against the current frozen OpenAPI document and consume its finalized `serverTypes.bedrock` plus `BedrockRuntimeStateDTO` advertisement without hand-written Bedrock DTOs or host-OS inference. Use a test-only future section descriptor to prove Bedrock navigation is absent when unsupported, can be registered when capability state permits it, survives unknown backend/reason values additively, and fits existing layouts/routes without restructuring. Ship no Bedrock section, creation flow, settings, player, allowlist, world, backup, console, or runtime screen in Phase 11; keep those matrix cells Planned for the later Bedrock client group.
 **Verify:** `npm --prefix clients/desktop-web run api:check && npm --prefix clients/desktop-web run test:bedrock-extension && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv`
@@ -332,7 +334,7 @@ the package manager, with MSC limited to an actionable availability notice.
 ### Group C — Shared agent, auth, packaging, and gate work (ready after Group B)
 
 ### P11.21 — Close the remaining desktop and browser authentication design
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/clients/phase11-auth.md`, `docs/msc2/msc2-decisions.md`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/api-contract/auth-scope-phase2.md`, `docs/msc2/lifecycle/pairing-phase4.md`, `crates/msc-api/tests/phase11_auth_conformance.rs`
 **What:** Turn D-012's approved mechanisms and Phase 9 posture into one testable contract: same-machine Tauri bootstrap resistant to arbitrary local-process impersonation, per-host remote desktop pairing and secret-store keys, browser pairing-to-httpOnly-SameSite cookie exchange, session revocation/expiry, exact allowed-origin/CSP rules, CSRF tokens for cookie-authenticated mutations, and bearer exemption. Preserve loopback-by-default management and authenticated explicit-Tailscale access; per the owner-confirmed v1 choice above, keep general-LAN management unavailable and do not build certificate provisioning or a local trust system. Use additive versioned routes and `ErrorDTO`; do not put raw credentials in Svelte-accessible storage or URLs.
 **Verify:** `python3 tools/api-contract-check.py --v1-summary && cargo nextest run -p msc-api --test phase11_auth_conformance`
@@ -340,7 +342,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.22 — Implement browser sessions, origin policy, CSP, and CSRF
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/auth/`, `crates/msc-agent/src/routes/browser_session.rs`, `crates/msc-agent/tests/browser_auth.rs`, `clients/desktop-web/src/lib/auth/browser.ts`, `clients/desktop-web/tests/auth/browser.test.ts`
 **What:** Implement the frozen browser pairing/session path on the existing credential registry, with one-use challenges, httpOnly cookies, revocation and restart behavior, exact origin checks, restrictive CSP, CSRF on every cookie-authenticated mutation, rate limits, and audit attribution. Prove bearer clients remain unaffected and a hostile origin/local script cannot turn ambient browser authority into a server mutation.
 **Verify:** `cargo nextest run -p msc-agent --test browser_auth && npm --prefix clients/desktop-web run test:auth-browser`
@@ -348,7 +350,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.23 — Implement local and remote Tauri credentials per host
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/auth/desktop.ts`, `clients/desktop-web/tests/auth/desktop/`, `crates/msc-agent/src/auth/`, `crates/msc-agent/tests/desktop_auth.rs`
 **What:** Implement the chosen same-machine authorization handshake and remote pairing exchange, storing one credential per agent host ID in the platform credential store through the shell so secrets never enter browser storage. Verify local convenience does not become loopback-open authorization, remote credentials obey permission/expiry/revocation, switching hosts cannot reuse another host's credential, and the web build retains its cookie flow with no divergent screen.
 **Verify:** `cargo nextest run -p msc-agent --test desktop_auth && npm --prefix clients/desktop-web run test:auth-desktop`
@@ -356,7 +358,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.24 — Serve embedded help content and port router-guide rules
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/router_guides.rs`, `crates/msc-domain/tests/router_guides.rs`, `crates/msc-agent/src/help.rs`, `crates/msc-agent/src/routes/help.rs`, `crates/msc-agent/tests/help_routes.rs`, `content/help/`, `content/guides/`, `fixtures/help-content/`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/client-capability-matrix.csv`
 **What:** Embed the validated content corpus, implement `GET /v1/help/{helpId}` plus the additive handbook/concept/router-guide catalog routes required to browse it, and port the ledgered router matcher/fallback/composer/troubleshooting rules into Rust against fixtures. Explicitly include the `bedrock.runtime-unavailable` topic and its structured unavailable reasons. Return raw Markdown/structured steps for every client to render; unknown or version-new topics degrade through `ErrorDTO`. Do not absorb client onboarding anchors or presentation into the agent.
 **Verify:** `cargo nextest run -p msc-domain --test router_guides && cargo nextest run -p msc-agent --test help_routes && npm --prefix clients/desktop-web run test:screen-help`
@@ -364,7 +366,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.25 — Serve the same production bundle from the agent
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/web_ui.rs`, `crates/msc-agent/tests/web_ui.rs`, `clients/desktop-web/`, `tools/phase11/bundle-identity-check.py`
 **What:** Embed or package the exact Svelte production output the Tauri shell loads, serve hashed assets with correct MIME/cache headers and CSP, support safe client-side deep-link fallback without shadowing `/v1`, and provide an explicit unavailable result when a headless package intentionally omits web assets. Prove byte identity between the browser-served and Tauri-loaded bundles and preserve D-011's no-GUI dependency boundary in the agent.
 **Verify:** `python3 tools/phase11/bundle-identity-check.py && cargo nextest run -p msc-agent --test web_ui`
@@ -372,7 +374,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.26 — Install and manage the local agent through the shell
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/setup/`, `clients/desktop-web/tests/agent-install/`, `tools/phase11/agent-install-smoke.sh`, `packaging/`
 **What:** Add shell-only native commands behind shared setup screens to detect, install, start, stop, repair, and report the platform service and compatible agent/sidecar package. Closing the window must never stop the service or a server. Browser users see the same status/setup route with a truthful instruction/fallback when native install is unavailable; there is no desktop-only screen. Preserve existing service identity, privilege, headless, and rollback rules.
 **Verify:** `bash tools/phase11/agent-install-smoke.sh --synthetic`
@@ -380,7 +382,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.27 — Define and prove coordinated desktop, agent, and sidecar updates
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/clients/phase11-update.md`, `clients/desktop-web/src-tauri/`, `clients/desktop-web/src/lib/updates/`, `packaging/`, `tools/phase11/update-smoke.sh`
 **What:** Implement the owner-confirmed prompted, signed macOS/Windows update policy as a compatibility-aware set: download and verify release identity before staging, ask before installation, keep the running agent until replacement is ready, preserve configuration/secrets/worlds, pair the exact compatible Bedrock sidecar where applicable, roll back a failed update, and allow app/agent version skew only within D-010's advertised window. Never install silently. Linux defers installation to its package manager and receives an actionable notice, not a second self-updater. Never merge MSC updates with server/loader/add-on update controls.
 **Verify:** `bash tools/phase11/update-smoke.sh --synthetic --all-platforms`
@@ -388,7 +390,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** solo
 
 ### P11.28 — Build and exercise desktop and web candidates on all three platforms
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `.github/workflows/ci.yml`, `tools/phase11/desktop-web-smoke.sh`, `clients/desktop-web/`, `docs/msc2/clients/evidence/`
 **What:** Add production frontend/type tests, agent-served browser smoke, and real Tauri builds to macOS, Windows, and Linux CI while preserving the headless no-GUI job. Exercise the same core workflow in browser and desktop modes; on Linux run P11.19's native WebKitGTK smoke, not a Chromium substitute. Record platform renderer/package versions and explicit unavailable signing/notarization evidence without claiming unperformed release distribution.
 **Verify:** `bash tools/phase11/desktop-web-smoke.sh --synthetic --all-surfaces`
@@ -476,7 +478,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.28k — Walk the real client and agent through first-time setup
-**Status:** not started
+**Status:** superseded — deferred into P12.17 (decided 2026-08-25). This exercises the first-time-setup UI that Phase 12 rebuilds (P12.13); its real-agent/auth/first-server-handoff proof runs once against the redesigned client at the Phase 12 gate rather than against the superseded UI. The committed P11.28g–j agent wiring it would have exercised carries forward as Phase 12's foundation.
 **Files:** `tools/phase11/real-client-agent-smoke.sh`, `clients/desktop-web/tests/e2e/`, `docs/msc2/clients/evidence/`, `differences.md`
 **What:** Add a real-agent smoke path that launches or connects to MSC2 on `48001`, opens the actual Tauri client, authenticates through the real desktop credential path, and exercises the first-time setup from the opening screen through the final first-server handoff. Cover the server-root picker, Java check, Bedrock disclosure, optional helper links/checks, helper download state, Back/Next/Skip behavior, and restart/reopen behavior. Record fake-harness-only coverage separately and update `differences.md` only from this real-client evidence.
 **Verify:** `bash tools/phase11/real-client-agent-smoke.sh --macos`
@@ -484,9 +486,203 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.29 — Reconcile the capability matrix and run the exact Phase 11 gate
-**Status:** not started
+**Status:** superseded — folded into P12.17 (decided 2026-08-25). Its checks (capability matrix, D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, browser/Tauri auth, native Linux WebKitGTK rendering, tri-platform packaging, headless independence, and the onboarding/first-launch preservation contract) depend on the final client UI, so they run once against the *redesigned* client at the Phase 12 gate. Running this gate against the superseded UI is pointless — its own criterion requires preserving MSC 1's design, which only the redesign delivers.
 **Files:** `docs/msc2/client-capability-matrix.csv`, `tools/phase11/phase11-check.py`, `docs/msc2/clients/evidence/phase11-ci.md`, `docs/msc2/clients/phase11-scope.md`, `docs/msc2/rolling-plan.md`
 **What:** Run only after P11.28a–P11.28k. Check every contract and WebSocket operation against real Desktop/Web implementation evidence, leaving agent-Planned, Bedrock-screen, and player-profile rows explicitly Planned and no cell blank. Prove D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, capability/permission routing, D-026 served-content use, browser/Tauri auth, browser responsive behavior, native Linux WebKitGTK rendering, tri-platform packaging, headless independence, and the exact green CI candidate. Also require the onboarding preservation contract in `phase11-scope.md`: fresh-profile setup → Concept Guide → guided tour → Handbook behavior, step/anchor coverage, skip/reopen persistence, splash playback/fallback, reduced-motion behavior, and honest separation of agent-owned first-server initiation from client-owned presentation. This is Phase 11's only full-workspace run; the other agent decides in REVIEW whether the literal gate holds.
 **Verify:** `python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`
 **Commit:** `P11.29: check desktop and web gate`
+**Batch:** solo
+
+---
+
+## Phase 12 — Client redesign (MSC 1 visual + behavioral fidelity)
+
+**Gate** (`msc2-port-plan.md` §3): every MSC 1 screen and sheet has a rebuilt
+MSC 2 counterpart that (a) matches MSC 1's shape and behavior — verified
+screen-by-screen against MSC 1 by Cameron — and (b) passes the `antiAIslop.md`
+checklist. The data/agent layer is unchanged in contract, and no screen exists in
+the desktop app that is absent from the web UI (D-003 corollary).
+
+**Why this phase exists.** Phase 11 delivered a working desktop/web client wired
+to the real agent, but its UI diverged from MSC 1's information architecture and
+design language — the very thing Phase 11 was meant to preserve. Phase 12 course-
+corrects: it rebuilds the presentation layer so MSC 2 looks *and behaves* like
+MSC 1, **refreshed** into one consistent, deliberately-designed system (MSC 1
+grew by accretion and is inconsistent with itself; the refresh unifies it —
+cleaner, less bulky, more modern, without becoming a different app).
+
+**Keep / replace line (do not cross it).**
+- **KEEP untouched** — the data layer that talks to the agent: `src/lib/api/`,
+  `src/lib/platform/`, `src/lib/auth/`, `src/lib/stores/`, `src/lib/streams/`,
+  `src/lib/operations/`, `src/lib/hosts/`. Backend/agent/Tauri/Rust changes are
+  allowed only when a screen genuinely needs one, and are called out per step.
+- **REPLACE** — the presentation: `src/App.svelte`, `src/lib/components/`,
+  `src/lib/sections/*`, `src/lib/navigation/`, the shell.
+
+**Required reading before any step:** `docs/msc2/antiAIslop.md` (hard rule #11)
+and the locked reference specimens in `docs/msc2/renderings/`
+(`status-card`, `buttons-and-type`, `primitives`, `shell`,
+`decorated-vs-disciplined`). MSC 1 is the oracle for shape + behavior; its source
+is at `~/Documents/Swift Projects/minecraft-server-controller/MSCmacOS/` and its
+screenshots at `~/Documents/MSCSS/`. Each step begins by reading that screen's
+own MSC 1 view(s) for behavior, not just its screenshot.
+
+**How Phase 12 verification differs (recorded deviation from the normal loop).**
+This is a *design* phase. Its `Verify:` is Cameron's **visual review** of the
+running screen against MSC 1 plus the anti-slop checklist — not a single runnable
+command. Two normal hard rules are relaxed here, deliberately:
+- **Verify is a visual review**, not a pass/fail command. Where a cheap structural
+  component test exists (`vitest`), the step names it too, but the *gate* is the
+  eye, and the loop is: execute → Cameron looks → adjustment requests → repeat.
+- **More than one commit per step is expected** — one commit per view/sheet, plus
+  adjustment commits from the review loop. The "one commit per step" rule does not
+  bind Phase 12.
+Every step's Batch is therefore `solo`.
+
+**Sections.** S0 (design system) and S1 (shell) were shaped and locked in advance
+as the reference specimens; their steps below turn those locked specimens into
+code. The rest apply the locked system to each screen, one at a time.
+
+### P12.0 — Implement the locked design system (S0) as code
+**Status:** awaiting verification. Implemented in `src/lib/styles/tokens.css` (new `--msc2-*` tokens appended alongside the untouched Phase 11 `--msc-*` tokens, which unconverted screens still use) and `src/lib/components/base/` (Card, Button, SegmentedControl, Toggle, Field, NumberField, Select, Badge, ListRow, EmptyState, StatusDot, Sheet). A dev-only component gallery lives at `clients/desktop-web/gallery.html` (open via `npm run dev`, then visit `/gallery.html`) for the visual comparison this step's Verify calls for — it is not linked from the shipped app. `src/app.css`'s root font-family now points at the locked system-sans stack instead of Inter, since the type scale depends on it.
+**Files:** `src/lib/styles/tokens.css`, `src/lib/styles/`, `src/lib/components/` (base components), reference `docs/msc2/renderings/`
+**What:** Turn the locked S0 specimens into real code: `tokens.css` (4 surface tiers, status ramp, spacing/radius scales, the 7-role type scale, opacity text steps) and the base Svelte components matching the specimens exactly — `Card`, the button set (Primary/Start/Stop/Secondary/Destructive/GhostIcon in md/sm), `SegmentedControl`, `Toggle` (green-on), `Field`/`NumberField`/`Select`, `Badge` (category/status), `ListRow`, `EmptyState`, `StatusDot`, and the `Sheet` frame with the three fixed widths (480/640/820). No screen wiring yet.
+**Verify:** `cd clients/desktop-web && npm run test:unit`, then `npm run dev` and visually compare each rendered base component to its `docs/msc2/renderings/*.html` reference; run the `antiAIslop.md` checklist against the component gallery.
+**Commit:** `P12.0: implement the locked design system`
+**Batch:** solo
+
+### P12.1 — Build the app shell (S1)
+**Status:** not started
+**Files:** `src/App.svelte`, `src/lib/components/ApplicationShell.svelte`, shell subcomponents, `src/lib/navigation/`
+**What:** Build the shell skeleton per `renderings/shell.html` and MSC 1 (`ContentView`, `SidebarView`, `DetailsHeaderSectionView`, `MSCTabBar`): window chrome + `bannerColor` system + terrain banner (static-faithful, animation deferred), sidebar control rail with the **host-aware picker** (Host ▸ Server + connection dot + Manage…) and collapsible sections, header, 8-tab strip (selected pill = `bannerColor`), and the docked collapsible console *frame* (console behavior is P12.10). Wire it to the kept navigation/host stores.
+**Verify:** `cd clients/desktop-web && npm run dev`; compare the running shell to `renderings/shell.html` and `~/Documents/MSCSS/Main View` + `SIdebar`; run the anti-slop checklist. Structural: `npm run test:visual-shell`.
+**Commit:** `P12.1: build the app shell`
+**Batch:** solo
+
+### P12.2 — Overview tab
+**Status:** not started
+**Files:** `src/lib/sections/home/`, `src/lib/sections/health/`, related Overview cards
+**What:** Rebuild Overview to MSC 1's three bands — STATUS (Connection Info w/ Local/Public + Live Stats), SERVER HEALTH (Components/Port/Last Start, disciplined status cards), ACTIVITY (Players / Active World w/ Switch·Backup / Chat), NOTES. Reference MSC 1 `DetailsOverviewTabView` + the `Overview*CardView` files (incl. the chat/advancement parser card) and `~/Documents/MSCSS/Tabs` Overview shot + `Main View`.
+**Verify:** `npm run dev`, open Overview stopped and running; compare to MSC 1 Overview + `renderings/status-card.html`; anti-slop checklist. Structural: `npm run test:screen-live`.
+**Commit:** `P12.2: rebuild the Overview tab`
+**Batch:** solo
+
+### P12.3 — Players tab
+**Status:** not started
+**Files:** `src/lib/sections/players-online/`
+**What:** Rebuild Players — Online Now / Seen This Session, Session Log (filter + clear), Player Data (profiles, sort). Reference MSC 1 `DetailsPlayersTabView` + player profile/session views and the Players screenshot.
+**Verify:** `npm run dev`, open Players; compare to MSC 1 + checklist. Structural: `npm run test:screen-players-online`.
+**Commit:** `P12.3: rebuild the Players tab`
+**Batch:** solo
+
+### P12.4 — Worlds tab (+ world wizards)
+**Status:** not started
+**Files:** `src/lib/sections/worlds/`
+**What:** Rebuild Worlds — World Slots (cards w/ thumbnail, Active badge, Activate/edit/delete, Save Current/Create New) and Backups. Include the world wizards (Rename/Replace/Convert/Repair) as sheets. Reference MSC 1 `DetailsWorldsTabView`, `WorldSlotsView`, the world wizard views, and the Worlds screenshot.
+**Verify:** `npm run dev`, open Worlds and each wizard; compare to MSC 1 + checklist. Structural: `npm run test:screen-worlds-backups`.
+**Commit:** `P12.4: rebuild the Worlds tab`
+**Batch:** solo
+
+### P12.5 — Packs tab
+**Status:** not started
+**Files:** `src/lib/sections/` (packs section)
+**What:** Rebuild Packs — Resource Packs list, Add Pack / Clear Active Pack, empty state, drag-drop. Reference MSC 1 `DetailsPacksTabView`, `ResourcePacksView`, and the Packs screenshot.
+**Verify:** `npm run dev`, open Packs; compare to MSC 1 + checklist (empty + populated).
+**Commit:** `P12.5: rebuild the Packs tab`
+**Batch:** solo
+
+### P12.6 — Performance tab
+**Status:** not started
+**Files:** `src/lib/sections/performance/`
+**What:** Rebuild Performance — TPS 1m/5m/15m + Players/CPU/Memory cards, TPS-Over-Time and Player-Activity charts, right-hand Monitoring/Quick Actions/Health Summary rail, World Size/Uptime/Status footer. Charts follow the `dataviz` discipline and the anti-slop color budget. Reference MSC 1 `DetailsPerformanceTabView`/`Content` and the Performance screenshot.
+**Verify:** `npm run dev`, open Performance running; compare to MSC 1 + checklist.
+**Commit:** `P12.6: rebuild the Performance tab`
+**Batch:** solo
+
+### P12.7 — Components tab (+ plugin browser)
+**Status:** not started
+**Files:** `src/lib/sections/components/`, `src/lib/sections/addons/`
+**What:** Rebuild Components — Server JAR row (version, Up to date/update), Plugins (list, Add Plugin, Reveal folder, empty state), Crossplay (Broadcast, Missing/status). Include the plugin browser (Modrinth/CurseForge) as a sheet. Reference MSC 1 `DetailsComponentsTabView`, `ModrinthBrowserView`, `CurseForgeManualDownloadSheet`, and the Components screenshot.
+**Verify:** `npm run dev`, open Components + browser; compare to MSC 1 + checklist. Structural: `npm run test:screen-addons`.
+**Commit:** `P12.7: rebuild the Components tab`
+**Batch:** solo
+
+### P12.8 — Settings tab
+**Status:** not started
+**Files:** `src/lib/sections/settings/`
+**What:** Rebuild Settings — World Settings (difficulty/gamemode segmented, toggles, world type, spawn protection) and Server Settings (MOTD, Max Players, distances, whitelist…), the "Unsaved changes / stays local until Save Changes" model with a Save primary. Reference MSC 1 `DetailsSettingsTabView`, `ServerSettingsView`, and the Settings screenshot.
+**Verify:** `npm run dev`, open Settings, edit a field, confirm the unsaved-changes/Save flow; compare to MSC 1 + checklist.
+**Commit:** `P12.8: rebuild the Settings tab`
+**Batch:** solo
+
+### P12.9 — Files tab
+**Status:** not started
+**Files:** `src/lib/sections/` (files section)
+**What:** Rebuild Files — Server Root breadcrumb, Folders + Files divided lists, Show in Finder (web fallback marked), file preview/edit. Reference MSC 1 `ServerFilesTabView` and the Files screenshot.
+**Verify:** `npm run dev`, open Files, browse + preview; compare to MSC 1 + checklist.
+**Commit:** `P12.9: rebuild the Files tab`
+**Batch:** solo
+
+### P12.10 — Console (docked, full behavior)
+**Status:** not started
+**Files:** `src/lib/sections/console/`
+**What:** Complete the docked console — filter chips (All/Server/Plugins/Warnings/Controller/Commands/Custom), search, buffered log, command input + Send, collapse/expand, copy/clear. Reference MSC 1 `ConsoleView` and the console in `~/Documents/MSCSS/Main View`.
+**Verify:** `npm run dev`, run a server, exercise filters/search/command; compare to MSC 1 + checklist.
+**Commit:** `P12.10: rebuild the docked console`
+**Batch:** solo
+
+### P12.11 — Manage Servers / Hosts sheet (+ multi-host)
+**Status:** not started
+**Files:** `src/lib/sections/fleet/`, `src/lib/sections/connectivity/`, sheet components
+**What:** Rebuild the Manage sheet as the multi-host home — servers grouped by host, add/rename/delete servers, add/connect/manage hosts (folding the old fleet/connectivity/agent-setup content in here, not as rival top-level screens). Reference MSC 1 `ManageServersView` + `~/Documents/MSCSS/Manage Servers`, adapted for D-013 multi-host.
+**Verify:** `npm run dev`, open Manage, exercise host + server management; compare to MSC 1 (adapted) + checklist. Structural: `npm run test:screen-fleet`.
+**Commit:** `P12.11: rebuild manage servers and hosts`
+**Batch:** solo
+
+### P12.12 — Server Editor sheet (7 sub-tabs)
+**Status:** not started
+**Files:** server-editor sheet components
+**What:** Rebuild the Server Editor sheet with its sub-tabs — General, Settings, Jars, World, Backups, Broadcast, and Docker (Docker marked per D-008 exclusion; drop or adapt). Reference MSC 1 `ServerEditorView` + `ServerEditor*Tab` files.
+**Verify:** `npm run dev`, open the editor, walk each sub-tab; compare to MSC 1 + checklist.
+**Commit:** `P12.12: rebuild the server editor`
+**Batch:** solo
+
+### P12.13 — First-time setup / Prerequisites / Setup wizard
+**Status:** not started
+**Files:** `src/lib/sections/setup/`, `src/lib/help/` (first-launch)
+**What:** Rebuild the first-launch flow — setup sheet, prerequisites/Java check, Bedrock disclosure, helper links, first-server handoff — to MSC 1's shape and ordering. Reference MSC 1 `SetupWizardView`, `PrerequisitesView`, `FirstStartSheetView` and `~/Documents/MSCSS/First Time Setup`. Preserve the agent-owned vs client-owned initiation boundary from P11 scope.
+**Verify:** `npm run dev` on a fresh profile, walk setup start → first-server handoff; compare to MSC 1 + checklist.
+**Commit:** `P12.13: rebuild first-time setup`
+**Batch:** solo
+
+### P12.14 — MSC Settings (app settings)
+**Status:** not started
+**Files:** `src/lib/sections/settings/` (app-level) or a dedicated app-settings section
+**What:** Rebuild the app-wide MSC Settings sheet. Reference MSC 1 `MSCSettingsView` + `~/Documents/MSCSS/MSC settings`.
+**Verify:** `npm run dev`, open MSC Settings, exercise each pane; compare to MSC 1 + checklist.
+**Commit:** `P12.14: rebuild MSC settings`
+**Batch:** solo
+
+### P12.15 — Onboarding tour / contextual help
+**Status:** not started
+**Files:** `src/lib/help/`, onboarding overlay components
+**What:** Rebuild the guided tour + contextual help anchors/overlay to MSC 1's ordering and anchors. Reference MSC 1 `OnboardingOverlayView`, the contextual-help system, and `~/Documents/MSCSS/Onboarding Tour`. Respect reduced-motion.
+**Verify:** `npm run dev`, run the tour start→finish, check anchors + skip/reopen; compare to MSC 1 + checklist.
+**Commit:** `P12.15: rebuild the onboarding tour`
+**Batch:** solo
+
+### P12.16 — Guides / Handbook / How MSC Works
+**Status:** not started
+**Files:** `src/lib/sections/handbook/`, `src/lib/help/`
+**What:** Rebuild the Server Handbook, Concept Guide ("How MSC Works"), and router/port-forward guides, consuming the `GET /v1/help/{helpId}` content contract (no hardcoded divergent text). Reference MSC 1 `ServerHandbookView`, `ConceptGuideView`, `RouterPortForwardGuideSheet` and `~/Documents/MSCSS/{Guides,Server Handbook,How MSC Works}`.
+**Verify:** `npm run dev`, open each guide, confirm content comes from the help contract; compare to MSC 1 + checklist.
+**Commit:** `P12.16: rebuild guides and handbook`
+**Batch:** solo
+
+### P12.17 — Consistency sweep + parity gate
+**Status:** not started
+**Files:** `docs/msc2/clients/`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/renderings/`
+**What:** Run after P12.0–P12.16. Sweep every rebuilt screen for design-system consistency (uniform sheet sizes, spacing, one card language, no drift), run the `antiAIslop.md` checklist across all screens, and do the screen-by-screen MSC 1 parity comparison (shape + behavior). Confirm the D-003 corollary (no desktop-only screen) and that the kept data layer's contract is unchanged. **This step also absorbs the deferred Phase 11 gate (P11.28k + P11.29), now evaluated against the redesigned client:** reconcile the capability matrix; prove D-003 bundle/screen identity, generated DTO drift, D-013 host isolation, capability/permission routing, D-026 served-content use, browser/Tauri auth, browser responsive behavior, native Linux WebKitGTK rendering, tri-platform packaging, and headless independence; and satisfy the first-launch preservation contract (real-agent/auth path, fresh-profile setup → Concept Guide → guided tour → Handbook, step/anchor coverage, skip/reopen, splash/reduced-motion, and the agent-owned vs client-owned initiation boundary). Record evidence. The other agent decides in REVIEW whether the combined Phase 12 gate holds.
+**Verify:** `cd clients/desktop-web && npm run test:unit && npm run check`, then `python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`, then Cameron's full visual parity + anti-slop pass across every screen against `~/Documents/MSCSS/` and MSC 1. (This is Phase 12's only full-workspace run.)
+**Commit:** `P12.17: consistency sweep and parity gate`
 **Batch:** solo

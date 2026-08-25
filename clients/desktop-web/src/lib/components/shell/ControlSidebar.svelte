@@ -7,6 +7,7 @@
   // docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
   import Button from '../base/Button.svelte';
   import ShellIcon from './ShellIcon.svelte';
+  import PlayerAvatar from './PlayerAvatar.svelte';
   import { bannerColorAccent } from '../../styles/bannerColor';
   import type { Schema } from '../../sections/shared/types';
 
@@ -94,11 +95,12 @@
         {/if}
       </div>
     {/each}
-  </div>
 
-  <div class="avatar-row">
-    <span class="avatar"><ShellIcon name="user" size={15} /></span>
-    <span class="avatar-label">Your avatar</span>
+    <div class="block actions-block">
+      <p class="overline">Actions</p>
+      <p class="avatar-title">Your Avatar</p>
+      <PlayerAvatar />
+    </div>
   </div>
 </aside>
 
@@ -202,26 +204,16 @@
     color: rgba(255, 255, 255, 0.35);
     line-height: 1.5;
   }
-  .avatar-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-shrink: 0;
-    padding: 10px 12px 14px;
+  .actions-block {
+    padding-top: 12px;
+    margin-top: 4px;
+    margin-bottom: 4px;
     border-top: 1px solid var(--msc2-hairline-subtle);
   }
-  .avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 6px;
-    background: var(--msc2-neutral-elevated);
-    color: rgba(255, 255, 255, 0.5);
-  }
-  .avatar-label {
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.5);
+  .avatar-title {
+    margin: 4px 0 8px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
   }
 </style>

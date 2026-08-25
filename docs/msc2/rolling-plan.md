@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
-> **Next move:** EXECUTE P12.1a (build the sidebar player avatar), or skip ahead to P12.2 (Overview tab) and return to it later.
+> **Next move:** P12.1a (sidebar player avatar) is built and awaiting Cameron's visual verification. Once verified, EXECUTE P12.2 (Overview tab).
 > **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
 > **Last updated:** 2026-08-25
 
@@ -64,7 +64,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **9** | Networking and helpers | complete |
 | **10** | Bedrock runtimes | complete |
 | **11** | Desktop and web clients | agent layer done (P11.28g–j); UI verification (P11.28k, P11.29) folded into Phase 12 |
-| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.1 done, next: EXECUTE P12.1a** |
+| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.1a awaiting verification, next: P12.2** |
 | 13 | Terminal UI (deferred from v1) | not started |
 
 ---
@@ -560,8 +560,8 @@ code. The rest apply the locked system to each screen, one at a time.
 **Batch:** solo
 
 ### P12.1a — Build the sidebar player avatar
-**Status:** not started
-**Files:** `src/lib/components/shell/ControlSidebar.svelte`, a new `src/lib/components/shell/PlayerAvatar.svelte`
+**Status:** awaiting verification. Moved the avatar out of P12.1's fixed footer into the scroll flow as an "Actions" block, matching MSC 1's placement (`SIdebar` screenshot) — the old sticky footer was too short for the real content (segmented toggle, entry row, 160px rendered skin). Dropped the idle-sway animation: antiAIslop's design law #8 reserves the app's one deliberate flourish for the terrain banner, and a second sway on the avatar would compete with it. Java fetch uses an `Image()` load/error probe against `minotar.net` rather than `fetch()`, so it isn't blocked by CORS on a plain `<img>`-style render. New `src/lib/player/avatarIdentity.ts` holds edition/identity in global (not host/server-scoped) `localStorage` keys, since this is the human's own identity, not per-server agent data.
+**Files:** `src/lib/components/shell/ControlSidebar.svelte`, a new `src/lib/components/shell/PlayerAvatar.svelte`, a new `src/lib/player/avatarIdentity.ts`
 **What:** Replace P12.1's inert "Your avatar" placeholder with MSC 1's real `PlayerAvatarView`: a Java/Bedrock segmented toggle, username/gamertag entry (Add/Change), and the rendered full-body skin. Persist the chosen edition and identity client-locally per MSC 1's `minecraftUsername`/`minecraftBedrockGamertag`/`minecraftAvatarEditionRawValue` config fields (this is personal app identity, not per-server agent data — same "client-local until a real field exists" treatment P12.1 gave `bannerColor`). The Java path is a plain public image fetch (`minotar.net/body/{username}/160`) and can be built in full. The Bedrock path in MSC 1 delegates to `BedrockSkinFetcher` (join-cache, then live Xbox lookup, then dotted-gamertag fallback) — that resolver depends on the player-profile/Xbox work Phase 11's scope doc explicitly defers to a later phase, so Bedrock here should degrade honestly (a truthful "not available yet" state), not fake a working lookup. Reference MSC 1 `PlayerAvatarView.swift` and the `SIdebar` screenshot. The idle-sway animation is MSC 1's only avatar flourish; keep it or drop it per antiAIslop's "motion must serve a purpose" call at build time.
 **Verify:** `npm run dev`, add a Java username, confirm the skin renders and persists across reload; confirm Bedrock shows an honest unavailable state; compare to MSC 1 + anti-slop checklist.
 **Commit:** `P12.1a: build the sidebar player avatar`

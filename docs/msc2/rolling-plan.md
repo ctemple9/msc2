@@ -444,7 +444,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.28g — Remove fake hosts from the shipped client
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/navigation/`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/`, `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`
 **What:** Remove the hard-coded `demo-agent` and fake host switch from the production shell. Keep D-013’s host-keyed architecture for real configured hosts, but make the initial desktop host the actual local agent and keep fake HTTP/contract-host behavior exclusively in test entry points. The shipped app must never present a fake host as a selectable destination.
 **Verify:** `npm --prefix clients/desktop-web run check && npm --prefix clients/desktop-web run build && ! rg -n "demo-agent" clients/desktop-web/src`

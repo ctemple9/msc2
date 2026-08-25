@@ -142,5 +142,8 @@ describe('client navigation', () => {
     expect(appSource).toContain("'/v1/me'");
     expect(appSource).toContain('router.visibleSections(navigationContext)');
     expect(appSource).toContain('buildSectionPath(section, hostId, selectedServerId)');
+    expect(appSource).toContain("const localAgentHostId = 'local-agent'");
+    expect(appSource).not.toContain('demo-agent');
+    expect(appSource).not.toContain('switchHost');
   });
 });

@@ -9,6 +9,7 @@ describe('shared MSC shell contract', () => {
     expect(applicationShellSource).toContain('serverLabel');
     expect(applicationShellSource).toContain('openConsole');
     expect(applicationShellSource).toContain('{#each sections as section');
+    expect(applicationShellSource).toContain('{#if switchHost}');
     expect(applicationShellSource).not.toContain('sections.slice(0, 5)');
   });
 

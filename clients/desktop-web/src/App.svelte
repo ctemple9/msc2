@@ -129,8 +129,8 @@
     },
   ];
   const router = createClientRouter(sections);
-  const hostIds = ['local-agent', 'demo-agent'] as const;
-  let hostId: (typeof hostIds)[number] = 'local-agent';
+  const localAgentHostId = 'local-agent';
+  let hostId = localAgentHostId;
 
   function createClient(id: string): ApiClient {
     return new ApiClient({
@@ -177,24 +177,12 @@
       capabilities = await client.getCapabilities();
       const me = await client.requestJson<{ permissions: string[] }>('GET', '/v1/me');
       permissions = me.permissions;
-      shellMessage = `Connected to ${hostId === 'local-agent' ? 'Local agent' : 'Demo agent'}`;
+      shellMessage = 'Connected to Local agent';
       await selectFromLocation();
     } catch (error) {
       shellMessage = `Unable to establish the selected host context: ${String(error)}`;
       await selectSection('agent-setup');
     }
-  }
-
-  async function switchHost(): Promise<void> {
-    const nextIndex = (hostIds.indexOf(hostId) + 1) % hostIds.length;
-    hostId = hostIds[nextIndex];
-    selectedServerId = 'survival';
-    permissions = [];
-    capabilities = null;
-    client = createClient(hostId);
-    screenApi = createScreenApi();
-    history.replaceState({}, '', '/');
-    await restoreHostContext();
   }
 
   onMount(() => {
@@ -247,13 +235,12 @@
 </svelte:head>
 
 <ApplicationShell
-  hostLabel={hostId === 'local-agent' ? 'Local agent' : 'Demo agent'}
+  hostLabel="Local agent"
   serverLabel={selectedServerId === 'survival' ? 'Survival' : selectedServerId}
   connectionLabel={capabilities ? 'Connected' : 'Disconnected'}
   sections={visibleSections}
   {activeSection}
   selectSection={(id) => void selectSection(id)}
-  switchHost={() => void switchHost()}
   openConsole={() => void selectSection('console')}
 >
   {#if activeComponent}

@@ -28,7 +28,9 @@
         status={connectionLabel}
         tone={connectionLabel === 'Connected' ? 'positive' : 'warning'}
       />
-      <ActionButton kind="quiet" label="Switch host" onclick={switchHost}>Switch host</ActionButton>
+      {#if switchHost}
+        <ActionButton kind="quiet" label="Switch host" onclick={switchHost}>Switch host</ActionButton>
+      {/if}
     </div>
 
     <nav class="section-list" aria-label="Sections">

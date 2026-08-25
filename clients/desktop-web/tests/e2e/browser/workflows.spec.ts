@@ -64,12 +64,10 @@ test('uses the bounded splash fallback and removes it for reduced motion', async
   await expect(page.locator('.splash')).toHaveCount(0);
 });
 
-test('keeps host state distinct and presents reconnect fallback', async ({ page }) => {
+test('keeps the local host identity and presents reconnect fallback', async ({ page }) => {
   await skipFirstLaunch(page);
   await page.goto('/');
   await expect(page.getByText('Local agent', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Switch host' }).click();
-  await expect(page.getByText('Demo agent', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Refresh host' }).click();
   await expect(page.getByText('Reconnecting', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Refresh host' }).click();

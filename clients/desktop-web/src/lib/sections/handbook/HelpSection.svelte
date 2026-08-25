@@ -220,7 +220,12 @@
           >
         </div>
         {#if launchStage === 'setup'}
-          <SetupIntro compact headingId="handbook-first-launch-title" onComplete={completeSetup} />
+          <SetupIntro
+            compact
+            headingId="handbook-first-launch-title"
+            {api}
+            onComplete={completeSetup}
+          />
         {:else if launchStage === 'concept-guide'}
           <p class="muted">Read the Concept Guide above, then continue to the guided tour.</p>
           <ActionButton label="Continue to tour" onclick={finishConcept}>Continue</ActionButton>

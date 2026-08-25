@@ -272,7 +272,12 @@
   }
 
   async function checkTailscale(): Promise<void> {
-    if (!api || tailscaleChecking) return;
+    if (tailscaleChecking) return;
+    if (!api) {
+      tailscaleStatus = 'unavailable';
+      tailscaleMessage = 'Connect to an agent before checking Tailscale.';
+      return;
+    }
     tailscaleChecking = true;
     tailscaleStatus = 'unknown';
     tailscaleMessage = '';

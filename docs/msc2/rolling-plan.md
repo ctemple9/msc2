@@ -434,3 +434,11 @@ the package manager, with MSC limited to an actionable availability notice.
 **Verify:** `npm --prefix clients/desktop-web run test:e2e-browser`
 **Commit:** `P11.29c: make Xbox helper verification stateful in the test host`
 **Batch:** stop-after
+
+### P11.29d — Wire Tailscale checks through every setup surface
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`, `clients/desktop-web/tests/screens/help.test.ts`
+**What:** Pass the agent API into the Handbook’s compact first-launch setup, which was previously rendered without it, and make the Tailscale Check button report an unavailable connection instead of silently returning when no API is present.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run build`
+**Commit:** `P11.29d: wire Tailscale checks through every setup surface`
+**Batch:** stop-after

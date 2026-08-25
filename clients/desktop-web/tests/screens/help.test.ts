@@ -79,6 +79,8 @@ describe('shared help and onboarding screens', () => {
     expect(helpSource).toContain('That topic is not available on this agent');
     expect(helpSource).toContain('data-onboarding-anchor');
     expect(helpSource).toContain('hideCard');
+    expect(helpSource).toContain('<SetupIntro');
+    expect(helpSource).toContain('{api}');
     expect(splashSource).toContain('prefers-reduced-motion');
     expect(splashSource).toContain('fallbackMs');
     expect(splashSource).toContain('/splash_intro.mp4');

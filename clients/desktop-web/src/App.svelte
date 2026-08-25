@@ -17,8 +17,10 @@
     type AgentServiceStatus,
   } from './lib/platform';
   import { restoreAccent } from './lib/styles/accent';
+  import { bannerColorFor } from './lib/styles/bannerColor';
+  import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
-  import type { ScreenApi } from './lib/sections/shared/types';
+  import type { Schema, ScreenApi } from './lib/sections/shared/types';
   import './lib/sections/shared/screen.css';
 
   const sections: SectionDescriptor[] = [
@@ -144,6 +146,8 @@
     return new ApiClient({ ...transport, hostId: id });
   }
 
+  const defaultStatus: Schema['RemoteAPIStatus'] = { running: false };
+
   let client: ApiClient | undefined;
   let clientReady = false;
   let agentReadiness: AgentReadiness = 'starting';
@@ -171,6 +175,8 @@
   let permissions: readonly string[] = [];
   let capabilities: Capabilities | null = null;
   let shellMessage = 'Connecting to the selected host…';
+  let servers: readonly Schema['ServerDTO'][] = [];
+  let status: Schema['RemoteAPIStatus'] = defaultStatus;
 
   $: navigationContext = capabilities
     ? ({
@@ -181,6 +187,15 @@
       } satisfies NavigationContext)
     : null;
   $: visibleSections = navigationContext ? router.visibleSections(navigationContext) : [];
+  $: canControl =
+    permissions.length === 0 ||
+    permissions.includes('serverControl') ||
+    permissions.includes('admin');
+  $: primaryTabs = PRIMARY_TABS.map((tab) => ({
+    ...tab,
+    available: visibleSections.some((section) => section.id === tab.id),
+  }));
+  $: bannerColor = bannerColorFor(hostId, selectedServerId);
 
   function readinessForService(status: AgentServiceStatus): AgentReadiness {
     switch (status.state) {
@@ -212,6 +227,9 @@
       capabilities = await selectedClient.getCapabilities();
       const me = await selectedClient.requestJson<{ permissions: string[] }>('GET', '/v1/me');
       permissions = me.permissions;
+      servers = await selectedClient.requestJson<Schema['ServerDTO'][]>('GET', '/v1/servers');
+      status = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
+      if (status.activeServerId) selectedServerId = status.activeServerId;
       agentReadiness = 'ready';
       shellMessage = 'Connected to Local agent';
       await selectFromLocation();
@@ -223,6 +241,27 @@
       shellMessage = `Unable to establish the selected host context: ${String(error)}`;
       await selectSection('agent-setup');
       return false;
+    }
+  }
+
+  async function selectServer(id: string): Promise<void> {
+    try {
+      await screenApi.post('/v1/active-server', { serverId: id });
+      selectedServerId = id;
+      status = { ...status, activeServerId: id };
+      const section = router.get(activeSection);
+      if (section) history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
+    } catch (error) {
+      shellMessage = `Unable to switch servers: ${String(error)}`;
+    }
+  }
+
+  async function lifecycle(action: 'start' | 'stop'): Promise<void> {
+    try {
+      await screenApi.post(action === 'start' ? '/v1/start' : '/v1/stop');
+      status = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+    } catch (error) {
+      shellMessage = `Unable to ${action} the server: ${String(error)}`;
     }
   }
 
@@ -301,12 +340,20 @@
 
 <ApplicationShell
   hostLabel="Local agent"
-  serverLabel={selectedServerId === 'survival' ? 'Survival' : selectedServerId}
-  connectionLabel={capabilities ? 'Connected' : 'Disconnected'}
-  sections={visibleSections}
+  {servers}
+  activeServerId={selectedServerId}
+  running={status.running}
+  connected={!!capabilities}
+  {canControl}
+  {bannerColor}
+  tabs={primaryTabs}
   {activeSection}
   selectSection={(id) => void selectSection(id)}
-  openConsole={() => void selectSection('console')}
+  onSelectServer={(id) => void selectServer(id)}
+  onLifecycle={(action) => void lifecycle(action)}
+  onManage={() => void selectSection('fleet')}
+  onHelp={() => void selectSection('handbook')}
+  onRefresh={() => void initializeClient()}
 >
   {#if activeComponent}
     <svelte:component

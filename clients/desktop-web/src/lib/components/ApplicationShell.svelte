@@ -1,261 +1,163 @@
 <script lang="ts">
-  import type { SectionDescriptor } from '../navigation/types';
-  import ActionButton from './ActionButton.svelte';
-  import StatusBadge from './StatusBadge.svelte';
+  // The S1 shell skeleton, rebuilt to docs/msc2/renderings/shell.html and MSC 1's
+  // ContentView/SidebarView/DetailsHeaderSectionView/MSCTabBar. Governed by
+  // docs/msc2/antiAIslop.md. bannerColor appears in exactly four places: the
+  // running terrain banner, the header wash, the selected tab pill, and (later)
+  // sidebar selection.
+  import TopBar from './shell/TopBar.svelte';
+  import ControlSidebar from './shell/ControlSidebar.svelte';
+  import DetailsHeader from './shell/DetailsHeader.svelte';
+  import TabStrip from './shell/TabStrip.svelte';
+  import ConsoleDock from './shell/ConsoleDock.svelte';
+  import ShellIcon from './shell/ShellIcon.svelte';
+  import type { PrimaryTab } from '../navigation/primaryTabs';
+  import type { Schema } from '../sections/shared/types';
 
   export let hostLabel = 'No host selected';
-  export let serverLabel = 'No server selected';
-  export let connectionLabel = 'Disconnected';
-  export let sections: readonly SectionDescriptor[] = [];
+  export let servers: readonly Schema['ServerDTO'][] = [];
+  export let activeServerId: string | undefined = undefined;
+  export let running = false;
+  export let connected = false;
+  export let canControl = true;
+  export let bannerColor: string;
+  export let tabs: readonly (PrimaryTab & { available: boolean })[] = [];
   export let activeSection = '';
-  export let selectSection: ((id: string) => void) | undefined = undefined;
-  export let switchHost: (() => void) | undefined = undefined;
-  export let openConsole: (() => void) | undefined = undefined;
+  export let selectSection: (id: string) => void;
+  export let onSelectServer: (id: string) => void;
+  export let onLifecycle: (action: 'start' | 'stop') => void;
+  export let onManage: () => void;
+  export let onHelp: (() => void) | undefined = undefined;
+  export let onSettings: (() => void) | undefined = undefined;
+  export let onRefresh: (() => void) | undefined = undefined;
+
+  const SIDEBAR_KEY = 'msc2.sidebarCollapsed';
+  const CONSOLE_KEY = 'msc2.consoleHidden';
+
+  let sidebarCollapsed =
+    typeof localStorage !== 'undefined' && localStorage.getItem(SIDEBAR_KEY) === '1';
+  let consoleCollapsed =
+    typeof localStorage !== 'undefined' && localStorage.getItem(CONSOLE_KEY) === '1';
+
+  function toggleSidebar(): void {
+    sidebarCollapsed = !sidebarCollapsed;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? '1' : '0');
+    }
+  }
+
+  function toggleConsole(): void {
+    consoleCollapsed = !consoleCollapsed;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CONSOLE_KEY, consoleCollapsed ? '1' : '0');
+    }
+  }
+
+  $: activeServer = servers.find((server) => server.id === activeServerId);
 </script>
 
-<div class="application-shell">
-  <aside class="sidebar" aria-label="Main navigation">
-    <div class="brand-block">
-      <p class="brand-mark">MSC 2</p>
-      <p class="brand-subtitle">Minecraft Server Controller</p>
-    </div>
+<div class="shell">
+  <TopBar
+    {bannerColor}
+    {running}
+    {sidebarCollapsed}
+    onToggleSidebar={toggleSidebar}
+    {onHelp}
+    {onSettings}
+    {onRefresh}
+  />
 
-    <div class="context-card">
-      <p class="context-label">Current host</p>
-      <strong>{hostLabel}</strong>
-      <p class="context-server">{serverLabel}</p>
-      <StatusBadge
-        status={connectionLabel}
-        tone={connectionLabel === 'Connected' ? 'positive' : 'warning'}
+  <div class="body">
+    {#if sidebarCollapsed}
+      <button type="button" class="sidebar-rail" aria-label="Show sidebar" onclick={toggleSidebar}>
+        <ShellIcon name="chevron-right" size={11} />
+      </button>
+    {:else}
+      <ControlSidebar
+        {hostLabel}
+        {servers}
+        {activeServerId}
+        {running}
+        {connected}
+        {canControl}
+        {bannerColor}
+        {onSelectServer}
+        {onLifecycle}
+        {onManage}
       />
-      {#if switchHost}
-        <ActionButton kind="quiet" label="Switch host" onclick={switchHost}>Switch host</ActionButton>
-      {/if}
-    </div>
+    {/if}
 
-    <nav class="section-list" aria-label="Sections">
-      {#each sections as section (section.id)}
-        <button
-          class:active={section.id === activeSection}
-          type="button"
-          aria-current={section.id === activeSection ? 'page' : undefined}
-          onclick={() => selectSection?.(section.id)}
-        >
-          <span>{section.label}</span>
-          <span class="route-hint">{section.segment}</span>
-        </button>
-      {/each}
-    </nav>
+    <div class="main">
+      <DetailsHeader
+        serverName={activeServer?.name ?? 'No server selected'}
+        serverType={activeServer?.serverType}
+        javaFlavor={activeServer?.javaFlavor}
+        directory={activeServer?.directory}
+        {running}
+        {bannerColor}
+      />
 
-    <div class="sidebar-footer">
-      <ActionButton kind="quiet" label="Open console" onclick={openConsole}>Console</ActionButton>
-    </div>
-  </aside>
-
-  <main class="main-column">
-    <header class="topbar">
-      <div>
-        <p class="breadcrumb">{hostLabel} <span aria-hidden="true">/</span> {serverLabel}</p>
-        <h1>{activeSection || 'Overview'}</h1>
+      <div class="tabs-row">
+        <TabStrip {tabs} activeId={activeSection} {bannerColor} onSelect={selectSection} />
       </div>
-      <div class="topbar-actions">
-        <span class="mobile-context">{hostLabel} · {serverLabel}</span>
-        <ActionButton kind="quiet" label="Open console" onclick={openConsole}>Console</ActionButton>
-      </div>
-    </header>
 
-    <section class="content" aria-live="polite">
-      <slot />
-    </section>
+      <section class="content" aria-live="polite">
+        <slot />
+      </section>
 
-    <nav class="bottom-nav" aria-label="Mobile navigation">
-      {#each sections as section (section.id)}
-        <button
-          class:active={section.id === activeSection}
-          type="button"
-          aria-current={section.id === activeSection ? 'page' : undefined}
-          onclick={() => selectSection?.(section.id)}>{section.label}</button
-        >
-      {/each}
-      <button type="button" onclick={openConsole}>Console</button>
-    </nav>
-  </main>
+      <ConsoleDock collapsed={consoleCollapsed} onToggle={toggleConsole} />
+    </div>
+  </div>
 </div>
 
 <style>
-  .application-shell {
-    display: grid;
-    grid-template-columns: 17rem minmax(0, 1fr);
-    min-height: 100vh;
-  }
-  .sidebar {
+  .shell {
     display: flex;
     flex-direction: column;
-    gap: 1.3rem;
-    padding: 1.35rem 1rem;
-    border-right: 1px solid var(--msc-border);
-    background: rgba(16, 24, 32, 0.94);
+    height: 100vh;
+    background: var(--msc2-tier-atmosphere);
+    color: var(--msc2-text-primary);
+    font-family: var(--msc2-font-sans);
+    overflow: hidden;
   }
-  .brand-block {
-    padding: 0.35rem 0.6rem;
-  }
-  .brand-mark {
-    margin: 0;
-    color: var(--msc-accent);
-    font-size: 1.45rem;
-    font-weight: 850;
-    letter-spacing: 0.04em;
-  }
-  .brand-subtitle {
-    margin: 0.3rem 0 0;
-    color: var(--msc-subtle);
-    font-size: 0.72rem;
-    line-height: 1.35;
-  }
-  .context-card {
-    display: grid;
-    gap: 0.5rem;
-    padding: 0.85rem;
-    border: 1px solid var(--msc-border);
-    border-radius: var(--msc-radius-md);
-    background: var(--msc-surface);
-  }
-  .context-label,
-  .breadcrumb {
-    margin: 0;
-    color: var(--msc-subtle);
-    font-size: 0.72rem;
-  }
-  .context-server {
-    margin: 0;
-    color: var(--msc-muted);
-    font-size: 0.85rem;
-  }
-  .context-card :global(.action-button) {
-    justify-self: start;
-    margin: 0.15rem -0.25rem -0.25rem;
-    padding: 0.45rem 0.55rem;
-    font-size: 0.78rem;
-  }
-  .section-list {
-    display: grid;
-    gap: 0.25rem;
-  }
-  .section-list button,
-  .bottom-nav button {
+  .body {
+    flex: 1;
+    min-height: 0;
     display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-    border: 0;
-    border-radius: var(--msc-radius-sm);
-    padding: 0.7rem 0.65rem;
-    color: var(--msc-muted);
-    background: transparent;
-    font: inherit;
-    text-align: left;
+  }
+  .sidebar-rail {
+    width: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.4);
+    background: var(--msc2-tier-chrome);
+    border: none;
+    border-right: 1px solid var(--msc2-hairline-faint);
     cursor: pointer;
   }
-  .section-list button:hover,
-  .section-list button.active,
-  .bottom-nav button:hover,
-  .bottom-nav button.active {
-    color: var(--msc-text);
-    background: rgba(143, 227, 207, 0.11);
+  .sidebar-rail:hover {
+    color: rgba(255, 255, 255, 0.7);
   }
-  .section-list button:focus-visible,
-  .bottom-nav button:focus-visible {
-    outline: none;
-    box-shadow: var(--msc-focus);
+  .sidebar-rail:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.4);
   }
-  .route-hint {
-    color: var(--msc-subtle);
-    font-size: 0.7rem;
-  }
-  .sidebar-footer {
-    margin-top: auto;
-  }
-  .main-column {
+  .main {
+    flex: 1;
     min-width: 0;
-    background:
-      radial-gradient(circle at 80% 0%, rgba(143, 227, 207, 0.08), transparent 28rem), var(--msc-bg);
-  }
-  .topbar {
     display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: center;
-    padding: 1.5rem clamp(1rem, 4vw, 3.5rem) 1rem;
-    border-bottom: 1px solid var(--msc-border);
+    flex-direction: column;
   }
-  .breadcrumb span {
-    margin: 0 0.35rem;
-    color: var(--msc-subtle);
-  }
-  h1 {
-    margin: 0.35rem 0 0;
-    font-size: clamp(1.35rem, 3vw, 2rem);
-    text-transform: capitalize;
-  }
-  .topbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.7rem;
-  }
-  .mobile-context {
-    display: none;
-    color: var(--msc-muted);
-    font-size: 0.75rem;
+  .tabs-row {
+    flex-shrink: 0;
+    padding: 10px 14px 0;
+    background: var(--msc2-tier-atmosphere);
   }
   .content {
-    width: min(100%, 76rem);
-    margin: 0 auto;
-    padding: clamp(1rem, 4vw, 2.5rem) clamp(1rem, 4vw, 3.5rem) 5rem;
-  }
-  .bottom-nav {
-    display: none;
-  }
-
-  @media (max-width: 759px) {
-    .application-shell {
-      display: block;
-    }
-    .sidebar {
-      display: none;
-    }
-    .topbar {
-      align-items: flex-start;
-    }
-    .topbar-actions :global(.action-button) {
-      display: none;
-    }
-    .mobile-context {
-      display: block;
-      max-width: 9rem;
-      text-align: right;
-    }
-    .bottom-nav {
-      position: fixed;
-      z-index: 5;
-      right: 0;
-      bottom: 0;
-      left: 0;
-      display: grid;
-      grid-auto-columns: minmax(0, 1fr);
-      grid-auto-flow: column;
-      gap: 0.2rem;
-      overflow-x: auto;
-      padding: 0.45rem;
-      border-top: 1px solid var(--msc-border);
-      background: rgba(16, 24, 32, 0.96);
-      backdrop-filter: blur(0.8rem);
-    }
-    .bottom-nav button {
-      display: block;
-      min-width: 4.7rem;
-      padding: 0.55rem 0.35rem;
-      color: var(--msc-muted);
-      font-size: 0.72rem;
-      text-align: center;
-    }
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 14px;
+    background: var(--msc2-tier-atmosphere);
   }
 </style>

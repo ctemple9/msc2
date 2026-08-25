@@ -552,7 +552,7 @@ code. The rest apply the locked system to each screen, one at a time.
 **Batch:** solo
 
 ### P12.1 — Build the app shell (S1)
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `src/App.svelte`, `src/lib/components/ApplicationShell.svelte`, shell subcomponents, `src/lib/navigation/`
 **What:** Build the shell skeleton per `renderings/shell.html` and MSC 1 (`ContentView`, `SidebarView`, `DetailsHeaderSectionView`, `MSCTabBar`): window chrome + `bannerColor` system + terrain banner (static-faithful, animation deferred), sidebar control rail with the **host-aware picker** (Host ▸ Server + connection dot + Manage…) and collapsible sections, header, 8-tab strip (selected pill = `bannerColor`), and the docked collapsible console *frame* (console behavior is P12.10). Wire it to the kept navigation/host stores.
 **Verify:** `cd clients/desktop-web && npm run dev`; compare the running shell to `renderings/shell.html` and `~/Documents/MSCSS/Main View` + `SIdebar`; run the anti-slop checklist. Structural: `npm run test:visual-shell`.

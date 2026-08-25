@@ -460,7 +460,7 @@ the package manager, with MSC limited to an actionable availability notice.
 **Batch:** stop-after
 
 ### P11.28i — Start the installed local agent without terminal commands
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/tests/agent-install/`, `clients/desktop-web/tests/tauri/`, `tools/phase11/`
 **What:** On desktop launch, inspect the local service through the existing native service adapter. Start an installed-but-stopped MSC2 agent automatically and wait for its health endpoint on `48001`; when the service is not installed, expose one explicit Install action that uses the existing packaged-agent/service path and elevation boundary. Closing the window must not stop the agent or Minecraft servers, and normal operation must not require a terminal.
 **Verify:** `bash tools/phase11/agent-install-smoke.sh --synthetic && npm --prefix clients/desktop-web run test:tauri-boundary && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`

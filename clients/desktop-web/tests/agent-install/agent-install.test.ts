@@ -1,5 +1,18 @@
-import { describe, expect, it } from 'vitest';
-import { createBrowserPlatform } from '../../src/lib/platform';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  createBrowserPlatform,
+  prepareInstalledAgent,
+  type AgentPreparationPlatform,
+  type AgentServiceStatus,
+} from '../../src/lib/platform';
+
+const status = (state: AgentServiceStatus['state']): AgentServiceStatus => ({
+  available: state !== 'unavailable',
+  platform: 'macos',
+  serviceName: 'com.ctemple.msc2.agent',
+  state,
+  detail: state,
+});
 import appSource from '../../src/App.svelte?raw';
 import setupSource from '../../src/lib/sections/setup/AgentSetupSection.svelte?raw';
 import tauriSource from '../../src/lib/platform/tauri.ts?raw';
@@ -23,5 +36,35 @@ describe('local agent installation boundary', () => {
 
   it('states that closing the window does not stop a service or server', () => {
     expect(setupSource).toContain('Closing the app window never stops the service');
+  });
+
+  it('starts an installed stopped agent and waits for its health endpoint', async () => {
+    const platform: AgentPreparationPlatform = {
+      kind: 'tauri',
+      agentServiceStatus: vi.fn(async () => status('stopped')),
+      manageAgentService: vi.fn(async () => status('running')),
+    };
+    const healthCheck = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await expect(
+      prepareInstalledAgent(platform, healthCheck, { attempts: 2, delayMs: 0 }),
+    ).resolves.toMatchObject({ state: 'running' });
+    expect(platform.manageAgentService).toHaveBeenCalledWith('start');
+    expect(healthCheck).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not install a missing service during automatic launch', async () => {
+    const platform: AgentPreparationPlatform = {
+      kind: 'tauri',
+      agentServiceStatus: vi.fn(async () => status('not-installed')),
+      manageAgentService: vi.fn(async () => status('running')),
+    };
+    const healthCheck = vi.fn().mockResolvedValue(true);
+
+    await expect(prepareInstalledAgent(platform, healthCheck)).resolves.toMatchObject({
+      state: 'not-installed',
+    });
+    expect(platform.manageAgentService).not.toHaveBeenCalled();
+    expect(healthCheck).not.toHaveBeenCalled();
   });
 });

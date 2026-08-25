@@ -9,7 +9,7 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import { buildSectionPath } from './lib/navigation/route';
-  import { createAgentTransport } from './lib/platform';
+  import { createAgentTransport, prepareLocalAgent } from './lib/platform';
   import { restoreAccent } from './lib/styles/accent';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { ScreenApi } from './lib/sections/shared/types';
@@ -191,6 +191,7 @@
 
   async function initializeClient(): Promise<void> {
     try {
+      await prepareLocalAgent();
       client = await createClient(hostId);
       clientReady = true;
       await restoreHostContext();

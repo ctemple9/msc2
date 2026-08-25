@@ -14,7 +14,7 @@ mod update;
 const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
 const DESKTOP_SECRET_SERVICE: &str = "com.ctemple.msc2.desktop";
 const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
-const AGENT_PORT: u16 = 48400;
+const AGENT_PORT: u16 = 48001;
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -281,7 +281,7 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
         working_directory.join("logs/agent.log"),
         AGENT_PORT,
     )
-    .args(["serve", "--bind", "127.0.0.1:48400"])
+    .args(["serve", "--bind", "127.0.0.1:48001"])
     .run_user(installing_user()?))
 }
 

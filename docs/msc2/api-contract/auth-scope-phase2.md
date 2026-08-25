@@ -8,7 +8,7 @@
 
 Per `msc2-port-plan.md` §3, Phase 2's exit criterion is: **"the existing iOS app connects and reads status against a stub agent."** Not a Tauri desktop app connecting to a remote host. Not a browser. One client, one transport, one machine:
 
-- The iOS app running against an agent on the **same local network as the Mac it's paired with today** — in Phase 2's case, simplified further to **loopback** (`127.0.0.1:48400`, per P2.18/P2.20), since no real host is being provisioned yet and the skeletal agent runs on the developer's own machine.
+- The iOS app running against an agent on the **same local network as the Mac it's paired with today** — in Phase 2's case, simplified further to **loopback** (`127.0.0.1:48001`, per P2.18/P2.20), since no real host is being provisioned yet and the skeletal agent runs on the developer's own machine.
 - D-016 ("UI never gates correctness") argues against solving Tauri/browser auth just to satisfy an iOS-only gate — that's Phase 11's client, Phase 11's problem.
 
 Everything below scopes Phase 2's auth work to exactly that one path.

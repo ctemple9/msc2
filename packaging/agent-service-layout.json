@@ -1,6 +1,6 @@
 {
   "serviceName": "com.ctemple.msc2.agent",
-  "managementBind": "127.0.0.1:48400",
+  "managementBind": "127.0.0.1:48001",
   "identity": "installing-user",
   "platforms": {
     "macos": {

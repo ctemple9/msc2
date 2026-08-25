@@ -113,7 +113,7 @@ Clients display and request. They never become co-owners. This is what keeps rec
 
 ```
 msc serve
-msc serve --bind 127.0.0.1 --port 48400
+msc serve --bind 127.0.0.1:48001
 msc serve --bind tailscale
 ```
 

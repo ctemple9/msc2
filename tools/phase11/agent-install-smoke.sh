@@ -14,7 +14,7 @@ import sys
 
 layout = json.load(open(sys.argv[1]))
 assert layout["serviceName"] == "com.ctemple.msc2.agent"
-assert layout["managementBind"] == "127.0.0.1:48400"
+assert layout["managementBind"] == "127.0.0.1:48001"
 assert layout["identity"] == "installing-user"
 for platform, manager in {
     "macos": "launchd LaunchDaemon",

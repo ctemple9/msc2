@@ -125,9 +125,9 @@ fn request() -> ServiceInstallRequest {
         "/usr/local/bin/msc",
         "/tmp/msc2-service-tests/agent",
         "/tmp/msc2-service-tests/agent.log",
-        48400,
+        48001,
     )
-    .args(["serve", "--bind", "127.0.0.1:48400"])
+    .args(["serve", "--bind", "127.0.0.1:48001"])
     .env("MSC2_TEST_BOOTSTRAP_TOKEN", "secret")
     .run_user("cameron")
 }
@@ -148,7 +148,7 @@ fn install_writes_systemd_unit_with_user_group_and_expected_port_metadata() {
     let unit = std::fs::read_to_string(&unit_path).expect("unit exists");
     assert!(unit.contains("User=cameron"));
     assert!(unit.contains("Group=cameron"));
-    assert!(unit.contains("Environment=\"MSC2_EXPECTED_PORT=48400\""));
+    assert!(unit.contains("Environment=\"MSC2_EXPECTED_PORT=48001\""));
     assert_eq!(
         systemctl.calls(),
         vec![
@@ -249,7 +249,7 @@ fn install_rejects_missing_run_user_for_installing_user_service_scope() {
         "/usr/local/bin/msc",
         "/tmp",
         "/tmp/msc.log",
-        48400,
+        48001,
     );
 
     let error = manager

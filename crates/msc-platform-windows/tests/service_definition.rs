@@ -122,7 +122,7 @@ fn request() -> ServiceInstallRequest {
         r"C:\MSC2\service-host.ps1",
         r"C:\MSC2\state",
         r"C:\MSC2\logs\agent.log",
-        48400,
+        48001,
     )
     .args([
         "-ExecutionPolicy",
@@ -130,7 +130,7 @@ fn request() -> ServiceInstallRequest {
         "-File",
         r"C:\MSC2\service-host.ps1",
         "-Port",
-        "48400",
+        "48001",
     ])
     .env("MSC2_TEST_BOOTSTRAP_TOKEN", "secret")
     .run_user(r".\cameron")
@@ -151,13 +151,13 @@ fn install_writes_service_metadata_and_sc_definition() {
     let metadata_path = temp.path.join("msc2-agent.metadata");
     let metadata = std::fs::read_to_string(&metadata_path).expect("metadata exists");
     assert!(metadata.contains("run_user=.\\cameron"));
-    assert!(metadata.contains("expected_port=48400"));
+    assert!(metadata.contains("expected_port=48001"));
     assert_eq!(
         sc.calls(),
         vec![
             "stop msc2-agent".to_string(),
             "delete msc2-agent".to_string(),
-            "create msc2-agent [C:\\MSC2\\service-host.ps1 -ExecutionPolicy Bypass -File C:\\MSC2\\service-host.ps1 -Port 48400] as .\\cameron".to_string()
+        "create msc2-agent [C:\\MSC2\\service-host.ps1 -ExecutionPolicy Bypass -File C:\\MSC2\\service-host.ps1 -Port 48001] as .\\cameron".to_string()
         ]
     );
 }
@@ -235,7 +235,7 @@ fn start_stop_and_uninstall_issue_expected_sc_calls() {
         vec![
             "stop msc2-agent".to_string(),
             "delete msc2-agent".to_string(),
-            "create msc2-agent [C:\\MSC2\\service-host.ps1 -ExecutionPolicy Bypass -File C:\\MSC2\\service-host.ps1 -Port 48400] as .\\cameron".to_string(),
+        "create msc2-agent [C:\\MSC2\\service-host.ps1 -ExecutionPolicy Bypass -File C:\\MSC2\\service-host.ps1 -Port 48001] as .\\cameron".to_string(),
             "start msc2-agent".to_string(),
             "query msc2-agent".to_string(),
             "stop msc2-agent".to_string(),
@@ -256,7 +256,7 @@ fn install_rejects_missing_run_user_for_installing_user_service_scope() {
         r"C:\MSC2\agent.exe",
         r"C:\MSC2\state",
         r"C:\MSC2\logs\agent.log",
-        48400,
+        48001,
     );
 
     let error = manager

@@ -2,7 +2,7 @@
 
 Phase 4's live lifecycle gate needs a real imported Paper server directory, not a fabricated fixture tree. Point `MSC2_PHASE4_PAPER_SERVER` at one complete server directory on this machine, then run:
 
-`python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48400`
+`python3 tools/phase4/live-paper-lifecycle-check.py --server-dir "$MSC2_PHASE4_PAPER_SERVER" --base-url http://127.0.0.1:48001`
 
 Minimum contents for that directory:
 

@@ -926,7 +926,7 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    pub const DEFAULT_REMOTE_API_PORT: i64 = 48400;
+    pub const DEFAULT_REMOTE_API_PORT: i64 = 48001;
     /// Bump when the persisted config schema changes incompatibly.
     pub const LATEST_CONFIG_VERSION: i64 = 1;
 

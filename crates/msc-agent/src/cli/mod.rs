@@ -48,11 +48,11 @@ use serde::de::DeserializeOwned;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const DEFAULT_HOST: &str = "127.0.0.1";
-const DEFAULT_PORT: u16 = 48400;
+const DEFAULT_PORT: u16 = 48001;
 
 #[derive(Debug, Clone, Args)]
 pub struct CommonArgs {
-    /// Full base URL for the agent, for example http://127.0.0.1:48400.
+    /// Full base URL for the agent, for example http://127.0.0.1:48001.
     #[arg(long, global = true, conflicts_with_all = ["host", "port"])]
     pub base_url: Option<String>,
 
@@ -81,7 +81,7 @@ pub enum Command {
         /// (`msc2-engineering.md` §10: "the management API binds to
         /// loopback by default") — LAN/Tailscale binding is opt-in and
         /// not implemented by the Phase 4 slice.
-        #[arg(long, default_value = "127.0.0.1:48400")]
+        #[arg(long, default_value = "127.0.0.1:48001")]
         bind: std::net::SocketAddr,
     },
     /// Hidden root-run helper used by the Linux service unit.

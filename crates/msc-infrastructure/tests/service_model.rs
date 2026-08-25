@@ -9,9 +9,9 @@ fn request() -> ServiceInstallRequest {
         "/usr/local/bin/msc",
         "/Users/cameron/Library/Application Support/MSC2/agent",
         "/Users/cameron/Library/Logs/MSC2/agent.log",
-        48400,
+        48001,
     )
-    .args(["serve", "--bind", "127.0.0.1:48400"])
+    .args(["serve", "--bind", "127.0.0.1:48001"])
     .env("RUST_LOG", "info")
     .env("MSC2_CONFIG_DIR", "/Users/cameron/.msc2")
     .run_user("cameron")
@@ -31,11 +31,11 @@ fn service_model_install_request_carries_platform_definition_fields() {
         request.log_path.to_string_lossy(),
         "/Users/cameron/Library/Logs/MSC2/agent.log"
     );
-    assert_eq!(request.expected_port, 48400);
+    assert_eq!(request.expected_port, 48001);
     assert_eq!(request.run_user.as_deref(), Some("cameron"));
     assert_eq!(
         request.arguments,
-        vec!["serve", "--bind", "127.0.0.1:48400"]
+        vec!["serve", "--bind", "127.0.0.1:48001"]
     );
     assert_eq!(
         request.environment.get("RUST_LOG").map(String::as_str),

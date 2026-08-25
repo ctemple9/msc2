@@ -118,9 +118,9 @@ fn request() -> ServiceInstallRequest {
         "/usr/local/bin/msc",
         "/private/tmp/msc2-service-tests/agent",
         "/private/tmp/msc2-service-tests/agent.log",
-        48400,
+        48001,
     )
-    .args(["serve", "--bind", "127.0.0.1:48400"])
+    .args(["serve", "--bind", "127.0.0.1:48001"])
     .env("MSC2_TEST_BOOTSTRAP_TOKEN", "secret")
     .run_user("cameron")
 }
@@ -142,7 +142,7 @@ fn install_writes_launchdaemon_plist_with_username_and_expected_port_metadata() 
     assert!(plist.contains("<key>UserName</key>"));
     assert!(plist.contains("<string>cameron</string>"));
     assert!(plist.contains("<key>MSC2_EXPECTED_PORT</key>"));
-    assert!(plist.contains("<string>48400</string>"));
+    assert!(plist.contains("<string>48001</string>"));
     assert_eq!(
         launchctl.calls(),
         vec![format!("bootstrap {}", plist_path.display())]
@@ -237,7 +237,7 @@ fn install_rejects_missing_run_user_for_launchdaemon_scope() {
         "/usr/local/bin/msc",
         "/tmp",
         "/tmp/msc.log",
-        48400,
+        48001,
     );
 
     let error = manager

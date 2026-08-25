@@ -662,7 +662,7 @@ def selftest():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--base-url", help="e.g. http://127.0.0.1:48400")
+    parser.add_argument("--base-url", help="e.g. http://127.0.0.1:48001")
     parser.add_argument("--token", help="bearer token for full live route conformance")
     parser.add_argument("--expect-auth-store", action="store_true", help="P4.5: assert MSC_DEV_TOKEN no longer authorizes protected routes")
     parser.add_argument("--routes", help="comma-separated route keys, e.g. status,performance")

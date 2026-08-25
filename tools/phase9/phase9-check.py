@@ -170,7 +170,7 @@ def check_management_boundary() -> list[str]:
     networking = NETWORKING_ROUTES_PATH.read_text(encoding="utf-8")
 
     require(
-        'default_value = "127.0.0.1:48400"' in cli,
+        'default_value = "127.0.0.1:48001"' in cli,
         "management boundary: the default management bind is not loopback",
     )
     require(

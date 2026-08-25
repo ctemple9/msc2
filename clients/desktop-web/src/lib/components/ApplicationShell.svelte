@@ -33,10 +33,22 @@
   const SIDEBAR_KEY = 'msc2.sidebarCollapsed';
   const CONSOLE_KEY = 'msc2.consoleHidden';
 
+  // Mirrors MSC 1 ContentView.swift's consoleDivider: drag resizes within a
+  // floor, and releasing well past that floor collapses the console instead.
+  const MIN_CONSOLE_HEIGHT = 120;
+  const MAX_CONSOLE_HEIGHT = 560;
+  const DEFAULT_CONSOLE_HEIGHT = 220;
+  const COLLAPSE_BELOW = MIN_CONSOLE_HEIGHT * 0.5;
+
   let sidebarCollapsed =
     typeof localStorage !== 'undefined' && localStorage.getItem(SIDEBAR_KEY) === '1';
   let consoleCollapsed =
     typeof localStorage !== 'undefined' && localStorage.getItem(CONSOLE_KEY) === '1';
+  let consoleHeight = DEFAULT_CONSOLE_HEIGHT;
+
+  let dragStartY: number | null = null;
+  let dragStartHeight = consoleHeight;
+  let dragRawHeight = consoleHeight;
 
   function toggleSidebar(): void {
     sidebarCollapsed = !sidebarCollapsed;
@@ -45,11 +57,34 @@
     }
   }
 
-  function toggleConsole(): void {
-    consoleCollapsed = !consoleCollapsed;
+  function setConsoleCollapsed(value: boolean): void {
+    consoleCollapsed = value;
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(CONSOLE_KEY, consoleCollapsed ? '1' : '0');
     }
+  }
+
+  function toggleConsole(): void {
+    setConsoleCollapsed(!consoleCollapsed);
+  }
+
+  function startConsoleResize(event: PointerEvent): void {
+    dragStartY = event.clientY;
+    dragStartHeight = consoleHeight;
+    dragRawHeight = consoleHeight;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  }
+
+  function onConsoleResize(event: PointerEvent): void {
+    if (dragStartY === null) return;
+    dragRawHeight = dragStartHeight + (dragStartY - event.clientY);
+    consoleHeight = Math.min(MAX_CONSOLE_HEIGHT, Math.max(MIN_CONSOLE_HEIGHT, dragRawHeight));
+  }
+
+  function endConsoleResize(): void {
+    if (dragStartY === null) return;
+    dragStartY = null;
+    if (dragRawHeight < COLLAPSE_BELOW) setConsoleCollapsed(true);
   }
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
@@ -104,7 +139,25 @@
         <slot />
       </section>
 
-      <ConsoleDock collapsed={consoleCollapsed} onToggle={toggleConsole} />
+      {#if !consoleCollapsed}
+        <div
+          class="console-resize"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize console"
+          onpointerdown={startConsoleResize}
+          onpointermove={onConsoleResize}
+          onpointerup={endConsoleResize}
+        >
+          <span class="handle" aria-hidden="true"></span>
+        </div>
+      {/if}
+
+      <ConsoleDock
+        collapsed={consoleCollapsed}
+        onToggle={toggleConsole}
+        height={consoleCollapsed ? undefined : consoleHeight}
+      />
     </div>
   </div>
 </div>
@@ -159,5 +212,25 @@
     overflow-y: auto;
     padding: 14px;
     background: var(--msc2-tier-atmosphere);
+  }
+  .console-resize {
+    flex-shrink: 0;
+    height: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--msc2-tier-atmosphere);
+    cursor: row-resize;
+    touch-action: none;
+  }
+  .console-resize .handle {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .console-resize:hover .handle,
+  .console-resize:active .handle {
+    background: rgba(255, 255, 255, 0.3);
   }
 </style>

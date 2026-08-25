@@ -1,15 +1,23 @@
 <script lang="ts">
   // The docked console frame — shape only. Filter chips, buffered log, and
-  // command input become real in P12.10; this step wires only collapse/expand.
+  // command input become real in P12.10; this step wires collapse/expand and
+  // manual resize (MSC 1 ContentView.swift's consoleDivider drag).
   // docs/msc2/renderings/shell.html, MSC 1 ConsoleView.
   export let collapsed = false;
   export let onToggle: () => void;
+  // Explicit pixel height while expanded — undefined lets the collapsed
+  // header-only row size itself naturally.
+  export let height: number | undefined = undefined;
 
   const filters = ['All', 'Server', 'Plugins', 'Warnings', 'Controller', 'Commands', 'Custom'];
   let activeFilter = 'All';
 </script>
 
-<div class="dock">
+<div
+  class="dock"
+  class:expanded={!collapsed}
+  style={!collapsed && height !== undefined ? `height: ${height}px;` : ''}
+>
   <div class="dock-header">
     <button
       type="button"
@@ -59,8 +67,14 @@
     background: var(--msc2-tier-terminal);
     border-top: 1px solid var(--msc2-hairline-subtle);
     padding: 8px 12px;
+    box-sizing: border-box;
+  }
+  .dock.expanded {
+    display: flex;
+    flex-direction: column;
   }
   .dock-header {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -106,15 +120,17 @@
     background: var(--msc2-neutral-elevated);
   }
   .body {
+    flex: 1;
+    min-height: 0;
     margin-top: 7px;
     font-family: var(--msc2-font-mono);
     font-size: 11px;
     color: var(--msc2-text-secondary);
     line-height: 1.5;
-    max-height: 6.5em;
     overflow-y: auto;
   }
   .input-row {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 8px;

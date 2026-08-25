@@ -366,6 +366,7 @@
       onAgentRetry={() => void initializeClient()}
       onServerSelected={(id: string) => (selectedServerId = id)}
       onFleet={() => void selectSection('fleet')}
+      onWorlds={() => void selectSection('worlds')}
     />
   {:else}
     <div class="dashboard" data-bundle-id={bundleIdentity.id} data-client-surface="shared">

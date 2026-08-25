@@ -220,11 +220,12 @@
   }
   .prompt-row {
     display: flex;
+    flex-direction: column;
+    align-items: flex-end;
     gap: 6px;
   }
   .prompt-row :global(.field) {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
     font-size: 12px;
     padding: 6px 8px;
   }

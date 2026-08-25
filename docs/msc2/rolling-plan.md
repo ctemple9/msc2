@@ -1,8 +1,8 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
-> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. Next: P12.2b (Java player-data NBT fixtures) — see the 2026-08-25 note below. P12.3 (Players tab) is blocked until P12.2b–P12.2g land.
-> **P12.3 blocked on missing backend (decided 2026-08-25):** before rebuilding the Players tab, Cameron flagged that MSC 1's Players tab includes a read-only Java player inventory/stats viewer (`PlayerNBTReader.swift` + `PlayerInventoryView.swift`, hosted in `PlayerProfileDetailSheet.swift`) that never made it past the file-inventory audit into an actual phase step — no domain crate, no API route, and P12.3's own `What:` line never mentioned it. Investigation found `GET /v1/players/profiles` is **already frozen in the API contract** (`docs/msc2/api-contract/openapi.json`: `PlayerProfileDTO`/`PlayerStatsDTO`/`InventoryItemDTO`, plus `POST /v1/players/hidden`, `POST /v1/players/skin-override`, `GET /v1/players/{profileId}/skin`) but has **no handler at all** — today `GET /v1/players` only serves Bedrock (`crates/msc-agent/src/routes/bedrock.rs`; a Java server gets `note: "not_bedrock"`, empty list). This is a straight port against an already-frozen contract, not new API design. Cameron chose to block P12.3 and build the backend first (steps P12.2b–P12.2g below) rather than ship Players tab without it. Online Now / Seen This Session / Session Log are unaffected — those are console-derived (already built in P11.11) and stay in P12.3 itself. **Mutation actions, decided 2026-08-25:** of MSC 1's 5 player-data mutation actions (migrate to offline UUID, migrate to manual UUID, copy, duplicate, delete), none were in the frozen contract. Cameron chose **delete only** for now — added as new step P12.2g, which amends `docs/msc2/api-contract/openapi.json` with a new route since none of the 5 existed there. The other 4 (migrate-offline, migrate-uuid, copy, duplicate) are explicitly **deferred, not dropped** — add them later as their own contract-amendment step when wanted.
+> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. Next: P12.2b (Java player-data NBT fixtures) — see the 2026-08-25 note below. P12.3 (Players tab) is blocked until P12.2b–P12.2j land. **Cameron is running P12.2b–P12.2j with Codex, not Claude Code** (2026-08-25) — each of those steps is written with exact schemas/signatures/pinned test vectors specifically so a less-reliable agent has nothing left to infer. Whoever reviews Phase 12's gate later should double-check these steps' actual output against their `What:` text more closely than usual, per this file's own two-agents-cross-review rule.
+> **P12.3 blocked on missing backend (decided 2026-08-25):** before rebuilding the Players tab, Cameron flagged that MSC 1's Players tab includes a read-only Java player inventory/stats viewer (`PlayerNBTReader.swift` + `PlayerInventoryView.swift`, hosted in `PlayerProfileDetailSheet.swift`) that never made it past the file-inventory audit into an actual phase step — no domain crate, no API route, and P12.3's own `What:` line never mentioned it. Investigation found `GET /v1/players/profiles` is **already frozen in the API contract** (`docs/msc2/api-contract/openapi.json`: `PlayerProfileDTO`/`PlayerStatsDTO`/`InventoryItemDTO`, plus `POST /v1/players/hidden`, `POST /v1/players/skin-override`, `GET /v1/players/{profileId}/skin`) but has **no handler at all** — today `GET /v1/players` only serves Bedrock (`crates/msc-agent/src/routes/bedrock.rs`; a Java server gets `note: "not_bedrock"`, empty list). This is a straight port against an already-frozen contract, not new API design. Cameron chose to block P12.3 and build the backend first (steps P12.2b–P12.2j below) rather than ship Players tab without it. Online Now / Seen This Session / Session Log are unaffected — those are console-derived (already built in P11.11) and stay in P12.3 itself. **Mutation actions, decided 2026-08-25:** of MSC 1's 5 player-data mutation actions (migrate to offline UUID, migrate to manual UUID, copy, duplicate, delete), none were in the frozen contract. Cameron chose **4 of the 5** — delete, migrate-to-offline-UUID, migrate-to-custom-UUID, and duplicate — added as new steps P12.2g (contract amendment) through P12.2j (route wiring), fully specified (exact DTO field names/types, exact error codes, pinned known-answer test vectors for the offline-UUID algorithm) since Cameron is running these with Codex. `copyPlayerData` (overwrite one player's data onto another's) is the one action still **deferred, not dropped** — add it later as its own contract-amendment step when wanted.
 > **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
 > **Last updated:** 2026-08-25
 
@@ -632,16 +632,117 @@ code. The rest apply the locked system to each screen, one at a time.
 **Commit:** `P12.2f: wire player skin resolution and override`
 **Batch:** solo
 
-### P12.2g — Add and wire POST /v1/players/delete
+### P12.2g — Amend the API contract: 4 player-data mutation routes
 **Status:** not started
-**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py` (bump `EXPECTED_TOTAL`), `crates/msc-api/src/dto/` (new player DTOs if the route needs a request/response shape beyond the existing `PlayerProfileDTO`), `crates/msc-agent/src/routes/players.rs`, `crates/msc-application/src/player_profiles.rs`
-**What:** Of MSC 1's 5 player-data mutation actions, Cameron approved **delete only** for now (2026-08-25 note above); the other 4 are deferred. Unlike P12.2e/f's routes, `POST /v1/players/delete` does not exist in the frozen contract at all — add it following the established amendment pattern (same shape as `POST /v1/backups/delete` / `POST /v1/worlds/delete`: a route + DTO addition tied to one step, `EXPECTED_TOTAL` bumped by 1 in `tools/api-contract-check.py`, same as P6.8/P6.34/P7.9/P8.9 each did for their own additions). Port `deletePlayerData` (`AppViewModel+PlayerProfiles.swift:475`) — permanently deletes a player's `.dat` file and refreshes the profile list. No client wiring here; P12.3 wires the button.
-**Verify:** `python3 tools/api-contract-check.py && cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent players`
-**Commit:** `P12.2g: add and wire POST /v1/players/delete`
+**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`
+**What:** Of MSC 1's 5 player-data mutation actions in `AppViewModel+PlayerProfiles.swift` (lines 475–516) and `PlayerDataManager.swift`, Cameron approved 4 for MSC 2 (2026-08-25 decision, superseding the earlier "delete only" plan): **delete, migrate-to-offline-UUID, migrate-to-custom-UUID, duplicate**. `copyPlayerData` (copy one player's data onto another's, overwriting) stays deferred, not dropped. None of these 4 exist in the frozen contract today — this step is a pure contract amendment, no Rust code, following the exact pattern P6.8/P6.34/P7.9/P8.9 each used for their own additions (see `tools/api-contract-check.py`'s `EXPECTED_TOTAL` comment for the running list). Do this step precisely as specified below — every field name, type, and error code is fixed so P12.2h–j have nothing left to invent.
+
+Add 4 new paths under `components/paths`, each `x-permission-category: "players"` (already used by `/v1/players/hidden` and `/v1/players/skin-override` — reuse that category, do not invent a new one) and each returning the same new `PlayerMutationResultDTO` on 200:
+
+1. `POST /v1/players/delete` — deletes a player's `.dat` file permanently.
+   - Request: `PlayerDeleteRequestDTO { profileId: string (required) }`
+2. `POST /v1/players/migrate-offline` — copies a player's data to the UUID Minecraft computes for that player's username in offline mode.
+   - Request: `PlayerDeleteRequestDTO` (reuse — same single `profileId` field, no new schema needed)
+3. `POST /v1/players/migrate` — copies a player's data to an arbitrary caller-supplied UUID.
+   - Request: `PlayerMigrateRequestDTO { profileId: string (required), targetUuid: string (required) }`
+4. `POST /v1/players/duplicate` — copies a player's data under a fresh random UUID.
+   - Request: `PlayerDeleteRequestDTO` (reuse)
+
+New response schema, shared by all 4:
+```json
+"PlayerMutationResultDTO": {
+  "type": "object",
+  "properties": {
+    "success": { "type": "boolean" },
+    "message": { "type": "string" },
+    "newProfileId": { "type": "string", "nullable": true, "description": "Set only by duplicate/migrate routes: the UUID the data now also lives under." },
+    "profiles": { "$ref": "#/components/schemas/PlayerProfilesResponseDTO" }
+  },
+  "required": ["success", "message", "profiles"]
+}
+```
+(`profiles` is always the freshly re-scanned full list, same envelope-refresh pattern `WorldMutationResultDTO.updated` already uses — this lets P12.3's client re-render from the response instead of firing a second request.)
+
+New request schemas:
+```json
+"PlayerDeleteRequestDTO": {
+  "type": "object",
+  "properties": { "profileId": { "type": "string" } },
+  "required": ["profileId"]
+}
+"PlayerMigrateRequestDTO": {
+  "type": "object",
+  "properties": {
+    "profileId": { "type": "string" },
+    "targetUuid": { "type": "string" }
+  },
+  "required": ["profileId", "targetUuid"]
+}
+```
+
+Error responses — identical shape on all 4 routes, matching every other `/v1/players/*` mutation route already in the contract (`ErrorDTO`, `x-error-code` per status):
+- `400 invalid_body` — missing/empty `profileId`; for `/migrate`, also a `targetUuid` that fails to parse as a UUID (`invalid_uuid`)
+- `404 not_found` — `profile_not_found`: no `.dat` file exists for `profileId`
+- `409 conflict` — `no_active_server`; `not_bedrock` on all 4 routes when the active server is Bedrock (these 4 actions are Java-only — MSC 1's `PlayerProfileDetailSheet.swift` shows only identify/hide for Bedrock profiles, never these; its `bedrockActionsNote` states Bedrock data can't be edited from the app at all, since it lives in LevelDB); and, **only on `/migrate-offline`**, `username_unknown` — ported from `ProfileError.usernameUnknown` (`AppViewModel+PlayerProfiles.swift:476`): this profile's username hasn't resolved yet (Bedrock/unresolved-Mojang profiles have no username to hash), so there's no offline UUID to compute
+- `500 internal_error` — filesystem failure mid-copy/delete
+
+Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one clause to its running-total comment, same style as every prior entry there.
+**Verify:** `python3 tools/api-contract-check.py`
+**Commit:** `P12.2g: amend the API contract with 4 player-data mutation routes`
+**Batch:** solo
+
+### P12.2h — Port the offline-UUID algorithm
+**Status:** not started
+**Files:** `crates/msc-domain/src/player_nbt.rs` (add to the module P12.2c created — this is a small pure function, not a new file), `crates/msc-domain/tests/player_nbt.rs`
+**What:** Port `PlayerDataManager.offlineUUID(for:)` (`PlayerDataManager.swift:118-129`) exactly. This is Java's `UUID.nameUUIDFromBytes`, a fixed public algorithm — not project-specific behavior, so no fixture-extraction step is needed; pin it with known-answer test vectors instead (computed independently below, not merely asserted — reproducible with any MD5 implementation):
+
+  1. MD5 hash of the UTF-8 bytes of `"OfflinePlayer:{username}"`.
+  2. On the 16-byte digest, set byte 6 to `(byte[6] & 0x0F) | 0x30` (UUID version 3).
+  3. Set byte 8 to `(byte[8] & 0x3F) | 0x80` (RFC 4122 variant).
+  4. Format the 16 bytes as a standard `8-4-4-4-12` lowercase UUID string.
+
+  Signature: `pub fn offline_uuid(username: &str) -> Uuid` (use the `uuid` crate's `Uuid` type already a dependency elsewhere in the workspace; MD5 via the `md-5` crate — check `Cargo.lock` first in case something already vendors it before adding a new dependency).
+
+  Pinned test vectors (assert exact equality, all lowercase, hyphenated):
+  | username | offline UUID |
+  |---|---|
+  | `Notch` | `b50ad385-829d-3141-a216-7e7d7539ba7f` |
+  | `Bob` | `faa5dca3-c3d4-354b-ae1b-dde9e5a14b3b` |
+  | `jeb_` | `a762f560-4fce-3236-812a-b80efff0b62b` |
+  | `Dinnerbone` | `4d258a81-2358-3084-8166-05b9faccad80` |
+  | `` (empty string — must not panic; MSC 1's caller guards against this at the profile level, but the function itself must stay total) | `fc5bc365-aedf-30a8-8b89-04e462e29bde` |
+
+**Verify:** `cargo fmt --check && cargo clippy -p msc-domain --all-targets -- -D warnings && cargo nextest run -p msc-domain offline_uuid`
+**Commit:** `P12.2h: port the offline-UUID algorithm`
+**Batch:** solo
+
+### P12.2i — Port the player-data file mutation primitives
+**Status:** not started
+**Files:** `crates/msc-application/src/player_profiles.rs` (the module P12.2d created), `crates/msc-application/tests/player_profiles.rs`
+**What:** Port `PlayerDataManager`'s file-operation primitives (`PlayerDataManager.swift:131-164`) and the 4 approved `AppViewModel+PlayerProfiles.swift` action wrappers (lines 471-516; skip `copyPlayerData` at line 493 — deferred) into `player_profiles.rs`:
+
+  - `dat_path(uuid, player_data_dir) -> PathBuf` — `{player_data_dir}/{uuid lowercased}.dat`.
+  - `copy_player_data(source_uuid, dest_uuid, player_data_dir) -> Result<(), PlayerProfileError>` — copies `{source}.dat` to `{dest}.dat`; if the destination already exists, remove it first, then copy (matches `PlayerDataManager.swift:135-143` exactly — not a rename/atomic-replace, a plain remove-then-copy).
+  - `delete_player_data(uuid, player_data_dir) -> Result<(), PlayerProfileError>` — removes `{uuid}.dat`. Errors if the file doesn't exist (`profile_not_found` — the file system error surfaces as-is, don't swallow it).
+  - `duplicate_player_data(uuid, player_data_dir) -> Result<Uuid, PlayerProfileError>` — generates a fresh random `Uuid::new_v4()`, calls `copy_player_data(uuid, new_uuid, dir)`, returns `new_uuid`.
+  - `migrate_to_offline_uuid(profile, player_data_dir) -> Result<Uuid, PlayerProfileError>` — requires `profile.username` to be `Some` and non-empty, else returns `PlayerProfileError::UsernameUnknown` (ports `ProfileError.usernameUnknown`, `AppViewModel+PlayerProfiles.swift:476`); computes the target via P12.2h's `offline_uuid`, calls `copy_player_data`, returns the target UUID.
+  - `migrate_to_uuid(profile, target_uuid, player_data_dir) -> Result<(), PlayerProfileError>` — no username requirement; straight `copy_player_data(profile.uuid, target_uuid, dir)`.
+
+  All 5 return/propagate a shared `PlayerProfileError` enum (extend the one P12.2d already defined for `loadPlayerProfiles`'s I/O — do not create a second error type in this module) with a variant per contract error code from P12.2g (`ProfileNotFound`, `UsernameUnknown`, `Io(std::io::Error)`), so P12.2j's route layer can map each variant to its exact HTTP status/`x-error-code` without re-deriving the mapping.
+**Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application player_profiles`
+**Commit:** `P12.2i: port the player-data file mutation primitives`
+**Batch:** solo
+
+### P12.2j — Wire the 4 player-data mutation routes
+**Status:** not started
+**Files:** `crates/msc-agent/src/routes/players.rs` (the file P12.2e created)
+**What:** Add the 4 handlers for P12.2g's routes (`delete`, `migrate-offline`, `migrate`, `duplicate`), each: parse the request DTO (400 on missing/invalid body per P12.2g), resolve `profileId` to a `.dat` path the same way P12.2e's `GET /v1/players/profiles` already does, call the matching P12.2i function, map `PlayerProfileError` to the exact status/`x-error-code` pairs P12.2g's contract specifies, and on success re-run the same profile scan+merge P12.2e's `GET /v1/players/profiles` uses to build the `profiles` field of `PlayerMutationResultDTO` (so the response is never stale relative to a fresh GET). Register all 4 routes in `main.rs` next to the existing `/v1/players/*` routes. Return `409 conflict` / `not_bedrock` (per P12.2g's contract) if the active server is Bedrock, rather than attempting a Java-only file operation against a LevelDB-backed server — note this is a genuine `409`, unlike `routes/bedrock.rs`'s read-only `GET /v1/players`, which answers a wrong-platform request with `200` + `note: "not_bedrock"` since a read has a valid empty answer and a mutation does not.
+**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent players`
+**Commit:** `P12.2j: wire the 4 player-data mutation routes`
 **Batch:** solo
 
 ### P12.3 — Players tab
-**Status:** not started — blocked until P12.2b–P12.2g land (see this file's 2026-08-25 note above)
+**Status:** not started — blocked until P12.2b–P12.2j land (see this file's 2026-08-25 note above)
 **Files:** `src/lib/sections/players-online/`
 **What:** Rebuild Players — Online Now / Seen This Session, Session Log (filter + clear), Player Data (profiles, sort, stats + inventory detail sheet, hidden toggle, skin/avatar, delete). Reference MSC 1 `DetailsPlayersTabView` + `PlayerProfilesCard`/`PlayerProfileDetailSheet`/`PlayerInventoryView` and the Players screenshot.
 **Verify:** `npm run dev`, open Players; compare to MSC 1 + checklist. Structural: `npm run test:screen-players-online`.

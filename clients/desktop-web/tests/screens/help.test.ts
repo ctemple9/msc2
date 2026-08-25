@@ -63,6 +63,10 @@ describe('shared help and onboarding screens', () => {
     expect(setupText).toContain('Get Started');
     expect(setupText).toContain('/v1/config/servers-root');
     expect(setupText).toContain('/v1/java-runtimes');
+    expect(setupText).toContain('pickFolder');
+    expect(setupText).toContain('pickFilePath');
+    expect(setupText).toContain('Check for Java');
+    expect(setupText).toContain('Use PATH');
     expect(setupText).toContain('setup-page-in');
     expect(setupText).toContain('Pick an Accent Color');
     expect(setupText).toContain('This setup takes about 2 minutes.');

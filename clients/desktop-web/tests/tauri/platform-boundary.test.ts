@@ -19,6 +19,8 @@ const screenSources = import.meta.glob('../../src/lib/sections/**/*.svelte', {
 
 function nativeDependencies(): TauriPlatformDependencies {
   return {
+    pickFolder: vi.fn(async () => '/Users/example/MinecraftServers'),
+    pickFilePath: vi.fn(async () => '/usr/bin/java'),
     pickFile: vi.fn(async () => picked),
     notify: vi.fn(async () => undefined),
     showMenu: vi.fn(async () => undefined),
@@ -69,6 +71,10 @@ describe('Tauri boundary', () => {
     const fileFallback = vi.fn(async () => picked);
     const workflowFallback = vi.fn(async () => undefined);
 
+    await expect(desktop.pickFolder('Servers root')).resolves.toBe(
+      '/Users/example/MinecraftServers',
+    );
+    await expect(desktop.pickFilePath({ label: 'Java executable' })).resolves.toBe('/usr/bin/java');
     expect(
       await desktop.pickFile({ label: 'World archive', extensions: ['zip'] }, fileFallback),
     ).toEqual(picked);
@@ -84,6 +90,8 @@ describe('Tauri boundary', () => {
       label: 'World archive',
       extensions: ['zip'],
     });
+    expect(dependencies.pickFolder).toHaveBeenCalledWith('Servers root');
+    expect(dependencies.pickFilePath).toHaveBeenCalledWith({ label: 'Java executable' });
     expect(dependencies.notify).toHaveBeenCalledOnce();
     expect(dependencies.showMenu).toHaveBeenCalledOnce();
     expect(dependencies.closeWindow).toHaveBeenCalledOnce();

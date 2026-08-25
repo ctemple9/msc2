@@ -40,6 +40,8 @@ export interface AgentServiceStatus {
  */
 export interface PlatformAdapter {
   readonly kind: PlatformKind;
+  pickFolder(label: string): Promise<string | null>;
+  pickFilePath(request: FilePickerRequest): Promise<string | null>;
   pickFile(
     request: FilePickerRequest,
     browserFallback: () => Promise<PickedFile | null>,
@@ -56,6 +58,8 @@ export interface PlatformAdapter {
 }
 
 export interface TauriPlatformDependencies {
+  pickFolder(label: string): Promise<string | null>;
+  pickFilePath(request: FilePickerRequest): Promise<string | null>;
   pickFile(request: FilePickerRequest): Promise<PickedFile | null>;
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;

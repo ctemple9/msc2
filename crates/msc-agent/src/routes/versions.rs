@@ -551,10 +551,32 @@ fn change_version_error_code(error: &ChangeVersionError) -> &'static str {
 pub async fn java_runtimes(State(state): State<LifecycleRoutesState>) -> Response {
     let home_dir = agent_home_dir();
     let host = current_host_os();
+    let configured_path = state.app_config_snapshot().java_path;
     let detected = tokio::task::spawn_blocking(move || {
         let mut roots = vec![runtimes_root().to_string_lossy().into_owned()];
         roots.extend(default_java_runtime_search_roots(host, &home_dir));
-        java_runtime_detection::detect_installed_java_runtimes(&StdFileSystem, &roots)
+        let mut detected =
+            java_runtime_detection::detect_installed_java_runtimes(&StdFileSystem, &roots);
+
+        // A manually selected executable may live outside the standard JDK
+        // folders. Keep it in the response so the same real `java -version`
+        // probe used for discovered runtimes can verify the user's choice.
+        if !detected
+            .iter()
+            .any(|runtime| runtime.executable_path == configured_path)
+        {
+            let configured = Path::new(&configured_path);
+            detected.push(DetectedJavaRuntime {
+                name: "Configured Java".to_string(),
+                executable_path: configured_path.clone(),
+                home_path: configured
+                    .parent()
+                    .map(|path| path.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                major_version: None,
+            });
+        }
+        detected
     })
     .await
     .unwrap_or_default();

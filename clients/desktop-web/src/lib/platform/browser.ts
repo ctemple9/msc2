@@ -13,6 +13,14 @@ import type {
 export function createBrowserPlatform(): PlatformAdapter {
   return {
     kind: 'browser',
+    pickFolder: async (label: string) => {
+      if (typeof window === 'undefined') return null;
+      return window.prompt(label, '')?.trim() || null;
+    },
+    pickFilePath: async (request: FilePickerRequest) => {
+      if (typeof window === 'undefined') return null;
+      return window.prompt(request.label, 'java')?.trim() || null;
+    },
     pickFile: (_request: FilePickerRequest, browserFallback: () => Promise<PickedFile | null>) =>
       browserFallback(),
     notify: async (notification: DesktopNotification, browserFallback: () => Promise<void>) => {

@@ -418,3 +418,11 @@ the package manager, with MSC limited to an actionable availability notice.
 **Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check -p msc-api -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
 **Commit:** `P11.29a: repair first-time setup controls`
 **Batch:** stop-after
+
+### P11.29b — Add native setup pickers and Java verification
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/SetupIntro.svelte`, `clients/desktop-web/src/lib/platform/`, `clients/desktop-web/tests/screens/help.test.ts`, `clients/desktop-web/tests/tauri/platform-boundary.test.ts`, `crates/msc-agent/src/routes/versions.rs`
+**What:** Use the native Tauri dialog for the servers-root folder and Java executable Browse actions, retain a manual path fallback in browser mode, and include manually configured Java outside standard search roots in the agent’s real version probe so Check for Java and Use PATH report truthfully.
+**Verify:** `npm --prefix clients/desktop-web run test:screen-help && npm --prefix clients/desktop-web run test:tauri-boundary && npm --prefix clients/desktop-web run build && cargo check -p msc-api -p msc-agent && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Commit:** `P11.29b: add native setup pickers and Java verification`
+**Batch:** stop-after

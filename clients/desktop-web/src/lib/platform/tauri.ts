@@ -17,6 +17,8 @@ import type {
 export function createTauriPlatform(dependencies: TauriPlatformDependencies): PlatformAdapter {
   return {
     kind: 'tauri',
+    pickFolder: (label) => dependencies.pickFolder(label),
+    pickFilePath: (request) => dependencies.pickFilePath(request),
     // Cancelling a native picker is a completed user choice, not a reason to
     // open a second browser picker. Browser fallback happens at platform load.
     pickFile: (request, _browserFallback) => dependencies.pickFile(request),
@@ -66,6 +68,25 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     ]);
 
   return createTauriPlatform({
+    async pickFolder(label: string): Promise<string | null> {
+      const picked = await open({
+        title: label,
+        directory: true,
+        multiple: false,
+      });
+      return typeof picked === 'string' ? picked : null;
+    },
+    async pickFilePath(request: FilePickerRequest): Promise<string | null> {
+      const picked = await open({
+        title: request.label,
+        filters: request.extensions?.length
+          ? [{ name: request.label, extensions: [...request.extensions] }]
+          : undefined,
+        directory: false,
+        multiple: false,
+      });
+      return typeof picked === 'string' ? picked : null;
+    },
     async pickFile(request: FilePickerRequest): Promise<PickedFile | null> {
       const picked = await open({
         title: request.label,

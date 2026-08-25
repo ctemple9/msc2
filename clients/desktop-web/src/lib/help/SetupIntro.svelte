@@ -37,6 +37,8 @@
   let rootStatus: 'checking' | 'ready' | 'unavailable' | 'unknown' = 'checking';
   let javaStatus: 'checking' | 'found' | 'not-found' | 'unavailable' | 'unknown' = 'checking';
   let javaRuntimes: Array<{ executablePath: string; majorVersion?: number }> = [];
+  let rootPickerBusy = false;
+  let javaPickerBusy = false;
   let xboxStatus: 'checking' | 'installed' | 'not-installed' | 'downloading' | 'unavailable' =
     'checking';
   let xboxFilename = '';
@@ -151,9 +153,11 @@
 
   async function probeXbox(): Promise<void> {
     try {
-      const result = await api!.get<{ installed: boolean; downloading?: boolean }>(
-        '/v1/broadcast/jar-status',
-      );
+      const result = await api!.get<{
+        installed: boolean;
+        downloading?: boolean;
+        filename?: string;
+      }>('/v1/broadcast/jar-status');
       xboxStatus = result.downloading
         ? 'downloading'
         : result.installed
@@ -191,15 +195,38 @@
     else if (bedrockReady) wantsBedrock = !wantsBedrock;
   }
 
-  function chooseRoot(): void {
-    const chosen = window.prompt(
-      'Enter the absolute folder path for your Minecraft servers.',
-      serversRoot,
-    );
-    if (chosen?.trim()) {
-      serversRoot = chosen.trim();
-      rootStatus = 'unknown';
-      rootMessage = 'Click Next to ask the agent to validate this folder.';
+  async function chooseRoot(): Promise<void> {
+    rootPickerBusy = true;
+    rootMessage = '';
+    try {
+      const chosen = await (await getPlatform()).pickFolder('Choose your Minecraft servers folder');
+      if (chosen) {
+        serversRoot = chosen;
+        rootStatus = 'unknown';
+        rootMessage = 'Click Next to ask the agent to validate this folder.';
+      }
+    } catch {
+      rootStatus = 'unavailable';
+      rootMessage = 'The folder picker could not open. Enter an absolute path manually.';
+    } finally {
+      rootPickerBusy = false;
+    }
+  }
+
+  async function browseJava(): Promise<void> {
+    javaPickerBusy = true;
+    javaMessage = '';
+    try {
+      const chosen = await (await getPlatform()).pickFilePath({ label: 'Choose Java executable' });
+      if (chosen) {
+        javaPath = chosen;
+        await probeJava(chosen);
+      }
+    } catch {
+      javaStatus = 'unavailable';
+      javaMessage = 'The Java picker could not open. Enter the executable path manually.';
+    } finally {
+      javaPickerBusy = false;
     }
   }
 
@@ -509,7 +536,9 @@
                 serversRoot = event.currentTarget.value;
                 rootStatus = 'unknown';
               }}
-            /><button type="button" onclick={chooseRoot}>Browse…</button>
+            /><button type="button" disabled={rootPickerBusy} onclick={() => void chooseRoot()}
+              >{rootPickerBusy ? 'Choosing…' : 'Browse…'}</button
+            >
           </div>
           {#if rootStatus === 'unavailable' || rootStatus === 'unknown'}<p
               class="inline-message warning"
@@ -538,10 +567,18 @@
                   javaPath = event.currentTarget.value;
                   javaStatus = 'unknown';
                 }}
-              /><button type="button" onclick={() => void probeJava(javaPath)}
-                >Check for Java</button
+              /><button
+                type="button"
+                disabled={javaPickerBusy || javaStatus === 'checking'}
+                onclick={() => void browseJava()}>{javaPickerBusy ? 'Choosing…' : 'Browse…'}</button
               ><button
                 type="button"
+                disabled={javaPickerBusy || javaStatus === 'checking'}
+                onclick={() => void probeJava(javaPath)}
+                >{javaStatus === 'checking' ? 'Checking…' : 'Check for Java'}</button
+              ><button
+                type="button"
+                disabled={javaPickerBusy || javaStatus === 'checking'}
                 onclick={() => {
                   javaPath = 'java';
                   void probeJava('java');

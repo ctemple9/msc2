@@ -117,6 +117,8 @@
   .scroll {
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
     overflow-y: auto;
     padding: 14px 12px 8px;
   }
@@ -205,8 +207,9 @@
     line-height: 1.5;
   }
   .actions-block {
+    flex-shrink: 0;
     padding-top: 12px;
-    margin-top: 4px;
+    margin-top: auto;
     margin-bottom: 4px;
     border-top: 1px solid var(--msc2-hairline-subtle);
   }

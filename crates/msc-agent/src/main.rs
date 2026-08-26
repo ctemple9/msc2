@@ -285,6 +285,18 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .layer(Extension(shared_staging));
 
     let players = routes::players::router(lifecycle_state.clone());
+    let player_mutations = Router::new()
+        .route("/players/delete", post(routes::players::delete_player_data))
+        .route(
+            "/players/migrate-offline",
+            post(routes::players::migrate_player_offline),
+        )
+        .route("/players/migrate", post(routes::players::migrate_player))
+        .route(
+            "/players/duplicate",
+            post(routes::players::duplicate_player_data),
+        )
+        .with_state(lifecycle_state.clone());
     let bedrock = Router::new()
         .route(
             "/allowlist",
@@ -300,6 +312,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     let protected = Router::new()
         .merge(lifecycle)
         .merge(players)
+        .merge(player_mutations)
         .merge(bedrock)
         .route("/capabilities", get(routes::capabilities::capabilities))
         .route("/me", get(routes::capabilities::me))

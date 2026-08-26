@@ -846,7 +846,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 **Batch:** solo
 
 ### P12.2j — Wire the 4 player-data mutation routes
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/players.rs` (the file P12.2e created), `crates/msc-agent/src/main.rs`
 **What:** Add the 4 handlers for P12.2g's routes (`delete`, `migrate-offline`, `migrate`, `duplicate`). Per handler, in this order:
 1. Parse the request DTO — `400 invalid_body` on missing/empty `profileId`, or (on `/migrate`) a `targetUuid` that doesn't parse as a UUID (`invalid_uuid`).

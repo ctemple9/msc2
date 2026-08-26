@@ -133,6 +133,29 @@ pub struct PlayerSkinOverrideRequestDto {
     lookup_identifier: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlayerDataMutationRequestDto {
+    profile_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct PlayerMigrateRequestDto {
+    profile_id: Option<String>,
+    target_uuid: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayerMutationResultDto {
+    success: bool,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    new_profile_id: Option<String>,
+    profiles: PlayerProfilesResponseDto,
+}
+
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PlayerSkinOverrideResultDto {
@@ -458,6 +481,260 @@ pub async fn mutate_skin_override(
         lookup_identifier: saved_lookup_identifier,
     })
     .into_response()
+}
+
+pub async fn delete_player_data(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayerDataMutationRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) =
+        require_permission(&credential, msc_api::dto::PermissionCategoryDto::Players)
+    {
+        return response;
+    }
+    let profile_id = match player_data_profile_id(body) {
+        Ok(profile_id) => profile_id,
+        Err(response) => return *response,
+    };
+    mutate_java_player_data(&state, &profile_id, PlayerDataMutation::Delete)
+}
+
+pub async fn migrate_player_offline(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayerDataMutationRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) =
+        require_permission(&credential, msc_api::dto::PermissionCategoryDto::Players)
+    {
+        return response;
+    }
+    let profile_id = match player_data_profile_id(body) {
+        Ok(profile_id) => profile_id,
+        Err(response) => return *response,
+    };
+    mutate_java_player_data(&state, &profile_id, PlayerDataMutation::MigrateOffline)
+}
+
+pub async fn migrate_player(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayerMigrateRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) =
+        require_permission(&credential, msc_api::dto::PermissionCategoryDto::Players)
+    {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_body", "Request body must be valid JSON."),
+    };
+    let Some(profile_id) = body
+        .profile_id
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+    else {
+        return invalid_body("invalid_body", "profileId is required.");
+    };
+    let Some(target_uuid) = body
+        .target_uuid
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+    else {
+        return invalid_body("invalid_body", "targetUuid is required.");
+    };
+    let target_uuid = match Uuid::parse_str(&target_uuid) {
+        Ok(uuid) => uuid,
+        Err(_) => return invalid_body("invalid_uuid", "targetUuid must be a valid UUID."),
+    };
+    mutate_java_player_data(
+        &state,
+        &profile_id,
+        PlayerDataMutation::Migrate(target_uuid),
+    )
+}
+
+pub async fn duplicate_player_data(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayerDataMutationRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) =
+        require_permission(&credential, msc_api::dto::PermissionCategoryDto::Players)
+    {
+        return response;
+    }
+    let profile_id = match player_data_profile_id(body) {
+        Ok(profile_id) => profile_id,
+        Err(response) => return *response,
+    };
+    mutate_java_player_data(&state, &profile_id, PlayerDataMutation::Duplicate)
+}
+
+fn player_data_profile_id(
+    body: Result<Json<PlayerDataMutationRequestDto>, JsonRejection>,
+) -> Result<String, Box<Response>> {
+    let Json(body) = body.map_err(|_| {
+        Box::new(invalid_body(
+            "invalid_body",
+            "Request body must be valid JSON.",
+        ))
+    })?;
+    body.profile_id
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| Box::new(invalid_body("invalid_body", "profileId is required.")))
+}
+
+enum PlayerDataMutation {
+    Delete,
+    MigrateOffline,
+    Migrate(Uuid),
+    Duplicate,
+}
+
+fn mutate_java_player_data(
+    state: &LifecycleRoutesState,
+    profile_id: &str,
+    mutation: PlayerDataMutation,
+) -> Response {
+    let Some(server) = state.active_config_server() else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "no_active_server",
+            "No server is currently active.",
+        );
+    };
+    if server.server_type == ServerType::Bedrock {
+        return error_response(
+            StatusCode::CONFLICT,
+            "not_bedrock",
+            "The active server is not a Java server.",
+        );
+    }
+
+    let java_profiles = match load_java_profiles(&server.server_dir) {
+        Ok(profiles) => profiles,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error);
+        }
+    };
+    let Some(profile) = java_profiles
+        .into_iter()
+        .find(|profile| profile.uuid.to_string() == profile_id)
+    else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "profile_not_found",
+            "Player profile was not found.",
+        );
+    };
+
+    let level_name = msc_domain::world::current_level_name(
+        ServerType::Java,
+        msc_application::worlds::read_java_level_name(
+            &StdFileSystem,
+            Path::new(&server.server_dir),
+        )
+        .as_deref(),
+    );
+    let player_data_dir = player_profiles::resolve_player_data_dir(
+        &StdFileSystem,
+        Path::new(&server.server_dir),
+        &level_name,
+    );
+    let kind = mutation_kind(&mutation);
+    let new_profile_id = match mutation {
+        PlayerDataMutation::Delete => {
+            player_profiles::delete_player_data(profile.uuid, &player_data_dir, &StdFileSystem)
+                .map(|()| None)
+        }
+        PlayerDataMutation::MigrateOffline => {
+            player_profiles::migrate_to_offline_uuid(&profile, &player_data_dir, &StdFileSystem)
+                .map(|uuid| Some(uuid.to_string()))
+        }
+        PlayerDataMutation::Migrate(target_uuid) => player_profiles::migrate_to_uuid(
+            &profile,
+            target_uuid,
+            &player_data_dir,
+            &StdFileSystem,
+        )
+        .map(|()| Some(target_uuid.to_string())),
+        PlayerDataMutation::Duplicate => {
+            player_profiles::duplicate_player_data(profile.uuid, &player_data_dir, &StdFileSystem)
+                .map(|uuid| Some(uuid.to_string()))
+        }
+    };
+    let new_profile_id = match new_profile_id {
+        Ok(new_profile_id) => new_profile_id,
+        Err(error) => return player_profile_mutation_error_response(error),
+    };
+
+    let profiles = match profiles_for_server(&server.server_dir, ServerType::Java) {
+        Ok(profiles) => profiles,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error);
+        }
+    };
+    let message = match kind {
+        PlayerDataMutationKind::Delete => "deleted",
+        PlayerDataMutationKind::Migrate => "migrated",
+        PlayerDataMutationKind::Duplicate => "duplicated",
+    };
+    Json(PlayerMutationResultDto {
+        success: true,
+        message: message.to_owned(),
+        new_profile_id,
+        profiles: PlayerProfilesResponseDto {
+            profiles,
+            is_loading_stats: false,
+        },
+    })
+    .into_response()
+}
+
+enum PlayerDataMutationKind {
+    Delete,
+    Migrate,
+    Duplicate,
+}
+
+fn mutation_kind(mutation: &PlayerDataMutation) -> PlayerDataMutationKind {
+    match mutation {
+        PlayerDataMutation::Delete => PlayerDataMutationKind::Delete,
+        PlayerDataMutation::MigrateOffline | PlayerDataMutation::Migrate(_) => {
+            PlayerDataMutationKind::Migrate
+        }
+        PlayerDataMutation::Duplicate => PlayerDataMutationKind::Duplicate,
+    }
+}
+
+fn player_profile_mutation_error_response(error: player_profiles::PlayerProfileError) -> Response {
+    match error {
+        player_profiles::PlayerProfileError::ProfileNotFound => error_response(
+            StatusCode::NOT_FOUND,
+            "profile_not_found",
+            "Player profile was not found.",
+        ),
+        player_profiles::PlayerProfileError::UsernameUnknown => error_response(
+            StatusCode::CONFLICT,
+            "username_unknown",
+            "The player's username is not known, so its offline UUID cannot be computed.",
+        ),
+        player_profiles::PlayerProfileError::Io(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
+    }
+}
+
+fn load_java_profiles(server_dir: &str) -> Result<Vec<JavaPlayerProfile>, String> {
+    let reducer = JavaOutputReducer::new();
+    player_profiles::load_player_profiles(&StdFileSystem, Path::new(server_dir), &reducer)
+        .map_err(|error| error.to_string())
 }
 
 fn resolve_lookup_identifier(

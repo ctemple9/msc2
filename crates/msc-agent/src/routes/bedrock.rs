@@ -41,25 +41,6 @@ pub(crate) fn require_runtime(state: &LifecycleRoutesState) -> Option<Response> 
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct PlayerDto {
-    name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    uuid: Option<String>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PlayersResponse {
-    players: Vec<PlayerDto>,
-    count: usize,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    note: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    runtime: Option<BedrockRuntimeStateDto>,
-}
-
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
 struct AllowlistEntryDto {
     name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,59 +73,6 @@ struct AllowlistMutationResult {
     entries: Vec<AllowlistEntryDto>,
     #[serde(skip_serializing_if = "Option::is_none")]
     runtime: Option<BedrockRuntimeStateDto>,
-}
-
-pub async fn players(State(state): State<LifecycleRoutesState>) -> Response {
-    let Some(server) = state.active_config_server() else {
-        return Json(PlayersResponse {
-            players: Vec::new(),
-            count: 0,
-            note: Some("no_active_server".to_owned()),
-            runtime: runtime_for(&state),
-        })
-        .into_response();
-    };
-    if server.server_type != msc_domain::identity::ServerType::Bedrock {
-        return Json(PlayersResponse {
-            players: Vec::new(),
-            count: 0,
-            note: Some("not_bedrock".to_owned()),
-            runtime: None,
-        })
-        .into_response();
-    }
-    let settings = msc_application::bedrock_settings::load(
-        &msc_infrastructure::fs::StdFileSystem,
-        Path::new(&server.server_dir),
-    );
-    let cache = bedrock_players::load_name_cache(
-        &msc_infrastructure::fs::StdFileSystem,
-        Path::new(&server.server_dir),
-    );
-    match bedrock_players::discover_players(
-        Path::new(&server.server_dir),
-        &settings.model.level_name,
-        &cache,
-    ) {
-        Ok(players) => Json(PlayersResponse {
-            count: players.len(),
-            players: players
-                .into_iter()
-                .map(|player| PlayerDto {
-                    name: player.name,
-                    uuid: Some(player.xuid),
-                })
-                .collect(),
-            note: None,
-            runtime: runtime_for(&state),
-        })
-        .into_response(),
-        Err(error) => error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "player_data_unavailable",
-            &error.to_string(),
-        ),
-    }
 }
 
 pub async fn get_allowlist(State(state): State<LifecycleRoutesState>) -> Response {

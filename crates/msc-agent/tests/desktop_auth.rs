@@ -6,6 +6,7 @@
 #[path = "../src/auth.rs"]
 mod auth;
 
+use auth::desktop::CreateDesktopPairing;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -34,7 +35,7 @@ fn desktop_pairing_is_one_use_host_scoped_and_revocable() {
     .expect("durable credential registry");
 
     let pairing = auth
-        .create_desktop_pairing(auth::CreateDesktopPairing {
+        .create_desktop_pairing(CreateDesktopPairing {
             label: "desktop-admin".into(),
             role: auth::CredentialRole::Admin,
             permissions: auth::all_permissions(),
@@ -73,7 +74,7 @@ fn desktop_pairing_preserves_credential_expiry_and_host_identity_across_restart(
     .expect("durable credential registry");
     let host_id = auth.agent_host_id().expect("durable host identity");
     let pairing = auth
-        .create_desktop_pairing(auth::CreateDesktopPairing {
+        .create_desktop_pairing(CreateDesktopPairing {
             label: "expired desktop".into(),
             role: auth::CredentialRole::Named,
             permissions: vec![],

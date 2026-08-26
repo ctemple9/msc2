@@ -284,8 +284,8 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         // in-memory, purpose-tagged store.
         .layer(Extension(shared_staging));
 
+    let players = routes::players::router(lifecycle_state.clone());
     let bedrock = Router::new()
-        .route("/players", get(routes::bedrock::players))
         .route(
             "/allowlist",
             get(routes::bedrock::get_allowlist).post(routes::bedrock::mutate_allowlist),
@@ -299,6 +299,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     // special case is reached").
     let protected = Router::new()
         .merge(lifecycle)
+        .merge(players)
         .merge(bedrock)
         .route("/capabilities", get(routes::capabilities::capabilities))
         .route("/me", get(routes::capabilities::me))

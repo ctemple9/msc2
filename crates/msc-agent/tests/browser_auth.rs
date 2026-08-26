@@ -74,7 +74,10 @@ fn browser_auth_one_use_cookie_csrf_and_revocation_boundary() {
         .expect("session inherits the paired credential permissions");
     assert_eq!(credential.label, "browser-admin");
 
-    assert!(auth::browser_mutation_is_authorized(&headers, &authenticated.csrf_token) == false);
+    assert!(!auth::browser_mutation_is_authorized(
+        &headers,
+        &authenticated.csrf_token
+    ));
     let mut csrf_headers = headers.clone();
     csrf_headers.insert(
         "X-MSC-CSRF",

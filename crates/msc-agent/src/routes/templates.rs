@@ -49,34 +49,7 @@ fn iso8601_now() -> String {
     let duration = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default();
-    system_time_to_iso8601(duration.as_secs()).unwrap_or_default()
-}
-
-fn system_time_to_iso8601(epoch_secs: u64) -> Option<String> {
-    let days = epoch_secs / 86_400;
-    let remainder = epoch_secs % 86_400;
-    let (hour, minute, second) = (remainder / 3600, (remainder % 3600) / 60, remainder % 60);
-    let (year, month, day) = civil_from_days(days as i64);
-    Some(format!(
-        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}Z"
-    ))
-}
-
-/// Howard Hinnant's `civil_from_days`, duplicated from `routes/servers.rs`'s
-/// own private copy per this crate's already-established precedent for
-/// this specific algorithm (see that file's own doc comment).
-fn civil_from_days(z: i64) -> (i64, u32, u32) {
-    let z = z + 719_468;
-    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
-    let doe = (z - era * 146_097) as u64;
-    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
-    let y = yoe as i64 + era * 400;
-    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
-    let mp = (5 * doy + 2) / 153;
-    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
-    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
-    let y = if m <= 2 { y + 1 } else { y };
-    (y, m, d)
+    super::system_time_to_iso8601(duration.as_secs()).unwrap_or_default()
 }
 
 fn template_item_to_dto(item: TemplateListItem) -> TemplateItemDto {
@@ -85,7 +58,7 @@ fn template_item_to_dto(item: TemplateListItem) -> TemplateItemDto {
         .duration_since(SystemTime::UNIX_EPOCH)
         .ok()
         .filter(|d| d.as_secs() > 0)
-        .and_then(|d| system_time_to_iso8601(d.as_secs()));
+        .and_then(|d| super::system_time_to_iso8601(d.as_secs()));
     TemplateItemDto {
         id: item.id,
         kind: item.kind.to_string(),

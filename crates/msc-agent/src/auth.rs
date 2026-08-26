@@ -15,7 +15,7 @@
 #[path = "auth/browser.rs"]
 mod browser;
 #[path = "auth/desktop.rs"]
-mod desktop;
+pub(crate) mod desktop;
 #[cfg(target_os = "macos")]
 #[path = "auth/local_bootstrap.rs"]
 mod local_bootstrap;
@@ -55,7 +55,7 @@ pub(crate) use browser::{
     BrowserSessionError, CreateBrowserPairing, cleared_session_cookie, request_has_exact_origin,
     request_uses_https, session_cookie,
 };
-pub(crate) use desktop::{CreateDesktopPairing, DesktopPairingError};
+pub(crate) use desktop::DesktopPairingError;
 
 const TOKEN_PREFIX: &str = "msc2";
 const SECRET_STORE_KEY_PREFIX: &str = "remote-api.token.";

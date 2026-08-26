@@ -11,11 +11,11 @@ use axum::{
 use msc_api::dto::PermissionCategoryDto;
 use serde::{Deserialize, Serialize};
 
+use crate::auth::desktop::CreateDesktopPairing;
 use crate::auth::{
     AuthState, AuthenticatedCredential, BrowserSessionAuthentication, BrowserSessionError,
-    CreateBrowserPairing, CreateDesktopPairing, CredentialRole, DesktopPairingError,
-    cleared_session_cookie, forbidden, request_has_exact_origin, request_uses_https,
-    session_cookie,
+    CreateBrowserPairing, CredentialRole, DesktopPairingError, cleared_session_cookie, forbidden,
+    request_has_exact_origin, request_uses_https, session_cookie,
 };
 use crate::routes::lifecycle::{error_response, invalid_body, require_permission};
 

@@ -698,7 +698,7 @@ Shape the result (`Vec<JavaPlayerProfile>`) so P12.2e can map it alongside Bedro
 **Batch:** solo
 
 ### P12.2e — Wire GET /v1/players/profiles and POST /v1/players/hidden
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/players.rs` (new — the shared `/v1/players` route currently lives misnamed inside `routes/bedrock.rs`), `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/routes/templates.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-application/src/bedrock_players.rs`
 **What:** Implement the two already-frozen, currently-unimplemented routes from `docs/msc2/api-contract/openapi.json` — `GET /v1/players/profiles` → `PlayerProfilesResponseDTO` and `POST /v1/players/hidden` — for Java (P12.2d) and Bedrock (existing `bedrock_players.rs`), merged into one list. Leave `skinOverrideIdentifier`/`hasSkinFileOverride` present but unpopulated (P12.2f).
 

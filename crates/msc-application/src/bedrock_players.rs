@@ -168,6 +168,21 @@ pub fn load_hidden(fs: &dyn FileSystem, server_dir: &Path) -> BTreeSet<String> {
         .collect()
 }
 
+pub fn set_hidden(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    xuid: &str,
+    hidden: bool,
+) -> Result<(), BedrockPlayerError> {
+    let mut entries = load_hidden(fs, server_dir);
+    if hidden {
+        entries.insert(xuid.to_owned());
+    } else {
+        entries.remove(xuid);
+    }
+    write_json(fs, &server_dir.join("bedrock_hidden.json"), &entries)
+}
+
 /// Scan the active Bedrock world's LevelDB.  The reader is intentionally
 /// read-only; the service reports corrupt input instead of mutating a live
 /// world database to make it look healthy.

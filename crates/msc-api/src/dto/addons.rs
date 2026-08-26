@@ -73,7 +73,7 @@ pub struct AddonItemDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub available_version: Option<String>,
     pub bucket: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "iconURL", default, skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
 }
 
@@ -125,7 +125,7 @@ pub struct CatalogItemDto {
     pub description: String,
     pub author: String,
     pub downloads: i64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "iconURL", default, skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
     pub is_client_only: bool,
     pub project_type: String,
@@ -178,9 +178,13 @@ pub struct ClientExportItemDto {
     pub id: String,
     pub file_name: String,
     pub display_name: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "iconURL", default, skip_serializing_if = "Option::is_none")]
     pub icon_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "projectURL",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub project_url: Option<String>,
     pub client_status: String,
     pub status_source: String,
@@ -274,4 +278,54 @@ pub struct ModpackManualFileResultDto {
     pub operation_id: String,
     pub remaining_manual_files: Vec<ModpackManualFileDto>,
     pub all_files_resolved: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    //! `#[serde(rename_all = "camelCase")]` turns `icon_url` into `iconUrl`,
+    //! not `iconURL` -- it has no concept of an acronym staying uppercase.
+    //! The frozen contract (docs/msc2/api-contract/openapi.json) spells
+    //! these fields `iconURL`/`projectURL`, matching MSC 1's Swift naming.
+    //! P12.7a found this the hard way (a real agent silently sending
+    //! `iconUrl`, which the generated `iconURL`-typed TypeScript never
+    //! reads) after fixing `GET /v1/catalog/search` to actually populate
+    //! the field at all. These guard the explicit `#[serde(rename = ...)]`
+    //! overrides against a future refactor dropping them silently.
+    use super::*;
+
+    #[test]
+    fn addon_item_icon_url_serializes_as_icon_url_acronym() {
+        let dto = AddonItemDto {
+            icon_url: Some("https://example.test/icon.png".to_string()),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&dto).unwrap();
+        assert_eq!(value["iconURL"], "https://example.test/icon.png");
+        assert!(value.get("iconUrl").is_none());
+    }
+
+    #[test]
+    fn catalog_item_icon_url_serializes_as_icon_url_acronym() {
+        let dto = CatalogItemDto {
+            icon_url: Some("https://example.test/icon.png".to_string()),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&dto).unwrap();
+        assert_eq!(value["iconURL"], "https://example.test/icon.png");
+        assert!(value.get("iconUrl").is_none());
+    }
+
+    #[test]
+    fn client_export_item_icon_and_project_url_serialize_with_acronym() {
+        let dto = ClientExportItemDto {
+            icon_url: Some("https://example.test/icon.png".to_string()),
+            project_url: Some("https://example.test/project".to_string()),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&dto).unwrap();
+        assert_eq!(value["iconURL"], "https://example.test/icon.png");
+        assert_eq!(value["projectURL"], "https://example.test/project");
+        assert!(value.get("iconUrl").is_none());
+        assert!(value.get("projectUrl").is_none());
+    }
 }

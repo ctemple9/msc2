@@ -357,6 +357,14 @@ fn dto_conformance_performance_snapshot_matches_schema() {
             value: 19.8,
             help_id: Some("performance.tps".to_string()),
         }),
+        tps_5m: Some(PerformanceMetricNumberDto {
+            value: 19.9,
+            help_id: Some("performance.tps".to_string()),
+        }),
+        tps_15m: Some(PerformanceMetricNumberDto {
+            value: 20.0,
+            help_id: Some("performance.tps".to_string()),
+        }),
         players_online: Some(3),
         cpu_percent: Some(PerformanceMetricNumberDto {
             value: 42.0,

@@ -31,6 +31,10 @@ pub struct PerformanceSnapshotDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tps_1m: Option<PerformanceMetricNumberDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tps_5m: Option<PerformanceMetricNumberDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tps_15m: Option<PerformanceMetricNumberDto>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub players_online: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cpu_percent: Option<PerformanceMetricNumberDto>,

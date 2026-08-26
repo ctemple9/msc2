@@ -40,6 +40,8 @@ impl Default for StatusRoutesState {
             PerformanceSnapshot {
                 ts: unix_timestamp_string(),
                 tps_1m: None,
+                tps_5m: None,
+                tps_15m: None,
                 players_online: Some(0),
                 cpu_percent: None,
                 ram_used_mb: None,
@@ -88,6 +90,8 @@ impl StatusRoutesState {
         PerformanceSnapshotDto {
             ts: snapshot.ts,
             tps_1m: metric(snapshot.tps_1m, "performance.tps"),
+            tps_5m: metric(snapshot.tps_5m, "performance.tps"),
+            tps_15m: metric(snapshot.tps_15m, "performance.tps"),
             players_online: snapshot.players_online,
             cpu_percent: metric(snapshot.cpu_percent, "performance.cpu"),
             ram_used_mb: metric(snapshot.ram_used_mb, "performance.ram"),
@@ -147,6 +151,8 @@ mod tests {
             PerformanceSnapshot {
                 ts: "2026-08-02T00:00:00Z".to_string(),
                 tps_1m: Some(19.8),
+                tps_5m: Some(19.9),
+                tps_15m: Some(20.0),
                 players_online: Some(2),
                 cpu_percent: Some(37.5),
                 ram_used_mb: Some(768.0),

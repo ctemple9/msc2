@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: d395c55cfb889101b6ddf11c92c6e1dbd3d57bb51bfdbceddb864272d744d33e
+// Contract SHA-256: 5fbb3a6ef3b95e5aa874fb885dae133bcf546889e2068c9d7eeb7ba2f3f7fb39
 
 export interface paths {
   '/v1/active-server': {
@@ -6338,6 +6338,10 @@ export interface components {
       runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType?: string;
       tps1m?: components['schemas']['PerformanceMetricNumberDTO'];
+      /** @description Paper-family's real 5-minute rolling average from the same /tps reply as tps1m. Absent for single-value flavors (Forge/vanilla) and Bedrock. */
+      tps5m?: components['schemas']['PerformanceMetricNumberDTO'];
+      /** @description Paper-family's real 15-minute rolling average from the same /tps reply as tps1m. Absent for single-value flavors (Forge/vanilla) and Bedrock. */
+      tps15m?: components['schemas']['PerformanceMetricNumberDTO'];
       ts: string;
       worldSizeMB?: components['schemas']['PerformanceMetricNumberDTO'];
     } & {

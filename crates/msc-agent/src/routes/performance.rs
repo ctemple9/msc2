@@ -14,6 +14,8 @@ pub async fn performance(
     Json(PerformanceSnapshotDto {
         ts: snapshot.ts,
         tps_1m: metric(snapshot.tps_1m, "performance.tps"),
+        tps_5m: metric(snapshot.tps_5m, "performance.tps"),
+        tps_15m: metric(snapshot.tps_15m, "performance.tps"),
         players_online: snapshot.players_online,
         cpu_percent: metric(snapshot.cpu_percent, "performance.cpu"),
         ram_used_mb: metric(snapshot.ram_used_mb, "performance.ram"),

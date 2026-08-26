@@ -1048,6 +1048,8 @@ impl LifecycleRoutesState {
             return PerformanceSnapshot {
                 ts: unix_timestamp_string(),
                 tps_1m: None,
+                tps_5m: None,
+                tps_15m: None,
                 players_online: Some(0),
                 cpu_percent: usage.as_ref().and_then(|value| value.cpu_percent),
                 ram_used_mb: usage.as_ref().and_then(|value| value.ram_used_mb),
@@ -2026,6 +2028,8 @@ fn stopped_performance() -> PerformanceSnapshot {
     PerformanceSnapshot {
         ts: unix_timestamp_string(),
         tps_1m: None,
+        tps_5m: None,
+        tps_15m: None,
         players_online: Some(0),
         cpu_percent: None,
         ram_used_mb: None,

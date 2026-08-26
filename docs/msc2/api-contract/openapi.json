@@ -8194,6 +8194,14 @@
           "tps1m": {
             "$ref": "#/components/schemas/PerformanceMetricNumberDTO"
           },
+          "tps5m": {
+            "$ref": "#/components/schemas/PerformanceMetricNumberDTO",
+            "description": "Paper-family's real 5-minute rolling average from the same /tps reply as tps1m. Absent for single-value flavors (Forge/vanilla) and Bedrock."
+          },
+          "tps15m": {
+            "$ref": "#/components/schemas/PerformanceMetricNumberDTO",
+            "description": "Paper-family's real 15-minute rolling average from the same /tps reply as tps1m. Absent for single-value flavors (Forge/vanilla) and Bedrock."
+          },
           "playersOnline": {
             "type": "integer"
           },

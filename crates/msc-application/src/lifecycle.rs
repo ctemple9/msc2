@@ -269,6 +269,8 @@ impl<'deps> LifecycleService<'deps> {
         Ok(PerformanceSnapshot {
             ts: ts.into(),
             tps_1m: self.latest_tps.map(|sample| sample.t1),
+            tps_5m: self.latest_tps.and_then(|sample| sample.t5),
+            tps_15m: self.latest_tps.and_then(|sample| sample.t15),
             players_online: Some(self.output_reducer.online_players().len() as i64),
             cpu_percent: usage.and_then(|usage| usage.cpu_percent),
             ram_used_mb: usage.and_then(|usage| usage.ram_used_mb),

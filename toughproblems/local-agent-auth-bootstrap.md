@@ -173,6 +173,39 @@ one already-encrypted secret (`remote-api.agent-host-id`) undecryptable —
 `decrypting remote-api.agent-host-id: aead::Error`. Deleted the one stale
 file under `secrets/`; the agent regenerated it cleanly on next use.
 
+### 5. A third secret was missed by "removed keychain entirely" (P11.31a)
+
+**Symptom:** a real login-keychain access prompt ("msc2-desktop-web wants
+to use your confidential information stored in
+'com.ctemple.msc2.desktop'..."), noticed by Cameron well after #4 above
+was believed closed, since #4's fix and this repo's own commit message
+both say "removed entirely."
+
+**Cause:** #4 only covered two *agent-daemon* secrets (the installation
+key and the store's root key). It never touched a *third* secret: the
+Tauri desktop app's own stored pairing credential
+(`StoredDesktopCredential`, the bearer token it gets back after
+exchanging with the agent), written via `desktop_secret_store()` in
+`clients/desktop-web/src-tauri/src/lib.rs`. That function still called
+`MacosSecretStore::default_keychain_for_service(DESKTOP_SECRET_SERVICE)`
+— the user's real login keychain — which is exactly what prompted.
+
+**Fix:** `desktop_secret_store()`'s macOS branch now calls
+`MacosSecretStore::system()` instead — the same file-rooted,
+self-provisioning store the agent itself uses, sharing
+`agent_data_directory()`'s `secrets/` directory with the
+`local-bootstrap.key` file this same process already writes there
+directly. Same reasoning as #4: desktop app and agent always run as the
+same regular user, so there's no reason for this one secret to be the
+exception. `DESKTOP_SECRET_SERVICE` (now unused) was removed.
+
+**Not touched:** `default_keychain_for_service`/`user_keychain_value`
+are still used once, in `crates/msc-agent/src/auth.rs`, for the
+foreground-`msc serve`-smoke-harness path this file's own doc comment
+already carves out as a deliberate exception ("Installed service auth
+still uses `Self::system()`") — that one's intentional, not a fourth
+instance of this same gap.
+
 ### 5. `hostId` vs `host_id` — a genuine serde bug
 
 **Symptom, after fixing #4:** code identity validated, installation key

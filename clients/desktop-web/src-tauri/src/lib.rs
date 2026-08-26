@@ -5,8 +5,8 @@ use msc_infrastructure::service::{
     ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
     ServiceStatusReport,
 };
-use reqwest::{header, Method, Url};
 use rand::RngCore;
+use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -14,7 +14,6 @@ use std::path::{Path, PathBuf};
 mod update;
 
 const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
-const DESKTOP_SECRET_SERVICE: &str = "com.ctemple.msc2.desktop";
 const LOCAL_HOST_ID_KEY: &str = "msc.desktop.local-agent-host-id";
 const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 const AGENT_PORT: u16 = 48001;
@@ -205,23 +204,20 @@ fn bootstrap_local_macos() -> Result<DesktopPairingResult, String> {
         .set_read_timeout(Some(std::time::Duration::from_secs(5)))
         .map_err(|error| format!("Could not configure the bootstrap channel: {error}"))?;
     stream
-        .write_all(
-            format!(
-                "{}\n",
-                serde_json::json!({ "version": PROTOCOL_VERSION })
-            )
-            .as_bytes(),
-        )
+        .write_all(format!("{}\n", serde_json::json!({ "version": PROTOCOL_VERSION })).as_bytes())
         .map_err(|error| format!("Could not send the bootstrap hello: {error}"))?;
-    let mut reader = BufReader::new(stream.try_clone().map_err(|error| {
-        format!("Could not read the bootstrap channel: {error}")
-    })?);
+    let mut reader = BufReader::new(
+        stream
+            .try_clone()
+            .map_err(|error| format!("Could not read the bootstrap channel: {error}"))?,
+    );
     let mut line = String::new();
     reader
         .read_line(&mut line)
         .map_err(|error| format!("Could not read the bootstrap challenge: {error}"))?;
-    let challenge: LocalBootstrapChallenge = serde_json::from_str(&line)
-        .map_err(|error| format!("The local agent returned an invalid bootstrap challenge: {error}"))?;
+    let challenge: LocalBootstrapChallenge = serde_json::from_str(&line).map_err(|error| {
+        format!("The local agent returned an invalid bootstrap challenge: {error}")
+    })?;
     if challenge.status != "challenge" || challenge.version != PROTOCOL_VERSION {
         return Err("The local agent rejected the bootstrap protocol.".to_string());
     }
@@ -244,8 +240,9 @@ fn bootstrap_local_macos() -> Result<DesktopPairingResult, String> {
     reader
         .read_line(&mut line)
         .map_err(|error| format!("Could not read the bootstrap result: {error}"))?;
-    let response: LocalBootstrapResponse = serde_json::from_str(&line)
-        .map_err(|error| format!("The local agent returned an invalid bootstrap result: {error}"))?;
+    let response: LocalBootstrapResponse = serde_json::from_str(&line).map_err(|error| {
+        format!("The local agent returned an invalid bootstrap result: {error}")
+    })?;
     if response.status != "ok" || response.version != PROTOCOL_VERSION {
         return Err(format!(
             "The local agent refused desktop bootstrap{}.",
@@ -544,7 +541,10 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
     )
     .env(
         "MSC2_LOCAL_BOOTSTRAP_SOCKET",
-        working_directory.join(LOCAL_BOOTSTRAP_SOCKET).display().to_string(),
+        working_directory
+            .join(LOCAL_BOOTSTRAP_SOCKET)
+            .display()
+            .to_string(),
     );
     #[cfg(target_os = "macos")]
     let request = request.env("MSC2_MACOS_DESKTOP_REQUIREMENT", desktop_requirement);
@@ -724,11 +724,17 @@ fn relative_request_url(base_url: &str, path: &str) -> Result<Url, String> {
 fn desktop_secret_store() -> Result<Box<dyn SecretStore>, String> {
     #[cfg(target_os = "macos")]
     {
-        return msc_platform_macos::secret_store::MacosSecretStore::default_keychain_for_service(
-            DESKTOP_SECRET_SERVICE,
-        )
-        .map(|store| Box::new(store) as Box<dyn SecretStore>)
-        .map_err(|error| error.to_string());
+        // Same file-rooted store the agent itself uses (msc-platform-macos's
+        // secret_store module doc) -- the desktop app and the agent always
+        // run as the same regular user, so there is no reason for this,
+        // unlike the agent's install-time secrets, to be the one remaining
+        // thing in this feature still hitting the login keychain's ACL/
+        // session prompt. `system()` self-provisions its root key and shares
+        // `agent_data_directory()`'s secrets/ directory with the plain
+        // `local-bootstrap.key` file this same process already writes.
+        return msc_platform_macos::secret_store::MacosSecretStore::system()
+            .map(|store| Box::new(store) as Box<dyn SecretStore>)
+            .map_err(|error| error.to_string());
     }
     #[cfg(target_os = "windows")]
     {

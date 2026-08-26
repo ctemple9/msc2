@@ -510,6 +510,14 @@ the package manager, with MSC limited to an actionable availability notice.
 **Commit:** `P11.31: land the local-agent auto-bootstrap auth`
 **Batch:** solo
 
+### P11.31a — Move the desktop app's own stored credential off keychain too
+**Status:** awaiting verification. Cameron hit a real login-keychain access prompt ("msc2-desktop-web wants to use your confidential information stored in 'com.ctemple.msc2.desktop'...") during P12.3 verification and correctly recalled that keychain had been removed — P11.31's "removed entirely" only covered two *agent-daemon* secrets (installation key, store root key). A third secret was missed: the Tauri desktop app's own stored pairing credential (`StoredDesktopCredential`), still going through `MacosSecretStore::default_keychain_for_service` (the real login keychain) in `desktop_secret_store()`. Fixed to `MacosSecretStore::system()` — the same self-provisioning, file-rooted store the agent itself uses, sharing `agent_data_directory()`'s `secrets/` directory with the `local-bootstrap.key` file this same process already writes there directly (same user, same reasoning P11.31 already established for the other two secrets). Removed the now-unused `DESKTOP_SECRET_SERVICE` constant. Left `crates/msc-agent/src/auth.rs`'s own `default_keychain_for_service` call untouched — that one backs the foreground-`msc serve`-smoke-harness path the module's own doc comment already carves out as deliberate, not a fourth instance of this gap. Full account appended to `toughproblems/local-agent-auth-bootstrap.md` (§5).
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `toughproblems/local-agent-auth-bootstrap.md`
+**What:** Stop the Tauri desktop app's own credential store from touching the macOS login keychain, matching the reasoning and pattern P11.31 already applied to the agent's two other secrets.
+**Verify:** `cd clients/desktop-web/src-tauri && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test`. Cameron's own real-app verification: fresh pair/reconnect on macOS no longer shows a Keychain access prompt.
+**Commit:** `P11.31a: move the desktop app's own stored credential off keychain too`
+**Batch:** solo
+
 ---
 
 ## Phase 12 — Client redesign (MSC 1 visual + behavioral fidelity)

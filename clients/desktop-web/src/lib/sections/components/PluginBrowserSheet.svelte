@@ -8,6 +8,13 @@
   // latest compatible version itself. There is no GET for a single project's
   // detail or version list to browse. That richer page is a real, documented
   // gap -- not built here -- rather than faked with client-side guesses.
+  //
+  // The per-result icon here is real Modrinth artwork (CatalogItemDTO
+  // .iconURL), the same category of content as a world slot's thumbnail --
+  // not the rule #6 tell (a generic icon in a same-hue tinted box standing
+  // in for an informational element). A flat neutral placeholder tile
+  // covers projects with no icon, same shape as ModrinthBrowserView's own
+  // `Color.secondary.opacity(0.15)` fallback.
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
@@ -128,6 +135,13 @@
     <div class="results">
       {#each results as item (item.projectId)}
         <div class="result">
+          <div class="icon">
+            {#if item.iconURL}
+              <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
+            {:else}
+              <Icon name="box" size={18} />
+            {/if}
+          </div>
           <div class="info">
             <div class="title-row">
               <span class="title">{item.title}</span>
@@ -188,6 +202,23 @@
   }
   .result:first-child {
     border-top: none;
+  }
+  .icon {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--msc2-tier-chrome);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--msc2-text-tertiary);
+  }
+  .icon img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
   }
   .info {
     min-width: 0;

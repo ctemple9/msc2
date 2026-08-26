@@ -146,11 +146,24 @@ pub fn modrinth_is_client_only(server_side: &str) -> bool {
     server_side == "unsupported"
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct ModrinthSearchHit {
     pub project_id: String,
     pub slug: String,
     pub title: String,
+    /// Modrinth's search response calls this `description` too -- a short
+    /// one-line summary, not the project's full Markdown body (that's
+    /// `ModrinthProjectSummary`'s job, fetched per-project, not per-hit).
+    #[serde(default)]
+    pub description: String,
+    /// The project owner's username. Modrinth's wire field is `author`,
+    /// same as `CatalogItemDTO.author` -- no rename needed here either.
+    #[serde(default)]
+    pub author: String,
+    #[serde(default)]
+    pub downloads: i64,
+    #[serde(default)]
+    pub icon_url: Option<String>,
     #[serde(default)]
     pub server_side: Option<String>,
 }

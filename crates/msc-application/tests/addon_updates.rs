@@ -754,7 +754,7 @@ fn find_confident_dependency_match_exact_title_match() {
         project_id: "P1".to_string(),
         slug: "fabric-api".to_string(),
         title: "Fabric API".to_string(),
-        server_side: None,
+        ..Default::default()
     }];
     assert_eq!(
         addon_updates::find_confident_dependency_match("fabric api", &hits),
@@ -768,7 +768,7 @@ fn find_confident_dependency_match_exact_slug_match() {
         project_id: "P2".to_string(),
         slug: "fabric-api".to_string(),
         title: "A Completely Different Display Name".to_string(),
-        server_side: None,
+        ..Default::default()
     }];
     assert_eq!(
         addon_updates::find_confident_dependency_match("Fabric-API", &hits),
@@ -782,7 +782,7 @@ fn find_confident_dependency_match_no_hit_returns_none() {
         project_id: "P3".to_string(),
         slug: "sodium".to_string(),
         title: "Sodium".to_string(),
-        server_side: None,
+        ..Default::default()
     }];
     assert_eq!(
         addon_updates::find_confident_dependency_match("fabric api", &hits),

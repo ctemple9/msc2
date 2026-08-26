@@ -24,12 +24,12 @@ const ALLOWLIST_FILE: &str = "allowlist.json";
 const PERMISSIONS_FILE: &str = "permissions.json";
 const NAME_CACHE_FILE: &str = "bedrock_names.json";
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct BedrockPlayerRecord {
     pub xuid: String,
     pub name: String,
-    pub has_stats: bool,
-    pub inventory_items: usize,
+    pub stats: Option<msc_infrastructure::bedrock_nbt::PlayerStats>,
+    pub inventory: Vec<msc_infrastructure::bedrock_nbt::InventoryItem>,
 }
 
 #[derive(Debug)]
@@ -219,8 +219,8 @@ pub fn discover_players(
         players.push(BedrockPlayerRecord {
             xuid: xuid.clone(),
             name,
-            has_stats: nbt.stats.is_some(),
-            inventory_items: nbt.inventory.len(),
+            stats: nbt.stats,
+            inventory: nbt.inventory,
         });
     }
     Ok(players)

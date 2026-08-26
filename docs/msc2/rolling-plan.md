@@ -950,7 +950,7 @@ Client: fixed `avatarUrl`/`model.ts` to stop excluding Bedrock (now always retur
 **Batch:** solo
 
 ### P12.3e — Carry real Bedrock stats and inventory through instead of discarding them
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/bedrock_players.rs`, `crates/msc-agent/src/routes/players.rs`
 **What:** Cameron approved planning this after P12.3d's investigation found it's smaller than it looks: `crates/msc-infrastructure/src/bedrock_nbt.rs`'s `read_player_nbt` already parses full Bedrock stats and inventory from LevelDB — `bedrock_players::discover_players` (`crates/msc-application/src/bedrock_players.rs:212-224`) calls it, then immediately throws the result away, keeping only `nbt.stats.is_some()` and `nbt.inventory.len()`. No new parsing, no new fixtures, no contract change — `PlayerProfileDTO.stats`/`inventory` are already wired and already populate correctly for Java; this step only stops Bedrock from being short-changed at the one point it's discarded. Nothing in `msc-infrastructure/src/bedrock_nbt.rs` changes — leave that module, and its own P10 fixtures/tests, completely untouched.
 

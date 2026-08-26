@@ -926,6 +926,12 @@ fn bedrock_profile_to_dto(
     profile: BedrockPlayerRecord,
     hidden: &BTreeSet<String>,
 ) -> PlayerProfileDto {
+    let stats = profile.stats.map(bedrock_stats_to_domain);
+    let inventory: Vec<InventoryItem> = profile
+        .inventory
+        .into_iter()
+        .map(bedrock_inventory_item_to_domain)
+        .collect();
     let image_identifier = if profile.name.starts_with('.') {
         profile.name.clone()
     } else {
@@ -942,8 +948,51 @@ fn bedrock_profile_to_dto(
         is_hidden: hidden.contains(&profile.xuid),
         skin_override_identifier: None,
         has_skin_file_override: None,
-        stats: None,
-        inventory: Vec::new(),
+        stats: stats.as_ref().map(player_stats_to_dto),
+        inventory: inventory.iter().map(inventory_item_to_dto).collect(),
+    }
+}
+
+fn bedrock_stats_to_domain(stats: msc_infrastructure::bedrock_nbt::PlayerStats) -> PlayerStats {
+    let [pos_x, pos_y, pos_z] = stats.position;
+    PlayerStats {
+        health: stats.health,
+        max_health: stats.max_health,
+        food_level: stats.food_level,
+        xp_level: stats.xp_level,
+        xp_total: stats.xp_total,
+        game_mode: stats.game_mode,
+        pos_x,
+        pos_y,
+        pos_z,
+        dimension: stats.dimension,
+        score: stats.score,
+    }
+}
+
+fn bedrock_inventory_item_to_domain(
+    item: msc_infrastructure::bedrock_nbt::InventoryItem,
+) -> InventoryItem {
+    InventoryItem {
+        slot: item.slot,
+        item_id: item.item_id,
+        count: item.count,
+        enchantments: item
+            .enchantments
+            .into_iter()
+            .map(bedrock_enchantment_to_domain)
+            .collect(),
+        custom_name: item.custom_name,
+        damage: item.damage,
+    }
+}
+
+fn bedrock_enchantment_to_domain(
+    enchantment: msc_infrastructure::bedrock_nbt::ItemEnchantment,
+) -> ItemEnchantment {
+    ItemEnchantment {
+        id: enchantment.id,
+        level: enchantment.level,
     }
 }
 
@@ -1114,13 +1163,33 @@ mod tests {
     }
 
     #[test]
-    fn bedrock_profile_mapping_uses_xuid_identity_and_always_empty_inventory() {
+    fn bedrock_profile_mapping_preserves_xuid_identity_stats_and_inventory() {
         let profile = bedrock_profile_to_dto(
             BedrockPlayerRecord {
                 xuid: "2535416361514257".to_owned(),
                 name: "Builder".to_owned(),
-                has_stats: true,
-                inventory_items: 4,
+                stats: Some(msc_infrastructure::bedrock_nbt::PlayerStats {
+                    health: 18.0,
+                    max_health: 20.0,
+                    food_level: 17,
+                    xp_level: 4,
+                    xp_total: 42,
+                    game_mode: 0,
+                    position: [1.5, 64.0, -2.0],
+                    dimension: "minecraft:the_nether".to_owned(),
+                    score: 3,
+                }),
+                inventory: vec![msc_infrastructure::bedrock_nbt::InventoryItem {
+                    slot: 0,
+                    item_id: "minecraft:diamond_sword".to_owned(),
+                    count: 1,
+                    enchantments: vec![msc_infrastructure::bedrock_nbt::ItemEnchantment {
+                        id: "minecraft:sharpness".to_owned(),
+                        level: 2,
+                    }],
+                    custom_name: None,
+                    damage: 7,
+                }],
             },
             &BTreeSet::from(["2535416361514257".to_owned()]),
         );
@@ -1128,7 +1197,16 @@ mod tests {
         assert_eq!(json["id"], "xuid_2535416361514257");
         assert_eq!(json["imageIdentifier"], ".Builder");
         assert_eq!(json["isHidden"], true);
-        assert_eq!(json["inventory"], serde_json::json!([]));
-        assert!(json.get("stats").is_none());
+        assert_eq!(json["stats"]["health"], 18.0);
+        assert_eq!(json["stats"]["gameModeDisplay"], "Survival");
+        assert_eq!(json["stats"]["posX"], 1.5);
+        assert_eq!(json["stats"]["dimensionDisplay"], "Nether");
+        assert_eq!(json["inventory"][0]["itemID"], "minecraft:diamond_sword");
+        assert_eq!(json["inventory"][0]["iconName"], "diamond_sword");
+        assert_eq!(json["inventory"][0]["damage"], 7);
+        assert_eq!(
+            json["inventory"][0]["enchantments"][0]["displayName"],
+            "Sharpness II"
+        );
     }
 }

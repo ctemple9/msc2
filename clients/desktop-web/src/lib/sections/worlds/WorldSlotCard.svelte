@@ -220,6 +220,8 @@
   .thumb-area {
     display: flex;
     flex-direction: column;
+    align-items: stretch;
+    box-sizing: border-box;
     width: 100%;
     text-align: left;
     background: none;
@@ -228,6 +230,13 @@
     cursor: pointer;
     font: inherit;
     color: inherit;
+    /* WebKit keeps a native <button> sizing to its own content even with
+       display:flex set, so a flex child asking for width:100% (.thumb,
+       .info below) can get ignored -- Chromium doesn't have this quirk,
+       which is why this only ever showed up in the real Tauri/WKWebView
+       window, never in a Chromium-based check. */
+    appearance: none;
+    -webkit-appearance: none;
   }
   .hidden-input {
     position: absolute;
@@ -263,7 +272,10 @@
   }
   .thumb {
     position: relative;
+    width: 100%;
     height: 100px;
+    box-sizing: border-box;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -296,6 +308,8 @@
   .info {
     display: flex;
     flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
     gap: 2px;
     padding: 10px 12px 8px;
   }

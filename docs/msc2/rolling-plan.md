@@ -1098,6 +1098,16 @@ Real wall-clock cost here (up to source's own 180s start-timeout) rules out a sy
 **Commit:** `P12.4g: resolve the project's own prettier config in the API generator`
 **Batch:** solo
 
+### P12.4h — Fix a real WebKit-only layout bug on the World Slot card
+**Status:** awaiting verification. Cameron's live-app review found the World Slots grid's thumbnail area rendering as a narrow, content-width strip in the real Tauri desktop app (WKWebView) — full-width and correct in every Chromium check this session ran (isolated `WorldSlotCard`, full `WorldsSection` with matching real data, before *and* after clearing the app's WebKit cache), which is what pointed at a rendering-engine difference rather than stale code or cached assets. Root cause: `.thumb-area` (the clickable thumbnail+info region) is a `<button>` styled `display: flex; flex-direction: column`, and Safari/WebKit's native button appears to keep sizing its own box to its content even with `display: flex` set, so its flex children's `width: 100%` (the `.thumb` gradient and `.info` name/date block) got ignored — a real engine difference, not a Chromium quirk to work around blindly, and not something any amount of re-testing in a Chromium-based checker (Playwright, this session's own gallery checks) could have surfaced.
+
+Fix: `appearance: none; -webkit-appearance: none;` on `.thumb-area` (strips whatever native sizing behavior WebKit was applying to the button), plus explicit `width: 100%; box-sizing: border-box;` on `.thumb-area`, `.thumb`, and `.info` so the layout no longer depends on flex-stretch resolving correctly at all — belt-and-braces once the actual mechanism was identified, not a guess. No other button in the app combines `display: flex` styling with a `width: 100%`-dependent child the way `.thumb-area` does, so this is the only place the bug could show up; not applied speculatively elsewhere.
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`
+**What:** Fix the World Slot card thumbnail not filling its card width in the real Tauri (WebKit) app.
+**Verify:** `npx svelte-check --tsconfig ./tsconfig.json` (only the 7 pre-existing unrelated errors), `npx prettier --check src/lib/sections/worlds/WorldSlotCard.svelte`, `npm run build`. Real verification is Cameron's own: reload the Tauri app and look at the Worlds tab.
+**Commit:** `P12.4h: fix WebKit not stretching the world slot thumbnail to full width`
+**Batch:** solo
+
 ### P12.5 — Packs tab
 **Status:** not started
 **Files:** `src/lib/sections/` (packs section)

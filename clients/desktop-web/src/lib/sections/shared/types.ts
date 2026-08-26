@@ -9,6 +9,8 @@ export interface ScreenApi {
   upload?(
     purpose: Schema['StagedUploadBeginRequestDTO']['purpose'],
     bytes: Uint8Array,
+    /** curseforge-manual-file only: which pending operation/file this upload resumes. */
+    options?: { operationId?: string; fileId?: string },
   ): Promise<Schema['StagedUploadCompleteResultDTO']>;
   download?(id: string): Promise<Uint8Array>;
 }

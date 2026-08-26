@@ -162,7 +162,8 @@
       get: <T,>(path: string) => requireClient().requestJson<T>('GET', path),
       post: <T,>(path: string, body?: unknown) =>
         requireClient().requestJson<T>('POST', path, { body }),
-      upload: (purpose, bytes) => requireClient().stagedUpload({ purpose }, bytes),
+      upload: (purpose, bytes, options) =>
+        requireClient().stagedUpload({ purpose, ...options }, bytes),
       download: (id) => requireClient().downloadBytes(id),
     };
   }

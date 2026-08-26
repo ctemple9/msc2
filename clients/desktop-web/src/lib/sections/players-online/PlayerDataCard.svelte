@@ -24,6 +24,7 @@
   let searchText = '';
   let sortOrder: ProfileSortOrder = 'lastSeen';
   let showHidden = false;
+  let failedAvatars = new Set<string>();
 
   const sortOptions = [
     { value: 'lastSeen', label: 'Last Seen' },
@@ -92,12 +93,18 @@
             class:hidden={profile.isHidden}
             onclick={() => onSelect?.(profile)}
           >
-            {#if avatarUrl(profile)}
-              <img class="avatar" src={avatarUrl(profile, 64)} alt="" loading="lazy" />
-            {:else}
+            {#if failedAvatars.has(profile.id)}
               <span class="avatar initial"
                 >{profileDisplayName(profile).slice(0, 1).toUpperCase()}</span
               >
+            {:else}
+              <img
+                class="avatar"
+                src={avatarUrl(profile, 64)}
+                alt=""
+                loading="lazy"
+                onerror={() => (failedAvatars = new Set(failedAvatars).add(profile.id))}
+              />
             {/if}
             <span class="name">{profileDisplayName(profile)}</span>
             {#if profile.isOnline}<span class="online-dot" aria-hidden="true"></span>{/if}

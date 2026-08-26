@@ -38,6 +38,7 @@ pub fn router(state: LifecycleRoutesState) -> Router {
         .route("/players/{profile_id}/skin", get(skin))
         .route("/players/hidden", post(mutate_hidden))
         .route("/players/skin-override", post(mutate_skin_override))
+        .route("/players/identify", post(mutate_identify))
         .with_state(state)
 }
 
@@ -131,6 +132,24 @@ struct HiddenProfileMutationResultDto {
 pub struct PlayerSkinOverrideRequestDto {
     profile_id: Option<String>,
     lookup_identifier: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerIdentifyRequestDto {
+    profile_id: Option<String>,
+    gamertag: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayerIdentifyResultDto {
+    success: bool,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    username: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -335,6 +354,84 @@ pub async fn mutate_hidden(
         })
         .into_response(),
         Err(error) => error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error),
+    }
+}
+
+pub async fn mutate_identify(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayerIdentifyRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) =
+        require_permission(&credential, msc_api::dto::PermissionCategoryDto::Players)
+    {
+        return response;
+    }
+    let Some(server) = state.active_config_server() else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "conflict",
+            "No server is currently active.",
+        );
+    };
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let Some(profile_id) = body
+        .profile_id
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+    else {
+        return invalid_body("missing_profile_id", "profileId is required.");
+    };
+    let Some(gamertag) = body
+        .gamertag
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+    else {
+        return invalid_body("missing_gamertag", "gamertag is required.");
+    };
+    let Some(xuid) = profile_id.strip_prefix("xuid_") else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "not_bedrock",
+            "Only a Bedrock profile can be identified by gamertag; a Java profile's username already resolves from usercache.json.",
+        );
+    };
+
+    let profiles = match profiles_for_server(&server.server_dir, server.server_type) {
+        Ok(profiles) => profiles,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error);
+        }
+    };
+    if !profiles.iter().any(|profile| profile.id == profile_id) {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Player profile was not found.",
+        );
+    }
+
+    match bedrock_players::record_name(
+        &StdFileSystem,
+        Path::new(&server.server_dir),
+        xuid,
+        &gamertag,
+    ) {
+        Ok(_cache) => Json(PlayerIdentifyResultDto {
+            success: true,
+            message: "identified".to_owned(),
+            profile_id: Some(profile_id),
+            username: Some(gamertag),
+        })
+        .into_response(),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
     }
 }
 

@@ -25,6 +25,7 @@ export const playerPaths = {
   migrateOffline: '/v1/players/migrate-offline',
   migrate: '/v1/players/migrate',
   duplicate: '/v1/players/duplicate',
+  identify: '/v1/players/identify',
   allowlist: '/v1/allowlist',
   consoleTail: '/v1/console/tail?n=200',
 } as const;
@@ -62,11 +63,20 @@ export function profileSort(
   return sorted;
 }
 
-/** mc-heads.net avatar identifier for a Java profile grid thumbnail; Bedrock has no
- *  public skin API without an Xbox lookup, so callers fall back to an initial. */
-export function avatarUrl(profile: Schema['PlayerProfileDTO'], size = 40): string | null {
-  if (profile.isBedrockPlayer) return null;
+/** mc-heads.net face-crop identifier. `PlayerProfileDTO.imageIdentifier` is
+ *  already resolved server-side for both editions -- a bare uuid-hex for
+ *  Java, a dotted gamertag (".Gamertag") for Bedrock, matching mc-heads.net's
+ *  own documented Bedrock convention (ported server-side from
+ *  PlayerProfile.imageIdentifier) -- so this always has something real to
+ *  try, even for a not-yet-identified Bedrock profile (its raw XUID, same
+ *  fallback the backend itself uses when no name is cached yet). */
+export function avatarUrl(profile: Schema['PlayerProfileDTO'], size = 40): string {
   return `https://mc-heads.net/avatar/${encodeURIComponent(profile.imageIdentifier)}/${size}`;
+}
+
+/** Full-body render for the same identifier scheme `avatarUrl` resolves. */
+export function bodyUrl(profile: Schema['PlayerProfileDTO'], size = 96): string {
+  return `https://mc-heads.net/body/${encodeURIComponent(profile.imageIdentifier)}/${size}`;
 }
 
 // ── Session log (derived from console tail — /v1/session-log has no agent

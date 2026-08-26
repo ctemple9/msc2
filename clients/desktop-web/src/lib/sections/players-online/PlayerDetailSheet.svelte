@@ -13,7 +13,7 @@
   import InventoryGrid from './InventoryGrid.svelte';
   import type { Schema } from '../shared/types';
   import { call, mutate } from '../shared/types';
-  import { avatarUrl, playerPaths, profileDisplayName } from './model';
+  import { bodyUrl, playerPaths, profileDisplayName } from './model';
 
   export let profile: Schema['PlayerProfileDTO'];
   export let api: import('../shared/types').ScreenApi | undefined = undefined;
@@ -25,10 +25,17 @@
   let lookupInput = profile.skinOverrideIdentifier ?? '';
   let showMigrateInput = false;
   let migrateUuidInput = '';
+  let showIdentifyInput = false;
+  let identifyInput = '';
   let confirmingDelete = false;
   let busy = false;
   let actionError: string | undefined;
   let actionSuccess: string | undefined;
+  let portraitFailed = false;
+
+  $: previewIdentifier = profile.skinOverrideIdentifier || profile.imageIdentifier;
+  $: previewHeadUrl = `https://mc-heads.net/avatar/${encodeURIComponent(previewIdentifier)}/64`;
+  $: previewBodyUrl = `https://mc-heads.net/body/${encodeURIComponent(previewIdentifier)}/64`;
 
   onMount(async () => {
     if (profile.isBedrockPlayer) return;
@@ -92,6 +99,26 @@
       busy = false;
     }
   }
+  async function identifyPlayer(): Promise<void> {
+    const gamertag = identifyInput.trim();
+    if (!gamertag) return;
+    busy = true;
+    try {
+      const result = await mutate<Schema['PlayerIdentifyResultDTO']>(api, playerPaths.identify, {
+        profileId: profile.id,
+        gamertag,
+      });
+      profile = { ...profile, username: result.username ?? gamertag };
+      onMutated([profile]);
+      showIdentifyInput = false;
+      identifyInput = '';
+      flashSuccess(`Identified as ${profile.username}.`);
+    } catch (error) {
+      flashError(error instanceof Error ? error.message : 'Failed to identify player.');
+    } finally {
+      busy = false;
+    }
+  }
   async function toggleHidden(): Promise<void> {
     busy = true;
     try {
@@ -142,8 +169,13 @@
         src={`data:${skin.imageMimeType ?? 'image/png'};base64,${skin.imageBase64}`}
         alt=""
       />
-    {:else if avatarUrl(profile)}
-      <img class="portrait" src={avatarUrl(profile, 96)} alt="" />
+    {:else if !portraitFailed}
+      <img
+        class="portrait"
+        src={bodyUrl(profile, 96)}
+        alt=""
+        onerror={() => (portraitFailed = true)}
+      />
     {:else}
       <span class="portrait initial">{profileDisplayName(profile).slice(0, 1).toUpperCase()}</span>
     {/if}
@@ -162,16 +194,24 @@
     </div>
   </div>
 
-  {#if !profile.isBedrockPlayer}
-    <section class="block">
-      <h3><Icon name="id-card" size={12} />Skin Lookup</h3>
-      <form class="lookup-row" onsubmit={(event) => (event.preventDefault(), saveLookupOverride())}>
-        <Field bind:value={lookupInput} placeholder="Username or UUID override" />
-        <Button size="sm" type="submit">Save</Button>
-      </form>
-      <p class="hint">Leave blank to use this profile's own identity for the skin lookup.</p>
-    </section>
-  {/if}
+  <section class="block">
+    <h3><Icon name="id-card" size={12} />Skin Override</h3>
+    <div class="skin-preview">
+      <div class="skin-preview-item">
+        <img class="skin-thumb" src={previewHeadUrl} alt="" />
+        <span class="skin-thumb-label">Head</span>
+      </div>
+      <div class="skin-preview-item">
+        <img class="skin-thumb" src={previewBodyUrl} alt="" />
+        <span class="skin-thumb-label">Body</span>
+      </div>
+    </div>
+    <form class="lookup-row" onsubmit={(event) => (event.preventDefault(), saveLookupOverride())}>
+      <Field bind:value={lookupInput} placeholder="Custom lookup name or UUID" />
+      <Button size="sm" type="submit">Save</Button>
+    </form>
+    <p class="hint">Leave blank to use this profile's own identity for the skin lookup.</p>
+  </section>
 
   {#if actionError}<p class="feedback error">{actionError}</p>{/if}
   {#if actionSuccess}<p class="feedback success">{actionSuccess}</p>{/if}
@@ -224,10 +264,31 @@
     {/if}
   </section>
 
-  {#if !profile.isBedrockPlayer}
-    <section class="block">
-      <h3><Icon name="id-card" size={12} />Data Management</h3>
-      <div class="actions">
+  <section class="block">
+    <h3><Icon name="id-card" size={12} />Data Management</h3>
+    <div class="actions">
+      {#if profile.isBedrockPlayer}
+        {#if showIdentifyInput}
+          <form
+            class="inline-input"
+            onsubmit={(event) => (event.preventDefault(), identifyPlayer())}
+          >
+            <Field bind:value={identifyInput} placeholder="Gamertag" />
+            <Button size="sm" type="submit" disabled={busy}>Save</Button>
+            <Button size="sm" onclick={() => (showIdentifyInput = false)}>Cancel</Button>
+          </form>
+        {:else}
+          <Button
+            disabled={busy}
+            onclick={() => {
+              identifyInput = profile.username ?? '';
+              showIdentifyInput = true;
+            }}
+          >
+            {profile.username ? 'Change Gamertag' : 'Identify Player'}
+          </Button>
+        {/if}
+      {:else}
         <Button disabled={busy || !profile.username} onclick={migrateOffline}>
           Migrate to Offline UUID
         </Button>
@@ -261,14 +322,11 @@
             >Delete Player Data</Button
           >
         {/if}
-      </div>
-    </section>
-  {/if}
-
-  <section class="block">
-    <Button disabled={busy} onclick={toggleHidden}>
-      {profile.isHidden ? 'Unhide Profile' : 'Hide Profile'}
-    </Button>
+      {/if}
+      <Button disabled={busy} onclick={toggleHidden}>
+        {profile.isHidden ? 'Unhide Profile' : 'Hide Profile'}
+      </Button>
+    </div>
   </section>
 
   {#if profile.isBedrockPlayer}
@@ -384,6 +442,31 @@
   .inline-input {
     display: flex;
     gap: 8px;
+  }
+
+  .skin-preview {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 12px;
+  }
+  .skin-preview-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .skin-thumb {
+    width: 64px;
+    height: 64px;
+    object-fit: contain;
+    image-rendering: pixelated;
+    background: var(--msc2-tier-chrome);
+    border: 1px solid var(--msc2-hairline-subtle);
+    border-radius: 8px;
+  }
+  .skin-thumb-label {
+    font-size: 10px;
+    color: var(--msc2-text-tertiary);
   }
 
   .stats {

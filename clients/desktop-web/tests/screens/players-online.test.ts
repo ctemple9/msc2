@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  avatarUrl,
+  bodyUrl,
   demoPlayers,
   filterSessionEvents,
   groupSessionEventsByDay,
@@ -58,6 +60,10 @@ describe('player data (profiles)', () => {
     expect(playerPaths.profiles).toBe('/v1/players/profiles');
   });
 
+  it('has the Bedrock identify route now that the backend serves it (P12.3d)', () => {
+    expect(playerPaths.identify).toBe('/v1/players/identify');
+  });
+
   it('falls back to a truncated id when username is unresolved', () => {
     expect(profileDisplayName(profiles[2])).toBe('33333333…');
   });
@@ -79,6 +85,28 @@ describe('player data (profiles)', () => {
       'Alice',
       'Bob',
     ]);
+  });
+
+  it('resolves an avatar/body URL from imageIdentifier for both editions -- Bedrock is not a special case', () => {
+    const bedrockProfile: Schema['PlayerProfileDTO'] = {
+      id: 'xuid_2535416409816137',
+      username: 'camkage',
+      imageIdentifier: '.camkage',
+      isOnline: false,
+      isOp: false,
+      isBedrockPlayer: true,
+      inventory: [],
+    };
+    expect(avatarUrl(profiles[0])).toBe(
+      'https://mc-heads.net/avatar/11111111111141118111111111111111/40',
+    );
+    expect(bodyUrl(profiles[0], 96)).toBe(
+      'https://mc-heads.net/body/11111111111141118111111111111111/96',
+    );
+    // mc-heads.net's documented Bedrock convention: a dotted gamertag, already
+    // resolved server-side into imageIdentifier (PlayerProfile.imageIdentifier).
+    expect(avatarUrl(bedrockProfile)).toBe('https://mc-heads.net/avatar/.camkage/40');
+    expect(bodyUrl(bedrockProfile)).toBe('https://mc-heads.net/body/.camkage/96');
   });
 });
 

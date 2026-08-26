@@ -2981,6 +2981,78 @@
         "x-permission-category": "players"
       }
     },
+    "/v1/players/identify": {
+      "post": {
+        "summary": "Assign a gamertag to an unresolved Bedrock profile",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayerIdentifyRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Gamertag assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayerIdentifyResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_profile_id / missing_gamertag",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "profile_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "409": {
+            "description": "no_active_server / not_bedrock -- this route only applies to a Bedrock profileId (xuid_ prefix); a bare Java UUID profileId is rejected here since Java usernames already resolve from usercache.json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "players"
+      }
+    },
     "/v1/players/profiles": {
       "get": {
         "summary": "List all-time player profiles with stats",
@@ -7670,6 +7742,42 @@
         "required": [
           "profileId",
           "targetUuid"
+        ]
+      },
+      "PlayerIdentifyRequestDTO": {
+        "type": "object",
+        "properties": {
+          "profileId": {
+            "type": "string"
+          },
+          "gamertag": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "profileId",
+          "gamertag"
+        ]
+      },
+      "PlayerIdentifyResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
         ]
       },
       "DuckDNSStatusResponseDTO": {

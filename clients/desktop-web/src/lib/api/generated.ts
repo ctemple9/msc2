@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: f5f06c12126fe467e4f6a58700d379241c0c598acffa0f77252df9064e64ee7b
+// Contract SHA-256: 9a03fa042a89234673cca9d2998f3766a7c3520068c34346cc2989482ad72798
 
 export interface paths {
   '/v1/active-server': {
@@ -2902,6 +2902,82 @@ export interface paths {
           };
         };
         /** @description no_active_server */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/players/identify': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Assign a gamertag to an unresolved Bedrock profile */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['PlayerIdentifyRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Gamertag assigned */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['PlayerIdentifyResultDTO'];
+          };
+        };
+        /** @description missing_body / invalid_json / missing_profile_id / missing_gamertag */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description profile_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description no_active_server / not_bedrock -- this route only applies to a Bedrock profileId (xuid_ prefix); a bare Java UUID profileId is rejected here since Java usernames already resolve from usercache.json */
         409: {
           headers: {
             [name: string]: unknown;
@@ -6212,6 +6288,20 @@ export interface components {
     PlayerDTO: {
       name: string;
       uuid?: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PlayerIdentifyRequestDTO: {
+      gamertag: string;
+      profileId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PlayerIdentifyResultDTO: {
+      message: string;
+      profileId?: string;
+      success: boolean;
+      username?: string;
     } & {
       [key: string]: unknown;
     };

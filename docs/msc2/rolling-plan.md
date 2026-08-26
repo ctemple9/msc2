@@ -593,7 +593,7 @@ code. The rest apply the locked system to each screen, one at a time.
 **Batch:** solo
 
 ### P12.2b — Extract Java player-data NBT fixtures
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `fixtures/player-nbt/`
 **What:** Extract fixtures characterizing `PlayerNBTReader.swift`'s Java player `.dat` parsing (378 lines, gzip-compressed big-endian NBT): the `extractStats` fields (health/maxHealth/foodLevel/xpLevel/xpTotal/gameMode/posX/posY/posZ/dimensionDisplay/score — these already match `PlayerStatsDTO` in `docs/msc2/api-contract/openapi.json` field-for-field, confirming the frozen contract was modeled on this exact reader) and `extractInventory` (slot/itemID/iconName/count/displayName/enchantments/damage — matching `InventoryItemDTO`), plus corrupt/truncated/non-compound-root failure cases (same three-way split P6.7 used for `level.dat`). `crates/msc-domain/src/nbt.rs` (P6.9) already implements a general big-endian tag-level reader — this step's characterization must say explicitly which of `PlayerNBTReader`'s behavior is generic tag parsing already covered by `nbt.rs` versus player-`.dat`-specific extraction rules, so P12.2c doesn't rebuild the reader from scratch. Per the P6.3/P6.7 real-evidence precedent, at least one real player `.dat` sample is required rather than an entirely synthetic fixture set — but per that same precedent, "real evidence" means *at least one genuine file proving the gzip/parse pipeline works end-to-end*, not that every tag variant must be physically demonstrated in a live save. P6.7 itself paired two real `level.dat` files with synthetic characterization for cases no real evidence existed for (the Bedrock little-endian header, "synthesized from the source, not stood in as real evidence" — see that step's own committed note in `rolling-plan-archive.md`). Apply the same split here: any already-available real player `.dat` with at least one inventory item (a stacked item is enough — MSC 1's live `campak` server already has one, no new server session or manual enchanting/damaging needed) satisfies the real-evidence bar. Enchantment, damage, custom-name, and other tag-shape variants `extractInventory` handles may be characterized with hand-built synthetic NBT bytes grounded in `PlayerNBTReader.swift`'s own field-reading code, clearly labeled synthetic in the fixture, exactly like P6.7's Bedrock-header cases. Git-ignore the real sample's raw bytes the same way `fixtures/world-nbt/samples/` does.
 **Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/player-nbt --expect 13`
@@ -601,7 +601,7 @@ code. The rest apply the locked system to each screen, one at a time.
 **Batch:** solo
 
 ### P12.2c — Port the Java player NBT reader
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/player_nbt.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/player_nbt.rs`
 **What:** Port `extractStats`/`extractInventory` against the P12.2b fixtures, reusing `nbt.rs`'s existing tag-level reader per that step's findings rather than re-implementing gzip/tag parsing — same domain-module convention P6.9 established (pure computation only, no filesystem access; I/O stays in `msc-infrastructure`/callers).
 
@@ -655,7 +655,7 @@ Title-case note: Swift's `.capitalized` title-cases *every* whitespace-separated
 **Batch:** solo
 
 ### P12.2d — Port the Java player-profile pipeline
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/player_profiles.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/player_profiles.rs`
 **What:** Port `loadPlayerProfiles` (`AppViewModel+PlayerProfiles.swift:77`, backed by `PlayerDataManager.swift`) for Java. Do not port UUID/Mojang resolution, skin override, or the migrate/copy/duplicate/delete mutation actions here — skin is P12.2f, mutations are P12.2i; `copyPlayerData` (overwrite-one-onto-another) stays deferred per this file's 2026-08-25 note.
 
@@ -698,7 +698,7 @@ Shape the result (`Vec<JavaPlayerProfile>`) so P12.2e can map it alongside Bedro
 **Batch:** solo
 
 ### P12.2e — Wire GET /v1/players/profiles and POST /v1/players/hidden
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/players.rs` (new — the shared `/v1/players` route currently lives misnamed inside `routes/bedrock.rs`), `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/routes/templates.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-application/src/bedrock_players.rs`
 **What:** Implement the two already-frozen, currently-unimplemented routes from `docs/msc2/api-contract/openapi.json` — `GET /v1/players/profiles` → `PlayerProfilesResponseDTO` and `POST /v1/players/hidden` — for Java (P12.2d) and Bedrock (existing `bedrock_players.rs`), merged into one list. Leave `skinOverrideIdentifier`/`hasSkinFileOverride` present but unpopulated (P12.2f).
 
@@ -725,7 +725,7 @@ Tests: put them inline as `#[cfg(test)] mod tests` inside `routes/players.rs` it
 **Batch:** solo
 
 ### P12.2f — Wire player skin resolution and override
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/players.rs`, `crates/msc-application/src/player_skin.rs` (new)
 **What:** Port `playerSkinProvider`/`playerSkinOverrideProvider` (`AppViewModel+APIWiringContent.swift:68-147`) for `GET /v1/players/{profileId}/skin` and `POST /v1/players/skin-override`.
 
@@ -744,7 +744,7 @@ Override storage — file is **`{server_dir}/player_overrides.json`** (JSON obje
 **Batch:** solo
 
 ### P12.2g — Amend the API contract: 4 player-data mutation routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`
 **What:** Of MSC 1's 5 player-data mutation actions in `AppViewModel+PlayerProfiles.swift` (lines 475–516) and `PlayerDataManager.swift`, Cameron approved 4 for MSC 2 (2026-08-25 decision, superseding the earlier "delete only" plan): **delete, migrate-to-offline-UUID, migrate-to-custom-UUID, duplicate**. `copyPlayerData` (copy one player's data onto another's, overwriting) stays deferred, not dropped. None of these 4 exist in the frozen contract today — this step is a pure contract amendment, no Rust code, following the exact pattern P6.8/P6.34/P7.9/P8.9 each used for their own additions (see `tools/api-contract-check.py`'s `EXPECTED_TOTAL` comment for the running list). Do this step precisely as specified below — every field name, type, and error code is fixed so P12.2h–j have nothing left to invent.
 
@@ -803,7 +803,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 **Batch:** solo
 
 ### P12.2h — Port the offline-UUID algorithm
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-domain/src/player_nbt.rs` (add to the module P12.2c created — this is a small pure function, not a new file), `crates/msc-domain/tests/player_nbt.rs`
 **What:** Port `PlayerDataManager.offlineUUID(for:)` (`PlayerDataManager.swift:118-129`) exactly. This is Java's `UUID.nameUUIDFromBytes`, a fixed public algorithm — not project-specific behavior, so no fixture-extraction step is needed; pin it with known-answer test vectors instead (computed independently below, not merely asserted — reproducible with any MD5 implementation):
 
@@ -828,7 +828,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 **Batch:** solo
 
 ### P12.2i — Port the player-data file mutation primitives
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-application/src/player_profiles.rs` (the module P12.2d created), `crates/msc-application/tests/player_profiles.rs`
 **What:** Port `PlayerDataManager`'s file-operation primitives (`PlayerDataManager.swift:131-164`) and the 4 approved `AppViewModel+PlayerProfiles.swift` action wrappers (lines 471-516; skip `copyPlayerData` at line 493 — deferred) into `player_profiles.rs`. These operate against a **single** resolved directory, unlike P12.2d's scan (which reads both candidate directories) — add the single-directory resolver first:
 

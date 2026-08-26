@@ -100,6 +100,12 @@ fn world_backup_routes_are_mounted_behind_bearer_auth() {
         );
     }
 
+    let response = http_post(port, "/v1/worlds/repair", None);
+    assert!(
+        response.starts_with("HTTP/1.1 401"),
+        "/v1/worlds/repair expected 401 (mounted + auth-gated), got: {response}"
+    );
+
     // An actually-unmounted path still 404s, proving the 401s above
     // aren't just this agent's blanket behavior for any unknown path.
     let response = http_get(port, "/v1/worlds/does-not-exist-route", None);

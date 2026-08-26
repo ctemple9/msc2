@@ -380,11 +380,11 @@
         },
         "responses": {
           "200": {
-            "description": "Mutation applied",
+            "description": "Repair started",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorldMutationResultDTO"
+                  "$ref": "#/components/schemas/WorldRepairResultDTO"
                 }
               }
             }
@@ -6228,6 +6228,21 @@
           "operationId": {
             "type": "string",
             "description": "Operation id for progress polling (GET /v1/operations/{id}) or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, matching SimpleResult's P4 precedent."
+          }
+        },
+        "required": [
+          "result"
+        ]
+      },
+      "WorldRepairResultDTO": {
+        "type": "object",
+        "properties": {
+          "result": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Operation id for progress polling (GET /v1/operations/{id}) or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, matching the operation-backed world activation response."
           }
         },
         "required": [

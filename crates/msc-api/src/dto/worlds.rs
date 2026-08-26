@@ -85,6 +85,17 @@ pub struct WorldActivateResultDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorldRepairResultDto {
+    pub result: String,
+    /// Operation id for progress polling (`GET /v1/operations/{id}`) or
+    /// `/v1/operations/{id}/stream` and cancellation, matching the
+    /// operation-backed world activation response.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub operation_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorldMutationResultDto {
     pub success: bool,
     pub message: String,

@@ -1063,7 +1063,7 @@ Follow this codebase's own established "policy vs. mechanism" split (`msc_applic
 **Batch:** solo
 
 ### P12.4e — Wire POST /v1/worlds/repair to the real repair orchestration
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/openapi.json`, `crates/msc-api/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
 **What:** Replaces today's always-`409 repair_unavailable` stub (`repair()`'s own doc comment already names this as deliberate until "the real regeneration workflow exists"). Implement P12.4d's `RepairServerControl` port against this agent's real Bedrock lifecycle (start/stop through the same path `routes/lifecycle.rs::start_active_server`/`stop_active_server` already use; readiness/running-state through whatever `bedrock_service.rs`/`bedrock_runtime.rs` already expose for this exact purpose — read both in full before wiring, don't assume a signal exists that isn't already there). Keep every existing guard in `repair()` (Bedrock-only, active-slot-only, not-currently-running) exactly as they are today; only the final `error_response(... "repair_unavailable" ...)` line changes.
 

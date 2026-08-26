@@ -56,8 +56,8 @@ use msc_api::dto::{
     WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
     WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
     WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
-    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
-    WorldSlotDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
+    WorldRepairResultDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
+    WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -67,6 +67,7 @@ use msc_application::backups;
 use msc_application::world_conversion::{
     self, ConversionError, ConversionPlacement, WorldConverter,
 };
+use msc_application::world_repair::{RepairServerControl, WorldRepairError, repair_world};
 use msc_application::worlds::{self, WorldError, WorldReplaceSource};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
@@ -588,6 +589,7 @@ pub async fn repair(
     Extension(credential): Extension<AuthenticatedCredential>,
     body: Option<Json<WorldRepairRequestDto>>,
 ) -> Response {
+    let lifecycle = state.lifecycle.clone();
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
@@ -623,15 +625,152 @@ pub async fn repair(
             "Only the active Bedrock world can be repaired.",
         );
     }
-    // The runtime gate is intentionally the last capability decision in this
-    // route.  The actual regeneration workflow is operation-backed in the
-    // next runtime-surface increment; no request is allowed to mutate files
-    // until that workflow exists.
-    error_response(
-        StatusCode::CONFLICT,
-        "repair_unavailable",
-        "Bedrock world repair is not available on this runtime.",
-    )
+    let operation_id = match lifecycle.operations().begin_lifecycle(
+        "world-repair",
+        None,
+        "Repairing Bedrock world.",
+    ) {
+        Ok(id) => id,
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
+    let server_dir = Path::new(&server.server_dir).to_path_buf();
+    let server_type = server.server_type;
+    let raw_level_name =
+        crate::backup_operations::configured_java_level_name(server_type, &server_dir);
+    let task_lifecycle = lifecycle.clone();
+    let task_operation_id = operation_id.clone();
+    tokio::spawn(async move {
+        let control = AgentRepairServerControl::new(task_lifecycle.clone());
+        let backup_lifecycle = task_lifecycle.clone();
+        let backup_dir = server_dir.clone();
+        let progress_lifecycle = task_lifecycle.clone();
+        let progress_operation_id = task_operation_id.clone();
+        let result = tokio::task::spawn_blocking(move || {
+            repair_world(
+                &StdFileSystem,
+                &control,
+                &server_dir,
+                || {
+                    run_pre_mutation_safety_backup(
+                        &backup_lifecycle,
+                        &backup_dir,
+                        server_type,
+                        raw_level_name.as_deref(),
+                        || false,
+                    )
+                },
+                |status_line| {
+                    let _ = progress_lifecycle.operations().progress(
+                        &progress_operation_id,
+                        0,
+                        1,
+                        status_line,
+                    );
+                },
+            )
+        })
+        .await;
+        match result {
+            Ok(Ok(())) => {
+                let mut result = BTreeMap::new();
+                result.insert("result".to_string(), "repaired".to_string());
+                let _ = task_lifecycle.operations().succeed(
+                    &task_operation_id,
+                    "Bedrock world repair complete.",
+                    result,
+                );
+            }
+            Ok(Err(error)) => {
+                let _ = task_lifecycle.operations().fail(
+                    &task_operation_id,
+                    world_repair_error_code(&error),
+                    error.to_string(),
+                );
+            }
+            Err(_) => {
+                let _ = task_lifecycle.operations().fail(
+                    &task_operation_id,
+                    "internal_error",
+                    "World repair task panicked.".to_string(),
+                );
+            }
+        }
+    });
+
+    let response = Json(WorldRepairResultDto {
+        result: "repair_started".to_string(),
+        operation_id: Some(operation_id.as_str().to_string()),
+    })
+    .into_response();
+    audit(
+        &lifecycle,
+        &credential,
+        "POST",
+        "/v1/worlds/repair",
+        response.status(),
+    );
+    response
+}
+
+struct AgentRepairServerControl {
+    lifecycle: LifecycleRoutesState,
+    start_operation_id: Mutex<Option<String>>,
+    start_failed: Mutex<bool>,
+}
+
+impl AgentRepairServerControl {
+    fn new(lifecycle: LifecycleRoutesState) -> Self {
+        Self {
+            lifecycle,
+            start_operation_id: Mutex::new(None),
+            start_failed: Mutex::new(false),
+        }
+    }
+}
+
+impl RepairServerControl for AgentRepairServerControl {
+    fn start(&self) {
+        match self.lifecycle.start_active_server() {
+            Ok(result) => {
+                *self.start_operation_id.lock().unwrap() = result.operation_id;
+            }
+            Err(_) => {
+                *self.start_failed.lock().unwrap() = true;
+            }
+        }
+    }
+
+    fn is_ready(&self) -> bool {
+        if *self.start_failed.lock().unwrap() {
+            return false;
+        }
+        let _ = self.lifecycle.status_snapshot();
+        let Some(operation_id) = self.start_operation_id.lock().unwrap().clone() else {
+            return false;
+        };
+        self.lifecycle
+            .operations()
+            .snapshot(&operation_id)
+            .is_some_and(|operation| operation.state == msc_api::dto::OperationStateDto::Succeeded)
+    }
+
+    fn stop(&self) {
+        let _ = self.lifecycle.stop_active_bedrock_server();
+    }
+
+    fn is_running(&self) -> bool {
+        self.lifecycle.status_snapshot().running
+    }
+}
+
+fn world_repair_error_code(error: &WorldRepairError) -> &'static str {
+    match error {
+        WorldRepairError::BackupFailed => "backup_failed",
+        WorldRepairError::NoLevelName
+        | WorldRepairError::StartTimedOut
+        | WorldRepairError::Io(_)
+        | WorldRepairError::RestoreFailed(_) => "world_repair_failed",
+    }
 }
 
 pub async fn update(

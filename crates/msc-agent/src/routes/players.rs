@@ -10,15 +10,18 @@ use std::time::UNIX_EPOCH;
 use axum::Json;
 use axum::Router;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Extension, State};
+use axum::extract::{Extension, Path as AxumPath, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
+use base64::Engine;
 use msc_application::bedrock_players::{self, BedrockPlayerRecord};
 use msc_application::output_reducer::JavaOutputReducer;
 use msc_application::player_profiles::{self, JavaPlayerProfile};
+use msc_application::player_skin;
 use msc_domain::identity::ServerType;
 use msc_domain::player_nbt::{InventoryItem, ItemEnchantment, PlayerStats};
+use msc_infrastructure::addon_provider::{AddonTransport, HttpTransport, RESPONSE_MAX_BYTES};
 use msc_infrastructure::fs::StdFileSystem;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -32,7 +35,9 @@ pub fn router(state: LifecycleRoutesState) -> Router {
     Router::new()
         .route("/players", get(players))
         .route("/players/profiles", get(profiles))
+        .route("/players/{profile_id}/skin", get(skin))
         .route("/players/hidden", post(mutate_hidden))
+        .route("/players/skin-override", post(mutate_skin_override))
         .with_state(state)
 }
 
@@ -119,6 +124,43 @@ struct HiddenProfileMutationResultDto {
     profile_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     is_hidden: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayerSkinOverrideRequestDto {
+    profile_id: Option<String>,
+    lookup_identifier: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayerSkinOverrideResultDto {
+    success: bool,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lookup_identifier: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayerSkinResponseDto {
+    success: bool,
+    message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_mime_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    lookup_identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_override: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    source: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -273,6 +315,185 @@ pub async fn mutate_hidden(
     }
 }
 
+pub async fn skin(
+    State(state): State<LifecycleRoutesState>,
+    AxumPath(profile_id): AxumPath<String>,
+) -> Response {
+    let profile_id = profile_id.trim().to_owned();
+    if profile_id.is_empty() {
+        return invalid_body("missing_profile_id", "profileId is required.");
+    }
+    let Some(server) = state.active_config_server() else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Player profile was not found.",
+        );
+    };
+    let profiles = match profiles_for_server(&server.server_dir, server.server_type) {
+        Ok(profiles) => profiles,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error);
+        }
+    };
+    let Some(profile) = profiles.iter().find(|profile| profile.id == profile_id) else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Player profile was not found.",
+        );
+    };
+
+    if profile.is_bedrock_player {
+        return Json(PlayerSkinResponseDto {
+            success: false,
+            message: "not_available".to_owned(),
+            profile_id: Some(profile_id),
+            image_base64: None,
+            image_mime_type: None,
+            lookup_identifier: None,
+            is_override: None,
+            source: Some("bedrock_unavailable".to_owned()),
+        })
+        .into_response();
+    }
+
+    let overrides = player_skin::load_overrides(&StdFileSystem, Path::new(&server.server_dir));
+    let (identifier, is_override) = resolve_lookup_identifier(profile, &overrides);
+    let image = match fetch_skin(&identifier) {
+        Ok(image) => image,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error);
+        }
+    };
+
+    Json(PlayerSkinResponseDto {
+        success: true,
+        message: "ok".to_owned(),
+        profile_id: Some(profile_id),
+        image_base64: Some(base64::engine::general_purpose::STANDARD.encode(image)),
+        image_mime_type: Some("image/png".to_owned()),
+        lookup_identifier: Some(identifier),
+        is_override: Some(is_override),
+        source: Some(if is_override {
+            "lookup_override".to_owned()
+        } else {
+            "profile_lookup".to_owned()
+        }),
+    })
+    .into_response()
+}
+
+pub async fn mutate_skin_override(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayerSkinOverrideRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) =
+        require_permission(&credential, msc_api::dto::PermissionCategoryDto::Players)
+    {
+        return response;
+    }
+    let Some(server) = state.active_config_server() else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "conflict",
+            "No server is currently active.",
+        );
+    };
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let Some(profile_id) = body
+        .profile_id
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
+    else {
+        return invalid_body("missing_profile_id", "profileId is required.");
+    };
+
+    let profiles = match profiles_for_server(&server.server_dir, server.server_type) {
+        Ok(profiles) => profiles,
+        Err(error) => {
+            return error_response(StatusCode::INTERNAL_SERVER_ERROR, "internal_error", &error);
+        }
+    };
+    if !profiles.iter().any(|profile| profile.id == profile_id) {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Player profile was not found.",
+        );
+    }
+
+    let lookup_identifier = body
+        .lookup_identifier
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty());
+    let saved_lookup_identifier = match player_skin::set_lookup_override(
+        &StdFileSystem,
+        Path::new(&server.server_dir),
+        &profile_id,
+        lookup_identifier,
+    ) {
+        Ok(identifier) => identifier,
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &error.to_string(),
+            );
+        }
+    };
+    Json(PlayerSkinOverrideResultDto {
+        success: true,
+        message: if saved_lookup_identifier.is_some() {
+            "saved"
+        } else {
+            "cleared"
+        }
+        .to_owned(),
+        profile_id: Some(profile_id),
+        lookup_identifier: saved_lookup_identifier,
+    })
+    .into_response()
+}
+
+fn resolve_lookup_identifier(
+    profile: &PlayerProfileDto,
+    overrides: &player_skin::PlayerSkinOverrides,
+) -> (String, bool) {
+    if let Some(identifier) = overrides
+        .get(&profile.id)
+        .and_then(|value| value.lookup_identifier.as_deref())
+        .filter(|value| !value.is_empty())
+    {
+        return (identifier.to_owned(), true);
+    }
+    (profile.image_identifier.clone(), false)
+}
+
+fn fetch_skin(identifier: &str) -> Result<Vec<u8>, String> {
+    let url = format!("https://mc-heads.net/avatar/{identifier}/128");
+    let transport = HttpTransport::new();
+    let response = transport
+        .get(
+            &url,
+            "Minecraft skin lookup",
+            &[("User-Agent", "MinecraftServerController/1.0")],
+            RESPONSE_MAX_BYTES,
+        )
+        .map_err(|error| error.to_string())?;
+    if response.status != 200 {
+        return Err(format!(
+            "Minecraft skin lookup returned status {}.",
+            response.status
+        ));
+    }
+    Ok(response.body)
+}
+
 fn profiles_for_server(
     server_dir: &str,
     server_type: ServerType,
@@ -392,7 +613,80 @@ fn enchantment_to_dto(enchantment: &ItemEnchantment) -> ItemEnchantmentDto {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
     use std::time::SystemTime;
+
+    #[test]
+    fn player_skin_override_storage_round_trips_and_clears() {
+        let fs = FakeFileSystem::default().with_dir("/server");
+        let server_dir = Path::new("/server");
+
+        let saved = player_skin::set_lookup_override(
+            &fs,
+            server_dir,
+            "11111111-1111-4111-8111-111111111111",
+            Some("ExamplePlayer".to_owned()),
+        )
+        .unwrap();
+        assert_eq!(saved.as_deref(), Some("ExamplePlayer"));
+        let overrides = player_skin::load_overrides(&fs, server_dir);
+        assert_eq!(
+            overrides["11111111-1111-4111-8111-111111111111"].lookup_identifier,
+            Some("ExamplePlayer".to_owned())
+        );
+        assert_eq!(
+            overrides["11111111-1111-4111-8111-111111111111"].skin_file_name,
+            None
+        );
+
+        let cleared = player_skin::set_lookup_override(
+            &fs,
+            server_dir,
+            "11111111-1111-4111-8111-111111111111",
+            None,
+        )
+        .unwrap();
+        assert_eq!(cleared, None);
+        assert!(player_skin::load_overrides(&fs, server_dir).is_empty());
+        assert!(fs.read(&server_dir.join("player_overrides.json")).is_ok());
+    }
+
+    #[test]
+    fn player_skin_lookup_prefers_non_empty_override_and_falls_back_to_profile_uuid() {
+        let profile = PlayerProfileDto {
+            id: "11111111-1111-4111-8111-111111111111".to_owned(),
+            username: Some("ExamplePlayer".to_owned()),
+            image_identifier: "11111111111141118111111111111111".to_owned(),
+            is_online: false,
+            is_op: false,
+            last_seen: None,
+            is_bedrock_player: false,
+            is_hidden: false,
+            skin_override_identifier: None,
+            has_skin_file_override: None,
+            stats: None,
+            inventory: Vec::new(),
+        };
+
+        let mut overrides = player_skin::PlayerSkinOverrides::new();
+        overrides.insert(
+            profile.id.clone(),
+            player_skin::PlayerSkinOverride {
+                lookup_identifier: Some("CustomLookup".to_owned()),
+                skin_file_name: None,
+            },
+        );
+        assert_eq!(
+            resolve_lookup_identifier(&profile, &overrides),
+            ("CustomLookup".to_owned(), true)
+        );
+
+        overrides.get_mut(&profile.id).unwrap().lookup_identifier = Some(String::new());
+        assert_eq!(
+            resolve_lookup_identifier(&profile, &overrides),
+            ("11111111111141118111111111111111".to_owned(), false)
+        );
+    }
 
     #[test]
     fn java_profile_mapping_preserves_contract_field_names_and_derived_values() {

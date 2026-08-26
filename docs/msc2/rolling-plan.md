@@ -725,7 +725,7 @@ Tests: put them inline as `#[cfg(test)] mod tests` inside `routes/players.rs` it
 **Batch:** solo
 
 ### P12.2f — Wire player skin resolution and override
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/players.rs`, `crates/msc-application/src/player_skin.rs` (new)
 **What:** Port `playerSkinProvider`/`playerSkinOverrideProvider` (`AppViewModel+APIWiringContent.swift:68-147`) for `GET /v1/players/{profileId}/skin` and `POST /v1/players/skin-override`.
 

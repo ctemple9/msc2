@@ -972,6 +972,16 @@ In `discover_players` (line ~219), change `has_stats: nbt.stats.is_some(), inven
 **Commit:** `P12.3e: carry real Bedrock stats and inventory through instead of discarding them`
 **Batch:** solo
 
+### P12.3f — Swap the client's Session Log over to the real backend (Java), keep console-tail for Bedrock
+**Status:** awaiting verification. Closes the gap P12.3's own write-up flagged ("A later client step... swaps this section over to it") now that P12.3b/c gave Session Log a real backend. Confirmed first that P12.3e's Bedrock stats/inventory carry-through needed **no client change at all** — `PlayerDetailSheet.svelte`'s Stats/Inventory sections already render generically off `profile.stats`/`profile.inventory` with no Java-only gate, so real Bedrock data just starts appearing once loaded; only fixed a stale comment there that still said Bedrock stats/inventory were Java-only.
+
+Session Log itself did need real wiring, done inline (Cameron approved skipping a separate plan-first pass since it's client-only and contained): `PlayersOnlineSection.svelte`'s `loadSessionEvents` now branches on `isBedrock` — Java calls the real `GET /v1/session-log` (mapped via new `sessionEventsFromLog` in `model.ts`), Bedrock keeps deriving from `/v1/console/tail` (P12.3b's own scope note: Bedrock has no live-drain wiring for `BedrockServiceEvent` yet, so this isn't a regression). `onClearSessionLog` likewise branches — Java calls the real `POST /v1/session-log/clear`, Bedrock keeps the `localStorage` cutoff-timestamp fallback (nothing durable to clear server-side there). `visibleSessionEvents` only applies the client-side `clearedAt` filter for Bedrock now, since Java's clear is real (the backend actually deletes the events, so re-applying a stale local cutoff would incorrectly hide events for a Java player after any earlier client-local clear).
+**Files:** `clients/desktop-web/src/lib/sections/players-online/{model.ts,PlayersOnlineSection.svelte,PlayerDetailSheet.svelte}`, `clients/desktop-web/tests/screens/players-online.test.ts`
+**What:** Wire `GET /v1/session-log` and `POST /v1/session-log/clear` into the Players tab for Java servers; keep the existing console-tail derivation as the Bedrock fallback since Bedrock has no live session-log backend yet.
+**Verify:** `npx svelte-check --tsconfig ./tsconfig.json` (only the 7 pre-existing unrelated errors in `auth/desktop.ts`, `SetupIntro.svelte`, `route.ts`, `desktop.test.ts` should remain — none in the touched files), `npx prettier --check src/lib/sections/players-online/model.ts src/lib/sections/players-online/PlayersOnlineSection.svelte src/lib/sections/players-online/PlayerDetailSheet.svelte tests/screens/players-online.test.ts`, `npm run test:screen-players-online` (14 tests).
+**Commit:** `P12.3f: swap Session Log to the real backend for Java, keep console-tail for Bedrock`
+**Batch:** solo
+
 ### P12.4 — Worlds tab (+ world wizards)
 **Status:** not started
 **Files:** `src/lib/sections/worlds/`

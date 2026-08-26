@@ -28,6 +28,8 @@ export const playerPaths = {
   identify: '/v1/players/identify',
   allowlist: '/v1/allowlist',
   consoleTail: '/v1/console/tail?n=200',
+  sessionLog: '/v1/session-log',
+  sessionLogClear: '/v1/session-log/clear',
 } as const;
 
 // ── Player Data (profiles) ──────────────────────────────────────────────
@@ -79,12 +81,27 @@ export function bodyUrl(profile: Schema['PlayerProfileDTO'], size = 96): string 
   return `https://mc-heads.net/body/${encodeURIComponent(profile.imageIdentifier)}/${size}`;
 }
 
-// ── Session log (derived from console tail — /v1/session-log has no agent
-// handler yet, same gap the player-profile routes had before this step; the
-// live console is already a real, working source for join/leave events, the
-// same substitute Overview's ChatCard already uses for its own feed) ──────
+// ── Session log — real backend (P12.3b/c) for Java, ported from MSC 1's
+// SessionLogManager.swift; Java's join/leave events are written to disk by
+// lifecycle.rs's live hook. Bedrock has no equivalent live-drain wiring yet
+// (BedrockServiceEvent is defined but nothing drains it), so Bedrock keeps
+// deriving events from /v1/console/tail via chatFeed.ts's join/leave parsing
+// — the same substitute Overview's ChatCard already uses for its own feed.
+// Both sources normalize to the same SessionEvent shape so SessionLogCard
+// doesn't need to know which one it's looking at. ─────────────────────────
 
 export type SessionEvent = { id: string; player: string; kind: 'join' | 'leave'; ts: string };
+
+/** Maps the real backend's SessionEventDTO (Java only, P12.3c) to the same
+ *  shape sessionEventsFromConsole produces for Bedrock's console-tail path. */
+export function sessionEventsFromLog(events: readonly Schema['SessionEventDTO'][]): SessionEvent[] {
+  return events.map((event) => ({
+    id: event.id,
+    player: event.playerName,
+    kind: event.eventType === 'joined' ? 'join' : 'leave',
+    ts: event.timestamp,
+  }));
+}
 
 export function sessionEventsFromConsole(
   lines: readonly Schema['ConsoleLineDTO'][],
@@ -160,10 +177,12 @@ export function sessionDurationLabel(
   return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
-// ── Client-local "clear log" — the console tail is a bounded recent buffer,
-// not a durable server-side log, so there is nothing on the agent to send a
-// clear mutation to. Same "client-local until a real field exists" treatment
-// notes.ts already gives per-server state with no backend field. ──────────
+// ── Client-local "clear log" — Bedrock-only fallback. Java's Clear Log now
+// calls the real POST /v1/session-log/clear (P12.3a/c), which actually
+// deletes the events. Bedrock still derives from the console tail, a bounded
+// recent buffer with nothing durable on the agent to send a clear mutation
+// to, so it keeps the client-side cutoff-timestamp treatment notes.ts
+// already gives other per-server state with no backend field. ────────────
 
 function clearedKey(hostId: string, serverId: string): string {
   return `msc2.sessionLogClearedAt.${hostId}.${serverId}`;

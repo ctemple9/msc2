@@ -17,6 +17,7 @@
     readSessionLogClearedAt,
     seenThisSession,
     sessionEventsFromConsole,
+    sessionEventsFromLog,
     type SessionEvent,
   } from './model';
 
@@ -38,9 +39,12 @@
   $: worldName = worlds.slots.find((slot) => slot.id === worlds.activeSlotId)?.name;
 
   $: clearedAt = readSessionLogClearedAt(hostId, serverId);
-  $: visibleSessionEvents = sessionEvents.filter(
-    (event) => new Date(event.ts).getTime() > clearedAt,
-  );
+  // Java's session log is cleared for real on the backend, so its events
+  // are already fresh; the clearedAt cutoff only applies to Bedrock's
+  // client-derived console-tail fallback (see model.ts).
+  $: visibleSessionEvents = isBedrock
+    ? sessionEvents.filter((event) => new Date(event.ts).getTime() > clearedAt)
+    : sessionEvents;
   $: onlineNames = new Set(online.players.map((player) => player.name));
 
   async function loadOnline(): Promise<void> {
@@ -56,8 +60,17 @@
     profilesLoading = false;
   }
   async function loadSessionEvents(): Promise<void> {
-    const lines = await call<Schema['ConsoleLineDTO'][]>(api, [], '/v1/console/tail?n=200');
-    sessionEvents = sessionEventsFromConsole(lines);
+    if (isBedrock) {
+      const lines = await call<Schema['ConsoleLineDTO'][]>(api, [], '/v1/console/tail?n=200');
+      sessionEvents = sessionEventsFromConsole(lines);
+      return;
+    }
+    const response = await call<Schema['SessionLogResponseDTO']>(
+      api,
+      { events: [] },
+      playerPaths.sessionLog,
+    );
+    sessionEvents = sessionEventsFromLog(response.events);
   }
   async function loadServers(): Promise<void> {
     servers = await call(api, servers, '/v1/servers');
@@ -75,9 +88,14 @@
     await Promise.all([loadOnline(), loadProfiles(), loadSessionEvents(), loadAllowlist()]);
   }
 
-  function onClearSessionLog(): void {
-    clearSessionLog(hostId, serverId);
-    clearedAt = readSessionLogClearedAt(hostId, serverId);
+  async function onClearSessionLog(): Promise<void> {
+    if (isBedrock) {
+      clearSessionLog(hostId, serverId);
+      clearedAt = readSessionLogClearedAt(hostId, serverId);
+      return;
+    }
+    await mutate<Schema['SessionLogResponseDTO']>(api, playerPaths.sessionLogClear);
+    await loadSessionEvents();
   }
 
   async function onAddAllowlistEntry(name: string): Promise<void> {
@@ -132,7 +150,11 @@
     />
   {/if}
 
-  <SessionLogCard events={visibleSessionEvents} {onlineNames} onClear={onClearSessionLog} />
+  <SessionLogCard
+    events={visibleSessionEvents}
+    {onlineNames}
+    onClear={() => void onClearSessionLog()}
+  />
 
   <PlayerDataCard
     {profiles}

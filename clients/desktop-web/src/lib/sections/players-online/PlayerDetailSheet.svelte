@@ -1,7 +1,8 @@
 <script lang="ts">
   // Ports PlayerProfileDetailSheet.swift: identity header, skin lookup
-  // override, stats, inventory (Java only — Bedrock data lives in LevelDB
-  // and isn't editable from here, matching the Swift source's own note),
+  // override, stats, inventory (both editions — Bedrock's are carried
+  // through from LevelDB by bedrock_players.rs rather than discarded,
+  // P12.3e; still read-only here for both, matching the Swift source),
   // and the 4 approved data-management actions (migrate offline/custom
   // UUID, duplicate, delete — copyPlayerData stays deferred per
   // rolling-plan.md's 2026-08-25 note).

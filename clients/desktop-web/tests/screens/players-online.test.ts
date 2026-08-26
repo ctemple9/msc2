@@ -13,6 +13,7 @@ import {
   seenThisSession,
   sessionDurationLabel,
   sessionEventsFromConsole,
+  sessionEventsFromLog,
   type SessionEvent,
 } from '../../src/lib/sections/players-online/model';
 import type { Schema } from '../../src/lib/sections/shared/types';
@@ -161,7 +162,21 @@ describe('session log (derived from console tail, /v1/session-log has no agent h
     expect(sessionDurationLabel(join, events, false)).toBe('5m');
   });
 
-  it('does not claim a dedicated session-log route (none exists on the agent yet)', () => {
-    expect(Object.values(playerPaths)).not.toContain('/v1/session-log');
+  it('has the real session-log routes now that the backend serves them (P12.3a-c)', () => {
+    expect(playerPaths.sessionLog).toBe('/v1/session-log');
+    expect(playerPaths.sessionLogClear).toBe('/v1/session-log/clear');
+  });
+});
+
+describe('session log (from the real backend, Java only — P12.3c)', () => {
+  it('maps SessionEventDTO to the same SessionEvent shape the console-tail path produces', () => {
+    const dtoEvents: Schema['SessionEventDTO'][] = [
+      { id: 'a', playerName: 'Alice', eventType: 'joined', timestamp: '2026-08-25T12:00:00.000Z' },
+      { id: 'b', playerName: 'Alice', eventType: 'left', timestamp: '2026-08-25T12:05:00.000Z' },
+    ];
+    expect(sessionEventsFromLog(dtoEvents)).toEqual([
+      { id: 'a', player: 'Alice', kind: 'join', ts: '2026-08-25T12:00:00.000Z' },
+      { id: 'b', player: 'Alice', kind: 'leave', ts: '2026-08-25T12:05:00.000Z' },
+    ]);
   });
 });

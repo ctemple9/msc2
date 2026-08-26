@@ -1128,12 +1128,12 @@ Removed the indirection instead of patching it again: `Button.svelte` gained a r
 **Commit:** `P12.4j: remove the nested-flex tooltip wrapper that broke equal button widths`
 **Batch:** solo
 
-### P12.5 — Packs tab
-**Status:** not started
-**Files:** `src/lib/sections/` (packs section)
-**What:** Rebuild Packs — Resource Packs list, Add Pack / Clear Active Pack, empty state, drag-drop. Reference MSC 1 `DetailsPacksTabView`, `ResourcePacksView`, and the Packs screenshot.
-**Verify:** `npm run dev`, open Packs; compare to MSC 1 + checklist (empty + populated).
-**Commit:** `P12.5: rebuild the Packs tab`
+### P12.5 — Remove the Packs tab placeholder (deferred, not rebuilt)
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/navigation/primaryTabs.ts`, `clients/desktop-web/tests/visual/shell.test.ts`
+**What:** Cameron does not use MSC 1's Packs tab (`DetailsPacksTabView`/`ResourcePacksView` — per-server Resource Packs list, Add Pack / Clear Active Pack) and doesn't want it rebuilt or even shown greyed-out. This is a client-screen scope decision, not a removal of the underlying agent capability: `/v1/resourcepacks/*` and its capability-matrix rows are untouched, and the CLI keeps whatever access it already has. Deferred, not dropped — it can be added back as a new step later if wanted. Removed the `{ id: 'packs', label: 'Packs' }` entry from `PRIMARY_TABS` (the fixed MSC 1-mirroring tab list built in P11.8, ahead of each tab's own Phase 12 step populating it — Packs had no section registered yet, so it was rendering disabled rather than absent, as seen in Cameron's live-app screenshot). Updated the shell test's fixed tab-count assertion from 8 to 7 to match. The Phase 12 gate in `msc2-port-plan.md` is amended (2026-08-26) to name this as an explicit exception, per that document's own "intentional exceptions recorded rather than discovered" rule, so REVIEW does not flag its absence as a missed screen.
+**Verify:** `npm run test:visual-shell` (6 tests), `npx svelte-check --tsconfig ./tsconfig.json` (only the same 7 pre-existing unrelated errors), `npx prettier --check src/lib/navigation/primaryTabs.ts tests/visual/shell.test.ts`, `npm run build`. Real verification is Cameron's own: reload the app and confirm Packs is gone from the tab strip.
+**Commit:** `P12.5: remove the Packs tab placeholder`
 **Batch:** solo
 
 ### P12.6 — Performance tab

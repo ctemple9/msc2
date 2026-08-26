@@ -31,8 +31,9 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
 
   it('drives the primary tab strip from the registry-backed tab list, not a hardcoded switch', () => {
     expect(tabStripSource).toContain('{#each tabs as tab');
-    // MSC 1's DetailsView has exactly 8 fixed tabs (docs/msc2/renderings/shell.html).
-    expect(primaryTabsSource.match(/\{ id: '/g)?.length).toBe(8);
+    // MSC 2 ships 7 of MSC 1's DetailsView tabs (docs/msc2/renderings/shell.html);
+    // Packs is deliberately dropped (rolling-plan.md P12.5, owner decision 2026-08-26).
+    expect(primaryTabsSource.match(/\{ id: '/g)?.length).toBe(7);
   });
 
   it('spends bannerColor only on its four sanctioned spots', () => {

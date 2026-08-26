@@ -165,6 +165,8 @@ Because this is a *design* phase, its verification is deliberately different fro
 
 **Exit criteria (gate):** every MSC 1 screen and sheet has a rebuilt MSC 2 counterpart that (a) matches MSC 1's shape and behavior — verified screen-by-screen against MSC 1 by Cameron — and (b) passes the `antiAIslop.md` checklist. The data/agent layer is unchanged in contract, and no screen exists in the desktop app that is absent from the web UI (D-003 corollary).
 
+**Amendment, 2026-08-26 (owner decision, recorded per the exception rule at line 174):** the Packs tab (MSC 1's `DetailsPacksTabView`/`ResourcePacksView`) is an explicit, named exception to this gate. Cameron does not use it in MSC 1 and does not want it rebuilt for MSC 2's redesign. The underlying agent routes (`/v1/resourcepacks/*`) and their capability-matrix rows stay as they are — this is a client-screen scope decision, not an agent capability removal — and CLI access is unaffected. The feature is deferred, not declared permanently out of scope: it can be picked back up as a new step later if wanted. See `rolling-plan.md`'s P12.5 entry, which removed the greyed-out Packs tab placeholder from the running client, for the full reasoning.
+
 ### Phase 13 — Terminal UI
 
 The `ratatui` dashboard. Deferred from v1 (D-015); built only once the API has stopped moving.

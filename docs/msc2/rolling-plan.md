@@ -1,10 +1,10 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
-> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. P12.2b–j (Java player-data NBT backend, built with Codex) all landed and are marked DONE. P12.3/P12.3a/P12.3b/P12.3c/P12.3d/P12.3e (Players tab, session-log backend, Bedrock identify/skin fixes, real Bedrock stats/inventory) are all DONE — Cameron verified them. P12.3f (session-log client swap) and P12.3g (live-review polish) are built and **awaiting Cameron's verification**. P12.4 (Worlds tab + world wizards) is built and **awaiting Cameron's verification**. **P12.4a–e (2026-08-26) gave P12.4's five found gaps real backends and are all DONE** — Cameron verified them: P12.4a exposes Chunker's already-real `supported_formats` over HTTP, P12.4b wires the already-built `set_slot_thumbnail`/`save_thumbnail` application code to a route, P12.4c lets `POST /v1/worlds/import` redeem an already-on-disk backup, and P12.4d/e port and wire the one genuinely new feature, real Bedrock world repair. **P12.4f (2026-08-26) connects all five to their frontends and is built, awaiting Cameron's verification** — see its own entry below for a real contract/code drift it found and fixed (repair's response schema) and a pre-existing tooling inconsistency it found and deliberately left for a separate decision (`generate.ts`'s quote style vs. the rest of the repo's). See this file's 2026-08-25 notes below for the fuller history of gaps found and how each was handled. **P12.5 and P12.6 (Packs tab removal, Performance tab) are DONE** — Cameron verified them. **P12.7 (Components tab + plugin browser) is built (2026-08-26), awaiting Cameron's verification** — see its own entry below for a small additive `ScreenApi.upload` interface fix it needed and the real pre-existing backend/contract gaps it found and left alone. **P12.7a (2026-08-26) is DONE** — after seeing the real plugin browser, Cameron flagged blank authors/`0 downloads`/no icons; traced to a real two-layer backend bug (`ModrinthSearchHit` never captured those fields, and the route hardcoded them to empty anyway) and fixed both, plus the client's missing icon render. **P12.7b (2026-08-26) is DONE** — icons still didn't show after P12.7a's rebuild; the real cause was one layer deeper, a `#[serde(rename_all = "camelCase")]` acronym-casing bug turning `icon_url` into wire key `iconUrl` instead of the contract's `iconURL`, silently unread by the client. Fixed with explicit `#[serde(rename = ...)]` overrides on all three affected DTO fields plus regression tests.
+> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. P12.2b–j (Java player-data NBT backend, built with Codex) all landed and are marked DONE. P12.3/P12.3a/P12.3b/P12.3c/P12.3d/P12.3e (Players tab, session-log backend, Bedrock identify/skin fixes, real Bedrock stats/inventory) are all DONE — Cameron verified them. P12.3f (session-log client swap) and P12.3g (live-review polish) are built and **awaiting Cameron's verification**. P12.4 (Worlds tab + world wizards) is built and **awaiting Cameron's verification**. **P12.4a–e (2026-08-26) gave P12.4's five found gaps real backends and are all DONE** — Cameron verified them: P12.4a exposes Chunker's already-real `supported_formats` over HTTP, P12.4b wires the already-built `set_slot_thumbnail`/`save_thumbnail` application code to a route, P12.4c lets `POST /v1/worlds/import` redeem an already-on-disk backup, and P12.4d/e port and wire the one genuinely new feature, real Bedrock world repair. **P12.4f (2026-08-26) connects all five to their frontends and is built, awaiting Cameron's verification** — see its own entry below for a real contract/code drift it found and fixed (repair's response schema) and a pre-existing tooling inconsistency it found and deliberately left for a separate decision (`generate.ts`'s quote style vs. the rest of the repo's). See this file's 2026-08-25 notes below for the fuller history of gaps found and how each was handled. **P12.5 and P12.6 (Packs tab removal, Performance tab) are DONE** — Cameron verified them. **P12.7 (Components tab + plugin browser) is built (2026-08-26), awaiting Cameron's verification** — see its own entry below for a small additive `ScreenApi.upload` interface fix it needed and the real pre-existing backend/contract gaps it found and left alone. **P12.7a (2026-08-26) is DONE** — after seeing the real plugin browser, Cameron flagged blank authors/`0 downloads`/no icons; traced to a real two-layer backend bug (`ModrinthSearchHit` never captured those fields, and the route hardcoded them to empty anyway) and fixed both, plus the client's missing icon render. **P12.7b (2026-08-26) is DONE** — icons still didn't show after P12.7a's rebuild; the real cause was one layer deeper, a `#[serde(rename_all = "camelCase")]` acronym-casing bug turning `icon_url` into wire key `iconUrl` instead of the contract's `iconURL`, silently unread by the client. Fixed with explicit `#[serde(rename = ...)]` overrides on all three affected DTO fields plus regression tests. **P12.7c and P12.7d (planned 2026-08-26, not started)** close the one documented gap P12.7/P12.7a left open — MSC 1's `ModrinthProjectDetailView` (gallery, full About text, per-version compatibility + install) has no backing route yet. Split into two steps so Codex and Claude Code can work them independently: P12.7c is contract + Rust backend (two new `GET /v1/catalog/projects/:projectId[/versions]` routes, an additive `versionId` field on the existing install request), P12.7d is the client detail sheet, and P12.7d depends on P12.7c landing first.
 > **P12.3 blocked on missing backend (decided 2026-08-25):** before rebuilding the Players tab, Cameron flagged that MSC 1's Players tab includes a read-only Java player inventory/stats viewer (`PlayerNBTReader.swift` + `PlayerInventoryView.swift`, hosted in `PlayerProfileDetailSheet.swift`) that never made it past the file-inventory audit into an actual phase step — no domain crate, no API route, and P12.3's own `What:` line never mentioned it. Investigation found `GET /v1/players/profiles` is **already frozen in the API contract** (`docs/msc2/api-contract/openapi.json`: `PlayerProfileDTO`/`PlayerStatsDTO`/`InventoryItemDTO`, plus `POST /v1/players/hidden`, `POST /v1/players/skin-override`, `GET /v1/players/{profileId}/skin`) but has **no handler at all** — today `GET /v1/players` only serves Bedrock (`crates/msc-agent/src/routes/bedrock.rs`; a Java server gets `note: "not_bedrock"`, empty list). This is a straight port against an already-frozen contract, not new API design. Cameron chose to block P12.3 and build the backend first (steps P12.2b–P12.2j below) rather than ship Players tab without it. Online Now / Seen This Session / Session Log are unaffected — those are console-derived (already built in P11.11) and stay in P12.3 itself. **Mutation actions, decided 2026-08-25:** of MSC 1's 5 player-data mutation actions (migrate to offline UUID, migrate to manual UUID, copy, duplicate, delete), none were in the frozen contract. Cameron chose **4 of the 5** — delete, migrate-to-offline-UUID, migrate-to-custom-UUID, and duplicate — added as new steps P12.2g (contract amendment) through P12.2j (route wiring), fully specified (exact DTO field names/types, exact error codes, pinned known-answer test vectors for the offline-UUID algorithm) since Cameron is running these with Codex. `copyPlayerData` (overwrite one player's data onto another's) is the one action still **deferred, not dropped** — add it later as its own contract-amendment step when wanted.
 > **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
-> **Last updated:** 2026-08-26 (P12.7)
+> **Last updated:** 2026-08-26 (P12.7c/P12.7d planned)
 
 **Previous phases (Setup through Phase 10) and their amendments have moved to `rolling-plan-archive.md`** to keep this file small. That archive is historical only — current status and active work stay here.
 
@@ -1198,6 +1198,115 @@ Added three inline unit tests in `crates/msc-api/src/dto/addons.rs` (`#[cfg(test
 **What:** Add explicit `#[serde(rename = "iconURL"/"projectURL", ...)]` overrides so these fields serialize with the contract's real acronym-cased wire names instead of serde's auto-lowercased default; add regression tests.
 **Verify:** `cargo test -p msc-api --lib dto::addons::tests::` (3/3), `cargo nextest run -p msc-api --test dto_conformance` (11/11, unaffected), `cargo nextest run -p msc-agent --test phase8_routes` (2/2, unaffected), `cargo clippy -p msc-domain -p msc-agent -p msc-application -p msc-api --tests` clean, `cargo fmt --check` clean. Real verification is Cameron's own: rebuild+restart the agent again, reopen the plugin browser, confirm real icons now render.
 **Commit:** `P12.7b: fix iconURL/projectURL serializing without their acronym casing`
+**Batch:** solo
+
+### P12.7c — Contract + backend: Modrinth project detail and version list
+**Status:** not started
+**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`, `crates/msc-domain/src/addon_provider.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-application/src/addons.rs` (or wherever `install_from_catalog` actually lives — confirm before editing), `crates/msc-api/src/dto/addons.rs`
+**What:** Cameron reviewed MSC 1's plugin browser (`ModrinthProjectDetailView.swift`, screenshotted directly) against MSC 2's and asked for parity: tapping a search result opens a detail page with a gallery, the project's full "About" text, and a per-version list scoped to compatibility with the active server, with a specific version installable (not just "latest"). P12.7/P12.7a/P12.7b already documented this as a real, undone gap — no route exists for a single project's detail or version list. This step closes that gap on the backend + contract side only; the client (P12.7d) is a separate step so Codex and Claude Code can work it without colliding.
+
+Port two more `ModrinthAPI` functions (`ModrinthAPI.swift`) plus the version-picking half of `installVersion`/`installModrinthVersion` (`ModrinthBrowserView.swift` lines 296-311, 768-784):
+
+1. **`GET /v1/catalog/projects/:projectId`** — ports `ModrinthAPI.project(idOrSlug:)` (calls Modrinth's real `GET /v2/project/{id}`). Response schema `CatalogProjectDetailDTO`:
+   ```json
+   "CatalogProjectDetailDTO": {
+     "type": "object",
+     "properties": {
+       "projectId": { "type": "string" },
+       "slug": { "type": "string" },
+       "title": { "type": "string" },
+       "description": { "type": "string" },
+       "body": { "type": "string", "description": "Full Markdown/HTML project body (Modrinth's 'body' field). Client is responsible for safely rendering it -- this is untrusted third-party content." },
+       "iconURL": { "type": "string", "nullable": true },
+       "downloads": { "type": "integer" },
+       "followers": { "type": "integer" },
+       "serverSide": { "type": "string", "description": "One of required/optional/unsupported, Modrinth's own vocabulary -- unchanged, not remapped to a boolean." },
+       "gallery": { "type": "array", "items": { "$ref": "#/components/schemas/CatalogGalleryImageDTO" } },
+       "sourceURL": { "type": "string", "nullable": true },
+       "issuesURL": { "type": "string", "nullable": true },
+       "wikiURL": { "type": "string", "nullable": true },
+       "discordURL": { "type": "string", "nullable": true }
+     },
+     "required": ["projectId", "slug", "title", "description", "body", "downloads", "followers", "serverSide", "gallery"]
+   }
+   "CatalogGalleryImageDTO": {
+     "type": "object",
+     "properties": {
+       "url": { "type": "string" },
+       "title": { "type": "string", "nullable": true },
+       "description": { "type": "string", "nullable": true },
+       "featured": { "type": "boolean" }
+     },
+     "required": ["url", "featured"]
+   }
+   ```
+   **P12.7b already burned us once on exactly this:** every `*URL` field above (`iconURL`, `sourceURL`, `issuesURL`, `wikiURL`, `discordURL`) needs its own explicit `#[serde(rename = "...URL", ...)]` override in the Rust DTO — `#[serde(rename_all = "camelCase")]`'s automatic conversion produces `sourceUrl`, not `sourceURL`, and the client will silently read `undefined` again if any one of these five is missed. Add the same inline-test pattern P12.7b used (`#[cfg(test)] mod tests`) asserting the real serialized key name for all five.
+
+   Extend `msc_domain::addon_provider` with a new struct mirroring Swift's `ModrinthProject` (id, slug, title, description, body, icon_url, downloads, followers, server_side, gallery: `Vec<ModrinthGalleryImage>` [url, title, description, featured], source_url, issues_url, wiki_url, discord_url) and a decode function alongside the existing `ModrinthProjectSummary`/`modrinth_decode_project` (P8.15) — don't widen or repurpose that existing struct, it's a distinct, narrower call site (`installRequiredDependencies`'s dependency resolution) that only ever needed `id`/`slug`/`title`.
+
+2. **`GET /v1/catalog/projects/:projectId/versions`** — ports `ModrinthAPI.projectVersions(idOrSlug:loaders:gameVersion:)` called **unfiltered** (`loaders: [], gameVersion: nil`, `ModrinthProjectDetailView.load()` line 753) — the detail page fetches every version and lets the client compute compatibility/filtering, it does not ask Modrinth to pre-filter. Response schema `CatalogVersionsResponseDTO { "versions": CatalogVersionDTO[] }`, each item:
+   ```json
+   "CatalogVersionDTO": {
+     "type": "object",
+     "properties": {
+       "id": { "type": "string" },
+       "projectId": { "type": "string" },
+       "name": { "type": "string" },
+       "versionNumber": { "type": "string" },
+       "versionType": { "type": "string", "description": "release/beta/alpha" },
+       "gameVersions": { "type": "array", "items": { "type": "string" } },
+       "loaders": { "type": "array", "items": { "type": "string" } },
+       "datePublished": { "type": "string", "nullable": true },
+       "dependencies": { "type": "array", "items": { "$ref": "#/components/schemas/CatalogVersionDependencyDTO" } },
+       "files": { "type": "array", "items": { "$ref": "#/components/schemas/CatalogVersionFileDTO" } }
+     },
+     "required": ["id", "projectId", "name", "versionNumber", "versionType", "gameVersions", "loaders", "dependencies", "files"]
+   }
+   "CatalogVersionDependencyDTO": {
+     "type": "object",
+     "properties": {
+       "projectId": { "type": "string", "nullable": true },
+       "versionId": { "type": "string", "nullable": true },
+       "dependencyType": { "type": "string", "description": "required/optional/incompatible/embedded" }
+     },
+     "required": ["dependencyType"]
+   }
+   "CatalogVersionFileDTO": {
+     "type": "object",
+     "properties": {
+       "url": { "type": "string" },
+       "filename": { "type": "string" },
+       "primary": { "type": "boolean" },
+       "size": { "type": "integer", "nullable": true }
+     },
+     "required": ["url", "filename", "primary"]
+   }
+   ```
+   `projectId`/`versionId`/`dependencyType` are already plain camelCase with no acronym — `rename_all = "camelCase"` gets these right automatically, no override needed (confirmed: this is the same shape `CatalogItemDTO.projectId` already uses correctly). Widen the existing `msc_domain::addon_provider::ModrinthVersionInfo` (already used by `modrinth_decode_project_versions`, P8.15) with the fields the version-list UI needs that update/dependency-resolution never did: `name`, `version_type`, `game_versions: Vec<String>`, `loaders: Vec<String>`, `date_published: Option<String>` — all `#[serde(default)]` so the two existing call sites (hash-based update checking, dependency resolution) are unaffected. Add `pub fn is_stable(&self) -> bool` (`version_type == "release"`, mirrors `ModrinthVersionInfo.isStable`).
+
+3. **Install a specific version, not just latest** — ports `installVersion`/`viewModel.installModrinthVersion(_:title:into:)` (`ModrinthBrowserView.swift:768-784`). Add one optional field to the existing frozen `CatalogInstallRequestDTO`:
+   ```json
+   "versionId": { "type": "string", "description": "Install this exact Modrinth version instead of resolving the latest compatible one server-side. When present, projectId/slug/title are still used for the install-result message and staging metadata; the version is fetched directly by id (GET /v2/version/{id}) rather than searched for." }
+   ```
+   This is additive and optional — every existing caller (the plain "Add" button, which never sets it) keeps today's latest-resolution behavior unchanged. Add `modrinth_decode_version(body: &str) -> Result<ModrinthVersionInfo, AddonProviderError>` to `addon_provider.rs` (same shape as `modrinth_decode_project`, decoding a lone `ModrinthVersionInfo` rather than an array), wire `install_component`'s handler to call Modrinth's `GET /v2/version/{id}` and use that decoded version directly when `version_id` is present, and extend whichever `msc-application` function actually resolves-then-installs (confirm the real name/location first; `components.rs` calls it as `addons::install_from_catalog`) to accept an already-resolved version and skip its own latest-lookup in that case.
+
+Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 2 (the two new GET routes; the `CatalogInstallRequestDTO` field is additive to an existing route, not a new one) and append one clause to its running-total comment, matching every prior entry there.
+**Verify:** `python3 tools/api-contract-check.py`; `cargo nextest run -p msc-domain --lib -- addon_provider`; `cargo test -p msc-api --lib dto::addons::tests::` (existing 3 plus the new acronym-casing tests for this step's 5 new `*URL` fields); `cargo nextest run -p msc-agent --test phase8_routes`; `cargo clippy -p msc-domain -p msc-agent -p msc-application -p msc-api --tests` clean; `cargo fmt --check` clean.
+**Commit:** `P12.7c: add Modrinth project-detail and version-list routes`
+**Batch:** solo
+
+### P12.7d — Modrinth-style project detail page in the plugin browser
+**Status:** not started
+**Files:** `clients/desktop-web/src/lib/sections/components/PluginBrowserSheet.svelte`, `clients/desktop-web/src/lib/sections/components/ProjectDetailSheet.svelte` (new), `clients/desktop-web/src/lib/sections/components/model.ts`, `clients/desktop-web/src/lib/api/generated.ts` (regenerated, not hand-edited), `clients/desktop-web/tests/screens/addons.test.ts`
+**What:** Depends on P12.7c landing first (needs the two new routes + `versionId` field to exist in the generated types). Ports `ModrinthProjectDetailView` (`ModrinthBrowserView.swift:316-785`): each search result in `PluginBrowserSheet` becomes clickable (not just its "Add" button) and opens a new detail sheet with:
+- Header: icon, title, author, downloads, followers, a server-side badge (Server-side required/optional, or Client-only — same three-way switch as `serverSideBadge`, line 645-653), "View on Modrinth" link (`https://modrinth.com/{projectType}/{slug}`)
+- A compatibility summary banner: green "a version is available for your server" when any fetched version's `gameVersions` includes the server's Minecraft version, amber "no version yet for MC {x}, install anyway at your own risk" otherwise (`compatibilitySummary`, line 452-465)
+- Gallery strip (only if `gallery` is non-empty) — horizontally scrolling images
+- About section — the project `body`. **Decided, not asked (doesn't change what Cameron sees either way):** mirror MSC 1's own `sanitizedBodyMarkdown` approach (line 681-730) rather than pulling in a Markdown-rendering dependency — a small local sanitizer that strips iframes/scripts/tables/images entirely, converts `<a href>`/Markdown links to safe inline links, headers to bold, and decodes the handful of HTML entities MSC 1 already handles. This keeps the About section dependency-free and safe by construction (untrusted third-party text is never handed to `{@html}`), matching the oracle's own reasoning for why it hand-rolled this instead of using a full Markdown renderer.
+- Versions section with a "Stable only" toggle (defaulting on, but auto-off if the project has zero release-channel versions — line 762-764), each version row showing version number, channel badge (release/beta/alpha), Compatible/Other version badge, a conflict-count warning when any dependency has `dependencyType: "incompatible"`, and an expandable detail (full supported-MC-version list with the server's version highlighted, plus platforms) — ports `versionRow`/`versionExpandedDetail`/`FlowVersionTags` (line 525-597, 787-808). Per rule #6, the FlowVersionTags chip highlight (bold + green for the matching version) is fine to keep — it's compatibility-status color on data, not a decorative icon-in-tinted-box.
+- Per-version Install/"Install anyway" button, using the new `versionId` field on the existing install request — replaces the flat list's single "Add" as the way to pick a non-latest build.
+**Verify:** `npx svelte-check --tsconfig ./tsconfig.json` (no new errors beyond the pre-existing baseline); `npx prettier --check` on the new/changed files; `npm run test:screen-addons`; `npm run build`. Real verification is Cameron's own: `npm run dev`, open a plugin's detail page, compare gallery/About/version list against MSC 1's screenshots.
+**Commit:** `P12.7d: build the Modrinth project detail page`
 **Batch:** solo
 
 ### P12.8 — Settings tab

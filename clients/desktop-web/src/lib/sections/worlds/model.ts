@@ -1,34 +1,175 @@
-import type { Schema } from '../shared/types';
+import type { Schema, ScreenApi } from '../shared/types';
 
-export const demoWorlds: Schema['WorldSlotDTO'][] = [
-  {
-    id: 'world-1',
-    name: 'Overworld',
-    createdAt: '2026-08-20T12:00:00Z',
-    isActive: true,
-    hasThumbnail: false,
-    worldSeed: '—',
-    zipSizeBytes: 1024 ** 3,
-  },
-  {
-    id: 'world-2',
-    name: 'Before the Nether trip',
-    createdAt: '2026-08-18T12:00:00Z',
-    isActive: false,
-    hasThumbnail: true,
-    zipSizeBytes: 480 * 1024 ** 2,
-  },
-];
-
+// Real, frozen routes (Phase 6/7) -- see docs/msc2/worlds/phase6-api.md and
+// crates/msc-agent/src/routes/{worlds,backups}.rs. `/v1/worlds/replace`
+// (saved-slot-to-saved-slot copy) and `/v1/worlds/duplicate` exist in the
+// contract but back ServerEditorWorldTab.swift's richer World sub-tab
+// (Phase 12.12), not DetailsWorldsTabView -- this screen's real oracle --
+// so they are intentionally not called from here.
 export const worldPaths = {
   list: '/v1/worlds',
   create: '/v1/worlds/create',
   rename: '/v1/worlds/rename',
-  duplicate: '/v1/worlds/duplicate',
   delete: '/v1/worlds/delete',
-  import: '/v1/worlds/import',
-  export: '/v1/worlds/export',
   activate: '/v1/worlds/activate',
-  replaceActive: '/v1/worlds/replace-active-world',
+  saveCurrent: '/v1/worlds/update',
+  repair: '/v1/worlds/repair',
   convert: '/v1/worlds/convert',
+  thumbnail: (slotId: string): string => `/v1/worlds/${slotId}/thumbnail`,
 } as const;
+
+export const backupPaths = {
+  list: '/v1/backups',
+  now: '/v1/backups/now',
+  restore: '/v1/backups/restore',
+  delete: '/v1/backups/delete',
+  config: '/v1/backups/config',
+} as const;
+
+export const serversPath = '/v1/servers';
+export const operationPath = (id: string): string => `/v1/operations/${id}`;
+
+export const demoSlots: Schema['WorldSlotDTO'][] = [
+  {
+    id: 'slot-1',
+    name: 'Overworld',
+    isActive: true,
+    createdAt: '2026-08-20T12:00:00Z',
+    zipSizeBytes: 1024 ** 3,
+    worldSeed: '8412552538448335604',
+    hasThumbnail: false,
+  },
+  {
+    id: 'slot-2',
+    name: 'Before the Nether trip',
+    isActive: false,
+    createdAt: '2026-08-18T09:00:00Z',
+    zipSizeBytes: 480 * 1024 ** 2,
+    hasThumbnail: false,
+  },
+];
+
+export const demoBackups: Schema['BackupItemDTO'][] = [
+  {
+    id: 'world-2026-08-24-103000.zip',
+    displayName: 'Overworld backup',
+    isAutomatic: false,
+    triggerReason: 'manual',
+    modificationDate: '2026-08-24T10:30:00Z',
+    fileSize: 768 * 1024 ** 2,
+    slotId: 'slot-1',
+    slotName: 'Overworld',
+  },
+];
+
+/** `GET /v1/worlds/{slotId}/thumbnail` only has bytes to serve once the slot
+ *  actually carries one; everything else falls back to the same deterministic
+ *  gradient placeholder ActiveWorldCard.svelte already uses on Overview. */
+export function slotThumbnailUrl(slot: Schema['WorldSlotDTO']): string | undefined {
+  return slot.hasThumbnail ? worldPaths.thumbnail(slot.id) : undefined;
+}
+
+export function placeholderHue(seed: string): number {
+  let h = 0;
+  for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) % 360;
+  return h;
+}
+
+export function backupsForSlot(
+  backups: readonly Schema['BackupItemDTO'][],
+  slotId: string | undefined,
+): Schema['BackupItemDTO'][] {
+  if (!slotId) return [];
+  return backups.filter((backup) => backup.slotId === slotId);
+}
+
+export type BackupDay = { day: string; items: Schema['BackupItemDTO'][] };
+
+/** Groups by calendar day, most recent first -- same shape as
+ *  players-online/model.ts's groupSessionEventsByDay (no MSC 1
+ *  Today/Yesterday special-casing; P12.3's SessionLogCard already
+ *  simplified that away and this screen follows the same precedent). */
+export function groupBackupsByDay(items: readonly Schema['BackupItemDTO'][]): BackupDay[] {
+  const byDay = new Map<string, Schema['BackupItemDTO'][]>();
+  for (const item of items) {
+    const day = item.modificationDate
+      ? new Date(item.modificationDate).toDateString()
+      : 'Unknown date';
+    const bucket = byDay.get(day);
+    if (bucket) bucket.push(item);
+    else byDay.set(day, [item]);
+  }
+  return [...byDay.entries()]
+    .sort((a, b) => {
+      if (a[0] === 'Unknown date') return 1;
+      if (b[0] === 'Unknown date') return -1;
+      return new Date(b[0]).getTime() - new Date(a[0]).getTime();
+    })
+    .map(([day, dayItems]) => ({ day, items: dayItems }));
+}
+
+export function formatBackupDay(day: string): string {
+  if (day === 'Unknown date') return day;
+  return new Date(day).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+}
+
+export function legacyOrUnmatchedBackups(
+  backups: readonly Schema['BackupItemDTO'][],
+  slots: readonly Schema['WorldSlotDTO'][],
+): Schema['BackupItemDTO'][] {
+  const known = new Set(slots.map((slot) => slot.id));
+  return backups.filter((backup) => !backup.slotId || !known.has(backup.slotId));
+}
+
+export function legacyBackupReason(item: Schema['BackupItemDTO']): string {
+  if (item.slotId) {
+    const name = item.slotName?.trim();
+    return name ? `Missing slot: ${name}` : `Missing slot ID: ${item.slotId}`;
+  }
+  return 'Legacy backup (no slot metadata)';
+}
+
+/** MSC 1's WorldConversionWizardView.compatibleTargetServers: the opposite
+ *  edition, never the source server itself. */
+export function compatibleTargetServers(
+  servers: readonly Schema['ServerDTO'][],
+  sourceServer: Schema['ServerDTO'] | undefined,
+): Schema['ServerDTO'][] {
+  if (!sourceServer) return [];
+  const sourceIsBedrock = sourceServer.serverType === 'bedrock';
+  return servers.filter(
+    (server) =>
+      server.id !== sourceServer.id && (server.serverType === 'bedrock') !== sourceIsBedrock,
+  );
+}
+
+const OPERATION_POLL_MS = 900;
+
+/** Every world/backup mutation that touches real files (activate, convert,
+ *  back-up-now, restore) is operation-backed (docs/msc2/worlds/phase6-api.md)
+ *  -- the route returns immediately with an operationId, and the real
+ *  outcome lands on GET /v1/operations/{id}. Polls until a terminal state. */
+export async function pollOperation(
+  api: ScreenApi | undefined,
+  operationId: string,
+  onTick?: (operation: Schema['OperationDTO']) => void,
+  delayMs = OPERATION_POLL_MS,
+): Promise<Schema['OperationDTO'] | undefined> {
+  if (!api) return undefined;
+  for (;;) {
+    const operation = await api.get<Schema['OperationDTO']>(operationPath(operationId));
+    onTick?.(operation);
+    if (
+      operation.state === 'succeeded' ||
+      operation.state === 'failed' ||
+      operation.state === 'cancelled'
+    ) {
+      return operation;
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}

@@ -6,14 +6,17 @@ import {
   demoBackups,
   demoSlots,
   formatBackupDay,
+  formatDisplayName,
   groupBackupsByDay,
   legacyBackupReason,
+  legacyImportName,
   legacyOrUnmatchedBackups,
   operationPath,
   placeholderHue,
   pollOperation,
   serversPath,
   slotThumbnailUrl,
+  targetFormats,
   worldPaths,
 } from '../../src/lib/sections/worlds/model';
 import type { Schema, ScreenApi } from '../../src/lib/sections/shared/types';
@@ -29,6 +32,8 @@ describe('routes -- DetailsWorldsTabView.swift is the real oracle', () => {
       saveCurrent: '/v1/worlds/update',
       repair: '/v1/worlds/repair',
       convert: '/v1/worlds/convert',
+      convertFormats: '/v1/worlds/convert/formats',
+      import: '/v1/worlds/import',
     });
     expect(worldPaths.thumbnail('slot-1')).toBe('/v1/worlds/slot-1/thumbnail');
   });
@@ -135,6 +140,43 @@ describe('backups grouped and filtered per slot', () => {
   it('explains why each legacy backup is unmatched', () => {
     expect(legacyBackupReason(backups[3])).toBe('Missing slot: Deleted World');
     expect(legacyBackupReason(backups[4])).toBe('Legacy backup (no slot metadata)');
+  });
+
+  it('names a legacy import after its recorded slot, else its own display name, else a flat fallback', () => {
+    expect(legacyImportName(backups[3])).toBe('Deleted World');
+    expect(legacyImportName({ ...backups[4], displayName: 'old-world.zip' })).toBe(
+      'Imported old-world.zip',
+    );
+    expect(legacyImportName({ ...backups[4], displayName: '' })).toBe('Imported Backup');
+  });
+});
+
+describe('conversion formats -- P12.4a exposes GET /v1/worlds/convert/formats for real', () => {
+  const java: Schema['ServerDTO'] = {
+    id: 'java-1',
+    name: 'Java',
+    directory: '/s/java',
+    serverType: 'java',
+  };
+  const bedrock: Schema['ServerDTO'] = {
+    id: 'bedrock-1',
+    name: 'Bedrock',
+    directory: '/s/bedrock',
+    serverType: 'bedrock',
+  };
+
+  it('formats Chunker format strings the same way ChunkerManager.displayName(forFormat:) does', () => {
+    expect(formatDisplayName('JAVA_1_21_0')).toBe('Java 1.21.0');
+    expect(formatDisplayName('BEDROCK_R21_80')).toBe('Bedrock 1.21.80');
+    expect(formatDisplayName('BEDROCK_R12')).toBe('Bedrock 1.12');
+    expect(formatDisplayName('WEIRD_FORMAT')).toBe('WEIRD_FORMAT');
+  });
+
+  it('only offers the opposite edition of the raw list Chunker reports', () => {
+    const formats = ['JAVA_1_20_0', 'JAVA_1_21_0', 'BEDROCK_R12', 'BEDROCK_R21_80'];
+    expect(targetFormats(formats, java)).toEqual(['BEDROCK_R12', 'BEDROCK_R21_80']);
+    expect(targetFormats(formats, bedrock)).toEqual(['JAVA_1_20_0', 'JAVA_1_21_0']);
+    expect(targetFormats(formats, undefined)).toEqual(['BEDROCK_R12', 'BEDROCK_R21_80']);
   });
 });
 

@@ -173,13 +173,14 @@
           {#if backup.fileSize !== undefined}<span class="size-col"
               >{bytesLabel(backup.fileSize)}</span
             >{/if}
-          <span
-            title="Importing a legacy backup as a new slot needs a backend route that doesn't exist yet"
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy}
+            onclick={() => onImportLegacy(backup)}
           >
-            <Button size="sm" variant="secondary" disabled onclick={() => onImportLegacy(backup)}>
-              Import as Slot
-            </Button>
-          </span>
+            Import as Slot
+          </Button>
           {#if confirmingDeleteId === backup.id}
             <Button size="sm" variant="destructive" disabled={busy} onclick={onDeleteConfirm}>
               Delete

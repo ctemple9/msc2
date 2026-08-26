@@ -3,14 +3,20 @@
   // own copy adds a Convert action) -- Realms-style thumbnail, Active badge,
   // size badge, Activate/Convert/Rename/Delete actions. Selecting the card
   // (not an action button) shows its backups below, matching the oracle's
-  // tap-to-select behavior.
+  // tap-to-select behavior. MSC 1 offers this only via a right-click
+  // "Set Thumbnail…" context-menu item; this app hasn't established a
+  // context-menu pattern anywhere else, so it's a small always-visible
+  // overlay button instead -- same capability (P12.4b's real, staged-upload-
+  // backed POST /v1/worlds/{slotId}/thumbnail), more discoverable affordance.
   import Card from '../../components/base/Card.svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
-  import type { Schema } from '../shared/types';
-  import { bytesLabel, dateLabel } from '../shared/types';
-  import { placeholderHue, slotThumbnailUrl } from './model';
+  import type { Schema, ScreenApi } from '../shared/types';
+  import { bytesLabel, dateLabel, mutate } from '../shared/types';
+  import { getPlatform } from '../../platform';
+  import { placeholderHue, slotThumbnailUrl, worldPaths } from './model';
 
+  export let api: ScreenApi | undefined = undefined;
   export let slot: Schema['WorldSlotDTO'];
   export let selected = false;
   export let serverRunning = false;
@@ -27,33 +33,101 @@
   export let onRequestDelete: () => void;
   export let onConfirmDelete: () => void;
   export let onCancelConfirm: () => void;
+  export let onThumbnailUpdated: () => void;
+
+  let thumbnailBusy = false;
+  let thumbnailError: string | undefined;
+  let fileInput: HTMLInputElement;
 
   $: thumbnail = slotThumbnailUrl(slot);
   $: hue = placeholderHue(slot.name || slot.id);
   $: seed = slot.worldSeed?.trim();
+
+  async function setThumbnail(): Promise<void> {
+    if (!api?.upload) return;
+    const picked = await (
+      await getPlatform()
+    ).pickFile(
+      { label: 'Choose an image', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+      () => browseBrowserFile(),
+    );
+    if (!picked) return;
+    thumbnailBusy = true;
+    thumbnailError = undefined;
+    try {
+      const staged = await api.upload('world-thumbnail', picked.bytes);
+      await mutate(api, worldPaths.thumbnail(slot.id), { stagedUploadId: staged.stagedUploadId });
+      onThumbnailUpdated();
+    } catch (error) {
+      thumbnailError = error instanceof Error ? error.message : 'Failed to set thumbnail.';
+    } finally {
+      thumbnailBusy = false;
+    }
+  }
+
+  function browseBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
+    return new Promise((resolve) => {
+      fileInput.addEventListener(
+        'change',
+        async () => {
+          const browserFile = fileInput.files?.[0];
+          resolve(
+            browserFile
+              ? { name: browserFile.name, bytes: new Uint8Array(await browserFile.arrayBuffer()) }
+              : null,
+          );
+        },
+        { once: true },
+      );
+      fileInput.click();
+    });
+  }
 </script>
 
 <Card padding="0">
   <div class="slot" class:selected>
-    <button type="button" class="thumb-area" onclick={onSelect} aria-pressed={selected}>
-      <div
-        class="thumb"
-        style={thumbnail
-          ? `background-image: url(${thumbnail});`
-          : `background: linear-gradient(160deg, hsl(${hue} 40% 42%), hsl(${(hue + 30) % 360} 45% 22%));`}
-      >
-        {#if !thumbnail}<Icon name="world" size={26} />{/if}
-        {#if slot.zipSizeBytes !== undefined}
-          <span class="size-badge">{bytesLabel(slot.zipSizeBytes)}</span>
-        {/if}
-        {#if slot.isActive}<span class="active-badge">Active</span>{/if}
-      </div>
-      <div class="info">
-        <span class="name">{slot.name}</span>
-        <span class="saved">Saved {dateLabel(slot.createdAt)}</span>
-        {#if seed}<span class="seed">Seed {seed}</span>{/if}
-      </div>
-    </button>
+    <div class="thumb-wrap">
+      <button type="button" class="thumb-area" onclick={onSelect} aria-pressed={selected}>
+        <div
+          class="thumb"
+          style={thumbnail
+            ? `background-image: url(${thumbnail});`
+            : `background: linear-gradient(160deg, hsl(${hue} 40% 42%), hsl(${(hue + 30) % 360} 45% 22%));`}
+        >
+          {#if !thumbnail}<Icon name="world" size={26} />{/if}
+          {#if slot.zipSizeBytes !== undefined}
+            <span class="size-badge">{bytesLabel(slot.zipSizeBytes)}</span>
+          {/if}
+          {#if slot.isActive}<span class="active-badge">Active</span>{/if}
+        </div>
+        <div class="info">
+          <span class="name">{slot.name}</span>
+          <span class="saved">Saved {dateLabel(slot.createdAt)}</span>
+          {#if seed}<span class="seed">Seed {seed}</span>{/if}
+        </div>
+      </button>
+      {#if api?.upload}
+        <input
+          bind:this={fileInput}
+          type="file"
+          accept="image/*"
+          class="hidden-input"
+          tabindex="-1"
+        />
+        <button
+          type="button"
+          class="thumb-edit"
+          disabled={thumbnailBusy}
+          onclick={(event) => {
+            event.stopPropagation();
+            void setThumbnail();
+          }}
+        >
+          {thumbnailBusy ? 'Setting…' : 'Set Thumbnail'}
+        </button>
+      {/if}
+    </div>
+    {#if thumbnailError}<p class="thumbnail-error">{thumbnailError}</p>{/if}
 
     <div class="actions">
       {#if confirming === 'activate'}
@@ -140,9 +214,13 @@
   .slot.selected {
     border-color: rgba(255, 255, 255, 0.24);
   }
+  .thumb-wrap {
+    position: relative;
+  }
   .thumb-area {
     display: flex;
     flex-direction: column;
+    width: 100%;
     text-align: left;
     background: none;
     border: none;
@@ -150,6 +228,38 @@
     cursor: pointer;
     font: inherit;
     color: inherit;
+  }
+  .hidden-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
+  }
+  .thumb-edit {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    font-size: 9px;
+    font-weight: 600;
+    color: #fff;
+    background: rgba(0, 0, 0, 0.45);
+    border: none;
+    border-radius: 5px;
+    padding: 3px 6px;
+    cursor: pointer;
+  }
+  .thumb-edit:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.6);
+  }
+  .thumb-edit:disabled {
+    cursor: default;
+    opacity: 0.7;
+  }
+  .thumbnail-error {
+    margin: 6px 12px 0;
+    font-size: 10px;
+    color: var(--msc2-status-warn);
   }
   .thumb {
     position: relative;

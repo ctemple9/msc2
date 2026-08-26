@@ -15,6 +15,8 @@ export const worldPaths = {
   saveCurrent: '/v1/worlds/update',
   repair: '/v1/worlds/repair',
   convert: '/v1/worlds/convert',
+  convertFormats: '/v1/worlds/convert/formats',
+  import: '/v1/worlds/import',
   thumbnail: (slotId: string): string => `/v1/worlds/${slotId}/thumbnail`,
 } as const;
 
@@ -172,4 +174,47 @@ export async function pollOperation(
     }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
+}
+
+/** Ports AppViewModel+WorldSlots.swift's importLegacyBackupAsNewSlot naming:
+ *  the backup's own recorded slot name first, else "Imported {displayName}",
+ *  else a flat fallback. */
+export function legacyImportName(backup: Schema['BackupItemDTO']): string {
+  const slotName = backup.slotName?.trim();
+  if (slotName) return slotName;
+  const displayName = backup.displayName.trim();
+  return displayName ? `Imported ${displayName}` : 'Imported Backup';
+}
+
+/** ChunkerManager.displayName(forFormat:) -- "JAVA_1_21_0" -> "Java 1.21",
+ *  "BEDROCK_R21_80" -> "Bedrock 1.21.80". Falls back to the raw string for
+ *  anything Chunker reports that doesn't match either shape. */
+export function formatDisplayName(format: string): string {
+  if (format.startsWith('JAVA_')) {
+    return `Java ${format.slice(5).replace(/_/g, '.')}`;
+  }
+  if (format.startsWith('BEDROCK_')) {
+    const raw = format.slice(8);
+    if (raw.startsWith('R')) {
+      const [minor, patch] = raw.slice(1).split('_');
+      if (minor !== undefined && /^\d+$/.test(minor)) {
+        return patch !== undefined && /^\d+$/.test(patch)
+          ? `Bedrock 1.${minor}.${patch}`
+          : `Bedrock 1.${minor}`;
+      }
+    }
+    return `Bedrock ${raw.replace(/_/g, '.')}`;
+  }
+  return format;
+}
+
+/** WorldConversionWizardView.targetFormats: only the opposite edition's
+ *  formats, oldest-to-newest as Chunker itself reports them (the same order
+ *  MSC 1 trusts when it defaults its picker to the last/newest entry). */
+export function targetFormats(
+  formats: readonly string[],
+  sourceServer: Schema['ServerDTO'] | undefined,
+): string[] {
+  const prefix = sourceServer?.serverType === 'bedrock' ? 'JAVA_' : 'BEDROCK_';
+  return formats.filter((format) => format.startsWith(prefix));
 }

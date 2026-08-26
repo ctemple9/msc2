@@ -1,29 +1,26 @@
 <script lang="ts">
   // Ports WorldRepairView.swift's three phases (prompt -> repairing -> done).
   // Bedrock-only, and only for the currently active slot (the agent's own
-  // /v1/worlds/repair guard). Real gap, faced honestly rather than faked:
-  // the route is fully frozen and wired end to end, but its actual level.dat
-  // regeneration workflow doesn't exist on this runtime yet -- every call
-  // returns 409 repair_unavailable today (crates/msc-agent/src/routes/worlds.rs
-  // repair()'s own doc comment). That response gets its own honest "not
-  // available yet" state below instead of a fake success/log-streaming
-  // animation; the moment a future step wires the real regeneration, this
-  // same call already succeeds with no client change.
+  // /v1/worlds/repair guard). P12.4d/e ported and wired the real level.dat
+  // regeneration workflow, so this sheet drives the real thing now: the
+  // route starts a journaled operation (like activate/convert) and this
+  // sheet polls it to a terminal state, showing whatever statusLine the
+  // repair task reports along the way.
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { mutate } from '../shared/types';
   import { ApiError } from '../../api/client';
-  import { worldPaths } from './model';
+  import { pollOperation, worldPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let activeSlotId: string | undefined;
   export let onClose: () => void;
-  export let onRepaired: (updated: Schema['WorldSlotsResponseDTO']) => void;
+  export let onRepaired: () => void;
 
   type Phase =
     | { kind: 'prompt' }
-    | { kind: 'busy' }
+    | { kind: 'busy'; statusLine: string }
     | { kind: 'unavailable' }
     | { kind: 'failed'; message: string };
 
@@ -34,15 +31,30 @@
       phase = { kind: 'failed', message: 'No active world slot to repair.' };
       return;
     }
-    phase = { kind: 'busy' };
+    phase = { kind: 'busy', statusLine: 'Repairing world…' };
     try {
-      const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.repair, {
+      const result = await mutate<Schema['WorldRepairResultDTO']>(api, worldPaths.repair, {
         slotId: activeSlotId,
       });
-      if (result.updated) onRepaired(result.updated);
-      onClose();
+      if (!result.operationId) {
+        onRepaired();
+        onClose();
+        return;
+      }
+      const operation = await pollOperation(api, result.operationId, (tick) => {
+        phase = { kind: 'busy', statusLine: tick.statusLine ?? 'Repairing world…' };
+      });
+      if (operation?.state === 'succeeded') {
+        onRepaired();
+        onClose();
+      } else {
+        phase = {
+          kind: 'failed',
+          message: operation?.error?.message ?? 'Repair did not complete.',
+        };
+      }
     } catch (error) {
-      if (error instanceof ApiError && error.error.code === 'repair_unavailable') {
+      if (error instanceof ApiError && error.error.code === 'capability_unavailable') {
         phase = { kind: 'unavailable' };
       } else {
         phase = {
@@ -82,15 +94,15 @@
     </div>
   {:else if phase.kind === 'busy'}
     <div class="body busy">
-      <p>Repairing world…</p>
+      <p>{phase.statusLine}</p>
       <p class="explain">Do not close this window or start the server manually.</p>
     </div>
   {:else if phase.kind === 'unavailable'}
     <div class="body">
-      <p class="lede">Not available on this runtime yet</p>
+      <p class="lede">Bedrock runtime unavailable</p>
       <p class="explain">
-        World repair is fully wired in MSC's API but the Bedrock runtime doesn't expose the
-        level.dat regeneration workflow yet. Nothing was changed.
+        Repair needs to start this server briefly, but its Bedrock runtime isn't available right
+        now. Nothing was changed.
       </p>
       <div class="footer">
         <Button variant="primary" onclick={onClose}>Close</Button>

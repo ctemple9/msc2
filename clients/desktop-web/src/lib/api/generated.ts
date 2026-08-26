@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 9a03fa042a89234673cca9d2998f3766a7c3520068c34346cc2989482ad72798
+// Contract SHA-256: d395c55cfb889101b6ddf11c92c6e1dbd3d57bb51bfdbceddb864272d744d33e
 
 export interface paths {
   '/v1/active-server': {
@@ -4099,6 +4099,51 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/session-log/clear': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Clear join/leave event history for the active server */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Session log cleared */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['SessionLogResponseDTO'];
+          };
+        };
+        /** @description no_active_server */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/settings': {
     parameters: {
       query?: never;
@@ -4924,7 +4969,8 @@ export interface paths {
     /** A world slot's thumbnail image, if one was generated */
     get: operations['getWorldSlotThumbnail'];
     put?: never;
-    post?: never;
+    /** Set a world slot's thumbnail from a staged image upload */
+    post: operations['setWorldSlotThumbnail'];
     delete?: never;
     options?: never;
     head?: never;
@@ -4965,6 +5011,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/convert/formats': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** List the installed Chunker world-conversion formats */
+    get: operations['getWorldConvertFormats'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/create': {
     parameters: {
       query?: never;
@@ -4988,13 +5051,13 @@ export interface paths {
         };
       };
       responses: {
-        /** @description Mutation applied */
+        /** @description Repair started */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            'application/json': components['schemas']['WorldMutationResultDTO'];
+            'application/json': components['schemas']['WorldRepairResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_slot_id / name_required */
@@ -5225,13 +5288,13 @@ export interface paths {
         };
       };
       responses: {
-        /** @description Mutation applied */
+        /** @description Repair started -- operation-backed (P12.4e), matching world activation's own shape */
         200: {
           headers: {
             [name: string]: unknown;
           };
           content: {
-            'application/json': components['schemas']['WorldMutationResultDTO'];
+            'application/json': components['schemas']['WorldRepairResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_slot_id / name_required */
@@ -6813,6 +6876,7 @@ export interface components {
       purpose:
         | 'world-import'
         | 'active-world-replace'
+        | 'world-thumbnail'
         | 'modpack-archive'
         | 'addon-local-file'
         | 'curseforge-manual-file';
@@ -7030,6 +7094,12 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    WorldConvertFormatsResponseDTO: {
+      /** @description Raw format strings reported by the installed Chunker jar, including both JAVA_ and BEDROCK_ formats. */
+      formats: string[];
+    } & {
+      [key: string]: unknown;
+    };
     /** @description Corrected post-review: MSC 1 conversion always names a separate, opposite-edition target server (AppViewModel+WorldConversion.swift's own sourceServer/targetServer parameters) -- sourceSlotId resolves against the active server; targetServerId is a separate, required server id. targetFormat is the exact Chunker format string the client chose from the installed jar's own supported list (MSC 1's wizard defaults its picker to the newest compatible format but always lets the user override it -- never hardcoded server-side). Exactly one of targetName (place into a fresh slot) or targetSlotId (overwrite an existing slot on the target server, by id, not display name) must be present. */
     WorldConvertRequestDTO: {
       sourceSlotId: string;
@@ -7076,8 +7146,9 @@ export interface components {
       [key: string]: unknown;
     };
     WorldImportRequestDTO: {
+      backupId?: string;
       name: string;
-      stagedUploadId: string;
+      stagedUploadId?: string;
     } & {
       [key: string]: unknown;
     };
@@ -7102,6 +7173,13 @@ export interface components {
     };
     WorldRepairRequestDTO: {
       slotId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldRepairResultDTO: {
+      /** @description Operation id for progress polling (GET /v1/operations/{id}) or /v1/operations/{id}/stream and cancellation; optional so older clients can ignore it, matching the operation-backed world activation response. */
+      operationId?: string;
+      result: string;
     } & {
       [key: string]: unknown;
     };
@@ -7143,6 +7221,11 @@ export interface components {
       isRepairing?: boolean;
       serverRunning: boolean;
       slots: components['schemas']['WorldSlotDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    WorldThumbnailUploadRequestDTO: {
+      stagedUploadId: string;
     } & {
       [key: string]: unknown;
     };
@@ -8007,6 +8090,68 @@ export interface operations {
       };
     };
   };
+  setWorldSlotThumbnail: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slotId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WorldThumbnailUploadRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Mutation applied */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldMutationResultDTO'];
+        };
+      };
+      /** @description missing_body / invalid_json / invalid_body */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description slot_not_found / staged_upload_not_found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description no_active_server / world_reconciliation_degraded */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
   activateWorldSlot: {
     parameters: {
       query?: never;
@@ -8100,6 +8245,35 @@ export interface operations {
       };
       /** @description internal error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  getWorldConvertFormats: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Supported Chunker conversion formats */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldConvertFormatsResponseDTO'];
+        };
+      };
+      /** @description capability_unavailable when Java or Chunker is not installed */
+      409: {
         headers: {
           [name: string]: unknown;
         };

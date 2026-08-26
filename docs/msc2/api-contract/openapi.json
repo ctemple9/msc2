@@ -597,11 +597,11 @@
         },
         "responses": {
           "200": {
-            "description": "Mutation applied",
+            "description": "Repair started -- operation-backed (P12.4e), matching world activation's own shape",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WorldMutationResultDTO"
+                  "$ref": "#/components/schemas/WorldRepairResultDTO"
                 }
               }
             }

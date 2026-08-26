@@ -32,6 +32,7 @@
     backupPaths,
     demoBackups,
     demoSlots,
+    legacyImportName,
     pollOperation,
     serversPath,
     worldPaths,
@@ -156,9 +157,9 @@
     }
   }
 
-  function onRepaired(updated: Schema['WorldSlotsResponseDTO']): void {
-    worlds = updated;
+  function onRepaired(): void {
     flash('World repaired.');
+    void Promise.all([loadWorlds(), loadBackups()]);
   }
 
   async function backUpNow(): Promise<void> {
@@ -215,6 +216,22 @@
       await loadBackups();
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to delete this backup.');
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function importLegacyBackup(backup: Schema['BackupItemDTO']): Promise<void> {
+    busy = true;
+    try {
+      const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.import, {
+        name: legacyImportName(backup),
+        backupId: backup.id,
+      });
+      if (result.updated) worlds = result.updated;
+      flash(`Imported "${legacyImportName(backup)}" as a new slot.`);
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Failed to import this backup as a slot.');
     } finally {
       busy = false;
     }
@@ -293,6 +310,7 @@
       <div class="grid">
         {#each worlds.slots as slot (slot.id)}
           <WorldSlotCard
+            {api}
             {slot}
             selected={selectedSlotId === slot.id}
             serverRunning={worlds.serverRunning}
@@ -306,6 +324,7 @@
             onRequestDelete={() => requestDelete(slot.id)}
             onConfirmDelete={() => void confirmDelete()}
             onCancelConfirm={cancelConfirm}
+            onThumbnailUpdated={() => void loadWorlds()}
           />
         {/each}
       </div>
@@ -329,7 +348,7 @@
     onDeleteCancel={() => (confirmingBackupDeleteId = undefined)}
     onToggleAuto={(enabled) => void toggleAuto(enabled)}
     onIntervalChange={(minutes) => void changeInterval(minutes)}
-    onImportLegacy={() => {}}
+    onImportLegacy={(backup) => void importLegacyBackup(backup)}
   />
 </div>
 
@@ -362,11 +381,16 @@
 
 {#if convertingSlot}
   <WorldConversionWizard
+    {api}
     sourceSlot={convertingSlot}
     sourceServer={activeServer}
     sourceServerRunning={worlds.serverRunning}
     {servers}
     onClose={() => (convertingSlot = undefined)}
+    onConverted={() => {
+      flash('World conversion started.');
+      void Promise.all([loadWorlds(), loadBackups()]);
+    }}
   />
 {/if}
 

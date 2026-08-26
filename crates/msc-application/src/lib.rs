@@ -25,6 +25,7 @@ pub mod network_diagnostics;
 pub mod notifications;
 pub mod operations;
 pub mod output_reducer;
+pub mod player_profiles;
 pub mod playit;
 pub mod provisioning;
 pub mod resource_packs;

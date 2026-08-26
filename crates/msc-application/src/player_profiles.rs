@@ -164,6 +164,87 @@ pub fn unhide(
     write_hidden(fs, server_dir, &hidden)
 }
 
+/// Resolves the single player-data directory used by a file mutation.
+/// Unlike profile discovery, which scans both layouts, mutations follow the
+/// first directory that exists so the source and destination stay together.
+pub fn resolve_player_data_dir(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    level_name: &str,
+) -> PathBuf {
+    let candidates = player_data_dirs(server_dir, level_name);
+    candidates
+        .into_iter()
+        .find(|candidate| fs.list(candidate).is_ok())
+        .unwrap_or_else(|| server_dir.join(level_name).join("playerdata"))
+}
+
+/// Builds the lowercase Minecraft player-data filename for a UUID.
+pub fn dat_path(uuid: &Uuid, player_data_dir: &Path) -> PathBuf {
+    player_data_dir.join(format!("{}.dat", uuid.to_string().to_lowercase()))
+}
+
+/// Copies one player's data to another UUID, overwriting the destination.
+pub fn copy_player_data(
+    source_uuid: Uuid,
+    dest_uuid: Uuid,
+    player_data_dir: &Path,
+    fs: &dyn FileSystem,
+) -> Result<(), PlayerProfileError> {
+    let source = fs
+        .read(&dat_path(&source_uuid, player_data_dir))
+        .map_err(map_profile_file_error)?;
+    fs.write(&dat_path(&dest_uuid, player_data_dir), &source)
+        .map_err(PlayerProfileError::Io)
+}
+
+/// Deletes one player's data file.
+pub fn delete_player_data(
+    uuid: Uuid,
+    player_data_dir: &Path,
+    fs: &dyn FileSystem,
+) -> Result<(), PlayerProfileError> {
+    fs.remove(&dat_path(&uuid, player_data_dir))
+        .map_err(map_profile_file_error)
+}
+
+/// Copies one player's data to a new random UUID and returns that UUID.
+pub fn duplicate_player_data(
+    uuid: Uuid,
+    player_data_dir: &Path,
+    fs: &dyn FileSystem,
+) -> Result<Uuid, PlayerProfileError> {
+    let new_uuid = Uuid::new_v4();
+    copy_player_data(uuid, new_uuid, player_data_dir, fs)?;
+    Ok(new_uuid)
+}
+
+/// Copies a player's data to the UUID Minecraft derives for offline mode.
+pub fn migrate_to_offline_uuid(
+    profile: &JavaPlayerProfile,
+    player_data_dir: &Path,
+    fs: &dyn FileSystem,
+) -> Result<Uuid, PlayerProfileError> {
+    let username = profile
+        .username
+        .as_deref()
+        .filter(|username| !username.is_empty())
+        .ok_or(PlayerProfileError::UsernameUnknown)?;
+    let target_uuid = msc_domain::player_nbt::offline_uuid(username);
+    copy_player_data(profile.uuid, target_uuid, player_data_dir, fs)?;
+    Ok(target_uuid)
+}
+
+/// Copies a player's data to an explicitly chosen UUID.
+pub fn migrate_to_uuid(
+    profile: &JavaPlayerProfile,
+    target_uuid: Uuid,
+    player_data_dir: &Path,
+    fs: &dyn FileSystem,
+) -> Result<(), PlayerProfileError> {
+    copy_player_data(profile.uuid, target_uuid, player_data_dir, fs)
+}
+
 fn player_data_dirs(server_dir: &Path, level_name: &str) -> [PathBuf; 2] {
     let world_dir = server_dir.join(level_name);
     [
@@ -220,4 +301,12 @@ fn write_hidden(
         .map_err(|error| PlayerProfileError::Io(io::Error::other(error)))?;
     atomic_write(fs, &server_dir.join(HIDDEN_FILE), &bytes)
         .map_err(|error| PlayerProfileError::Io(io::Error::other(error.to_string())))
+}
+
+fn map_profile_file_error(error: io::Error) -> PlayerProfileError {
+    if error.kind() == io::ErrorKind::NotFound {
+        PlayerProfileError::ProfileNotFound
+    } else {
+        PlayerProfileError::Io(error)
+    }
 }

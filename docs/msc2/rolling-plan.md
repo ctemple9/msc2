@@ -828,7 +828,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 **Batch:** solo
 
 ### P12.2i — Port the player-data file mutation primitives
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/player_profiles.rs` (the module P12.2d created), `crates/msc-application/tests/player_profiles.rs`
 **What:** Port `PlayerDataManager`'s file-operation primitives (`PlayerDataManager.swift:131-164`) and the 4 approved `AppViewModel+PlayerProfiles.swift` action wrappers (lines 471-516; skip `copyPlayerData` at line 493 — deferred) into `player_profiles.rs`. These operate against a **single** resolved directory, unlike P12.2d's scan (which reads both candidate directories) — add the single-directory resolver first:
 

@@ -204,3 +204,133 @@ fn player_profiles_hidden_write_reports_missing_server_directory() {
         .expect_err("missing parent must not be hidden");
     assert!(matches!(error, PlayerProfileError::Io(_)));
 }
+
+fn profile(uuid: Uuid, username: Option<&str>) -> player_profiles::JavaPlayerProfile {
+    player_profiles::JavaPlayerProfile {
+        uuid,
+        username: username.map(str::to_owned),
+        dat_file_path: Path::new(VANILLA_DIR).join(format!("{uuid}.dat")),
+        last_modified: SystemTime::UNIX_EPOCH,
+        is_online: false,
+        is_op: false,
+        is_hidden: false,
+        stats: None,
+        inventory: Vec::new(),
+    }
+}
+
+#[test]
+fn player_data_dir_resolver_prefers_vanilla_then_paper_then_vanilla_fallback() {
+    let root = std::env::temp_dir().join(format!("msc-player-profiles-{}", Uuid::new_v4()));
+    let world = root.join("world");
+    let vanilla = world.join("playerdata");
+    let paper = world.join("players").join("data");
+    std::fs::create_dir_all(&paper).unwrap();
+
+    let fs = StdFileSystem;
+    assert_eq!(
+        player_profiles::resolve_player_data_dir(&fs, &root, "world"),
+        paper
+    );
+
+    std::fs::create_dir_all(&vanilla).unwrap();
+    assert_eq!(
+        player_profiles::resolve_player_data_dir(&fs, &root, "world"),
+        vanilla
+    );
+
+    std::fs::remove_dir_all(&root).unwrap();
+    assert_eq!(
+        player_profiles::resolve_player_data_dir(&fs, &root, "world"),
+        vanilla
+    );
+}
+
+#[test]
+fn player_data_mutations_copy_overwrite_delete_and_map_missing_files() {
+    let source_uuid = Uuid::parse_str("abcdefab-cdef-4abc-8def-abcdefabcdef").unwrap();
+    let dest_uuid = Uuid::parse_str("11111111-1111-4111-8111-111111111111").unwrap();
+    let dir = Path::new(VANILLA_DIR);
+    let fs = FakeFileSystem::new()
+        .with_file(
+            player_profiles::dat_path(&source_uuid, dir),
+            b"new player data".to_vec(),
+            false,
+        )
+        .with_file(
+            player_profiles::dat_path(&dest_uuid, dir),
+            b"old player data".to_vec(),
+            false,
+        );
+
+    player_profiles::copy_player_data(source_uuid, dest_uuid, dir, &fs).unwrap();
+    assert_eq!(
+        fs.read(&player_profiles::dat_path(&dest_uuid, dir))
+            .unwrap(),
+        b"new player data"
+    );
+
+    player_profiles::delete_player_data(dest_uuid, dir, &fs).unwrap();
+    assert!(matches!(
+        player_profiles::delete_player_data(dest_uuid, dir, &fs),
+        Err(PlayerProfileError::ProfileNotFound)
+    ));
+    assert!(matches!(
+        player_profiles::copy_player_data(dest_uuid, source_uuid, dir, &fs),
+        Err(PlayerProfileError::ProfileNotFound)
+    ));
+}
+
+#[test]
+fn player_data_migrations_and_duplicate_use_expected_targets() {
+    let source_uuid = Uuid::parse_str(FIRST_UUID).unwrap();
+    let explicit_uuid = Uuid::parse_str(SECOND_UUID).unwrap();
+    let dir = Path::new(VANILLA_DIR);
+    let fs = FakeFileSystem::new().with_file(
+        player_profiles::dat_path(&source_uuid, dir),
+        b"player data".to_vec(),
+        false,
+    );
+    let profile = profile(source_uuid, Some("Notch"));
+
+    let offline_uuid = player_profiles::migrate_to_offline_uuid(&profile, dir, &fs).unwrap();
+    assert_eq!(
+        offline_uuid,
+        Uuid::parse_str("b50ad385-829d-3141-a216-7e7d7539ba7f").unwrap()
+    );
+    assert_eq!(
+        fs.read(&player_profiles::dat_path(&offline_uuid, dir))
+            .unwrap(),
+        b"player data"
+    );
+
+    player_profiles::migrate_to_uuid(&profile, explicit_uuid, dir, &fs).unwrap();
+    assert_eq!(
+        fs.read(&player_profiles::dat_path(&explicit_uuid, dir))
+            .unwrap(),
+        b"player data"
+    );
+
+    let duplicate_uuid = player_profiles::duplicate_player_data(source_uuid, dir, &fs).unwrap();
+    assert_ne!(duplicate_uuid, source_uuid);
+    assert_eq!(
+        fs.read(&player_profiles::dat_path(&duplicate_uuid, dir))
+            .unwrap(),
+        b"player data"
+    );
+}
+
+#[test]
+fn offline_migration_requires_a_nonempty_username() {
+    let source_uuid = Uuid::parse_str(FIRST_UUID).unwrap();
+    let dir = Path::new(VANILLA_DIR);
+    let fs = FakeFileSystem::new();
+
+    for username in [None, Some("")] {
+        let profile = profile(source_uuid, username);
+        assert!(matches!(
+            player_profiles::migrate_to_offline_uuid(&profile, dir, &fs),
+            Err(PlayerProfileError::UsernameUnknown)
+        ));
+    }
+}

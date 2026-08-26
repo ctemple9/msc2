@@ -1,0 +1,4 @@
+# The real player file is private live-server evidence. Keep its provenance
+# in the committed fixture metadata, but never commit the raw bytes.
+samples/*
+!samples/.gitignore

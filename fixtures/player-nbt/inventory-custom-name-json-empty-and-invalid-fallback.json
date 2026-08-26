@@ -1,0 +1,51 @@
+{
+  "domain": "player-nbt",
+  "case": "inventory-custom-name-json-empty-and-invalid-fallback",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "parseJSONTextComponent(_:)",
+    "line": 236
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a0000090009496e76656e746f72790a00000002010004536c6f74080800026964000f6d696e6563726166743a737469636b010005436f756e74010a00037461670a0007646973706c61790800044e616d65000b7b2274657874223a22227d000000010004536c6f7409080002696400116d696e6563726166743a66656174686572010005436f756e74010a00037461670a0007646973706c61790800044e616d65000d6e6f742d6a736f6e2d6e616d6500000000"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "Overworld",
+      "score": 0
+    },
+    "inventory": [
+      {
+        "slot": 8,
+        "itemID": "minecraft:stick",
+        "iconName": "stick",
+        "count": 1,
+        "displayName": "Stick",
+        "enchantments": [],
+        "damage": 0
+      },
+      {
+        "slot": 9,
+        "itemID": "minecraft:feather",
+        "iconName": "feather",
+        "count": 1,
+        "displayName": "not-json-name",
+        "enchantments": [],
+        "damage": 0
+      }
+    ]
+  },
+  "notes": "Synthetic text-component case. A JSON object with an empty text value becomes nil and therefore falls back to the prettified item ID; malformed JSON is returned as the raw custom name."
+}

@@ -1,0 +1,51 @@
+{
+  "domain": "player-nbt",
+  "case": "inventory-invalid-entries-skipped-and-missing-count-defaults",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractInventory(from:)",
+    "line": 148
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a0000090009496e76656e746f72790a000000050800026964000f6d696e6563726166743a73746f6e6500010004536c6f740303000269640000000400010004536c6f74040800026964000f6d696e6563726166743a746f72636800020004536c6f7400050800026964000e6d696e6563726166743a6469727400010004536c6f7406080002696400116d696e6563726166743a6f616b5f6c6f67010005436f756e74fe0000"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "Overworld",
+      "score": 0
+    },
+    "inventory": [
+      {
+        "slot": 4,
+        "itemID": "minecraft:torch",
+        "iconName": "torch",
+        "count": 1,
+        "displayName": "Torch",
+        "enchantments": [],
+        "damage": 0
+      },
+      {
+        "slot": 6,
+        "itemID": "minecraft:oak_log",
+        "iconName": "oak_log",
+        "count": 1,
+        "displayName": "Oak Log",
+        "enchantments": [],
+        "damage": 0
+      }
+    ]
+  },
+  "notes": "Synthetic filtering case. Entries without Slot, with a non-byte/non-int Slot, with a non-string id, or with a non-string id type are dropped. A valid entry without Count defaults to one, and a negative TAG_Byte Count clamps to one."
+}

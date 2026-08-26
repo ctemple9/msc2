@@ -1,0 +1,20 @@
+{
+  "domain": "player-nbt",
+  "case": "root-tag-not-compound-is-rejected",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "NBTReader.readRootCompound()",
+    "line": 285
+  },
+  "input": {
+    "encoding": "synthetic valid-gzip wrapper around a non-compound big-endian NBT root",
+    "synthetic": true,
+    "nbt_hex": "0300000000"
+  },
+  "expected": {
+    "stats": null,
+    "inventory": [],
+    "failure_stage": "root_validation"
+  },
+  "notes": "The first tag type is TAG_Int rather than TAG_Compound. This is the third distinct failure stage after gzip and mid-payload truncation; the generic root-compound rule is already covered by P6.9's nbt.rs."
+}

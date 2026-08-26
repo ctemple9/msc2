@@ -1,0 +1,20 @@
+{
+  "domain": "player-nbt",
+  "case": "truncated-nbt-fails-after-gzip",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "NBTReader.readData(count:) / readUInt8()",
+    "line": 363
+  },
+  "input": {
+    "encoding": "synthetic valid-gzip wrapper around truncated big-endian NBT payload",
+    "synthetic": true,
+    "nbt_hex": "0a00000300064865616c746800"
+  },
+  "expected": {
+    "stats": null,
+    "inventory": [],
+    "failure_stage": "nbt_payload"
+  },
+  "notes": "The root compound and Health tag header are present, but the four-byte Health payload is cut short. NBTReader throws, parsePlayerDat converts that throw to nil, and readAll returns (nil, []). Generic truncation behavior is already implemented by the P6.9 reader."
+}

@@ -1,0 +1,45 @@
+{
+  "domain": "player-nbt",
+  "case": "inventory-legacy-enchantments-display-and-damage",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractInventory(from:)",
+    "line": 144
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a0000090009496e76656e746f72790a00000001010004536c6f7400080002696400176d696e6563726166743a6469616d6f6e645f73776f7264010005436f756e74010a000374616709000c456e6368616e746d656e74730a00000002080002696400136d696e6563726166743a73686172706e6573730200036c766c000300080002696400146d696e6563726166743a756e627265616b696e670300036c766c00000002000a0007646973706c61790800044e616d6500177b2274657874223a2253746f726d6272696e676572227d0003000644616d6167650000002a000000"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "Overworld",
+      "score": 0
+    },
+    "inventory": [
+      {
+        "slot": 0,
+        "itemID": "minecraft:diamond_sword",
+        "iconName": "diamond_sword",
+        "count": 1,
+        "displayName": "Stormbringer",
+        "enchantments": [
+          { "id": "minecraft:sharpness", "level": 3, "displayName": "Sharpness III" },
+          { "id": "minecraft:unbreaking", "level": 2, "displayName": "Unbreaking II" }
+        ],
+        "damage": 42
+      }
+    ]
+  },
+  "notes": "Synthetic pre-1.20.5 item. The reader accepts TAG_Short and TAG_Int enchantment levels, parses tag.display.Name as a JSON text component, and reads TAG_Int Damage. Stats are the reader's normal compound defaults because this payload supplies no stats fields."
+}

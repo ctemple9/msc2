@@ -1,0 +1,42 @@
+{
+  "domain": "player-nbt",
+  "case": "inventory-tag-compound-wins-over-components",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractInventory(from:)",
+    "line": 172
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a0000090009496e76656e746f72790a00000001010004536c6f74020800026964000f6d696e6563726166743a73746f6e65010005436f756e74070a0003746167000a000a636f6d706f6e656e74730a00166d696e6563726166743a656e6368616e6d656e74730a00066c6576656c730300116d696e6563726166743a666f7274756e650000000300000800156d696e6563726166743a637573746f6d5f6e616d6500127b2274657874223a2249676e6f726564227d0300106d696e6563726166743a64616d61676500000063000000"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "Overworld",
+      "score": 0
+    },
+    "inventory": [
+      {
+        "slot": 2,
+        "itemID": "minecraft:stone",
+        "iconName": "stone",
+        "count": 7,
+        "displayName": "Stone",
+        "enchantments": [],
+        "damage": 0
+      }
+    ]
+  },
+  "notes": "Synthetic precedence case. Because tag is present as a compound, even an empty one, PlayerNBTReader takes the legacy branch and ignores the components compound entirely."
+}

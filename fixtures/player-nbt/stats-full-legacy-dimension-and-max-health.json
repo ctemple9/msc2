@@ -1,0 +1,32 @@
+{
+  "domain": "player-nbt",
+  "case": "stats-full-legacy-dimension-and-max-health",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 69
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a00000500064865616c7468418c000009000a417474726962757465730a000000010800044e616d65001167656e657269632e6d61784865616c746806000442617365403880000000000000030009466f6f644c6576656c0000000e03000758704c6576656c0000001b0300075870546f74616c0000303903000e706c6179657247616d65547970650000000103000553636f726500000008090003506f730600000003bff400000000000040502000000000000405ef0000000000003000944696d656e73696f6effffffff00"
+  },
+  "expected": {
+    "stats": {
+      "health": 17.5,
+      "maxHealth": 24.5,
+      "foodLevel": 14,
+      "xpLevel": 27,
+      "xpTotal": 12345,
+      "gameMode": 1,
+      "gameModeDisplay": "Creative",
+      "posX": -1.25,
+      "posY": 64.5,
+      "posZ": 123.75,
+      "dimensionDisplay": "The Nether",
+      "score": 8
+    },
+    "inventory": []
+  },
+  "notes": "Synthetic player-specific extraction case. It exercises the old generic.maxHealth attribute alias and pre-1.16 numeric Dimension mapping; the primitive/tag decoding itself is already covered by P6.9's nbt.rs."
+}

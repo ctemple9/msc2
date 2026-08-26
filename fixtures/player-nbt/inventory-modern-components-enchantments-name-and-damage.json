@@ -1,0 +1,45 @@
+{
+  "domain": "player-nbt",
+  "case": "inventory-modern-components-enchantments-name-and-damage",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractInventory(from:)",
+    "line": 199
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a0000090009496e76656e746f72790a00000001010004536c6f74010800026964001b6d696e6563726166743a6e65746865726974655f7069636b617865030005636f756e74000000020a000a636f6d706f6e656e74730a00166d696e6563726166743a656e6368616e6d656e74730a00066c6576656c730300146d696e6563726166743a656666696369656e63790000000400000a001d6d696e6563726166743a73746f7265645f656e6368616e6d656e74730a00066c6576656c730100116d696e6563726166743a6d656e64696e670100000800156d696e6563726166743a637573746f6d5f6e616d6500127b2274657874223a224275696c646572227d0300106d696e6563726166743a64616d6167650000007b000000"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "Overworld",
+      "score": 0
+    },
+    "inventory": [
+      {
+        "slot": 1,
+        "itemID": "minecraft:netherite_pickaxe",
+        "iconName": "netherite_pickaxe",
+        "count": 2,
+        "displayName": "Builder",
+        "enchantments": [
+          { "id": "minecraft:efficiency", "level": 4, "displayName": "Efficiency IV" },
+          { "id": "minecraft:mending", "level": 1, "displayName": "Mending I" }
+        ],
+        "damage": 123
+      }
+    ]
+  },
+  "notes": "Synthetic 1.20.5+ component case. Lowercase count is accepted only as TAG_Int; the component enchantment level is accepted only as TAG_Int, so the TAG_Byte mending level defaults to one."
+}

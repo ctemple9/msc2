@@ -1,0 +1,44 @@
+{
+  "domain": "player-nbt",
+  "case": "inventory-stored-enchantment-slot-int-and-count-clamp",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractInventory(from:)",
+    "line": 151
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a0000090009496e76656e746f72790a00000001030004536c6f7400000005080002696400186d696e6563726166743a656e6368616e7465645f626f6f6b030005436f756e74000000000a000374616709001253746f726564456e6368616e746d656e74730a00000001080002696400116d696e6563726166743a6d656e64696e67000a0007646973706c61790800044e616d65000c416e6369656e7420546f6d650001000644616d61676509000000"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "Overworld",
+      "score": 0
+    },
+    "inventory": [
+      {
+        "slot": 5,
+        "itemID": "minecraft:enchanted_book",
+        "iconName": "enchanted_book",
+        "count": 1,
+        "displayName": "Ancient Tome",
+        "enchantments": [
+          { "id": "minecraft:mending", "level": 1, "displayName": "Mending I" }
+        ],
+        "damage": 0
+      }
+    ]
+  },
+  "notes": "Synthetic pre-1.20.5 stored-enchantment case. Slot accepts TAG_Int, Count clamps zero to one, a missing enchantment level defaults to one, a plain custom name is returned unchanged, and TAG_Byte Damage is ignored because the reader accepts only TAG_Int."
+}

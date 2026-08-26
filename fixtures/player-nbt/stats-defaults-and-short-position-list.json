@@ -1,0 +1,32 @@
+{
+  "domain": "player-nbt",
+  "case": "stats-defaults-and-short-position-list",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractStats(from:)",
+    "line": 69
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a00000300064865616c746800000009010009466f6f644c6576656c07090003506f7306000000023ff0000000000000400000000000000008000944696d656e73696f6e00116d696e6563726166743a7468655f656e6400"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "The End",
+      "score": 0
+    },
+    "inventory": []
+  },
+  "notes": "Synthetic defaults case. Wrong tag types are treated as absent, all scalar stats use their documented defaults, and a position list shorter than three doubles leaves all coordinates at zero."
+}

@@ -1,0 +1,20 @@
+{
+  "domain": "player-nbt",
+  "case": "corrupt-gzip-fails-before-nbt-parse",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "readAll(from:) -> gunzip(_:)",
+    "line": 20
+  },
+  "input": {
+    "encoding": "synthetic corrupt gzip bytes",
+    "synthetic": true,
+    "raw_dat_hex": "1f8b08000000000000ff0000"
+  },
+  "expected": {
+    "stats": null,
+    "inventory": [],
+    "failure_stage": "gzip"
+  },
+  "notes": "Same first failure stage as P6.7's Java gzip fixture: gunzip returns nil, so the NBT reader is never called and readAll returns (nil, [])."
+}

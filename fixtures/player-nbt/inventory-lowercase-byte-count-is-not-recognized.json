@@ -1,0 +1,42 @@
+{
+  "domain": "player-nbt",
+  "case": "inventory-lowercase-byte-count-is-not-recognized",
+  "source": {
+    "file": "PlayerNBTReader.swift",
+    "test": "extractInventory(from:)",
+    "line": 160
+  },
+  "input": {
+    "encoding": "synthetic uncompressed big-endian NBT payload; the reader test gzip-wraps this payload",
+    "synthetic": true,
+    "nbt_hex": "0a0000090009496e76656e746f72790a00000001010004536c6f74070800026964000f6d696e6563726166743a6170706c65010005636f756e74090000"
+  },
+  "expected": {
+    "stats": {
+      "health": 20.0,
+      "maxHealth": 20.0,
+      "foodLevel": 20,
+      "xpLevel": 0,
+      "xpTotal": 0,
+      "gameMode": 0,
+      "gameModeDisplay": "Survival",
+      "posX": 0.0,
+      "posY": 0.0,
+      "posZ": 0.0,
+      "dimensionDisplay": "Overworld",
+      "score": 0
+    },
+    "inventory": [
+      {
+        "slot": 7,
+        "itemID": "minecraft:apple",
+        "iconName": "apple",
+        "count": 1,
+        "displayName": "Apple",
+        "enchantments": [],
+        "damage": 0
+      }
+    ]
+  },
+  "notes": "Synthetic version-variant boundary. PlayerNBTReader accepts lowercase 1.20.5+ count only when it is TAG_Int; a lowercase TAG_Byte is ignored and the item count defaults to one."
+}

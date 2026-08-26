@@ -3,28 +3,50 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MSC 2 — locked status card</title>
+<title>MSC 2 — locked status card (flip)</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3/dist/tabler-icons.min.css">
 <style>body{margin:0;background:#050506;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}</style>
 </head>
 <body>
-<!-- LOCKED S0 REFERENCE — the disciplined status card. Governed by docs/msc2/antiAIslop.md.
-     No side rail, neutral icon, borderless (separated by tier contrast #1C1C21 on #0D0D0F),
-     status carried ONLY by the dot + colored label, one whisper shadow. -->
-<div style="background:#0D0D0F;border-radius:14px;padding:22px;max-width:520px;">
-  <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">Server health</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;">
+<!-- LOCKED S0 REFERENCE — the disciplined status card, revised 2026-08-26 to restore
+     MSC 1's real flip interaction (HealthGridCardTile's rotation3DEffect) that an
+     earlier pass had flattened away. Governed by docs/msc2/antiAIslop.md.
 
-    <div style="background:#1C1C21;border-radius:12px;padding:15px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.3);">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;"><i class="ti ti-puzzle" style="font-size:17px;color:rgba(255,255,255,0.45);" aria-hidden="true"></i><span style="font-size:14px;font-weight:500;color:rgba(255,255,255,0.95);">Components</span></div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#4DC778;display:inline-block;"></span><span style="font-size:12px;color:#4DC778;font-weight:500;">OK</span></div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.5);">1 component — up to date</div>
+     FRONT face: icon + title + status dot/label ONLY. No detail text, no side rail,
+     no colored icon-in-box. A small chevron (tertiary, 60% opacity) is the only
+     affordance that the card is interactive — click/tap/Enter/Space flips it.
+
+     BACK face: same icon + title header (chevron now rotated 180°, "go back"), the
+     same status dot/label repeated for context, the full detail text (line-clamped
+     at 3 lines, not just a first-line excerpt), and an optional filled action button
+     when the card carries one (e.g. "Go to Components").
+
+     One card flipped at a time (matches MSC 1's single flippedCardID). Both faces
+     share one fixed tile height so flipping never reflows the grid. Grid stays the
+     adaptive multi-column layout (repeat(auto-fit, minmax(180px,1fr))) — NOT MSC 1's
+     fixed 3-column — Cameron explicitly prefers the responsive column count. -->
+<div style="background:#0D0D0F;border-radius:14px;padding:22px;max-width:620px;">
+  <div style="font-size:10px;font-weight:600;letter-spacing:0.8px;color:rgba(255,255,255,0.4);text-transform:uppercase;margin-bottom:12px;">Server health</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;">
+
+    <!-- Card 1: front face -->
+    <div style="background:#1C1C21;border-radius:12px;padding:13px 14px;box-shadow:0 1px 2px rgba(0,0,0,0.3);height:110px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-puzzle" style="font-size:15px;color:rgba(255,255,255,0.5);" aria-hidden="true"></i><span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.95);">Add-on Jars</span><i class="ti ti-chevron-right" style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.4);" aria-hidden="true"></i></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#4DC778;display:inline-block;"></span><span style="font-size:12px;color:#4DC778;font-weight:500;">OK</span></div>
     </div>
 
-    <div style="background:#1C1C21;border-radius:12px;padding:15px 16px;box-shadow:0 1px 2px rgba(0,0,0,0.3);">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;"><i class="ti ti-world" style="font-size:17px;color:rgba(255,255,255,0.45);" aria-hidden="true"></i><span style="font-size:14px;font-weight:500;color:rgba(255,255,255,0.95);">Port</span></div>
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;"><span style="width:7px;height:7px;border-radius:50%;background:#FF9140;display:inline-block;"></span><span style="font-size:12px;color:#FF9140;font-weight:500;">Warn</span></div>
-      <div style="font-size:12px;color:rgba(255,255,255,0.5);">Port 25565 (TCP)</div>
+    <!-- Card 2: same card, flipped to its back face -->
+    <div style="background:#1C1C21;border-radius:12px;padding:13px 14px;box-shadow:0 1px 2px rgba(0,0,0,0.3);height:110px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-puzzle" style="font-size:13px;color:rgba(255,255,255,0.5);" aria-hidden="true"></i><span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.95);">Add-on Jars</span><i class="ti ti-chevron-left" style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.4);" aria-hidden="true"></i></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:#4DC778;display:inline-block;"></span><span style="font-size:12px;color:#4DC778;font-weight:500;">OK</span></div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.4;">No mods or plugins installed.</div>
+    </div>
+
+    <!-- Card 3: back face WITH an action button -->
+    <div style="background:#1C1C21;border-radius:12px;padding:13px 14px;box-shadow:0 1px 2px rgba(0,0,0,0.3);height:110px;box-sizing:border-box;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:center;gap:8px;"><i class="ti ti-network" style="font-size:13px;color:rgba(255,255,255,0.5);" aria-hidden="true"></i><span style="font-size:13px;font-weight:500;color:rgba(255,255,255,0.95);">Port Reachability</span><i class="ti ti-chevron-left" style="margin-left:auto;font-size:12px;color:rgba(255,255,255,0.4);" aria-hidden="true"></i></div>
+      <div style="display:flex;align-items:center;gap:6px;"><span style="width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,0.3);display:inline-block;"></span><span style="font-size:12px;color:rgba(255,255,255,0.5);font-weight:500;">Not checked</span></div>
+      <div style="font-size:12px;color:rgba(255,255,255,0.5);line-height:1.4;">Not yet implemented.</div>
     </div>
 
   </div>

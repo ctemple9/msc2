@@ -70,6 +70,11 @@
     background: var(--msc2-tier-chrome);
     border-radius: 14px;
     box-shadow: var(--msc2-shadow-float);
+    scrollbar-width: none;
+  }
+  .sheet::-webkit-scrollbar {
+    display: none;
+    width: 0;
   }
 
   .header {

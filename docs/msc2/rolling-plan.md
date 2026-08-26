@@ -1,7 +1,7 @@
 # MSC 2 — Rolling Plan
 
 > ## STATUS: Phase 11 (desktop/web clients) is in progress; **Phase 12 (client redesign) is now planned** below. Phase 11 shipped a working client wired to the real agent, but its UI diverged from MSC 1's information architecture and design language — Phase 12 rebuilds the presentation layer to MSC 1 fidelity, *refreshed*. Terminal UI moved to Phase 13. Phase 12's design system (S0) and shell (S1) were shaped and locked as reference specimens in `docs/msc2/renderings/`, governed by `docs/msc2/antiAIslop.md` (hard rule #11).
-> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. P12.2b–j (Java player-data NBT backend, built with Codex) all landed and are marked DONE. P12.3 (Players tab) and its follow-ups P12.3a (session-log contract), P12.3d (Bedrock identify + skin fixes) are built and **awaiting Cameron's verification**; P12.3b/c (the session-log application layer + routes) are still **not started**. See this file's 2026-08-25 notes below for the full history of gaps found and how each was handled.
+> **Next move:** P12.2 (Overview tab) is DONE — Cameron verified it 2026-08-25. P12.2b–j (Java player-data NBT backend, built with Codex) all landed and are marked DONE. P12.3 (Players tab) and its follow-ups P12.3a (session-log contract), P12.3d (Bedrock identify + skin fixes) are built and **awaiting Cameron's verification**; P12.3b/c (session-log application layer + routes) and P12.3e (carry real Bedrock stats/inventory through) are planned but **not started**. See this file's 2026-08-25 notes below for the full history of gaps found and how each was handled.
 > **P12.3 blocked on missing backend (decided 2026-08-25):** before rebuilding the Players tab, Cameron flagged that MSC 1's Players tab includes a read-only Java player inventory/stats viewer (`PlayerNBTReader.swift` + `PlayerInventoryView.swift`, hosted in `PlayerProfileDetailSheet.swift`) that never made it past the file-inventory audit into an actual phase step — no domain crate, no API route, and P12.3's own `What:` line never mentioned it. Investigation found `GET /v1/players/profiles` is **already frozen in the API contract** (`docs/msc2/api-contract/openapi.json`: `PlayerProfileDTO`/`PlayerStatsDTO`/`InventoryItemDTO`, plus `POST /v1/players/hidden`, `POST /v1/players/skin-override`, `GET /v1/players/{profileId}/skin`) but has **no handler at all** — today `GET /v1/players` only serves Bedrock (`crates/msc-agent/src/routes/bedrock.rs`; a Java server gets `note: "not_bedrock"`, empty list). This is a straight port against an already-frozen contract, not new API design. Cameron chose to block P12.3 and build the backend first (steps P12.2b–P12.2j below) rather than ship Players tab without it. Online Now / Seen This Session / Session Log are unaffected — those are console-derived (already built in P11.11) and stay in P12.3 itself. **Mutation actions, decided 2026-08-25:** of MSC 1's 5 player-data mutation actions (migrate to offline UUID, migrate to manual UUID, copy, duplicate, delete), none were in the frozen contract. Cameron chose **4 of the 5** — delete, migrate-to-offline-UUID, migrate-to-custom-UUID, and duplicate — added as new steps P12.2g (contract amendment) through P12.2j (route wiring), fully specified (exact DTO field names/types, exact error codes, pinned known-answer test vectors for the offline-UUID algorithm) since Cameron is running these with Codex. `copyPlayerData` (overwrite one player's data onto another's) is the one action still **deferred, not dropped** — add it later as its own contract-amendment step when wanted.
 > **Phase 11 → 12 sequencing (decided 2026-08-25):** the committed P11.28g–j agent work is done and carries forward as Phase 12's foundation. The two unfinished Phase 11 steps — P11.28k and the P11.29 gate — are **superseded and folded into P12.17**, because they verify the first-launch UI and MSC 1 fidelity that only the redesign delivers; the whole client gate now runs once against the redesigned client. Phase 12 begins now.
 > **Last updated:** 2026-08-25
@@ -65,7 +65,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **9** | Networking and helpers | complete |
 | **10** | Bedrock runtimes | complete |
 | **11** | Desktop and web clients | agent layer done (P11.28g–j); UI verification (P11.28k, P11.29) folded into Phase 12 |
-| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.2b–j DONE; P12.3/P12.3a/P12.3d awaiting verification; P12.3b/c not started** |
+| **12** | Client redesign (MSC 1 fidelity, refreshed) | **in progress — P12.2b–j DONE; P12.3/P12.3a/P12.3d awaiting verification; P12.3b/c/e not started** |
 | 13 | Terminal UI (deferred from v1) | not started |
 
 ---
@@ -947,6 +947,29 @@ Client: fixed `avatarUrl`/`model.ts` to stop excluding Bedrock (now always retur
 **What:** Add the missing Bedrock-identify route backed by the already-existing `record_name` function; fix the client to actually use the backend's already-correct Bedrock avatar identifier; add the Head/Body preview pair MSC 1 actually has.
 **Verify:** `python3 tools/api-contract-check.py && cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent --bin msc players`; client: `npx svelte-check --tsconfig ./tsconfig.json && npm run format:check && npm run test:screen-players-online`.
 **Commit:** `P12.3d: add POST /v1/players/identify, fix Bedrock skin resolution, split Head/Body preview`
+**Batch:** solo
+
+### P12.3e — Carry real Bedrock stats and inventory through instead of discarding them
+**Status:** not started
+**Files:** `crates/msc-application/src/bedrock_players.rs`, `crates/msc-agent/src/routes/players.rs`
+**What:** Cameron approved planning this after P12.3d's investigation found it's smaller than it looks: `crates/msc-infrastructure/src/bedrock_nbt.rs`'s `read_player_nbt` already parses full Bedrock stats and inventory from LevelDB — `bedrock_players::discover_players` (`crates/msc-application/src/bedrock_players.rs:212-224`) calls it, then immediately throws the result away, keeping only `nbt.stats.is_some()` and `nbt.inventory.len()`. No new parsing, no new fixtures, no contract change — `PlayerProfileDTO.stats`/`inventory` are already wired and already populate correctly for Java; this step only stops Bedrock from being short-changed at the one point it's discarded. Nothing in `msc-infrastructure/src/bedrock_nbt.rs` changes — leave that module, and its own P10 fixtures/tests, completely untouched.
+
+**Widen `BedrockPlayerRecord`** (`bedrock_players.rs:28-33`): replace `has_stats: bool` / `inventory_items: usize` with the real data:
+```rust
+pub struct BedrockPlayerRecord {
+    pub xuid: String,
+    pub name: String,
+    pub stats: Option<msc_infrastructure::bedrock_nbt::PlayerStats>,
+    pub inventory: Vec<msc_infrastructure::bedrock_nbt::InventoryItem>,
+}
+```
+In `discover_players` (line ~219), change `has_stats: nbt.stats.is_some(), inventory_items: nbt.inventory.len()` to `stats: nbt.stats, inventory: nbt.inventory` — the `nbt` binding already holds the parsed value right there; this is a one-line swap, not new logic. The existing `if nbt.stats.is_none() && nbt.inventory.is_empty() { continue; }` skip-guard immediately above stays exactly as-is (still the right filter: skip records with no real data).
+
+**Convert in `bedrock_profile_to_dto`** (`players.rs:919-942`) rather than duplicating display-string logic: `msc_infrastructure::bedrock_nbt::PlayerStats`/`InventoryItem`/`ItemEnchantment` are field-for-field equivalent to Java's `msc_domain::player_nbt::PlayerStats`/`InventoryItem`/`ItemEnchantment` (same meanings, same units) with exactly one shape difference — Bedrock's `position: [f64; 3]` versus Java's separate `pos_x`/`pos_y`/`pos_z` fields. Write a small conversion (a `From` impl or a private function in `players.rs`) from the Bedrock structs to the Java ones, unpacking `position[0]/[1]/[2]` into `pos_x`/`pos_y`/`pos_z`, then call the **exact same** `player_stats_to_dto`/`inventory_item_to_dto`/`enchantment_to_dto` functions (`players.rs:944` onward) Java already uses — including their `game_mode_display()`/`dimension_display()` calls, so Bedrock's dimension/game-mode strings come out identically formatted to Java's for free. Do not write a second set of display-string logic for Bedrock's copy of these fields.
+
+**Update the one test this breaks:** `bedrock_profile_mapping_uses_xuid_identity_and_always_empty_inventory` (`players.rs:1117-1133`) currently pins the old discard-everything behavior by name and by assertion (`assert_eq!(json["inventory"], serde_json::json!([]))`, `assert!(json.get("stats").is_none())`) — construct its `BedrockPlayerRecord` fixture with a real `stats`/`inventory` value instead of `has_stats: true, inventory_items: 4`, rename the test to reflect the new behavior, and assert the DTO actually carries the values through (mirroring `java_profile_mapping_preserves_contract_field_names_and_derived_values`'s assertion style one test up). Grepped confirmed `has_stats`/`inventory_items` appear nowhere else in the workspace — this is the only other place to touch.
+**Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent --bin msc players`
+**Commit:** `P12.3e: carry real Bedrock stats and inventory through instead of discarding them`
 **Batch:** solo
 
 ### P12.4 — Worlds tab (+ world wizards)

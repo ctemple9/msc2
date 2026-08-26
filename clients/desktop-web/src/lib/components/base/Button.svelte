@@ -29,6 +29,20 @@
     border: none;
     cursor: pointer;
     font-family: inherit;
+    box-sizing: border-box;
+    /* A flex item's default min-width is `auto` (its own content size), not
+       0 -- so a parent applying `flex: 1` to size two buttons evenly (e.g.
+       WorldSlotCard.svelte's action rows) still lets a WebKit button keep
+       its native minimum-content floor, which can end up wider or narrower
+       than a same-`flex:1` sibling whose text measures differently. Safari
+       is the browser that actually keeps that native floor in practice
+       (Chromium doesn't), which is why uneven button widths only ever
+       showed up in the real Tauri/WKWebView app, never in a Chromium check.
+       `min-width: 0` plus `appearance: none` remove both the floor and
+       whatever native sizing behavior WebKit was applying to the button. */
+    min-width: 0;
+    appearance: none;
+    -webkit-appearance: none;
     transition:
       filter 120ms ease,
       background 120ms ease,

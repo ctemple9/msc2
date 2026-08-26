@@ -1108,6 +1108,16 @@ Fix: `appearance: none; -webkit-appearance: none;` on `.thumb-area` (strips what
 **Commit:** `P12.4h: fix WebKit not stretching the world slot thumbnail to full width`
 **Batch:** solo
 
+### P12.4i — Fix uneven action-button widths, root-caused in the shared Button component
+**Status:** awaiting verification. Same WebKit-only family of bug as P12.4h, caught on the very next real-app look: each World Slot card's Activate/Convert and Rename/Delete pairs render at visibly different widths and don't line up into a clean 2×2 grid between the two rows, in the real Tauri app only. Root cause this time is one level lower than P12.4h — in `components/base/Button.svelte`'s own shared `.btn` class, not a local override: a flex item's `min-width` defaults to `auto` (its own content size), not `0`, so `WorldSlotCard.svelte`'s `.actions-row > .btn { flex: 1 }` (meant to split each row exactly 50/50) still lets Safari keep each button's native minimum-content floor — Chromium doesn't enforce that floor in practice, which is why this, like P12.4h, never showed up in this session's own Chromium-based checks. Since both rows share the same row width, an uneven intra-row split was also why the two rows didn't line up into a grid — fixing the split fixes both complaints from the one root cause, not two separate patches.
+
+Fixed in the shared component, not locally in `WorldSlotCard.svelte`, since every other screen's buttons sit inside `flex: 1` layouts the same way and would eventually hit the identical bug: `Button.svelte`'s `.btn` gains `box-sizing: border-box`, `min-width: 0`, and the same `appearance: none` / `-webkit-appearance: none` P12.4h already established for the same class of native-control sizing quirk. `WorldSlotCard.svelte`'s own `.actions-row` flex targets also get `min-width: 0` directly, belt-and-braces on top of the shared fix.
+**Files:** `clients/desktop-web/src/lib/components/base/Button.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`
+**What:** Fix uneven Activate/Convert/Rename/Delete button widths on the World Slot card, at the shared Button component so every other flex-laid-out button in the app is protected too.
+**Verify:** `npx svelte-check --tsconfig ./tsconfig.json` (only the 7 pre-existing unrelated errors), `npx prettier --check src/lib/components/base/Button.svelte src/lib/sections/worlds/WorldSlotCard.svelte`, `npm run build`, `npm run test:screen-worlds-backups`. Real verification is Cameron's own: reload the Tauri app and look at the Worlds tab.
+**Commit:** `P12.4i: fix uneven button widths in the shared Button component`
+**Batch:** solo
+
 ### P12.5 — Packs tab
 **Status:** not started
 **Files:** `src/lib/sections/` (packs section)

@@ -348,6 +348,7 @@
   .actions-row > :global(.btn),
   .actions-row .hint {
     flex: 1;
+    min-width: 0;
   }
   .hint {
     display: flex;

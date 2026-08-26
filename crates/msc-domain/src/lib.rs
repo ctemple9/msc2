@@ -17,6 +17,7 @@ pub mod nbt;
 pub mod network_safety;
 pub mod networking;
 pub mod operation;
+pub mod player_nbt;
 pub mod plugin_source;
 pub mod properties;
 pub mod provisioning;

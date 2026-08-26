@@ -23,13 +23,13 @@ use std::collections::BTreeMap;
 use std::io::Read;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Endianness {
+pub(crate) enum Endianness {
     Big,
     Little,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum NbtValue {
+pub enum NbtValue {
     Byte(i8),
     Short(i16),
     Int(i32),
@@ -209,14 +209,14 @@ impl<'a> NbtReader<'a> {
     }
 }
 
-fn parse_nbt_root(data: &[u8], endianness: Endianness) -> Option<NbtValue> {
+pub(crate) fn parse_nbt_root(data: &[u8], endianness: Endianness) -> Option<NbtValue> {
     NbtReader::new(data, endianness).read_root_compound().ok()
 }
 
 /// `gunzipData` (source line 1352-1363), replaced with in-memory
 /// decompression — see the module doc for why that's still a pure
 /// function.
-fn gunzip(bytes: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn gunzip(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut decoder = flate2::read::GzDecoder::new(bytes);
     let mut out = Vec::new();
     decoder.read_to_end(&mut out).ok()?;

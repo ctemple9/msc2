@@ -601,7 +601,7 @@ code. The rest apply the locked system to each screen, one at a time.
 **Batch:** solo
 
 ### P12.2c — Port the Java player NBT reader
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/player_nbt.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/player_nbt.rs`
 **What:** Port `extractStats`/`extractInventory` against the P12.2b fixtures, reusing `nbt.rs`'s existing tag-level reader per that step's findings rather than re-implementing gzip/tag parsing — same domain-module convention P6.9 established (pure computation only, no filesystem access; I/O stays in `msc-infrastructure`/callers).
 

@@ -5414,7 +5414,89 @@
             "x-error-code": "not_found"
           }
         },
-        "x-notes": "hasThumbnail on WorldSlotDTO tells a client whether to bother calling this. Thumbnail generation itself is deterministic and automatic on slot create/update (P6.12) -- there is no separate write route."
+        "x-notes": "hasThumbnail on WorldSlotDTO tells a client whether to bother calling this. Thumbnail generation itself is deterministic and automatic on slot create/update (P6.12); POST on this path sets a client-supplied thumbnail."
+      },
+      "post": {
+        "summary": "Set a world slot's thumbnail from a staged image upload",
+        "operationId": "setWorldSlotThumbnail",
+        "x-permission-category": "worlds",
+        "parameters": [
+          {
+            "name": "slotId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorldThumbnailUploadRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Mutation applied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldMutationResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / invalid_body",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "slot_not_found / staged_upload_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "409": {
+            "description": "no_active_server / world_reconciliation_degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-notes": "Redeems exactly one staged upload with purpose world-thumbnail. The staged image is decoded, resized without upscaling to at most 800x450, JPEG-encoded, and saved as the slot thumbnail. Missing, expired, or wrong-purpose staged ids are plain 404 not_found responses."
       }
     },
     "/v1/backups/delete": {
@@ -9861,6 +9943,17 @@
           "stagedUploadId"
         ]
       },
+      "WorldThumbnailUploadRequestDTO": {
+        "type": "object",
+        "properties": {
+          "stagedUploadId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stagedUploadId"
+        ]
+      },
       "WorldExportRequestDTO": {
         "type": "object",
         "properties": {
@@ -10000,6 +10093,7 @@
             "enum": [
               "world-import",
               "active-world-replace",
+              "world-thumbnail",
               "modpack-archive",
               "addon-local-file",
               "curseforge-manual-file"

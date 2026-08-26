@@ -88,6 +88,7 @@ fn world_backup_routes_are_mounted_behind_bearer_auth() {
     for path in [
         "/v1/worlds",
         "/v1/worlds/convert/formats",
+        "/v1/worlds/slot-id/thumbnail",
         "/v1/backups",
         "/v1/backups/config",
     ] {
@@ -114,6 +115,13 @@ fn world_backup_routes_are_mounted_behind_bearer_auth() {
     assert!(
         response.starts_with("HTTP/1.1 401"),
         "/v1/worlds/replace-active-world expected 401 (mounted + auth-gated), got: {}",
+        response.lines().next().unwrap_or_default()
+    );
+
+    let response = http_post(port, "/v1/worlds/slot-id/thumbnail", None);
+    assert!(
+        response.starts_with("HTTP/1.1 401"),
+        "/v1/worlds/slot-id/thumbnail expected 401 (mounted + auth-gated), got: {}",
         response.lines().next().unwrap_or_default()
     );
 

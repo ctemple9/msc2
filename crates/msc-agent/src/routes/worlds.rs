@@ -57,7 +57,7 @@ use msc_api::dto::{
     WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
     WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
     WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
-    WorldSlotDto, WorldSlotsResponseDto,
+    WorldSlotDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -114,7 +114,10 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds/activate", post(activate))
         .route("/worlds/convert/formats", get(convert_formats))
         .route("/worlds/convert", post(convert))
-        .route("/worlds/:slot_id/thumbnail", get(thumbnail))
+        .route(
+            "/worlds/:slot_id/thumbnail",
+            get(thumbnail).post(set_thumbnail),
+        )
         .with_state(state)
 }
 
@@ -870,6 +873,119 @@ pub async fn thumbnail(
     }
 }
 
+pub async fn set_thumbnail(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot_id): AxumPath<String>,
+    body: Option<Json<WorldThumbnailUploadRequestDto>>,
+) -> Response {
+    let lifecycle = &state.lifecycle;
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let Some(Json(body)) = body else {
+        return invalid_body("invalid_json", "Request body must be valid JSON.");
+    };
+    let server = match active_server_or_response(lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    let server_dir = Path::new(&server.server_dir);
+    let Some(slot) = find_slot(server_dir, &slot_id) else {
+        return slot_not_found(&slot_id);
+    };
+    let entry = {
+        state
+            .staging
+            .uploads
+            .lock()
+            .unwrap()
+            .remove(&body.staged_upload_id)
+    };
+    let Some(entry) = entry else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Unknown or already-redeemed staged upload.",
+        );
+    };
+    if now_unix() > entry.expires_at_unix
+        || !matches!(entry.purpose, StagedUploadPurposeDto::WorldThumbnail)
+    {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Unknown or already-redeemed staged upload.",
+        );
+    }
+
+    let operation_id = match begin_operation(
+        lifecycle,
+        &server.id,
+        "world-thumbnail",
+        "Setting world thumbnail.",
+    ) {
+        Ok(id) => id,
+        Err(response) => return response,
+    };
+    let response = match std::fs::read(&entry.path)
+        .ok()
+        .and_then(|bytes| encode_thumbnail(&bytes).ok())
+    {
+        Some(encoded) => {
+            match worlds::set_slot_thumbnail(&StdFileSystem, server_dir, &slot, &encoded) {
+                Ok(_) => {
+                    let _ = lifecycle.operations().succeed(
+                        &operation_id,
+                        "Thumbnail set.",
+                        BTreeMap::new(),
+                    );
+                    mutation_ok(lifecycle, &server, "thumbnail_set")
+                }
+                Err(error) => {
+                    let _ = lifecycle.operations().fail(
+                        &operation_id,
+                        "world_error",
+                        error.to_string(),
+                    );
+                    world_error_response(error)
+                }
+            }
+        }
+        None => {
+            let message = "Thumbnail image could not be decoded.";
+            let _ = lifecycle
+                .operations()
+                .fail(&operation_id, "invalid_body", message.to_string());
+            invalid_body("invalid_body", message)
+        }
+    };
+    let _ = std::fs::remove_file(&entry.path);
+    audit(
+        lifecycle,
+        &credential,
+        "POST",
+        "/v1/worlds/:slot_id/thumbnail",
+        response.status(),
+    );
+    response
+}
+
+fn encode_thumbnail(bytes: &[u8]) -> Result<Vec<u8>, image::ImageError> {
+    use image::ImageReader;
+    use image::codecs::jpeg::JpegEncoder;
+    use std::io::Cursor;
+
+    let image = ImageReader::new(Cursor::new(bytes))
+        .with_guessed_format()?
+        .decode()?;
+    let thumbnail = image.thumbnail(800, 450);
+    let mut encoded = Cursor::new(Vec::new());
+    let encoder = JpegEncoder::new_with_quality(&mut encoded, 82);
+    thumbnail.write_with_encoder(encoder)?;
+    Ok(encoded.into_inner())
+}
+
 // =====================================================================
 // Staged upload / import
 // =====================================================================
@@ -893,7 +1009,9 @@ pub async fn begin_staged_upload(
     // created for" (`phase6-api.md` §4), by checking the stored purpose
     // matches.
     match body.purpose {
-        StagedUploadPurposeDto::WorldImport | StagedUploadPurposeDto::ActiveWorldReplace => {}
+        StagedUploadPurposeDto::WorldImport
+        | StagedUploadPurposeDto::ActiveWorldReplace
+        | StagedUploadPurposeDto::WorldThumbnail => {}
         StagedUploadPurposeDto::ModpackArchive
         | StagedUploadPurposeDto::AddonLocalFile
         | StagedUploadPurposeDto::CurseforgeManualFile => {
@@ -2519,6 +2637,170 @@ mod tests {
         )
         .await;
         assert_eq!(second.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn world_backup_routes_staged_thumbnail_upload_round_trip() {
+        let (lifecycle, server_dir) = state_with_active_server("staged-thumbnail");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        let created = create(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldCreateRequestDto {
+                name: "Thumbnail World".to_string(),
+                seed: None,
+            })),
+        )
+        .await;
+        let created: WorldMutationResultDto = json_body(created).await;
+        let slot_id = created.updated.unwrap().slots[0].id.clone();
+
+        let begin = begin_staged_upload(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(StagedUploadBeginRequestDto {
+                purpose: StagedUploadPurposeDto::WorldThumbnail,
+                content_type: Some("image/png".to_string()),
+                operation_id: None,
+                file_id: None,
+            })),
+        )
+        .await;
+        assert_eq!(begin.status(), StatusCode::OK);
+        let begun: StagedUploadBeginResultDto = json_body(begin).await;
+
+        let source = image::RgbaImage::from_pixel(1200, 900, image::Rgba([32, 96, 144, 255]));
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(source)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let upload = upload_staged_bytes(
+            State(state.clone()),
+            Extension(credential.clone()),
+            AxumPath(begun.staged_upload_id.clone()),
+            Bytes::from(png.into_inner()),
+        )
+        .await;
+        assert_eq!(upload.status(), StatusCode::OK);
+
+        let response = set_thumbnail(
+            State(state.clone()),
+            Extension(credential.clone()),
+            AxumPath(slot_id.clone()),
+            Some(Json(WorldThumbnailUploadRequestDto {
+                staged_upload_id: begun.staged_upload_id,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let result: WorldMutationResultDto = json_body(response).await;
+        assert!(result.success);
+        assert!(
+            result
+                .updated
+                .unwrap()
+                .slots
+                .into_iter()
+                .find(|slot| slot.id == slot_id)
+                .unwrap()
+                .has_thumbnail
+        );
+
+        let thumbnail_path = server_dir.join(format!("world_slots/{slot_id}/thumbnail.jpg"));
+        let thumbnail = image::load_from_memory(&std::fs::read(thumbnail_path).unwrap()).unwrap();
+        assert_eq!((thumbnail.width(), thumbnail.height()), (600, 450));
+    }
+
+    #[tokio::test]
+    async fn world_backup_routes_staged_thumbnail_upload_rejects_invalid_image_and_wrong_purpose() {
+        let (lifecycle, server_dir) = state_with_active_server("staged-thumbnail-invalid");
+        let state = WorldsRoutesState::new(lifecycle.clone());
+        let credential = worlds_credential();
+
+        let created = create(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(WorldCreateRequestDto {
+                name: "Thumbnail World".to_string(),
+                seed: None,
+            })),
+        )
+        .await;
+        let created: WorldMutationResultDto = json_body(created).await;
+        let slot_id = created.updated.unwrap().slots[0].id.clone();
+
+        let begin = begin_staged_upload(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(StagedUploadBeginRequestDto {
+                purpose: StagedUploadPurposeDto::WorldThumbnail,
+                content_type: None,
+                operation_id: None,
+                file_id: None,
+            })),
+        )
+        .await;
+        let begun: StagedUploadBeginResultDto = json_body(begin).await;
+        let upload = upload_staged_bytes(
+            State(state.clone()),
+            Extension(credential.clone()),
+            AxumPath(begun.staged_upload_id.clone()),
+            Bytes::from_static(b"not an image"),
+        )
+        .await;
+        assert_eq!(upload.status(), StatusCode::OK);
+
+        let response = set_thumbnail(
+            State(state.clone()),
+            Extension(credential.clone()),
+            AxumPath(slot_id.clone()),
+            Some(Json(WorldThumbnailUploadRequestDto {
+                staged_upload_id: begun.staged_upload_id.clone(),
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        assert!(
+            !server_dir
+                .join(format!("world_slots/{slot_id}/thumbnail.jpg"))
+                .exists()
+        );
+
+        let second = set_thumbnail(
+            State(state.clone()),
+            Extension(credential.clone()),
+            AxumPath(slot_id.clone()),
+            Some(Json(WorldThumbnailUploadRequestDto {
+                staged_upload_id: begun.staged_upload_id,
+            })),
+        )
+        .await;
+        assert_eq!(second.status(), StatusCode::NOT_FOUND);
+
+        let wrong_purpose = begin_staged_upload(
+            State(state.clone()),
+            Extension(credential.clone()),
+            Some(Json(StagedUploadBeginRequestDto {
+                purpose: StagedUploadPurposeDto::WorldImport,
+                content_type: None,
+                operation_id: None,
+                file_id: None,
+            })),
+        )
+        .await;
+        let wrong_purpose: StagedUploadBeginResultDto = json_body(wrong_purpose).await;
+        let response = set_thumbnail(
+            State(state),
+            Extension(credential),
+            AxumPath(slot_id),
+            Some(Json(WorldThumbnailUploadRequestDto {
+                staged_upload_id: wrong_purpose.staged_upload_id,
+            })),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

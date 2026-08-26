@@ -113,6 +113,12 @@ pub struct WorldImportRequestDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WorldThumbnailUploadRequestDto {
+    pub staged_upload_id: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct WorldExportRequestDto {
     pub slot_id: String,
 }

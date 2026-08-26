@@ -367,9 +367,9 @@ pub async fn begin_staged_upload(
     };
 
     let max_bytes = match body.purpose {
-        StagedUploadPurposeDto::WorldImport | StagedUploadPurposeDto::ActiveWorldReplace => {
-            MAX_STAGED_UPLOAD_BYTES
-        }
+        StagedUploadPurposeDto::WorldImport
+        | StagedUploadPurposeDto::ActiveWorldReplace
+        | StagedUploadPurposeDto::WorldThumbnail => MAX_STAGED_UPLOAD_BYTES,
         StagedUploadPurposeDto::ModpackArchive => MAX_STAGED_UPLOAD_BYTES,
         StagedUploadPurposeDto::AddonLocalFile => MAX_LOCAL_ADDON_UPLOAD_BYTES,
         StagedUploadPurposeDto::CurseforgeManualFile => {

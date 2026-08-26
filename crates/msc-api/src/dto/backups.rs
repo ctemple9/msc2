@@ -110,6 +110,7 @@ pub struct BackupDeleteRequestDto {
 pub enum StagedUploadPurposeDto {
     WorldImport,
     ActiveWorldReplace,
+    WorldThumbnail,
     ModpackArchive,
     AddonLocalFile,
     CurseforgeManualFile,

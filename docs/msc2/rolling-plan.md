@@ -1017,7 +1017,7 @@ Destructive actions (Activate, Delete Slot) use the same inline expand-in-place 
 **Batch:** solo
 
 ### P12.4a — Amend the contract and wire Chunker's supported conversion formats
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`, `crates/msc-api/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
 **What:** Closes P12.4's own gap: `WorldConversionWizard.svelte` stops at an honest "not available yet" panel because nothing lets a client list Chunker's installed target formats before submitting `POST /v1/worlds/convert`. The good news found while scoping this: `crates/msc-agent/src/routes/worlds.rs`'s `LiveWorldConverter` is **already a real production implementation** (`resolve_java_path`/`is_installed`/`supported_formats` really shell out to `java`/the installed `chunker-cli.jar`) — `convert()`'s own validation already calls `converter.supported_formats(&resolved_java_path)` before running a conversion. This step only exposes that same already-working call as its own route; it adds no new capability to the agent.
 
@@ -1029,8 +1029,8 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 1, append a clause in 
 **Batch:** solo
 
 ### P12.4b — Amend the contract and wire world-slot thumbnail upload
-**Status:** not started
-**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`, `crates/msc-api/src/dto/backups.rs`, `crates/msc-api/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
+**Status:** awaiting verification
+**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`, `Cargo.lock`, `crates/msc-api/src/dto/backups.rs`, `crates/msc-api/src/dto/worlds.rs`, `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
 **What:** Closes P12.4's other gap: `GET /v1/worlds/{slotId}/thumbnail` is already real (P6.21), but nothing lets a client *set* one, even though the application layer already can — `crates/msc-application/src/worlds.rs::set_slot_thumbnail` and `crates/msc-infrastructure/src/world_store.rs::save_thumbnail` (both from P6.10/P6.12) are fully built and just never got an HTTP door. Reuse this app's existing generic staged-upload mechanism (`crates/msc-agent/src/routes/components.rs`'s real, already-wired `/v1/staged-uploads` + `/v1/staged-uploads/:id` routes, the same ones `POST /v1/worlds/import` already redeems from) rather than inventing a second, raw-bytes upload path — add a `WorldThumbnail` variant to `StagedUploadPurposeDto` (`crates/msc-api/src/dto/backups.rs`) alongside the existing `WorldImport`/`ActiveWorldReplace`/etc.
 
 Add `POST /v1/worlds/{slotId}/thumbnail` (`x-permission-category: "worlds"`) → new `WorldThumbnailUploadRequestDto { stagedUploadId: String }` → reuse `WorldMutationResultDTO` for the response (same "always return fresh state" shape every other slot mutation already uses — no new result DTO needed). Redeem exactly like `import` does: missing/expired/wrong-purpose staged id is a plain `404`; on success, decode the staged bytes as an image and call `worlds::set_slot_thumbnail`, then delete the staged file the same way `import` already does. `404 not_found` if the slot doesn't exist. Decoding-failure/oversized-image handling can reuse whatever error shape `set_slot_thumbnail` already reports — don't invent new error codes here.

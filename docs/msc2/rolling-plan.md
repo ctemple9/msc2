@@ -924,7 +924,7 @@ pub fn clear_events(fs: &dyn FileSystem, server_dir: &Path) -> Result<(), Sessio
 **Batch:** solo
 
 ### P12.3c — Wire GET /v1/session-log and POST /v1/session-log/clear
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/routes/session_log.rs` (new), `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/main.rs`
 **What:** Implement both routes against P12.3b's `session_log` module. `GET /v1/session-log`: `session_log::load_events` for the active server, mapped to `SessionEventDTO { id, playerName: player_name, eventType: event_type as string, timestamp }`, wrapped in `SessionLogResponseDTO { activeServerId: Some(id), events }`; no active server → `events: []`, `activeServerId: None` (matches this route's existing no-error 200-empty convention, same as `GET /v1/players` today for a not-yet-selected server — do not 409 here). `POST /v1/session-log/clear`: `409 conflict`/`no_active_server` if none active, else `session_log::clear_events` then return the same shape with `events: []`.
 

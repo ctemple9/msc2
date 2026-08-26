@@ -18,6 +18,7 @@ pub mod operations;
 pub mod performance;
 pub mod players;
 pub mod servers;
+pub mod session_log;
 pub mod settings;
 pub mod status;
 pub mod templates;

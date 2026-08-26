@@ -151,52 +151,40 @@
         </div>
       {:else}
         <div class="actions-row">
-          <span
-            class="hint"
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy || serverRunning || slot.isActive}
             title={serverRunning ? 'Stop the server before switching worlds' : 'Load this world'}
+            onclick={onRequestActivate}
           >
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={busy || serverRunning || slot.isActive}
-              onclick={onRequestActivate}
-            >
-              Activate
-            </Button>
-          </span>
-          <span
-            class="hint"
+            Activate
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={busy || serverRunning}
             title={serverRunning
               ? 'Stop the server before converting'
               : 'Convert this world to another edition'}
+            onclick={onConvert}
           >
-            <Button
-              size="sm"
-              variant="secondary"
-              disabled={busy || serverRunning}
-              onclick={onConvert}
-            >
-              Convert
-            </Button>
-          </span>
+            Convert
+          </Button>
         </div>
         <div class="actions-row">
           <Button size="sm" variant="secondary" disabled={busy} onclick={onRename}>Rename</Button>
-          <span
-            class="hint"
+          <Button
+            size="sm"
+            variant="destructive"
+            disabled={busy || slot.isActive}
             title={slot.isActive
               ? 'Activate a different slot before deleting this one'
               : 'Delete this slot'}
+            onclick={onRequestDelete}
           >
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={busy || slot.isActive}
-              onclick={onRequestDelete}
-            >
-              Delete
-            </Button>
-          </span>
+            Delete
+          </Button>
         </div>
       {/if}
     </div>
@@ -345,15 +333,8 @@
     display: flex;
     gap: 6px;
   }
-  .actions-row > :global(.btn),
-  .actions-row .hint {
+  .actions-row > :global(.btn) {
     flex: 1;
     min-width: 0;
-  }
-  .hint {
-    display: flex;
-  }
-  .hint :global(.btn) {
-    width: 100%;
   }
 </style>

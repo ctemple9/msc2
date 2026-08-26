@@ -7,6 +7,13 @@
   export let type: 'button' | 'submit' | 'reset' = 'button';
   export let disabled = false;
   export let label = '';
+  /** A native tooltip, set directly on the <button> -- not a wrapping
+   *  element. A <span> wrapper used only to carry `title` is both a flex
+   *  item and its own flex container at once, which is exactly the nested
+   *  shape that turned out unreliable for equal-width sizing across
+   *  browsers (see WorldSlotCard.svelte's history) -- this keeps every
+   *  Button a single element, however a parent's flex layout treats it. */
+  export let title: string | undefined = undefined;
   export let onclick: ((event: MouseEvent) => void) | undefined = undefined;
 </script>
 
@@ -14,6 +21,7 @@
   class="btn {variant} {size}"
   {type}
   {disabled}
+  {title}
   aria-label={variant === 'ghost-icon' ? label : undefined}
   {onclick}
 >

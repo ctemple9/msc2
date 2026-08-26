@@ -1118,6 +1118,16 @@ Fixed in the shared component, not locally in `WorldSlotCard.svelte`, since ever
 **Commit:** `P12.4i: fix uneven button widths in the shared Button component`
 **Batch:** solo
 
+### P12.4j — P12.4i's fix wasn't enough; remove the nested-flex tooltip wrapper causing it
+**Status:** awaiting verification. P12.4i's `min-width: 0`/`appearance: none` fix did not resolve it — Cameron rebuilt and the four action buttons were still visibly uneven and not lined up into a 2×2 grid. The actual structural problem sat one layer up: `WorldSlotCard.svelte` wrapped Activate/Convert/Delete in a `<span class="hint" title="...">` purely to carry a tooltip, and that span was *both* a flex item of `.actions-row` (needing `flex: 1` from its parent) *and* its own flex container sizing its child button via `width: 100%` — a percentage width resolving against a size (the span's own flex-basis-derived width) that isn't necessarily settled yet. That two-hop indirection, not the button's own min-width floor, is what P12.4i's fix couldn't reach.
+
+Removed the indirection instead of patching it again: `Button.svelte` gained a real `title` prop, set directly on the `<button>` element, so a tooltip no longer needs a wrapping element at all. `WorldSlotCard.svelte`'s four action buttons now pass `title` straight to `Button` and sit as plain, direct children of `.actions-row` — `flex: 1; min-width: 0` on `.actions-row > .btn` now has nothing between it and the actual button box. The `.hint`/`.hint :global(.btn)` rules and every `<span class="hint">` wrapper are gone from this file entirely, not just this one instance patched. Confirmed in Chromium the four buttons now measure equal (109–111px each, sub-2px apart — ordinary flex-basis rounding, not a real gap) with the exact real `campak` data shape; the real proof is still Cameron's own Tauri rebuild, same as P12.4h/i.
+**Files:** `clients/desktop-web/src/lib/components/base/Button.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`
+**What:** Give `Button` a real `title` prop and remove `WorldSlotCard.svelte`'s tooltip-only wrapper spans, eliminating the nested-flex structure P12.4i's fix couldn't reach.
+**Verify:** `npx svelte-check --tsconfig ./tsconfig.json` (only the 7 pre-existing unrelated errors), `npx prettier --check src/lib/components/base/Button.svelte src/lib/sections/worlds/WorldSlotCard.svelte`, `npm run build`, `npm run test:screen-worlds-backups`. Real verification is Cameron's own: reload the Tauri app and look at the Worlds tab.
+**Commit:** `P12.4j: remove the nested-flex tooltip wrapper that broke equal button widths`
+**Batch:** solo
+
 ### P12.5 — Packs tab
 **Status:** not started
 **Files:** `src/lib/sections/` (packs section)

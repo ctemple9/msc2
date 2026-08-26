@@ -596,7 +596,7 @@ code. The rest apply the locked system to each screen, one at a time.
 **Status:** not started
 **Files:** `fixtures/player-nbt/`
 **What:** Extract fixtures characterizing `PlayerNBTReader.swift`'s Java player `.dat` parsing (378 lines, gzip-compressed big-endian NBT): the `extractStats` fields (health/maxHealth/foodLevel/xpLevel/xpTotal/gameMode/posX/posY/posZ/dimensionDisplay/score — these already match `PlayerStatsDTO` in `docs/msc2/api-contract/openapi.json` field-for-field, confirming the frozen contract was modeled on this exact reader) and `extractInventory` (slot/itemID/iconName/count/displayName/enchantments/damage — matching `InventoryItemDTO`), plus corrupt/truncated/non-compound-root failure cases (same three-way split P6.7 used for `level.dat`). `crates/msc-domain/src/nbt.rs` (P6.9) already implements a general big-endian tag-level reader — this step's characterization must say explicitly which of `PlayerNBTReader`'s behavior is generic tag parsing already covered by `nbt.rs` versus player-`.dat`-specific extraction rules, so P12.2c doesn't rebuild the reader from scratch. Per the P6.3/P6.7 real-evidence precedent, at least one real player `.dat` sample is required rather than an entirely synthetic fixture set — but per that same precedent, "real evidence" means *at least one genuine file proving the gzip/parse pipeline works end-to-end*, not that every tag variant must be physically demonstrated in a live save. P6.7 itself paired two real `level.dat` files with synthetic characterization for cases no real evidence existed for (the Bedrock little-endian header, "synthesized from the source, not stood in as real evidence" — see that step's own committed note in `rolling-plan-archive.md`). Apply the same split here: any already-available real player `.dat` with at least one inventory item (a stacked item is enough — MSC 1's live `campak` server already has one, no new server session or manual enchanting/damaging needed) satisfies the real-evidence bar. Enchantment, damage, custom-name, and other tag-shape variants `extractInventory` handles may be characterized with hand-built synthetic NBT bytes grounded in `PlayerNBTReader.swift`'s own field-reading code, clearly labeled synthetic in the fixture, exactly like P6.7's Bedrock-header cases. Git-ignore the real sample's raw bytes the same way `fixtures/world-nbt/samples/` does.
-**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/player-nbt`
+**Verify:** `python3 tools/fixture-runner/run.py --validate-dir fixtures/player-nbt --expect 13`
 **Commit:** `P12.2b: extract Java player-data NBT fixtures`
 **Batch:** solo
 
@@ -604,6 +604,52 @@ code. The rest apply the locked system to each screen, one at a time.
 **Status:** not started
 **Files:** `crates/msc-domain/src/player_nbt.rs`, `crates/msc-domain/src/lib.rs`, `crates/msc-domain/tests/player_nbt.rs`
 **What:** Port `extractStats`/`extractInventory` against the P12.2b fixtures, reusing `nbt.rs`'s existing tag-level reader per that step's findings rather than re-implementing gzip/tag parsing — same domain-module convention P6.9 established (pure computation only, no filesystem access; I/O stays in `msc-infrastructure`/callers).
+
+Mirror `PlayerProfile.swift`/`PlayerStats`/`InventoryItem`/`ItemEnchantment`'s exact type split (`PlayerProfile.swift:75-176`) rather than reshaping to the wire DTOs here — DTO shaping is P12.2e's job, not this step's:
+
+```rust
+pub struct PlayerStats {
+    pub health: f32,
+    pub max_health: f32,
+    pub food_level: i32,
+    pub xp_level: i32,
+    pub xp_total: i32,
+    pub game_mode: i32,     // 0=Survival, 1=Creative, 2=Adventure, 3=Spectator
+    pub pos_x: f64,
+    pub pos_y: f64,
+    pub pos_z: f64,
+    pub dimension: String,  // raw NBT string, e.g. "minecraft:overworld" — NOT the display form
+    pub score: i32,
+}
+impl PlayerStats {
+    pub fn game_mode_display(&self) -> String { /* port PlayerStats.gameModeDisplay's switch, PlayerProfile.swift:89-97, verbatim */ }
+    pub fn dimension_display(&self) -> String { /* port PlayerStats.dimensionDisplay, PlayerProfile.swift:99-109, verbatim: "minecraft:overworld"->"Overworld", "minecraft:the_nether"->"Nether", "minecraft:the_end"->"The End", else the component after the last ':' with '_' replaced by ' ' then title-cased */ }
+}
+
+pub struct ItemEnchantment { pub id: String, pub level: i32 }
+impl ItemEnchantment {
+    pub fn display_name(&self) -> String { /* port ItemEnchantment.displayName, PlayerProfile.swift:159-164: component after last ':' in `id`, '_'->' ', title-cased, then " " + (roman numeral I-V if level<=5, else the raw integer) */ }
+}
+
+pub struct InventoryItem {
+    pub slot: i32,
+    pub item_id: String,
+    pub count: i32,
+    pub enchantments: Vec<ItemEnchantment>,
+    pub custom_name: Option<String>,
+    pub damage: i32,
+}
+impl InventoryItem {
+    pub fn display_name(&self) -> String { /* port InventoryItem.displayName, PlayerProfile.swift:139-144: custom_name if Some and non-empty, else the icon_name prettified the same way (see below) */ }
+    pub fn icon_name(&self) -> String { /* port InventoryItem.iconName, PlayerProfile.swift:147-149: component of item_id after the last ':' */ }
+}
+
+pub fn extract_stats(root: &NbtValue) -> Option<PlayerStats> { /* ports PlayerNBTReader.extractStats */ }
+pub fn extract_inventory(root: &NbtValue) -> Vec<InventoryItem> { /* ports PlayerNBTReader.extractInventory */ }
+pub fn read_all(gzip_bytes: &[u8]) -> (Option<PlayerStats>, Vec<InventoryItem>) { /* ports PlayerNBTReader.readAll: gunzip, parse root compound via nbt.rs, call both extract fns; any failure at any stage returns (None, vec![]), never panics */ }
+```
+
+Title-case note: Swift's `.capitalized` title-cases *every* whitespace-separated word in the string, not just the first character of the whole string — port that exactly (e.g. two-word item/dimension names must come out with both words capitalized).
 **Verify:** `cargo fmt --check && cargo clippy -p msc-domain --all-targets -- -D warnings && cargo nextest run -p msc-domain player_nbt`
 **Commit:** `P12.2c: port the Java player NBT reader`
 **Batch:** solo
@@ -611,15 +657,67 @@ code. The rest apply the locked system to each screen, one at a time.
 ### P12.2d — Port the Java player-profile pipeline
 **Status:** not started
 **Files:** `crates/msc-application/src/player_profiles.rs`, `crates/msc-application/tests/player_profiles.rs`
-**What:** Port `loadPlayerProfiles` (`AppViewModel+PlayerProfiles.swift:77`) for Java: scan `playerdata/*.dat`, merge `usercache.json` (username) and `ops.json` (`isOp`), mark `isOnline` from `output_reducer.rs`'s existing `online_players()` list (already tracks live Java names — no new tracking needed), read stats+inventory via P12.2c, and a hidden-profile set persisted as a JSON sidecar under the server dir, mirroring `bedrock_players.rs`'s name-cache pattern. Shape the result so P12.2e can merge it with Bedrock's existing `BedrockPlayerRecord` (`bedrock_players.rs`) into one `PlayerProfileDTO` list. Do not port UUID/Mojang resolution, skin override, or the migrate/copy/duplicate/delete mutation actions here — skin is P12.2f; the mutation actions are the open question recorded in this file's 2026-08-25 note above and are out of scope until Cameron decides on them.
+**What:** Port `loadPlayerProfiles` (`AppViewModel+PlayerProfiles.swift:77`, backed by `PlayerDataManager.swift`) for Java. Do not port UUID/Mojang resolution, skin override, or the migrate/copy/duplicate/delete mutation actions here — skin is P12.2f, mutations are P12.2i; `copyPlayerData` (overwrite-one-onto-another) stays deferred per this file's 2026-08-25 note.
+
+Struct (mirrors `PlayerProfile.swift:13-30`'s Java-relevant fields only — skip `xuid`/`floodgateUUID`, Bedrock-only):
+```rust
+pub struct JavaPlayerProfile {
+    pub uuid: Uuid,
+    pub username: Option<String>,
+    pub dat_file_path: PathBuf,
+    pub last_modified: SystemTime,
+    pub is_online: bool,
+    pub is_op: bool,
+    pub is_hidden: bool,
+    pub stats: Option<PlayerStats>,      // P12.2c type, populated eagerly (see below)
+    pub inventory: Vec<InventoryItem>,   // P12.2c type, populated eagerly
+}
+```
+
+Directory scan (`PlayerDataManager.swift:21-68`) — two candidate directories, **both** scanned when both exist (this differs from the single-directory resolution P12.2i's mutation functions use — don't conflate the two):
+- `{server_dir}/{level_name}/playerdata/`
+- `{server_dir}/{level_name}/players/data/` (some Paper configs)
+
+`level_name` comes from the same resolution `crates/msc-application/src/backups.rs:220` already uses: `msc_application::worlds::read_java_level_name(fs, server_dir)` passed through `msc_domain::world::current_level_name(ServerType::Java, raw.as_deref())` — reuse that exact two-line pattern, don't re-derive the Java default level name yourself.
+
+For each existing directory (in the order listed above), list entries via `fs.list`, keep only names ending in `.dat` (exclude `.dat_old`), parse the filename stem as a UUID, and skip any UUID already seen from an earlier directory in this scan (first-seen wins — matches Swift's `seen: Set<UUID>` dedup order exactly).
+
+`usercache.json` (`{server_dir}/usercache.json`, JSON array of `{"name": string, "uuid": string}`, `PlayerDataManager.swift:70-92`) → username lookup. `ops.json` (`{server_dir}/ops.json`, JSON array of `{"uuid": string}`, `PlayerDataManager.swift:94-108`) → `is_op` set. Both: missing file or malformed JSON → empty map/set, not an error (matches Swift's `try?`-and-fall-through).
+
+`is_online`: call `output_reducer`'s existing `online_players() -> &[String]` (already tracks live Java names from console join/leave parsing — no new tracking needed) and match by username (case-sensitive, matching Minecraft usernames' own case-sensitivity).
+
+Hidden set — file is **`{server_dir}/java_hidden.json`** (JSON array of lowercase UUID strings, at the server root, not under the world/level directory — pinned exactly from `JavaHiddenProfiles.swift:9,16-42`, do not invent a different name or shape). Missing file → empty set. Provide `is_hidden`, `hide`, `unhide` functions operating on this file, writing via `msc_infrastructure::atomic_write::atomic_write` (same import `bedrock_players.rs` already uses for its own JSON sidecars).
+
+Read stats+inventory via P12.2c's `read_all` for every scanned profile in this same pass, eagerly (not lazy/async like Swift's UI-driven version) — every mutation route in P12.2j already re-runs this whole scan afterward to build its response, so there is no separate "lazy load, fill in later" state to replicate; this is a deliberate simplification for a synchronous request/response server, not a question for Cameron.
+
+Error type — define `PlayerProfileError` in this module: variants `ProfileNotFound`, `UsernameUnknown`, `Io(std::io::Error)`. This is the *only* place this enum is defined; P12.2i extends its usage (no new variants needed) and P12.2j maps it to HTTP responses — don't create a second error type anywhere else in this feature.
+
+Shape the result (`Vec<JavaPlayerProfile>`) so P12.2e can map it alongside Bedrock's existing `BedrockPlayerRecord` (`bedrock_players.rs`) into one `PlayerProfileDTO` list.
 **Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application player_profiles`
 **Commit:** `P12.2d: port the Java player-profile pipeline`
 **Batch:** solo
 
 ### P12.2e — Wire GET /v1/players/profiles and POST /v1/players/hidden
 **Status:** not started
-**Files:** `crates/msc-agent/src/routes/players.rs` (new — the shared `/v1/players` route currently lives misnamed inside `routes/bedrock.rs`), `crates/msc-agent/src/main.rs`
-**What:** Implement the two already-frozen, currently-unimplemented routes from `docs/msc2/api-contract/openapi.json` — `GET /v1/players/profiles` → `PlayerProfilesResponseDTO` and `POST /v1/players/hidden` — for Java (P12.2d) and Bedrock (existing `bedrock_players.rs`), merged into one list. Leave `skinOverrideIdentifier`/`hasSkinFileOverride` present but unpopulated (P12.2f). Consider whether `routes/bedrock.rs`'s existing `/v1/players` (online-only) and `/allowlist` handlers should move into this new file now that it's serving both server types, since the file's own doc comment already says these are deliberately shared, non-Bedrock-specific routes.
+**Files:** `crates/msc-agent/src/routes/players.rs` (new — the shared `/v1/players` route currently lives misnamed inside `routes/bedrock.rs`), `crates/msc-agent/src/routes/mod.rs`, `crates/msc-agent/src/routes/templates.rs`, `crates/msc-agent/src/main.rs`, `crates/msc-application/src/bedrock_players.rs`
+**What:** Implement the two already-frozen, currently-unimplemented routes from `docs/msc2/api-contract/openapi.json` — `GET /v1/players/profiles` → `PlayerProfilesResponseDTO` and `POST /v1/players/hidden` — for Java (P12.2d) and Bedrock (existing `bedrock_players.rs`), merged into one list. Leave `skinOverrideIdentifier`/`hasSkinFileOverride` present but unpopulated (P12.2f).
+
+`id` scheme, ported from `PlayerProfile.id` (`PlayerProfile.swift:43`): Java profiles use the bare lowercase UUID string; Bedrock profiles use `"xuid_{xuid}"`. A merged list contains both kinds, so `POST /v1/players/hidden`'s `profileId` must be dispatched by prefix — `xuid_` present → Bedrock, else → Java UUID — to know which backend's hidden-store to write.
+
+**Bedrock currently has no write path for hidden profiles** — `bedrock_players.rs` only has `load_hidden` (read-only, line 162). Add a `set_hidden(fs, server_dir, xuid, hidden: bool) -> Result<(), BedrockPlayerError>` there, following the exact same `write_json`-based pattern `load_name_cache`/its own save function already use in that file (`bedrock_players.rs:150-159`), writing back to the same `bedrock_hidden.json`. Without this, the frozen route can only ever half-work.
+
+Java → `PlayerProfileDTO` field mapping (every field, no gaps):
+- `id` = `profile.uuid` as lowercase hyphenated string
+- `username` = `profile.username`
+- `imageIdentifier` = `profile.uuid` as lowercase string with hyphens **removed** (ports `PlayerProfile.imageIdentifier`'s Java fallback branch, `PlayerProfile.swift:60-62`)
+- `isOnline`, `isOp`, `isHidden` = direct from `JavaPlayerProfile`
+- `isBedrockPlayer` = `false`
+- `lastSeen` = `profile.last_modified` formatted as ISO8601. `system_time_to_iso8601` already exists for exactly this in `routes/templates.rs:55` but is private to that file — move it to `routes/mod.rs` as `pub(crate) fn`, update `templates.rs` to call `super::system_time_to_iso8601`, and call the same function here. Don't write a second date-formatting function.
+- `skinOverrideIdentifier`/`hasSkinFileOverride` = omit (P12.2f)
+- `stats` = `None` if `profile.stats` is `None`, else `Some(PlayerStatsDTO { health, maxHealth: max_health, foodLevel: food_level, xpLevel: xp_level, xpTotal: xp_total, gameMode: game_mode, gameModeDisplay: stats.game_mode_display(), posX: pos_x, posY: pos_y, posZ: pos_z, dimensionDisplay: stats.dimension_display(), score })` — note `dimension` (raw) is dropped, only `dimensionDisplay` goes on the wire
+- `inventory` = `profile.inventory` mapped to `InventoryItemDTO { slot, itemID: item_id, iconName: item.icon_name(), count, displayName: item.display_name(), enchantments: [...], damage }`, `enchantments` mapped to `ItemEnchantmentDTO { id, level, displayName: e.display_name() }` — always `[]`, never omitted, if empty
+
+Bedrock → `PlayerProfileDTO`: reuse `BedrockPlayerRecord`'s existing fields for identity/`isOnline`-equivalent state. `BedrockPlayerRecord` today only carries `has_stats: bool`/`inventory_items: usize` (counts, not the actual parsed data) — it cannot fully populate `stats`/`inventory` yet. That's a known, pre-existing gap, **not something to fix in this step**: emit `stats: None`, `inventory: []` for Bedrock profiles here rather than extending `bedrock_players.rs`'s data model, which is separate scope from what Cameron asked for (the Java viewer).
 **Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent players`
 **Commit:** `P12.2e: wire GET /v1/players/profiles and POST /v1/players/hidden`
 **Batch:** solo
@@ -627,7 +725,18 @@ code. The rest apply the locked system to each screen, one at a time.
 ### P12.2f — Wire player skin resolution and override
 **Status:** not started
 **Files:** `crates/msc-agent/src/routes/players.rs`, `crates/msc-application/src/player_skin.rs` (new)
-**What:** Port `playerSkinProvider` (`AppViewModel+APIWiringContent.swift`, ~68 lines; symbol-ledger row 52, "player data remains in scope and this presentation path is deferred to Phase 11" — still undone): multi-source skin resolution (manual lookup override → Bedrock gamertag avatar → Java `mc-heads.net` avatar → local skin file), face crop, base64 PNG encode for `GET /v1/players/{profileId}/skin`; `POST /v1/players/skin-override` to set/clear the manual lookup override or upload a skin file. The Bedrock avatar path depends on Xbox lookup that Phase 11's scope doc already deferred — degrade honestly (a truthful "not available yet" state, same treatment P12.1a gave the sidebar avatar's Bedrock path) rather than faking it.
+**What:** Port `playerSkinProvider`/`playerSkinOverrideProvider` (`AppViewModel+APIWiringContent.swift:68-147`) for `GET /v1/players/{profileId}/skin` and `POST /v1/players/skin-override`.
+
+**Scope cut from Swift's version, and why:** `PlayerSkinOverrideRequestDTO` in the frozen contract has only `profileId`/`lookupIdentifier` — no field for uploading a skin file at all. So the local-skin-file-upload path (`PlayerSkinStore.saveSkin`, the `hasSkinFileOverride`/`skinFileName` half of Swift's model, and the face-crop-from-a-full-skin-texture code in `PlayerSkinRenderer.swift`) has nothing to attach to on the wire today and is **out of scope for this step** — not a simplification to double check with Cameron, just a direct consequence of what's already frozen. Leave `hasSkinFileOverride` always `false` in `PlayerProfileDTO` (P12.2e). Do not add the `image` crate or any PNG-decoding dependency; this step needs none.
+
+Override storage — file is **`{server_dir}/player_overrides.json`** (JSON object, `profileId -> {"lookupIdentifier": string|null, "skinFileName": string|null}`, pinned from `PlayerSkinStore.swift:19-39`; keep the unused `skinFileName` key in the Rust struct too, always `None`, so the file format doesn't need to change when skin upload is eventually added). Missing file → empty map.
+
+`GET /v1/players/{profileId}/skin` (ports `resolveAppearance`, `PlayerSkinStore.swift:94-111`, minus the skin-file branch per the cut above):
+1. Resolve `identifier`: the stored override's `lookupIdentifier` if set and non-empty, else `PlayerProfileDTO.imageIdentifier`'s Java value (uuid, no hyphens — same value P12.2e computes) for a Java profile, or the honest-unavailable state below for Bedrock.
+2. Java: fetch `https://mc-heads.net/avatar/{identifier}/128` using the same `ureq::Agent` pattern already established in `crates/msc-infrastructure/src/addon_provider.rs:147-168` (reuse that config approach, don't invent a different HTTP client setup). On success, base64-encode the raw response bytes as-is and return `imageMimeType: "image/png"`, `source: "lookup_override"` or `"profile_lookup"` depending on whether step 1 used an override. On fetch failure or non-200, return `500 internal_error` (this route's contract has no other applicable code for a transient upstream failure — `404 profile_not_found` is reserved for `profileId` not matching any known profile, checked before this fetch even happens).
+3. Bedrock: the Xbox-lookup dependency this needs was already deferred by Phase 11's scope doc and is still undone — degrade the same honest way P12.1a's sidebar avatar does for Bedrock (a real, truthful "not available yet" response, `success: false`, not a fabricated image).
+
+`POST /v1/players/skin-override`: set or clear (empty/absent `lookupIdentifier` → clear) the override's `lookupIdentifier` for `profileId` in `player_overrides.json`, leaving `skinFileName` untouched (always `None` per the scope cut above).
 **Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent player_skin`
 **Commit:** `P12.2f: wire player skin resolution and override`
 **Batch:** solo
@@ -719,24 +828,32 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 ### P12.2i — Port the player-data file mutation primitives
 **Status:** not started
 **Files:** `crates/msc-application/src/player_profiles.rs` (the module P12.2d created), `crates/msc-application/tests/player_profiles.rs`
-**What:** Port `PlayerDataManager`'s file-operation primitives (`PlayerDataManager.swift:131-164`) and the 4 approved `AppViewModel+PlayerProfiles.swift` action wrappers (lines 471-516; skip `copyPlayerData` at line 493 — deferred) into `player_profiles.rs`:
+**What:** Port `PlayerDataManager`'s file-operation primitives (`PlayerDataManager.swift:131-164`) and the 4 approved `AppViewModel+PlayerProfiles.swift` action wrappers (lines 471-516; skip `copyPlayerData` at line 493 — deferred) into `player_profiles.rs`. These operate against a **single** resolved directory, unlike P12.2d's scan (which reads both candidate directories) — add the single-directory resolver first:
 
+  - `resolve_player_data_dir(fs, server_dir, level_name) -> PathBuf` — ports `PlayerDataManager.playerDataDir` (`PlayerDataManager.swift:29-34`): checks `{server_dir}/{level_name}/playerdata/` then `{server_dir}/{level_name}/players/data/` via `fs.list(...).is_ok()`, returns the first that exists; if neither exists, returns the `playerdata/` path anyway (a non-existent path — matches Swift's `?? candidates[0]` fallback, callers then get a natural `NotFound` on the actual file op rather than a special-cased error here).
   - `dat_path(uuid, player_data_dir) -> PathBuf` — `{player_data_dir}/{uuid lowercased}.dat`.
-  - `copy_player_data(source_uuid, dest_uuid, player_data_dir) -> Result<(), PlayerProfileError>` — copies `{source}.dat` to `{dest}.dat`; if the destination already exists, remove it first, then copy (matches `PlayerDataManager.swift:135-143` exactly — not a rename/atomic-replace, a plain remove-then-copy).
-  - `delete_player_data(uuid, player_data_dir) -> Result<(), PlayerProfileError>` — removes `{uuid}.dat`. Errors if the file doesn't exist (`profile_not_found` — the file system error surfaces as-is, don't swallow it).
-  - `duplicate_player_data(uuid, player_data_dir) -> Result<Uuid, PlayerProfileError>` — generates a fresh random `Uuid::new_v4()`, calls `copy_player_data(uuid, new_uuid, dir)`, returns `new_uuid`.
-  - `migrate_to_offline_uuid(profile, player_data_dir) -> Result<Uuid, PlayerProfileError>` — requires `profile.username` to be `Some` and non-empty, else returns `PlayerProfileError::UsernameUnknown` (ports `ProfileError.usernameUnknown`, `AppViewModel+PlayerProfiles.swift:476`); computes the target via P12.2h's `offline_uuid`, calls `copy_player_data`, returns the target UUID.
-  - `migrate_to_uuid(profile, target_uuid, player_data_dir) -> Result<(), PlayerProfileError>` — no username requirement; straight `copy_player_data(profile.uuid, target_uuid, dir)`.
+  - `copy_player_data(source_uuid, dest_uuid, player_data_dir, fs) -> Result<(), PlayerProfileError>` — **note this differs from the literal Swift mechanics**: Swift's `FileManager.copyItem` requires removing an existing destination first (`PlayerDataManager.swift:135-143`), but Rust's injectable `FileSystem` trait (`crates/msc-infrastructure/src/fs.rs`) has no `copy`, only `read`/`write`/`remove`, and `write` already overwrites unconditionally — so port this as `fs.write(&dat_path(dest_uuid, dir), &fs.read(&dat_path(source_uuid, dir))?)`, no separate remove call. Same one-line "copy via read+write, since the trait has no native copy" pattern already established by `copy_via_fs` in `crates/msc-application/src/worlds.rs:540` — read that function for the pattern, don't call it directly (it's private to that module).
+  - `delete_player_data(uuid, player_data_dir, fs) -> Result<(), PlayerProfileError>` — `fs.remove(&dat_path(uuid, dir))`.
+  - `duplicate_player_data(uuid, player_data_dir, fs) -> Result<Uuid, PlayerProfileError>` — generates a fresh random `Uuid::new_v4()`, calls `copy_player_data(uuid, new_uuid, dir, fs)`, returns `new_uuid`.
+  - `migrate_to_offline_uuid(profile, player_data_dir, fs) -> Result<Uuid, PlayerProfileError>` — requires `profile.username` to be `Some` and non-empty, else returns `PlayerProfileError::UsernameUnknown` (ports `ProfileError.usernameUnknown`, `AppViewModel+PlayerProfiles.swift:476`); computes the target via P12.2h's `offline_uuid`, calls `copy_player_data`, returns the target UUID.
+  - `migrate_to_uuid(profile, target_uuid, player_data_dir, fs) -> Result<(), PlayerProfileError>` — no username requirement; straight `copy_player_data(profile.uuid, target_uuid, dir, fs)`.
 
-  All 5 return/propagate a shared `PlayerProfileError` enum (extend the one P12.2d already defined for `loadPlayerProfiles`'s I/O — do not create a second error type in this module) with a variant per contract error code from P12.2g (`ProfileNotFound`, `UsernameUnknown`, `Io(std::io::Error)`), so P12.2j's route layer can map each variant to its exact HTTP status/`x-error-code` without re-deriving the mapping.
+  Error mapping, all 5 functions: any `io::Error` from `fs.read`/`fs.remove` whose `.kind() == std::io::ErrorKind::NotFound` becomes `PlayerProfileError::ProfileNotFound`; every other `io::Error` becomes `PlayerProfileError::Io`. In practice P12.2j always resolves and confirms `profileId` via a fresh scan before calling any of these, so this mapping is a defensive backstop (e.g. a file removed between the scan and the mutation), not the primary source of a route's `404` — but keep it precise regardless, since these functions must stay independently correct and independently testable, not rely on a caller having already checked existence. Reuse the `PlayerProfileError` enum P12.2d already defined — do not create a second error type in this module.
 **Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application player_profiles`
 **Commit:** `P12.2i: port the player-data file mutation primitives`
 **Batch:** solo
 
 ### P12.2j — Wire the 4 player-data mutation routes
 **Status:** not started
-**Files:** `crates/msc-agent/src/routes/players.rs` (the file P12.2e created)
-**What:** Add the 4 handlers for P12.2g's routes (`delete`, `migrate-offline`, `migrate`, `duplicate`), each: parse the request DTO (400 on missing/invalid body per P12.2g), resolve `profileId` to a `.dat` path the same way P12.2e's `GET /v1/players/profiles` already does, call the matching P12.2i function, map `PlayerProfileError` to the exact status/`x-error-code` pairs P12.2g's contract specifies, and on success re-run the same profile scan+merge P12.2e's `GET /v1/players/profiles` uses to build the `profiles` field of `PlayerMutationResultDTO` (so the response is never stale relative to a fresh GET). Register all 4 routes in `main.rs` next to the existing `/v1/players/*` routes. Return `409 conflict` / `not_bedrock` (per P12.2g's contract) if the active server is Bedrock, rather than attempting a Java-only file operation against a LevelDB-backed server — note this is a genuine `409`, unlike `routes/bedrock.rs`'s read-only `GET /v1/players`, which answers a wrong-platform request with `200` + `note: "not_bedrock"` since a read has a valid empty answer and a mutation does not.
+**Files:** `crates/msc-agent/src/routes/players.rs` (the file P12.2e created), `crates/msc-agent/src/main.rs`
+**What:** Add the 4 handlers for P12.2g's routes (`delete`, `migrate-offline`, `migrate`, `duplicate`). Per handler, in this order:
+1. Parse the request DTO — `400 invalid_body` on missing/empty `profileId`, or (on `/migrate`) a `targetUuid` that doesn't parse as a UUID (`invalid_uuid`).
+2. `409 not_bedrock` if the active server is Bedrock (per P12.2g's contract) — this is a genuine `409`, unlike `routes/bedrock.rs`'s read-only `GET /v1/players`, which answers a wrong-platform request with `200` + `note: "not_bedrock"` since a read has a valid empty answer and a mutation does not.
+3. Run P12.2d's Java profile scan (same call `GET /v1/players/profiles`'s handler already makes) and find the profile whose `uuid` matches `profileId`. Not found → `404 profile_not_found`. **This scan-and-find is the primary source of the route's 404** — P12.2i's own `ProfileNotFound` mapping only fires on the rarer case of the file vanishing between this scan and the mutation call in step 4, and should map to the same `404 profile_not_found` if it does.
+4. Call `resolve_player_data_dir` (P12.2i) for the directory, then the matching P12.2i function (`delete_player_data`, `migrate_to_offline_uuid`, `migrate_to_uuid`, or `duplicate_player_data`), passing the real `FileSystem` impl. Map any resulting `PlayerProfileError` to its status/`x-error-code`: `ProfileNotFound`→404, `UsernameUnknown`→409 (`/migrate-offline` only), `Io`→500.
+5. On success, re-run the same P12.2d scan once more (the mutation changed disk state, so the pre-mutation scan from step 3 is now stale) to build the `profiles` field of `PlayerMutationResultDTO`; set `newProfileId` for `/migrate-offline`, `/migrate`, and `/duplicate` (the target/new UUID), leave it absent for `/delete`.
+
+Register all 4 routes in `main.rs` next to the existing `/v1/players/*` routes.
 **Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent players`
 **Commit:** `P12.2j: wire the 4 player-data mutation routes`
 **Batch:** solo

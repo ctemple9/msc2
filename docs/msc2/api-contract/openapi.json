@@ -3646,6 +3646,35 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/session-log/clear": {
+      "post": {
+        "summary": "Clear join/leave event history for the active server",
+        "responses": {
+          "200": {
+            "description": "Session log cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionLogResponseDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_active_server",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          }
+        },
+        "x-permission-category": "players"
+      }
+    },
     "/v1/console/tail": {
       "get": {
         "summary": "Last N console lines (query param n, default 200, clamped 1-2000)",

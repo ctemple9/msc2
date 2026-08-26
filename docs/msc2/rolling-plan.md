@@ -879,7 +879,7 @@ Register all 4 routes in `main.rs` next to the existing `/v1/players/*` routes.
 **Batch:** solo
 
 ### P12.3a — Amend the contract: add POST /v1/session-log/clear
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`
 **What:** `GET /v1/session-log` → `SessionLogResponseDTO` is already frozen (from an earlier phase) but has no handler anywhere in `crates/` — P12.3b/c implement it. This step covers the one piece that's missing from the contract entirely: MSC 1's Clear Log button (`SessionLogManager.clearEvents`) has nothing to call. Add:
 

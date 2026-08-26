@@ -5,7 +5,9 @@
 //! need to read a file from disk do that outside the domain crate.
 
 use crate::nbt::{self, Endianness};
+use md5::{Digest, Md5};
 use std::collections::BTreeMap;
+use uuid::Uuid;
 
 pub use crate::nbt::NbtValue;
 
@@ -192,6 +194,14 @@ pub fn read_all(gzip_bytes: &[u8]) -> (Option<PlayerStats>, Vec<InventoryItem>) 
         return (None, Vec::new());
     };
     (extract_stats(&root), extract_inventory(&root))
+}
+
+/// Computes the UUID Minecraft uses for a player in offline mode.
+pub fn offline_uuid(username: &str) -> Uuid {
+    let mut digest: [u8; 16] = Md5::digest(format!("OfflinePlayer:{username}").as_bytes()).into();
+    digest[6] = (digest[6] & 0x0f) | 0x30;
+    digest[8] = (digest[8] & 0x3f) | 0x80;
+    Uuid::from_bytes(digest)
 }
 
 fn int_field(dict: &BTreeMap<String, NbtValue>, key: &str) -> Option<i32> {

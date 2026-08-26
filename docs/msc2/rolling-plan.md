@@ -803,7 +803,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 **Batch:** solo
 
 ### P12.2h — Port the offline-UUID algorithm
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-domain/src/player_nbt.rs` (add to the module P12.2c created — this is a small pure function, not a new file), `crates/msc-domain/tests/player_nbt.rs`
 **What:** Port `PlayerDataManager.offlineUUID(for:)` (`PlayerDataManager.swift:118-129`) exactly. This is Java's `UUID.nameUUIDFromBytes`, a fixed public algorithm — not project-specific behavior, so no fixture-extraction step is needed; pin it with known-answer test vectors instead (computed independently below, not merely asserted — reproducible with any MD5 implementation):
 

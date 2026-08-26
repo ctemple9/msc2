@@ -2,7 +2,7 @@
 
 mod support;
 
-use msc_domain::player_nbt::{InventoryItem, ItemEnchantment, PlayerStats, read_all};
+use msc_domain::player_nbt::{InventoryItem, ItemEnchantment, PlayerStats, offline_uuid, read_all};
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -205,4 +205,19 @@ fn player_nbt_display_helpers_match_swift_capitalization_and_fallbacks() {
     };
     assert_eq!(item.display_name(), "Diamond Sword");
     assert_eq!(item.icon_name(), "diamond_sword");
+}
+
+#[test]
+fn offline_uuid_matches_java_name_uuid_vectors() {
+    let vectors = [
+        ("Notch", "b50ad385-829d-3141-a216-7e7d7539ba7f"),
+        ("Bob", "faa5dca3-c3d4-354b-ae1b-dde9e5a14b3b"),
+        ("jeb_", "a762f560-4fce-3236-812a-b80efff0b62b"),
+        ("Dinnerbone", "4d258a81-2358-3084-8166-05b9faccad80"),
+        ("", "fc5bc365-aedf-30a8-8b89-04e462e29bde"),
+    ];
+
+    for (username, expected) in vectors {
+        assert_eq!(offline_uuid(username).to_string(), expected);
+    }
 }

@@ -1053,7 +1053,7 @@ Widen `WorldImportRequestDto`: `staged_upload_id` keeps its `String` type but ga
 **Batch:** solo
 
 ### P12.4d — Port the Bedrock world-repair orchestration
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/world_repair.rs` (new), `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/world_repair.rs` (new)
 **What:** Ports `AppViewModel+WorldRepair.swift::repairWorldLevelDat` — the only genuinely new backend feature among P12.4's gaps, not just a missing route. Read `AppViewModel+WorldRepair.swift` in full before starting (already read once for P12.4's own investigation; re-read for the exact ordering, since every step here is safety-relevant). Sequence, matching source exactly: read `level-name` from `server.properties` → mandatory safety backup (abort on failure, nothing else touched) → rewrite `level-name` to a throwaway temp value → start the server and poll until it reaches its ready state (deadline: 180s, matching source) → stop it and wait for it to fully exit (deadline: 30s) → copy `level.dat`/`level.dat_old`/`levelname.txt` from the temp world folder into the real one (missing source files are skipped, not an error) → delete the temp world folder → restore the original `level-name` in `server.properties` regardless of outcome (every failure branch in source restores this before returning `false`).
 

@@ -1090,6 +1090,14 @@ Real wall-clock cost here (up to source's own 180s start-timeout) rules out a sy
 **Commit:** `P12.4f: connect the P12.4a-e backends to their frontends`
 **Batch:** solo
 
+### P12.4g — Make the API-type generator match the project's own Prettier config
+**Status:** awaiting verification. Resolves P12.4f's flagged tooling inconsistency, decided by Cameron: drop `generate.ts`'s own hardcoded `singleQuote: false` rather than accept double-quoted generated output project-wide. Replaced the hardcoded format-option object with `prettier.resolveConfig(outputPath)` (the project's real `prettier.config.js` — `singleQuote: true`, `printWidth: 100`, `trailingComma: 'all'`), spread ahead of the one setting the generator actually needs to force (`parser: 'typescript'`), so this can never silently drift from the rest of the repo's style again the way the hardcoded copy did since P11.29i. Regenerated `generated.ts` — byte-identical to what P12.4f had already hand-formatted with `prettier --write`, confirming the fix is correct with zero unrelated diff. `npm run api:generate -- --check` and `npx prettier --check` now both pass on the same file for the first time; `python3 tools/phase11/generated-types-check.py`'s own separate, pre-existing `OnboardingGuideDTO` regex bug (flagged in P12.4f, unrelated to quoting) is untouched.
+**Files:** `clients/desktop-web/src/lib/api/generate.ts`, `clients/desktop-web/src/lib/api/generated.ts`
+**What:** Stop hardcoding a driftable copy of the project's Prettier settings inside the API-type generator; resolve the real config instead.
+**Verify:** `npm run api:generate -- --check && npx prettier --check src/lib/api/generate.ts src/lib/api/generated.ts && npx svelte-check --tsconfig ./tsconfig.json && npm run test:screen-worlds-backups`
+**Commit:** `P12.4g: resolve the project's own prettier config in the API generator`
+**Batch:** solo
+
 ### P12.5 — Packs tab
 **Status:** not started
 **Files:** `src/lib/sections/` (packs section)

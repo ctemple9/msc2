@@ -21,9 +21,16 @@ async function generatedSource(): Promise<string> {
     additionalProperties: true,
     alphabetize: true,
   });
+  // Resolve the project's own prettier.config.js (singleQuote, printWidth,
+  // trailingComma, ...) instead of hardcoding a second, driftable copy of
+  // those settings here -- a hardcoded `singleQuote: false` previously
+  // disagreed with the rest of the repo's single-quote style for years
+  // without anyone noticing, since nothing ever re-ran this generator and
+  // `prettier --check` against its output in the same sitting.
+  const projectConfig = (await prettier.resolveConfig(outputPath)) ?? {};
   const types = await prettier.format(astToString(ast), {
+    ...projectConfig,
     parser: 'typescript',
-    singleQuote: false,
   });
   const contractHash = createHash('sha256').update(contractText).digest('hex');
 

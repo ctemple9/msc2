@@ -277,6 +277,19 @@ fn world_backup_conformance_world_import_request_matches_schema() {
         &WorldImportRequestDto {
             name: "Imported".to_string(),
             staged_upload_id: "upload-1".to_string(),
+            backup_id: None,
+        },
+    );
+}
+
+#[test]
+fn world_backup_conformance_world_import_request_from_backup_matches_schema() {
+    check(
+        "WorldImportRequestDTO",
+        &WorldImportRequestDto {
+            name: "Imported".to_string(),
+            staged_upload_id: String::new(),
+            backup_id: Some("world-2026-08-24-103000.zip".to_string()),
         },
     );
 }

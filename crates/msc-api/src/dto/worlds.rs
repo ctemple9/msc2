@@ -108,7 +108,10 @@ pub struct WorldDuplicateRequestDto {
 #[serde(rename_all = "camelCase")]
 pub struct WorldImportRequestDto {
     pub name: String,
+    #[serde(default)]
     pub staged_upload_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backup_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

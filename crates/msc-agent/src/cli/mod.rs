@@ -1875,6 +1875,7 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             let body = WorldImportRequestDto {
                 name,
                 staged_upload_id: begin.staged_upload_id,
+                backup_id: None,
             };
             let result: WorldMutationResultDto =
                 client.post_json("/v1/worlds/import", &body).await?;

@@ -63,6 +63,7 @@ use msc_api::dto::{
 use msc_api::dto::{
     StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
 };
+use msc_application::backups;
 use msc_application::world_conversion::{
     self, ConversionError, ConversionPlacement, WorldConverter,
 };
@@ -1140,34 +1141,57 @@ pub async fn import(
     if body.name.trim().is_empty() {
         return invalid_body("name_required", "name must not be blank.");
     }
+    let staged_upload_id = body.staged_upload_id.trim();
+    let backup_id = body.backup_id.as_deref().map(str::trim);
+    let has_staged_upload = !staged_upload_id.is_empty();
+    let has_backup = backup_id.is_some_and(|id| !id.is_empty());
+    if has_staged_upload == has_backup {
+        return invalid_body(
+            "invalid_body",
+            "exactly one of stagedUploadId or backupId must be provided.",
+        );
+    }
     let server = match active_server_or_response(lifecycle) {
         Ok(server) => server,
         Err(response) => return response,
     };
-    let entry = {
-        state
-            .staging
-            .uploads
-            .lock()
-            .unwrap()
-            .remove(&body.staged_upload_id)
+    let (source_path, staged_path) = if has_staged_upload {
+        let entry = {
+            state
+                .staging
+                .uploads
+                .lock()
+                .unwrap()
+                .remove(staged_upload_id)
+        };
+        let Some(entry) = entry else {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown or already-redeemed staged upload.",
+            );
+        };
+        if now_unix() > entry.expires_at_unix
+            || !matches!(entry.purpose, StagedUploadPurposeDto::WorldImport)
+        {
+            return error_response(
+                StatusCode::NOT_FOUND,
+                "not_found",
+                "Unknown or already-redeemed staged upload.",
+            );
+        }
+        (entry.path.clone(), Some(entry.path))
+    } else {
+        let backup_id = backup_id.expect("exactly one source was validated above");
+        let server_dir = Path::new(&server.server_dir);
+        let Some(entry) = backups::list_backups(&StdFileSystem, server_dir)
+            .into_iter()
+            .find(|entry| entry.filename == backup_id)
+        else {
+            return error_response(StatusCode::NOT_FOUND, "backup_not_found", "No such backup.");
+        };
+        (entry.zip_path, None)
     };
-    let Some(entry) = entry else {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged upload.",
-        );
-    };
-    if now_unix() > entry.expires_at_unix
-        || !matches!(entry.purpose, StagedUploadPurposeDto::WorldImport)
-    {
-        return error_response(
-            StatusCode::NOT_FOUND,
-            "not_found",
-            "Unknown or already-redeemed staged upload.",
-        );
-    }
 
     let operation_id =
         match begin_operation(lifecycle, &server.id, "world-import", "Importing world.") {
@@ -1180,7 +1204,7 @@ pub async fn import(
         Path::new(&server.server_dir),
         server.server_type,
         None,
-        &entry.path,
+        &source_path,
         body.name.trim(),
         &now,
     ) {
@@ -1197,7 +1221,9 @@ pub async fn import(
             world_error_response(error)
         }
     };
-    let _ = std::fs::remove_file(&entry.path);
+    if let Some(staged_path) = staged_path {
+        let _ = std::fs::remove_file(staged_path);
+    }
     audit(
         lifecycle,
         &credential,
@@ -2619,6 +2645,7 @@ mod tests {
             Some(Json(WorldImportRequestDto {
                 name: "Imported World".to_string(),
                 staged_upload_id: begun.staged_upload_id.clone(),
+                backup_id: None,
             })),
         )
         .await;

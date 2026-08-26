@@ -210,6 +210,57 @@ fn world_backup_routes_restart_recovers_each_active_replacement_boundary_and_ope
     }
 }
 
+#[test]
+fn world_backup_routes_imports_an_on_disk_legacy_backup_without_redeeming_it() {
+    let temp = temp_dir("world-legacy-backup-import");
+    let data_dir = temp.join("data");
+    let servers_root = temp.join("servers");
+    let server_dir = servers_root.join("legacy-backup-server");
+    let config_path = data_dir.join("server_config_swift.json");
+    let backup_path = server_dir.join("backups/legacy-world.zip");
+    fs::create_dir_all(&data_dir).unwrap();
+    fs::create_dir_all(backup_path.parent().unwrap()).unwrap();
+    fs::write(server_dir.join("paper.jar"), b"fake jar").unwrap();
+    fs::write(&backup_path, b"legacy backup bytes").unwrap();
+    write_single_server_config(&config_path, &servers_root, &server_dir);
+
+    let port = free_port();
+    let keychain_service = format!(
+        "com.msc2.world-legacy-backup-import.{}.{}",
+        std::process::id(),
+        suffix()
+    );
+    let log_path = temp.join("agent.log");
+    let mut agent = spawn_agent(
+        &format!("127.0.0.1:{port}"),
+        &data_dir,
+        &config_path,
+        &servers_root,
+        &keychain_service,
+        &log_path,
+    );
+    wait_for_health(port);
+
+    let response = http_post_json(
+        port,
+        "/v1/worlds/import",
+        TOKEN,
+        r#"{"name":"Imported Legacy","backupId":"legacy-world.zip"}"#,
+    );
+    assert!(
+        response.starts_with("HTTP/1.1 200"),
+        "unexpected response: {response}"
+    );
+    assert!(
+        response.contains(r#""name":"Imported Legacy"#),
+        "unexpected response: {response}"
+    );
+    assert!(backup_path.exists(), "legacy backup must remain available");
+
+    stop_child(&mut agent);
+    cleanup_secret(&keychain_service, "remote-api.owner-token");
+}
+
 fn seed_replace_boundary(server_dir: &Path, boundary: &str) {
     let replace_dir = server_dir.join("world_slots/.replace");
     fs::create_dir_all(&replace_dir).unwrap();
@@ -334,6 +385,21 @@ fn http_post(port: u16, path: &str, bearer: Option<&str>) -> String {
         "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{auth}Content-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
         body.len(),
         body
+    )
+    .unwrap();
+    let mut response = String::new();
+    stream.read_to_string(&mut response).unwrap();
+    response
+}
+
+fn http_post_json(port: u16, path: &str, bearer: &str, body: &str) -> String {
+    let Ok(mut stream) = TcpStream::connect(SocketAddr::from(([127, 0, 0, 1], port))) else {
+        return String::new();
+    };
+    write!(
+        stream,
+        "POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nAuthorization: Bearer {bearer}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
     )
     .unwrap();
     let mut response = String::new();

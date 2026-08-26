@@ -9936,11 +9936,13 @@
           },
           "stagedUploadId": {
             "type": "string"
+          },
+          "backupId": {
+            "type": "string"
           }
         },
         "required": [
-          "name",
-          "stagedUploadId"
+          "name"
         ]
       },
       "WorldThumbnailUploadRequestDTO": {

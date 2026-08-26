@@ -62,9 +62,7 @@ Maybe you know Linux, you're perfectly comfortable in a shell, and you just want
 
 But maybe you just want to play with your niece, your siblings, or your friends. One person is on a computer. Somebody else has an Xbox. You've never opened a terminal and you have no desire to learn what a 'xyz' is tonight.
 
-There's a funny bit of irony here. I built MSC because I was trying to get away from the terminal. Now MSC 2 is being built to run headless and be controlled through one.
-
-The difference is that the terminal is an option now, not the price of entry.
+There's a funny bit of irony here. I built MSC because I was trying to get away from the terminal. Now MSC 2 is being built to run headless and be controlled through one lol.
 
 MSC 2 should work for you too.
 

@@ -650,13 +650,13 @@ pub fn read_all(gzip_bytes: &[u8]) -> (Option<PlayerStats>, Vec<InventoryItem>) 
 ```
 
 Title-case note: Swift's `.capitalized` title-cases *every* whitespace-separated word in the string, not just the first character of the whole string — port that exactly (e.g. two-word item/dimension names must come out with both words capitalized).
-**Verify:** `cargo fmt --check && cargo clippy -p msc-domain --all-targets -- -D warnings && cargo nextest run -p msc-domain player_nbt`
+**Verify:** `cargo fmt --check && cargo clippy -p msc-domain --all-targets -- -D warnings && cargo nextest run -p msc-domain --test player_nbt` (NOT `-p msc-domain player_nbt` with no `--test` — that form makes cargo compile all 38 of `msc-domain`'s separate integration-test binaries before applying the name filter, which is why earlier runs of this pattern took far longer than the tests themselves warrant; `--test player_nbt` builds only this one binary)
 **Commit:** `P12.2c: port the Java player NBT reader`
 **Batch:** solo
 
 ### P12.2d — Port the Java player-profile pipeline
-**Status:** not started
-**Files:** `crates/msc-application/src/player_profiles.rs`, `crates/msc-application/tests/player_profiles.rs`
+**Status:** awaiting verification
+**Files:** `crates/msc-application/src/player_profiles.rs`, `crates/msc-application/src/lib.rs`, `crates/msc-application/tests/player_profiles.rs`
 **What:** Port `loadPlayerProfiles` (`AppViewModel+PlayerProfiles.swift:77`, backed by `PlayerDataManager.swift`) for Java. Do not port UUID/Mojang resolution, skin override, or the migrate/copy/duplicate/delete mutation actions here — skin is P12.2f, mutations are P12.2i; `copyPlayerData` (overwrite-one-onto-another) stays deferred per this file's 2026-08-25 note.
 
 Struct (mirrors `PlayerProfile.swift:13-30`'s Java-relevant fields only — skip `xuid`/`floodgateUUID`, Bedrock-only):
@@ -693,7 +693,7 @@ Read stats+inventory via P12.2c's `read_all` for every scanned profile in this s
 Error type — define `PlayerProfileError` in this module: variants `ProfileNotFound`, `UsernameUnknown`, `Io(std::io::Error)`. This is the *only* place this enum is defined; P12.2i extends its usage (no new variants needed) and P12.2j maps it to HTTP responses — don't create a second error type anywhere else in this feature.
 
 Shape the result (`Vec<JavaPlayerProfile>`) so P12.2e can map it alongside Bedrock's existing `BedrockPlayerRecord` (`bedrock_players.rs`) into one `PlayerProfileDTO` list.
-**Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application player_profiles`
+**Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application --test player_profiles` (NOT a bare `-p msc-application player_profiles` filter — `msc-application` has 60 separate integration-test binaries and a package-wide filter compiles all of them first; `--test player_profiles` builds only this one)
 **Commit:** `P12.2d: port the Java player-profile pipeline`
 **Batch:** solo
 
@@ -718,7 +718,9 @@ Java → `PlayerProfileDTO` field mapping (every field, no gaps):
 - `inventory` = `profile.inventory` mapped to `InventoryItemDTO { slot, itemID: item_id, iconName: item.icon_name(), count, displayName: item.display_name(), enchantments: [...], damage }`, `enchantments` mapped to `ItemEnchantmentDTO { id, level, displayName: e.display_name() }` — always `[]`, never omitted, if empty
 
 Bedrock → `PlayerProfileDTO`: reuse `BedrockPlayerRecord`'s existing fields for identity/`isOnline`-equivalent state. `BedrockPlayerRecord` today only carries `has_stats: bool`/`inventory_items: usize` (counts, not the actual parsed data) — it cannot fully populate `stats`/`inventory` yet. That's a known, pre-existing gap, **not something to fix in this step**: emit `stats: None`, `inventory: []` for Bedrock profiles here rather than extending `bedrock_players.rs`'s data model, which is separate scope from what Cameron asked for (the Java viewer).
-**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent players`
+
+Tests: put them inline as `#[cfg(test)] mod tests` inside `routes/players.rs` itself, matching the convention every other route file with tests already uses (e.g. `routes/settings.rs`) — not a separate `crates/msc-agent/tests/players.rs` integration file. `msc-agent` has no lib target (only the `msc` bin), so this step's `--bin msc` Verify scoping only finds tests that live inside that binary's own source tree.
+**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent --bin msc players` (NOT a bare `-p msc-agent players` filter — `msc-agent` has 36 separate integration-test binaries and no lib target, so a package-wide filter compiles all of them first; `--bin msc` builds only the agent binary these tests actually live in)
 **Commit:** `P12.2e: wire GET /v1/players/profiles and POST /v1/players/hidden`
 **Batch:** solo
 
@@ -737,7 +739,7 @@ Override storage — file is **`{server_dir}/player_overrides.json`** (JSON obje
 3. Bedrock: the Xbox-lookup dependency this needs was already deferred by Phase 11's scope doc and is still undone — degrade the same honest way P12.1a's sidebar avatar does for Bedrock (a real, truthful "not available yet" response, `success: false`, not a fabricated image).
 
 `POST /v1/players/skin-override`: set or clear (empty/absent `lookupIdentifier` → clear) the override's `lookupIdentifier` for `profileId` in `player_overrides.json`, leaving `skinFileName` untouched (always `None` per the scope cut above).
-**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent player_skin`
+**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent --bin msc player_skin`
 **Commit:** `P12.2f: wire player skin resolution and override`
 **Batch:** solo
 
@@ -821,7 +823,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
   | `Dinnerbone` | `4d258a81-2358-3084-8166-05b9faccad80` |
   | `` (empty string — must not panic; MSC 1's caller guards against this at the profile level, but the function itself must stay total) | `fc5bc365-aedf-30a8-8b89-04e462e29bde` |
 
-**Verify:** `cargo fmt --check && cargo clippy -p msc-domain --all-targets -- -D warnings && cargo nextest run -p msc-domain offline_uuid`
+**Verify:** `cargo fmt --check && cargo clippy -p msc-domain --all-targets -- -D warnings && cargo nextest run -p msc-domain --test player_nbt offline_uuid` (same file as P12.2c added — scope with `--test player_nbt`, not a bare package-wide filter, for the same reason noted there)
 **Commit:** `P12.2h: port the offline-UUID algorithm`
 **Batch:** solo
 
@@ -839,7 +841,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
   - `migrate_to_uuid(profile, target_uuid, player_data_dir, fs) -> Result<(), PlayerProfileError>` — no username requirement; straight `copy_player_data(profile.uuid, target_uuid, dir, fs)`.
 
   Error mapping, all 5 functions: any `io::Error` from `fs.read`/`fs.remove` whose `.kind() == std::io::ErrorKind::NotFound` becomes `PlayerProfileError::ProfileNotFound`; every other `io::Error` becomes `PlayerProfileError::Io`. In practice P12.2j always resolves and confirms `profileId` via a fresh scan before calling any of these, so this mapping is a defensive backstop (e.g. a file removed between the scan and the mutation), not the primary source of a route's `404` — but keep it precise regardless, since these functions must stay independently correct and independently testable, not rely on a caller having already checked existence. Reuse the `PlayerProfileError` enum P12.2d already defined — do not create a second error type in this module.
-**Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application player_profiles`
+**Verify:** `cargo fmt --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application --test player_profiles` (NOT a bare `-p msc-application player_profiles` filter — `msc-application` has 60 separate integration-test binaries and a package-wide filter compiles all of them first; `--test player_profiles` builds only this one)
 **Commit:** `P12.2i: port the player-data file mutation primitives`
 **Batch:** solo
 
@@ -854,7 +856,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 5. On success, re-run the same P12.2d scan once more (the mutation changed disk state, so the pre-mutation scan from step 3 is now stale) to build the `profiles` field of `PlayerMutationResultDTO`; set `newProfileId` for `/migrate-offline`, `/migrate`, and `/duplicate` (the target/new UUID), leave it absent for `/delete`.
 
 Register all 4 routes in `main.rs` next to the existing `/v1/players/*` routes.
-**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent players`
+**Verify:** `cargo fmt --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent --bin msc players` (NOT a bare `-p msc-agent players` filter — `msc-agent` has 36 separate integration-test binaries and no lib target, so a package-wide filter compiles all of them first; `--bin msc` builds only the agent binary these tests actually live in)
 **Commit:** `P12.2j: wire the 4 player-data mutation routes`
 **Batch:** solo
 

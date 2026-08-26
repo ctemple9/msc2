@@ -1,8 +1,8 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: a10f61971790b85ae469b278ee1c1424c97fa0dc24395f4585fce1530ef0375e
+// Contract SHA-256: f5f06c12126fe467e4f6a58700d379241c0c598acffa0f77252df9064e64ee7b
 
 export interface paths {
-  "/v1/active-server": {
+  '/v1/active-server': {
     parameters: {
       query?: never;
       header?: never;
@@ -21,7 +21,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": {
+          'application/json': {
             serverId: string;
           } & {
             [key: string]: unknown;
@@ -35,7 +35,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["SimpleResult"];
+            'application/json': components['schemas']['SimpleResult'];
           };
         };
         /** @description missing_body / missing_server_id / invalid_json */
@@ -44,7 +44,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description unknown_server */
@@ -53,7 +53,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -64,7 +64,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/addons": {
+  '/v1/addons': {
     parameters: {
       query?: never;
       header?: never;
@@ -87,7 +87,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["AddonsResponseDTO"];
+            'application/json': components['schemas']['AddonsResponseDTO'];
           };
         };
       };
@@ -100,7 +100,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/allowlist": {
+  '/v1/allowlist': {
     parameters: {
       query?: never;
       header?: never;
@@ -123,7 +123,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["AllowlistResponseDTO"];
+            'application/json': components['schemas']['AllowlistResponseDTO'];
           };
         };
       };
@@ -139,7 +139,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["AllowlistMutationRequestDTO"];
+          'application/json': components['schemas']['AllowlistMutationRequestDTO'];
         };
       };
       responses: {
@@ -149,7 +149,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["AllowlistMutationResultDTO"];
+            'application/json': components['schemas']['AllowlistMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / invalid_action / missing_name */
@@ -158,7 +158,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description not_bedrock */
@@ -167,7 +167,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -176,7 +176,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -187,7 +187,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/auth/browser-sessions": {
+  '/v1/auth/browser-sessions': {
     parameters: {
       query?: never;
       header?: never;
@@ -197,14 +197,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Exchange a browser pairing code for the current browser session */
-    post: operations["exchangeBrowserSession"];
+    post: operations['exchangeBrowserSession'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/auth/browser-sessions/current": {
+  '/v1/auth/browser-sessions/current': {
     parameters: {
       query?: never;
       header?: never;
@@ -215,13 +215,13 @@ export interface paths {
     put?: never;
     post?: never;
     /** Revoke the current browser session */
-    delete: operations["logoutBrowserSession"];
+    delete: operations['logoutBrowserSession'];
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/auth/csrf": {
+  '/v1/auth/csrf': {
     parameters: {
       query?: never;
       header?: never;
@@ -229,7 +229,7 @@ export interface paths {
       cookie?: never;
     };
     /** Get the current browser session's CSRF token */
-    get: operations["getCsrfToken"];
+    get: operations['getCsrfToken'];
     put?: never;
     post?: never;
     delete?: never;
@@ -238,7 +238,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/auth/desktop-pairings": {
+  '/v1/auth/desktop-pairings': {
     parameters: {
       query?: never;
       header?: never;
@@ -248,14 +248,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Exchange a desktop pairing code for a host-scoped bearer credential */
-    post: operations["exchangeDesktopPairing"];
+    post: operations['exchangeDesktopPairing'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/auth/pairings": {
+  '/v1/auth/pairings': {
     parameters: {
       query?: never;
       header?: never;
@@ -265,14 +265,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Create a one-use pairing code for a browser or desktop client */
-    post: operations["createPairing"];
+    post: operations['createPairing'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/backups": {
+  '/v1/backups': {
     parameters: {
       query?: never;
       header?: never;
@@ -295,7 +295,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BackupsResponseDTO"];
+            'application/json': components['schemas']['BackupsResponseDTO'];
           };
         };
       };
@@ -308,7 +308,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/backups/config": {
+  '/v1/backups/config': {
     parameters: {
       query?: never;
       header?: never;
@@ -331,7 +331,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BackupConfigResponseDTO"];
+            'application/json': components['schemas']['BackupConfigResponseDTO'];
           };
         };
       };
@@ -347,7 +347,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["BackupConfigUpdateRequestDTO"];
+          'application/json': components['schemas']['BackupConfigUpdateRequestDTO'];
         };
       };
       responses: {
@@ -357,7 +357,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BackupConfigUpdateResultDTO"];
+            'application/json': components['schemas']['BackupConfigUpdateResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / no_changes */
@@ -366,7 +366,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description update rejected */
@@ -375,7 +375,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -386,7 +386,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/backups/delete": {
+  '/v1/backups/delete': {
     parameters: {
       query?: never;
       header?: never;
@@ -396,14 +396,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Delete a backup by id */
-    post: operations["deleteBackup"];
+    post: operations['deleteBackup'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/backups/now": {
+  '/v1/backups/now': {
     parameters: {
       query?: never;
       header?: never;
@@ -413,14 +413,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Start an immediate backup */
-    post: operations["createBackupNow"];
+    post: operations['createBackupNow'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/backups/restore": {
+  '/v1/backups/restore': {
     parameters: {
       query?: never;
       header?: never;
@@ -430,14 +430,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Restore a backup by id (filename) */
-    post: operations["restoreBackup"];
+    post: operations['restoreBackup'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/auth-prompt": {
+  '/v1/broadcast/auth-prompt': {
     parameters: {
       query?: never;
       header?: never;
@@ -460,7 +460,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastAuthPromptDTO"];
+            'application/json': components['schemas']['BroadcastAuthPromptDTO'];
           };
         };
       };
@@ -473,7 +473,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/auth-prompt/dismiss": {
+  '/v1/broadcast/auth-prompt/dismiss': {
     parameters: {
       query?: never;
       header?: never;
@@ -498,7 +498,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastSimpleResultDTO"];
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
           };
         };
       };
@@ -509,7 +509,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/autostart": {
+  '/v1/broadcast/autostart': {
     parameters: {
       query?: never;
       header?: never;
@@ -532,7 +532,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastAutoStartDTO"];
+            'application/json': components['schemas']['BroadcastAutoStartDTO'];
           };
         };
       };
@@ -548,7 +548,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["BroadcastAutoStartSetRequestDTO"];
+          'application/json': components['schemas']['BroadcastAutoStartSetRequestDTO'];
         };
       };
       responses: {
@@ -558,7 +558,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastAutoStartDTO"];
+            'application/json': components['schemas']['BroadcastAutoStartDTO'];
           };
         };
         /** @description invalid_json */
@@ -567,7 +567,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -578,7 +578,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/credentials": {
+  '/v1/broadcast/credentials': {
     parameters: {
       query?: never;
       header?: never;
@@ -597,7 +597,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["BroadcastCredentialsDTO"];
+          'application/json': components['schemas']['BroadcastCredentialsDTO'];
         };
       };
       responses: {
@@ -607,7 +607,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": {
+            'application/json': {
               result: string;
             } & {
               [key: string]: unknown;
@@ -620,7 +620,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description update_failed */
@@ -629,7 +629,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -640,7 +640,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/download-jar": {
+  '/v1/broadcast/download-jar': {
     parameters: {
       query?: never;
       header?: never;
@@ -665,7 +665,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastJarDownloadResultDTO"];
+            'application/json': components['schemas']['BroadcastJarDownloadResultDTO'];
           };
         };
         /** @description Download accepted; operationId is populated */
@@ -674,7 +674,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastJarDownloadResultDTO"];
+            'application/json': components['schemas']['BroadcastJarDownloadResultDTO'];
           };
         };
         /** @description Conflict */
@@ -683,7 +683,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -694,7 +694,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/jar-status": {
+  '/v1/broadcast/jar-status': {
     parameters: {
       query?: never;
       header?: never;
@@ -717,7 +717,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastJarStatusDTO"];
+            'application/json': components['schemas']['BroadcastJarStatusDTO'];
           };
         };
       };
@@ -730,7 +730,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/restart": {
+  '/v1/broadcast/restart': {
     parameters: {
       query?: never;
       header?: never;
@@ -755,7 +755,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastSimpleResultDTO"];
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
           };
         };
         /** @description Restart accepted; operationId is populated */
@@ -764,7 +764,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastSimpleResultDTO"];
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
           };
         };
       };
@@ -775,7 +775,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/start": {
+  '/v1/broadcast/start': {
     parameters: {
       query?: never;
       header?: never;
@@ -800,7 +800,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastSimpleResultDTO"];
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
           };
         };
         /** @description Start accepted; operationId is populated */
@@ -809,7 +809,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastSimpleResultDTO"];
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
           };
         };
       };
@@ -820,7 +820,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/status": {
+  '/v1/broadcast/status': {
     parameters: {
       query?: never;
       header?: never;
@@ -843,7 +843,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastStatusDTO"];
+            'application/json': components['schemas']['BroadcastStatusDTO'];
           };
         };
       };
@@ -856,7 +856,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/broadcast/stop": {
+  '/v1/broadcast/stop': {
     parameters: {
       query?: never;
       header?: never;
@@ -881,7 +881,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastSimpleResultDTO"];
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
           };
         };
         /** @description Stop accepted; operationId is populated and is not cancellable after graceful termination begins */
@@ -890,7 +890,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["BroadcastSimpleResultDTO"];
+            'application/json': components['schemas']['BroadcastSimpleResultDTO'];
           };
         };
       };
@@ -901,7 +901,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/capabilities": {
+  '/v1/capabilities': {
     parameters: {
       query?: never;
       header?: never;
@@ -924,7 +924,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["CapabilitiesDTO"];
+            'application/json': components['schemas']['CapabilitiesDTO'];
           };
         };
       };
@@ -937,7 +937,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/catalog/search": {
+  '/v1/catalog/search': {
     parameters: {
       query?: never;
       header?: never;
@@ -960,7 +960,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["CatalogSearchResponseDTO"];
+            'application/json': components['schemas']['CatalogSearchResponseDTO'];
           };
         };
       };
@@ -973,7 +973,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/command": {
+  '/v1/command': {
     parameters: {
       query?: never;
       header?: never;
@@ -992,7 +992,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["CommandRequest"];
+          'application/json': components['schemas']['CommandRequest'];
         };
       };
       responses: {
@@ -1002,7 +1002,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["CommandResult"];
+            'application/json': components['schemas']['CommandResult'];
           };
         };
         /** @description missing_body / missing_command / invalid_json */
@@ -1011,7 +1011,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description capability_unavailable when a Bedrock runtime cannot supply the command */
@@ -1020,7 +1020,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1031,7 +1031,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/components": {
+  '/v1/components': {
     parameters: {
       query?: never;
       header?: never;
@@ -1054,7 +1054,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ComponentsStatusDTO"];
+            'application/json': components['schemas']['ComponentsStatusDTO'];
           };
         };
       };
@@ -1067,7 +1067,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/components/client-export": {
+  '/v1/components/client-export': {
     parameters: {
       query?: never;
       header?: never;
@@ -1090,7 +1090,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ClientExportResponseDTO"];
+            'application/json': components['schemas']['ClientExportResponseDTO'];
           };
         };
         /** @description no_active_server */
@@ -1099,7 +1099,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1112,7 +1112,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/components/install": {
+  '/v1/components/install': {
     parameters: {
       query?: never;
       header?: never;
@@ -1122,14 +1122,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Install an add-on from the Modrinth catalog into the active server */
-    post: operations["installComponent"];
+    post: operations['installComponent'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/components/remove": {
+  '/v1/components/remove': {
     parameters: {
       query?: never;
       header?: never;
@@ -1148,7 +1148,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["AddonRemoveRequestDTO"];
+          'application/json': components['schemas']['AddonRemoveRequestDTO'];
         };
       };
       responses: {
@@ -1158,7 +1158,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["AddonRemoveResultDTO"];
+            'application/json': components['schemas']['AddonRemoveResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_jar_stem */
@@ -1167,7 +1167,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description not_found */
@@ -1176,7 +1176,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description not_supported */
@@ -1185,7 +1185,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -1194,7 +1194,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1205,7 +1205,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/components/update": {
+  '/v1/components/update': {
     parameters: {
       query?: never;
       header?: never;
@@ -1224,7 +1224,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ComponentUpdateRequestDTO"];
+          'application/json': components['schemas']['ComponentUpdateRequestDTO'];
         };
       };
       responses: {
@@ -1234,9 +1234,9 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json":
-              | components["schemas"]["AddonUpdateResultDTO"]
-              | components["schemas"]["ComponentUpdateResultDTO"];
+            'application/json':
+              | components['schemas']['AddonUpdateResultDTO']
+              | components['schemas']['ComponentUpdateResultDTO'];
           };
         };
         /** @description updateAll/jarStem-update shapes only: update admitted and started. result/count land on the operation's terminal AddonUpdateResultDTO. */
@@ -1245,7 +1245,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["AddonUpdateResultDTO"];
+            'application/json': components['schemas']['AddonUpdateResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_component_or_jar_stem / unknown_component */
@@ -1254,7 +1254,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description not_found (jarStem path) */
@@ -1263,7 +1263,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description not_supported (jarStem path) / pack_managed (ErrorDTO.details carries packName/packVersion; applies to every shape below except the legacy component=paper|geyser|floodgate path, which never touches an add-on) */
@@ -1272,7 +1272,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -1281,7 +1281,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1292,7 +1292,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/components/version": {
+  '/v1/components/version': {
     parameters: {
       query?: never;
       header?: never;
@@ -1302,14 +1302,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Change the active server's JAR version/build */
-    post: operations["changeVersion"];
+    post: operations['changeVersion'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/config/geyser": {
+  '/v1/config/geyser': {
     parameters: {
       query?: never;
       header?: never;
@@ -1332,7 +1332,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["GeyserConfigResponseDTO"];
+            'application/json': components['schemas']['GeyserConfigResponseDTO'];
           };
         };
       };
@@ -1348,7 +1348,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["GeyserConfigUpdateRequestDTO"];
+          'application/json': components['schemas']['GeyserConfigUpdateRequestDTO'];
         };
       };
       responses: {
@@ -1358,7 +1358,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["GeyserConfigUpdateResultDTO"];
+            'application/json': components['schemas']['GeyserConfigUpdateResultDTO'];
           };
         };
         /** @description invalid_json */
@@ -1367,7 +1367,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_server / not_installed */
@@ -1376,7 +1376,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description write_failed */
@@ -1385,7 +1385,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1396,7 +1396,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/config/java-runtime": {
+  '/v1/config/java-runtime': {
     parameters: {
       query?: never;
       header?: never;
@@ -1419,7 +1419,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["JavaConfigResponseDTO"];
+            'application/json': components['schemas']['JavaConfigResponseDTO'];
           };
         };
       };
@@ -1435,7 +1435,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["JavaConfigSetRequestDTO"];
+          'application/json': components['schemas']['JavaConfigSetRequestDTO'];
         };
       };
       responses: {
@@ -1445,7 +1445,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["JavaConfigResponseDTO"];
+            'application/json': components['schemas']['JavaConfigResponseDTO'];
           };
         };
         /** @description missing_body / invalid_json */
@@ -1454,7 +1454,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description set_failed */
@@ -1463,7 +1463,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1474,7 +1474,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/config/ram": {
+  '/v1/config/ram': {
     parameters: {
       query?: never;
       header?: never;
@@ -1497,7 +1497,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["RAMConfigResponseDTO"];
+            'application/json': components['schemas']['RAMConfigResponseDTO'];
           };
         };
       };
@@ -1513,7 +1513,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["RAMConfigUpdateRequestDTO"];
+          'application/json': components['schemas']['RAMConfigUpdateRequestDTO'];
         };
       };
       responses: {
@@ -1523,7 +1523,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["RAMConfigUpdateResultDTO"];
+            'application/json': components['schemas']['RAMConfigUpdateResultDTO'];
           };
         };
         /** @description invalid_json / no_changes */
@@ -1532,7 +1532,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server */
@@ -1541,7 +1541,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -1550,7 +1550,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1561,7 +1561,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/config/servers-root": {
+  '/v1/config/servers-root': {
     parameters: {
       query?: never;
       header?: never;
@@ -1584,7 +1584,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServersRootResponseDTO"];
+            'application/json': components['schemas']['ServersRootResponseDTO'];
           };
         };
       };
@@ -1600,7 +1600,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ServersRootSetRequestDTO"];
+          'application/json': components['schemas']['ServersRootSetRequestDTO'];
         };
       };
       responses: {
@@ -1610,7 +1610,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServersRootResponseDTO"];
+            'application/json': components['schemas']['ServersRootResponseDTO'];
           };
         };
         /** @description invalid_servers_root */
@@ -1619,7 +1619,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description set_failed */
@@ -1628,7 +1628,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1639,7 +1639,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/connectivity": {
+  '/v1/connectivity': {
     parameters: {
       query?: never;
       header?: never;
@@ -1662,7 +1662,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ConnectivityResponseDTO"];
+            'application/json': components['schemas']['ConnectivityResponseDTO'];
           };
         };
       };
@@ -1675,7 +1675,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/console/tail": {
+  '/v1/console/tail': {
     parameters: {
       query?: never;
       header?: never;
@@ -1698,7 +1698,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ConsoleLineDTO"][];
+            'application/json': components['schemas']['ConsoleLineDTO'][];
           };
         };
       };
@@ -1711,7 +1711,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/duckdns": {
+  '/v1/duckdns': {
     parameters: {
       query?: never;
       header?: never;
@@ -1734,7 +1734,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DuckDNSStatusResponseDTO"];
+            'application/json': components['schemas']['DuckDNSStatusResponseDTO'];
           };
         };
       };
@@ -1750,7 +1750,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["DuckDNSUpdateRequestDTO"];
+          'application/json': components['schemas']['DuckDNSUpdateRequestDTO'];
         };
       };
       responses: {
@@ -1760,7 +1760,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["DuckDNSUpdateResultDTO"];
+            'application/json': components['schemas']['DuckDNSUpdateResultDTO'];
           };
         };
         /** @description invalid_json */
@@ -1769,7 +1769,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description success: false */
@@ -1778,7 +1778,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1789,7 +1789,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/files": {
+  '/v1/files': {
     parameters: {
       query?: never;
       header?: never;
@@ -1812,7 +1812,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerFilesResponseDTO"];
+            'application/json': components['schemas']['ServerFilesResponseDTO'];
           };
         };
         /** @description forbidden (non-admin token) */
@@ -1821,7 +1821,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server */
@@ -1830,7 +1830,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1843,7 +1843,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/files/read": {
+  '/v1/files/read': {
     parameters: {
       query?: never;
       header?: never;
@@ -1866,7 +1866,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerFileReadResponseDTO"];
+            'application/json': components['schemas']['ServerFileReadResponseDTO'];
           };
         };
         /** @description missing_path */
@@ -1875,7 +1875,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description forbidden (non-admin token) */
@@ -1884,7 +1884,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description file_not_found */
@@ -1893,7 +1893,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description directory_not_file / not_previewable / no_active_server */
@@ -1902,7 +1902,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description read_failed */
@@ -1911,7 +1911,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -1924,7 +1924,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/guides/concept-guide": {
+  '/v1/guides/concept-guide': {
     parameters: {
       query?: never;
       header?: never;
@@ -1947,7 +1947,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ConceptGuideDTO"];
+            'application/json': components['schemas']['ConceptGuideDTO'];
           };
         };
       };
@@ -1960,7 +1960,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/guides/onboarding": {
+  '/v1/guides/onboarding': {
     parameters: {
       query?: never;
       header?: never;
@@ -1983,7 +1983,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["OnboardingGuideDTO"];
+            'application/json': components['schemas']['OnboardingGuideDTO'];
           };
         };
       };
@@ -1996,7 +1996,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/guides/router-catalog": {
+  '/v1/guides/router-catalog': {
     parameters: {
       query?: never;
       header?: never;
@@ -2019,7 +2019,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["RouterGuideCatalogDTO"];
+            'application/json': components['schemas']['RouterGuideCatalogDTO'];
           };
         };
       };
@@ -2032,7 +2032,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/health": {
+  '/v1/health': {
     parameters: {
       query?: never;
       header?: never;
@@ -2055,7 +2055,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["HealthResponseDTO"];
+            'application/json': components['schemas']['HealthResponseDTO'];
           };
         };
       };
@@ -2068,7 +2068,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/health/problems": {
+  '/v1/health/problems': {
     parameters: {
       query?: never;
       header?: never;
@@ -2091,7 +2091,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["HealthProblemsResponseDTO"];
+            'application/json': components['schemas']['HealthProblemsResponseDTO'];
           };
         };
       };
@@ -2104,7 +2104,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/health/repair": {
+  '/v1/health/repair': {
     parameters: {
       query?: never;
       header?: never;
@@ -2123,7 +2123,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["HealthRepairRequestDTO"];
+          'application/json': components['schemas']['HealthRepairRequestDTO'];
         };
       };
       responses: {
@@ -2133,7 +2133,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["HealthRepairResultDTO"];
+            'application/json': components['schemas']['HealthRepairResultDTO'];
           };
         };
         /** @description action=update|install only: repair admitted and started through the same verified add-on mutation path ordinary install/update use (P8.23). success/message/updated land on the operation's terminal HealthRepairResultDTO. */
@@ -2142,7 +2142,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["HealthRepairResultDTO"];
+            'application/json': components['schemas']['HealthRepairResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_problem_id / invalid_action / action_unavailable */
@@ -2151,7 +2151,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description problem_not_found */
@@ -2160,7 +2160,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_running / no_active_server */
@@ -2169,7 +2169,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -2178,7 +2178,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2189,7 +2189,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/help/{helpId}": {
+  '/v1/help/{helpId}': {
     parameters: {
       query?: never;
       header?: never;
@@ -2214,7 +2214,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["HelpTopicDTO"];
+            'application/json': components['schemas']['HelpTopicDTO'];
           };
         };
         /** @description Unknown helpId -- a normal, expected case, not a server fault. */
@@ -2223,7 +2223,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2236,7 +2236,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/help/catalog": {
+  '/v1/help/catalog': {
     parameters: {
       query?: never;
       header?: never;
@@ -2259,7 +2259,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["HelpCatalogDTO"];
+            'application/json': components['schemas']['HelpCatalogDTO'];
           };
         };
       };
@@ -2272,7 +2272,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/java-runtimes": {
+  '/v1/java-runtimes': {
     parameters: {
       query?: never;
       header?: never;
@@ -2295,7 +2295,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["JavaRuntimesResponseDTO"];
+            'application/json': components['schemas']['JavaRuntimesResponseDTO'];
           };
         };
       };
@@ -2308,7 +2308,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/java-runtimes/install": {
+  '/v1/java-runtimes/install': {
     parameters: {
       query?: never;
       header?: never;
@@ -2318,14 +2318,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Install a Java runtime the agent manages itself */
-    post: operations["installJavaRuntime"];
+    post: operations['installJavaRuntime'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/me": {
+  '/v1/me': {
     parameters: {
       query?: never;
       header?: never;
@@ -2348,7 +2348,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["MeResponseDTO"];
+            'application/json': components['schemas']['MeResponseDTO'];
           };
         };
       };
@@ -2361,7 +2361,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/modpacks/{operationId}/manual-file": {
+  '/v1/modpacks/{operationId}/manual-file': {
     parameters: {
       query?: never;
       header?: never;
@@ -2371,14 +2371,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Complete one pending author-blocked CurseForge file for a running modpack-import operation (D-027) */
-    post: operations["completeModpackManualFile"];
+    post: operations['completeModpackManualFile'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/modpacks/import": {
+  '/v1/modpacks/import': {
     parameters: {
       query?: never;
       header?: never;
@@ -2388,14 +2388,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Import a staged modpack archive into the active server, or explicitly replace an already pack-managed server's pack */
-    post: operations["importModpack"];
+    post: operations['importModpack'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/modpacks/inspect": {
+  '/v1/modpacks/inspect': {
     parameters: {
       query?: never;
       header?: never;
@@ -2405,14 +2405,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Inspect a staged modpack archive (.mrpack or CurseForge) without mutating any server */
-    post: operations["inspectModpack"];
+    post: operations['inspectModpack'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/operations": {
+  '/v1/operations': {
     parameters: {
       query?: never;
       header?: never;
@@ -2431,7 +2431,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["OperationCreateRequestDTO"];
+          'application/json': components['schemas']['OperationCreateRequestDTO'];
         };
       };
       responses: {
@@ -2441,7 +2441,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["OperationDTO"];
+            'application/json': components['schemas']['OperationDTO'];
           };
         };
         /** @description Unrecognized type. */
@@ -2450,7 +2450,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2461,7 +2461,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/operations/{id}": {
+  '/v1/operations/{id}': {
     parameters: {
       query?: never;
       header?: never;
@@ -2486,7 +2486,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["OperationDTO"];
+            'application/json': components['schemas']['OperationDTO'];
           };
         };
         /** @description Unknown id -- this phase, includes any operation forgotten across a restart (no journal yet). */
@@ -2495,7 +2495,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2508,7 +2508,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/operations/{id}/cancel": {
+  '/v1/operations/{id}/cancel': {
     parameters: {
       query?: never;
       header?: never;
@@ -2535,7 +2535,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["OperationDTO"];
+            'application/json': components['schemas']['OperationDTO'];
           };
         };
         /** @description Unknown id. */
@@ -2544,7 +2544,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description The worker reached a terminal state before cancellation admission. */
@@ -2553,7 +2553,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2564,7 +2564,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/performance": {
+  '/v1/performance': {
     parameters: {
       query?: never;
       header?: never;
@@ -2587,7 +2587,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PerformanceSnapshotDTO"];
+            'application/json': components['schemas']['PerformanceSnapshotDTO'];
           };
         };
       };
@@ -2600,7 +2600,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/players": {
+  '/v1/players': {
     parameters: {
       query?: never;
       header?: never;
@@ -2623,7 +2623,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayersResponseDTO"];
+            'application/json': components['schemas']['PlayersResponseDTO'];
           };
         };
       };
@@ -2636,7 +2636,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/players/{profileId}/skin": {
+  '/v1/players/{profileId}/skin': {
     parameters: {
       query?: never;
       header?: never;
@@ -2659,7 +2659,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayerSkinResponseDTO"];
+            'application/json': components['schemas']['PlayerSkinResponseDTO'];
           };
         };
         /** @description missing_profile_id */
@@ -2668,7 +2668,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description profile_not_found */
@@ -2677,7 +2677,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description lookup failed */
@@ -2686,7 +2686,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2699,7 +2699,159 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/players/hidden": {
+  '/v1/players/delete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Delete a player's data */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['PlayerDeleteRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Player data deleted */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['PlayerMutationResultDTO'];
+          };
+        };
+        /** @description missing_body / invalid_json / missing_profile_id */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description profile_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description no_active_server / not_bedrock */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/players/duplicate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Duplicate a player's data */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['PlayerDeleteRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Player data duplicated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['PlayerMutationResultDTO'];
+          };
+        };
+        /** @description missing_body / invalid_json / missing_profile_id */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description profile_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description no_active_server / not_bedrock */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/players/hidden': {
     parameters: {
       query?: never;
       header?: never;
@@ -2718,7 +2870,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["HiddenProfileMutationRequestDTO"];
+          'application/json': components['schemas']['HiddenProfileMutationRequestDTO'];
         };
       };
       responses: {
@@ -2728,7 +2880,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["HiddenProfileMutationResultDTO"];
+            'application/json': components['schemas']['HiddenProfileMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_profile_id */
@@ -2737,7 +2889,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description profile_not_found */
@@ -2746,7 +2898,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server */
@@ -2755,7 +2907,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -2764,7 +2916,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2775,7 +2927,159 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/players/profiles": {
+  '/v1/players/migrate': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Migrate player data to a custom UUID */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['PlayerMigrateRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Player data migrated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['PlayerMutationResultDTO'];
+          };
+        };
+        /** @description missing_body / invalid_json / missing_profile_id / invalid_uuid */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description profile_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description no_active_server / not_bedrock */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/players/migrate-offline': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Migrate player data to its offline UUID */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['PlayerDeleteRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Player data migrated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['PlayerMutationResultDTO'];
+          };
+        };
+        /** @description missing_body / invalid_json / missing_profile_id */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description profile_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description no_active_server / not_bedrock / username_unknown */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/players/profiles': {
     parameters: {
       query?: never;
       header?: never;
@@ -2798,7 +3102,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayerProfilesResponseDTO"];
+            'application/json': components['schemas']['PlayerProfilesResponseDTO'];
           };
         };
       };
@@ -2811,7 +3115,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/players/skin-override": {
+  '/v1/players/skin-override': {
     parameters: {
       query?: never;
       header?: never;
@@ -2830,7 +3134,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["PlayerSkinOverrideRequestDTO"];
+          'application/json': components['schemas']['PlayerSkinOverrideRequestDTO'];
         };
       };
       responses: {
@@ -2840,7 +3144,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayerSkinOverrideResultDTO"];
+            'application/json': components['schemas']['PlayerSkinOverrideResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_profile_id / invalid_profile_id */
@@ -2849,7 +3153,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description profile_not_found */
@@ -2858,7 +3162,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server */
@@ -2867,7 +3171,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -2876,7 +3180,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2887,7 +3191,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/playit": {
+  '/v1/playit': {
     parameters: {
       query?: never;
       header?: never;
@@ -2910,7 +3214,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayitStatusResponseDTO"];
+            'application/json': components['schemas']['PlayitStatusResponseDTO'];
           };
         };
       };
@@ -2923,7 +3227,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/playit/start": {
+  '/v1/playit/start': {
     parameters: {
       query?: never;
       header?: never;
@@ -2948,7 +3252,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayitActionResultDTO"];
+            'application/json': components['schemas']['PlayitActionResultDTO'];
           };
         };
         /** @description Tunnel start accepted; operationId is populated */
@@ -2957,7 +3261,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayitActionResultDTO"];
+            'application/json': components['schemas']['PlayitActionResultDTO'];
           };
         };
         /** @description not_enabled / no_secret_key / no_server */
@@ -2966,7 +3270,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -2977,7 +3281,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/playit/stop": {
+  '/v1/playit/stop': {
     parameters: {
       query?: never;
       header?: never;
@@ -3002,7 +3306,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayitActionResultDTO"];
+            'application/json': components['schemas']['PlayitActionResultDTO'];
           };
         };
         /** @description Tunnel stop accepted; operationId is populated and is not cancellable after graceful termination begins */
@@ -3011,7 +3315,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlayitActionResultDTO"];
+            'application/json': components['schemas']['PlayitActionResultDTO'];
           };
         };
       };
@@ -3022,7 +3326,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/resourcepacks": {
+  '/v1/resourcepacks': {
     parameters: {
       query?: never;
       header?: never;
@@ -3045,7 +3349,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ResourcePacksResponseDTO"];
+            'application/json': components['schemas']['ResourcePacksResponseDTO'];
           };
         };
       };
@@ -3058,7 +3362,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/resourcepacks/activate": {
+  '/v1/resourcepacks/activate': {
     parameters: {
       query?: never;
       header?: never;
@@ -3077,7 +3381,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ResourcePackActivateRequestDTO"];
+          'application/json': components['schemas']['ResourcePackActivateRequestDTO'];
         };
       };
       responses: {
@@ -3087,7 +3391,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ResourcePackMutationResultDTO"];
+            'application/json': components['schemas']['ResourcePackMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json */
@@ -3096,7 +3400,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server / java_only */
@@ -3105,7 +3409,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -3114,7 +3418,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3125,7 +3429,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/resourcepacks/remove": {
+  '/v1/resourcepacks/remove': {
     parameters: {
       query?: never;
       header?: never;
@@ -3144,7 +3448,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ResourcePackRemoveRequestDTO"];
+          'application/json': components['schemas']['ResourcePackRemoveRequestDTO'];
         };
       };
       responses: {
@@ -3154,7 +3458,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ResourcePackMutationResultDTO"];
+            'application/json': components['schemas']['ResourcePackMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json */
@@ -3163,7 +3467,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description pack_not_found */
@@ -3172,7 +3476,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -3181,7 +3485,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3192,7 +3496,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/resourcepacks/seturl": {
+  '/v1/resourcepacks/seturl': {
     parameters: {
       query?: never;
       header?: never;
@@ -3211,7 +3515,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ResourcePackSetURLRequestDTO"];
+          'application/json': components['schemas']['ResourcePackSetURLRequestDTO'];
         };
       };
       responses: {
@@ -3221,7 +3525,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ResourcePackMutationResultDTO"];
+            'application/json': components['schemas']['ResourcePackMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / url_required */
@@ -3230,7 +3534,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server / java_only */
@@ -3239,7 +3543,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -3248,7 +3552,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3259,7 +3563,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/resourcepacks/toggle": {
+  '/v1/resourcepacks/toggle': {
     parameters: {
       query?: never;
       header?: never;
@@ -3278,7 +3582,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ResourcePackToggleRequestDTO"];
+          'application/json': components['schemas']['ResourcePackToggleRequestDTO'];
         };
       };
       responses: {
@@ -3288,7 +3592,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ResourcePackMutationResultDTO"];
+            'application/json': components['schemas']['ResourcePackMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json */
@@ -3297,7 +3601,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description pack_not_found */
@@ -3306,7 +3610,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -3315,7 +3619,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3326,7 +3630,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/servers": {
+  '/v1/servers': {
     parameters: {
       query?: never;
       header?: never;
@@ -3349,7 +3653,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerDTO"][];
+            'application/json': components['schemas']['ServerDTO'][];
           };
         };
       };
@@ -3362,7 +3666,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/servers/create": {
+  '/v1/servers/create': {
     parameters: {
       query?: never;
       header?: never;
@@ -3372,14 +3676,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Create a new server */
-    post: operations["createServer"];
+    post: operations['createServer'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/servers/delete": {
+  '/v1/servers/delete': {
     parameters: {
       query?: never;
       header?: never;
@@ -3398,7 +3702,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ServerDeleteRequestDTO"];
+          'application/json': components['schemas']['ServerDeleteRequestDTO'];
         };
       };
       responses: {
@@ -3408,7 +3712,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerDeleteResultDTO"];
+            'application/json': components['schemas']['ServerDeleteResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_server_id */
@@ -3417,7 +3721,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_not_found */
@@ -3426,7 +3730,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_running */
@@ -3435,7 +3739,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description delete_failed */
@@ -3444,7 +3748,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3455,7 +3759,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/servers/eula": {
+  '/v1/servers/eula': {
     parameters: {
       query?: never;
       header?: never;
@@ -3474,7 +3778,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ServerEULARequestDTO"];
+          'application/json': components['schemas']['ServerEULARequestDTO'];
         };
       };
       responses: {
@@ -3484,7 +3788,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerEULAResultDTO"];
+            'application/json': components['schemas']['ServerEULAResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_server_id */
@@ -3493,7 +3797,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_not_found */
@@ -3502,7 +3806,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description eula_write_failed */
@@ -3511,7 +3815,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3522,7 +3826,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/servers/import": {
+  '/v1/servers/import': {
     parameters: {
       query?: never;
       header?: never;
@@ -3541,7 +3845,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ServerImportRequestDTO"];
+          'application/json': components['schemas']['ServerImportRequestDTO'];
         };
       };
       responses: {
@@ -3551,7 +3855,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerImportScanResponseDTO"];
+            'application/json': components['schemas']['ServerImportScanResponseDTO'];
           };
         };
         /** @description importExisting/importTransfer/rescan accepted as a durable background operation. Poll operationId for the final result. */
@@ -3560,7 +3864,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerImportResultDTO"];
+            'application/json': components['schemas']['ServerImportResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / invalid_action / missing_source_path / invalid_path / display_name_required / backup_path_required (typed for every cause except missing_body/invalid_json (still Error)); sourcePath is not required for action=rescan */
@@ -3569,7 +3873,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description source_not_found (typed for every cause except missing_body/invalid_json (still Error)) */
@@ -3578,7 +3882,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_running (typed for every cause except missing_body/invalid_json (still Error)) */
@@ -3587,7 +3891,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error (typed for every cause except missing_body/invalid_json (still Error)) */
@@ -3596,7 +3900,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3607,7 +3911,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/servers/rename": {
+  '/v1/servers/rename': {
     parameters: {
       query?: never;
       header?: never;
@@ -3626,7 +3930,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["ServerRenameRequestDTO"];
+          'application/json': components['schemas']['ServerRenameRequestDTO'];
         };
       };
       responses: {
@@ -3636,7 +3940,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ServerRenameResultDTO"];
+            'application/json': components['schemas']['ServerRenameResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_server_id / name_required */
@@ -3645,7 +3949,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_not_found */
@@ -3654,7 +3958,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_running */
@@ -3663,7 +3967,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -3672,7 +3976,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3683,7 +3987,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/session-log": {
+  '/v1/session-log': {
     parameters: {
       query?: never;
       header?: never;
@@ -3706,7 +4010,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["SessionLogResponseDTO"];
+            'application/json': components['schemas']['SessionLogResponseDTO'];
           };
         };
       };
@@ -3719,7 +4023,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/settings": {
+  '/v1/settings': {
     parameters: {
       query?: never;
       header?: never;
@@ -3742,7 +4046,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["SettingsResponseDTO"];
+            'application/json': components['schemas']['SettingsResponseDTO'];
           };
         };
       };
@@ -3758,7 +4062,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["SettingsUpdateRequestDTO"];
+          'application/json': components['schemas']['SettingsUpdateRequestDTO'];
         };
       };
       responses: {
@@ -3768,7 +4072,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["SettingsUpdateResultDTO"];
+            'application/json': components['schemas']['SettingsUpdateResultDTO'];
           };
         };
         /** @description missing_body / invalid_json (no_valid_changes uses SettingsUpdateResultDTO instead, see notes) */
@@ -3777,7 +4081,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server / not_supported */
@@ -3786,7 +4090,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -3795,7 +4099,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3806,7 +4110,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/staged-downloads/{id}": {
+  '/v1/staged-downloads/{id}': {
     parameters: {
       query?: never;
       header?: never;
@@ -3814,7 +4118,7 @@ export interface paths {
       cookie?: never;
     };
     /** Download bytes from a previously prepared staged export */
-    get: operations["downloadStagedBytes"];
+    get: operations['downloadStagedBytes'];
     put?: never;
     post?: never;
     delete?: never;
@@ -3823,7 +4127,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/staged-uploads": {
+  '/v1/staged-uploads': {
     parameters: {
       query?: never;
       header?: never;
@@ -3833,14 +4137,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Begin a bounded staged upload */
-    post: operations["beginStagedUpload"];
+    post: operations['beginStagedUpload'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/staged-uploads/{id}": {
+  '/v1/staged-uploads/{id}': {
     parameters: {
       query?: never;
       header?: never;
@@ -3849,7 +4153,7 @@ export interface paths {
     };
     get?: never;
     /** Upload bytes into a previously begun staging slot */
-    put: operations["uploadStagedBytes"];
+    put: operations['uploadStagedBytes'];
     post?: never;
     delete?: never;
     options?: never;
@@ -3857,7 +4161,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/start": {
+  '/v1/start': {
     parameters: {
       query?: never;
       header?: never;
@@ -3882,7 +4186,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["SimpleResult"];
+            'application/json': components['schemas']['SimpleResult'];
           };
         };
         /** @description capability_unavailable when the selected Bedrock runtime cannot start */
@@ -3891,7 +4195,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3902,7 +4206,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/status": {
+  '/v1/status': {
     parameters: {
       query?: never;
       header?: never;
@@ -3925,7 +4229,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["RemoteAPIStatus"];
+            'application/json': components['schemas']['RemoteAPIStatus'];
           };
         };
       };
@@ -3938,7 +4242,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/stop": {
+  '/v1/stop': {
     parameters: {
       query?: never;
       header?: never;
@@ -3963,7 +4267,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["SimpleResult"];
+            'application/json': components['schemas']['SimpleResult'];
           };
         };
         /** @description capability_unavailable when the selected Bedrock runtime cannot stop */
@@ -3972,7 +4276,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -3983,7 +4287,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/templates": {
+  '/v1/templates': {
     parameters: {
       query?: never;
       header?: never;
@@ -4006,7 +4310,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["TemplatesResponseDTO"];
+            'application/json': components['schemas']['TemplatesResponseDTO'];
           };
         };
       };
@@ -4022,7 +4326,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["TemplateMutationRequestDTO"];
+          'application/json': components['schemas']['TemplateMutationRequestDTO'];
         };
       };
       responses: {
@@ -4032,7 +4336,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["TemplateMutationResultDTO"];
+            'application/json': components['schemas']['TemplateMutationResultDTO'];
           };
         };
         /** @description invalid_action / name_required / template_required / missing_server_id / missing_source_path / invalid_path (typed for every cause except missing_body/invalid_json (still Error)) */
@@ -4041,7 +4345,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_not_found / template_not_found (typed for every cause except missing_body/invalid_json (still Error)) */
@@ -4050,7 +4354,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description server_running / unsupported_template (typed for every cause except missing_body/invalid_json (still Error)) */
@@ -4059,7 +4363,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error (typed for every cause except missing_body/invalid_json (still Error)) */
@@ -4068,7 +4372,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4079,7 +4383,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/users": {
+  '/v1/users': {
     parameters: {
       query?: never;
       header?: never;
@@ -4102,7 +4406,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["UserListResponseDTO"];
+            'application/json': components['schemas']['UserListResponseDTO'];
           };
         };
         /** @description forbidden */
@@ -4111,7 +4415,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4127,7 +4431,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["UserCreateRequestDTO"];
+          'application/json': components['schemas']['UserCreateRequestDTO'];
         };
       };
       responses: {
@@ -4137,7 +4441,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["UserCreateResultDTO"];
+            'application/json': components['schemas']['UserCreateResultDTO'];
           };
         };
         /** @description invalid_json / label_empty */
@@ -4146,7 +4450,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description invalid_role / invalid_permissions */
@@ -4155,7 +4459,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4166,7 +4470,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/users/revoke": {
+  '/v1/users/revoke': {
     parameters: {
       query?: never;
       header?: never;
@@ -4185,7 +4489,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["UserRevokeRequestDTO"];
+          'application/json': components['schemas']['UserRevokeRequestDTO'];
         };
       };
       responses: {
@@ -4195,7 +4499,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["UserRevokeResultDTO"];
+            'application/json': components['schemas']['UserRevokeResultDTO'];
           };
         };
         /** @description invalid_json */
@@ -4204,7 +4508,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description not_found */
@@ -4213,7 +4517,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -4222,7 +4526,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4233,7 +4537,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/users/update": {
+  '/v1/users/update': {
     parameters: {
       query?: never;
       header?: never;
@@ -4252,7 +4556,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["UserUpdateRequestDTO"];
+          'application/json': components['schemas']['UserUpdateRequestDTO'];
         };
       };
       responses: {
@@ -4262,7 +4566,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["UserUpdateResultDTO"];
+            'application/json': components['schemas']['UserUpdateResultDTO'];
           };
         };
         /** @description invalid_json / label_empty */
@@ -4271,7 +4575,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description not_found */
@@ -4280,7 +4584,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description invalid_role / invalid_permissions */
@@ -4289,7 +4593,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4300,7 +4604,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/versions": {
+  '/v1/versions': {
     parameters: {
       query?: never;
       header?: never;
@@ -4323,7 +4627,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["VersionsResponseDTO"];
+            'application/json': components['schemas']['VersionsResponseDTO'];
           };
         };
       };
@@ -4336,7 +4640,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/versions/create": {
+  '/v1/versions/create': {
     parameters: {
       query?: never;
       header?: never;
@@ -4359,7 +4663,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["VersionsResponseDTO"];
+            'application/json': components['schemas']['VersionsResponseDTO'];
           };
         };
       };
@@ -4372,7 +4676,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/watchdog/disable": {
+  '/v1/watchdog/disable': {
     parameters: {
       query?: never;
       header?: never;
@@ -4397,7 +4701,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WatchdogActionResultDTO"];
+            'application/json': components['schemas']['WatchdogActionResultDTO'];
           };
         };
         /** @description success: "false", error: <message> */
@@ -4406,7 +4710,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4417,7 +4721,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/watchdog/enable": {
+  '/v1/watchdog/enable': {
     parameters: {
       query?: never;
       header?: never;
@@ -4442,7 +4746,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WatchdogActionResultDTO"];
+            'application/json': components['schemas']['WatchdogActionResultDTO'];
           };
         };
         /** @description success: "false", error: <message> */
@@ -4451,7 +4755,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4462,7 +4766,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/watchdog/status": {
+  '/v1/watchdog/status': {
     parameters: {
       query?: never;
       header?: never;
@@ -4485,7 +4789,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WatchdogStatusResponseDTO"];
+            'application/json': components['schemas']['WatchdogStatusResponseDTO'];
           };
         };
       };
@@ -4498,7 +4802,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds": {
+  '/v1/worlds': {
     parameters: {
       query?: never;
       header?: never;
@@ -4521,7 +4825,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WorldSlotsResponseDTO"];
+            'application/json': components['schemas']['WorldSlotsResponseDTO'];
           };
         };
       };
@@ -4534,7 +4838,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/{slotId}/thumbnail": {
+  '/v1/worlds/{slotId}/thumbnail': {
     parameters: {
       query?: never;
       header?: never;
@@ -4542,7 +4846,7 @@ export interface paths {
       cookie?: never;
     };
     /** A world slot's thumbnail image, if one was generated */
-    get: operations["getWorldSlotThumbnail"];
+    get: operations['getWorldSlotThumbnail'];
     put?: never;
     post?: never;
     delete?: never;
@@ -4551,7 +4855,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/activate": {
+  '/v1/worlds/activate': {
     parameters: {
       query?: never;
       header?: never;
@@ -4561,14 +4865,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Activate a world slot (starts activation asynchronously) */
-    post: operations["activateWorldSlot"];
+    post: operations['activateWorldSlot'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/convert": {
+  '/v1/worlds/convert': {
     parameters: {
       query?: never;
       header?: never;
@@ -4578,14 +4882,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Start a Chunker world-format conversion */
-    post: operations["convertWorld"];
+    post: operations['convertWorld'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/create": {
+  '/v1/worlds/create': {
     parameters: {
       query?: never;
       header?: never;
@@ -4604,7 +4908,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["WorldCreateRequestDTO"];
+          'application/json': components['schemas']['WorldCreateRequestDTO'];
         };
       };
       responses: {
@@ -4614,7 +4918,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WorldMutationResultDTO"];
+            'application/json': components['schemas']['WorldMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_slot_id / name_required */
@@ -4623,7 +4927,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description slot_not_found / source_not_found */
@@ -4632,7 +4936,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server / server_running / bedrock_only */
@@ -4641,7 +4945,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -4650,7 +4954,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4661,7 +4965,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/delete": {
+  '/v1/worlds/delete': {
     parameters: {
       query?: never;
       header?: never;
@@ -4671,14 +4975,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Delete a non-active world slot */
-    post: operations["deleteWorldSlot"];
+    post: operations['deleteWorldSlot'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/duplicate": {
+  '/v1/worlds/duplicate': {
     parameters: {
       query?: never;
       header?: never;
@@ -4688,14 +4992,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Duplicate a world slot under a fresh id */
-    post: operations["duplicateWorldSlot"];
+    post: operations['duplicateWorldSlot'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/export": {
+  '/v1/worlds/export': {
     parameters: {
       query?: never;
       header?: never;
@@ -4705,14 +5009,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Stage a world slot's archive for download */
-    post: operations["exportWorldSlot"];
+    post: operations['exportWorldSlot'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/import": {
+  '/v1/worlds/import': {
     parameters: {
       query?: never;
       header?: never;
@@ -4722,14 +5026,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Import a staged world ZIP as a new slot */
-    post: operations["importWorldSlot"];
+    post: operations['importWorldSlot'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/rename": {
+  '/v1/worlds/rename': {
     parameters: {
       query?: never;
       header?: never;
@@ -4748,7 +5052,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["WorldRenameRequestDTO"];
+          'application/json': components['schemas']['WorldRenameRequestDTO'];
         };
       };
       responses: {
@@ -4758,7 +5062,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WorldMutationResultDTO"];
+            'application/json': components['schemas']['WorldMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_slot_id / name_required */
@@ -4767,7 +5071,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description slot_not_found */
@@ -4776,7 +5080,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server / server_running */
@@ -4785,7 +5089,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -4794,7 +5098,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4805,7 +5109,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/rename-active-world": {
+  '/v1/worlds/rename-active-world': {
     parameters: {
       query?: never;
       header?: never;
@@ -4815,14 +5119,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Directly rename the active/live world's on-disk folders */
-    post: operations["renameActiveWorld"];
+    post: operations['renameActiveWorld'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/repair": {
+  '/v1/worlds/repair': {
     parameters: {
       query?: never;
       header?: never;
@@ -4841,7 +5145,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["WorldRepairRequestDTO"];
+          'application/json': components['schemas']['WorldRepairRequestDTO'];
         };
       };
       responses: {
@@ -4851,7 +5155,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WorldMutationResultDTO"];
+            'application/json': components['schemas']['WorldMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_slot_id / name_required */
@@ -4860,7 +5164,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description slot_not_found */
@@ -4869,7 +5173,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server / server_running / bedrock_only / repair_in_progress */
@@ -4878,7 +5182,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -4887,7 +5191,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4898,7 +5202,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/replace": {
+  '/v1/worlds/replace': {
     parameters: {
       query?: never;
       header?: never;
@@ -4917,7 +5221,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["WorldReplaceRequestDTO"];
+          'application/json': components['schemas']['WorldReplaceRequestDTO'];
         };
       };
       responses: {
@@ -4927,7 +5231,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["WorldMutationResultDTO"];
+            'application/json': components['schemas']['WorldMutationResultDTO'];
           };
         };
         /** @description missing_body / invalid_json / missing_slot_id / name_required */
@@ -4936,7 +5240,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description slot_not_found / source_not_found */
@@ -4945,7 +5249,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description no_active_server / server_running / same_slot */
@@ -4954,7 +5258,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
         /** @description internal error */
@@ -4963,7 +5267,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["ErrorDTO"];
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -4974,7 +5278,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/replace-active-world": {
+  '/v1/worlds/replace-active-world': {
     parameters: {
       query?: never;
       header?: never;
@@ -4984,14 +5288,14 @@ export interface paths {
     get?: never;
     put?: never;
     /** Replace the active/live world's on-disk content directly (starts asynchronously) */
-    post: operations["replaceActiveWorld"];
+    post: operations['replaceActiveWorld'];
     delete?: never;
     options?: never;
     head?: never;
     patch?: never;
     trace?: never;
   };
-  "/v1/worlds/update": {
+  '/v1/worlds/update': {
     parameters: {
       query?: never;
       header?: never;
@@ -5001,7 +5305,7 @@ export interface paths {
     get?: never;
     put?: never;
     /** Save the current live world into the active slot */
-    post: operations["updateActiveWorldSlot"];
+    post: operations['updateActiveWorldSlot'];
     delete?: never;
     options?: never;
     head?: never;
@@ -5037,7 +5341,7 @@ export interface components {
       [key: string]: unknown;
     };
     AddonsResponseDTO: {
-      addons: components["schemas"]["AddonItemDTO"][];
+      addons: components['schemas']['AddonItemDTO'][];
       isResolving: boolean;
       /** @description Set when a provider was unreachable during this resolve pass (provider_unavailable) -- addons still reflect last-known persisted state, not a fabricated fresh result. */
       note?: string;
@@ -5070,18 +5374,18 @@ export interface components {
       [key: string]: unknown;
     };
     AllowlistMutationResultDTO: {
-      entries: components["schemas"]["AllowlistEntryDTO"][];
+      entries: components['schemas']['AllowlistEntryDTO'][];
       message: string;
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType: string;
       success: boolean;
     } & {
       [key: string]: unknown;
     };
     AllowlistResponseDTO: {
-      entries: components["schemas"]["AllowlistEntryDTO"][];
+      entries: components['schemas']['AllowlistEntryDTO'][];
       /** @description Optional Bedrock runtime state; file reads may remain available while the runtime is unavailable. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType: string;
     } & {
       [key: string]: unknown;
@@ -5093,7 +5397,7 @@ export interface components {
       intervalOptions: number[];
       note?: string;
       /** @description Optional runtime state while backup settings are read. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverName: string;
     } & {
       [key: string]: unknown;
@@ -5106,10 +5410,10 @@ export interface components {
       [key: string]: unknown;
     };
     BackupConfigUpdateResultDTO: {
-      config?: components["schemas"]["BackupConfigResponseDTO"];
+      config?: components['schemas']['BackupConfigResponseDTO'];
       message: string;
       /** @description Optional runtime state after backup settings are applied. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       success: boolean;
     } & {
       [key: string]: unknown;
@@ -5136,7 +5440,7 @@ export interface components {
       operationId?: string;
       result: string;
       /** @description Optional runtime state for the backup operation. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -5150,40 +5454,40 @@ export interface components {
       operationId?: string;
       result: string;
       /** @description Optional runtime state for the restore operation. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
     } & {
       [key: string]: unknown;
     };
     BackupsResponseDTO: {
-      backups: components["schemas"]["BackupItemDTO"][];
+      backups: components['schemas']['BackupItemDTO'][];
       /** @description Optional runtime state for the active server's backup source. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
     } & {
       [key: string]: unknown;
     };
     /** @description Phase 10 runtime disclosure shared by existing v1 DTOs. It describes the current Bedrock backend state, not the separate published compatibility matrix. */
     BedrockRuntimeStateDTO: {
       /** @enum {string|null} */
-      backend?: "native" | "vz-sidecar" | null;
+      backend?: 'native' | 'vz-sidecar' | null;
       /** @description Optional educational topic for the runtime reason. */
       helpId?: string | null;
       /** @enum {string|null} */
-      hostOs?: "macos" | "linux" | "windows" | null;
+      hostOs?: 'macos' | 'linux' | 'windows' | null;
       message?: string | null;
       /** @enum {string|null} */
       reasonCode?:
-        | "no_test_hardware"
-        | "unsupported_host"
-        | "missing_sidecar"
-        | "missing_bds"
-        | "not_provisioned"
-        | "verification_failed"
-        | "port_unavailable"
-        | "sidecar_unavailable"
-        | "not_detected"
+        | 'no_test_hardware'
+        | 'unsupported_host'
+        | 'missing_sidecar'
+        | 'missing_bds'
+        | 'not_provisioned'
+        | 'verification_failed'
+        | 'port_unavailable'
+        | 'sidecar_unavailable'
+        | 'not_detected'
         | null;
       /** @enum {string} */
-      state: "available" | "provisioning_required" | "unavailable";
+      state: 'available' | 'provisioning_required' | 'unavailable';
     } & {
       [key: string]: unknown;
     };
@@ -5261,26 +5565,26 @@ export interface components {
         [key: string]: unknown;
       };
       /** @enum {string} */
-      hostOs: "macos" | "linux" | "windows";
+      hostOs: 'macos' | 'linux' | 'windows';
       /** @description The calling token's granted categories, per D-019's nine-bucket vocabulary (Proposed). */
       permissions: (
-        | "serverControl"
-        | "players"
-        | "settings"
-        | "addons"
-        | "worlds"
-        | "broadcast"
-        | "networking"
-        | "fleet"
-        | "admin"
+        | 'serverControl'
+        | 'players'
+        | 'settings'
+        | 'addons'
+        | 'worlds'
+        | 'broadcast'
+        | 'networking'
+        | 'fleet'
+        | 'admin'
       )[];
       /** @description Java flags and Bedrock runtime state are host capabilities. Bedrock uses the separate D-022 compatibility matrix for published evidence. */
       serverTypes: {
         bedrock: {
           /** @enum {string|null} */
-          backend: "native" | "vz-sidecar" | null;
+          backend: 'native' | 'vz-sidecar' | null;
           /** @description Authoritative current runtime state; supported/backend remain for older clients. */
-          runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+          runtime?: components['schemas']['BedrockRuntimeStateDTO'];
           supported: boolean;
         } & {
           [key: string]: unknown;
@@ -5334,7 +5638,7 @@ export interface components {
       gameVersion?: string;
       loaderName?: string;
       note?: string;
-      results?: components["schemas"]["CatalogItemDTO"][];
+      results?: components['schemas']['CatalogItemDTO'][];
       supportsAddons: boolean;
     } & {
       [key: string]: unknown;
@@ -5354,7 +5658,7 @@ export interface components {
     ClientExportResponseDTO: {
       exportKind: string;
       isPaperLike: boolean;
-      items: components["schemas"]["ClientExportItemDTO"][];
+      items: components['schemas']['ClientExportItemDTO'][];
       note?: string;
       selectedCount: number;
       serverName?: string;
@@ -5376,12 +5680,12 @@ export interface components {
       command: string;
       result: string;
       /** @description Optional runtime state for a Bedrock command result. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
     } & {
       [key: string]: unknown;
     };
     ComponentsStatusDTO: {
-      components: components["schemas"]["ComponentStatusDTO"][];
+      components: components['schemas']['ComponentStatusDTO'][];
       restartRequiredToApply: boolean;
     } & {
       [key: string]: unknown;
@@ -5446,19 +5750,18 @@ export interface components {
       detail?: string;
       helpId?: string | null;
       /** @enum {string} */
-      outcome:
-        "open" | "closed" | "unreachable" | "unavailable" | "not_applicable";
+      outcome: 'open' | 'closed' | 'unreachable' | 'unavailable' | 'not_applicable';
     } & {
       [key: string]: unknown;
     };
     ConnectivityPortDiagnosticsDTO: {
-      local: components["schemas"]["ConnectivityPortDiagnosticDTO"];
-      public: components["schemas"]["ConnectivityPortDiagnosticDTO"];
+      local: components['schemas']['ConnectivityPortDiagnosticDTO'];
+      public: components['schemas']['ConnectivityPortDiagnosticDTO'];
     } & {
       [key: string]: unknown;
     };
     ConnectivityResponseDTO: {
-      broadcast?: components["schemas"]["ConnectivityBroadcastDTO"];
+      broadcast?: components['schemas']['ConnectivityBroadcastDTO'];
       detail?: string;
       externallyReachable?: boolean;
       headline: string;
@@ -5466,15 +5769,15 @@ export interface components {
       helpId?: string | null;
       joinAddress?: string;
       /** @enum {string} */
-      joinAddressSource?: "playit" | "duckdns" | "public_ip" | "unavailable";
+      joinAddressSource?: 'playit' | 'duckdns' | 'public_ip' | 'unavailable';
       localListening?: boolean;
       method: string;
       motd?: string;
       note?: string;
       playersMax?: number;
       playersOnline?: number;
-      playit?: components["schemas"]["ConnectivityPlayitDTO"];
-      portDiagnostics?: components["schemas"]["ConnectivityPortDiagnosticsDTO"];
+      playit?: components['schemas']['ConnectivityPlayitDTO'];
+      portDiagnostics?: components['schemas']['ConnectivityPortDiagnosticsDTO'];
       serverName: string;
       serverRunning: boolean;
       serverType: string;
@@ -5601,7 +5904,7 @@ export interface components {
     HealthProblemsResponseDTO: {
       isSoftFail: boolean;
       note?: string;
-      problems: components["schemas"]["StartupProblemDTO"][];
+      problems: components['schemas']['StartupProblemDTO'][];
       serverRunning: boolean;
       serverType: string;
     } & {
@@ -5618,12 +5921,12 @@ export interface components {
       /** @description Present only when action is update/install (P8.23 -- these route through the same verified add-on mutation paths as ordinary install/update, so they cost the same real download time). Absent for disable/delete, which stay the existing synchronous rename/removal. */
       operationId?: string;
       success: boolean;
-      updated?: components["schemas"]["HealthProblemsResponseDTO"];
+      updated?: components['schemas']['HealthProblemsResponseDTO'];
     } & {
       [key: string]: unknown;
     };
     HealthResponseDTO: {
-      cards: components["schemas"]["HealthCardDTO"][];
+      cards: components['schemas']['HealthCardDTO'][];
       note?: string;
       overallSeverity: string;
       serverName: string;
@@ -5673,7 +5976,7 @@ export interface components {
       count: number;
       damage: number;
       displayName: string;
-      enchantments: components["schemas"]["ItemEnchantmentDTO"][];
+      enchantments: components['schemas']['ItemEnchantmentDTO'][];
       iconName: string;
       itemID: string;
       slot: number;
@@ -5719,7 +6022,7 @@ export interface components {
       [key: string]: unknown;
     };
     JavaRuntimesResponseDTO: {
-      runtimes: components["schemas"]["JavaRuntimeDTO"][];
+      runtimes: components['schemas']['JavaRuntimeDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -5736,7 +6039,7 @@ export interface components {
        * @description import: the active server is not yet pack-managed. replace: an explicit whole-pack replacement of an already pack-managed server. Sending import against an already pack-managed server, or replace against one that isn't, is refused as ambiguous (409 conflict) -- the client must know and say which case this is, never guessed server-side.
        * @enum {string}
        */
-      action: "import" | "replace";
+      action: 'import' | 'replace';
       stagedUploadId: string;
     } & {
       [key: string]: unknown;
@@ -5745,7 +6048,7 @@ export interface components {
       message: string;
       operationId: string;
       /** @description Populated once the operation reaches its blocked-file checkpoint (statusLine names it too); resolve each via POST /v1/modpacks/{operationId}/manual-file. Empty when the pack has no blocked files. */
-      pendingManualFiles?: components["schemas"]["ModpackManualFileEntryDTO"][];
+      pendingManualFiles?: components['schemas']['ModpackManualFileEntryDTO'][];
       success: boolean;
     } & {
       [key: string]: unknown;
@@ -5758,11 +6061,11 @@ export interface components {
        * @description Unrecognized archives are a 400, not a 200 with a format value -- there is no third case to represent here.
        * @enum {string}
        */
-      format: "mrpack" | "curseforge";
+      format: 'mrpack' | 'curseforge';
       loaderName?: string;
       loaderVersion?: string;
       /** @description CurseForge files this pack references whose authors block API distribution (D-027). Empty for an mrpack, or a CurseForge pack with no blocked files. */
-      manualFiles: components["schemas"]["ModpackManualFileEntryDTO"][];
+      manualFiles: components['schemas']['ModpackManualFileEntryDTO'][];
       message: string;
       minecraftVersion?: string;
       packName?: string;
@@ -5789,7 +6092,7 @@ export interface components {
       allFilesResolved: boolean;
       message: string;
       operationId: string;
-      remainingManualFiles: components["schemas"]["ModpackManualFileEntryDTO"][];
+      remainingManualFiles: components['schemas']['ModpackManualFileEntryDTO'][];
       success: boolean;
     } & {
       [key: string]: unknown;
@@ -5800,12 +6103,12 @@ export interface components {
       id: string;
       /** @enum {string} */
       kind:
-        | "server_started"
-        | "server_stopped"
-        | "player_joined"
-        | "player_left"
-        | "helper_failed"
-        | "connectivity_changed";
+        | 'server_started'
+        | 'server_stopped'
+        | 'player_joined'
+        | 'player_left'
+        | 'helper_failed'
+        | 'connectivity_changed';
       occurredAtISO8601: string;
       serverId: string;
       title: string;
@@ -5829,7 +6132,7 @@ export interface components {
       /** @description Optional additive disclosure. False once a stop operation has entered graceful termination or another operation-specific non-cancelable boundary. */
       cancelable?: boolean;
       /** @description Present only when state == failed. */
-      error?: components["schemas"]["ErrorDTO"];
+      error?: components['schemas']['ErrorDTO'];
       /** @description Opaque, server-generated. Never client-supplied. */
       id: string;
       /** @description Null while queued, or for a type with no natural countable unit. */
@@ -5847,7 +6150,7 @@ export interface components {
        * @description P2.5 SS3's closed state machine.
        * @enum {string}
        */
-      state: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+      state: 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled';
       /** @description Human-readable, meant for direct display. */
       statusLine?: string | null;
       /** @description The thing the operation acts on, typically a server name/ID. Null if the operation type has no natural target. */
@@ -5860,20 +6163,20 @@ export interface components {
     /** @description An administrator's requested browser or desktop grant. The resulting code is one-use and shown once. */
     PairingCreateRequestDTO: {
       /** @enum {string} */
-      clientKind: "browser" | "desktop";
+      clientKind: 'browser' | 'desktop';
       /** @description Optional credential expiry. Pairing-code expiry is always ten minutes. */
       expiresAt?: string | null;
       label: string;
       permissions: string[];
       /** @enum {string} */
-      role: "admin" | "guest" | "named";
+      role: 'admin' | 'guest' | 'named';
     } & {
       [key: string]: unknown;
     };
     PairingCreateResultDTO: {
       agentHostId: string;
       /** @enum {string} */
-      clientKind: "browser" | "desktop";
+      clientKind: 'browser' | 'desktop';
       expiresAt: string;
       /** @description Raw 256-bit pairing code, returned only by POST /v1/auth/pairings. */
       pairingCode: string;
@@ -5888,16 +6191,21 @@ export interface components {
       [key: string]: unknown;
     };
     PerformanceSnapshotDTO: {
-      cpuPercent?: components["schemas"]["PerformanceMetricNumberDTO"];
+      cpuPercent?: components['schemas']['PerformanceMetricNumberDTO'];
       playersOnline?: number;
-      ramMaxMB?: components["schemas"]["PerformanceMetricNumberDTO"];
-      ramUsedMB?: components["schemas"]["PerformanceMetricNumberDTO"];
+      ramMaxMB?: components['schemas']['PerformanceMetricNumberDTO'];
+      ramUsedMB?: components['schemas']['PerformanceMetricNumberDTO'];
       /** @description Optional runtime state for this performance source. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType?: string;
-      tps1m?: components["schemas"]["PerformanceMetricNumberDTO"];
+      tps1m?: components['schemas']['PerformanceMetricNumberDTO'];
       ts: string;
-      worldSizeMB?: components["schemas"]["PerformanceMetricNumberDTO"];
+      worldSizeMB?: components['schemas']['PerformanceMetricNumberDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    PlayerDeleteRequestDTO: {
+      profileId: string;
     } & {
       [key: string]: unknown;
     };
@@ -5907,25 +6215,40 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    PlayerMigrateRequestDTO: {
+      profileId: string;
+      targetUuid: string;
+    } & {
+      [key: string]: unknown;
+    };
+    PlayerMutationResultDTO: {
+      message: string;
+      /** @description Set only by duplicate/migrate routes: the UUID the data now also lives under. */
+      newProfileId?: string | null;
+      profiles: components['schemas']['PlayerProfilesResponseDTO'];
+      success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
     PlayerProfileDTO: {
       hasSkinFileOverride?: boolean;
       id: string;
       imageIdentifier: string;
-      inventory: components["schemas"]["InventoryItemDTO"][];
+      inventory: components['schemas']['InventoryItemDTO'][];
       isBedrockPlayer: boolean;
       isHidden?: boolean;
       isOnline: boolean;
       isOp: boolean;
       lastSeen?: string;
       skinOverrideIdentifier?: string;
-      stats?: components["schemas"]["PlayerStatsDTO"];
+      stats?: components['schemas']['PlayerStatsDTO'];
       username?: string;
     } & {
       [key: string]: unknown;
     };
     PlayerProfilesResponseDTO: {
       isLoadingStats: boolean;
-      profiles: components["schemas"]["PlayerProfileDTO"][];
+      profiles: components['schemas']['PlayerProfileDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -5958,9 +6281,9 @@ export interface components {
     PlayersResponseDTO: {
       count: number;
       note?: string;
-      players: components["schemas"]["PlayerDTO"][];
+      players: components['schemas']['PlayerDTO'][];
       /** @description Optional Bedrock runtime state for the player data source. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -6036,7 +6359,7 @@ export interface components {
       pid?: number;
       running: boolean;
       /** @description Optional runtime state for the active Bedrock server. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType?: string;
     } & {
       [key: string]: unknown;
@@ -6061,7 +6384,7 @@ export interface components {
     ResourcePackMutationResultDTO: {
       message: string;
       success: boolean;
-      updated?: components["schemas"]["ResourcePacksResponseDTO"];
+      updated?: components['schemas']['ResourcePacksResponseDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -6080,11 +6403,11 @@ export interface components {
     };
     ResourcePacksResponseDTO: {
       activePackUrl?: string;
-      geyserPacks: components["schemas"]["ResourcePackItemDTO"][];
+      geyserPacks: components['schemas']['ResourcePackItemDTO'][];
       isGeyserAvailable: boolean;
       isJava: boolean;
       note?: string;
-      packs: components["schemas"]["ResourcePackItemDTO"][];
+      packs: components['schemas']['ResourcePackItemDTO'][];
       requirePack: boolean;
       serverType: string;
     } & {
@@ -6134,7 +6457,7 @@ export interface components {
       /** @description Phase 4 lifecycle operation id for progress polling or /v1/operations/{id}/stream; optional so older clients can ignore it. */
       operationId?: string;
       /** @description Optional Bedrock runtime state. Older clients may ignore this additive field. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverId?: string;
       serverName?: string;
       success: boolean;
@@ -6162,7 +6485,7 @@ export interface components {
       javaFlavor?: string;
       name: string;
       /** @description Optional current Bedrock runtime state for an imported or created server. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType: string;
     } & {
       [key: string]: unknown;
@@ -6205,7 +6528,7 @@ export interface components {
       [key: string]: unknown;
     };
     ServerFilesResponseDTO: {
-      items: components["schemas"]["ServerFileItemDTO"][];
+      items: components['schemas']['ServerFileItemDTO'][];
       note?: string;
       parentPath?: string;
       path: string;
@@ -6216,7 +6539,7 @@ export interface components {
     ServerImportRequestDTO: {
       acceptEula?: boolean;
       /** @enum {string} */
-      action: "scan" | "importExisting" | "importTransfer" | "rescan";
+      action: 'scan' | 'importExisting' | 'importTransfer' | 'rescan';
       activeWorldName?: string;
       backupPath?: string;
       bedrockPortOverrides?: {
@@ -6243,7 +6566,7 @@ export interface components {
       operationId: string;
       replaced?: boolean;
       /** @description Optional Bedrock runtime state for the imported record. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverId?: string;
       serverName?: string;
       skipped?: number;
@@ -6264,7 +6587,7 @@ export interface components {
       serverType?: string;
       sourcePath?: string;
       success: boolean;
-      worlds?: components["schemas"]["ServerImportWorldDTO"][];
+      worlds?: components['schemas']['ServerImportWorldDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -6310,7 +6633,7 @@ export interface components {
     };
     SessionLogResponseDTO: {
       activeServerId?: string;
-      events: components["schemas"]["SessionEventDTO"][];
+      events: components['schemas']['SessionEventDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -6322,7 +6645,7 @@ export interface components {
       maxInt?: number;
       maxLength?: number;
       minInt?: number;
-      options?: components["schemas"]["SettingOptionDTO"][];
+      options?: components['schemas']['SettingOptionDTO'][];
       type: string;
       unit?: string;
       value: string;
@@ -6345,8 +6668,8 @@ export interface components {
       editable: boolean;
       note?: string;
       /** @description Optional runtime state; settings can be readable before a runtime is runnable. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
-      sections: components["schemas"]["SettingsSectionDTO"][];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
+      sections: components['schemas']['SettingsSectionDTO'][];
       serverName: string;
       serverRunning: boolean;
       serverType: string;
@@ -6354,7 +6677,7 @@ export interface components {
       [key: string]: unknown;
     };
     SettingsSectionDTO: {
-      fields: components["schemas"]["SettingFieldDTO"][];
+      fields: components['schemas']['SettingFieldDTO'][];
       icon: string;
       id: string;
       title: string;
@@ -6371,11 +6694,11 @@ export interface components {
     SettingsUpdateResultDTO: {
       appliedKeys: string[];
       message: string;
-      rejected?: components["schemas"]["SettingRejectionDTO"][];
+      rejected?: components['schemas']['SettingRejectionDTO'][];
       restartRequired: boolean;
       /** @description Optional Bedrock runtime state after settings are applied. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
-      sections?: components["schemas"]["SettingsSectionDTO"][];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
+      sections?: components['schemas']['SettingsSectionDTO'][];
       success: boolean;
     } & {
       [key: string]: unknown;
@@ -6386,7 +6709,7 @@ export interface components {
       operationId?: string;
       result: string;
       /** @description Optional Bedrock runtime state associated with the lifecycle request. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -6398,11 +6721,11 @@ export interface components {
       operationId?: string;
       /** @enum {string} */
       purpose:
-        | "world-import"
-        | "active-world-replace"
-        | "modpack-archive"
-        | "addon-local-file"
-        | "curseforge-manual-file";
+        | 'world-import'
+        | 'active-world-replace'
+        | 'modpack-archive'
+        | 'addon-local-file'
+        | 'curseforge-manual-file';
     } & {
       [key: string]: unknown;
     };
@@ -6477,14 +6800,14 @@ export interface components {
       exportedCount?: number;
       message: string;
       success: boolean;
-      templates?: components["schemas"]["TemplatesResponseDTO"];
+      templates?: components['schemas']['TemplatesResponseDTO'];
     } & {
       [key: string]: unknown;
     };
     TemplatesResponseDTO: {
       note?: string;
-      paperTemplates: components["schemas"]["TemplateItemDTO"][];
-      pluginTemplates: components["schemas"]["TemplateItemDTO"][];
+      paperTemplates: components['schemas']['TemplateItemDTO'][];
+      pluginTemplates: components['schemas']['TemplateItemDTO'][];
       serverName?: string;
       serverRunning: boolean;
     } & {
@@ -6502,12 +6825,12 @@ export interface components {
       message: string;
       success: boolean;
       token?: string;
-      user?: components["schemas"]["UserSummaryDTO"];
+      user?: components['schemas']['UserSummaryDTO'];
     } & {
       [key: string]: unknown;
     };
     UserListResponseDTO: {
-      users: components["schemas"]["UserSummaryDTO"][];
+      users: components['schemas']['UserSummaryDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -6545,7 +6868,7 @@ export interface components {
     UserUpdateResultDTO: {
       message: string;
       success: boolean;
-      user?: components["schemas"]["UserSummaryDTO"];
+      user?: components['schemas']['UserSummaryDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -6561,7 +6884,7 @@ export interface components {
       operationId?: string;
       requiresRestart: boolean;
       /** @description Optional Bedrock runtime state after a version request. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       success: boolean;
     } & {
       [key: string]: unknown;
@@ -6583,9 +6906,9 @@ export interface components {
       isBedrock: boolean;
       note?: string;
       /** @description Optional Bedrock runtime state. */
-      runtime?: components["schemas"]["BedrockRuntimeStateDTO"];
+      runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       supportsVersions: boolean;
-      versions: components["schemas"]["VersionEntryDTO"][];
+      versions: components['schemas']['VersionEntryDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -6671,7 +6994,7 @@ export interface components {
     WorldMutationResultDTO: {
       message: string;
       success: boolean;
-      updated?: components["schemas"]["WorldSlotsResponseDTO"];
+      updated?: components['schemas']['WorldSlotsResponseDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -6729,7 +7052,7 @@ export interface components {
       activeSlotId?: string;
       isRepairing?: boolean;
       serverRunning: boolean;
-      slots: components["schemas"]["WorldSlotDTO"][];
+      slots: components['schemas']['WorldSlotDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -6751,7 +7074,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["BrowserSessionExchangeRequestDTO"];
+        'application/json': components['schemas']['BrowserSessionExchangeRequestDTO'];
       };
     };
     responses: {
@@ -6768,7 +7091,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description forbidden (wrong Origin) */
@@ -6777,7 +7100,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description pairing_consumed */
@@ -6786,7 +7109,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description pairing_expired */
@@ -6795,7 +7118,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description rate_limited */
@@ -6804,7 +7127,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -6831,7 +7154,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description forbidden (wrong Origin or missing/bad X-MSC-CSRF) */
@@ -6840,7 +7163,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -6860,7 +7183,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["CsrfTokenResponseDTO"];
+          'application/json': components['schemas']['CsrfTokenResponseDTO'];
         };
       };
     };
@@ -6874,7 +7197,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["DesktopPairingExchangeRequestDTO"];
+        'application/json': components['schemas']['DesktopPairingExchangeRequestDTO'];
       };
     };
     responses: {
@@ -6884,7 +7207,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["DesktopCredentialResultDTO"];
+          'application/json': components['schemas']['DesktopCredentialResultDTO'];
         };
       };
       /** @description invalid_body */
@@ -6893,7 +7216,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description pairing_consumed */
@@ -6902,7 +7225,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description pairing_expired */
@@ -6911,7 +7234,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description rate_limited */
@@ -6920,7 +7243,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -6934,7 +7257,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["PairingCreateRequestDTO"];
+        'application/json': components['schemas']['PairingCreateRequestDTO'];
       };
     };
     responses: {
@@ -6944,7 +7267,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["PairingCreateResultDTO"];
+          'application/json': components['schemas']['PairingCreateResultDTO'];
         };
       };
       /** @description invalid_body */
@@ -6953,7 +7276,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description forbidden (non-admin credential) */
@@ -6962,7 +7285,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description rate_limited */
@@ -6971,7 +7294,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -6985,7 +7308,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["BackupDeleteRequestDTO"];
+        'application/json': components['schemas']['BackupDeleteRequestDTO'];
       };
     };
     responses: {
@@ -6995,7 +7318,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["SimpleResult"];
+          'application/json': components['schemas']['SimpleResult'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7004,7 +7327,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7013,7 +7336,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description sole_verified_backup -- Phase 6's retention-floor correction: MSC 1's count-based pruning has no floor against deleting the last remaining verified backup (fixtures/backups), this route does. */
@@ -7022,7 +7345,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7042,7 +7365,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["BackupNowResultDTO"];
+          'application/json': components['schemas']['BackupNowResultDTO'];
         };
       };
     };
@@ -7056,7 +7379,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["BackupRestoreRequestDTO"];
+        'application/json': components['schemas']['BackupRestoreRequestDTO'];
       };
     };
     responses: {
@@ -7066,7 +7389,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["BackupRestoreResultDTO"];
+          'application/json': components['schemas']['BackupRestoreResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing_backup_id */
@@ -7075,7 +7398,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description backup_not_found */
@@ -7084,7 +7407,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7098,7 +7421,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["CatalogInstallRequestDTO"];
+        'application/json': components['schemas']['CatalogInstallRequestDTO'];
       };
     };
     responses: {
@@ -7108,7 +7431,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["CatalogInstallResultDTO"];
+          'application/json': components['schemas']['CatalogInstallResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing_project */
@@ -7117,7 +7440,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description not_supported / no_active_server / pack_managed (ErrorDTO.details carries packName/packVersion) */
@@ -7126,7 +7449,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7140,7 +7463,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["VersionChangeRequestDTO"];
+        'application/json': components['schemas']['VersionChangeRequestDTO'];
       };
     };
     responses: {
@@ -7150,7 +7473,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["VersionChangeResultDTO"];
+          'application/json': components['schemas']['VersionChangeResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing_version_id */
@@ -7159,7 +7482,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description server_running / no_active_server / not_supported */
@@ -7168,7 +7491,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description download_in_progress */
@@ -7177,7 +7500,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7186,7 +7509,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7200,7 +7523,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["JavaRuntimeInstallRequestDTO"];
+        'application/json': components['schemas']['JavaRuntimeInstallRequestDTO'];
       };
     };
     responses: {
@@ -7210,7 +7533,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["JavaRuntimeInstallResultDTO"];
+          'application/json': components['schemas']['JavaRuntimeInstallResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / invalid_major */
@@ -7219,7 +7542,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description download_in_progress (an install for this major is already running) */
@@ -7228,7 +7551,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7237,7 +7560,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7253,7 +7576,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["ModpackManualFileRequestDTO"];
+        'application/json': components['schemas']['ModpackManualFileRequestDTO'];
       };
     };
     responses: {
@@ -7263,7 +7586,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ModpackManualFileResultDTO"];
+          'application/json': components['schemas']['ModpackManualFileResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing_file_id / missing_staged_upload_id */
@@ -7272,7 +7595,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description unknown operationId, operation not a pending modpack-import, unknown fileId, or staged upload not found/expired/wrong purpose */
@@ -7281,7 +7604,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description wrong file for this fileId (hash/size/name mismatch against CurseForge's own recorded metadata -- ErrorDTO.details carries expectedFileId/expectedFileName/expectedByteSize) */
@@ -7290,7 +7613,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7299,7 +7622,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7313,7 +7636,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["ModpackImportRequestDTO"];
+        'application/json': components['schemas']['ModpackImportRequestDTO'];
       };
     };
     responses: {
@@ -7323,7 +7646,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ModpackImportResultDTO"];
+          'application/json': components['schemas']['ModpackImportResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing_staged_upload_id / missing_action */
@@ -7332,7 +7655,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description staged upload not found, expired, or not purpose modpack-archive */
@@ -7341,7 +7664,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / pack_managed (action=import against an already pack-managed server, or action=replace against one that isn't -- ErrorDTO.details carries packName/packVersion) */
@@ -7350,7 +7673,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7359,7 +7682,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7373,7 +7696,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": {
+        'application/json': {
           stagedUploadId: string;
         } & {
           [key: string]: unknown;
@@ -7387,7 +7710,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ModpackInspectionResultDTO"];
+          'application/json': components['schemas']['ModpackInspectionResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / unrecognized_archive / malformed_manifest / unsafe_archive_path */
@@ -7396,7 +7719,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description staged upload not found, expired, or not purpose modpack-archive */
@@ -7405,7 +7728,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7419,7 +7742,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["ServerCreateRequestDTO"];
+        'application/json': components['schemas']['ServerCreateRequestDTO'];
       };
     };
     responses: {
@@ -7429,7 +7752,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ServerCreateResultDTO"];
+          'application/json': components['schemas']['ServerCreateResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / name_required / invalid_server_type / invalid_java_flavor / unsupported_server_type */
@@ -7438,7 +7761,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description create_failed / capability_unavailable (Bedrock create, refused rather than half-provisioned; Phase 10) */
@@ -7447,7 +7770,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7456,7 +7779,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7476,7 +7799,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/zip": string;
+          'application/zip': string;
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7485,7 +7808,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7499,7 +7822,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["StagedUploadBeginRequestDTO"];
+        'application/json': components['schemas']['StagedUploadBeginRequestDTO'];
       };
     };
     responses: {
@@ -7509,7 +7832,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["StagedUploadBeginResultDTO"];
+          'application/json': components['schemas']['StagedUploadBeginResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7518,7 +7841,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7532,7 +7855,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/octet-stream": string;
+        'application/octet-stream': string;
       };
     };
     responses: {
@@ -7542,7 +7865,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["StagedUploadCompleteResultDTO"];
+          'application/json': components['schemas']['StagedUploadCompleteResultDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7551,7 +7874,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description staged_upload_expired / max_bytes_exceeded */
@@ -7560,7 +7883,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7580,7 +7903,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "image/png": string;
+          'image/png': string;
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7589,7 +7912,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7603,7 +7926,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldActivateRequestDTO"];
+        'application/json': components['schemas']['WorldActivateRequestDTO'];
       };
     };
     responses: {
@@ -7613,7 +7936,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldActivateResultDTO"];
+          'application/json': components['schemas']['WorldActivateResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing_slot_id */
@@ -7622,7 +7945,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description server_running_or_slot_not_found */
@@ -7631,7 +7954,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7645,7 +7968,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldConvertRequestDTO"];
+        'application/json': components['schemas']['WorldConvertRequestDTO'];
       };
     };
     responses: {
@@ -7655,7 +7978,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldConvertResultDTO"];
+          'application/json': components['schemas']['WorldConvertResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7664,7 +7987,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7673,7 +7996,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / server_running / active_slot_refused / sole_verified_backup */
@@ -7682,7 +8005,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7691,7 +8014,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7705,7 +8028,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldDeleteRequestDTO"];
+        'application/json': components['schemas']['WorldDeleteRequestDTO'];
       };
     };
     responses: {
@@ -7715,7 +8038,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldMutationResultDTO"];
+          'application/json': components['schemas']['WorldMutationResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7724,7 +8047,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7733,7 +8056,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / server_running / active_slot_refused / sole_verified_backup */
@@ -7742,7 +8065,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7751,7 +8074,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7765,7 +8088,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldDuplicateRequestDTO"];
+        'application/json': components['schemas']['WorldDuplicateRequestDTO'];
       };
     };
     responses: {
@@ -7775,7 +8098,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldMutationResultDTO"];
+          'application/json': components['schemas']['WorldMutationResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7784,7 +8107,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7793,7 +8116,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / server_running / active_slot_refused / sole_verified_backup */
@@ -7802,7 +8125,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7811,7 +8134,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7825,7 +8148,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldExportRequestDTO"];
+        'application/json': components['schemas']['WorldExportRequestDTO'];
       };
     };
     responses: {
@@ -7835,7 +8158,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldExportResultDTO"];
+          'application/json': components['schemas']['WorldExportResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7844,7 +8167,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7853,7 +8176,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / server_running / active_slot_refused / sole_verified_backup */
@@ -7862,7 +8185,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7871,7 +8194,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7885,7 +8208,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldImportRequestDTO"];
+        'application/json': components['schemas']['WorldImportRequestDTO'];
       };
     };
     responses: {
@@ -7895,7 +8218,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldMutationResultDTO"];
+          'application/json': components['schemas']['WorldMutationResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7904,7 +8227,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7913,7 +8236,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / server_running / active_slot_refused / sole_verified_backup */
@@ -7922,7 +8245,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7931,7 +8254,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -7945,7 +8268,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldRenameActiveWorldRequestDTO"];
+        'application/json': components['schemas']['WorldRenameActiveWorldRequestDTO'];
       };
     };
     responses: {
@@ -7955,7 +8278,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldMutationResultDTO"];
+          'application/json': components['schemas']['WorldMutationResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -7964,7 +8287,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -7973,7 +8296,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / server_running / active_slot_refused / sole_verified_backup */
@@ -7982,7 +8305,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -7991,7 +8314,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -8005,7 +8328,7 @@ export interface operations {
     };
     requestBody: {
       content: {
-        "application/json": components["schemas"]["WorldReplaceActiveRequestDTO"];
+        'application/json': components['schemas']['WorldReplaceActiveRequestDTO'];
       };
     };
     responses: {
@@ -8015,7 +8338,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldReplaceActiveResultDTO"];
+          'application/json': components['schemas']['WorldReplaceActiveResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / name_required */
@@ -8024,7 +8347,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description unknown or already-redeemed stagedUploadId */
@@ -8033,7 +8356,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description server_running / conflict */
@@ -8042,7 +8365,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };
@@ -8062,7 +8385,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["WorldMutationResultDTO"];
+          'application/json': components['schemas']['WorldMutationResultDTO'];
         };
       };
       /** @description missing_body / invalid_json / missing field */
@@ -8071,7 +8394,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */
@@ -8080,7 +8403,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description no_active_server / server_running / active_slot_refused / sole_verified_backup */
@@ -8089,7 +8412,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
       /** @description internal error */
@@ -8098,7 +8421,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": components["schemas"]["ErrorDTO"];
+          'application/json': components['schemas']['ErrorDTO'];
         };
       };
     };

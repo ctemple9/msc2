@@ -16,7 +16,9 @@
     | 'people'
     | 'world'
     | 'chat'
-    | 'note';
+    | 'note'
+    | 'clock'
+    | 'id-card';
   export let size = 14;
 
   const paths: Record<string, string> = {
@@ -33,6 +35,9 @@
     world: 'M3 20l6-10 4 5 3-3.5 5 8.5z',
     chat: 'M4 5h16v10H8l-4 4z',
     note: 'M6 3h9l3 3v15H6zM15 3v3h3M8.5 12h7M8.5 16h4.5',
+    clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3.5 2',
+    'id-card':
+      'M3.5 5h17v14h-17zM12 10.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7.5 17c.8-1.8 2.4-2.5 4.5-2.5s3.7.7 4.5 2.5M15 8.5h3',
   };
 </script>
 

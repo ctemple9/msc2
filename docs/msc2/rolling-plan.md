@@ -560,6 +560,8 @@ Every step's Batch is therefore `solo`.
 as the reference specimens; their steps below turn those locked specimens into
 code. The rest apply the locked system to each screen, one at a time.
 
+If a screen needs a UI pattern not covered by the locked S0 primitives, stop and surface it to Cameron as a design decision — extend the system deliberately (and add a renderings/ specimen), never improvise a one-off.
+
 ### P12.0 — Implement the locked design system (S0) as code
 **Status:** DONE. Implemented in `src/lib/styles/tokens.css` (new `--msc2-*` tokens appended alongside the untouched Phase 11 `--msc-*` tokens, which unconverted screens still use) and `src/lib/components/base/` (Card, Button, SegmentedControl, Toggle, Field, NumberField, Select, Badge, ListRow, EmptyState, StatusDot, Sheet). A dev-only component gallery lives at `clients/desktop-web/gallery.html` (open via `npm run dev`, then visit `/gallery.html`) for the visual comparison this step's Verify calls for — it is not linked from the shipped app. `src/app.css`'s root font-family now points at the locked system-sans stack instead of Inter, since the type scale depends on it.
 **Files:** `src/lib/styles/tokens.css`, `src/lib/styles/`, `src/lib/components/` (base components), reference `docs/msc2/renderings/`
@@ -846,7 +848,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 4 and append one claus
 **Batch:** solo
 
 ### P12.2j — Wire the 4 player-data mutation routes
-**Status:** awaiting verification
+**Status:** DONE
 **Files:** `crates/msc-agent/src/routes/players.rs` (the file P12.2e created), `crates/msc-agent/src/main.rs`
 **What:** Add the 4 handlers for P12.2g's routes (`delete`, `migrate-offline`, `migrate`, `duplicate`). Per handler, in this order:
 1. Parse the request DTO — `400 invalid_body` on missing/empty `profileId`, or (on `/migrate`) a `targetUuid` that doesn't parse as a UUID (`invalid_uuid`).
@@ -861,10 +863,10 @@ Register all 4 routes in `main.rs` next to the existing `/v1/players/*` routes.
 **Batch:** solo
 
 ### P12.3 — Players tab
-**Status:** not started — blocked until P12.2b–P12.2j land (see this file's 2026-08-25 note above)
-**Files:** `src/lib/sections/players-online/`
+**Status:** awaiting verification. Rebuilt against the now-real P12.2b–j backend: `OnlineNowCard` (Online Now / Seen This Session), `BedrockAllowlistCard` (Bedrock-only), `SessionLogCard` (filter/day-grouping/show-more/clear), `PlayerDataCard` (search/sort/hidden-toggle grid) → `PlayerDetailSheet` (identity, skin lookup override, stats, inventory via a new `InventoryGrid`, and the 4 approved mutations — migrate-offline, migrate-custom, duplicate, delete — plus hide/unhide). New `crates`-adjacent client files only; no backend touched. Regenerated `src/lib/api/generated.ts` from the current contract (P12.2g's routes weren't in it yet). Real gap found and handled the same way as this file's other honest gaps rather than built around quietly: `GET /v1/session-log` is *also* frozen-but-unimplemented (zero handler anywhere in `crates/`) — Session Log is derived client-side from `/v1/console/tail` by reusing `chatFeed.ts`'s existing join/leave parsing (already built for Overview's Chat card) rather than adding a second backend detour; "Clear Log" is client-local per host+server (localStorage cutoff timestamp), same "no server field yet" treatment `notes.ts` already established, since the console tail is a bounded recent buffer with nothing durable on the agent to send a clear mutation to. `copyPlayerData` stays deferred per this file's 2026-08-25 note — only 4 of 5 mutation actions are wired, matching P12.2g–j. Two design decisions confirmed with Cameron mid-build rather than improvised per his own added S0-extension note: kept 2 new `Icon.svelte` glyphs (`clock`, `id-card`, same 24x24/stroke-1.8 language as the existing set); kept an inline expand-in-place delete confirmation (no modal) over migrating the still-Phase-11-styled `ConfirmDialog.svelte`. Anti-slop self-review caught and removed two accent colors I'd introduced outside the locked status ramp (a gold Operator badge, a blue enchanted-item glow) — fixed to neutral before commit. **Not verified: live browser check against real agent data.** Got the dev server running and the shell rendering (past the first-launch splash) via Playwright, but reaching Players requires a paired agent + registered server, and touching Cameron's real local agent/server registration to manufacture that felt like the wrong call to make unprompted — leaving that verification to Cameron, who already has real servers (`test`, `campak`, `test_2`) to check it against directly, which is a better test than anything synthetic here anyway. Structural (`npm run test:screen-players-online`, 11 tests, rewritten — the old suite asserted `/v1/players/profiles` must *not* be used, which was P11.11's deliberate scope limit and is now obsolete) and `svelte-check`/`prettier --check` both pass on every touched file with zero new errors.
+**Files:** `src/lib/sections/players-online/`, `src/lib/components/base/Icon.svelte`, `src/lib/api/generated.ts`
 **What:** Rebuild Players — Online Now / Seen This Session, Session Log (filter + clear), Player Data (profiles, sort, stats + inventory detail sheet, hidden toggle, skin/avatar, delete). Reference MSC 1 `DetailsPlayersTabView` + `PlayerProfilesCard`/`PlayerProfileDetailSheet`/`PlayerInventoryView` and the Players screenshot.
-**Verify:** `npm run dev`, open Players; compare to MSC 1 + checklist. Structural: `npm run test:screen-players-online`.
+**Verify:** `npm run dev`, open Players against a real connected agent; compare to MSC 1 + checklist. Structural: `npm run test:screen-players-online`.
 **Commit:** `P12.3: rebuild the Players tab`
 **Batch:** solo
 

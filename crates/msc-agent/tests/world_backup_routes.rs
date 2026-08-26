@@ -85,7 +85,12 @@ fn world_backup_routes_are_mounted_behind_bearer_auth() {
 
     // Mounted-but-unauthenticated: 401, not 404, on every new world/
     // backup GET route.
-    for path in ["/v1/worlds", "/v1/backups", "/v1/backups/config"] {
+    for path in [
+        "/v1/worlds",
+        "/v1/worlds/convert/formats",
+        "/v1/backups",
+        "/v1/backups/config",
+    ] {
         let response = http_get(port, path, None);
         assert!(
             response.starts_with("HTTP/1.1 401"),

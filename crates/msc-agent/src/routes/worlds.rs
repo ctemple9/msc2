@@ -52,11 +52,12 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use msc_api::dto::{
     PermissionCategoryDto, StagedUploadPurposeDto, WorldActivateRequestDto, WorldActivateResultDto,
-    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
-    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
-    WorldMutationResultDto, WorldRenameActiveWorldRequestDto, WorldRenameRequestDto,
-    WorldRepairRequestDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
-    WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
+    WorldConvertFormatsResponseDto, WorldConvertRequestDto, WorldConvertResultDto,
+    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
+    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
+    WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
+    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
+    WorldSlotDto, WorldSlotsResponseDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -111,9 +112,52 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds/rename-active-world", post(rename_active_world))
         .route("/worlds/replace-active-world", post(replace_active))
         .route("/worlds/activate", post(activate))
+        .route("/worlds/convert/formats", get(convert_formats))
         .route("/worlds/convert", post(convert))
         .route("/worlds/:slot_id/thumbnail", get(thumbnail))
         .with_state(state)
+}
+
+pub async fn convert_formats(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    let lifecycle = state.lifecycle.clone();
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    if let Err(response) = active_server_or_response(&lifecycle) {
+        return response;
+    }
+
+    let converter = LiveWorldConverter;
+    let Some(resolved_java_path) = converter.resolve_java_path("") else {
+        return error_response(
+            StatusCode::CONFLICT,
+            "capability_unavailable",
+            "No Java runtime could be resolved for Chunker.",
+        );
+    };
+    if !converter.is_installed() {
+        return error_response(
+            StatusCode::CONFLICT,
+            "capability_unavailable",
+            "Chunker is not installed on this agent.",
+        );
+    }
+
+    let response = Json(WorldConvertFormatsResponseDto {
+        formats: converter.supported_formats(&resolved_java_path),
+    })
+    .into_response();
+    audit(
+        &lifecycle,
+        &credential,
+        "GET",
+        "/v1/worlds/convert/formats",
+        response.status(),
+    );
+    response
 }
 
 // =====================================================================

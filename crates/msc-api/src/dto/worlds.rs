@@ -196,3 +196,9 @@ pub struct WorldConvertResultDto {
     pub result: String,
     pub operation_id: String,
 }
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldConvertFormatsResponseDto {
+    pub formats: Vec<String>,
+}

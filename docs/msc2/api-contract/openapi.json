@@ -5281,6 +5281,36 @@
         "operationId": "replaceActiveWorld"
       }
     },
+    "/v1/worlds/convert/formats": {
+      "get": {
+        "summary": "List the installed Chunker world-conversion formats",
+        "x-permission-category": "worlds",
+        "responses": {
+          "200": {
+            "description": "Supported Chunker conversion formats",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldConvertFormatsResponseDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "capability_unavailable when Java or Chunker is not installed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "capability_unavailable"
+          }
+        },
+        "operationId": "getWorldConvertFormats"
+      }
+    },
     "/v1/worlds/convert": {
       "post": {
         "summary": "Start a Chunker world-format conversion",
@@ -9930,6 +9960,21 @@
           "targetFormat"
         ],
         "description": "Corrected post-review: MSC 1 conversion always names a separate, opposite-edition target server (AppViewModel+WorldConversion.swift's own sourceServer/targetServer parameters) -- sourceSlotId resolves against the active server; targetServerId is a separate, required server id. targetFormat is the exact Chunker format string the client chose from the installed jar's own supported list (MSC 1's wizard defaults its picker to the newest compatible format but always lets the user override it -- never hardcoded server-side). Exactly one of targetName (place into a fresh slot) or targetSlotId (overwrite an existing slot on the target server, by id, not display name) must be present."
+      },
+      "WorldConvertFormatsResponseDTO": {
+        "type": "object",
+        "properties": {
+          "formats": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Raw format strings reported by the installed Chunker jar, including both JAVA_ and BEDROCK_ formats."
+          }
+        },
+        "required": [
+          "formats"
+        ]
       },
       "WorldConvertResultDTO": {
         "type": "object",

@@ -1017,7 +1017,7 @@ Destructive actions (Activate, Delete Slot) use the same inline expand-in-place 
 **Batch:** solo
 
 ### P12.4a — Amend the contract and wire Chunker's supported conversion formats
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`, `crates/msc-api/src/dto/worlds.rs`, `crates/msc-agent/src/routes/worlds.rs`, `crates/msc-agent/tests/world_backup_routes.rs`
 **What:** Closes P12.4's own gap: `WorldConversionWizard.svelte` stops at an honest "not available yet" panel because nothing lets a client list Chunker's installed target formats before submitting `POST /v1/worlds/convert`. The good news found while scoping this: `crates/msc-agent/src/routes/worlds.rs`'s `LiveWorldConverter` is **already a real production implementation** (`resolve_java_path`/`is_installed`/`supported_formats` really shell out to `java`/the installed `chunker-cli.jar`) — `convert()`'s own validation already calls `converter.supported_formats(&resolved_java_path)` before running a conversion. This step only exposes that same already-working call as its own route; it adds no new capability to the agent.
 

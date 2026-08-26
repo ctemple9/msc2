@@ -18,6 +18,7 @@ use std::path::PathBuf;
 
 use crate::diagnostics;
 use crate::output_reducer::{JavaOutputReducer, OutputEvent};
+use crate::session_log::SessionEventType;
 use crate::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 
 /// Paper soft-failure analysis uses `suffix(400)` in MSC 1
@@ -411,10 +412,44 @@ impl<'deps> LifecycleService<'deps> {
                 OutputEvent::TpsSample(sample) => {
                     self.latest_tps = Some(*sample);
                 }
-                OutputEvent::Ready | OutputEvent::PlayerJoined(_) | OutputEvent::PlayerLeft(_) => {}
+                OutputEvent::PlayerJoined(name) => {
+                    self.record_session_event(&id, name, SessionEventType::Joined, now);
+                }
+                OutputEvent::PlayerLeft(name) => {
+                    self.record_session_event(&id, name, SessionEventType::Left, now);
+                }
+                OutputEvent::Ready => {}
             }
         }
         Ok(events)
+    }
+
+    /// Session history is best-effort: a damaged or unavailable server
+    /// directory must not turn one console line into a failed lifecycle
+    /// transition. This mirrors MSC 1's catch-and-log around `recordSessionEvent`.
+    fn record_session_event(
+        &self,
+        server_id: &ServerId,
+        player_name: &str,
+        event_type: SessionEventType,
+        timestamp: &str,
+    ) {
+        let server = match self.load_server(server_id) {
+            Ok(server) => server,
+            Err(error) => {
+                eprintln!("[Session] Failed to persist session event for {player_name}: {error}");
+                return;
+            }
+        };
+        if let Err(error) = crate::session_log::append_event(
+            self.fs,
+            &server.directory,
+            player_name,
+            event_type,
+            timestamp.to_string(),
+        ) {
+            eprintln!("[Session] Failed to persist session event for {player_name}: {error}");
+        }
     }
 
     pub fn mark_process_exited(&mut self, id: &ServerId, now: &str) -> Result<(), LifecycleError> {

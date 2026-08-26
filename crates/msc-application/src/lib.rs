@@ -31,6 +31,7 @@ pub mod playit;
 pub mod provisioning;
 pub mod resource_packs;
 pub mod server_versions;
+pub mod session_log;
 pub mod status;
 pub mod templates;
 pub mod transfer;

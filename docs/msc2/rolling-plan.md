@@ -891,7 +891,7 @@ Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 1, append a clause to 
 **Batch:** solo
 
 ### P12.3b — Port the session log store and wire the live Java hook
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-application/src/session_log.rs` (new), `crates/msc-application/src/lib.rs`, `crates/msc-application/src/lifecycle.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-application/tests/session_log.rs` (new)
 **What:** Port `SessionLogManager.swift` (`{serverDir}/session_log.json` — read-all/append-one/clear, `.atomic` write) into `session_log.rs`. Pin the JSON shape exactly to `SessionEvent.swift`'s `Codable` output, since nothing needs to change about it — it's plain, already correct, and any client eventually reading it directly should see the same shape MSC 1 always wrote:
 

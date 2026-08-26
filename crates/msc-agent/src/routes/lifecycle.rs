@@ -1247,12 +1247,13 @@ impl LifecycleRoutesState {
         for event in events {
             for line in framer.push_event(&event) {
                 self.push_process_line(&event, &line);
+                let now = iso8601_now();
                 let output_events = self
                     .inner
                     .lifecycle
                     .lock()
                     .unwrap()
-                    .ingest_console_line(&line, &iso8601_now())
+                    .ingest_console_line(&line, &now)
                     .unwrap_or_default();
                 if output_events.iter().any(|event| {
                     matches!(event, msc_application::output_reducer::OutputEvent::Ready)

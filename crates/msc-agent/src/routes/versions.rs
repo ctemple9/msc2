@@ -633,6 +633,7 @@ pub async fn get_java_config(State(state): State<LifecycleRoutesState>) -> Respo
     let cfg = state.app_config_snapshot();
     axum::Json(JavaConfigResponseDto {
         executable_path: Some(cfg.java_path),
+        extra_flags: Some(cfg.extra_flags),
     })
     .into_response()
 }
@@ -649,11 +650,21 @@ pub async fn set_java_config(
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
-    let path = msc_domain::java_runtime::resolved_settings_java_path(
-        body.executable_path.as_deref().unwrap_or("").trim(),
-    );
+    // Each field saves independently -- the Java tab has separate Save
+    // actions for the executable path and the extra-flags field, so a
+    // request naming only one must never reset the other back to its
+    // default. (Previously `executable_path` was unconditionally applied,
+    // defaulting to "java" when absent -- harmless while it was the only
+    // field, but it would have silently wiped a configured path the first
+    // time a flags-only save landed here.)
     let result = state.try_mutate_config(|config| {
-        config.java_path = path.clone();
+        if let Some(raw_path) = body.executable_path.as_deref() {
+            config.java_path =
+                msc_domain::java_runtime::resolved_settings_java_path(raw_path.trim());
+        }
+        if let Some(raw_flags) = body.extra_flags.as_deref() {
+            config.extra_flags = raw_flags.trim().to_string();
+        }
         Ok::<(), ()>(())
     });
     match result {
@@ -661,6 +672,7 @@ pub async fn set_java_config(
             let cfg = state.app_config_snapshot();
             axum::Json(JavaConfigResponseDto {
                 executable_path: Some(cfg.java_path),
+                extra_flags: Some(cfg.extra_flags),
             })
             .into_response()
         }
@@ -1193,14 +1205,61 @@ mod tests {
             Extension(admin_credential()),
             Ok(axum::Json(JavaConfigSetRequestDto {
                 executable_path: Some("/usr/bin/java".to_string()),
+                extra_flags: Some("-XX:+UseG1GC".to_string()),
             })),
         )
         .await;
         assert_eq!(set_response.status(), StatusCode::OK);
-        assert!(response_body(set_response).await.contains("/usr/bin/java"));
+        let set_body = response_body(set_response).await;
+        assert!(set_body.contains("/usr/bin/java"));
+        assert!(set_body.contains("UseG1GC"));
 
         let get_again = get_java_config(State(state)).await;
-        assert!(response_body(get_again).await.contains("/usr/bin/java"));
+        let get_body = response_body(get_again).await;
+        assert!(get_body.contains("/usr/bin/java"));
+        assert!(get_body.contains("UseG1GC"));
+    }
+
+    #[tokio::test]
+    async fn set_java_config_route_saves_each_field_independently() {
+        let state = route_state();
+        set_java_config(
+            State(state.clone()),
+            Extension(admin_credential()),
+            Ok(axum::Json(JavaConfigSetRequestDto {
+                executable_path: Some("/usr/bin/java".to_string()),
+                extra_flags: None,
+            })),
+        )
+        .await;
+
+        // A flags-only save must not reset the path back to its default.
+        let flags_only = set_java_config(
+            State(state.clone()),
+            Extension(admin_credential()),
+            Ok(axum::Json(JavaConfigSetRequestDto {
+                executable_path: None,
+                extra_flags: Some("-Xmx4G".to_string()),
+            })),
+        )
+        .await;
+        let flags_only_body = response_body(flags_only).await;
+        assert!(flags_only_body.contains("/usr/bin/java"));
+        assert!(flags_only_body.contains("-Xmx4G"));
+
+        // A path-only save must not clear the previously saved flags.
+        let path_only = set_java_config(
+            State(state),
+            Extension(admin_credential()),
+            Ok(axum::Json(JavaConfigSetRequestDto {
+                executable_path: Some("/opt/java21/bin/java".to_string()),
+                extra_flags: None,
+            })),
+        )
+        .await;
+        let path_only_body = response_body(path_only).await;
+        assert!(path_only_body.contains("/opt/java21/bin/java"));
+        assert!(path_only_body.contains("-Xmx4G"));
     }
 
     #[tokio::test]

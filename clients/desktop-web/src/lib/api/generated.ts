@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: bc9ff6f8c190a86a8dcdac19410b489365331c8ffb2f81f9dd8adf8a9115ead3
+// Contract SHA-256: e3793b828c36587acf4d25f6c6620a73d446d74d6ef7fc06f1a357843fc00219
 
 export interface paths {
   '/v1/active-server': {
@@ -6377,11 +6377,13 @@ export interface components {
     };
     JavaConfigResponseDTO: {
       executablePath?: string;
+      extraFlags?: string;
     } & {
       [key: string]: unknown;
     };
     JavaConfigSetRequestDTO: {
       executablePath?: string;
+      extraFlags?: string;
     } & {
       [key: string]: unknown;
     };

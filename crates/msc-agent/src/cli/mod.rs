@@ -2369,6 +2369,7 @@ async fn run_java(common: CommonArgs, command: JavaCommand) -> Result<(), CliErr
         JavaCommand::Set { path } => {
             let body = JavaConfigSetRequestDto {
                 executable_path: Some(path),
+                extra_flags: None,
             };
             let response: JavaConfigResponseDto =
                 client.post_json("/v1/config/java-runtime", &body).await?;

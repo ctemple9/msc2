@@ -86,27 +86,29 @@
       onchange={(value) => (tab = value as 'general' | 'broadcast' | 'java')}
     />
 
-    {#if tab === 'general'}
-      <GeneralTab
-        {api}
-        server={currentServer}
-        {isActive}
-        {canControl}
-        onRenamed={handleRenamed}
-        onDeleted={handleDeleted}
-        onRequestActivate={requestActivate}
-      />
-    {:else if tab === 'broadcast'}
-      <BroadcastTab
-        {api}
-        server={currentServer}
-        {isActive}
-        {canControl}
-        onRequestActivate={requestActivate}
-      />
-    {:else}
-      <JavaTab {api} {canControl} />
-    {/if}
+    <div class="tab-panel">
+      {#if tab === 'general'}
+        <GeneralTab
+          {api}
+          server={currentServer}
+          {isActive}
+          {canControl}
+          onRenamed={handleRenamed}
+          onDeleted={handleDeleted}
+          onRequestActivate={requestActivate}
+        />
+      {:else if tab === 'broadcast'}
+        <BroadcastTab
+          {api}
+          server={currentServer}
+          {isActive}
+          {canControl}
+          onRequestActivate={requestActivate}
+        />
+      {:else}
+        <JavaTab {api} {canControl} />
+      {/if}
+    </div>
   </div>
 </Sheet>
 
@@ -115,5 +117,13 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
+  }
+
+  /* Fixed regardless of which tab is selected, so switching General /
+     Broadcast / Java never resizes the sheet itself -- each tab's own
+     content scrolls inside this box instead. */
+  .tab-panel {
+    height: 560px;
+    overflow-y: auto;
   }
 </style>

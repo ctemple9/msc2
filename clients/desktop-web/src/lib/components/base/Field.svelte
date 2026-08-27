@@ -6,9 +6,21 @@
   export let placeholder = '';
   export let disabled = false;
   export let width = '100%';
+  export let multiline = false;
 </script>
 
-<input {type} bind:value {placeholder} {disabled} class="field" style="width: {width};" />
+{#if multiline}
+  <textarea
+    bind:value
+    {placeholder}
+    {disabled}
+    class="field multiline"
+    style="width: {width};"
+    rows="2"
+  ></textarea>
+{:else}
+  <input {type} bind:value {placeholder} {disabled} class="field" style="width: {width};" />
+{/if}
 
 <style>
   .field {
@@ -30,5 +42,12 @@
   .field:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+  }
+
+  .field.multiline {
+    resize: vertical;
+    min-height: 54px;
+    font-family: var(--msc2-font-mono, monospace);
+    line-height: 1.5;
   }
 </style>

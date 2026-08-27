@@ -83,6 +83,8 @@ pub struct JavaRuntimesResponseDto {
 pub struct JavaConfigResponseDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executable_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra_flags: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -90,6 +92,8 @@ pub struct JavaConfigResponseDto {
 pub struct JavaConfigSetRequestDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub executable_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extra_flags: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

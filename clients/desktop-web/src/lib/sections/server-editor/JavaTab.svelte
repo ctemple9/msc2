@@ -1,12 +1,15 @@
 <script lang="ts">
   // Ports PreferencesJavaSection (MSCSettingsSections.swift:4-108) --
-  // executable path, Detect (JavaRuntimeManager.detectInstalledJavaRuntimes
-  // -> JavaRuntimePickerSheet/-Row), Install Java... (JavaInstaller's
+  // executable path, extra JVM flags, Detect
+  // (JavaRuntimeManager.detectInstalledJavaRuntimes ->
+  // JavaRuntimePickerSheet/-Row), Install Java... (JavaInstaller's
   // Minecraft-framed major picker -> Adoptium Temurin download) -- as a
   // Server Editor tab per the 2026-08-27 "Java tab decision" recorded at
-  // the top of rolling-plan.md: the value (`AppConfig.javaPath`) is
-  // genuinely host-wide, edited here only because a Java server is the
-  // moment it's actually relevant.
+  // the top of rolling-plan.md: the value (`AppConfig.javaPath`/
+  // `extraFlags`) is genuinely host-wide, edited here only because a Java
+  // server is the moment it's actually relevant. Per Cameron's 2026-08-27
+  // review, the tab carries no host-wide-warning banner -- the path and
+  // flags sections speak for themselves.
   //
   // MSC 1's installer downloads a macOS .pkg for a human to double-click.
   // MSC 2 installs Java itself (D-006's P7.1 addendum) via
@@ -16,10 +19,10 @@
   // msc_domain::java_runtime::MINECRAFT_INSTALL_OPTIONS's fixed table,
   // hand-copied here since it's a static four-row list not worth a route.
   //
-  // "Extra JVM flags" (AppConfig.extraFlags) is excluded -- no backing DTO
-  // or route exists for it even though the domain field does
-  // (crates/msc-domain/src/app_config_schema.rs:891) -- see this step's
-  // rolling-plan entry.
+  // The executable path and extra-flags fields save independently (each
+  // its own Field + Save), so `POST /v1/config/java-runtime` had to stop
+  // unconditionally applying `executablePath` (previously defaulting to
+  // "java" when absent) -- see that route's own comment.
   import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
@@ -62,6 +65,10 @@
   let browsing = false;
   let notice = '';
 
+  let currentFlags = '';
+  let flagsDraft = '';
+  let savingFlags = false;
+
   let showDetectPicker = false;
   let detectedRuntimes: Schema['JavaRuntimeDTO'][] = [];
   let detectError = '';
@@ -73,6 +80,7 @@
   let installFailure = '';
 
   $: pathDirty = pathDraft.trim() !== currentPath;
+  $: flagsDirty = flagsDraft.trim() !== currentFlags;
 
   onMount(async () => {
     void getPlatform().then((platform) => (platformKind = platform.kind));
@@ -95,6 +103,8 @@
     );
     currentPath = config.executablePath?.trim() || 'java';
     pathDraft = currentPath;
+    currentFlags = config.extraFlags?.trim() ?? '';
+    flagsDraft = currentFlags;
   }
 
   async function saveExecutablePath(path: string, successMessage: string): Promise<boolean> {
@@ -119,6 +129,25 @@
     saving = true;
     await saveExecutablePath(pathDraft, 'Java executable path saved.');
     saving = false;
+  }
+
+  async function saveFlags(): Promise<void> {
+    if (!flagsDirty || savingFlags) return;
+    savingFlags = true;
+    try {
+      const result = await mutate<Schema['JavaConfigResponseDTO']>(
+        api,
+        serverEditorPaths.javaConfig,
+        { extraFlags: flagsDraft.trim() },
+      );
+      currentFlags = result.extraFlags?.trim() ?? '';
+      flagsDraft = currentFlags;
+      notice = 'Java arguments saved.';
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      savingFlags = false;
+    }
   }
 
   async function openDetectPicker(): Promise<void> {
@@ -197,11 +226,6 @@
 <div class="tab">
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
-  <p class="host-banner">
-    This Java executable runs every Java server on this host. Changing it here changes what every
-    Java server launches with the next time it starts.
-  </p>
-
   <section class="zone">
     <p class="msc2-type-overline">Java Executable</p>
     <Card padding="0">
@@ -241,6 +265,33 @@
       >
     </div>
     <p class="hint">Java servers require JDK 21 or later.</p>
+  </section>
+
+  <section class="zone">
+    <p class="msc2-type-overline">Java Arguments</p>
+    <Card padding="0">
+      <div class="row">
+        <span class="name">Extra JVM Flags</span>
+        <div class="control">
+          <Field
+            bind:value={flagsDraft}
+            width="240px"
+            multiline
+            placeholder="e.g. -XX:+UseG1GC"
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!flagsDirty || savingFlags || !canControl}
+            onclick={saveFlags}>{savingFlags ? 'Saving…' : 'Save'}</Button
+          >
+        </div>
+      </div>
+    </Card>
+    <p class="hint">
+      Optional flags passed to Java when starting servers. Leave blank unless you know what
+      you're doing (e.g. GC tuning flags).
+    </p>
   </section>
 </div>
 
@@ -337,15 +388,6 @@
     margin: 0;
     font-size: 12px;
     color: var(--msc2-text-secondary);
-  }
-  .host-banner {
-    margin: 0;
-    padding: 11px 14px;
-    border-radius: 10px;
-    background: var(--msc2-tier-chrome);
-    color: var(--msc2-text-secondary);
-    font-size: 12px;
-    line-height: 1.5;
   }
   .zone {
     display: flex;

@@ -14,11 +14,11 @@ use axum::extract::{Extension, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
-    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeDto, JavaRuntimeInstallRequestDto,
-    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, PermissionCategoryDto,
-    RamConfigResponseDto, RamConfigUpdateRequestDto, RamConfigUpdateResultDto,
-    ServersRootResponseDto, ServersRootSetRequestDto, VersionChangeRequestDto,
-    VersionChangeResultDto, VersionEntryDto, VersionsResponseDto,
+    HostSetupStateDto, JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeDto,
+    JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto, JavaRuntimesResponseDto,
+    PermissionCategoryDto, RamConfigResponseDto, RamConfigUpdateRequestDto,
+    RamConfigUpdateResultDto, ServersRootResponseDto, ServersRootSetRequestDto,
+    VersionChangeRequestDto, VersionChangeResultDto, VersionEntryDto, VersionsResponseDto,
 };
 use msc_application::server_versions::{
     self, ChangeVersionError, ChangeVersionRequest, VersionListEntry,
@@ -673,6 +673,39 @@ pub async fn set_java_config(
     }
 }
 
+// ---------- GET /v1/config/host-setup; POST /v1/config/host-setup/complete ----------
+
+pub async fn get_host_setup(State(state): State<LifecycleRoutesState>) -> Response {
+    axum::Json(HostSetupStateDto {
+        complete: state.app_config_snapshot().initial_setup_done,
+    })
+    .into_response()
+}
+
+pub async fn complete_host_setup(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Settings) {
+        return response;
+    }
+    let result = state.try_mutate_config(|config| {
+        config.initial_setup_done = true;
+        Ok::<(), ()>(())
+    });
+    match result {
+        Ok(()) => axum::Json(HostSetupStateDto { complete: true }).into_response(),
+        Err(TryMutateError::Domain(())) => {
+            unreachable!("host setup completion cannot fail domain validation")
+        }
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "set_failed",
+            &error.to_string(),
+        ),
+    }
+}
+
 // ---------- GET/POST /v1/config/servers-root ----------
 
 pub async fn get_servers_root(State(state): State<LifecycleRoutesState>) -> Response {
@@ -1168,6 +1201,22 @@ mod tests {
 
         let get_again = get_java_config(State(state)).await;
         assert!(response_body(get_again).await.contains("/usr/bin/java"));
+    }
+
+    #[tokio::test]
+    async fn host_setup_route_persists_completion() {
+        let state = route_state();
+        let initial = get_host_setup(State(state.clone())).await;
+        assert_eq!(initial.status(), StatusCode::OK);
+        assert!(response_body(initial).await.contains("\"complete\":false"));
+
+        let completed =
+            complete_host_setup(State(state.clone()), Extension(admin_credential())).await;
+        assert_eq!(completed.status(), StatusCode::OK);
+        assert!(response_body(completed).await.contains("\"complete\":true"));
+
+        let persisted = get_host_setup(State(state)).await;
+        assert!(response_body(persisted).await.contains("\"complete\":true"));
     }
 
     // ---------------------------------------------------------------------

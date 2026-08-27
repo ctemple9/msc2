@@ -63,9 +63,12 @@ describe('shared help and onboarding screens', () => {
     expect(setupText).toContain('You’re All Set');
     expect(setupText).toContain('Get Started');
     expect(setupText).toContain('/v1/config/servers-root');
+    expect(setupText).toContain('/v1/config/host-setup/complete');
     expect(setupText).toContain('/v1/java-runtimes');
     expect(setupText).toContain('pickFolder');
     expect(setupText).toContain('pickFilePath');
+    expect(setupText).toContain("platformKind === 'tauri'");
+    expect(setupText).toContain('path is on the computer running the selected agent');
     expect(setupText).toContain('Check for Java');
     expect(setupText).toContain('Use PATH');
     expect(setupText).toContain('setup-page-in');
@@ -76,10 +79,12 @@ describe('shared help and onboarding screens', () => {
     expect(gateSource).toContain('scrollbar-width: none');
     expect(gateSource).toContain('msc-onboarding-open');
     expect(gateSource).toContain('agentReady');
+    expect(gateSource).toContain("'/v1/config/host-setup'");
+    expect(gateSource).not.toContain("localStorage.getItem('msc.setup-complete')");
     expect(appSource).toContain("agentReadiness = 'ready'");
     expect(appSource).toContain('readiness={agentReadiness}');
-    expect(appSource).toContain('agentReady={agentReadiness === \'ready\'}');
-    expect(helpSource).toContain('resetSetupPreferences');
+    expect(appSource).toContain("agentReady={agentReadiness === 'ready'}");
+    expect(helpSource).toContain("'/v1/config/host-setup'");
     expect(helpSource).toContain("'/v1/guides/onboarding'");
     expect(helpSource).toContain('That topic is not available on this agent');
     expect(helpSource).toContain('data-onboarding-anchor');

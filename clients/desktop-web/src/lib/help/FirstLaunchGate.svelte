@@ -4,7 +4,6 @@
   import ActionButton from '../components/ActionButton.svelte';
   import SetupIntro from './SetupIntro.svelte';
   import { firstLaunchStage, nextTourStep, type FirstLaunchState } from './onboarding';
-  import { resetSetupPreferences } from '../styles/accent';
   import type { ConceptGuide, OnboardingGuide } from './types';
 
   export let api: ScreenApi;
@@ -33,21 +32,10 @@
 
   $: setPageScrollLocked(onboardingOpen);
 
-  function readState(): FirstLaunchState {
+  function readState(setupComplete: boolean): FirstLaunchState {
     if (!onboarding) return state;
-    const setupComplete = localStorage.getItem('msc.setup-complete') === 'true';
     const conceptGuideSeen = localStorage.getItem('msc.concept-guide-seen') === 'true';
     const tourComplete = localStorage.getItem(onboarding.reopen.persistenceKey) === 'true';
-    if (setupComplete) {
-      localStorage.setItem('msc.setup-ever-completed', 'true');
-    } else if (
-      !conceptGuideSeen &&
-      !tourComplete &&
-      localStorage.getItem('msc.setup-ever-completed') === 'true'
-    ) {
-      resetSetupPreferences();
-      localStorage.removeItem('msc.setup-ever-completed');
-    }
     return {
       setupComplete,
       conceptGuideSeen,
@@ -57,7 +45,6 @@
   function writeState(next: FirstLaunchState): void {
     state = next;
     if (!onboarding) return;
-    localStorage.setItem('msc.setup-complete', String(next.setupComplete));
     localStorage.setItem('msc.concept-guide-seen', String(next.conceptGuideSeen));
     localStorage.setItem(onboarding.reopen.persistenceKey, String(next.tourComplete));
   }
@@ -79,11 +66,14 @@
     if (!agentReady) return;
     const load = async () => {
       try {
-        [concept, onboarding] = await Promise.all([
+        const [loadedConcept, loadedOnboarding, hostSetup] = await Promise.all([
           api.get<ConceptGuide>('/v1/guides/concept-guide'),
           api.get<OnboardingGuide>('/v1/guides/onboarding'),
+          api.get<{ complete: boolean }>('/v1/config/host-setup'),
         ]);
-        state = readState();
+        concept = loadedConcept;
+        onboarding = loadedOnboarding;
+        state = readState(hostSetup.complete);
       } catch {
         // A pre-P11.24 agent does not serve guide data yet. The regular client
         // remains usable rather than inventing local onboarding prose.

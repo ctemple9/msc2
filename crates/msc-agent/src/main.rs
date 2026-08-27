@@ -272,6 +272,11 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
             "/config/servers-root",
             get(routes::versions::get_servers_root).post(routes::versions::set_servers_root),
         )
+        .route("/config/host-setup", get(routes::versions::get_host_setup))
+        .route(
+            "/config/host-setup/complete",
+            post(routes::versions::complete_host_setup),
+        )
         .route(
             "/config/ram",
             get(routes::versions::get_ram_config).post(routes::versions::set_ram_config),

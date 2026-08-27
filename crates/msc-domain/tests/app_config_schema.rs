@@ -242,6 +242,28 @@ fn app_config_schema_app_config_full_round_trip() {
 }
 
 #[test]
+fn app_config_schema_registered_server_migrates_host_setup_to_complete() {
+    let defaults = AppConfig::default_config("/tmp/test-servers");
+    let mut encoded = defaults.encode();
+    encoded["initial_setup_done"] = serde_json::Value::Bool(false);
+    encoded["servers"] = serde_json::Value::Array(vec![
+        ConfigServer::new(
+            "survival",
+            "Survival",
+            "/tmp/test-servers/java/survival",
+            "server.jar",
+            2.0,
+            4.0,
+        )
+        .encode(),
+    ]);
+
+    let decoded = AppConfig::decode(&encoded, &defaults).expect("decode should succeed");
+
+    assert!(decoded.initial_setup_done);
+}
+
+#[test]
 fn app_config_schema_app_config_missing_optional_fields_get_defaults() {
     let fixture = load("app-config-missing-optional-fields-get-defaults");
     let defaults = AppConfig::default_config("/tmp/MinecraftServers");

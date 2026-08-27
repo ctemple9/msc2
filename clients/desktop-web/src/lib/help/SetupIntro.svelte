@@ -2,7 +2,8 @@
   import { onMount } from 'svelte';
   import ActionButton from '../components/ActionButton.svelte';
   import type { Capabilities } from '../navigation/types';
-  import { getPlatform, openExternal, type PlatformKind } from '../platform';
+  import { getPlatform, openExternal } from '../platform';
+  import type { PlatformKind } from '../platform/types';
   import type { ScreenApi } from '../sections/shared/types';
   import {
     ACCENT_PRESETS,
@@ -49,6 +50,8 @@
   let javaMessage = '';
   let xboxMessage = '';
   let tailscaleMessage = '';
+  let completionBusy = false;
+  let completionMessage = '';
 
   $: bedrockAdvertisement = capabilities?.serverTypes?.bedrock;
   $: bedrockReady =
@@ -259,12 +262,12 @@
       const result = await api.post<{ filename?: string }>('/v1/broadcast/download-jar');
       xboxFilename = result.filename ?? '';
       await probeXbox();
-      xboxMessage =
-        xboxStatus === 'installed'
-          ? xboxFilename
-            ? `Verified downloaded: ${xboxFilename}`
-            : 'Verified downloaded and present in the agent helper cache.'
-          : 'The download completed, but the agent could not verify the helper file.';
+      const installed = xboxStatus === ('installed' as typeof xboxStatus);
+      xboxMessage = installed
+        ? xboxFilename
+          ? `Verified downloaded: ${xboxFilename}`
+          : 'Verified downloaded and present in the agent helper cache.'
+        : 'The download completed, but the agent could not verify the helper file.';
     } catch {
       xboxStatus = 'unavailable';
       xboxMessage = 'The helper can be downloaded after the agent is ready for broadcast access.';
@@ -296,6 +299,26 @@
     }
   }
 
+  async function finishHostSetup(): Promise<void> {
+    if (!api || completionBusy) return;
+    completionBusy = true;
+    completionMessage = '';
+    try {
+      await api.post<{ complete: boolean }>('/v1/config/host-setup/complete');
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(
+          'msc.server-types',
+          JSON.stringify({ java: wantsJava, bedrock: wantsBedrock }),
+        );
+      }
+      onComplete();
+    } catch {
+      completionMessage = 'The agent could not finish host setup. Try again.';
+    } finally {
+      completionBusy = false;
+    }
+  }
+
   function nextSetupPage(): void {
     if (setupPage === 0) {
       setupPage = 1;
@@ -314,13 +337,7 @@
       setupPage += 1;
       return;
     }
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(
-        'msc.server-types',
-        JSON.stringify({ java: wantsJava, bedrock: wantsBedrock }),
-      );
-    }
-    onComplete();
+    void finishHostSetup();
   }
 
   function skipOptional(): void {
@@ -528,7 +545,11 @@
             <span class="card-icon blue">▰</span>
             <div>
               <h3>Servers Root Folder</h3>
-              <p>All your servers will live inside this folder.</p>
+              <p>
+                {platformKind === 'tauri'
+                  ? 'All your servers will live inside this folder.'
+                  : 'This path is on the computer running the selected agent, not on this browser device.'}
+              </p>
             </div>
           </div>
           <div class="field-row">
@@ -541,9 +562,11 @@
                 serversRoot = event.currentTarget.value;
                 rootStatus = 'unknown';
               }}
-            /><button type="button" disabled={rootPickerBusy} onclick={() => void chooseRoot()}
-              >{rootPickerBusy ? 'Choosing…' : 'Browse…'}</button
-            >
+            />{#if platformKind === 'tauri'}<button
+                type="button"
+                disabled={rootPickerBusy}
+                onclick={() => void chooseRoot()}>{rootPickerBusy ? 'Choosing…' : 'Browse…'}</button
+              >{/if}
           </div>
           {#if rootStatus === 'unavailable' || rootStatus === 'unknown'}<p
               class="inline-message warning"
@@ -558,7 +581,9 @@
                 <h3>Java Executable</h3>
                 <p>
                   Java servers require JDK 21 or later. Point to your binary or let the agent find
-                  it on PATH.
+                  it on PATH.{platformKind === 'browser'
+                    ? ' This executable path is on the agent host.'
+                    : ''}
                 </p>
               </div>
             </div>
@@ -572,11 +597,12 @@
                   javaPath = event.currentTarget.value;
                   javaStatus = 'unknown';
                 }}
-              /><button
-                type="button"
-                disabled={javaPickerBusy || javaStatus === 'checking'}
-                onclick={() => void browseJava()}>{javaPickerBusy ? 'Choosing…' : 'Browse…'}</button
-              ><button
+              />{#if platformKind === 'tauri'}<button
+                  type="button"
+                  disabled={javaPickerBusy || javaStatus === 'checking'}
+                  onclick={() => void browseJava()}
+                  >{javaPickerBusy ? 'Choosing…' : 'Browse…'}</button
+                >{/if}<button
                 type="button"
                 disabled={javaPickerBusy || javaStatus === 'checking'}
                 onclick={() => void probeJava(javaPath)}
@@ -842,6 +868,7 @@
   {/key}
 
   {#if setupPage === 0}<p class="setup-time">This setup takes about 2 minutes.</p>{/if}
+  {#if completionMessage}<p class="inline-message warning" role="alert">{completionMessage}</p>{/if}
   <div class="setup-actions">
     {#if setupPage > 0 && setupPage < 6}<ActionButton
         kind="quiet"
@@ -854,13 +881,15 @@
       >{/if}
     <ActionButton
       label={setupPage === 6 ? 'Get Started' : setupPage === 5 ? 'Continue' : 'Next'}
-      disabled={setupPage === 1 && !wantsJava && !wantsBedrock}
+      disabled={completionBusy || (setupPage === 1 && !wantsJava && !wantsBedrock)}
       onclick={nextSetupPage}
-      >{setupPage === 6
-        ? 'Get Started'
-        : setupPage === 5
-          ? 'Continue'
-          : 'Next'}{#if setupPage < 6}<span aria-hidden="true"> →</span>{/if}</ActionButton
+      >{setupPage === 6 && completionBusy
+        ? 'Finishing…'
+        : setupPage === 6
+          ? 'Get Started'
+          : setupPage === 5
+            ? 'Continue'
+            : 'Next'}{#if setupPage < 6}<span aria-hidden="true"> →</span>{/if}</ActionButton
     >
   </div>
 </div>

@@ -1008,7 +1008,12 @@ impl AppConfig {
             Some(_) => return Err(err("field \"servers\" is not an array")),
         };
         let active_server_id = opt_str(v, "active_server_id")?;
-        let initial_setup_done = opt_bool(v, "initial_setup_done", !servers.is_empty())?;
+        // Early MSC 2 clients kept setup completion in browser-local storage,
+        // so they could register servers while this durable flag stayed false.
+        // A host with a registered server is already configured and must not
+        // replay host setup for every new client.
+        let initial_setup_done =
+            opt_bool(v, "initial_setup_done", !servers.is_empty())? || !servers.is_empty();
 
         let remote_api_port = opt_i64(v, "remote_api_port", defaults.remote_api_port)?;
         // Keychain-only; never decoded from JSON.

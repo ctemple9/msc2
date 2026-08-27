@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: ff21c6648fa0323d991d057afb9dae7353c8bc6cb1300a1c794cd909f70af251
+// Contract SHA-256: bc9ff6f8c190a86a8dcdac19410b489365331c8ffb2f81f9dd8adf8a9115ead3
 
 export interface paths {
   '/v1/active-server': {
@@ -1474,6 +1474,87 @@ export interface paths {
           };
         };
         /** @description write_failed */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/config/host-setup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get whether one-time setup is complete for this agent host */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Current host setup state */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['HostSetupStateDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/config/host-setup/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark one-time setup complete for this agent host */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Host setup marked complete */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['HostSetupStateDTO'];
+          };
+        };
+        /** @description set_failed */
         500: {
           headers: {
             [name: string]: unknown;
@@ -6268,6 +6349,11 @@ export interface components {
       message: string;
       profileId?: string;
       success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    HostSetupStateDTO: {
+      complete: boolean;
     } & {
       [key: string]: unknown;
     };

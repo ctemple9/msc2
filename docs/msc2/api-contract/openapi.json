@@ -1350,6 +1350,53 @@
         "x-permission-category": "settings"
       }
     },
+    "/v1/config/host-setup": {
+      "get": {
+        "summary": "Get whether one-time setup is complete for this agent host",
+        "responses": {
+          "200": {
+            "description": "Current host setup state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostSetupStateDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "none"
+      }
+    },
+    "/v1/config/host-setup/complete": {
+      "post": {
+        "summary": "Mark one-time setup complete for this agent host",
+        "responses": {
+          "200": {
+            "description": "Host setup marked complete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostSetupStateDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "set_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "settings"
+      }
+    },
     "/v1/config/java-runtime": {
       "get": {
         "summary": "Get the global Java executable path override",
@@ -6650,6 +6697,17 @@
           "result"
         ]
       },
+      "HostSetupStateDTO": {
+        "type": "object",
+        "properties": {
+          "complete": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "complete"
+        ]
+      },
       "JavaConfigResponseDTO": {
         "type": "object",
         "properties": {
@@ -10659,3 +10717,4 @@
     }
   }
 }
+

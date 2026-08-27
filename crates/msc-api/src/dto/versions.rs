@@ -104,6 +104,12 @@ pub struct ServersRootSetRequestDto {
     pub path: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HostSetupStateDto {
+    pub complete: bool,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct JavaRuntimeInstallRequestDto {

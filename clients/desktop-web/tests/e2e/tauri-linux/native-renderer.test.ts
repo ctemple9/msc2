@@ -21,6 +21,12 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
       timeoutMsg: 'The native Tauri window did not render the shared navigation shell.',
     });
     await browser.execute(() => localStorage.clear());
+    await browser.execute(async () => {
+      await fetch('http://127.0.0.1:4173/__test/host-setup', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    });
     await browser.refresh();
     await browser.waitUntil(async () => await $('nav[aria-label="Sections"]').isDisplayed(), {
       timeout: 15_000,
@@ -71,7 +77,6 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     ).click();
     await waitForText('.gate', 'One server. Your worlds.');
     await browser.execute(() => {
-      localStorage.setItem('msc.setup-complete', 'true');
       localStorage.setItem('msc.concept-guide-seen', 'true');
       localStorage.setItem('msc_onboarding_tour_complete', 'true');
     });

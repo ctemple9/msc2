@@ -13,20 +13,18 @@ const mime = {
 
 const topics = {
   'handbook.overview': {
-    id: 'handbook.overview',
-    kind: 'handbook',
+    helpId: 'handbook.overview',
     title: 'Overview',
     category: 'concepts',
     analogy: 'A server is a separate Minecraft room.',
-    markdown: 'MSC manages servers and worlds.\n\n- Start a server\n- Choose a world',
+    body: 'MSC manages servers and worlds.\n\n- Start a server\n- Choose a world',
     relatedIds: ['concept.server'],
   },
   'concept.server': {
-    id: 'concept.server',
-    kind: 'concept',
+    helpId: 'concept.server',
     title: 'One server. Your worlds.',
     category: 'concept-guide',
-    markdown: 'A server holds worlds.',
+    body: 'A server holds worlds.',
     relatedIds: ['handbook.overview'],
   },
 };
@@ -117,6 +115,7 @@ const worlds = [
   },
 ];
 const statusRequests = new Map();
+const hostSetupOverrides = new Map();
 let broadcastJar = { installed: false, filename: null };
 
 function json(response, body, status = 200) {
@@ -126,6 +125,15 @@ function json(response, body, status = 200) {
 function bytes(response, body) {
   response.writeHead(200, { 'content-type': 'application/zip', 'content-length': body.byteLength });
   response.end(body);
+}
+
+function hostSetupComplete(request) {
+  const cookie = request.headers.cookie ?? '';
+  const cookieSaysIncomplete = cookie
+    .split(';')
+    .some((part) => part.trim() === 'msc_test_host_setup=false');
+  const client = request.headers['user-agent'] ?? 'unknown';
+  return hostSetupOverrides.get(client) ?? !cookieSaysIncomplete;
 }
 
 createServer(async (request, response) => {
@@ -141,12 +149,41 @@ createServer(async (request, response) => {
   response.setHeader('access-control-allow-credentials', 'true');
   response.setHeader(
     'access-control-allow-headers',
-    'content-type, authorization, x-msc-client-api-version',
+    'content-type, authorization, x-msc-client-api-version, x-msc-csrf',
   );
-  response.setHeader('access-control-allow-methods', 'GET, POST, PUT, OPTIONS');
+  response.setHeader('access-control-allow-methods', 'GET, POST, PUT, DELETE, OPTIONS');
   if (request.method === 'OPTIONS') {
     response.writeHead(204);
     return response.end();
+  }
+  // BrowserSessionAuth (src/lib/auth/browser.ts) fetches this before every
+  // mutation and throws if the agent never serves it -- without this route
+  // every POST/PUT/DELETE in the shared browser transport fails client-side
+  // before a request is even sent, matching the real agent's
+  // GET /v1/auth/csrf (crates/msc-agent/src/routes/browser_session.rs).
+  if (url.pathname === '/v1/auth/csrf' && request.method === 'GET')
+    return json(response, {
+      csrfToken: 'test-csrf-token',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    });
+  if (url.pathname === '/__test/host-setup' && request.method === 'POST') {
+    const client = request.headers['user-agent'] ?? 'unknown';
+    hostSetupOverrides.set(client, false);
+    // /v1/status's own count===1 case simulates a reconnect-pending agent
+    // for the separate "reconnect fallback" test; a fresh-profile walk
+    // calling this reset first has nothing to do with that scenario and
+    // must not eat a real 503 on its own first status probe, so mark this
+    // client as already past it.
+    statusRequests.set(client, 1);
+    response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
+    return json(response, { complete: false });
+  }
+  if (url.pathname === '/v1/config/host-setup' && request.method === 'GET')
+    return json(response, { complete: hostSetupComplete(request) });
+  if (url.pathname === '/v1/config/host-setup/complete' && request.method === 'POST') {
+    hostSetupOverrides.set(request.headers['user-agent'] ?? 'unknown', true);
+    response.setHeader('set-cookie', 'msc_test_host_setup=true; Path=/; SameSite=Lax');
+    return json(response, { complete: true });
   }
   if (url.pathname === '/v1/capabilities')
     return json(response, {
@@ -159,9 +196,8 @@ createServer(async (request, response) => {
     });
   if (url.pathname === '/v1/help/catalog')
     return json(response, {
-      topics: Object.values(topics).map(({ id, kind, title, category }) => ({
-        id,
-        kind,
+      topics: Object.values(topics).map(({ helpId, title, category }) => ({
+        helpId,
         title,
         category,
       })),

@@ -632,6 +632,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11d: scope the agent screen to its selected host`
 **Batch:** solo
 
+### P12.11e — Restore the Agent screen after host scoping
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/tests/agent-install/agent-install.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11d regression found during Cameron verification. Its new reactive local-service refresh reads the host ID passed by `App.svelte`, but `AgentSetupSection` did not declare that prop, so opening **Agent…** throws at component initialization. Declare the existing `hostId` input with a safe default and extend the host-scope regression assertion to require it. Do not change routing, service behavior, or the selected-host policy from P12.11d.
+**Verify:** `cd clients/desktop-web && npx vitest run tests/agent-install/agent-install.test.ts -t "keeps service controls scoped" && npm run build && npx tauri dev` — open **Agent…** from the host/server picker and confirm the page opens; repeat after selecting a remote host and then Local agent, confirming the P12.11d control boundary still holds.
+**Commit:** `P12.11e: restore the agent screen after host scoping`
+**Batch:** solo
+
 ### P12.12 — Server Editor sheet (7 sub-tabs)
 **Status:** not started
 **Files:** server-editor sheet components

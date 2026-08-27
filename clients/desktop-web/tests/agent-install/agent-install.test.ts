@@ -39,6 +39,7 @@ describe('local agent installation boundary', () => {
       'baseUrl: isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin',
     );
     expect(appSource).toContain('isLocalHost={hostId === localAgentHostId}');
+    expect(setupSource).toContain("export let hostId = '';");
     expect(setupSource).toContain('isDesktopShell && isLocalHost');
     expect(setupSource).toContain('{:else if !isDesktopShell && isLoopbackHost}');
     expect(setupSource).toContain('Run service controls on {hostLabel}');

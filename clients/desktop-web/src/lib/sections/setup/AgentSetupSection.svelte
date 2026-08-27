@@ -13,6 +13,7 @@
 
   export let readiness: AgentReadiness = 'starting';
   export let onAgentRetry: (() => void) | undefined = undefined;
+  export let hostId = '';
   export let hostLabel = 'Local agent';
   export let hostBaseUrl = 'http://127.0.0.1:48001';
   export let isDesktopShell = false;

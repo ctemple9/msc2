@@ -5,7 +5,8 @@
   import { onDestroy, onMount } from 'svelte';
   import Button from '../base/Button.svelte';
   import Toggle from '../base/Toggle.svelte';
-  import type { ScreenApi } from '../../sections/shared/types';
+  import CommandPaletteSheet from '../../sections/console/CommandPaletteSheet.svelte';
+  import type { ScreenApi, Schema } from '../../sections/shared/types';
   import {
     CONSOLE_CHIPS,
     type ConsoleChipId,
@@ -15,6 +16,7 @@
     type CustomFilter,
     EMPTY_CUSTOM_FILTER,
     commandEchoLine,
+    commandSuggestions,
     consoleLineTone,
     livePaths,
     rememberCommand,
@@ -27,6 +29,10 @@
   // header-only row size itself naturally.
   export let height: number | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
+  // Threaded from ApplicationShell's own `servers`/`activeServerId` (P12.10b)
+  // -- both were already props there for DetailsHeader, so no App.svelte
+  // change was needed to get this here.
+  export let serverType: string | undefined = undefined;
 
   const POLL_INTERVAL_MS = 2000;
 
@@ -41,8 +47,12 @@
   let logEl: HTMLDivElement | undefined;
   let followTail = true;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let playersResponse: Schema['PlayersResponseDTO'] = { count: 0, players: [] };
+  let showPalette = false;
 
   $: visible = visibleConsoleLines(lines, chip, custom, search);
+  $: onlinePlayers = playersResponse.players;
+  $: suggestions = command ? commandSuggestions(command, serverType, onlinePlayers) : [];
 
   $: if (logEl && visible.length && followTail) {
     const target = logEl;
@@ -57,6 +67,11 @@
       lines = await api.get<ConsoleLine[]>(livePaths.tail);
     } catch {
       // Agent unreachable this cycle — keep showing the last known buffer.
+    }
+    try {
+      playersResponse = await api.get<Schema['PlayersResponseDTO']>(livePaths.players);
+    } catch {
+      // Same as above — keep the last known roster.
     }
   }
 
@@ -288,6 +303,16 @@
       {/if}
     </div>
 
+    {#if suggestions.length}
+      <div class="autocomplete-strip" role="listbox" aria-label="Command suggestions">
+        {#each suggestions as suggestion (suggestion)}
+          <button type="button" class="suggestion" onclick={() => (command = suggestion)}>
+            {suggestion}
+          </button>
+        {/each}
+      </div>
+    {/if}
+
     <div class="input-row">
       <span class="prompt" aria-hidden="true">›</span>
       <input
@@ -299,6 +324,31 @@
         disabled={!api}
         aria-label="Console command"
       />
+      <button
+        type="button"
+        class="icon-action"
+        title="Command palette"
+        aria-label="Command palette"
+        onclick={() => (showPalette = true)}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect
+            x="5"
+            y="4"
+            width="14"
+            height="16"
+            rx="2"
+            stroke="currentColor"
+            stroke-width="1.6"
+          />
+          <path
+            d="M8 9h8M8 13h8M8 17h5"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+          />
+        </svg>
+      </button>
       <button
         type="button"
         class="icon-action"
@@ -349,6 +399,15 @@
     {#if sendError}<p class="send-error" role="status">{sendError}</p>{/if}
   {/if}
 </div>
+
+{#if showPalette}
+  <CommandPaletteSheet
+    {serverType}
+    {onlinePlayers}
+    onClose={() => (showPalette = false)}
+    onUse={(value) => (command = value)}
+  />
+{/if}
 
 <style>
   .dock {
@@ -525,6 +584,29 @@
   .empty {
     margin: 0;
     color: var(--msc2-text-tertiary);
+  }
+  .autocomplete-strip {
+    flex-shrink: 0;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    margin-top: 7px;
+  }
+  .suggestion {
+    flex-shrink: 0;
+    font-family: var(--msc2-font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.85);
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--msc2-hairline-field);
+    border-radius: 6px;
+    padding: 4px 9px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .suggestion:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
   .input-row {
     flex-shrink: 0;

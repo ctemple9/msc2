@@ -35,6 +35,14 @@ export const livePaths = {
   tail: '/v1/console/tail?n=200',
   performance: '/v1/performance',
   operations: '/v1/operations',
+  // Same route players-online/model.ts's playerPaths.players calls (P12.10b:
+  // feeds the command palette's player chips and autocomplete). Real for
+  // Bedrock; a Java active server gets back an empty roster with
+  // note:"not_bedrock" (crates/msc-agent/src/routes/players.rs) -- no
+  // equivalent live-online-roster route exists for Java yet, so a Java
+  // palette/autocomplete honestly falls back to plain text entry for
+  // player arguments, same as MSC 1 does with zero online players.
+  players: '/v1/players',
 } as const;
 
 // --- Docked console (P12.10): MSC 1 ConsoleManager/ConsoleLineParser ported to the

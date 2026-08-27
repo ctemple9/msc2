@@ -164,6 +164,7 @@
         onToggle={toggleConsole}
         height={consoleCollapsed ? undefined : consoleHeight}
         {api}
+        serverType={activeServer?.serverType}
       />
     </div>
   </div>

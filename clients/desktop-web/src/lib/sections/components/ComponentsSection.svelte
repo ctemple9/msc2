@@ -559,6 +559,8 @@
   <PluginBrowserSheet
     {api}
     addOnKind={kind}
+    javaFlavor={activeServer?.javaFlavor}
+    serverMinecraftVersion={primaryComponent?.installedVersion}
     onClose={() => (showBrowser = false)}
     onInstalled={() => void loadAddons()}
   />

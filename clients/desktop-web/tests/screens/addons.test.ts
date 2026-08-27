@@ -2,15 +2,43 @@ import { describe, expect, it } from 'vitest';
 import { addonPaths, addonStatusLabel, demoAddons } from '../../src/lib/sections/addons/model';
 import {
   addOnKind,
+  catalogDetailPaths,
+  collapseVersions,
   componentPaths,
   componentStatusLabel,
   componentTone,
+  conflictCount,
   demoComponentsStatus,
+  expandedLoaders,
+  filterVisibleVersions,
   flavorDisplayName,
+  formatCount,
   isModdedFlavor,
+  isStableVersion,
+  isVersionCompatible,
+  modrinthLoaderFacets,
+  parseInlineMarkdown,
+  sanitizeModrinthBody,
   supportsCrossplay,
 } from '../../src/lib/sections/components/model';
 import type { Schema } from '../../src/lib/sections/shared/types';
+
+function makeVersion(
+  overrides: Partial<Schema['CatalogVersionDTO']> = {},
+): Schema['CatalogVersionDTO'] {
+  return {
+    id: 'v1',
+    projectId: 'p1',
+    name: 'Version 1',
+    versionNumber: '1.0.0',
+    versionType: 'release',
+    gameVersions: ['1.21.1'],
+    loaders: ['paper'],
+    dependencies: [],
+    files: [],
+    ...overrides,
+  };
+}
 
 describe('add-on and modpack screens', () => {
   it('keeps catalog install and local-file staging as separate paths', () => {
@@ -77,5 +105,95 @@ describe('components tab -- DetailsComponentsTabView.swift is the real oracle', 
     };
     expect(componentTone(missing)).toBe('error');
     expect(componentStatusLabel(missing)).toBe('Missing');
+  });
+});
+
+describe('project detail page -- ModrinthProjectDetailView.swift is the real oracle', () => {
+  it('builds the two new P12.7c routes, percent-encoding the project id', () => {
+    expect(catalogDetailPaths.project('sodium mod')).toBe('/v1/catalog/projects/sodium%20mod');
+    expect(catalogDetailPaths.versions('sodium')).toBe('/v1/catalog/projects/sodium/versions');
+  });
+
+  it('formats large counts the same way for downloads and followers', () => {
+    expect(formatCount(999)).toBe('999');
+    expect(formatCount(1_200)).toBe('1.2K');
+    expect(formatCount(1_200_000)).toBe('1.2M');
+  });
+
+  it('mirrors JavaServerFlavor.modrinth_loader_facets exactly', () => {
+    expect(modrinthLoaderFacets('paper')).toEqual(['paper', 'spigot', 'bukkit']);
+    expect(modrinthLoaderFacets('fabric')).toEqual(['fabric']);
+    expect(modrinthLoaderFacets('quilt')).toEqual(['quilt', 'fabric']);
+    expect(modrinthLoaderFacets('neoforge')).toEqual(['neoforge']);
+    expect(modrinthLoaderFacets('vanilla')).toEqual([]);
+    expect(modrinthLoaderFacets(undefined)).toEqual([]);
+  });
+
+  it('lets NeoForge run Forge mods and Quilt run Fabric mods for version filtering', () => {
+    expect(expandedLoaders('neoforge', ['neoforge'])).toEqual(new Set(['neoforge', 'forge']));
+    expect(expandedLoaders('quilt', ['quilt', 'fabric'])).toEqual(new Set(['quilt', 'fabric']));
+    expect(expandedLoaders('paper', ['paper'])).toEqual(new Set(['paper']));
+  });
+
+  it('only calls a version compatible when its gameVersions include the server version', () => {
+    const v = makeVersion({ gameVersions: ['1.21.1', '1.21.2'] });
+    expect(isVersionCompatible(v, '1.21.1')).toBe(true);
+    expect(isVersionCompatible(v, '1.20.4')).toBe(false);
+    expect(isVersionCompatible(v, undefined)).toBe(false);
+  });
+
+  it('counts only "incompatible" dependencies as conflicts', () => {
+    const v = makeVersion({
+      dependencies: [
+        { dependencyType: 'required' },
+        { dependencyType: 'incompatible' },
+        { dependencyType: 'incompatible' },
+      ],
+    });
+    expect(conflictCount(v)).toBe(2);
+  });
+
+  it('treats only versionType release as stable', () => {
+    expect(isStableVersion(makeVersion({ versionType: 'release' }))).toBe(true);
+    expect(isStableVersion(makeVersion({ versionType: 'beta' }))).toBe(false);
+  });
+
+  it('collapses same-versionNumber platform variants, preferring the server-loader match', () => {
+    const paperBuild = makeVersion({ id: 'a', versionNumber: '2.0.0', loaders: ['paper'] });
+    const fabricBuild = makeVersion({ id: 'b', versionNumber: '2.0.0', loaders: ['fabric'] });
+    const collapsed = collapseVersions([fabricBuild, paperBuild], new Set(['paper']));
+    expect(collapsed).toHaveLength(1);
+    expect(collapsed[0].id).toBe('a');
+  });
+
+  it('falls back to the unfiltered stable list rather than hiding every version', () => {
+    const onlyFabric = makeVersion({ loaders: ['fabric'] });
+    const visible = filterVisibleVersions([onlyFabric], {
+      stableOnly: true,
+      loaders: new Set(['paper']),
+    });
+    expect(visible).toEqual([onlyFabric]);
+  });
+
+  it('strips embeds/images and converts HTML anchors to safe inline links', () => {
+    const raw =
+      '# Title\n<iframe src="x"></iframe>\n<img src="a.png">\nSee <a href="https://example.test">docs</a>.\n\n\n\nDone';
+    const clean = sanitizeModrinthBody(raw);
+    expect(clean).not.toContain('<iframe');
+    expect(clean).not.toContain('<img');
+    expect(clean).toContain('**Title**');
+    expect(clean).toContain('[docs](https://example.test)');
+    expect(clean).not.toMatch(/\n{3,}/);
+  });
+
+  it('parses the sanitized subset into text/bold/link segments, never raw HTML', () => {
+    const segments = parseInlineMarkdown('Hello **world**, see [docs](https://example.test) now');
+    expect(segments).toEqual([
+      { type: 'text', text: 'Hello ' },
+      { type: 'bold', text: 'world' },
+      { type: 'text', text: ', see ' },
+      { type: 'link', text: 'docs', href: 'https://example.test' },
+      { type: 'text', text: ' now' },
+    ]);
   });
 });

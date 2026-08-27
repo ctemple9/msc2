@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 5fbb3a6ef3b95e5aa874fb885dae133bcf546889e2068c9d7eeb7ba2f3f7fb39
+// Contract SHA-256: ff21c6648fa0323d991d057afb9dae7353c8bc6cb1300a1c794cd909f70af251
 
 export interface paths {
   '/v1/active-server': {
@@ -925,6 +925,100 @@ export interface paths {
           };
           content: {
             'application/json': components['schemas']['CapabilitiesDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/projects/{projectId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Fetch full Modrinth project detail for the catalog browser */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          projectId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description full project detail */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['CatalogProjectDetailDTO'];
+          };
+        };
+        /** @description provider_unavailable */
+        502: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/catalog/projects/{projectId}/versions': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Fetch every Modrinth version for a catalog project */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          projectId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description all project versions; compatibility filtering is client-side */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['CatalogVersionsResponseDTO'];
+          };
+        };
+        /** @description provider_unavailable */
+        502: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
           };
         };
       };
@@ -5739,12 +5833,22 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    CatalogGalleryImageDTO: {
+      description?: string | null;
+      featured: boolean;
+      title?: string | null;
+      url: string;
+    } & {
+      [key: string]: unknown;
+    };
     CatalogInstallRequestDTO: {
       projectId?: string;
       slug?: string;
       /** @description Install from a staged local JAR (purpose addon-local-file) instead of the catalog. Exactly one of {projectId+slug+title} or stagedUploadId must be given -- not both, not neither. */
       stagedUploadId?: string;
       title?: string;
+      /** @description Install this exact Modrinth version instead of resolving the latest compatible one server-side. When present, projectId/slug/title are still used for the install-result message and staging metadata; the version is fetched directly by id (GET /v2/version/{id}) rather than searched for. */
+      versionId?: string;
     } & {
       [key: string]: unknown;
     };
@@ -5772,6 +5876,26 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    CatalogProjectDetailDTO: {
+      /** @description Full Markdown/HTML project body (Modrinth's 'body' field). Client is responsible for safely rendering it -- this is untrusted third-party content. */
+      body: string;
+      description: string;
+      discordURL?: string | null;
+      downloads: number;
+      followers: number;
+      gallery: components['schemas']['CatalogGalleryImageDTO'][];
+      iconURL?: string | null;
+      issuesURL?: string | null;
+      projectId: string;
+      /** @description One of required/optional/unsupported, Modrinth's own vocabulary -- unchanged, not remapped to a boolean. */
+      serverSide: string;
+      slug: string;
+      sourceURL?: string | null;
+      title: string;
+      wikiURL?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
     CatalogSearchResponseDTO: {
       addonKind?: string;
       gameVersion?: string;
@@ -5779,6 +5903,42 @@ export interface components {
       note?: string;
       results?: components['schemas']['CatalogItemDTO'][];
       supportsAddons: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    CatalogVersionDependencyDTO: {
+      /** @description required/optional/incompatible/embedded */
+      dependencyType: string;
+      projectId?: string | null;
+      versionId?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    CatalogVersionDTO: {
+      datePublished?: string | null;
+      dependencies: components['schemas']['CatalogVersionDependencyDTO'][];
+      files: components['schemas']['CatalogVersionFileDTO'][];
+      gameVersions: string[];
+      id: string;
+      loaders: string[];
+      name: string;
+      projectId: string;
+      versionNumber: string;
+      /** @description release/beta/alpha */
+      versionType: string;
+    } & {
+      [key: string]: unknown;
+    };
+    CatalogVersionFileDTO: {
+      filename: string;
+      primary: boolean;
+      size?: number | null;
+      url: string;
+    } & {
+      [key: string]: unknown;
+    };
+    CatalogVersionsResponseDTO: {
+      versions: components['schemas']['CatalogVersionDTO'][];
     } & {
       [key: string]: unknown;
     };

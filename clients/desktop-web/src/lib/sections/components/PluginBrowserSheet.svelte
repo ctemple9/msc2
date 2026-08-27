@@ -1,13 +1,8 @@
 <script lang="ts">
   // Ports the browsing half of ModrinthBrowserView.swift: search the active
-  // server's add-on catalog and install a result. MSC 1's per-project detail
-  // page (ModrinthProjectDetailView -- gallery, full version list, individual
-  // version installs) has no backing route in the frozen contract: GET
-  // /v1/catalog/search returns search hits only, and POST
-  // /v1/components/install takes a projectId/slug/title and resolves the
-  // latest compatible version itself. There is no GET for a single project's
-  // detail or version list to browse. That richer page is a real, documented
-  // gap -- not built here -- rather than faked with client-side guesses.
+  // server's add-on catalog and install a result straight from the flat list,
+  // or click into ProjectDetailSheet (P12.7d) for the full ModrinthProjectDetailView
+  // experience -- gallery, About text, and a per-version compatibility/install list.
   //
   // The per-result icon here is real Modrinth artwork (CatalogItemDTO
   // .iconURL), the same category of content as a world slot's thumbnail --
@@ -21,14 +16,19 @@
   import Badge from '../../components/base/Badge.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Icon from '../../components/base/Icon.svelte';
+  import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { mutate } from '../shared/types';
-  import { addonPaths, pollOperation } from './model';
+  import { addonPaths, formatCount, pollOperation } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let addOnKind: 'mod' | 'plugin' = 'plugin';
+  export let javaFlavor: string | undefined = undefined;
+  export let serverMinecraftVersion: string | undefined = undefined;
   export let onClose: () => void;
   export let onInstalled: () => void;
+
+  let detailItem: Schema['CatalogItemDTO'] | undefined;
 
   const noun = addOnKind === 'mod' ? 'mods' : 'plugins';
 
@@ -104,10 +104,9 @@
     }
   }
 
-  function formatDownloads(n: number): string {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-    return `${n}`;
+  function handleDetailInstalled(projectId: string): void {
+    installed = new Set(installed).add(projectId);
+    onInstalled();
   }
 </script>
 
@@ -135,21 +134,24 @@
     <div class="results">
       {#each results as item (item.projectId)}
         <div class="result">
-          <div class="icon">
-            {#if item.iconURL}
-              <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
-            {:else}
-              <Icon name="box" size={18} />
-            {/if}
-          </div>
-          <div class="info">
-            <div class="title-row">
-              <span class="title">{item.title}</span>
-              {#if item.isClientOnly}<Badge variant="status" tone="warn">Client-only</Badge>{/if}
+          <button type="button" class="result-link" onclick={() => (detailItem = item)}>
+            <div class="icon">
+              {#if item.iconURL}
+                <img src={item.iconURL} alt="" width="40" height="40" loading="lazy" />
+              {:else}
+                <Icon name="box" size={18} />
+              {/if}
             </div>
-            <p class="meta">by {item.author} · {formatDownloads(item.downloads)} downloads</p>
-            <p class="description">{item.description}</p>
-          </div>
+            <div class="info">
+              <div class="title-row">
+                <span class="title">{item.title}</span>
+                {#if item.isClientOnly}<Badge variant="status" tone="warn">Client-only</Badge>{/if}
+                <Icon name="chevron" size={10} />
+              </div>
+              <p class="meta">by {item.author} · {formatCount(item.downloads)} downloads</p>
+              <p class="description">{item.description}</p>
+            </div>
+          </button>
           {#if installed.has(item.projectId)}
             <span class="added">Added</span>
           {:else if installing.has(item.projectId)}
@@ -162,6 +164,17 @@
     </div>
   {/if}
 </Sheet>
+
+{#if detailItem}
+  <ProjectDetailSheet
+    {api}
+    item={detailItem}
+    {javaFlavor}
+    {serverMinecraftVersion}
+    onClose={() => (detailItem = undefined)}
+    onInstalled={handleDetailInstalled}
+  />
+{/if}
 
 <style>
   .header {
@@ -202,6 +215,20 @@
   }
   .result:first-child {
     border-top: none;
+  }
+  .result-link {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    min-width: 0;
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
   }
   .icon {
     flex-shrink: 0;

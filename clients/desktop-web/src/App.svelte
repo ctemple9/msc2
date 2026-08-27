@@ -364,14 +364,26 @@
 
   onMount(() => {
     restoreAccent();
-    hostStore.addHost({ id: localAgentHostId, label: 'Local agent', baseUrl: LOCAL_AGENT_ORIGIN });
-    refreshHosts();
-    void getPlatform().then((platform) => (isDesktopShell = platform.kind === 'tauri'));
+    void initializeShell();
     const onPopState = () => void selectFromLocation();
-    void initializeClient();
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   });
+
+  async function initializeShell(): Promise<void> {
+    const platform = await getPlatform();
+    isDesktopShell = platform.kind === 'tauri';
+    // A browser only has one host: the agent that served this page. Keeping its
+    // actual origin here prevents a remote page from ever being mistaken for a
+    // loopback agent on the browser user's own computer.
+    hostStore.addHost({
+      id: localAgentHostId,
+      label: 'Local agent',
+      baseUrl: isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin,
+    });
+    refreshHosts();
+    await initializeClient();
+  }
 
   async function selectSection(id: string, updateUrl = true): Promise<void> {
     const section = router.get(id);
@@ -449,6 +461,7 @@
       hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
       hostBaseUrl={hostStore.getState(hostId).host.baseUrl}
       {isDesktopShell}
+      isLocalHost={hostId === localAgentHostId}
       serverId={selectedServerId}
       {permissions}
       readiness={agentReadiness}

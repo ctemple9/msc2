@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import Badge from '../../components/base/Badge.svelte';
   import Button from '../../components/base/Button.svelte';
   import Card from '../../components/base/Card.svelte';
@@ -17,6 +16,7 @@
   export let hostLabel = 'Local agent';
   export let hostBaseUrl = 'http://127.0.0.1:48001';
   export let isDesktopShell = false;
+  export let isLocalHost = true;
 
   const readinessTitles: Record<AgentReadiness, string> = {
     missing: 'Agent not installed',
@@ -41,9 +41,11 @@
   let copiedCommand = '';
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
+  let inspectedHostId: string | undefined;
   $: readinessTitle = readinessTitles[readiness];
   $: readinessMessage = readinessMessages[readiness];
   $: isLoopbackHost = loopbackHost(hostBaseUrl);
+  $: isLocalDesktopHost = isDesktopShell && isLocalHost;
   $: readinessTone = readiness === 'ready' ? 'ok' : readiness === 'incompatible' ? 'error' : 'warn';
   $: statusTone =
     status?.state === 'running' ? 'ok' : status?.state === 'unavailable' ? 'error' : 'warn';
@@ -54,10 +56,21 @@
     'msc service stop --service-name msc-agent',
   ];
 
-  onMount(() => void refresh());
+  $: {
+    if (!isLocalDesktopHost) {
+      inspectedHostId = undefined;
+      status = undefined;
+    } else if (inspectedHostId !== hostId) {
+      inspectedHostId = hostId;
+      void refresh();
+    }
+  }
 
   async function refresh(): Promise<void> {
-    status = await (await getPlatform()).agentServiceStatus();
+    if (!isLocalDesktopHost) return;
+    const requestedHostId = hostId;
+    const nextStatus = await (await getPlatform()).agentServiceStatus();
+    if (isLocalDesktopHost && hostId === requestedHostId) status = nextStatus;
   }
 
   async function manage(action: AgentServiceAction): Promise<void> {
@@ -122,16 +135,32 @@
     <Card>
       <div class="card-heading">
         <span class="msc2-type-overline">Background service</span>
-        <Badge variant="status" tone={statusTone}>{serviceState}</Badge>
+        <Badge variant="status" tone={isLocalDesktopHost ? statusTone : 'warn'}
+          >{isLocalDesktopHost ? serviceState : 'host-managed'}</Badge
+        >
       </div>
-      <StatusDot tone={statusTone} label={serviceState} />
-      <p class="detail">{status?.detail ?? 'Looking for the local service.'}</p>
-      {#if status?.pid}<p class="detail">Service process: {status.pid}</p>{/if}
+      {#if isLocalDesktopHost}
+        <StatusDot tone={statusTone} label={serviceState} />
+        <p class="detail">{status?.detail ?? 'Looking for the local service.'}</p>
+        {#if status?.pid}<p class="detail">Service process: {status.pid}</p>{/if}
+      {:else if !isDesktopShell && isLoopbackHost}
+        <StatusDot tone="warn" label="Service status needs Terminal" />
+        <p class="detail">
+          This browser can reach the local agent, but only Terminal can inspect or change its
+          background service.
+        </p>
+      {:else}
+        <StatusDot tone="warn" label={`Managed on ${hostLabel}`} />
+        <p class="detail">
+          This client can manage Minecraft through this agent, but its background service is managed
+          on {hostLabel}.
+        </p>
+      {/if}
     </Card>
   </div>
 
   <Card>
-    {#if isDesktopShell}
+    {#if isLocalDesktopHost}
       <div class="card-heading">
         <span class="msc2-type-overline">Service controls</span>
         <span class="quiet-label">This computer</span>
@@ -159,7 +188,7 @@
           >
         {/if}
       </div>
-    {:else if isLoopbackHost}
+    {:else if !isDesktopShell && isLoopbackHost}
       <div class="card-heading">
         <span class="msc2-type-overline">Terminal controls</span>
         <span class="quiet-label">This computer</span>
@@ -192,9 +221,9 @@
         <span class="msc2-type-overline">Service controls</span>
         <span class="quiet-label">Another computer</span>
       </div>
-      <h2>This browser cannot manage that service</h2>
+      <h2>Run service controls on {hostLabel}</h2>
       <p class="detail">
-        The agent is on a different machine. Run service controls there; nothing in this browser can
+        The selected agent is on another computer. Run service controls there; this client cannot
         install, start, stop, or repair it.
       </p>
     {/if}

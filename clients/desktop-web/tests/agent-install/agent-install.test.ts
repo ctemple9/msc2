@@ -34,6 +34,17 @@ describe('local agent installation boundary', () => {
     expect(appSource).toContain("await selectSection('agent-setup')");
   });
 
+  it('keeps service controls scoped to the selected local host', () => {
+    expect(appSource).toContain(
+      'baseUrl: isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin',
+    );
+    expect(appSource).toContain('isLocalHost={hostId === localAgentHostId}');
+    expect(setupSource).toContain('isDesktopShell && isLocalHost');
+    expect(setupSource).toContain('{:else if !isDesktopShell && isLoopbackHost}');
+    expect(setupSource).toContain('Run service controls on {hostLabel}');
+    expect(setupSource).toContain('label={`Managed on ${hostLabel}`}');
+  });
+
   it('states that closing the window does not stop a service or server', () => {
     expect(setupSource).toContain('Closing the app window never stops the service');
   });

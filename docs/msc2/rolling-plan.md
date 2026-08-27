@@ -624,6 +624,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11c: elevate macOS agent stop control`
 **Batch:** solo
 
+### P12.11d — Scope the agent screen to its selected host
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/tests/agent-install/agent-install.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11a/P12.11b host-scoping finding. A Tauri desktop app must expose native Install/Start/Stop/Repair controls and local service status only when the selected host is its own Local agent; selecting a paired remote host must never operate or report the desktop computer's service under that remote host's name. On a browser, register the one reachable host using the page's actual origin, not the desktop loopback constant: loopback pages retain the copyable Terminal commands, while pages reached over a host address show the explicit “run service controls on ‹host›” non-actionable state. Keep browser multi-host unavailable as already required by D-003/D-013's current transport boundary; the Tauri picker remains the multi-host switcher. Add regression assertions covering the actual-origin, local-host, loopback, and remote-host gates. No remote service-control API is being invented: a remote host's service remains controlled on that host.
+**Verify:** `cd clients/desktop-web && npx vitest run tests/agent-install/agent-install.test.ts -t "keeps service controls scoped" && npm run build && npx tauri dev` — in Tauri, add/select a remote host, open **Agent…**, and confirm it names that host but offers no service buttons or local PID/status; switch back to Local agent and confirm controls/status remain. In a browser at `localhost`, confirm the Terminal commands appear; open the same client through a non-loopback host address and confirm the remote-host message has no commands or buttons. (The broader `npm run test:agent-install` currently includes a pre-existing stale assertion for copy removed before this corrective step; it is not used as this step's verifier.)
+**Commit:** `P12.11d: scope the agent screen to its selected host`
+**Batch:** solo
+
 ### P12.12 — Server Editor sheet (7 sub-tabs)
 **Status:** not started
 **Files:** server-editor sheet components

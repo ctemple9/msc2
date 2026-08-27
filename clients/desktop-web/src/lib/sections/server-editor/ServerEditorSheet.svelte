@@ -5,10 +5,15 @@
   // P12.4/P12.4k) and are not rebuilt here; Docker is excluded while D-008
   // stays Proposed. Reached from ManageSheet.svelte's per-card "Edit..."
   // action.
+  //
+  // A third tab, Java, was added by P12.12a (see rolling-plan.md's
+  // "Java tab decision" note) -- shown only for Java servers, since the
+  // host-wide Java executable it edits is only relevant there.
   import Sheet from '../../components/base/Sheet.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import GeneralTab from './GeneralTab.svelte';
   import BroadcastTab from './BroadcastTab.svelte';
+  import JavaTab from './JavaTab.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call } from '../shared/types';
   import { serverEditorPaths } from './model';
@@ -21,9 +26,22 @@
   export let onSetActive: (serverId: string) => Promise<void>;
 
   let currentServer = server;
-  let tab: 'general' | 'broadcast' = 'general';
+  let tab: 'general' | 'broadcast' | 'java' = 'general';
   let activeServerId: string | undefined;
   let switching = false;
+
+  $: isJavaServer = currentServer.serverType === 'java';
+  $: tabOptions = isJavaServer
+    ? ([
+        { value: 'general', label: 'General' },
+        { value: 'broadcast', label: 'Broadcast' },
+        { value: 'java', label: 'Java' },
+      ] as const)
+    : ([
+        { value: 'general', label: 'General' },
+        { value: 'broadcast', label: 'Broadcast' },
+      ] as const);
+  $: if (tab === 'java' && !isJavaServer) tab = 'general';
 
   $: isActive = activeServerId === currentServer.id;
 
@@ -63,12 +81,9 @@
 <Sheet title={`Edit ${currentServer.name || '(no name)'}`} size="lg" {onClose}>
   <div class="editor">
     <SegmentedControl
-      options={[
-        { value: 'general', label: 'General' },
-        { value: 'broadcast', label: 'Broadcast' },
-      ]}
+      options={tabOptions}
       value={tab}
-      onchange={(value) => (tab = value as 'general' | 'broadcast')}
+      onchange={(value) => (tab = value as 'general' | 'broadcast' | 'java')}
     />
 
     {#if tab === 'general'}
@@ -81,7 +96,7 @@
         onDeleted={handleDeleted}
         onRequestActivate={requestActivate}
       />
-    {:else}
+    {:else if tab === 'broadcast'}
       <BroadcastTab
         {api}
         server={currentServer}
@@ -89,6 +104,8 @@
         {canControl}
         onRequestActivate={requestActivate}
       />
+    {:else}
+      <JavaTab {api} {canControl} />
     {/if}
   </div>
 </Sheet>

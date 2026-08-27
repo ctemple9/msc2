@@ -12,6 +12,11 @@ import type { Schema, ScreenApi } from '../shared/types';
 // and offer the same "Set as Active" action ManageSheet's row menu already
 // exposes, rather than silently mutating the wrong server or switching the
 // active server behind the caller's back.
+//
+// The three java* routes below are a third category: no serverId, but also
+// no active-server resolution -- `AppConfig.javaPath` is host-wide config,
+// the same value regardless of which server (if any) is active. JavaTab
+// reads/writes it unconditionally, with no `isActive` gate.
 export const serverEditorPaths = {
   rename: '/v1/servers/rename',
   delete: '/v1/servers/delete',
@@ -32,6 +37,9 @@ export const serverEditorPaths = {
   duckdns: '/v1/duckdns',
   resourcePacks: '/v1/resourcepacks',
   resourcePacksToggle: '/v1/resourcepacks/toggle',
+  javaConfig: '/v1/config/java-runtime',
+  javaRuntimes: '/v1/java-runtimes',
+  javaRuntimeInstall: '/v1/java-runtimes/install',
 } as const;
 
 export const operationPath = (id: string): string => `/v1/operations/${id}`;

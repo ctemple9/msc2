@@ -410,8 +410,31 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
 #[tauri::command]
 async fn open_local_agent_browser() -> Result<(), String> {
     let local = desktop_bootstrap_local()?;
-    let response = desktop_authorized_request(DesktopRequest {
-        agent_host_id: local.agent_host_id,
+    let mut response = create_local_browser_pairing(&local.agent_host_id).await?;
+    // `desktop_authorized_request` removes a rejected bearer record. Refresh
+    // immediately so opening the browser is one action, not an invisible
+    // failed click followed by a second attempt after the stale record is gone.
+    if browser_pairing_needs_local_credential_refresh(response.status) {
+        let refreshed = desktop_bootstrap_local()?;
+        response = create_local_browser_pairing(&refreshed.agent_host_id).await?;
+    }
+    if response.status != reqwest::StatusCode::CREATED.as_u16() {
+        return Err(format!(
+            "The local agent refused to create a browser session (HTTP {}).",
+            response.status
+        ));
+    }
+    let pairing: BrowserPairingResult = serde_json::from_slice(&response.body)
+        .map_err(|error| format!("The local agent returned an invalid browser pairing: {error}"))?;
+    if pairing.client_kind != "browser" || pairing.agent_host_id.trim().is_empty() {
+        return Err("The local agent returned an invalid browser pairing.".to_string());
+    }
+    open_external_url(local_browser_handoff_url(&pairing.pairing_code)?)
+}
+
+async fn create_local_browser_pairing(agent_host_id: &str) -> Result<DesktopResponse, String> {
+    desktop_authorized_request(DesktopRequest {
+        agent_host_id: agent_host_id.to_string(),
         method: "POST".to_string(),
         path: "/v1/auth/pairings".to_string(),
         headers: vec![("Content-Type".to_string(), "application/json".to_string())],
@@ -435,19 +458,11 @@ async fn open_local_agent_browser() -> Result<(), String> {
             .expect("local browser pairing request serializes"),
         ),
     })
-    .await?;
-    if response.status != reqwest::StatusCode::CREATED.as_u16() {
-        return Err(format!(
-            "The local agent refused to create a browser session (HTTP {}).",
-            response.status
-        ));
-    }
-    let pairing: BrowserPairingResult = serde_json::from_slice(&response.body)
-        .map_err(|error| format!("The local agent returned an invalid browser pairing: {error}"))?;
-    if pairing.client_kind != "browser" || pairing.agent_host_id.trim().is_empty() {
-        return Err("The local agent returned an invalid browser pairing.".to_string());
-    }
-    open_external_url(local_browser_handoff_url(&pairing.pairing_code)?)
+    .await
+}
+
+fn browser_pairing_needs_local_credential_refresh(status: u16) -> bool {
+    status == reqwest::StatusCode::UNAUTHORIZED.as_u16()
 }
 
 fn local_browser_handoff_url(pairing_code: &str) -> Result<String, String> {
@@ -999,5 +1014,12 @@ mod tests {
         assert_eq!(parsed.path(), "/");
         assert!(parsed.query().is_none());
         assert!(local_browser_handoff_url("pair_one/time").is_err());
+    }
+
+    #[test]
+    fn local_browser_handoff_refreshes_only_a_rejected_desktop_credential() {
+        assert!(browser_pairing_needs_local_credential_refresh(401));
+        assert!(!browser_pairing_needs_local_credential_refresh(201));
+        assert!(!browser_pairing_needs_local_credential_refresh(403));
     }
 }

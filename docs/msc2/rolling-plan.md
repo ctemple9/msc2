@@ -664,6 +664,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11h: authorize the desktop browser handoff`
 **Batch:** solo
 
+### P12.11i — Retry stale local credentials in the browser handoff
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11h verification finding: a stale desktop credential makes the first browser-button click silently fail. The shared authorized-request helper correctly deletes a bearer record after a `401 Unauthorized`, but the handoff then stopped instead of using the now-cleared state to bootstrap a replacement. Keep the existing local bootstrap and browser-cookie contract unchanged; retry exactly once after a `401` by re-running the local bootstrap and browser-pairing creation. Do not retry permission denials or any other agent error. No MSC 1 equivalent exists: this is narrow recovery within MSC 2's D-012 local-desktop credential boundary.
+**Verify:** `cargo fmt --manifest-path clients/desktop-web/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path clients/desktop-web/src-tauri/Cargo.toml local_browser_handoff && npx tauri dev` — with a stale local credential (or after the agent rejects one), click the top-bar browser button once and confirm it opens an authenticated browser tab; confirm a non-admin/forbidden pairing response is reported rather than retried.
+**Commit:** `P12.11i: retry stale local credentials in browser handoff`
+**Batch:** solo
+
 ### P12.4k — Add Import ZIP / Replace World / Duplicate Slot to the Worlds tab
 **Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/worlds/` (`WorldsSection.svelte`, `model.ts`, new sheets alongside the existing `CreateWorldSheet.svelte`/`RenameWorldSheet.svelte`/`WorldRepairSheet.svelte`/`WorldConversionWizard.svelte`)

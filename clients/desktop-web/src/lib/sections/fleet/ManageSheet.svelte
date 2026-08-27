@@ -1,8 +1,12 @@
 <script lang="ts">
   // Ports MSC 1 ManageServersView.swift: a flat, card-per-server list with a
-  // header count, per-card context menu (Set as Active / Rename / Remove),
+  // header count, per-card context menu (Set as Active / Edit... / Remove),
   // and a footer for Import.../Add Server... -- adapted for D-013 multi-host
   // (docs/msc2/msc2-decisions.md#D-013, 2026-08-27 design discussion).
+  // "Edit..." (P12.12) opens ServerEditorSheet, the port of
+  // ServerEditorView.swift's General/Broadcast tabs -- renaming now lives
+  // there rather than as its own menu item, matching the oracle (MSC 1 has
+  // no separate Rename action either; it's a field inside the editor).
   //
   // Multi-host chrome (host-group headers, Add Host) is Tauri-only: a browser
   // tab can only ever reach the single agent that served it
@@ -30,6 +34,7 @@
   import Field from '../../components/base/Field.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Menu from '../../components/base/Menu.svelte';
+  import ServerEditorSheet from '../server-editor/ServerEditorSheet.svelte';
   import type { HostId, HostRecord } from '../../hosts/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
@@ -72,6 +77,7 @@
   let openMenuFor: string | undefined;
   let menuPos = { x: 0, y: 0 };
   let confirmingRemoveId: string | undefined;
+  let editingServer: Schema['ServerDTO'] | undefined;
 
   let addHostLabel = '';
   let addHostUrl = '';
@@ -239,6 +245,7 @@
       onClose={() => (openMenuFor = undefined)}
       items={[
         { label: 'Set as Active', onSelect: () => setActive(server.id) },
+        { label: 'Edit…', onSelect: () => (editingServer = server) },
         {
           label: 'Remove…',
           tone: 'destructive',
@@ -364,6 +371,17 @@
     {/if}
   </div>
 </Sheet>
+
+{#if editingServer}
+  <ServerEditorSheet
+    {api}
+    server={editingServer}
+    {canControl}
+    onClose={() => (editingServer = undefined)}
+    onServersChanged={refreshServers}
+    onSetActive={setActive}
+  />
+{/if}
 
 <style>
   .manage {

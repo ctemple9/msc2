@@ -683,7 +683,7 @@ pub async fn get_addons(
                 display_name: item.display_name,
                 is_enabled: item.is_enabled,
                 project_id: item.project_id,
-                current_version: None,
+                current_version: item.current_version,
                 available_version: item.available_version_label,
                 bucket: addon_bucket_name(item.bucket).to_string(),
                 icon_url: None,

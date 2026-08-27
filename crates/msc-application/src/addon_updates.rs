@@ -72,6 +72,12 @@ pub struct AddonUpdateItem {
     pub provenance: Option<AddonLinkProvenance>,
     pub tier: Option<PluginTier>,
     pub bucket: AddonUpdateBucket,
+    /// `AddonUpdateResolver.swift:204,263`'s `currentVersion`: the
+    /// hash-identified Modrinth version's own `versionNumber` when this
+    /// jar's exact hash is recognized, else a best-effort filename/manifest
+    /// parse (`DiskEntry.version`). `None` only when neither source found
+    /// anything -- an "unlinked" item with an unparseable filename.
+    pub current_version: Option<String>,
     pub available_version_id: Option<String>,
     pub available_version_label: Option<String>,
     /// P8.17 amendment: the full latest-compatible Modrinth version (files
@@ -100,6 +106,11 @@ struct DiskEntry {
     jar_stem: String,
     is_enabled: bool,
     display_name: String,
+    /// Manifest- or filename-parsed version (`ModEntry`/`PluginEntry
+    /// .version`, `PluginNameParser.extractVersion`'s Rust port) — the
+    /// fallback `resolve_addon_updates` uses for `current_version` when
+    /// this jar's hash doesn't identify against Modrinth.
+    version: Option<String>,
 }
 
 fn list_disk_entries(fs: &dyn FileSystem, dir: &Path, kind: AddOnKind) -> Vec<DiskEntry> {
@@ -111,6 +122,7 @@ fn list_disk_entries(fs: &dyn FileSystem, dir: &Path, kind: AddOnKind) -> Vec<Di
                 jar_stem: m.jar_stem,
                 is_enabled: m.is_enabled,
                 display_name: m.display_name,
+                version: m.version,
             })
             .collect(),
         AddOnKind::Plugin => add_on_inventory::scan_plugins(fs, dir)
@@ -125,6 +137,7 @@ fn list_disk_entries(fs: &dyn FileSystem, dir: &Path, kind: AddOnKind) -> Vec<Di
                     jar_stem: p.jar_stem,
                     is_enabled: p.is_enabled,
                     display_name,
+                    version: p.version,
                 }
             })
             .collect(),
@@ -225,6 +238,7 @@ pub fn resolve_addon_updates(
                 project_id: None,
                 provenance: None,
                 tier,
+                current_version: entry.version.clone(),
                 bucket: AddonUpdateBucket::Unlinked,
                 available_version_id: None,
                 available_version_label: None,
@@ -282,6 +296,14 @@ pub fn resolve_addon_updates(
                 (None, None)
             };
 
+        // AddonUpdateResolver.swift:204: prefer the hash-identified Modrinth
+        // version's own number (the exact build actually installed) over the
+        // filename/manifest guess, which only ever runs when identification
+        // failed (an unrecognized jar, or Modrinth unreachable this pass).
+        let current_version = fresh
+            .map(|v| addon_update::clean_version_label(&v.version_number))
+            .or_else(|| entry.version.clone());
+
         items.push(AddonUpdateItem {
             filename: entry.filename.clone(),
             jar_stem: entry.jar_stem.clone(),
@@ -290,6 +312,7 @@ pub fn resolve_addon_updates(
             project_id: Some(project_id),
             provenance: Some(provenance),
             tier,
+            current_version,
             bucket,
             available_version_id,
             available_version_label,

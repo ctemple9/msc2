@@ -53,6 +53,12 @@
   --msc2-status-bedrock: #59a1ff;
   --msc2-status-bedrock-tint: rgba(89, 161, 255, 0.14);
 
+  /* Selection -- a row/element that is the current target of an open menu
+     or is otherwise actively selected. Deliberately a distinct blue from
+     --msc2-status-bedrock (a status meaning, not a selection one) so one
+     hue never carries two different meanings. */
+  --msc2-selection: #3b82f6;
+
   /* Text — white opacity steps (the quiet 20%) */
   --msc2-text-primary: rgba(255, 255, 255, 0.95);
   --msc2-text-secondary: rgba(255, 255, 255, 0.55);

@@ -425,7 +425,12 @@
         {:else}
           <Card padding="0">
             {#each addons as addon, index (addon.jarStem)}
-              <div class="addon-row" class:bordered={index > 0} class:disabled={!addon.isEnabled}>
+              <div
+                class="addon-row"
+                class:bordered={index > 0}
+                class:disabled={!addon.isEnabled}
+                class:selected={addonMenu?.addon.jarStem === addon.jarStem}
+              >
                 {#if confirmingRemove === addon.jarStem}
                   <div class="info">
                     <span class="name">{addon.displayName}</span>
@@ -686,6 +691,11 @@
   }
   .addon-row.disabled .name {
     color: var(--msc2-text-secondary);
+  }
+  .addon-row.selected {
+    border-radius: var(--msc2-radius-2);
+    background: rgba(59, 130, 246, 0.06);
+    box-shadow: inset 0 0 0 1.5px var(--msc2-selection);
   }
   .addon-row-link {
     display: flex;

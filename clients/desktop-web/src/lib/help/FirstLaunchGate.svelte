@@ -3,7 +3,13 @@
   import type { ScreenApi } from '../sections/shared/types';
   import ActionButton from '../components/ActionButton.svelte';
   import SetupIntro from './SetupIntro.svelte';
-  import { firstLaunchStage, nextTourStep, type FirstLaunchState } from './onboarding';
+  import TourOverlay from './TourOverlay.svelte';
+  import {
+    applicableTourSteps,
+    firstLaunchStage,
+    nextTourStep,
+    type FirstLaunchState,
+  } from './onboarding';
   import type { ConceptGuide, OnboardingGuide } from './types';
 
   export let api: ScreenApi;
@@ -23,6 +29,7 @@
   $: stage = firstLaunchStage(state);
   $: onboardingOpen =
     agentReady && ready && onboarding !== null && concept !== null && stage !== 'complete';
+  $: tourSteps = onboarding ? applicableTourSteps(onboarding.steps) : [];
 
   function setPageScrollLocked(locked: boolean): void {
     if (typeof document === 'undefined' || !document.body) return;
@@ -54,8 +61,8 @@
   }
   function advance(userActionCompleted = false): void {
     if (!onboarding) return;
-    const next = nextTourStep(onboarding.steps, tourIndex, userActionCompleted);
-    if (next === tourIndex && tourIndex === onboarding.steps.length - 1) {
+    const next = nextTourStep(tourSteps, tourIndex, userActionCompleted);
+    if (next === tourIndex && tourIndex === tourSteps.length - 1) {
       writeState({ ...state, tourComplete: true });
     } else {
       tourIndex = next;
@@ -90,64 +97,51 @@
   onDestroy(() => setPageScrollLocked(false));
 </script>
 
-{#if agentReady && ready && onboarding && concept && stage !== 'complete'}
-  <div class="gate-backdrop" role="presentation">
-    <section
-      class="gate"
-      aria-live="polite"
-      aria-labelledby="first-launch-title"
-      data-onboarding-stage={stage}
-    >
-      {#if stage === 'setup'}
-        <SetupIntro {api} onComplete={() => writeState({ ...state, setupComplete: true })} />
-      {:else if stage === 'concept-guide'}
-        {@const page = concept.pages[conceptPage]}
-        <p class="eyebrow">{page.eyebrow}</p>
-        <h2 id="first-launch-title">{page.title}</h2>
-        <p>{page.body}</p>
-        <div class="actions">
-          <ActionButton
-            kind="quiet"
-            label="Previous Concept Guide page"
-            disabled={conceptPage === 0}
-            onclick={() => (conceptPage -= 1)}>Previous</ActionButton
-          ><ActionButton
-            label={conceptPage === concept.pages.length - 1
-              ? 'Continue to tour'
-              : 'Next Concept Guide page'}
-            onclick={() =>
-              conceptPage === concept!.pages.length - 1
-                ? writeState({ ...state, conceptGuideSeen: true })
-                : (conceptPage += 1)}
-            >{conceptPage === concept.pages.length - 1 ? 'Continue' : 'Next'}</ActionButton
-          >
-        </div>
-      {:else}
-        {@const step = onboarding.steps[tourIndex]}
-        <p class="eyebrow">Guided tour · {tourIndex + 1} of {onboarding.steps.length}</p>
-        <h2 id="first-launch-title">{step.title}</h2>
-        <p>{step.body}</p>
-        {#if step.anchor}<p class="anchor" data-onboarding-anchor={step.anchor}>
-            Continue after completing the highlighted action.
-          </p>{/if}
-        {#if !step.hideCard}<div class="tour-card">{step.actionLabel ?? 'Continue'}</div>{/if}
-        <div class="actions">
-          <ActionButton
-            kind="quiet"
-            label={onboarding.skip.label}
-            onclick={() => writeState({ ...state, tourComplete: true })}
-            >{onboarding.skip.label}</ActionButton
-          ><ActionButton
-            label={step.requiresUserAction ? 'I did that' : (step.actionLabel ?? 'Continue')}
-            onclick={() => advance(step.requiresUserAction)}
-            >{step.requiresUserAction
-              ? 'I did that'
-              : (step.actionLabel ?? 'Continue')}</ActionButton
-          >
-        </div>
-      {/if}
-    </section>
-  </div>
+{#if agentReady && ready && onboarding && concept}
+  {#if stage === 'setup' || stage === 'concept-guide'}
+    <div class="gate-backdrop" role="presentation">
+      <section
+        class="gate"
+        aria-live="polite"
+        aria-labelledby="first-launch-title"
+        data-onboarding-stage={stage}
+      >
+        {#if stage === 'setup'}
+          <SetupIntro {api} onComplete={() => writeState({ ...state, setupComplete: true })} />
+        {:else}
+          {@const page = concept.pages[conceptPage]}
+          <p class="eyebrow">{page.eyebrow}</p>
+          <h2 id="first-launch-title">{page.title}</h2>
+          <p>{page.body}</p>
+          <div class="actions">
+            <ActionButton
+              kind="quiet"
+              label="Previous Concept Guide page"
+              disabled={conceptPage === 0}
+              onclick={() => (conceptPage -= 1)}>Previous</ActionButton
+            ><ActionButton
+              label={conceptPage === concept.pages.length - 1
+                ? 'Continue to tour'
+                : 'Next Concept Guide page'}
+              onclick={() =>
+                conceptPage === concept!.pages.length - 1
+                  ? writeState({ ...state, conceptGuideSeen: true })
+                  : (conceptPage += 1)}
+              >{conceptPage === concept.pages.length - 1 ? 'Continue' : 'Next'}</ActionButton
+            >
+          </div>
+        {/if}
+      </section>
+    </div>
+  {:else if stage === 'tour'}
+    <TourOverlay
+      steps={tourSteps}
+      stepIndex={tourIndex}
+      skipLabel={onboarding.skip.label}
+      onAdvance={advance}
+      onSkip={() => writeState({ ...state, tourComplete: true })}
+    />
+  {/if}
 {/if}
 
 <style>
@@ -198,15 +192,5 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     margin-top: 1rem;
-  }
-  .anchor {
-    color: var(--msc-subtle) !important;
-    font-size: 0.82rem;
-  }
-  .tour-card {
-    margin-top: 0.75rem;
-    padding: 0.75rem;
-    border: 1px dashed var(--msc-border);
-    border-radius: var(--msc-radius-sm);
   }
 </style>

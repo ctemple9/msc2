@@ -35,6 +35,7 @@
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Menu from '../../components/base/Menu.svelte';
   import ServerEditorSheet from '../server-editor/ServerEditorSheet.svelte';
+  import { onboardingAnchor } from '../../help/tourAnchors';
   import type { HostId, HostRecord } from '../../hosts/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
@@ -257,7 +258,7 @@
   {/if}
 {/snippet}
 
-<Sheet title="Manage Servers" size="md" {onClose}>
+<Sheet title="Manage Servers" size="md" {onClose} closeAnchorId="ob_manage_done">
   <div class="manage">
     <p class="count">
       {servers.length} server{servers.length === 1 ? '' : 's'} configured
@@ -324,22 +325,32 @@
       {#if isDesktopShell}
         <Button variant="secondary" onclick={() => (showAddHost = !showAddHost)}>Add Host…</Button>
       {/if}
-      <Button variant="primary" onclick={() => (showCreate = !showCreate)} disabled={!canControl}
-        >Add Server…</Button
+      <Button
+        variant="primary"
+        onclick={() => (showCreate = !showCreate)}
+        disabled={!canControl}
+        anchorId="ob_create_server">Add Server…</Button
       >
     </div>
 
     {#if showCreate}
       <Card>
         <div class="inline-form">
-          <Field bind:value={newServerName} placeholder="Server name" />
-          <select class="version-select" bind:value={selectedVersion}>
+          <Field bind:value={newServerName} placeholder="Server name" anchorId="ob_server_name" />
+          <select
+            class="version-select"
+            bind:value={selectedVersion}
+            use:onboardingAnchor={'ob_server_source'}
+          >
             {#each versions.versions as version}
               <option value={version.id}>{version.displayLabel}</option>
             {/each}
           </select>
-          <Button variant="primary" onclick={createServer} disabled={!newServerName.trim()}
-            >Create</Button
+          <Button
+            variant="primary"
+            onclick={createServer}
+            disabled={!newServerName.trim()}
+            anchorId="ob_confirm_page">Create</Button
           >
         </div>
       </Card>

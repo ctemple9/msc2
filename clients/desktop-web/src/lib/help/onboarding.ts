@@ -1,4 +1,15 @@
 import type { OnboardingStep } from './types';
+import { KNOWN_TOUR_ANCHOR_IDS } from './tourAnchors';
+
+/**
+ * MSC 2 doesn't yet cover every screen the oracle's tour walks through (no
+ * AddServerWizardView port, no Packs tab -- see tourAnchors.ts). Keep only
+ * steps that either need no anchor (welcome/done) or point at a real one in
+ * this build, so the guided tour never spotlights UI that doesn't exist.
+ */
+export function applicableTourSteps(steps: readonly OnboardingStep[]): OnboardingStep[] {
+  return steps.filter((step) => step.anchor === null || KNOWN_TOUR_ANCHOR_IDS.has(step.anchor));
+}
 
 export type FirstLaunchState = {
   setupComplete: boolean;

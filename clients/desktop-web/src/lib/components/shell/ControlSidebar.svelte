@@ -130,11 +130,14 @@
           size="sm"
           disabled={!canControl || !activeServer}
           onclick={() => onLifecycle(running ? 'stop' : 'start')}
+          anchorId="ob_start_button"
         >
           <ShellIcon name="play" size={13} />
           {running ? 'Stop' : 'Start'}
         </Button>
-        <Button variant="secondary" size="sm" onclick={onManage}>Manage…</Button>
+        <Button variant="secondary" size="sm" onclick={onManage} anchorId="ob_manage_servers"
+          >Manage…</Button
+        >
       </div>
     </div>
 

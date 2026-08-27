@@ -10,6 +10,7 @@
   import TabStrip from './shell/TabStrip.svelte';
   import ConsoleDock from './shell/ConsoleDock.svelte';
   import ShellIcon from './shell/ShellIcon.svelte';
+  import { onboardingAnchor } from '../help/tourAnchors';
   import type { PrimaryTab } from '../navigation/primaryTabs';
   import type { HostId, HostRecord } from '../hosts/types';
   import type { Schema, ScreenApi } from '../sections/shared/types';
@@ -167,6 +168,7 @@
           onpointerdown={startConsoleResize}
           onpointermove={onConsoleResize}
           onpointerup={endConsoleResize}
+          use:onboardingAnchor={'ob_console_divider_handle'}
         >
           <span class="handle" aria-hidden="true"></span>
         </div>

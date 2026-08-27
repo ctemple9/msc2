@@ -1,6 +1,8 @@
 <script lang="ts">
   // The button system. 2 shapes only — filled (one per context) and quiet
   // (the default). No gradient, no shadow, no glow. docs/msc2/renderings/buttons-and-type.html
+  import { onboardingAnchor } from '../../help/tourAnchors';
+
   export let variant: 'primary' | 'start' | 'stop' | 'secondary' | 'destructive' | 'ghost-icon' =
     'secondary';
   export let size: 'md' | 'sm' = 'md';
@@ -15,6 +17,9 @@
    *  Button a single element, however a parent's flex layout treats it. */
   export let title: string | undefined = undefined;
   export let onclick: ((event: MouseEvent) => void) | undefined = undefined;
+  /** Reports this button's rect to the guided tour under this id, when set.
+   *  See src/lib/help/tourAnchors.ts. Additive -- most callers leave it unset. */
+  export let anchorId: string | undefined = undefined;
 </script>
 
 <button
@@ -24,6 +29,7 @@
   {title}
   aria-label={variant === 'ghost-icon' ? label : undefined}
   {onclick}
+  use:onboardingAnchor={anchorId}
 >
   <slot />
 </button>

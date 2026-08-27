@@ -5,11 +5,24 @@
   // text-only strip is the faithful reading rather than an invented icon set.
   import type { PrimaryTab } from '../../navigation/primaryTabs';
   import { bannerColorAccent } from '../../styles/bannerColor';
+  import { onboardingAnchor } from '../../help/tourAnchors';
 
   export let tabs: readonly (PrimaryTab & { available: boolean })[] = [];
   export let activeId: string;
   export let bannerColor: string;
   export let onSelect: (id: string) => void;
+
+  // The guided tour's per-tab anchor ids, ported from MSC 1's OnboardingAnchorID
+  // (tourAnchors.ts). Packs has no entry -- P12.5 dropped that tab for good.
+  const TOUR_ANCHOR_BY_TAB: Record<string, string> = {
+    home: 'ob_details_overview_tab',
+    'players-online': 'ob_details_players_tab',
+    worlds: 'ob_details_worlds_tab',
+    performance: 'ob_details_performance_tab',
+    components: 'ob_details_components_tab',
+    settings: 'ob_details_settings_tab',
+    files: 'ob_details_files_tab',
+  };
 </script>
 
 <div class="strip" role="tablist" aria-label="Server sections">
@@ -24,6 +37,7 @@
       title={tab.available ? undefined : 'Not yet available'}
       style={tab.id === activeId ? `background: ${bannerColorAccent(bannerColor, 0.24)};` : ''}
       onclick={() => onSelect(tab.id)}
+      use:onboardingAnchor={TOUR_ANCHOR_BY_TAB[tab.id]}
     >
       {tab.label}
     </button>

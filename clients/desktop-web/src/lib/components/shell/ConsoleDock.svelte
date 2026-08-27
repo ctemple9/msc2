@@ -6,6 +6,7 @@
   import Button from '../base/Button.svelte';
   import Toggle from '../base/Toggle.svelte';
   import CommandPaletteSheet from '../../sections/console/CommandPaletteSheet.svelte';
+  import { onboardingAnchor } from '../../help/tourAnchors';
   import type { ScreenApi, Schema } from '../../sections/shared/types';
   import {
     CONSOLE_CHIPS,
@@ -153,6 +154,7 @@
   class="dock"
   class:expanded={!collapsed}
   style={!collapsed && height !== undefined ? `height: ${height}px;` : ''}
+  use:onboardingAnchor={'ob_console_panel'}
 >
   <div class="dock-header">
     <button

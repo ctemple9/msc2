@@ -3,9 +3,14 @@
   // a rendering specimen; built to the same law as the rest of S0 (flat tier
   // surfaces, no glass, shadow only because this genuinely floats above the
   // shell — the one place a blur scrim is sanctioned, docs/msc2/antiAIslop.md #4).
+  import { onboardingAnchor } from '../../help/tourAnchors';
+
   export let title: string;
   export let size: 'sm' | 'md' | 'lg' = 'md';
   export let onClose: (() => void) | undefined = undefined;
+  /** Reports the close button's rect to the guided tour under this id, when
+   *  set. Additive -- most sheets leave it unset. See tourAnchors.ts. */
+  export let closeAnchorId: string | undefined = undefined;
 
   const widths = { sm: '480px', md: '640px', lg: '820px' } as const;
 
@@ -32,7 +37,13 @@
     <div class="header">
       <span class="title">{title}</span>
       {#if onClose}
-        <button type="button" class="close" aria-label="Close" onclick={onClose}>
+        <button
+          type="button"
+          class="close"
+          aria-label="Close"
+          onclick={onClose}
+          use:onboardingAnchor={closeAnchorId}
+        >
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M6 6l12 12M18 6L6 18"

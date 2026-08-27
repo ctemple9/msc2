@@ -1,12 +1,17 @@
 <script lang="ts">
   // Dark inset field. Focus = brighter neutral ring, never a glow.
   // docs/msc2/renderings/primitives.html
+  import { onboardingAnchor } from '../../help/tourAnchors';
+
   export let value = '';
   export let type: 'text' | 'password' | 'email' = 'text';
   export let placeholder = '';
   export let disabled = false;
   export let width = '100%';
   export let multiline = false;
+  /** Reports this field's rect to the guided tour under this id, when set.
+   *  Additive -- most callers leave it unset. See tourAnchors.ts. */
+  export let anchorId: string | undefined = undefined;
 </script>
 
 {#if multiline}
@@ -17,9 +22,18 @@
     class="field multiline"
     style="width: {width};"
     rows="2"
+    use:onboardingAnchor={anchorId}
   ></textarea>
 {:else}
-  <input {type} bind:value {placeholder} {disabled} class="field" style="width: {width};" />
+  <input
+    {type}
+    bind:value
+    {placeholder}
+    {disabled}
+    class="field"
+    style="width: {width};"
+    use:onboardingAnchor={anchorId}
+  />
 {/if}
 
 <style>

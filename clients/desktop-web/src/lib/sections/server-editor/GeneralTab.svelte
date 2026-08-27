@@ -243,7 +243,8 @@
             variant="primary"
             size="sm"
             disabled={eulaBusy || !canControl}
-            onclick={acceptEula}>{eulaAccepted ? 'Accepted' : 'Accept EULA'}</Button
+            onclick={acceptEula}
+            anchorId="ob_accept_eula">{eulaAccepted ? 'Accepted' : 'Accept EULA'}</Button
           >
         </div>
       </Card>

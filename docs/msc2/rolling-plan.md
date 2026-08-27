@@ -648,6 +648,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11f: open the local agent in a browser from desktop chrome`
 **Batch:** solo
 
+### P12.11g — Refresh the agent-served browser bundle
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Correct the browser verification finding: the agent's embedded `web-ui/` snapshot had fallen behind the current Vite `dist/`, so desktop and browser delivery no longer shared one frontend. Rebuild the finished desktop-web client, replace the packaged agent bundle with that exact output using the existing packaging script, and verify every packaged file is byte-identical to `dist/`. Rebuild the development agent binary from the refreshed embedded bundle and place it at the already-installed desktop resource path; Cameron then uses the existing **Repair service** action once to install/start that exact resource binary. No browser-only fork or second frontend is introduced.
+**Verify:** `cd clients/desktop-web && npm run bundle:package-agent && cd ../.. && python3 tools/phase11/bundle-identity-check.py && cargo nextest run -p msc-agent --test web_ui` — then in Tauri click **Repair service**, wait for the agent to return to running, use the top-bar browser button, and confirm `http://127.0.0.1:48001` renders the same current Svelte shell rather than the old disconnected page.
+**Commit:** `P12.11g: refresh the agent-served browser bundle`
+**Batch:** solo
+
 ### P12.4k — Add Import ZIP / Replace World / Duplicate Slot to the Worlds tab
 **Status:** awaiting verification
 **Files:** `clients/desktop-web/src/lib/sections/worlds/` (`WorldsSection.svelte`, `model.ts`, new sheets alongside the existing `CreateWorldSheet.svelte`/`RenameWorldSheet.svelte`/`WorldRepairSheet.svelte`/`WorldConversionWizard.svelte`)

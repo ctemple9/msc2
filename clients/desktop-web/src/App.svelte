@@ -341,6 +341,7 @@
 
 <ApplicationShell
   hostLabel="Local agent"
+  api={screenApi}
   {servers}
   activeServerId={selectedServerId}
   running={status.running}

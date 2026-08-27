@@ -34,6 +34,7 @@
   export let selectSection: (id: string) => void;
   export let onSelectServer: (id: string) => void;
   export let onLifecycle: (action: 'start' | 'stop') => void;
+  export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
   export let onHelp: (() => void) | undefined = undefined;
   export let onSettings: (() => void) | undefined = undefined;
@@ -132,6 +133,7 @@
         {onSelectServer}
         {onSwitchHost}
         {onLifecycle}
+        {onOpenAgentSetup}
         {onManage}
       />
     {/if}

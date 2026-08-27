@@ -408,6 +408,10 @@
   function acknowledgeShell(): void {
     shellMessage = 'Shared client workflows are ready for the selected host';
   }
+
+  function openAgentSetup(): void {
+    void selectSection('agent-setup');
+  }
 </script>
 
 <svelte:head>
@@ -432,6 +436,7 @@
   onSelectServer={(id) => void selectServer(id)}
   onSwitchHost={(id) => void switchHost(id)}
   onLifecycle={(action) => void lifecycle(action)}
+  onOpenAgentSetup={openAgentSetup}
   onManage={() => (manageOpen = true)}
   onHelp={() => void selectSection('handbook')}
   onRefresh={() => void initializeClient()}

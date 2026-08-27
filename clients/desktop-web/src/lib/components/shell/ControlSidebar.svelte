@@ -26,6 +26,7 @@
   export let onSelectServer: (id: string) => void;
   export let onSwitchHost: (id: HostId) => void = () => undefined;
   export let onLifecycle: (action: 'start' | 'stop') => void;
+  export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
 
   let pickerOpen = false;
@@ -48,6 +49,7 @@
           label: server.name,
           onSelect: () => onSelectServer(server.id),
         })),
+        { label: 'Agent…', onSelect: onOpenAgentSetup },
         { label: 'Manage…', onSelect: onManage },
       ];
     }
@@ -62,6 +64,7 @@
         items.push({ label: 'Switch to this host…', onSelect: () => onSwitchHost(host.id) });
       }
     }
+    items.push({ label: 'Agent…', onSelect: onOpenAgentSetup });
     items.push({ label: 'Manage…', onSelect: onManage });
     return items;
   }

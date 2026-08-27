@@ -608,6 +608,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11a: redesign the agent-unreachable screen and wire the service CLI`
 **Batch:** solo
 
+### P12.11b — Make the agent screen reachable from the host picker
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/tests/visual/shell.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Keep MSC 1's fixed seven server-detail tabs exactly as they are; the agent is host-scoped, not an eighth server tab. Instead, add one explicit `Agent…` action to the existing host/server picker beside `Manage…`. In `App.svelte`, give that action one callback that selects the already-registered `agent-setup` section for the active host, then thread it through `ApplicationShell.svelte` to `ControlSidebar.svelte`. The picker must expose it in both the one-host and multi-host menus, so browser and Tauri load the same reachable screen (D-003) and the selected host's label/base URL continue to drive P12.11a's three truthful states. Do not add backend calls, platform branching, a new primary-tab entry, or a second navigation model. Extend the existing source-level shell test to prove the callback is threaded and the picker contains `Agent…`; retain its anti-slop guard. Manually confirm `Agent…` takes an otherwise healthy running agent to the redesigned page in both the browser and Tauri window, then use the existing picker/server controls to return to a normal server tab.
+**Verify:** `cd clients/desktop-web && npm run test:visual-shell && npx tauri dev` — in the running Tauri app, open the host/server picker, choose `Agent…`, and confirm the redesigned page opens while the agent is healthy; repeat against the browser UI at the same Vite origin and run the anti-slop checklist.
+**Commit:** `P12.11b: make the agent screen reachable from the host picker`
+**Batch:** solo
+
 ### P12.12 — Server Editor sheet (7 sub-tabs)
 **Status:** not started
 **Files:** server-editor sheet components

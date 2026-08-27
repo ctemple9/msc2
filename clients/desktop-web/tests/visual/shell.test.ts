@@ -26,7 +26,15 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).toContain('hostLabel');
     expect(controlSidebarSource).toContain('onSelectServer');
     expect(controlSidebarSource).toContain('onLifecycle');
+    expect(controlSidebarSource).toContain('onOpenAgentSetup');
     expect(controlSidebarSource).toContain('onManage');
+  });
+
+  it('keeps the host-scoped agent screen reachable without adding an eighth server tab', () => {
+    expect(controlSidebarSource).toContain("label: 'Agent…'");
+    expect(applicationShellSource).toContain('{onOpenAgentSetup}');
+    expect(appSource).toContain("selectSection('agent-setup')");
+    expect(primaryTabsSource.match(/\{ id: '/g)?.length).toBe(7);
   });
 
   it('drives the primary tab strip from the registry-backed tab list, not a hardcoded switch', () => {

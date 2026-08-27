@@ -114,6 +114,14 @@
       load: () => import('./lib/sections/settings/SettingsSection.svelte'),
     },
     {
+      id: 'files',
+      label: 'Files',
+      segment: 'files',
+      scope: 'server',
+      requiredPermissions: ['admin'],
+      load: () => import('./lib/sections/files/FilesSection.svelte'),
+    },
+    {
       id: 'health',
       label: 'Health',
       segment: 'health',

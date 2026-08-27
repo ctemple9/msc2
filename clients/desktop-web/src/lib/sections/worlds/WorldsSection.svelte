@@ -20,10 +20,17 @@
   // not on a selected card, so they sit in the header actions row next to
   // Save Current/Repair/Create; Duplicate acts on one slot, so it's an
   // inline card confirm like Activate/Delete (WorldSlotCard.svelte).
+  //
+  // Per-card actions (Set as Active/Convert/Rename/Duplicate/Delete) were a
+  // persistent 5-button grid; Cameron's follow-up call collapsed that into
+  // the same anchored `Menu` list ComponentsSection.svelte's addon rows and
+  // ManageSheet.svelte's server rows already use, one shared overlay owned
+  // here (`actionMenu`) rather than one per card.
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
+  import Menu from '../../components/base/Menu.svelte';
   import WorldSlotCard from './WorldSlotCard.svelte';
   import BackupsPanel from './BackupsPanel.svelte';
   import CreateWorldSheet from './CreateWorldSheet.svelte';
@@ -68,6 +75,11 @@
   let convertingSlot: Schema['WorldSlotDTO'] | undefined;
   let importZipOpen = false;
   let replaceOpen = false;
+  /** The floating per-card action menu (Set as Active/Convert/Rename/
+   *  Duplicate/Delete) -- one shared overlay instance owned here, same
+   *  pattern as ComponentsSection.svelte's `addonMenu`/ManageSheet.svelte's
+   *  `openMenuFor`, not one Menu per card. */
+  let actionMenu: { slot: Schema['WorldSlotDTO']; x: number; y: number } | undefined;
 
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
@@ -109,6 +121,10 @@
   }
   function cancelConfirm(): void {
     confirming = undefined;
+  }
+
+  function openActionMenu(event: MouseEvent, slot: Schema['WorldSlotDTO']): void {
+    actionMenu = { slot, x: event.clientX, y: event.clientY };
   }
 
   async function confirmActivate(): Promise<void> {
@@ -353,17 +369,12 @@
             {api}
             {slot}
             selected={selectedSlotId === slot.id}
-            serverRunning={worlds.serverRunning}
             {busy}
             confirming={confirming?.slotId === slot.id ? confirming.kind : undefined}
             onSelect={() => (selectedSlotId = selectedSlotId === slot.id ? undefined : slot.id)}
-            onRequestActivate={() => requestActivate(slot.id)}
+            onOpenMenu={(event) => openActionMenu(event, slot)}
             onConfirmActivate={() => void confirmActivate()}
-            onConvert={() => (convertingSlot = slot)}
-            onRename={() => (renamingSlot = slot)}
-            onRequestDuplicate={() => requestDuplicate(slot.id)}
             onConfirmDuplicate={() => void confirmDuplicate()}
-            onRequestDelete={() => requestDelete(slot.id)}
             onConfirmDelete={() => void confirmDelete()}
             onCancelConfirm={cancelConfirm}
             onThumbnailUpdated={() => void loadWorlds()}
@@ -372,6 +383,39 @@
       </div>
     {/if}
   </section>
+
+  {#if actionMenu}
+    {@const menuSlot = actionMenu.slot}
+    <Menu
+      x={actionMenu.x}
+      y={actionMenu.y}
+      onClose={() => (actionMenu = undefined)}
+      items={[
+        ...(menuSlot.isActive
+          ? []
+          : [
+              {
+                label: 'Set as Active',
+                disabled: worlds.serverRunning,
+                onSelect: () => requestActivate(menuSlot.id),
+              },
+            ]),
+        {
+          label: 'Convert World…',
+          disabled: worlds.serverRunning,
+          onSelect: () => (convertingSlot = menuSlot),
+        },
+        { label: 'Rename…', onSelect: () => (renamingSlot = menuSlot) },
+        { label: 'Duplicate…', onSelect: () => requestDuplicate(menuSlot.id) },
+        {
+          label: 'Delete This World Slot',
+          tone: 'destructive',
+          disabled: menuSlot.isActive,
+          onSelect: () => requestDelete(menuSlot.id),
+        },
+      ]}
+    />
+  {/if}
 
   <BackupsPanel
     {backups}

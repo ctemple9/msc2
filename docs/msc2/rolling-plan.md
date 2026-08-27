@@ -728,6 +728,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.4k: bring Import/Replace/Duplicate into the Worlds tab`
 **Batch:** solo
 
+### P12.4l — Collapse world slot actions into a menu
+**Status:** DONE
+**Files:** `clients/desktop-web/src/lib/sections/worlds/WorldSlotCard.svelte`, `clients/desktop-web/src/lib/sections/worlds/WorldsSection.svelte`
+**What:** Cameron's own follow-up call on P12.4k's landed layout: a persistent 5-button grid per world-slot card (Activate/Convert/Rename/Duplicate/Delete) read as cluttered. Collapse those per-card actions into the same anchored `Menu` overlay `ComponentsSection.svelte`'s addon rows and `ManageSheet.svelte`'s server rows already use — a small "more actions" trigger opens a floating list, the destructive item is styled rather than separately colored, and the menu itself is one shared instance owned by `WorldsSection.svelte` (matching those two screens' own pattern), not one per card. The inline-confirm flow for Activate/Duplicate/Delete (P12.3g's expand-in-place pattern) is unchanged; only the entry point moves from always-visible buttons to the menu. Selecting a card for its Backups panel is unchanged, just recolored to the shared `--msc2-selection` token those rows use for their own selected state.
+**Verify:** `npm run dev`, open Worlds, open a card's "World actions" menu and exercise Set as Active/Convert/Rename/Duplicate/Delete; confirm the destructive item styling and single shared overlay match `ComponentsSection`/`ManageSheet`. Structural: `npm run test:screen-worlds-backups`.
+**Commit:** `P12.4l: collapse world slot actions into a menu`
+**Batch:** solo
+
 ### P12.12 — Server Editor sheet (General, Broadcast)
 **Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/server-editor/` (new), `clients/desktop-web/src/lib/sections/fleet/ManageSheet.svelte` — `App.svelte` turned out not to need any change: `ServerEditorSheet` is a self-contained child of `ManageSheet` (same pattern `ProjectDetailSheet` uses inside `ComponentsSection`), so no shell wiring was required.

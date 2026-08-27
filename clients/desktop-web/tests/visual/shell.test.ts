@@ -46,6 +46,7 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     );
     expect(appSource).toContain('openLocalAgentBrowser()');
     expect(appSource).toContain('redeemBrowserHandoff(window.location, window.history)');
+    expect(appSource).toContain("await selectSection('agent-setup')");
   });
 
   it('drives the primary tab strip from the registry-backed tab list, not a hardcoded switch', () => {

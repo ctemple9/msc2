@@ -157,6 +157,7 @@
   let hostId = localAgentHostId;
   let isDesktopShell = false;
   let manageOpen = false;
+  let browserHandoffError = '';
 
   function refreshHosts(): void {
     hosts = hostStore.listHosts();
@@ -430,10 +431,12 @@
   }
 
   async function openLocalAgentInBrowser(): Promise<void> {
+    browserHandoffError = '';
     try {
       await (await getPlatform()).openLocalAgentBrowser();
     } catch (error) {
-      shellMessage = `Could not open the local agent in a browser: ${String(error)}`;
+      browserHandoffError = `Could not open the local agent in a browser: ${String(error)}`;
+      await selectSection('agent-setup');
     }
   }
 </script>
@@ -477,8 +480,9 @@
       isLocalHost={hostId === localAgentHostId}
       serverId={selectedServerId}
       {permissions}
-      readiness={agentReadiness}
-      onAgentRetry={() => void initializeClient()}
+       readiness={agentReadiness}
+       {browserHandoffError}
+       onAgentRetry={() => void initializeClient()}
       onServerSelected={(id: string) => (selectedServerId = id)}
       onFleet={() => (manageOpen = true)}
       onWorlds={() => void selectSection('worlds')}

@@ -672,6 +672,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11i: retry stale local credentials in browser handoff`
 **Batch:** solo
 
+### P12.11j — Show browser-handoff failures in the Agent screen
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `clients/desktop-web/tests/visual/shell.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11h/i verification finding that the desktop browser icon can appear to do nothing: its native handoff error was retained only in App's shell message, which is not visible while the main shared shell is active. Preserve the existing secure handoff and stale-credential retry. On a handoff failure only, navigate to the already-reachable Agent screen and render the exact error using that screen's existing alert treatment; a successful click leaves the user where they are and opens the browser as before. No MSC 1 equivalent exists: this is truthful recovery copy for MSC 2's D-012 handoff boundary, not a second status pattern.
+**Verify:** `cd clients/desktop-web && npm run test:visual-shell && npm run build && npx tauri dev` — click the browser icon with the agent reachable and confirm a browser tab opens; temporarily make the local handoff fail and confirm the desktop switches to **Background agent** with a readable error rather than silently doing nothing; restore the agent and confirm a successful click does not navigate away.
+**Commit:** `P12.11j: show browser handoff failures in agent screen`
+**Batch:** solo
+
 ### P12.4k — Add Import ZIP / Replace World / Duplicate Slot to the Worlds tab
 **Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/worlds/` (`WorldsSection.svelte`, `model.ts`, new sheets alongside the existing `CreateWorldSheet.svelte`/`RenameWorldSheet.svelte`/`WorldRepairSheet.svelte`/`WorldConversionWizard.svelte`)

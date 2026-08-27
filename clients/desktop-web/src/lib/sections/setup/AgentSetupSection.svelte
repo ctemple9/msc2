@@ -18,6 +18,7 @@
   export let hostBaseUrl = 'http://127.0.0.1:48001';
   export let isDesktopShell = false;
   export let isLocalHost = true;
+  export let browserHandoffError = '';
 
   const readinessTitles: Record<AgentReadiness, string> = {
     missing: 'Agent not installed',
@@ -230,8 +231,8 @@
     {/if}
   </Card>
 
-  {#if errorMessage}<p class="error" role="alert">
-      Could not change the agent service: {errorMessage}
+  {#if errorMessage || browserHandoffError}<p class="error" role="alert">
+      {browserHandoffError || `Could not change the agent service: ${errorMessage}`}
     </p>{/if}
 </div>
 

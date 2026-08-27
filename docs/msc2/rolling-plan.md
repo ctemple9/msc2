@@ -1382,6 +1382,22 @@ Client: `clients/desktop-web/src/lib/sections/files/` (`FilesSection.svelte`, `F
 **Commit:** `P12.10: rebuild the docked console`
 **Batch:** solo
 
+### P12.10a — Command Palette: registry + picker sheet
+**Status:** not started
+**Files:** `src/lib/sections/console/model.ts`, `src/lib/sections/console/CommandPaletteSheet.svelte` (new), `src/lib/sections/console/model.test.ts` (new)
+**What:** Port MSC 1's `MinecraftCommandRegistry.swift` (542 lines, no backend involved — a static, hardcoded list) into `model.ts`: ~40 command definitions (name, description, category, argument slots typed player-name/keyword/coordinates/integer/free-text) each flagged `supportsJava`/`supportsBedrock`, plus `commandsFor(serverType)` (a one-line filter on those two flags — Java/Bedrock is never two lists to maintain) and the prefix-matching suggestion function `CommandPaletteView`/`ConsoleView` both share. Build `CommandPaletteSheet.svelte` porting `CommandPaletteView.swift`: search field, category chips (Players/World/Server Admin/Game Rules/Creative), a command list grouped by category, and a per-command argument-builder view (`GuidedCommandBuilderView`/`ArgFieldView`) with a live command-string preview, copy-to-clipboard on that preview, and a "Use Command" action returning the built string to its caller — this sheet only builds the string, it does not send it (P12.10b wires that). A player-typed argument field renders as a row of tappable chips for the players it's given, falling back to a plain text field when the list is empty or the slot isn't a player type — matching MSC 1's actual `ArgFieldView.playerPicker` (confirmed: no second picker sheet exists in the oracle, despite how it can look with nobody online).
+**Verify:** `npx vitest run clients/desktop-web/src/lib/sections/console/model.test.ts` (`commandsFor('java'|'bedrock')` filtering plus the suggestion/prefix-match logic against a handful of the ported commands); `npx svelte-check --tsconfig ./tsconfig.json` (only the same pre-existing unrelated errors); `npx prettier --check` on the new/changed files. This step has no mount point yet (P12.10b wires the sheet into the dock), so real visual verification is Cameron's, after P12.10b.
+**Commit:** `P12.10a: port the command palette registry and picker sheet`
+**Batch:** solo
+
+### P12.10b — Wire the palette and autocomplete into the console's command input
+**Status:** not started
+**Files:** `src/lib/components/shell/ConsoleDock.svelte`, `src/lib/components/ApplicationShell.svelte`, `src/App.svelte`, `src/lib/sections/console/model.ts`
+**What:** Add a palette-trigger icon-action to the console's input row (next to the existing copy/clear actions) that opens `CommandPaletteSheet`; its returned command string is written into the console's own `command` field and reuses the existing `send()`/`POST /v1/command` path P12.10 already built — no new send path. Wire live-typing autocomplete on the same input: as `command` changes, run P12.10a's suggestion function and render a tappable suggestion strip above the input, matching MSC 1 `ConsoleView`'s `autocompleteStrip`. Neither of these has what it needs yet — `ConsoleDock` currently receives only `collapsed`/`onToggle`/`height`/`api` — so thread two more things down through `ApplicationShell` from `App.svelte`, the same additive-prop pattern P12.10 used for `api`: the active server's `serverType`/`javaFlavor` (for `commandsFor`) and the online-players list (`GET /v1/players`, already wired for `players-online`) for the palette's player-chip rows and the autocomplete's player-argument matching.
+**Verify:** `npm run dev`, run a server, open the command palette, fill in `/tp` (with and without a player online) and confirm "Use Command" lands in the console input; type a partial command directly and confirm the autocomplete strip appears and narrows; switch to a Bedrock server and confirm Java-only commands (e.g. `/ban`) drop out of both the palette and autocomplete. Compare to MSC 1 + `~/Documents/MSCSS/Main View` + the antiAIslop checklist.
+**Commit:** `P12.10b: wire the command palette and autocomplete into the console`
+**Batch:** solo
+
 ### P12.11 — Manage Servers / Hosts sheet (+ multi-host)
 **Status:** not started
 **Files:** `src/lib/sections/fleet/`, `src/lib/sections/connectivity/`, sheet components

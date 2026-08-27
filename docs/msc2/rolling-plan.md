@@ -688,6 +688,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11k: survive Tauri hot reload in browser handoff`
 **Batch:** solo
 
+### P12.11l — Return the pairing contract's created response
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/browser_session.rs`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11k verification evidence: the desktop reaches `POST /v1/auth/pairings`, but rejects the agent's successful HTTP 200 response because the frozen OpenAPI contract requires HTTP 201 Created. The route already records a created audit event and the desktop correctly requires 201 before opening a one-use browser session; make the route send the matching 201 response and add a focused route-level regression test. Do not weaken the desktop handoff to accept a contract-incorrect success status. No MSC 1 equivalent exists: this is an MSC 2 D-012 contract enforcement repair.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent --bin msc browser_pairing_creation_returns_created && cargo build -p msc-agent` — replace the installed development agent resource with the rebuilt binary, restart the local service, run `npx tauri dev`, click the browser icon once, and confirm an authenticated browser tab opens with no pairing code retained in its address bar.
+**Commit:** `P12.11l: return the pairing contract's created response`
+**Batch:** solo
+
 ### P12.4k — Add Import ZIP / Replace World / Duplicate Slot to the Worlds tab
 **Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/worlds/` (`WorldsSection.svelte`, `model.ts`, new sheets alongside the existing `CreateWorldSheet.svelte`/`RenameWorldSheet.svelte`/`WorldRepairSheet.svelte`/`WorldConversionWizard.svelte`)

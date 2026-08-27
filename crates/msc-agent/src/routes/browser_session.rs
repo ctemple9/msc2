@@ -168,17 +168,20 @@ pub async fn create_pairing(
         StatusCode::CREATED,
         "browser_pairing_created",
     );
-    Json(PairingCreateResult {
-        pairing_code,
-        agent_host_id,
-        client_kind: if request.client_kind == "browser" {
-            "browser"
-        } else {
-            "desktop"
-        },
-        expires_at: unix_timestamp(expires_at),
-    })
-    .into_response()
+    (
+        StatusCode::CREATED,
+        Json(PairingCreateResult {
+            pairing_code,
+            agent_host_id,
+            client_kind: if request.client_kind == "browser" {
+                "browser"
+            } else {
+                "desktop"
+            },
+            expires_at: unix_timestamp(expires_at),
+        }),
+    )
+        .into_response()
 }
 
 pub async fn exchange_browser_session(
@@ -335,4 +338,39 @@ fn no_store(body: impl IntoResponse) -> Response {
         .headers_mut()
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use msc_infrastructure::secret_store::FakeSecretStore;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn browser_pairing_creation_returns_created() {
+        let auth = AuthState::new(Arc::new(FakeSecretStore::new()));
+        let credential = AuthenticatedCredential {
+            credential_id: "desktop-admin".to_string(),
+            label: "Desktop app".to_string(),
+            role: CredentialRole::Admin,
+            permissions: crate::auth::all_permissions(),
+        };
+
+        let response = create_pairing(
+            Extension(auth),
+            Extension(credential),
+            Ok(Json(PairingCreateRequest {
+                client_kind: "browser".to_string(),
+                label: "Local browser".to_string(),
+                role: "admin".to_string(),
+                permissions: crate::auth::all_permissions(),
+                expires_at: None,
+            })),
+        )
+        .await;
+
+        assert_eq!(response.status(), StatusCode::CREATED);
+    }
 }

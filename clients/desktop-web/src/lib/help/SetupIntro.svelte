@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import ActionButton from '../components/ActionButton.svelte';
+  import Button from '../components/base/Button.svelte';
+  import Card from '../components/base/Card.svelte';
+  import StatusDot from '../components/base/StatusDot.svelte';
   import type { Capabilities } from '../navigation/types';
   import { getPlatform, openExternal } from '../platform';
   import type { PlatformKind } from '../platform/types';
@@ -19,12 +21,25 @@
   export let onComplete: () => void = () => {};
 
   const javaFamilies = [
-    ['Paper', 'Plugin-based. Fast, stable, largest ecosystem.', '▣', '#67e8f9'],
-    ['Purpur', 'Paper + extra gameplay tweaks. All Paper plugins work.', '✣', '#c084fc'],
-    ['Vanilla', 'No plugins. Fully authentic Mojang experience.', '◆', '#9ca3af'],
-    ['Fabric', 'Lightweight mods. Fast updates, great for optimization.', '✂', '#60a5fa'],
-    ['Forge', 'Classic modding platform. Widest mod selection.', '⚒', '#fb923c'],
-    ['NeoForge', 'Forge’s modern successor. More active development.', '⚒', '#2dd4bf'],
+    ['Paper', 'Plugin-based. Fast, stable, largest ecosystem.'],
+    ['Purpur', 'Paper + extra gameplay tweaks. All Paper plugins work.'],
+    ['Vanilla', 'No plugins. Fully authentic Mojang experience.'],
+    ['Fabric', 'Lightweight mods. Fast updates, great for optimization.'],
+    ['Forge', 'Classic modding platform. Widest mod selection.'],
+    ['NeoForge', 'Forge’s modern successor. More active development.'],
+  ] as const;
+
+  const pageMeta = [
+    { title: 'First-time Setup', subtitle: 'Let’s get Minecraft Server Controller configured.' },
+    { title: 'Server Type', subtitle: 'Choose which platform you’ll host servers on.' },
+    { title: 'Server Setup', subtitle: 'Where your servers live and how to run them.' },
+    { title: 'playit.gg', subtitle: 'Optional · Let friends join without port forwarding.' },
+    {
+      title: 'Xbox Broadcast',
+      subtitle: 'Optional · Console players see your server in Friends.',
+    },
+    { title: 'Tailscale', subtitle: 'Optional · Remote access from any network.' },
+    { title: 'You’re All Set', subtitle: 'Create your first server to get started.' },
   ] as const;
 
   let selected = 'green';
@@ -52,6 +67,10 @@
   let tailscaleMessage = '';
   let completionBusy = false;
   let completionMessage = '';
+  let rootTone: 'ok' | 'warn' | 'error' = 'warn';
+  let javaTone: 'ok' | 'warn' | 'error' = 'warn';
+  let xboxTone: 'ok' | 'warn' | 'error' = 'warn';
+  let tailscaleTone: 'ok' | 'warn' | 'error' = 'warn';
 
   $: bedrockAdvertisement = capabilities?.serverTypes?.bedrock;
   $: bedrockReady =
@@ -65,6 +84,46 @@
       ? 'The selected agent has not reported Bedrock readiness yet.'
       : 'Bedrock is not available on this host.');
   $: optionalPage = setupPage === 3 || setupPage === 4 || setupPage === 5;
+  $: rootTone = rootStatus === 'ready' ? 'ok' : rootStatus === 'unavailable' ? 'error' : 'warn';
+  $: rootLabel =
+    rootStatus === 'ready'
+      ? 'Ready'
+      : rootStatus === 'unavailable'
+        ? 'Unavailable'
+        : rootStatus === 'checking'
+          ? 'Checking…'
+          : 'Not verified';
+  $: javaTone = javaStatus === 'found' ? 'ok' : javaStatus === 'checking' ? 'warn' : 'error';
+  $: javaLabel =
+    javaStatus === 'found'
+      ? `Found at ${javaPath}`
+      : javaStatus === 'checking'
+        ? 'Checking…'
+        : javaStatus === 'not-found'
+          ? 'Not found'
+          : 'Unavailable';
+  $: xboxTone = xboxStatus === 'installed' ? 'ok' : xboxStatus === 'unavailable' ? 'error' : 'warn';
+  $: xboxLabel =
+    xboxStatus === 'installed'
+      ? 'Installed'
+      : xboxStatus === 'downloading'
+        ? 'Downloading…'
+        : xboxStatus === 'checking'
+          ? 'Checking…'
+          : xboxStatus === 'not-installed'
+            ? 'Not downloaded'
+            : 'Unavailable';
+  $: tailscaleTone =
+    tailscaleStatus === 'installed' ? 'ok' : tailscaleStatus === 'unavailable' ? 'error' : 'warn';
+  $: tailscaleLabel = tailscaleChecking
+    ? 'Checking…'
+    : tailscaleStatus === 'installed'
+      ? 'Installed'
+      : tailscaleStatus === 'not-installed'
+        ? 'Not installed'
+        : tailscaleStatus === 'unavailable'
+          ? 'Check unavailable'
+          : 'Not checked';
 
   onMount(() => {
     selected = storedAccent();
@@ -347,111 +406,45 @@
 
 <div class="setup-intro" class:compact>
   {#if !compact}
-    <header class="setup-heading">
-      <div class="setup-track" aria-label={`Setup step ${setupPage + 1} of 7`}>
+    <header class="setup-header">
+      <div class="step-track" aria-label={`Setup step ${setupPage + 1} of 7`}>
         {#each Array(7) as _, index}
-          {#if index > 0}<span class:complete={index <= setupPage} class="track-line"></span>{/if}
-          <span
-            class:active={index === setupPage}
-            class:complete={index < setupPage}
-            class="track-dot"
+          {#if index > 0}<span class="track-line" class:done={index <= setupPage}></span>{/if}
+          <span class="track-dot" class:done={index < setupPage} class:current={index === setupPage}
           ></span>
         {/each}
       </div>
-      <div class="setup-heading-body">
-        <div class="setup-heading-icon" aria-hidden="true">
-          {setupPage === 0
-            ? '▤'
-            : setupPage === 1
-              ? '▣'
-              : setupPage === 2
-                ? '▰'
-                : setupPage === 3
-                  ? '⌁'
-                  : setupPage === 4
-                    ? '⌘'
-                    : setupPage === 5
-                      ? '◎'
-                      : '✓'}
-        </div>
-        <div>
-          <p class="eyebrow">First-time Setup</p>
-          <h2 id={headingId}>
-            {setupPage === 0
-              ? 'First-time Setup'
-              : setupPage === 1
-                ? 'Server Type'
-                : setupPage === 2
-                  ? 'Server Setup'
-                  : setupPage === 3
-                    ? 'playit.gg'
-                    : setupPage === 4
-                      ? 'Xbox Broadcast'
-                      : setupPage === 5
-                        ? 'Tailscale'
-                        : 'You’re All Set'}
-          </h2>
-          <p class="setup-subtitle">
-            {setupPage === 0
-              ? 'Let’s get Minecraft Server Controller configured.'
-              : setupPage === 1
-                ? 'Choose which platform you’ll host servers on.'
-                : setupPage === 2
-                  ? 'Where your servers live and how to run them.'
-                  : setupPage === 3
-                    ? 'Optional · Let friends join without port forwarding.'
-                    : setupPage === 4
-                      ? 'Optional · Console players see your server in Friends.'
-                      : setupPage === 5
-                        ? 'Optional · Remote access from any network.'
-                        : 'Create your first server to get started.'}
-          </p>
-        </div>
-      </div>
+      <p class="msc2-type-overline">
+        {setupPage === 6 ? 'Setup complete' : `Step ${setupPage + 1} of 7`}
+      </p>
+      <h2 id={headingId} class="setup-title">{pageMeta[setupPage].title}</h2>
+      <p class="setup-subtitle">{pageMeta[setupPage].subtitle}</p>
     </header>
   {:else}
-    <h3 id={headingId}>{setupPage === 6 ? 'You’re All Set' : 'First-time Setup'}</h3>
+    <h3 id={headingId} class="setup-title compact-title">
+      {setupPage === 6 ? 'You’re All Set' : 'First-time Setup'}
+    </h3>
     <p class="setup-subtitle">Continue through the setup steps to configure this host.</p>
   {/if}
 
   {#key setupPage}
     <div class="setup-page">
       {#if setupPage === 0}
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon blue" aria-hidden="true">▤</span>
-            <div>
-              <h3>What is Minecraft Server Controller?</h3>
-              <p>MSC helps you run and manage Minecraft servers on your computer.</p>
-            </div>
-          </div>
-          <ul>
-            <li>
-              <span class="feature-icon green" aria-hidden="true">▶</span>Start and stop Java and
-              Bedrock servers with one click
-            </li>
-            <li>
-              <span class="feature-icon blue" aria-hidden="true">●●●</span>Invite friends via
-              tunnels, port forwarding, or Tailscale
-            </li>
-            <li>
-              <span class="feature-icon purple" aria-hidden="true">◆</span>Install plugins, mods,
-              and resource packs from Modrinth
-            </li>
-            <li>
-              <span class="feature-icon orange" aria-hidden="true">▰</span>Schedule backups and
-              manage multiple worlds
-            </li>
+        <Card>
+          <p class="card-title">What is Minecraft Server Controller?</p>
+          <p class="card-desc">MSC helps you run and manage Minecraft servers on your computer.</p>
+          <ul class="feature-list">
+            <li>Start and stop Java and Bedrock servers with one click</li>
+            <li>Invite friends via tunnels, port forwarding, or Tailscale</li>
+            <li>Install plugins, mods, and resource packs from Modrinth</li>
+            <li>Schedule backups and manage multiple worlds</li>
           </ul>
-        </section>
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon green" aria-hidden="true">✿</span>
-            <div>
-              <h3>Pick an Accent Color</h3>
-              <p>Tints the app shell and overlays. Change it anytime in Preferences.</p>
-            </div>
-          </div>
+        </Card>
+        <Card>
+          <p class="card-title">Pick an Accent Color</p>
+          <p class="card-desc">
+            Tints the app shell and overlays. Change it anytime in Preferences.
+          </p>
           <div class="accent-choices" aria-label="Accent colors">
             {#each ACCENT_PRESETS as choice (choice.id)}
               <button
@@ -474,413 +467,341 @@
               /><span aria-hidden="true">+</span></label
             >
           </div>
-        </section>
+        </Card>
+        <p class="setup-time">This setup takes about 2 minutes.</p>
       {:else if setupPage === 1}
-        <section class="server-type-page">
-          <div class="type-grid">
-            <button
-              class="type-card java"
-              class:on={wantsJava}
-              type="button"
-              aria-pressed={wantsJava}
-              onclick={() => toggleServerType('java')}
-              ><span class="type-icon">☕</span><span
-                ><strong>Java Servers</strong><small>Plugins, mods &amp; crossplay</small></span
-              ><span class="type-check">{wantsJava ? '✓' : '○'}</span></button
-            >
-            <button
-              class="type-card bedrock"
-              class:on={wantsBedrock}
-              class:disabled={!bedrockReady}
-              type="button"
-              aria-pressed={wantsBedrock}
-              disabled={!bedrockReady}
-              onclick={() => toggleServerType('bedrock')}
-              ><span class="type-icon">◆</span><span
-                ><strong>Bedrock Servers</strong><small
-                  >{bedrockReady
-                    ? bedrockProvisioning
-                      ? 'Built in · prepared on first use'
-                      : 'Mobile, console &amp; Windows'
-                    : 'Unavailable on this host'}</small
-                ></span
-              ><span class="type-check">{wantsBedrock ? '✓' : '○'}</span></button
-            >
-          </div>
-          {#if !bedrockReady}<p class="selection-warning">{bedrockReason}</p>{/if}
-          {#if !wantsJava && !wantsBedrock}<p class="selection-warning">
-              Select at least one type to continue. You can change this later.
-            </p>{/if}
-          {#if wantsJava}
-            {#if wantsBedrock}<p class="family-label">JAVA</p>{/if}
-            <div class="family-list">
-              {#each javaFamilies as family, index}<div
-                  class="family-row"
-                  style={`--row-index: ${index}`}
-                >
-                  <span class="family-icon" style={`color: ${family[3]}`}>{family[2]}</span><strong
-                    >{family[0]}</strong
-                  ><span class="family-separator">·</span><span>{family[1]}</span>
-                </div>{/each}
+        <div class="type-grid">
+          <button
+            class="type-card"
+            class:on={wantsJava}
+            type="button"
+            aria-pressed={wantsJava}
+            onclick={() => toggleServerType('java')}
+          >
+            <span class="type-text"
+              ><strong>Java Servers</strong><small>Plugins, mods &amp; crossplay</small></span
+            ><span class="type-check">{wantsJava ? '✓' : '○'}</span>
+          </button>
+          <button
+            class="type-card"
+            class:on={wantsBedrock}
+            class:disabled={!bedrockReady}
+            type="button"
+            aria-pressed={wantsBedrock}
+            disabled={!bedrockReady}
+            onclick={() => toggleServerType('bedrock')}
+          >
+            <span class="type-text"
+              ><strong>Bedrock Servers</strong><small
+                >{bedrockReady
+                  ? bedrockProvisioning
+                    ? 'Built in · prepared on first use'
+                    : 'Mobile, console & Windows'
+                  : 'Unavailable on this host'}</small
+              ></span
+            ><span class="type-check">{wantsBedrock ? '✓' : '○'}</span>
+          </button>
+        </div>
+        {#if !bedrockReady}<p class="hint">{bedrockReason}</p>{/if}
+        {#if !wantsJava && !wantsBedrock}<p class="hint warn">
+            Select at least one type to continue. You can change this later.
+          </p>{/if}
+        {#if wantsJava}
+          <p class="msc2-type-overline">{wantsBedrock ? 'Java' : 'Java flavors'}</p>
+          <Card padding="0">
+            {#each javaFamilies as family, index}
+              <div class="family-row" class:last={index === javaFamilies.length - 1}>
+                <span class="family-name">{family[0]}</span>
+                <span class="family-desc">{family[1]}</span>
+              </div>
+            {/each}
+          </Card>
+          <p class="hint">
+            Java Edition players always. Bedrock, mobile, and console can join standard servers via
+            Geyser crossplay (set up per server).
+          </p>
+        {/if}
+        {#if wantsBedrock}
+          <p class="msc2-type-overline">{wantsJava ? 'Bedrock' : 'Bedrock flavors'}</p>
+          <Card padding="0">
+            <div class="family-row last">
+              <span class="family-name">BDS</span>
+              <span class="family-desc"
+                >Official Mojang Bedrock server. Runs in a built-in VM, no Docker needed.</span
+              >
             </div>
-            <p class="crossplay-note">
-              <span>●●●</span> Java Edition players always. Bedrock, mobile, and console can join standard
-              servers via Geyser crossplay (set up per server).
-            </p>
-          {/if}
-          {#if wantsBedrock}<p class="family-label">BEDROCK</p>
-            <div class="family-row bedrock-row">
-              <span class="family-icon" style="color:#4ade80">▥</span><strong>BDS</strong><span
-                class="family-separator">·</span
-              ><span>Official Mojang Bedrock server. Runs in a built-in VM, no Docker needed.</span>
-            </div>
-            <p class="crossplay-note bedrock-note">
-              <span>●●●</span> Mobile (iOS/Android), console (Xbox, PlayStation, Switch), and Windows
-              Bedrock Edition. Java Edition players cannot join.
-            </p>{/if}
-        </section>
+          </Card>
+          <p class="hint">
+            Mobile (iOS/Android), console (Xbox, PlayStation, Switch), and Windows Bedrock Edition.
+            Java Edition players cannot join.
+          </p>
+        {/if}
       {:else if setupPage === 2}
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon blue">▰</span>
-            <div>
-              <h3>Servers Root Folder</h3>
-              <p>
-                {platformKind === 'tauri'
-                  ? 'All your servers will live inside this folder.'
-                  : 'This path is on the computer running the selected agent, not on this browser device.'}
-              </p>
-            </div>
-          </div>
+        <p class="msc2-type-overline">Servers Root Folder</p>
+        <Card>
+          <p class="card-desc">
+            {platformKind === 'tauri'
+              ? 'All your servers will live inside this folder.'
+              : 'This path is on the computer running the selected agent, not on this browser device.'}
+          </p>
           <div class="field-row">
-            <span class:ok={rootStatus === 'ready'} class="status-dot"
-              >{rootStatus === 'ready' ? '✓' : '·'}</span
-            ><input
+            <input
+              class="field-input"
               aria-label="Servers root folder"
               value={serversRoot}
               oninput={(event) => {
                 serversRoot = event.currentTarget.value;
                 rootStatus = 'unknown';
               }}
-            />{#if platformKind === 'tauri'}<button
-                type="button"
+            />
+            {#if platformKind === 'tauri'}
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={rootPickerBusy}
-                onclick={() => void chooseRoot()}>{rootPickerBusy ? 'Choosing…' : 'Browse…'}</button
-              >{/if}
+                onclick={() => void chooseRoot()}>{rootPickerBusy ? 'Choosing…' : 'Browse…'}</Button
+              >
+            {/if}
           </div>
-          {#if rootStatus === 'unavailable' || rootStatus === 'unknown'}<p
-              class="inline-message warning"
-            >
+          <StatusDot tone={rootTone} label={rootLabel} />
+          {#if rootStatus === 'unavailable' || rootStatus === 'unknown'}<p class="hint">
               {rootMessage || 'Enter an absolute folder path and let the agent validate it.'}
             </p>{/if}
-        </section>
-        {#if wantsJava}<section class="setup-card">
-            <div class="card-heading">
-              <span class="card-icon orange">☕</span>
-              <div>
-                <h3>Java Executable</h3>
-                <p>
-                  Java servers require JDK 21 or later. Point to your binary or let the agent find
-                  it on PATH.{platformKind === 'browser'
-                    ? ' This executable path is on the agent host.'
-                    : ''}
-                </p>
-              </div>
-            </div>
+        </Card>
+        {#if wantsJava}
+          <p class="msc2-type-overline">Java Executable</p>
+          <Card>
+            <p class="card-desc">
+              Java servers require JDK 21 or later. Point to your binary or let the agent find it on
+              PATH.{platformKind === 'browser' ? ' This executable path is on the agent host.' : ''}
+            </p>
             <div class="field-row">
-              <span class:ok={javaStatus === 'found'} class="status-dot"
-                >{javaStatus === 'found' ? '✓' : '·'}</span
-              ><input
+              <input
+                class="field-input"
                 aria-label="Java executable"
                 value={javaPath}
                 oninput={(event) => {
                   javaPath = event.currentTarget.value;
                   javaStatus = 'unknown';
                 }}
-              />{#if platformKind === 'tauri'}<button
-                  type="button"
+              />
+              {#if platformKind === 'tauri'}
+                <Button
+                  variant="secondary"
+                  size="sm"
                   disabled={javaPickerBusy || javaStatus === 'checking'}
                   onclick={() => void browseJava()}
-                  >{javaPickerBusy ? 'Choosing…' : 'Browse…'}</button
-                >{/if}<button
-                type="button"
+                  >{javaPickerBusy ? 'Choosing…' : 'Browse…'}</Button
+                >
+              {/if}
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={javaPickerBusy || javaStatus === 'checking'}
                 onclick={() => void probeJava(javaPath)}
-                >{javaStatus === 'checking' ? 'Checking…' : 'Check for Java'}</button
-              ><button
-                type="button"
+                >{javaStatus === 'checking' ? 'Checking…' : 'Check for Java'}</Button
+              >
+              <Button
+                variant="secondary"
+                size="sm"
                 disabled={javaPickerBusy || javaStatus === 'checking'}
                 onclick={() => {
                   javaPath = 'java';
                   void probeJava('java');
-                }}>Use PATH</button
+                }}>Use PATH</Button
               >
             </div>
-            <p class="probe-status" class:success={javaStatus === 'found'}>
-              {javaStatus === 'checking'
-                ? 'Checking…'
-                : javaStatus === 'found'
-                  ? `Found at ${javaPath}`
-                  : javaMessage || (javaStatus === 'not-found' ? 'Not found' : 'Not checked yet')}
+            <StatusDot tone={javaTone} label={javaLabel} />
+            {#if javaStatus === 'not-found'}<p class="hint warn">
+                {javaMessage} Install the current Temurin LTS or choose an existing JDK 21+ executable,
+                then check again.
+              </p>{:else if javaMessage}<p class="hint warn">{javaMessage}</p>{/if}
+          </Card>
+        {/if}
+        {#if wantsBedrock}
+          <p class="msc2-type-overline">Bedrock — Built In</p>
+          <Card>
+            <p class="card-desc">
+              No extra software needed. MSC runs Bedrock Dedicated Server in a built-in virtual
+              machine.
             </p>
-            {#if javaStatus === 'not-found'}<p class="inline-message warning">
-                Install the current Temurin LTS or choose an existing JDK 21+ executable, then check
-                again.
-              </p>{/if}
-          </section>{/if}
-        {#if wantsBedrock}<section class="setup-card">
-            <div class="card-heading">
-              <span class="card-icon green">▥</span>
-              <div>
-                <h3>Bedrock — Built In</h3>
-                <p>
-                  No extra software needed. MSC runs Bedrock Dedicated Server in a built-in virtual
-                  machine.
-                </p>
-              </div>
-            </div>
-            <p class="inline-message success">
-              ✓ {bedrockProvisioning
-                ? 'Ready. The built-in runtime will be prepared when you create your first Bedrock server.'
-                : 'Ready. The selected agent reports a usable Bedrock runtime.'}
-            </p>
-          </section>{/if}
+            <StatusDot
+              tone="ok"
+              label={bedrockProvisioning ? 'Ready · prepared on first use' : 'Ready'}
+            />
+          </Card>
+        {/if}
       {:else if setupPage === 3}
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon purple">⌁</span>
-            <div>
-              <h3>What is playit.gg?</h3>
-              <p>
-                A free tunneling service that lets friends connect to your server without port
-                forwarding.
-              </p>
-            </div>
-          </div>
-          <ul>
-            <li><span class="feature-icon green">✓</span>No router configuration required</li>
-            <li>
-              <span class="feature-icon green">✓</span>Works on any network, including strict NAT
-            </li>
-            <li>
-              <span class="feature-icon green">✓</span>MSC sets up tunnels automatically after you
-              sign in
-            </li>
+        <Card>
+          <p class="card-title">What is playit.gg?</p>
+          <p class="card-desc">
+            A free tunneling service that lets friends connect to your server without port
+            forwarding.
+          </p>
+          <ul class="feature-list">
+            <li>No router configuration required</li>
+            <li>Works on any network, including strict NAT</li>
+            <li>MSC sets up tunnels automatically after you sign in</li>
           </ul>
-        </section>
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon purple">♙</span>
-            <div>
-              <h3>Create a playit.gg Account</h3>
-              <p>
-                A free account is required. MSC will handle tunnel setup after you’ve signed in.
-              </p>
-            </div>
-          </div>
+        </Card>
+        <Card>
+          <p class="card-title">Create a playit.gg Account</p>
+          <p class="card-desc">
+            A free account is required. MSC will handle tunnel setup after you’ve signed in.
+          </p>
           <a
+            class="link-button"
             href="https://playit.gg/login"
             target="_blank"
             rel="noreferrer"
             onclick={(event) => openExternalLink(event, 'https://playit.gg/login')}
             >Sign up at playit.gg →</a
           >
-          <p class="inline-message warning">
+          <p class="hint">
             Free accounts include 1 agent and up to 3 tunnels. You can sign in after your first
             server is created.
           </p>
-        </section>
+        </Card>
         <p class="setup-note">You can skip this step and set it up later.</p>
       {:else if setupPage === 4}
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon green">⌘</span>
-            <div>
-              <h3>What is Xbox Broadcast?</h3>
-              <p>The most reliable way for console players to find and join your server.</p>
-            </div>
-          </div>
-          <ul>
-            <li>
-              <span class="feature-icon green">▰</span>Console players see your server in the Xbox
-              Friends tab — no IP address needed
-            </li>
-            <li>
-              <span class="feature-icon green">▯</span>Works for Java servers (via Geyser) and
-              Bedrock servers
-            </li>
-            <li>
-              <span class="feature-icon blue">↓</span>MSC downloads the broadcast tool automatically
-            </li>
-          </ul>
-        </section>
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon orange">!</span>
-            <div>
-              <h3>Use a Dedicated Microsoft Account</h3>
-              <p>
-                We recommend not using your personal Microsoft or Xbox account for broadcasting.
-              </p>
-            </div>
-          </div>
-          <p>
-            Xbox Broadcast may be against Microsoft’s Terms of Service per its own GitHub
-            repository. Use a separate account to keep your personal account safe.
+        <Card>
+          <p class="card-title">What is Xbox Broadcast?</p>
+          <p class="card-desc">
+            The most reliable way for console players to find and join your server.
           </p>
-          <p>
-            Creating a new Outlook account gives you a fresh Xbox Live identity — free and takes
-            under a minute.
+          <ul class="feature-list">
+            <li>Console players see your server in the Xbox Friends tab — no IP address needed</li>
+            <li>Works for Java servers (via Geyser) and Bedrock servers</li>
+            <li>MSC downloads the broadcast tool automatically</li>
+          </ul>
+        </Card>
+        <Card>
+          <p class="card-title">Use a Dedicated Microsoft Account</p>
+          <p class="card-desc">
+            We recommend not using your personal Microsoft or Xbox account for broadcasting.
+          </p>
+          <p class="hint">
+            Xbox Broadcast may be against Microsoft’s Terms of Service per its own GitHub
+            repository. Use a separate account to keep your personal account safe. Creating a new
+            Outlook account gives you a fresh Xbox Live identity — free and takes under a minute.
           </p>
           <a
-            class="orange-link"
+            class="link-button"
             href="https://signup.live.com"
             target="_blank"
             rel="noreferrer"
             onclick={(event) => openExternalLink(event, 'https://signup.live.com')}
             >Create a new Microsoft / Outlook account →</a
           >
-        </section>
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon blue">↓</span>
-            <div>
-              <h3>Broadcast Helper</h3>
-              <p>The broadcast tool is downloaded once and shared across all your servers.</p>
-            </div>
-          </div>
-          <div class="helper-row">
-            <span class:success={xboxStatus === 'installed'}
-              >{xboxStatus === 'installed'
-                ? '✓ Installed and ready.'
-                : xboxStatus === 'downloading'
-                  ? 'Downloading…'
-                  : xboxStatus === 'not-installed'
-                    ? 'Not downloaded yet'
-                    : 'Unavailable'}</span
-            ><button
-              type="button"
+        </Card>
+        <Card>
+          <p class="card-title">Broadcast Helper</p>
+          <p class="card-desc">
+            The broadcast tool is downloaded once and shared across all your servers.
+          </p>
+          <div class="field-row">
+            <StatusDot tone={xboxTone} label={xboxLabel} />
+            <span class="action-spacer"></span>
+            <Button
+              variant="secondary"
+              size="sm"
               onclick={() => void downloadXbox()}
               disabled={xboxStatus === 'downloading' || xboxStatus === 'installed'}
-              >Download Now</button
+              >Download Now</Button
             >
           </div>
-          {#if xboxFilename}<p class="probe-status success">Verified file: {xboxFilename}</p>{/if}
-          {#if xboxMessage}<p class="inline-message warning">{xboxMessage}</p>{/if}
-        </section>
-        <p class="inline-message info">
+          {#if xboxFilename}<p class="hint">Verified file: {xboxFilename}</p>{/if}
+          {#if xboxMessage}<p class="hint warn">{xboxMessage}</p>{/if}
+        </Card>
+        <p class="setup-note">
           When you first start a server with Xbox Broadcast enabled, MSC will prompt you to sign in
           with your Microsoft account in a private session.
         </p>
       {:else if setupPage === 5}
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon blue">◎</span>
-            <div>
-              <h3>What is Tailscale?</h3>
-              <p>A private mesh VPN that connects your devices no matter where they are.</p>
-            </div>
-          </div>
-          <ul>
-            <li>
-              <span class="feature-icon green">✓</span>Access your host’s servers from your phone,
-              another computer, or anywhere
-            </li>
-            <li>
-              <span class="feature-icon green">✓</span>Free for personal use — takes about a minute
-              to set up
-            </li>
-            <li>
-              <span class="feature-icon green">✓</span>Works alongside playit.gg — they solve
-              different problems
-            </li>
+        <Card>
+          <p class="card-title">What is Tailscale?</p>
+          <p class="card-desc">
+            A private mesh VPN that connects your devices no matter where they are.
+          </p>
+          <ul class="feature-list">
+            <li>Access your host’s servers from your phone, another computer, or anywhere</li>
+            <li>Free for personal use — takes about a minute to set up</li>
+            <li>Works alongside playit.gg — they solve different problems</li>
           </ul>
-        </section>
-        <section class="setup-card">
-          <div class="card-heading">
-            <span class="card-icon blue">◎</span>
-            <div>
-              <h3>Tailscale · Optional</h3>
-              <p>Check whether Tailscale is already installed.</p>
-            </div>
-          </div>
-          <div class="helper-row">
-            <span class:success={tailscaleStatus === 'installed'}
-              >{tailscaleChecking
-                ? 'Checking…'
-                : tailscaleStatus === 'installed'
-                  ? '✓ Installed'
-                  : tailscaleStatus === 'not-installed'
-                    ? 'Not installed'
-                    : tailscaleStatus === 'unavailable'
-                      ? 'Check unavailable'
-                      : 'Not checked yet'}</span
-            ><button
-              type="button"
+        </Card>
+        <Card>
+          <p class="card-title">Tailscale · Optional</p>
+          <p class="card-desc">Check whether Tailscale is already installed.</p>
+          <div class="field-row">
+            <StatusDot tone={tailscaleTone} label={tailscaleLabel} />
+            <span class="action-spacer"></span>
+            <Button
+              variant="secondary"
+              size="sm"
               disabled={tailscaleChecking}
               onclick={() => void checkTailscale()}
-              >{tailscaleChecking ? 'Checking…' : 'Check'}</button
+              >{tailscaleChecking ? 'Checking…' : 'Check'}</Button
             >
           </div>
-          {#if tailscaleStatus === 'not-installed'}<p class="inline-message info">
-              Tailscale isn’t installed. <a
+          {#if tailscaleStatus === 'not-installed'}<p class="hint">
+              Tailscale isn’t installed.
+              <a
+                class="link-inline"
                 href="https://tailscale.com/download"
                 target="_blank"
                 rel="noreferrer"
                 onclick={(event) => openExternalLink(event, 'https://tailscale.com/download')}
                 >Download it free from tailscale.com →</a
               >
-            </p>{:else if tailscaleStatus === 'installed'}<p class="inline-message success">
+            </p>{:else if tailscaleStatus === 'installed'}<p class="hint">
               Tailscale is installed. Enable it and join your tailnet to access servers remotely.
-            </p>{:else if tailscaleMessage}<p class="inline-message warning">
-              {tailscaleMessage}
-            </p>{/if}
-        </section>
+            </p>{:else if tailscaleMessage}<p class="hint warn">{tailscaleMessage}</p>{/if}
+        </Card>
       {:else}
-        <section class="done-page">
-          <div class="done-check">✓</div>
+        <div class="done-page">
+          <div class="done-check" aria-hidden="true">✓</div>
           <h3>You’re All Set</h3>
           <p>
             MSC is configured and ready. Click “Get Started” to create your first Minecraft server.
           </p>
           <div class="summary-card">
-            <div>
-              <span class="summary-icon blue">▰</span><strong>Servers root</strong><code
-                >{serversRoot || 'Not set'}</code
-              >
-            </div>
-            {#if wantsJava}<div>
-                <span class="summary-icon orange">☕</span><strong>Java</strong><code
-                  >{javaPath || 'Not configured'}</code
+            <Card padding="0">
+              <div class="summary-row">
+                <span class="summary-label">Servers root</span>
+                <code class="summary-value">{serversRoot || 'Not set'}</code>
+              </div>
+              {#if wantsJava}
+                <div class="summary-row">
+                  <span class="summary-label">Java</span>
+                  <code class="summary-value">{javaPath || 'Not configured'}</code>
+                </div>
+              {/if}
+              <div class="summary-row last">
+                <span class="summary-label">Server types</span>
+                <code class="summary-value"
+                  >{[wantsJava ? 'Java' : null, wantsBedrock ? 'Bedrock' : null]
+                    .filter(Boolean)
+                    .join(' + ')}</code
                 >
-              </div>{/if}
-            <div>
-              <span class="summary-icon purple">▣</span><strong>Server types</strong><code
-                >{[wantsJava ? 'Java' : null, wantsBedrock ? 'Bedrock' : null]
-                  .filter(Boolean)
-                  .join(' + ')}</code
-              >
-            </div>
+              </div>
+            </Card>
           </div>
-        </section>
+        </div>
       {/if}
     </div>
   {/key}
 
-  {#if setupPage === 0}<p class="setup-time">This setup takes about 2 minutes.</p>{/if}
-  {#if completionMessage}<p class="inline-message warning" role="alert">{completionMessage}</p>{/if}
+  {#if completionMessage}<p class="hint warn" role="alert">{completionMessage}</p>{/if}
   <div class="setup-actions">
-    {#if setupPage > 0 && setupPage < 6}<ActionButton
-        kind="quiet"
-        label="Back"
-        onclick={() => (setupPage -= 1)}>‹ Back</ActionButton
-      >{/if}
+    {#if setupPage > 0 && setupPage < 6}
+      <Button variant="secondary" onclick={() => (setupPage -= 1)}>Back</Button>
+    {/if}
     <span class="action-spacer"></span>
-    {#if optionalPage}<ActionButton kind="quiet" label="Skip" onclick={skipOptional}
-        >Skip</ActionButton
-      >{/if}
-    <ActionButton
-      label={setupPage === 6 ? 'Get Started' : setupPage === 5 ? 'Continue' : 'Next'}
+    {#if optionalPage}
+      <Button variant="secondary" onclick={skipOptional}>Skip</Button>
+    {/if}
+    <Button
+      variant="primary"
       disabled={completionBusy || (setupPage === 1 && !wantsJava && !wantsBedrock)}
       onclick={nextSetupPage}
       >{setupPage === 6 && completionBusy
@@ -889,181 +810,130 @@
           ? 'Get Started'
           : setupPage === 5
             ? 'Continue'
-            : 'Next'}{#if setupPage < 6}<span aria-hidden="true"> →</span>{/if}</ActionButton
+            : 'Next'}</Button
     >
   </div>
 </div>
 
 <style>
   .setup-intro {
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
     margin: -1.5rem;
-    border-radius: var(--msc-radius-lg);
-    background: var(--msc-surface-raised);
+    border-radius: 20px;
+    background: var(--msc2-tier-chrome);
   }
-  .setup-heading {
-    display: grid;
-    gap: 1rem;
-    padding: 1.5rem;
-    color: white;
-    background: linear-gradient(135deg, var(--msc-accent), #19723a);
+  .setup-header {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--msc2-hairline-faint);
   }
-  .setup-heading-body {
+  .step-track {
     display: flex;
     align-items: center;
-    gap: 1rem;
-  }
-  .setup-track {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
+    gap: 5px;
+    margin-bottom: 6px;
   }
   .track-dot {
-    width: 0.4rem;
-    height: 0.4rem;
+    width: 6px;
+    height: 6px;
+    flex: 0 0 auto;
     border-radius: 50%;
-    background: rgba(255, 255, 255, 0.25);
-    transition: all 180ms ease;
+    background: var(--msc2-neutral-muted);
+    transition: all 150ms ease;
   }
-  .track-dot.active {
-    width: 0.6rem;
-    height: 0.6rem;
-    background: var(--msc-accent-strong);
-  }
-  .track-dot.complete {
+  .track-dot.done {
     background: rgba(255, 255, 255, 0.65);
+  }
+  .track-dot.current {
+    width: 8px;
+    height: 8px;
+    background: var(--msc2-text-primary);
   }
   .track-line {
     flex: 1;
-    min-width: 0.9rem;
+    min-width: 10px;
     height: 1px;
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--msc2-hairline);
   }
-  .track-line.complete {
-    background: var(--msc-accent-strong);
+  .track-line.done {
+    background: rgba(255, 255, 255, 0.4);
   }
-  .setup-heading-icon,
-  .card-icon,
-  .summary-icon {
-    display: grid;
-    place-items: center;
-    flex: 0 0 auto;
-    border-radius: 0.75rem;
-    font-weight: 900;
-  }
-  .setup-heading-icon {
-    width: 3rem;
-    height: 3rem;
-    background: rgba(255, 255, 255, 0.16);
-    font-size: 1.5rem;
-  }
-  .setup-heading h2,
-  .setup-heading p,
-  .compact h3,
-  .compact > p {
+  .setup-title,
+  .setup-subtitle,
+  .card-title,
+  .card-desc {
     margin: 0;
   }
-  .setup-heading h2 {
-    color: white;
+  .setup-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--msc2-text-primary);
   }
-  .setup-heading .eyebrow {
-    color: rgba(255, 255, 255, 0.78);
+  .compact-title {
+    font-size: 15px;
   }
   .setup-subtitle {
-    color: var(--msc-muted);
-  }
-  .setup-heading .setup-subtitle {
-    color: rgba(255, 255, 255, 0.82);
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
   }
   .setup-page {
-    animation: setup-page-in 260ms ease both;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px 24px;
+    overflow-y: auto;
+    animation: setup-page-in 180ms ease both;
   }
   @keyframes setup-page-in {
     from {
       opacity: 0;
-      transform: translateX(1rem);
+      transform: translateY(4px);
     }
     to {
       opacity: 1;
-      transform: translateX(0);
+      transform: translateY(0);
     }
   }
-  .setup-card {
-    margin: 1.25rem 1.5rem 0;
-    padding: 1rem;
-    border-radius: var(--msc-radius-md);
-    background: var(--msc-surface);
+  .card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
   }
-  .card-heading {
+  .card-desc {
+    margin-top: 3px;
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .feature-list {
     display: flex;
-    gap: 0.7rem;
-    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+    margin: 10px 0 0;
+    padding: 0 0 0 16px;
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
+    line-height: 1.4;
   }
-  .card-heading h3 {
-    margin: 0;
-    font-size: 1rem;
-  }
-  .card-heading p {
-    margin: 0.2rem 0 0;
-    color: var(--msc-muted);
-    font-size: 0.85rem;
-  }
-  .card-heading > div {
-    min-width: 0;
-  }
-  .card-icon {
-    width: 2rem;
-    height: 2rem;
-    font-size: 1rem;
-  }
-  .blue {
-    color: #60a5fa;
-    background: rgba(59, 130, 246, 0.18);
-  }
-  .green {
-    color: #4ade80;
-    background: rgba(34, 197, 94, 0.18);
-  }
-  .purple {
-    color: #c084fc;
-    background: rgba(168, 85, 247, 0.18);
-  }
-  .orange {
-    color: #fb923c;
-    background: rgba(249, 115, 22, 0.18);
-  }
-  ul {
-    display: grid;
-    gap: 0.55rem;
-    margin: 0.9rem 0 0;
-    padding: 0;
-    list-style: none;
-    color: var(--msc-muted);
-    font-size: 0.9rem;
-  }
-  li {
-    display: flex;
-    gap: 0.6rem;
-    align-items: flex-start;
-    line-height: 1.35;
-  }
-  .feature-icon {
-    min-width: 1.1rem;
-    font-size: 0.75rem;
-    text-align: center;
+  .feature-list li::marker {
+    color: var(--msc2-text-tertiary);
   }
   .accent-choices {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.55rem;
-    margin-top: 0.9rem;
+    gap: 10px;
+    margin-top: 12px;
   }
   .accent-choice,
   .custom-accent {
     display: grid;
     place-items: center;
-    width: 2rem;
-    height: 2rem;
+    width: 26px;
+    height: 26px;
     border: 2px solid transparent;
     border-radius: 50%;
     color: white;
@@ -1071,8 +941,7 @@
     cursor: pointer;
   }
   .accent-choice.selected {
-    border-color: white;
-    box-shadow: 0 0 0 2px var(--choice-color);
+    border-color: rgba(255, 255, 255, 0.85);
   }
   .custom-accent {
     position: relative;
@@ -1080,6 +949,7 @@
   }
   .custom-accent input {
     position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     opacity: 0;
@@ -1088,247 +958,196 @@
   .type-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.75rem;
-  }
-  .server-type-page {
-    padding: 1.25rem 1.5rem 0;
+    gap: 10px;
   }
   .type-card {
     display: flex;
     align-items: center;
-    gap: 0.7rem;
-    padding: 0.8rem;
-    border: 1.5px solid transparent;
-    border-radius: var(--msc-radius-md);
-    color: var(--msc-text);
-    background: var(--msc-surface);
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--msc2-hairline);
+    border-radius: 10px;
+    color: var(--msc2-text-primary);
+    background: var(--msc2-tier-content);
     text-align: left;
     cursor: pointer;
+    transition:
+      background 120ms ease,
+      border-color 120ms ease;
   }
-  .type-card.java.on {
-    border-color: rgba(249, 115, 22, 0.7);
-    background: rgba(249, 115, 22, 0.12);
-  }
-  .type-card.bedrock.on {
-    border-color: rgba(34, 197, 94, 0.7);
-    background: rgba(34, 197, 94, 0.12);
+  .type-card.on {
+    border-color: rgba(255, 255, 255, 0.4);
+    background: var(--msc2-neutral-elevated);
   }
   .type-card.disabled {
     cursor: not-allowed;
-    opacity: 0.65;
+    opacity: 0.6;
   }
-  .type-icon {
-    display: grid;
-    place-items: center;
-    width: 2.25rem;
-    height: 2.25rem;
-    border-radius: 0.7rem;
-    color: white;
-    background: #f97316;
-    font-size: 1.1rem;
+  .type-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
-  .bedrock .type-icon {
-    background: #22c55e;
+  .type-text strong {
+    font-size: 13px;
+    font-weight: 500;
   }
-  .type-card strong,
-  .type-card small {
-    display: block;
-  }
-  .type-card small {
-    margin-top: 0.15rem;
-    color: var(--msc-muted);
-    font-size: 0.78rem;
+  .type-text small {
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
   }
   .type-check {
     margin-left: auto;
-    color: var(--msc-accent);
-    font-size: 1.1rem;
+    color: var(--msc2-text-tertiary);
+    font-size: 14px;
   }
-  .selection-warning,
-  .crossplay-note,
-  .inline-message {
-    margin: 0.75rem 0 0;
-    padding: 0.7rem;
-    border-radius: var(--msc-radius-sm);
-    color: var(--msc-muted);
-    background: rgba(59, 130, 246, 0.12);
-    font-size: 0.8rem;
-    line-height: 1.4;
-  }
-  .crossplay-note {
-    background: rgba(59, 130, 246, 0.14);
-  }
-  .bedrock-note {
-    background: rgba(34, 197, 94, 0.12);
-  }
-  .family-label {
-    margin: 1rem 0 0.45rem;
-    color: var(--msc-subtle);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-  }
-  .family-list {
-    display: grid;
-    gap: 0.25rem;
+  .type-card.on .type-check {
+    color: var(--msc2-status-ok);
   }
   .family-row {
     display: flex;
-    align-items: center;
-    gap: 0.55rem;
-    min-height: 2.55rem;
-    padding: 0.55rem 0.7rem;
-    border-radius: var(--msc-radius-sm);
-    color: var(--msc-muted);
-    background: rgba(232, 238, 242, 0.07);
-    font-size: 0.82rem;
-    animation: family-row-in 220ms ease both;
-    animation-delay: calc(var(--row-index, 0) * 55ms);
+    align-items: baseline;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--msc2-hairline-faint);
+    font-size: 12px;
   }
-  .family-row strong {
-    color: var(--msc-text);
+  .family-row.last {
+    border-bottom: none;
   }
-  .family-icon {
-    width: 1.1rem;
-    text-align: center;
+  .family-name {
+    flex: 0 0 auto;
+    color: var(--msc2-text-primary);
+    font-weight: 500;
   }
-  .family-separator {
-    color: var(--msc-subtle);
+  .family-desc {
+    color: var(--msc2-text-tertiary);
   }
-  .bedrock-row {
-    background: rgba(34, 197, 94, 0.1);
-  }
-  @keyframes family-row-in {
-    from {
-      opacity: 0;
-      transform: translateY(0.35rem);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  .field-row,
-  .helper-row {
+  .field-row {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.9rem;
+    gap: 8px;
+    margin-top: 10px;
+    flex-wrap: wrap;
   }
-  .field-row input {
+  .field-input {
+    box-sizing: border-box;
     min-width: 0;
     flex: 1;
-    padding: 0.5rem 0.6rem;
-    border: 1px solid var(--msc-border);
-    border-radius: var(--msc-radius-sm);
-    color: var(--msc-text);
-    background: var(--msc-surface-raised);
-    font:
-      0.82rem ui-monospace,
-      SFMono-Regular,
-      Menlo,
-      monospace;
+    font-family: inherit;
+    font-size: 13px;
+    color: #fff;
+    background: var(--msc2-tier-chrome);
+    border: 1px solid var(--msc2-hairline-field);
+    border-radius: 8px;
+    padding: 7px 10px;
+    outline: none;
   }
-  .field-row button,
-  .helper-row button {
-    white-space: nowrap;
+  .field-input:focus-visible {
+    border-color: var(--msc2-hairline-field-focus);
   }
-  .status-dot {
-    color: var(--msc-muted);
+  :global(.setup-page .status-dot) {
+    margin-top: 10px;
   }
-  .status-dot.ok,
-  .success {
-    color: #4ade80;
+  .hint {
+    margin: 8px 0 0;
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
   }
-  .probe-status {
-    margin: 0.55rem 0 0 1.55rem;
-    color: var(--msc-muted);
-    font-size: 0.82rem;
+  .hint.warn {
+    color: var(--msc2-status-warn);
   }
-  .inline-message.warning {
-    background: rgba(249, 115, 22, 0.12);
+  .link-button {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 10px;
+    padding: 5px 12px;
+    border: 1px solid var(--msc2-hairline);
+    border-radius: 7px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
   }
-  .inline-message.success {
-    background: rgba(34, 197, 94, 0.12);
+  .link-button:hover {
+    background: rgba(255, 255, 255, 0.06);
   }
-  .inline-message.info {
-    background: rgba(59, 130, 246, 0.12);
-  }
-  .inline-message a,
-  .setup-card a {
-    color: var(--msc-accent);
-    font-weight: 700;
-  }
-  .orange-link {
-    color: #fb923c !important;
+  .link-inline {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
   }
   .setup-note,
   .setup-time {
-    margin: 1rem 1.5rem;
-    color: var(--msc-subtle);
-    font-size: 0.85rem;
+    margin: 0;
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
     text-align: center;
   }
   .done-page {
     display: grid;
     justify-items: center;
-    gap: 0.75rem;
-    padding: 2rem 1.5rem;
+    gap: 10px;
+    padding: 12px 0 4px;
     text-align: center;
   }
   .done-page h3 {
     margin: 0;
-    font-size: 1.45rem;
+    color: var(--msc2-text-primary);
+    font-size: 18px;
+    font-weight: 600;
   }
   .done-page > p {
     max-width: 26rem;
     margin: 0;
-    color: var(--msc-muted);
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
   }
   .done-check {
     display: grid;
     place-items: center;
-    width: 5rem;
-    height: 5rem;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
-    color: white;
-    background: var(--msc-accent);
-    box-shadow: 0 0 0 1rem color-mix(in srgb, var(--msc-accent) 14%, transparent);
-    font-size: 2.5rem;
+    background: var(--msc2-neutral-elevated);
+    color: var(--msc2-status-ok);
+    font-size: 20px;
   }
   .summary-card {
-    display: grid;
-    gap: 0.65rem;
-    width: min(100%, 34rem);
-    margin-top: 0.75rem;
-    padding: 1rem;
-    border-radius: var(--msc-radius-lg);
-    background: var(--msc-surface);
+    width: 100%;
+    margin-top: 6px;
     text-align: left;
   }
-  .summary-card > div {
+  .summary-row {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--msc2-hairline-faint);
   }
-  .summary-icon {
-    width: 1.35rem;
-    height: 1.35rem;
-    font-size: 0.75rem;
+  .summary-row.last {
+    border-bottom: none;
   }
-  .summary-card code {
+  .summary-label {
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
+  }
+  .summary-value {
     overflow: hidden;
-    margin-left: auto;
-    color: var(--msc-muted);
-    font-size: 0.78rem;
+    color: var(--msc2-text-secondary);
+    font-family: var(--msc2-font-mono);
+    font-size: 11px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .setup-actions {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
-    margin: 1rem 1.5rem 1.5rem;
+    gap: 8px;
+    padding: 16px 24px;
+    border-top: 1px solid var(--msc2-hairline-faint);
   }
   .action-spacer {
     flex: 1;
@@ -1336,23 +1155,19 @@
   .compact {
     margin: 0;
     overflow: visible;
+    border-radius: 0;
     background: transparent;
   }
-  .compact .setup-card,
-  .compact .setup-time,
-  .compact .setup-note {
-    margin-inline: 0;
-  }
-  .compact .server-type-page {
-    padding-inline: 0;
+  .compact .setup-page {
+    padding: 12px 0 0;
+    overflow-y: visible;
   }
   .compact .setup-actions {
-    margin-inline: 0;
-    margin-bottom: 0;
+    padding: 12px 0 0;
+    border-top: none;
   }
   @media (prefers-reduced-motion: reduce) {
-    .setup-page,
-    .family-row {
+    .setup-page {
       animation: none;
     }
     .track-dot,
@@ -1361,27 +1176,20 @@
     }
   }
   @media (max-width: 520px) {
-    .setup-heading {
-      padding: 1.1rem;
+    .setup-header,
+    .setup-page,
+    .setup-actions {
+      padding-inline: 16px;
     }
     .type-grid {
       grid-template-columns: 1fr;
     }
-    .setup-card,
-    .setup-note,
-    .setup-time,
-    .setup-actions {
-      margin-inline: 1rem;
-    }
     .field-row {
       flex-wrap: wrap;
     }
-    .field-row input {
+    .field-input {
       flex-basis: 100%;
       order: -1;
-    }
-    .summary-card code {
-      max-width: 55%;
     }
   }
 </style>

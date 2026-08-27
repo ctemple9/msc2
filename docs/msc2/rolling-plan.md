@@ -805,9 +805,11 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Batch:** solo
 
 ### P12.13 — First-time setup / Prerequisites / Setup wizard
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `src/lib/sections/setup/`, `src/lib/help/` (first-launch)
 **What:** Rebuild the first-launch flow — setup sheet, prerequisites/Java check, Bedrock disclosure, helper links, first-server handoff — to MSC 1's shape and ordering. Reference MSC 1 `SetupWizardView`, `PrerequisitesView`, `FirstStartSheetView` and `~/Documents/MSCSS/First Time Setup`. Preserve the agent-owned vs client-owned initiation boundary from P11 scope.
+
+**Scope note (executed 2026-08-27):** `SetupIntro.svelte` (the setup wizard: welcome/accent → server type → servers root + Java + Bedrock → playit.gg → Xbox Broadcast → Tailscale → done) already existed content-complete from Phase 11, just built on pre-redesign components (`ActionButton`, old `--msc-*` tokens). This step rebuilt it on the S0 base primitives (`Button`, `Card`, `StatusDot`) per `antiAIslop.md` — dropped every colored-icon-in-box, the gradient hero header, and the per-family/per-type accent colors; replaced ad hoc colored callout boxes with `StatusDot`(+label) for real statuses and plain muted text for pure hints; kept the `compact` embed used by the Handbook's reopened first-launch reader (P12.16 scope) untouched in behavior. No script/API-call logic changed — restyle only. `PrerequisitesView`'s standalone dependency-checker sheet has no MSC 2 route and was not built as a separate screen: its Java/Bedrock/Tailscale checks are already folded into the wizard's own pages, which is treated as satisfying it. `FirstStartSheetView`'s post-server-creation "how do people connect" connection-guidance screen also has no MSC 2 equivalent and was not built here — it would need new backend DTOs/endpoints (local/public IP, live playit/Xbox addresses) beyond this step's frontend-only `Files:` scope, so "first-server handoff" was read as the wizard's existing Done-page → Concept Guide → first-server-creation handoff, not a new post-start screen. Flagging this gap for Cameron rather than deciding it silently.
 **Verify:** `npm run dev` on a fresh profile, walk setup start → first-server handoff; compare to MSC 1 + checklist.
 **Commit:** `P12.13: rebuild first-time setup`
 **Batch:** solo

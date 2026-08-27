@@ -23,6 +23,7 @@
   import { HostStore } from './lib/hosts/registry';
   import type { HostId, HostRecord } from './lib/hosts/types';
   import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
+  import AppSettingsSheet from './lib/sections/app-settings/AppSettingsSheet.svelte';
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
@@ -158,6 +159,7 @@
   let hostId = localAgentHostId;
   let isDesktopShell = false;
   let manageOpen = false;
+  let settingsOpen = false;
   let browserHandoffError = '';
 
   function refreshHosts(): void {
@@ -259,7 +261,14 @@
     ...tab,
     available: visibleSections.some((section) => section.id === tab.id),
   }));
-  $: bannerColor = bannerColorFor(hostId, selectedServerId);
+  // `bannerColorAccentVersion` has no meaning of its own -- it's a parameter
+  // here only so AppSettingsSheet's onAccentColorSaved can force a re-read of
+  // localStorage, which changing hostId/selectedServerId alone wouldn't catch.
+  let bannerColorAccentVersion = 0;
+  function readBannerColor(host: string, server: string, _accentVersion: number): string {
+    return bannerColorFor(host, server);
+  }
+  $: bannerColor = readBannerColor(hostId, selectedServerId, bannerColorAccentVersion);
   // Referencing servers/status/hostId directly (not just through hostSummaries'
   // internals) makes Svelte re-run this when the active host's live state
   // changes, not only when a host is added or removed.
@@ -471,6 +480,7 @@
   onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}
   onManage={() => (manageOpen = true)}
   onHelp={() => void selectSection('handbook')}
+  onSettings={() => (settingsOpen = true)}
   onRefresh={() => void initializeClient()}
 >
   {#if activeComponent}
@@ -514,6 +524,17 @@
     onAddHost={(label, baseUrl, code) => addRemoteHost(label, baseUrl, code)}
     onRemoveHost={(id) => removeRemoteHost(id)}
     onServersChanged={(updated) => (servers = updated)}
+  />
+{/if}
+
+{#if settingsOpen}
+  <AppSettingsSheet
+    api={screenApi}
+    {hostId}
+    serverId={selectedServerId || undefined}
+    serverLabel={servers.find((server) => server.id === selectedServerId)?.name}
+    onClose={() => (settingsOpen = false)}
+    onAccentColorSaved={() => (bannerColorAccentVersion += 1)}
   />
 {/if}
 

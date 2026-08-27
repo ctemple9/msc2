@@ -26,6 +26,14 @@
   // no `options` (unlike java_sections' difficulty/gamemode) -- Bedrock
   // settings stay unported per that file's own header comment. Rendered
   // honestly below as a plain text field until that lands.
+  //
+  // No per-field "Learn more" links: HelpLink renders a plain <a href> to
+  // /hosts/{hostId}/servers/{serverId}/handbook?topic=..., which
+  // hard-navigates the whole webview instead of switching sections in-app --
+  // Cameron hit this live (splash restart, then a fresh, disconnected
+  // Handbook load). Handbook itself isn't rebuilt yet either (P12.16, not
+  // started), so it's not worth wiring a real in-app link here now. Re-add
+  // once both exist.
   import { onMount } from 'svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -37,13 +45,15 @@
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
-  import HelpLink from '../../help/HelpLink.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
   import { demoSettings } from './model';
 
   export let api: ScreenProps['api'] = undefined;
-  export let hostId = 'local-agent';
+  // No Learn More links here (removed -- see note below), so nothing in this
+  // section is host-scoped; kept only so the section registry can pass it
+  // uniformly (ComponentsSection precedent).
+  export const hostId = 'local-agent';
   export let serverId = 'survival';
 
   // MSC 1's ServerSettingsView uses .pickerStyle(.segmented) only for these
@@ -184,7 +194,6 @@
                 {:else}
                   <Field bind:value={draft[field.key]} width="260px" />
                 {/if}
-                {#if field.helpId}<HelpLink helpId={field.helpId} {hostId} {serverId} />{/if}
               </div>
             </div>
           {/each}

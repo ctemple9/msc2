@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { BrowserSessionAuth } from '../../src/lib/auth/browser';
 import { ApiClient } from '../../src/lib/api/client';
+import platformSource from '../../src/lib/platform/index.ts?raw';
 
 describe('browser session authentication', () => {
+  it('uses the CSRF-aware session adapter in the production browser transport', () => {
+    expect(platformSource).toContain(
+      'credentialAdapter: new BrowserSessionAuth(baseUrl).credentialAdapter()',
+    );
+    expect(platformSource).not.toContain('credentialAdapter: cookieCredentialAdapter()');
+  });
+
   it('keeps pairing in the cookie jar and adds the CSRF value only to mutations', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
@@ -42,9 +50,12 @@ describe('browser session authentication', () => {
     const fetchImpl = async (url: string, init?: RequestInit): Promise<Response> => {
       calls.push({ url, init });
       if (url.endsWith('/v1/auth/csrf')) {
-        return new Response(JSON.stringify({ csrfToken: `csrf-${calls.length}`, expiresAt: 'later' }), {
-          headers: { 'content-type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({ csrfToken: `csrf-${calls.length}`, expiresAt: 'later' }),
+          {
+            headers: { 'content-type': 'application/json' },
+          },
+        );
       }
       return new Response(null, { status: 204 });
     };

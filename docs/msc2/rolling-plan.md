@@ -712,6 +712,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11n: cache packaged agent verification`
 **Batch:** solo
 
+### P12.11o — Authorize browser mutations after desktop handoff
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/platform/index.ts`, `clients/desktop-web/tests/auth/browser.test.ts`, `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Correct the next browser-handoff verification finding. The one-use pairing exchange successfully creates the httpOnly browser session, and `BrowserSessionAuth.credentialAdapter()` already implements the frozen D-012 CSRF flow, but `createAgentTransport()` discards that adapter and wires the browser client to `cookieCredentialAdapter()`, which sends no `X-MSC-CSRF` header. As a result every browser mutation is rejected with `csrf_invalid`: first-run servers-root/Java saves, Xbox-helper download, Start/Stop, settings, and all other POST/PUT/DELETE actions. Construct the browser transport with a `BrowserSessionAuth` bound to the selected agent origin and use its credential adapter; keep safe GET requests cookie-only and keep Tauri's native credential bridge unchanged. Add a regression assertion at the production transport boundary and repackage the shared bundle. **Design finding recorded, not expanded into this repair:** `FirstLaunchGate` currently mixes host-owned setup with per-browser `localStorage`; the correct follow-up is agent-persisted host setup state plus a separate per-client welcome/tour, with native path pickers shown only in Tauri and browser users operating on explicitly labeled host paths/defaults.
+**Verify:** `cd clients/desktop-web && npx vitest run tests/auth/browser.test.ts && npm run bundle:package-agent && cd ../.. && python3 tools/phase11/bundle-identity-check.py && cargo nextest run -p msc-agent --test web_ui` — then open from the desktop browser button, proceed past **Server Setup** using the agent-reported defaults, and confirm later browser mutations (including Start/Stop) succeed without `csrf_invalid`.
+**Commit:** `P12.11o: authorize browser mutations`
+**Batch:** solo
+
 ### P12.4k — Add Import ZIP / Replace World / Duplicate Slot to the Worlds tab
 **Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/worlds/` (`WorldsSection.svelte`, `model.ts`, new sheets alongside the existing `CreateWorldSheet.svelte`/`RenameWorldSheet.svelte`/`WorldRepairSheet.svelte`/`WorldConversionWizard.svelte`)

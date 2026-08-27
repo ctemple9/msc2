@@ -1,6 +1,7 @@
 import { isTauri } from '@tauri-apps/api/core';
 import type { FetchLike } from '../api/client';
-import { cookieCredentialAdapter, desktopCredentialAdapter } from '../api/auth';
+import { desktopCredentialAdapter, type TransportCredentialAdapter } from '../api/auth';
+import { BrowserSessionAuth } from '../auth/browser';
 import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from '../auth/desktop';
 import { createBrowserPlatform } from './browser';
 import { loadTauriPlatform } from './tauri';
@@ -17,7 +18,7 @@ export interface AgentTransport {
   readonly baseUrl: string;
   readonly hostId: string;
   readonly fetchImpl?: FetchLike;
-  readonly credentialAdapter: ReturnType<typeof cookieCredentialAdapter>;
+  readonly credentialAdapter: TransportCredentialAdapter;
 }
 
 export interface AgentPreparationPlatform {
@@ -97,12 +98,13 @@ export async function createAgentTransport(hostId: string): Promise<AgentTranspo
     };
   }
 
+  const baseUrl =
+    configuredBaseUrl ??
+    (typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin);
   return {
     hostId,
-    baseUrl:
-      configuredBaseUrl ??
-      (typeof window === 'undefined' ? 'http://127.0.0.1' : window.location.origin),
-    credentialAdapter: cookieCredentialAdapter(),
+    baseUrl,
+    credentialAdapter: new BrowserSessionAuth(baseUrl).credentialAdapter(),
   };
 }
 

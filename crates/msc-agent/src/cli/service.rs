@@ -1,5 +1,9 @@
 use clap::{Args, Subcommand};
-use msc_infrastructure::service::{ServiceInstallRequest, ServiceManagerCommand, ServiceName};
+use msc_infrastructure::service::{
+    ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
+    ServiceStatusReport,
+};
+use serde::Serialize;
 
 use super::{CliError, CommonArgs};
 
@@ -60,17 +64,56 @@ pub struct ServiceTargetArgs {
 }
 
 pub async fn run(common: CommonArgs, command: ServiceCommand) -> Result<(), CliError> {
-    let model = into_model(command)?;
-    let rendering = if common.json {
-        serde_json::to_string(&describe_command(&model))
-            .map_err(|err| CliError::internal(format!("failed to encode JSON output: {err}")))?
-    } else {
-        describe_command(&model)
-    };
+    let manager = service_manager()?;
+    run_with_manager(common, command, manager.as_ref()).await
+}
 
-    Err(CliError::internal(format!(
-        "service management is modeled but not executable yet ({rendering}); platform adapters land in P4.22-P4.24"
-    )))
+pub(crate) async fn run_with_manager(
+    common: CommonArgs,
+    command: ServiceCommand,
+    manager: &dyn ServiceManager,
+) -> Result<(), CliError> {
+    let model = into_model(command)?;
+    let command = describe_command(&model);
+    let report = manager
+        .execute(model)
+        .map_err(|error| CliError::internal(format!("service management failed: {error}")))?;
+
+    if common.json {
+        let output = ServiceCommandOutput::from_report(command, &report);
+        let rendering = serde_json::to_string(&output)
+            .map_err(|err| CliError::internal(format!("failed to encode JSON output: {err}")))?;
+        println!("{rendering}");
+    } else {
+        println!("{command}: {}", describe_report(&report));
+    }
+
+    Ok(())
+}
+
+fn service_manager() -> Result<Box<dyn ServiceManager>, CliError> {
+    #[cfg(target_os = "macos")]
+    {
+        return Ok(Box::new(
+            msc_platform_macos::service::MacosLaunchdServiceManager::new(),
+        ));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        return Ok(Box::new(
+            msc_platform_windows::service::WindowsServiceManager::new(),
+        ));
+    }
+    #[cfg(target_os = "linux")]
+    {
+        return Ok(Box::new(
+            msc_platform_linux::service::LinuxSystemdServiceManager::new(),
+        ));
+    }
+    #[allow(unreachable_code)]
+    Err(CliError::internal(
+        "this platform has no MSC service manager",
+    ))
 }
 
 fn into_model(command: ServiceCommand) -> Result<ServiceManagerCommand, CliError> {
@@ -142,6 +185,47 @@ fn describe_command(command: &ServiceManagerCommand) -> String {
         ServiceManagerCommand::Stop { service_name } => format!("stop {}", service_name.as_str()),
         ServiceManagerCommand::Status { service_name } => {
             format!("status {}", service_name.as_str())
+        }
+    }
+}
+
+fn describe_report(report: &ServiceStatusReport) -> String {
+    match report.state {
+        ServiceState::NotInstalled => format!("{} is not installed", report.service_name.as_str()),
+        ServiceState::Stopped => {
+            format!("{} is installed and stopped", report.service_name.as_str())
+        }
+        ServiceState::Running => format!(
+            "{} is running{}",
+            report.service_name.as_str(),
+            report
+                .pid
+                .map(|pid| format!(" (pid {pid})"))
+                .unwrap_or_default()
+        ),
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ServiceCommandOutput {
+    command: String,
+    service_name: String,
+    state: &'static str,
+    pid: Option<u32>,
+}
+
+impl ServiceCommandOutput {
+    fn from_report(command: String, report: &ServiceStatusReport) -> Self {
+        Self {
+            command,
+            service_name: report.service_name.as_str().to_string(),
+            state: match report.state {
+                ServiceState::NotInstalled => "notInstalled",
+                ServiceState::Stopped => "stopped",
+                ServiceState::Running => "running",
+            },
+            pid: report.pid,
         }
     }
 }

@@ -441,6 +441,9 @@
       this={activeComponent}
       api={screenApi}
       {hostId}
+      hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
+      hostBaseUrl={hostStore.getState(hostId).host.baseUrl}
+      {isDesktopShell}
       serverId={selectedServerId}
       {permissions}
       readiness={agentReadiness}

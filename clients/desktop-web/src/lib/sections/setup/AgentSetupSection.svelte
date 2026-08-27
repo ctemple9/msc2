@@ -1,18 +1,22 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import ActionButton from '../../components/ActionButton.svelte';
-  import StatePanel from '../../components/StatePanel.svelte';
-  import SurfaceCard from '../../components/SurfaceCard.svelte';
+  import Badge from '../../components/base/Badge.svelte';
+  import Button from '../../components/base/Button.svelte';
+  import Card from '../../components/base/Card.svelte';
+  import Field from '../../components/base/Field.svelte';
+  import StatusDot from '../../components/base/StatusDot.svelte';
   import {
     getPlatform,
     type AgentReadiness,
     type AgentServiceAction,
     type AgentServiceStatus,
   } from '../../platform';
-  import ScreenHeader from '../shared/ScreenHeader.svelte';
 
   export let readiness: AgentReadiness = 'starting';
   export let onAgentRetry: (() => void) | undefined = undefined;
+  export let hostLabel = 'Local agent';
+  export let hostBaseUrl = 'http://127.0.0.1:48001';
+  export let isDesktopShell = false;
 
   const readinessTitles: Record<AgentReadiness, string> = {
     missing: 'Agent not installed',
@@ -34,8 +38,21 @@
   let status: AgentServiceStatus | undefined;
   let busy = false;
   let errorMessage = '';
+  let copiedCommand = '';
+  let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
+  let statusTone: 'ok' | 'warn' | 'error' = 'warn';
   $: readinessTitle = readinessTitles[readiness];
   $: readinessMessage = readinessMessages[readiness];
+  $: isLoopbackHost = loopbackHost(hostBaseUrl);
+  $: readinessTone = readiness === 'ready' ? 'ok' : readiness === 'incompatible' ? 'error' : 'warn';
+  $: statusTone =
+    status?.state === 'running' ? 'ok' : status?.state === 'unavailable' ? 'error' : 'warn';
+  $: serviceState = status?.state ?? 'checking';
+  const serviceCommands = [
+    'msc service status --service-name msc-agent',
+    'msc service start --service-name msc-agent',
+    'msc service stop --service-name msc-agent',
+  ];
 
   onMount(() => void refresh());
 
@@ -55,95 +72,208 @@
       busy = false;
     }
   }
+
+  function loopbackHost(baseUrl: string): boolean {
+    try {
+      const { hostname } = new URL(baseUrl);
+      return hostname === '127.0.0.1' || hostname === 'localhost' || hostname === '::1';
+    } catch {
+      return false;
+    }
+  }
+
+  async function copyCommand(command: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(command);
+      copiedCommand = command;
+      setTimeout(() => {
+        if (copiedCommand === command) copiedCommand = '';
+      }, 1500);
+    } catch {
+      // The command remains selectable in its field when clipboard access is unavailable.
+    }
+  }
 </script>
 
 <div class="screen">
-  <ScreenHeader
-    eyebrow="This computer"
-    title="Local agent"
-    description="The background agent keeps Minecraft servers running after this window closes."
-    status={readinessTitle}
-    statusTone={readiness === 'ready'
-      ? 'positive'
-      : readiness === 'incompatible'
-        ? 'danger'
-        : 'warning'}
-    actionLabel={onAgentRetry ? 'Reconnect' : 'Refresh service status'}
-    onAction={onAgentRetry ?? refresh}
-  />
-
-  <div class="screen-grid two">
-    <SurfaceCard eyebrow="Connection readiness" title={readinessTitle}>
-      <p class="metric-large">{readiness === 'ready' ? 'Ready' : 'Action needed'}</p>
-      <p class="muted">{readinessMessage}</p>
-    </SurfaceCard>
-
-    <SurfaceCard eyebrow="Background service" title={status?.serviceName ?? 'MSC agent'}>
-      <p class="metric-large">{status?.state ?? 'Checking'}</p>
-      <p class="muted">{status?.detail ?? 'Looking for the local service.'}</p>
-      {#if status?.pid}<p class="muted">Service process: {status.pid}</p>{/if}
-    </SurfaceCard>
-
-    <SurfaceCard eyebrow="Service actions" title="Keep servers independent of the window">
-      {#if status?.available}
-        <div class="actions">
-          {#if status.state === 'not-installed'}
-            <ActionButton
-              label="Install and start local agent"
-              disabled={busy}
-              onclick={() => manage('install')}
-            >
-              Install and start
-            </ActionButton>
-          {:else}
-            <ActionButton
-              label="Start local agent"
-              disabled={busy || status.state === 'running'}
-              onclick={() => manage('start')}
-            >
-              Start agent
-            </ActionButton>
-            <ActionButton
-              kind="quiet"
-              label="Stop local agent"
-              disabled={busy || status.state !== 'running'}
-              onclick={() => manage('stop')}
-            >
-              Stop agent
-            </ActionButton>
-            <ActionButton
-              kind="quiet"
-              label="Repair local agent service"
-              disabled={busy}
-              onclick={() => manage('repair')}
-            >
-              Repair service
-            </ActionButton>
-          {/if}
-        </div>
-      {:else}
-        <StatePanel
-          kind="empty"
-          title="Headless install"
-          message={status?.detail ?? 'Use the headless package on this host.'}
-        />
-      {/if}
-      <p class="muted">
-        Stopping this service is explicit. Closing the app window never stops the service or any
-        Minecraft server it manages.
-      </p>
-    </SurfaceCard>
+  <div class="heading">
+    <p class="breadcrumb">{hostLabel} agent</p>
+    <div class="heading-row">
+      <div>
+        <h1>Background agent</h1>
+        <p>The agent keeps Minecraft servers running after this window closes.</p>
+      </div>
+      <Button variant="secondary" onclick={onAgentRetry ?? refresh}>
+        {onAgentRetry ? 'Reconnect' : 'Refresh status'}
+      </Button>
+    </div>
   </div>
 
-  {#if errorMessage}
-    <StatePanel kind="error" title="Could not change the agent service" message={errorMessage} />
-  {/if}
+  <div class="screen-grid two">
+    <Card>
+      <div class="card-heading">
+        <span class="msc2-type-overline">Connection</span>
+        <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
+      </div>
+      <StatusDot tone={readinessTone} label={readinessTitle} />
+      <p class="detail">{readinessMessage}</p>
+    </Card>
+
+    <Card>
+      <div class="card-heading">
+        <span class="msc2-type-overline">Background service</span>
+        <Badge variant="status" tone={statusTone}>{serviceState}</Badge>
+      </div>
+      <StatusDot tone={statusTone} label={serviceState} />
+      <p class="detail">{status?.detail ?? 'Looking for the local service.'}</p>
+      {#if status?.pid}<p class="detail">Service process: {status.pid}</p>{/if}
+    </Card>
+  </div>
+
+  <Card>
+    {#if isDesktopShell}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Service controls</span>
+        <span class="quiet-label">This computer</span>
+      </div>
+      <h2>Keep servers independent of the window</h2>
+      <p class="detail">Use the installed desktop app to change this computer’s agent service.</p>
+      <div class="actions">
+        {#if status?.state === 'not-installed'}
+          <Button variant="primary" disabled={busy} onclick={() => manage('install')}
+            >Install and start</Button
+          >
+        {:else}
+          <Button
+            variant="start"
+            disabled={busy || status?.state === 'running'}
+            onclick={() => manage('start')}>Start agent</Button
+          >
+          <Button
+            variant="stop"
+            disabled={busy || status?.state !== 'running'}
+            onclick={() => manage('stop')}>Stop agent</Button
+          >
+          <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
+            >Repair service</Button
+          >
+        {/if}
+      </div>
+    {:else if isLoopbackHost}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Terminal controls</span>
+        <span class="quiet-label">This computer</span>
+      </div>
+      {#if status?.state === 'not-installed'}
+        <h2>Install the headless package first</h2>
+        <p class="detail">
+          This agent is not installed. Reinstall it with this platform’s headless package or
+          installer, then return here.
+        </p>
+      {:else}
+        <h2>Run one command in Terminal</h2>
+        <p class="detail">
+          These commands control the agent on this same machine. They do not stop any Minecraft
+          server when this page closes.
+        </p>
+        <div class="command-list">
+          {#each serviceCommands as command (command)}
+            <div class="command-row">
+              <Field value={command} />
+              <Button size="sm" variant="secondary" onclick={() => void copyCommand(command)}>
+                {copiedCommand === command ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    {:else}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Service controls</span>
+        <span class="quiet-label">Another computer</span>
+      </div>
+      <h2>This browser cannot manage that service</h2>
+      <p class="detail">
+        The agent is on a different machine. Run service controls there; nothing in this browser can
+        install, start, stop, or repair it.
+      </p>
+    {/if}
+  </Card>
+
+  {#if errorMessage}<p class="error" role="alert">
+      Could not change the agent service: {errorMessage}
+    </p>{/if}
 </div>
 
 <style>
+  .heading {
+    display: grid;
+    gap: 8px;
+  }
+  .breadcrumb,
+  .msc2-type-overline {
+    margin: 0;
+  }
+  .breadcrumb {
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .heading-row,
+  .card-heading,
   .actions {
     display: flex;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 0.6rem;
+    gap: 10px;
+  }
+  .heading-row,
+  .card-heading {
+    justify-content: space-between;
+  }
+  h1,
+  h2,
+  p {
+    margin: 0;
+  }
+  h1 {
+    font-size: 22px;
+    font-weight: 600;
+  }
+  h2 {
+    margin-top: 14px;
+    font-size: 15px;
+    font-weight: 500;
+  }
+  .heading-row p,
+  .detail,
+  .quiet-label {
+    color: var(--msc2-text-secondary);
+  }
+  .heading-row p,
+  .detail {
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+  .quiet-label {
+    font-size: 12px;
+  }
+  .actions {
+    margin-top: 14px;
+  }
+  .command-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .command-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .error {
+    color: var(--msc2-status-error);
+    font-size: 13px;
+    line-height: 1.5;
   }
 </style>

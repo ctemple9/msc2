@@ -39,3 +39,6 @@ default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
 
 [workspace]
+
+[profile.dev.package.sha2]
+opt-level = 3

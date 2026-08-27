@@ -704,6 +704,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11m: make local browser handoff deterministic`
 **Batch:** solo
 
+### P12.11n — Keep agent verification out of the request hot path
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/src/lib.rs`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11m live verification regression. A process sample of the frozen Tauri shell showed concurrent `desktop_authorized_request` calls spending all available CPU inside `verify_staged_agent`: P12.11m re-read and SHA-256-hashed both 60 MB binaries before every local API request. Preserve the fail-closed service-definition comparison, but cache the successfully staged-and-verified content-addressed path for the lifetime of this desktop process. The packaged resource is immutable for a running release, and `tauri dev` restarts the Rust process when its package changes, so one verification per process preserves the generation guarantee while removing hashing from the request hot path. Optimize the `sha2` dependency in the development profile as well: a live stack sample after caching proved the one required initial verification still occupied an unoptimized development build for roughly a minute, while release builds already optimize it. Add a focused regression test proving repeated path resolution performs one staging operation.
+**Verify:** `cargo fmt --manifest-path clients/desktop-web/src-tauri/Cargo.toml -- --check && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path clients/desktop-web/src-tauri/Cargo.toml packaged_agent` — then run `cd clients/desktop-web && npx tauri dev`; confirm the splash plays, the shell becomes responsive, CPU returns to idle, the real server/tabs load, and the browser button still opens an authenticated browser tab.
+**Commit:** `P12.11n: cache packaged agent verification`
+**Batch:** solo
+
 ### P12.4k — Add Import ZIP / Replace World / Duplicate Slot to the Worlds tab
 **Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/worlds/` (`WorldsSection.svelte`, `model.ts`, new sheets alongside the existing `CreateWorldSheet.svelte`/`RenameWorldSheet.svelte`/`WorldRepairSheet.svelte`/`WorldConversionWizard.svelte`)

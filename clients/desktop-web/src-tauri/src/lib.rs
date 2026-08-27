@@ -10,6 +10,7 @@ use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 mod update;
 
@@ -21,6 +22,19 @@ const LOCAL_AGENT_BROWSER_ORIGIN: &str = "http://127.0.0.1:48001";
 const LOCAL_BOOTSTRAP_SOCKET: &str = "bootstrap.sock";
 const PROTOCOL_VERSION: u32 = 1;
 const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
+static STAGED_PACKAGED_AGENT_PATH: PackagedAgentPathCache = PackagedAgentPathCache::new();
+
+struct PackagedAgentPathCache(OnceLock<Result<PathBuf, String>>);
+
+impl PackagedAgentPathCache {
+    const fn new() -> Self {
+        Self(OnceLock::new())
+    }
+
+    fn resolve(&self, stage: impl FnOnce() -> Result<PathBuf, String>) -> Result<PathBuf, String> {
+        self.0.get_or_init(stage).clone()
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -730,6 +744,10 @@ fn packaged_agent_path() -> Result<PathBuf, String> {
 }
 
 fn staged_packaged_agent_path() -> Result<PathBuf, String> {
+    STAGED_PACKAGED_AGENT_PATH.resolve(stage_packaged_agent_once)
+}
+
+fn stage_packaged_agent_once() -> Result<PathBuf, String> {
     let source = packaged_agent_path()?;
     if !source.is_file() {
         return Err(format!(
@@ -1139,6 +1157,28 @@ mod tests {
 
         assert_eq!(status.state, "running");
         assert_eq!(status.pid, Some(42));
+    }
+
+    #[test]
+    fn packaged_agent_path_is_staged_once_per_process() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = PackagedAgentPathCache::new();
+        let stage_count = AtomicUsize::new(0);
+        let stage = || {
+            stage_count.fetch_add(1, Ordering::Relaxed);
+            Ok(PathBuf::from("/current-build/msc"))
+        };
+
+        assert_eq!(
+            cache.resolve(stage).unwrap(),
+            Path::new("/current-build/msc")
+        );
+        assert_eq!(
+            cache.resolve(stage).unwrap(),
+            Path::new("/current-build/msc")
+        );
+        assert_eq!(stage_count.load(Ordering::Relaxed), 1);
     }
 
     #[cfg(target_os = "macos")]

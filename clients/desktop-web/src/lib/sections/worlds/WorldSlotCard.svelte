@@ -8,6 +8,11 @@
   // context-menu pattern anywhere else, so it's a small always-visible
   // overlay button instead -- same capability (P12.4b's real, staged-upload-
   // backed POST /v1/worlds/{slotId}/thumbnail), more discoverable affordance.
+  // P12.4k adds Duplicate (ServerEditorWorldTab.swift, moved here per that
+  // step's design reversal): the backend names the copy "{name} copy" and
+  // takes no name argument at all, so it's a plain inline confirm like
+  // Activate/Delete rather than a name-entry sheet -- rename the copy
+  // afterward with the existing Rename action if wanted.
   import Card from '../../components/base/Card.svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -24,12 +29,14 @@
   /** Which inline confirmation (P12.3g's expand-in-place pattern, not a
    *  modal) is open for this card, if any. Owned by the parent so only one
    *  card confirms at a time. */
-  export let confirming: 'activate' | 'delete' | undefined = undefined;
+  export let confirming: 'activate' | 'delete' | 'duplicate' | undefined = undefined;
   export let onSelect: () => void;
   export let onRequestActivate: () => void;
   export let onConfirmActivate: () => void;
   export let onConvert: () => void;
   export let onRename: () => void;
+  export let onRequestDuplicate: () => void;
+  export let onConfirmDuplicate: () => void;
   export let onRequestDelete: () => void;
   export let onConfirmDelete: () => void;
   export let onCancelConfirm: () => void;
@@ -141,6 +148,14 @@
             Activate Slot
           </Button>
         </div>
+      {:else if confirming === 'duplicate'}
+        <p class="confirm-message">Creates a copy of "{slot.name}" named "{slot.name} copy".</p>
+        <div class="actions-row">
+          <Button size="sm" variant="secondary" onclick={onCancelConfirm}>Cancel</Button>
+          <Button size="sm" variant="primary" disabled={busy} onclick={onConfirmDuplicate}>
+            Duplicate Slot
+          </Button>
+        </div>
       {:else if confirming === 'delete'}
         <p class="confirm-message">This permanently removes "{slot.name}". It can't be undone.</p>
         <div class="actions-row">
@@ -174,6 +189,11 @@
         </div>
         <div class="actions-row">
           <Button size="sm" variant="secondary" disabled={busy} onclick={onRename}>Rename</Button>
+          <Button size="sm" variant="secondary" disabled={busy} onclick={onRequestDuplicate}>
+            Duplicate
+          </Button>
+        </div>
+        <div class="actions-row">
           <Button
             size="sm"
             variant="destructive"
@@ -183,7 +203,7 @@
               : 'Delete this slot'}
             onclick={onRequestDelete}
           >
-            Delete
+            Delete This World Slot
           </Button>
         </div>
       {/if}

@@ -9,13 +9,17 @@
   // against the oracle rather than built from the names alone: MSC 1's own
   // RenameWorldView.swift and ReplaceWorldView.swift are never instantiated
   // anywhere in minecraft-server-controller (confirmed by grep) -- dead code
-  // superseded by DetailsWorldsTabView's own inline RenameSlotSheet, with no
-  // "replace the live world" affordance in this tab at all. Both live-world
-  // wizards belong to ServerEditorWorldTab.swift instead (Phase 12.12's
-  // Server Editor sheet), which also owns Duplicate and Import ZIP -- ported
-  // there, not here. This tab ports exactly what DetailsWorldsTabView itself
-  // does: Create, Save Current, Activate, the inline Rename sheet, Delete,
-  // Convert, and (Bedrock) Repair.
+  // superseded by DetailsWorldsTabView's own inline RenameSlotSheet. This
+  // tab ports exactly what DetailsWorldsTabView itself does: Create, Save
+  // Current, Activate, the inline Rename sheet, Delete, Convert, and
+  // (Bedrock) Repair -- plus, per P12.4k's design reversal (2026-08-27),
+  // ServerEditorWorldTab.swift's Import ZIP / Replace World / Duplicate
+  // Slot, moved here so every world action lives in one place instead of
+  // splitting across this tab and a World-shaped Server Editor sub-tab.
+  // Import ZIP and Replace World act globally (a new slot, the live world),
+  // not on a selected card, so they sit in the header actions row next to
+  // Save Current/Repair/Create; Duplicate acts on one slot, so it's an
+  // inline card confirm like Activate/Delete (WorldSlotCard.svelte).
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -26,6 +30,8 @@
   import RenameWorldSheet from './RenameWorldSheet.svelte';
   import WorldRepairSheet from './WorldRepairSheet.svelte';
   import WorldConversionWizard from './WorldConversionWizard.svelte';
+  import ImportWorldZipSheet from './ImportWorldZipSheet.svelte';
+  import ReplaceWorldSheet from './ReplaceWorldSheet.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';
   import {
@@ -51,7 +57,7 @@
   let backupConfig: Schema['BackupConfigResponseDTO'] | undefined;
 
   let selectedSlotId: string | undefined;
-  let confirming: { slotId: string; kind: 'activate' | 'delete' } | undefined;
+  let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
   let confirmingBackupDeleteId: string | undefined;
   let busy = false;
   let notice: string | undefined;
@@ -60,6 +66,8 @@
   let renamingSlot: Schema['WorldSlotDTO'] | undefined;
   let repairOpen = false;
   let convertingSlot: Schema['WorldSlotDTO'] | undefined;
+  let importZipOpen = false;
+  let replaceOpen = false;
 
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
@@ -95,6 +103,9 @@
   }
   function requestDelete(slotId: string): void {
     confirming = { slotId, kind: 'delete' };
+  }
+  function requestDuplicate(slotId: string): void {
+    confirming = { slotId, kind: 'duplicate' };
   }
   function cancelConfirm(): void {
     confirming = undefined;
@@ -139,6 +150,24 @@
       if (selectedSlotId === slotId) selectedSlotId = undefined;
     } catch (error) {
       flash(error instanceof Error ? error.message : 'Failed to delete this slot.');
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function confirmDuplicate(): Promise<void> {
+    if (!confirming) return;
+    const { slotId } = confirming;
+    confirming = undefined;
+    busy = true;
+    try {
+      const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.duplicate, {
+        slotId,
+      });
+      if (result.updated) worlds = result.updated;
+      flash('World slot duplicated.');
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Failed to duplicate this slot.');
     } finally {
       busy = false;
     }
@@ -276,6 +305,17 @@
         >
           Save Current World
         </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={busy}
+          onclick={() => (importZipOpen = true)}
+        >
+          Import ZIP…
+        </Button>
+        <Button size="sm" variant="secondary" disabled={busy} onclick={() => (replaceOpen = true)}>
+          Replace World…
+        </Button>
         {#if isBedrock}
           <Button
             size="sm"
@@ -321,6 +361,8 @@
             onConfirmActivate={() => void confirmActivate()}
             onConvert={() => (convertingSlot = slot)}
             onRename={() => (renamingSlot = slot)}
+            onRequestDuplicate={() => requestDuplicate(slot.id)}
+            onConfirmDuplicate={() => void confirmDuplicate()}
             onRequestDelete={() => requestDelete(slot.id)}
             onConfirmDelete={() => void confirmDelete()}
             onCancelConfirm={cancelConfirm}
@@ -376,6 +418,29 @@
     activeSlotId={worlds.activeSlotId}
     onClose={() => (repairOpen = false)}
     {onRepaired}
+  />
+{/if}
+
+{#if importZipOpen}
+  <ImportWorldZipSheet
+    {api}
+    onClose={() => (importZipOpen = false)}
+    onImported={(updated) => {
+      worlds = updated;
+      flash('Imported ZIP as a new world slot.');
+    }}
+  />
+{/if}
+
+{#if replaceOpen}
+  <ReplaceWorldSheet
+    {api}
+    serverRunning={worlds.serverRunning}
+    onClose={() => (replaceOpen = false)}
+    onReplaced={() => {
+      flash('World replacement started.');
+      void Promise.all([loadWorlds(), loadBackups()]);
+    }}
   />
 {/if}
 

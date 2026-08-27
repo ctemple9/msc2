@@ -3,6 +3,7 @@ import {
   backupPaths,
   backupsForSlot,
   compatibleTargetServers,
+  currentLevelName,
   demoBackups,
   demoSlots,
   formatBackupDay,
@@ -15,6 +16,7 @@ import {
   placeholderHue,
   pollOperation,
   serversPath,
+  settingsPath,
   slotThumbnailUrl,
   targetFormats,
   worldPaths,
@@ -34,8 +36,11 @@ describe('routes -- DetailsWorldsTabView.swift is the real oracle', () => {
       convert: '/v1/worlds/convert',
       convertFormats: '/v1/worlds/convert/formats',
       import: '/v1/worlds/import',
+      replaceActive: '/v1/worlds/replace-active-world',
+      duplicate: '/v1/worlds/duplicate',
     });
     expect(worldPaths.thumbnail('slot-1')).toBe('/v1/worlds/slot-1/thumbnail');
+    expect(settingsPath).toBe('/v1/settings');
   });
 
   it('exposes the real backup routes', () => {
@@ -204,6 +209,55 @@ describe('conversion target servers -- WorldConversionWizardView.compatibleTarge
     expect(compatibleTargetServers([java, bedrock, otherJava], java)).toEqual([bedrock]);
     expect(compatibleTargetServers([java, bedrock, otherJava], bedrock)).toEqual([java, otherJava]);
     expect(compatibleTargetServers([java, bedrock], undefined)).toEqual([]);
+  });
+});
+
+describe('current level name -- P12.4k Replace World reads it back unchanged, like the oracle', () => {
+  const section = (fields: Schema['SettingFieldDTO'][]): Schema['SettingsSectionDTO'] => ({
+    id: 'bedrock',
+    title: 'Bedrock',
+    icon: 'cube',
+    fields,
+  });
+
+  it('reads level-name off the settings response when a section exposes it (Bedrock)', () => {
+    const settings: Schema['SettingsResponseDTO'] = {
+      serverType: 'bedrock',
+      serverName: 'Bedrock',
+      serverRunning: false,
+      editable: true,
+      sections: [
+        section([
+          { key: 'level-name', label: 'Level Name', type: 'string', value: 'Bedrock level' },
+        ]),
+      ],
+    };
+    expect(currentLevelName(settings)).toBe('Bedrock level');
+  });
+
+  it("falls back to Minecraft's own default when no section exposes it (Java) or settings are unavailable", () => {
+    const javaSettings: Schema['SettingsResponseDTO'] = {
+      serverType: 'java',
+      serverName: 'Java',
+      serverRunning: false,
+      editable: true,
+      sections: [section([{ key: 'max-players', label: 'Max Players', type: 'int', value: '20' }])],
+    };
+    expect(currentLevelName(javaSettings)).toBe('world');
+    expect(currentLevelName(undefined)).toBe('world');
+  });
+
+  it('falls back when the field is present but blank', () => {
+    const settings: Schema['SettingsResponseDTO'] = {
+      serverType: 'bedrock',
+      serverName: 'Bedrock',
+      serverRunning: false,
+      editable: true,
+      sections: [
+        section([{ key: 'level-name', label: 'Level Name', type: 'string', value: '  ' }]),
+      ],
+    };
+    expect(currentLevelName(settings)).toBe('world');
   });
 });
 

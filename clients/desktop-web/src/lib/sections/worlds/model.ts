@@ -1,11 +1,14 @@
 import type { Schema, ScreenApi } from '../shared/types';
 
 // Real, frozen routes (Phase 6/7) -- see docs/msc2/worlds/phase6-api.md and
-// crates/msc-agent/src/routes/{worlds,backups}.rs. `/v1/worlds/replace`
-// (saved-slot-to-saved-slot copy) and `/v1/worlds/duplicate` exist in the
-// contract but back ServerEditorWorldTab.swift's richer World sub-tab
-// (Phase 12.12), not DetailsWorldsTabView -- this screen's real oracle --
-// so they are intentionally not called from here.
+// crates/msc-agent/src/routes/{worlds,backups}.rs. P12.4k (2026-08-27)
+// reverses P12.4's original call: Import ZIP / Replace World / Duplicate
+// Slot -- `ServerEditorWorldTab.swift`'s three actions -- now live in this
+// same Worlds tab instead of a World-shaped Server Editor sub-tab, so world
+// behavior has exactly one home. `replaceActive` is
+// `WorldReplaceActiveRequestDTO` (the live world, staged-upload-backed) --
+// distinct from `/v1/worlds/replace`'s `WorldReplaceRequestDTO` (a saved-
+// slot-to-saved-slot copy with no MSC 1 UI at all, still unused here).
 export const worldPaths = {
   list: '/v1/worlds',
   create: '/v1/worlds/create',
@@ -17,8 +20,12 @@ export const worldPaths = {
   convert: '/v1/worlds/convert',
   convertFormats: '/v1/worlds/convert/formats',
   import: '/v1/worlds/import',
+  replaceActive: '/v1/worlds/replace-active-world',
+  duplicate: '/v1/worlds/duplicate',
   thumbnail: (slotId: string): string => `/v1/worlds/${slotId}/thumbnail`,
 } as const;
+
+export const settingsPath = '/v1/settings';
 
 export const backupPaths = {
   list: '/v1/backups',
@@ -184,6 +191,20 @@ export function legacyImportName(backup: Schema['BackupItemDTO']): string {
   if (slotName) return slotName;
   const displayName = backup.displayName.trim();
   return displayName ? `Imported ${displayName}` : 'Imported Backup';
+}
+
+/** AppViewModel+WorldManagement.swift's replaceWorld reads the server's
+ *  current server.properties `level-name` and passes it straight back --
+ *  Replace World never renames the live world, it only swaps its content.
+ *  GET /v1/settings only surfaces `level-name` as an editable field for
+ *  Bedrock (routes/settings.rs::bedrock_sections); Java's settings response
+ *  never exposes it (it isn't a client-editable field there), so this falls
+ *  back to Minecraft's own default world-folder name for Java. */
+export function currentLevelName(settings: Schema['SettingsResponseDTO'] | undefined): string {
+  const field = settings?.sections
+    .flatMap((section) => section.fields)
+    .find((candidate) => candidate.key === 'level-name');
+  return field?.value.trim() || 'world';
 }
 
 /** ChunkerManager.displayName(forFormat:) -- "JAVA_1_21_0" -> "Java 1.21",

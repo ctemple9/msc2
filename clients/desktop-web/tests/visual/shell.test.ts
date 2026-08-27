@@ -42,9 +42,10 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(topBarSource).toContain('aria-label="Open local agent in browser"');
     expect(topBarSource).toContain('name="external-link"');
     expect(appSource).toContain(
-      'onOpenBrowser={isDesktopShell ? openLocalAgentInBrowser : undefined}',
+      'onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}',
     );
-    expect(appSource).toContain('openExternal(LOCAL_AGENT_ORIGIN)');
+    expect(appSource).toContain('openLocalAgentBrowser()');
+    expect(appSource).toContain('redeemBrowserHandoff(window.location, window.history)');
   });
 
   it('drives the primary tab strip from the registry-backed tab list, not a hardcoded switch', () => {

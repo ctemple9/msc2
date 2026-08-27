@@ -127,6 +127,7 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     },
     closeWindow: () => getCurrentWindow().close(),
     openExternal: (url: string) => invoke('open_external_url', { url }),
+    openLocalAgentBrowser: () => invoke('open_local_agent_browser'),
     revealInFileManager: (path: string) => invoke('reveal_in_file_manager', { path }),
     onCloseRequested: (handler: () => void) => getCurrentWindow().onCloseRequested(handler),
     agentHealthCheck: () => invoke<boolean>('agent_health_check'),

@@ -48,6 +48,10 @@ export function createBrowserPlatform(): PlatformAdapter {
       link.rel = 'noreferrer noopener';
       link.click();
     },
+    openLocalAgentBrowser: async () => {
+      if (typeof window === 'undefined') throw new Error('The local agent needs a browser window.');
+      window.open('http://127.0.0.1:48001', '_blank', 'noopener,noreferrer');
+    },
     onCloseRequested: async (handler: () => void) => {
       if (typeof window === 'undefined') return () => undefined;
       const listener = () => handler();

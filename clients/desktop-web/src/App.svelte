@@ -14,11 +14,11 @@
     createAgentTransport,
     getPlatform,
     LOCAL_AGENT_ORIGIN,
-    openExternal,
     prepareLocalAgent,
     type AgentReadiness,
     type AgentServiceStatus,
   } from './lib/platform';
+  import { redeemBrowserHandoff } from './lib/auth/browser-handoff';
   import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from './lib/auth/desktop';
   import { HostStore } from './lib/hosts/registry';
   import type { HostId, HostRecord } from './lib/hosts/types';
@@ -374,6 +374,9 @@
   async function initializeShell(): Promise<void> {
     const platform = await getPlatform();
     isDesktopShell = platform.kind === 'tauri';
+    if (!isDesktopShell) {
+      await redeemBrowserHandoff(window.location, window.history);
+    }
     // A browser only has one host: the agent that served this page. Keeping its
     // actual origin here prevents a remote page from ever being mistaken for a
     // loopback agent on the browser user's own computer.
@@ -426,8 +429,12 @@
     void selectSection('agent-setup');
   }
 
-  function openLocalAgentInBrowser(): void {
-    void openExternal(LOCAL_AGENT_ORIGIN);
+  async function openLocalAgentInBrowser(): Promise<void> {
+    try {
+      await (await getPlatform()).openLocalAgentBrowser();
+    } catch (error) {
+      shellMessage = `Could not open the local agent in a browser: ${String(error)}`;
+    }
   }
 </script>
 
@@ -454,7 +461,7 @@
   onSwitchHost={(id) => void switchHost(id)}
   onLifecycle={(action) => void lifecycle(action)}
   onOpenAgentSetup={openAgentSetup}
-  onOpenBrowser={isDesktopShell ? openLocalAgentInBrowser : undefined}
+  onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}
   onManage={() => (manageOpen = true)}
   onHelp={() => void selectSection('handbook')}
   onRefresh={() => void initializeClient()}

@@ -17,6 +17,7 @@ const DESKTOP_CREDENTIAL_KEY_PREFIX: &str = "msc.desktop.host-token.";
 const LOCAL_HOST_ID_KEY: &str = "msc.desktop.local-agent-host-id";
 const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 const AGENT_PORT: u16 = 48001;
+const LOCAL_AGENT_BROWSER_ORIGIN: &str = "http://127.0.0.1:48001";
 const LOCAL_BOOTSTRAP_SOCKET: &str = "bootstrap.sock";
 const PROTOCOL_VERSION: u32 = 1;
 const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
@@ -86,6 +87,14 @@ struct DesktopCredentialResult {
     credential_id: String,
     token: String,
     expires_at: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct BrowserPairingResult {
+    pairing_code: String,
+    agent_host_id: String,
+    client_kind: String,
 }
 
 #[cfg(target_os = "macos")]
@@ -393,6 +402,65 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
         headers,
         body,
     })
+}
+
+/// Gives the default browser its own revocable cookie session without exposing
+/// the desktop bearer token to either the webview or the browser. The one-use
+/// pairing code stays in the URL fragment, which HTTP never sends to the agent.
+#[tauri::command]
+async fn open_local_agent_browser() -> Result<(), String> {
+    let local = desktop_bootstrap_local()?;
+    let response = desktop_authorized_request(DesktopRequest {
+        agent_host_id: local.agent_host_id,
+        method: "POST".to_string(),
+        path: "/v1/auth/pairings".to_string(),
+        headers: vec![("Content-Type".to_string(), "application/json".to_string())],
+        body: Some(
+            serde_json::to_vec(&serde_json::json!({
+                "clientKind": "browser",
+                "label": "Local browser",
+                "role": "admin",
+                "permissions": [
+                    "serverControl",
+                    "players",
+                    "settings",
+                    "addons",
+                    "worlds",
+                    "broadcast",
+                    "networking",
+                    "fleet",
+                    "admin"
+                ]
+            }))
+            .expect("local browser pairing request serializes"),
+        ),
+    })
+    .await?;
+    if response.status != reqwest::StatusCode::CREATED.as_u16() {
+        return Err(format!(
+            "The local agent refused to create a browser session (HTTP {}).",
+            response.status
+        ));
+    }
+    let pairing: BrowserPairingResult = serde_json::from_slice(&response.body)
+        .map_err(|error| format!("The local agent returned an invalid browser pairing: {error}"))?;
+    if pairing.client_kind != "browser" || pairing.agent_host_id.trim().is_empty() {
+        return Err("The local agent returned an invalid browser pairing.".to_string());
+    }
+    open_external_url(local_browser_handoff_url(&pairing.pairing_code)?)
+}
+
+fn local_browser_handoff_url(pairing_code: &str) -> Result<String, String> {
+    if !pairing_code.starts_with("pair_")
+        || !pairing_code
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '_' | '-'))
+    {
+        return Err("The local agent returned an invalid browser pairing.".to_string());
+    }
+    Ok(format!(
+        "{LOCAL_AGENT_BROWSER_ORIGIN}/#browser-pairing={pairing_code}"
+    ))
 }
 
 /// Reports the service separately from the browser's connection state. It does
@@ -856,6 +924,7 @@ pub fn run() {
             desktop_exchange_pairing,
             desktop_bootstrap_local,
             desktop_authorized_request,
+            open_local_agent_browser,
             open_external_url,
             reveal_in_file_manager,
             agent_service_status,
@@ -916,5 +985,19 @@ mod tests {
         assert!(approved_external_url("http://localhost:48001").is_ok());
         assert!(approved_external_url("http://192.168.1.10:48001").is_err());
         assert!(approved_external_url("file:///etc/passwd").is_err());
+    }
+
+    #[test]
+    fn local_browser_handoff_keeps_the_pairing_out_of_the_http_url() {
+        let url = local_browser_handoff_url("pair_one-time_value").unwrap();
+        let parsed = Url::parse(&url).unwrap();
+
+        assert_eq!(
+            url,
+            "http://127.0.0.1:48001/#browser-pairing=pair_one-time_value"
+        );
+        assert_eq!(parsed.path(), "/");
+        assert!(parsed.query().is_none());
+        assert!(local_browser_handoff_url("pair_one/time").is_err());
     }
 }

@@ -217,3 +217,524 @@ export function formatConsoleTimestamp(ts: string): string {
   const date = Number.isFinite(millis) ? new Date(millis) : new Date(ts);
   return Number.isNaN(date.getTime()) ? ts : date.toLocaleTimeString();
 }
+
+// --- Command Palette (P12.10a): MinecraftCommandRegistry.swift ported
+// verbatim -- a static list, no backend involved (that file's own header
+// comment). Categories keep MSC 1's five groupings for sectioning the
+// command list, but drop its per-category icon+color (antiAIslop.md #11 --
+// color is a shared, scarce resource, not a per-row rail); grouping uses a
+// plain overline header instead, the same vocabulary every other rebuilt
+// screen already uses. MSC 1's `@AppStorage` favorites/star system is a
+// separate, smaller affordance this step's own plan text never named --
+// left deferred, not fabricated.
+
+export type CommandArgKind = 'player' | 'keyword' | 'coordinates' | 'integer' | 'freeText';
+
+export interface CommandArgSlot {
+  readonly kind: CommandArgKind;
+  readonly label: string;
+  readonly options?: readonly string[];
+}
+
+function player(label = 'player'): CommandArgSlot {
+  return { kind: 'player', label };
+}
+function keyword(options: readonly string[], label: string): CommandArgSlot {
+  return { kind: 'keyword', label, options };
+}
+function coordinates(label = 'x y z'): CommandArgSlot {
+  return { kind: 'coordinates', label };
+}
+function integer(label: string): CommandArgSlot {
+  return { kind: 'integer', label };
+}
+function freeText(label: string): CommandArgSlot {
+  return { kind: 'freeText', label };
+}
+
+export type CommandCategory = 'Players' | 'World' | 'Server Admin' | 'Game Rules' | 'Creative';
+
+export const COMMAND_CATEGORIES: readonly CommandCategory[] = [
+  'Players',
+  'World',
+  'Server Admin',
+  'Game Rules',
+  'Creative',
+];
+
+export interface MinecraftCommandDef {
+  readonly name: string;
+  readonly description: string;
+  readonly category: CommandCategory;
+  readonly argumentSlots: readonly CommandArgSlot[];
+  readonly supportsJava: boolean;
+  readonly supportsBedrock: boolean;
+}
+
+export const MINECRAFT_COMMANDS: readonly MinecraftCommandDef[] = [
+  // Players
+  {
+    name: 'tp',
+    description: 'Teleport a player to another player or to coordinates',
+    category: 'Players',
+    argumentSlots: [player('target player'), player('destination player')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'teleport',
+    description: 'Alias for tp — teleport to player or coordinates',
+    category: 'Players',
+    argumentSlots: [player('target player'), coordinates('destination x y z')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'give',
+    description: 'Give a player one or more items',
+    category: 'Players',
+    argumentSlots: [player(), freeText('item id (e.g. diamond_sword)'), integer('count')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'kick',
+    description: 'Remove a player from the server',
+    category: 'Players',
+    argumentSlots: [player(), freeText('reason (optional)')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'ban',
+    description: 'Permanently ban a player by name',
+    category: 'Players',
+    argumentSlots: [player(), freeText('reason (optional)')],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'ban-ip',
+    description: 'Ban a player by IP address',
+    category: 'Players',
+    argumentSlots: [freeText('ip address or player name')],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'pardon',
+    description: 'Unban a previously banned player',
+    category: 'Players',
+    argumentSlots: [player()],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'op',
+    description: 'Grant operator (admin) status to a player',
+    category: 'Players',
+    argumentSlots: [player()],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'deop',
+    description: 'Revoke operator status from a player',
+    category: 'Players',
+    argumentSlots: [player()],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'msg',
+    description: 'Send a private message to a player',
+    category: 'Players',
+    argumentSlots: [player(), freeText('message')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'tell',
+    description: 'Alias for msg — send a private message',
+    category: 'Players',
+    argumentSlots: [player(), freeText('message')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'kill',
+    description: 'Kill a player or entity',
+    category: 'Players',
+    argumentSlots: [player()],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'gamemode',
+    description: "Change a player's game mode",
+    category: 'Players',
+    argumentSlots: [
+      keyword(['survival', 'creative', 'adventure', 'spectator'], 'mode'),
+      player('player (optional)'),
+    ],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'effect',
+    description: 'Apply a status effect to a player',
+    category: 'Players',
+    argumentSlots: [
+      player(),
+      freeText('effect id (e.g. speed, jump_boost)'),
+      integer('duration (seconds)'),
+      integer('amplifier (0 = level I)'),
+    ],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'xp',
+    description: 'Give experience points or levels to a player',
+    category: 'Players',
+    argumentSlots: [freeText('amount (use L suffix for levels, e.g. 5L)'), player()],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'experience',
+    description: 'Add or set experience points or levels',
+    category: 'Players',
+    argumentSlots: [
+      keyword(['add', 'set', 'query'], 'action'),
+      player(),
+      integer('amount'),
+      keyword(['points', 'levels'], 'type'),
+    ],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'clear',
+    description: "Clear a player's inventory or a specific item",
+    category: 'Players',
+    argumentSlots: [player(), freeText('item (optional)')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+
+  // World
+  {
+    name: 'time',
+    description: 'Set, add, or query the world time',
+    category: 'World',
+    argumentSlots: [
+      keyword(['set', 'add', 'query'], 'action'),
+      freeText('value or day/night/noon/midnight'),
+    ],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'weather',
+    description: 'Change the current weather',
+    category: 'World',
+    argumentSlots: [keyword(['clear', 'rain', 'thunder'], 'type')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'difficulty',
+    description: 'Set the game difficulty',
+    category: 'World',
+    argumentSlots: [keyword(['peaceful', 'easy', 'normal', 'hard'], 'level')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'gamerule',
+    description: 'Set or query a game rule',
+    category: 'World',
+    argumentSlots: [freeText('rule name'), freeText('value (omit to query)')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'setworldspawn',
+    description: 'Set the world spawn point',
+    category: 'World',
+    argumentSlots: [coordinates()],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'spawnpoint',
+    description: "Set a player's personal spawn point",
+    category: 'World',
+    argumentSlots: [player(), coordinates()],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+
+  // Server Admin
+  {
+    name: 'list',
+    description: 'List all currently online players',
+    category: 'Server Admin',
+    argumentSlots: [],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'seed',
+    description: 'Display the current world seed',
+    category: 'Server Admin',
+    argumentSlots: [],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'say',
+    description: 'Broadcast a message to all players',
+    category: 'Server Admin',
+    argumentSlots: [freeText('message')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'title',
+    description: 'Display a title on screen for a player',
+    category: 'Server Admin',
+    argumentSlots: [
+      player(),
+      keyword(['title', 'subtitle', 'actionbar', 'clear', 'reset'], 'type'),
+      freeText('text (omit for clear/reset)'),
+    ],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'save-all',
+    description: 'Force save all loaded chunks to disk',
+    category: 'Server Admin',
+    argumentSlots: [],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'save-off',
+    description: 'Disable automatic chunk saving',
+    category: 'Server Admin',
+    argumentSlots: [],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'save-on',
+    description: 'Re-enable automatic chunk saving',
+    category: 'Server Admin',
+    argumentSlots: [],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'reload',
+    description: 'Reload server configuration and plugins',
+    category: 'Server Admin',
+    argumentSlots: [],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'stop',
+    description: 'Gracefully stop the server',
+    category: 'Server Admin',
+    argumentSlots: [],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'whitelist',
+    description: 'Manage the server whitelist',
+    category: 'Server Admin',
+    argumentSlots: [
+      keyword(['on', 'off', 'add', 'remove', 'list', 'reload'], 'action'),
+      player('player (for add/remove)'),
+    ],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+  {
+    name: 'allowlist',
+    description: 'Manage the BDS allowlist (Bedrock equivalent of whitelist)',
+    category: 'Server Admin',
+    argumentSlots: [
+      keyword(['on', 'off', 'add', 'remove', 'list', 'reload'], 'action'),
+      player('player (for add/remove)'),
+    ],
+    supportsJava: false,
+    supportsBedrock: true,
+  },
+  {
+    name: 'banlist',
+    description: 'Display the current ban list',
+    category: 'Server Admin',
+    argumentSlots: [keyword(['players', 'ips'], 'type (optional)')],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+
+  // Game Rules
+  {
+    name: 'enchant',
+    description: "Enchant the item in a player's hand",
+    category: 'Game Rules',
+    argumentSlots: [player(), freeText('enchantment id'), integer('level')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'attribute',
+    description: 'Query or modify an entity attribute',
+    category: 'Game Rules',
+    argumentSlots: [player(), freeText('attribute name')],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+
+  // Creative / Building
+  {
+    name: 'setblock',
+    description: 'Place a specific block at given coordinates',
+    category: 'Creative',
+    argumentSlots: [coordinates(), freeText('block id')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'fill',
+    description: 'Fill a region with a block type',
+    category: 'Creative',
+    argumentSlots: [coordinates('from x y z'), coordinates('to x y z'), freeText('block id')],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'clone',
+    description: 'Copy a region of blocks to another location',
+    category: 'Creative',
+    argumentSlots: [
+      coordinates('from x y z'),
+      coordinates('to x y z'),
+      coordinates('destination x y z'),
+    ],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'summon',
+    description: 'Spawn an entity at given coordinates',
+    category: 'Creative',
+    argumentSlots: [freeText('entity id'), coordinates()],
+    supportsJava: true,
+    supportsBedrock: true,
+  },
+  {
+    name: 'particle',
+    description: 'Create a particle effect at coordinates',
+    category: 'Creative',
+    argumentSlots: [freeText('particle name'), coordinates()],
+    supportsJava: true,
+    supportsBedrock: false,
+  },
+];
+
+export function hasRequiredArgs(def: MinecraftCommandDef): boolean {
+  return def.argumentSlots.length > 0;
+}
+
+export function commandSyntaxHint(def: MinecraftCommandDef): string {
+  const args = def.argumentSlots.map((slot) => `<${slot.label}>`).join(' ');
+  return args ? `/${def.name} ${args}` : `/${def.name}`;
+}
+
+export function commandsFor(serverType: string | undefined): readonly MinecraftCommandDef[] {
+  return MINECRAFT_COMMANDS.filter((def) =>
+    serverType === 'bedrock' ? def.supportsBedrock : def.supportsJava,
+  );
+}
+
+export function buildCommand(def: MinecraftCommandDef, values: readonly string[]): string {
+  const filled = values.map((value) => value.trim()).filter((value) => value.length > 0);
+  return filled.length ? `/${def.name} ${filled.join(' ')}` : `/${def.name}`;
+}
+
+export interface CommandPlayerName {
+  readonly name: string;
+}
+
+/** MinecraftCommandRegistry.suggestions: token 0 completes a command name;
+ *  token 1+ completes that command's current argument slot -- players for a
+ *  player slot, the fixed option list for a keyword slot, nothing for the
+ *  rest. Up to 6 results, same as the oracle.
+ *
+ *  One deliberate fix, not a straight port: the oracle tokenizes with
+ *  `split(omittingEmptySubsequences: false)`, which keeps the empty string
+ *  a trailing space produces as if it were a real argument token. That
+ *  makes the *first* space after a command name (or after finishing an
+ *  argument) count as one already-filled slot too many -- e.g. "/tp "
+ *  points suggestions at the second argument ("destination player"),
+ *  doubled-spaced, instead of the first. This tokenizes on non-empty
+ *  tokens instead, so a trailing space always means "start the next slot"
+ *  at the correct index -- the behavior the feature clearly intends,
+ *  without the split artifact. */
+export function commandSuggestions(
+  input: string,
+  serverType: string | undefined,
+  onlinePlayers: readonly CommandPlayerName[],
+): string[] {
+  if (!input) return [];
+
+  const endsWithSpace = input.endsWith(' ');
+  const rawTokens = input.split(' ').filter((token) => token.length > 0);
+  if (rawTokens.length === 0) return [];
+  const available = commandsFor(serverType);
+
+  if (rawTokens.length === 1 && !endsWithSpace) {
+    const raw = rawTokens[0];
+    const prefix = (raw.startsWith('/') ? raw.slice(1) : raw).toLowerCase();
+    if (!prefix) return [];
+    return available
+      .filter((def) => def.name.startsWith(prefix))
+      .slice(0, 6)
+      .map((def) => `/${def.name}`);
+  }
+
+  const rawCommand = rawTokens[0];
+  const commandName = rawCommand.startsWith('/') ? rawCommand.slice(1) : rawCommand;
+  const def = available.find((item) => item.name === commandName);
+  if (!def || def.argumentSlots.length === 0) return [];
+
+  const argTokens = rawTokens.slice(1);
+  const slotIndex = endsWithSpace ? argTokens.length : Math.max(0, argTokens.length - 1);
+  if (slotIndex >= def.argumentSlots.length) return [];
+  const slot = def.argumentSlots[slotIndex];
+
+  const partial = (endsWithSpace ? '' : (argTokens[argTokens.length - 1] ?? '')).toLowerCase();
+  const baseTokens = endsWithSpace ? rawTokens : rawTokens.slice(0, -1);
+  const base = baseTokens.join(' ');
+
+  if (slot.kind === 'player') {
+    return onlinePlayers
+      .filter((entry) => !partial || entry.name.toLowerCase().startsWith(partial))
+      .slice(0, 6)
+      .map((entry) => `${base} ${entry.name}`);
+  }
+  if (slot.kind === 'keyword' && slot.options) {
+    return slot.options
+      .filter((option) => !partial || option.toLowerCase().startsWith(partial))
+      .slice(0, 6)
+      .map((option) => `${base} ${option}`);
+  }
+  return [];
+}

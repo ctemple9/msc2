@@ -44,6 +44,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
       }
     },
     openExternal: (url: string) => dependencies.openExternal(url),
+    openLocalAgentBrowser: () => dependencies.openLocalAgentBrowser(),
     revealInFileManager: async (path: string, browserFallback: () => Promise<void>) => {
       try {
         await dependencies.revealInFileManager(path);

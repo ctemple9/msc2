@@ -120,6 +120,25 @@ export async function openExternal(url: string): Promise<void> {
   await (await getPlatform()).openExternal(url);
 }
 
+/**
+ * Opens the local browser session through the native boundary. During Tauri
+ * development, Vite can replace a caller before the cached adapter module;
+ * reload that narrow capability instead of requiring a second app launch.
+ */
+export async function openLocalAgentBrowser(): Promise<void> {
+  const activePlatform = await getPlatform();
+  if (typeof activePlatform.openLocalAgentBrowser === 'function') {
+    await activePlatform.openLocalAgentBrowser();
+    return;
+  }
+  if (isTauri()) {
+    const { invoke } = await import('@tauri-apps/api/core');
+    await invoke('open_local_agent_browser');
+    return;
+  }
+  throw new Error('The local agent browser handoff is unavailable.');
+}
+
 async function localAgentHealthCheck(): Promise<boolean> {
   try {
     const response = await fetch(`${LOCAL_AGENT_ORIGIN}/v1/health`, {

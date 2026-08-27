@@ -44,7 +44,7 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(appSource).toContain(
       'onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}',
     );
-    expect(appSource).toContain('openLocalAgentBrowser()');
+    expect(appSource).toContain('await openLocalAgentBrowser()');
     expect(appSource).toContain('redeemBrowserHandoff(window.location, window.history)');
     expect(appSource).toContain("await selectSection('agent-setup')");
   });

@@ -14,6 +14,7 @@
     createAgentTransport,
     getPlatform,
     LOCAL_AGENT_ORIGIN,
+    openLocalAgentBrowser,
     prepareLocalAgent,
     type AgentReadiness,
     type AgentServiceStatus,
@@ -433,7 +434,7 @@
   async function openLocalAgentInBrowser(): Promise<void> {
     browserHandoffError = '';
     try {
-      await (await getPlatform()).openLocalAgentBrowser();
+      await openLocalAgentBrowser();
     } catch (error) {
       browserHandoffError = `Could not open the local agent in a browser: ${String(error)}`;
       await selectSection('agent-setup');

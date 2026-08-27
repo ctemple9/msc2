@@ -680,6 +680,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11j: show browser handoff failures in agent screen`
 **Batch:** solo
 
+### P12.11k — Survive Tauri hot reload in the browser handoff
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/platform/` (`index.ts`, `tauri.ts`), `clients/desktop-web/tests/tauri/platform-boundary.test.ts`, `clients/desktop-web/tests/visual/shell.test.ts`, `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11j verification evidence: the Agent screen reports `openLocalAgentBrowser is not a function`. The Tauri adapter received the native handoff dependency but did not expose it on the platform interface, so even a fresh desktop shell could not call it. Add that delegation. At the shared platform boundary, also detect a development hot-reload's already-cached older adapter shape and dynamically invoke the registered native handoff command; a fresh shell uses the adapter normally, and a browser never gains a desktop action. Repackage the shared frontend so Tauri and agent delivery remain byte-identical. No MSC 1 equivalent exists: this is MSC 2 development-reload resilience at the D-003 shared-client boundary.
+**Verify:** `cd clients/desktop-web && npm run test:tauri-boundary && npm run test:visual-shell && npm run bundle:package-agent && cd ../.. && python3 tools/phase11/bundle-identity-check.py && cargo nextest run -p msc-agent --test web_ui && npx tauri dev` — while `npx tauri dev` is already running, make the browser-handoff caller hot-reload and click the browser icon once; confirm it opens an authenticated tab rather than showing the stale-adapter error. Restart the desktop shell and repeat, confirming the normal adapter path also opens the tab.
+**Commit:** `P12.11k: survive Tauri hot reload in browser handoff`
+**Batch:** solo
+
 ### P12.4k — Add Import ZIP / Replace World / Duplicate Slot to the Worlds tab
 **Status:** DONE
 **Files:** `clients/desktop-web/src/lib/sections/worlds/` (`WorldsSection.svelte`, `model.ts`, new sheets alongside the existing `CreateWorldSheet.svelte`/`RenameWorldSheet.svelte`/`WorldRepairSheet.svelte`/`WorldConversionWizard.svelte`)

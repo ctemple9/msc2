@@ -26,6 +26,7 @@ function nativeDependencies(): TauriPlatformDependencies {
     showMenu: vi.fn(async () => undefined),
     closeWindow: vi.fn(async () => undefined),
     openExternal: vi.fn(async () => undefined),
+    openLocalAgentBrowser: vi.fn(async () => undefined),
     revealInFileManager: vi.fn(async () => undefined),
     onCloseRequested: vi.fn(async () => () => undefined),
     agentHealthCheck: vi.fn(async () => true),
@@ -88,6 +89,7 @@ describe('Tauri boundary', () => {
     );
     await desktop.closeWindow(workflowFallback);
     await desktop.openExternal('https://example.test');
+    await desktop.openLocalAgentBrowser();
     await desktop.revealInFileManager('/srv/example', workflowFallback);
 
     expect(dependencies.pickFile).toHaveBeenCalledWith({
@@ -100,6 +102,7 @@ describe('Tauri boundary', () => {
     expect(dependencies.showMenu).toHaveBeenCalledOnce();
     expect(dependencies.closeWindow).toHaveBeenCalledOnce();
     expect(dependencies.openExternal).toHaveBeenCalledWith('https://example.test');
+    expect(dependencies.openLocalAgentBrowser).toHaveBeenCalledOnce();
     expect(dependencies.revealInFileManager).toHaveBeenCalledWith('/srv/example');
     expect(fileFallback).not.toHaveBeenCalled();
     expect(workflowFallback).not.toHaveBeenCalled();

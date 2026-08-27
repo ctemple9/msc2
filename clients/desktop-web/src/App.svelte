@@ -2,7 +2,6 @@
   import { onMount } from 'svelte';
   import { bundleIdentity } from './lib/bundle-identity';
   import { ApiClient, ApiError } from './lib/api/client';
-  import ActionButton from './lib/components/ActionButton.svelte';
   import ApplicationShell from './lib/components/ApplicationShell.svelte';
   import FirstLaunchGate from './lib/help/FirstLaunchGate.svelte';
   import SplashGate from './lib/help/SplashGate.svelte';
@@ -27,6 +26,7 @@
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
+  import { selectAvailableServerId } from './lib/navigation/serverSelection';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { Schema, ScreenApi } from './lib/sections/shared/types';
   import './lib/sections/shared/screen.css';
@@ -230,7 +230,7 @@
 
   let activeSection = '';
   let activeComponent: any;
-  let selectedServerId = 'survival';
+  let selectedServerId = '';
   let permissions: readonly string[] = [];
   let capabilities: Capabilities | null = null;
   let shellMessage = 'Connecting to the selected host…';
@@ -245,6 +245,11 @@
         capabilities,
       } satisfies NavigationContext)
     : null;
+
+  function currentNavigationContext(): NavigationContext | null {
+    if (!capabilities) return null;
+    return { hostId, serverId: selectedServerId, permissions, capabilities };
+  }
   $: visibleSections = navigationContext ? router.visibleSections(navigationContext) : [];
   $: canControl =
     permissions.length === 0 ||
@@ -297,7 +302,7 @@
       permissions = me.permissions;
       servers = await selectedClient.requestJson<Schema['ServerDTO'][]>('GET', '/v1/servers');
       status = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
-      if (status.activeServerId) selectedServerId = status.activeServerId;
+      selectedServerId = selectAvailableServerId(servers, status.activeServerId, selectedServerId);
       agentReadiness = 'ready';
       shellMessage = `Connected to ${hosts.find((host) => host.id === hostId)?.label ?? hostId}`;
       hostStore.setServers(hostId, servers);
@@ -393,9 +398,10 @@
 
   async function selectSection(id: string, updateUrl = true): Promise<void> {
     const section = router.get(id);
+    const context = currentNavigationContext();
     // Setup is deliberately reachable before an agent exists or a browser has
     // paired: its truthful fallback is how this host becomes manageable.
-    if (!section || (!navigationContext && section.id !== 'agent-setup')) {
+    if (!section || (!context && section.id !== 'agent-setup')) {
       shellMessage = 'That section is unavailable for the selected host or credential.';
       return;
     }
@@ -407,12 +413,13 @@
   }
 
   async function selectFromLocation(): Promise<void> {
-    if (!navigationContext) return;
+    const context = currentNavigationContext();
+    if (!context) return;
     if (window.location.pathname === '/') {
       await selectSection('home');
       return;
     }
-    const resolution = router.resolve(window.location.pathname, navigationContext);
+    const resolution = router.resolve(window.location.pathname, context);
     if (resolution.kind !== 'section' || resolution.match.hostId !== hostId) {
       activeSection = '';
       activeComponent = UnknownSection;
@@ -421,10 +428,6 @@
     }
     if (resolution.match.serverId) selectedServerId = resolution.match.serverId;
     await selectSection(resolution.descriptor.id, false);
-  }
-
-  function acknowledgeShell(): void {
-    shellMessage = 'Shared client workflows are ready for the selected host';
   }
 
   function openAgentSetup(): void {
@@ -481,21 +484,16 @@
       isLocalHost={hostId === localAgentHostId}
       serverId={selectedServerId}
       {permissions}
-       readiness={agentReadiness}
-       {browserHandoffError}
-       onAgentRetry={() => void initializeClient()}
+      readiness={agentReadiness}
+      {browserHandoffError}
+      onAgentRetry={() => void initializeClient()}
       onServerSelected={(id: string) => (selectedServerId = id)}
       onFleet={() => (manageOpen = true)}
       onWorlds={() => void selectSection('worlds')}
     />
   {:else}
     <div class="dashboard" data-bundle-id={bundleIdentity.id} data-client-surface="shared">
-      <div class="intro-row">
-        <p class="eyebrow">Minecraft Server Controller</p>
-        <ActionButton label="Acknowledge shell" onclick={acknowledgeShell}
-          >Acknowledge shell</ActionButton
-        >
-      </div>
+      <p class="eyebrow">Minecraft Server Controller</p>
       <p class="intro-copy" role="status">{shellMessage}</p>
     </div>
   {/if}
@@ -526,12 +524,6 @@
   .dashboard {
     display: grid;
     gap: 1rem;
-  }
-  .intro-row {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    align-items: center;
   }
   .eyebrow {
     margin: 0;

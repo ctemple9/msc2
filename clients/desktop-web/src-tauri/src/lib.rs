@@ -172,6 +172,7 @@ async fn desktop_exchange_pairing(
 /// never returned to Svelte.
 #[tauri::command]
 fn desktop_bootstrap_local() -> Result<DesktopPairingResult, String> {
+    ensure_current_local_agent_service()?;
     #[cfg(target_os = "macos")]
     {
         return bootstrap_local_macos();
@@ -333,7 +334,6 @@ fn local_bootstrap_proof(key: &str, challenge: &str, host_id: &str) -> String {
     hex_lower(&digest.finalize())
 }
 
-#[cfg(target_os = "macos")]
 fn hex_lower(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut output = String::with_capacity(bytes.len() * 2);
@@ -356,6 +356,9 @@ async fn desktop_authorized_request(request: DesktopRequest) -> Result<DesktopRe
     };
     let record: StoredDesktopCredential = serde_json::from_str(&record)
         .map_err(|error| format!("Stored desktop credential is invalid: {error}"))?;
+    if record.base_url == LOCAL_AGENT_BROWSER_ORIGIN {
+        ensure_current_local_agent_service()?;
+    }
     let method = Method::from_bytes(request.method.as_bytes())
         .map_err(|_| "The requested HTTP method is not supported.".to_string())?;
     let url = relative_request_url(&record.base_url, &request.path)?;
@@ -483,11 +486,12 @@ fn local_browser_handoff_url(pairing_code: &str) -> Result<String, String> {
 /// lifecycle action.
 #[tauri::command]
 fn agent_service_status() -> Result<AgentServiceStatus, String> {
+    let expected_binary = staged_packaged_agent_path()?;
     service_manager()?
         .execute(ServiceManagerCommand::Status {
             service_name: ServiceName::new(AGENT_SERVICE_NAME),
         })
-        .map(report_status)
+        .map(|report| report_status_for_packaged_agent(report, &expected_binary))
         .map_err(|error| error.to_string())
 }
 
@@ -514,6 +518,9 @@ async fn agent_health_check() -> bool {
 #[tauri::command]
 fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus, String> {
     let service_name = ServiceName::new(AGENT_SERVICE_NAME);
+    if matches!(&action, AgentServiceAction::Start) {
+        ensure_installed_agent_matches_package()?;
+    }
     #[cfg(target_os = "macos")]
     let report = match action {
         AgentServiceAction::Install | AgentServiceAction::Repair => {
@@ -585,13 +592,7 @@ fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
 }
 
 fn agent_install_request() -> Result<ServiceInstallRequest, String> {
-    let binary_path = packaged_agent_path()?;
-    if !binary_path.is_file() {
-        return Err(format!(
-            "The compatible agent package is missing at {}. Reinstall this desktop app before registering the service.",
-            binary_path.display()
-        ));
-    }
+    let binary_path = staged_packaged_agent_path()?;
     let working_directory = agent_data_directory()?;
     let secret_store_directory = working_directory.join("secrets");
     std::fs::create_dir_all(working_directory.join("logs"))
@@ -728,6 +729,67 @@ fn packaged_agent_path() -> Result<PathBuf, String> {
     Err("This desktop platform has no agent-package layout.".to_string())
 }
 
+fn staged_packaged_agent_path() -> Result<PathBuf, String> {
+    let source = packaged_agent_path()?;
+    if !source.is_file() {
+        return Err(format!(
+            "The compatible agent package is missing at {}. Reinstall this desktop app before registering the service.",
+            source.display()
+        ));
+    }
+    stage_packaged_agent(&source, &agent_data_directory()?)
+}
+
+fn stage_packaged_agent(source: &Path, data_directory: &Path) -> Result<PathBuf, String> {
+    let source_bytes = std::fs::read(source)
+        .map_err(|error| format!("Could not read the packaged agent: {error}"))?;
+    let digest = hex_lower(&Sha256::digest(&source_bytes));
+    let file_name = source
+        .file_name()
+        .ok_or_else(|| "The packaged agent path has no file name.".to_string())?;
+    let build_directory = data_directory.join("agent/builds").join(digest);
+    let destination = build_directory.join(file_name);
+
+    if destination.is_file() {
+        verify_staged_agent(&destination, &source_bytes)?;
+        return Ok(destination);
+    }
+
+    std::fs::create_dir_all(&build_directory)
+        .map_err(|error| format!("Could not create the packaged agent directory: {error}"))?;
+    let temporary = build_directory.join(format!(
+        ".{}.{}.stage",
+        file_name.to_string_lossy(),
+        std::process::id()
+    ));
+    std::fs::copy(source, &temporary)
+        .map_err(|error| format!("Could not stage the packaged agent: {error}"))?;
+    match std::fs::rename(&temporary, &destination) {
+        Ok(()) => {}
+        Err(_) if destination.is_file() => {
+            let _ = std::fs::remove_file(&temporary);
+            verify_staged_agent(&destination, &source_bytes)?;
+        }
+        Err(error) => {
+            return Err(format!("Could not finalize the packaged agent: {error}"));
+        }
+    }
+    verify_staged_agent(&destination, &source_bytes)?;
+    Ok(destination)
+}
+
+fn verify_staged_agent(destination: &Path, source_bytes: &[u8]) -> Result<(), String> {
+    let staged_bytes = std::fs::read(destination)
+        .map_err(|error| format!("Could not verify the staged agent: {error}"))?;
+    if Sha256::digest(&staged_bytes) != Sha256::digest(source_bytes) {
+        return Err(format!(
+            "The immutable staged agent at {} does not match its package digest.",
+            destination.display()
+        ));
+    }
+    Ok(())
+}
+
 fn agent_data_directory() -> Result<PathBuf, String> {
     let home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
@@ -775,6 +837,67 @@ fn report_status(report: ServiceStatusReport) -> AgentServiceStatus {
         pid: report.pid,
         detail: detail.to_string(),
     }
+}
+
+fn report_status_for_packaged_agent(
+    report: ServiceStatusReport,
+    expected_binary: &Path,
+) -> AgentServiceStatus {
+    if report.state != ServiceState::NotInstalled
+        && !service_report_uses_binary(&report, expected_binary)
+    {
+        return AgentServiceStatus {
+            available: true,
+            platform: std::env::consts::OS,
+            service_name: AGENT_SERVICE_NAME,
+            state: "unavailable",
+            pid: report.pid,
+            detail: "The installed agent belongs to a different desktop build. Repair service before connecting."
+                .to_string(),
+        };
+    }
+    report_status(report)
+}
+
+fn service_report_uses_binary(report: &ServiceStatusReport, expected_binary: &Path) -> bool {
+    report
+        .definition
+        .as_ref()
+        .is_some_and(|definition| definition.binary_path == expected_binary)
+}
+
+fn current_local_agent_report() -> Result<(ServiceStatusReport, PathBuf), String> {
+    let expected_binary = staged_packaged_agent_path()?;
+    let report = service_manager()?
+        .execute(ServiceManagerCommand::Status {
+            service_name: ServiceName::new(AGENT_SERVICE_NAME),
+        })
+        .map_err(|error| error.to_string())?;
+    Ok((report, expected_binary))
+}
+
+fn ensure_installed_agent_matches_package() -> Result<(), String> {
+    let (report, expected_binary) = current_local_agent_report()?;
+    if service_report_uses_binary(&report, &expected_binary) {
+        return Ok(());
+    }
+    Err(
+        "The installed agent belongs to a different desktop build. Repair service before starting it."
+            .to_string(),
+    )
+}
+
+fn ensure_current_local_agent_service() -> Result<(), String> {
+    let (report, expected_binary) = current_local_agent_report()?;
+    if report.state == ServiceState::Running
+        && service_report_uses_binary(&report, &expected_binary)
+    {
+        return Ok(());
+    }
+    Err(
+        "The current packaged agent is not the running service. Open Agent and choose Repair service before connecting."
+            .to_string(),
+    )
 }
 
 fn credential_key(agent_host_id: &str) -> String {
@@ -979,6 +1102,43 @@ mod tests {
         let status = report_status(report);
         assert_eq!(status.state, "running");
         assert!(status.detail.contains("independently of this window"));
+    }
+
+    #[test]
+    fn packaged_agent_mismatch_is_repair_required() {
+        let request = ServiceInstallRequest::new(
+            AGENT_SERVICE_NAME,
+            "/old-build/msc",
+            "/tmp/msc",
+            "/tmp/msc/agent.log",
+            AGENT_PORT,
+        );
+        let status = report_status_for_packaged_agent(
+            ServiceStatusReport::running(request, 42),
+            Path::new("/current-build/msc"),
+        );
+
+        assert_eq!(status.state, "unavailable");
+        assert_eq!(status.pid, Some(42));
+        assert!(status.detail.contains("Repair service"));
+    }
+
+    #[test]
+    fn packaged_agent_match_remains_running() {
+        let request = ServiceInstallRequest::new(
+            AGENT_SERVICE_NAME,
+            "/current-build/msc",
+            "/tmp/msc",
+            "/tmp/msc/agent.log",
+            AGENT_PORT,
+        );
+        let status = report_status_for_packaged_agent(
+            ServiceStatusReport::running(request, 42),
+            Path::new("/current-build/msc"),
+        );
+
+        assert_eq!(status.state, "running");
+        assert_eq!(status.pid, Some(42));
     }
 
     #[cfg(target_os = "macos")]

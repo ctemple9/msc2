@@ -37,6 +37,7 @@
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
   export let onHelp: (() => void) | undefined = undefined;
+  export let onOpenBrowser: (() => void) | undefined = undefined;
   export let onSettings: (() => void) | undefined = undefined;
   export let onRefresh: (() => void) | undefined = undefined;
 
@@ -108,6 +109,7 @@
     onToggleSidebar={toggleSidebar}
     {consoleCollapsed}
     onToggleConsole={toggleConsole}
+    {onOpenBrowser}
     {onHelp}
     {onSettings}
     {onRefresh}

@@ -27,6 +27,7 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).toContain('onSelectServer');
     expect(controlSidebarSource).toContain('onLifecycle');
     expect(controlSidebarSource).toContain('onOpenAgentSetup');
+    expect(applicationShellSource).toContain('{onOpenBrowser}');
     expect(controlSidebarSource).toContain('onManage');
   });
 
@@ -35,6 +36,15 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(applicationShellSource).toContain('{onOpenAgentSetup}');
     expect(appSource).toContain("selectSection('agent-setup')");
     expect(primaryTabsSource.match(/\{ id: '/g)?.length).toBe(7);
+  });
+
+  it('offers the desktop local agent in a browser without exposing remote-host controls', () => {
+    expect(topBarSource).toContain('aria-label="Open local agent in browser"');
+    expect(topBarSource).toContain('name="external-link"');
+    expect(appSource).toContain(
+      'onOpenBrowser={isDesktopShell ? openLocalAgentInBrowser : undefined}',
+    );
+    expect(appSource).toContain('openExternal(LOCAL_AGENT_ORIGIN)');
   });
 
   it('drives the primary tab strip from the registry-backed tab list, not a hardcoded switch', () => {

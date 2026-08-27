@@ -12,6 +12,7 @@
   export let onToggleSidebar: () => void;
   export let consoleCollapsed = false;
   export let onToggleConsole: () => void;
+  export let onOpenBrowser: (() => void) | undefined = undefined;
   export let onHelp: (() => void) | undefined = undefined;
   export let onSettings: (() => void) | undefined = undefined;
   export let onRefresh: (() => void) | undefined = undefined;
@@ -53,6 +54,16 @@
     >
       <ShellIcon name="console" />
     </button>
+    {#if onOpenBrowser}
+      <button
+        type="button"
+        class="icon-btn"
+        aria-label="Open local agent in browser"
+        onclick={onOpenBrowser}
+      >
+        <ShellIcon name="external-link" />
+      </button>
+    {/if}
     <button
       type="button"
       class="icon-btn"

@@ -14,6 +14,7 @@
     createAgentTransport,
     getPlatform,
     LOCAL_AGENT_ORIGIN,
+    openExternal,
     prepareLocalAgent,
     type AgentReadiness,
     type AgentServiceStatus,
@@ -424,6 +425,10 @@
   function openAgentSetup(): void {
     void selectSection('agent-setup');
   }
+
+  function openLocalAgentInBrowser(): void {
+    void openExternal(LOCAL_AGENT_ORIGIN);
+  }
 </script>
 
 <svelte:head>
@@ -449,6 +454,7 @@
   onSwitchHost={(id) => void switchHost(id)}
   onLifecycle={(action) => void lifecycle(action)}
   onOpenAgentSetup={openAgentSetup}
+  onOpenBrowser={isDesktopShell ? openLocalAgentInBrowser : undefined}
   onManage={() => (manageOpen = true)}
   onHelp={() => void selectSection('handbook')}
   onRefresh={() => void initializeClient()}

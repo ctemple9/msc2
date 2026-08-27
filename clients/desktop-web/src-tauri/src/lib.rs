@@ -753,15 +753,12 @@ fn desktop_secret_store() -> Result<Box<dyn SecretStore>, String> {
     Err("No desktop credential store is available for this platform.".to_string())
 }
 
-/// Opens a user-approved HTTPS link in the host operating system's default
-/// browser. Tauri's webview does not reliably hand external anchors to the OS,
-/// so this command keeps setup links working on every desktop platform.
+/// Opens a user-approved external link in the host operating system's default
+/// browser. HTTPS links are permitted generally; HTTP is restricted to the
+/// loopback-only local agent UI, which has no public network hop to protect.
 #[tauri::command]
 fn open_external_url(url: String) -> Result<(), String> {
-    let parsed = Url::parse(&url).map_err(|_| "External link is not a valid URL.".to_string())?;
-    if parsed.scheme() != "https" || parsed.host_str().is_none() {
-        return Err("Only HTTPS links with a host may be opened.".to_string());
-    }
+    approved_external_url(&url)?;
 
     #[cfg(target_os = "macos")]
     let status = std::process::Command::new("open").arg(&url).status();
@@ -783,6 +780,18 @@ fn open_external_url(url: String) -> Result<(), String> {
                 ))
             }
         })
+}
+
+fn approved_external_url(url: &str) -> Result<(), String> {
+    let parsed = Url::parse(url).map_err(|_| "External link is not a valid URL.".to_string())?;
+    let host = parsed.host_str();
+    let is_https = parsed.scheme() == "https" && host.is_some();
+    let is_loopback_http =
+        parsed.scheme() == "http" && matches!(host, Some("127.0.0.1" | "localhost" | "::1"));
+    if !is_https && !is_loopback_http {
+        return Err("Only HTTPS links or HTTP loopback addresses may be opened.".to_string());
+    }
+    Ok(())
 }
 
 /// Reveals a local file or folder in the OS file manager (Finder/Explorer/
@@ -898,5 +907,14 @@ mod tests {
             ),
             Some("cdhash H\"abc123\"")
         );
+    }
+
+    #[test]
+    fn external_url_policy_allows_https_and_local_agent_loopback_only() {
+        assert!(approved_external_url("https://docs.example.test/guide").is_ok());
+        assert!(approved_external_url("http://127.0.0.1:48001").is_ok());
+        assert!(approved_external_url("http://localhost:48001").is_ok());
+        assert!(approved_external_url("http://192.168.1.10:48001").is_err());
+        assert!(approved_external_url("file:///etc/passwd").is_err());
     }
 }

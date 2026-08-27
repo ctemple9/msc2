@@ -640,6 +640,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11e: restore the agent screen after host scoping`
 **Batch:** solo
 
+### P12.11f — Open the local agent in a browser from desktop chrome
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/TopBar.svelte`, `clients/desktop-web/src/lib/components/shell/ShellIcon.svelte`, `clients/desktop-web/tests/visual/shell.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Add one neutral external-link action beside the existing sidebar and console controls in the desktop top bar. It opens the local agent-served browser UI at `http://127.0.0.1:48001` through the existing platform `openExternal` boundary. Extend the existing desktop external-link policy from HTTPS-only to allow that one loopback HTTP case (`127.0.0.1`, `localhost`, or `::1`) while continuing to reject every other HTTP and non-web URL; cover the policy with a unit test. Render the action only for Tauri; browser users are already in that surface. The action always means this desktop computer’s Local agent and must not suggest that MSC can open a browser on a paired remote host. Extend the existing shell source checks to cover the callback, desktop gate, label, and icon.
+**Verify:** `cargo test --manifest-path clients/desktop-web/src-tauri/Cargo.toml external_url_policy_allows_https_and_local_agent_loopback_only && cd clients/desktop-web && npm run test:visual-shell && npm run build && npx tauri dev` — in the desktop window, click the new button between the console and Help controls; confirm the default browser opens `http://127.0.0.1:48001` and the desktop window stays open. Confirm the button does not render in the browser UI.
+**Commit:** `P12.11f: open the local agent in a browser from desktop chrome`
+**Batch:** solo
+
 ### P12.12 — Server Editor sheet (7 sub-tabs)
 **Status:** not started
 **Files:** server-editor sheet components

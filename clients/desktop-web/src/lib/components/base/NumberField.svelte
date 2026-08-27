@@ -7,16 +7,27 @@
   export let min: number | undefined = undefined;
   export let max: number | undefined = undefined;
   export let step: number | undefined = undefined;
+  export let onchange: ((value: string) => void) | undefined = undefined;
+
+  // Controlled like Select, not bind:value -- a caller driving `value` off a
+  // dynamically-keyed record (this field's first consumer, Settings, does)
+  // needs the plain string it typed, not the native input's own number
+  // coercion.
+  function handleInput(event: Event): void {
+    value = (event.currentTarget as HTMLInputElement).value;
+    onchange?.(value as string);
+  }
 </script>
 
 <input
   type="number"
-  bind:value
+  {value}
   {placeholder}
   {disabled}
   {min}
   {max}
   {step}
+  oninput={handleInput}
   class="field"
   style="width: {width};"
 />

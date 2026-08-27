@@ -1,0 +1,163 @@
+import type { Schema } from '../shared/types';
+
+// Same values GET /v1/settings' java_sections() falls back to for a fresh
+// server.properties (crates/msc-agent/src/routes/settings.rs) -- shown
+// before the agent responds and whenever no agent is connected, same
+// precedent as addons/model.ts's demoAddons.
+export const demoSettings: Schema['SettingsResponseDTO'] = {
+  serverType: 'java',
+  serverName: 'Survival',
+  serverRunning: false,
+  editable: true,
+  sections: [
+    {
+      id: 'world',
+      title: 'World',
+      icon: 'globe',
+      fields: [
+        {
+          key: 'difficulty',
+          label: 'Difficulty',
+          type: 'enum',
+          value: 'normal',
+          options: [
+            { value: 'peaceful', label: 'Peaceful' },
+            { value: 'easy', label: 'Easy' },
+            { value: 'normal', label: 'Normal' },
+            { value: 'hard', label: 'Hard' },
+          ],
+        },
+        {
+          key: 'gamemode',
+          label: 'Gamemode',
+          type: 'enum',
+          value: 'survival',
+          options: [
+            { value: 'survival', label: 'Survival' },
+            { value: 'creative', label: 'Creative' },
+            { value: 'adventure', label: 'Adventure' },
+            { value: 'spectator', label: 'Spectator' },
+          ],
+        },
+        {
+          key: 'level-type',
+          label: 'World Type',
+          type: 'enum',
+          value: 'normal',
+          options: [
+            { value: 'normal', label: 'Normal' },
+            { value: 'flat', label: 'Flat' },
+            { value: 'largeBiomes', label: 'Large Biomes' },
+            { value: 'amplified', label: 'Amplified' },
+          ],
+        },
+        { key: 'force-gamemode', label: 'Force Gamemode', type: 'bool', value: 'false' },
+        { key: 'hardcore', label: 'Hardcore', type: 'bool', value: 'false' },
+        { key: 'pvp', label: 'PvP', type: 'bool', value: 'true' },
+        { key: 'spawn-monsters', label: 'Spawn Monsters', type: 'bool', value: 'true' },
+        { key: 'spawn-animals', label: 'Spawn Animals', type: 'bool', value: 'true' },
+        { key: 'spawn-npcs', label: 'Spawn NPCs', type: 'bool', value: 'true' },
+        { key: 'allow-nether', label: 'Allow Nether', type: 'bool', value: 'true' },
+        { key: 'allow-flight', label: 'Allow Flight', type: 'bool', value: 'false' },
+        {
+          key: 'spawn-protection',
+          label: 'Spawn Protection',
+          type: 'int',
+          value: '16',
+          minInt: 0,
+          maxInt: 10000,
+          unit: 'blocks',
+          helpId: 'settings.spawn-protection',
+        },
+      ],
+    },
+    {
+      id: 'server',
+      title: 'Server',
+      icon: 'slider.horizontal.3',
+      fields: [
+        {
+          key: 'motd',
+          label: 'MOTD',
+          type: 'string',
+          value: 'A Minecraft Server',
+          maxLength: 200,
+          helpId: 'settings.motd',
+        },
+        {
+          key: 'max-players',
+          label: 'Max Players',
+          type: 'int',
+          value: '20',
+          minInt: 1,
+          maxInt: 1000,
+        },
+        {
+          key: 'online-mode',
+          label: 'Online Mode',
+          type: 'bool',
+          value: 'true',
+          helpId: 'settings.online-mode',
+        },
+        {
+          key: 'view-distance',
+          label: 'View Distance',
+          type: 'int',
+          value: '10',
+          minInt: 3,
+          maxInt: 32,
+          unit: 'chunks',
+        },
+        {
+          key: 'simulation-distance',
+          label: 'Simulation Distance',
+          type: 'int',
+          value: '10',
+          minInt: 3,
+          maxInt: 32,
+          unit: 'chunks',
+        },
+        { key: 'white-list', label: 'Whitelist', type: 'bool', value: 'false' },
+        { key: 'enforce-whitelist', label: 'Enforce Whitelist', type: 'bool', value: 'false' },
+        {
+          key: 'player-idle-timeout',
+          label: 'Idle Timeout',
+          type: 'int',
+          value: '0',
+          minInt: 0,
+          maxInt: 1440,
+          unit: 'min',
+          helpId: 'settings.player-idle-timeout',
+        },
+        {
+          key: 'op-permission-level',
+          label: 'Op Permission Level',
+          type: 'enum',
+          value: '1',
+          options: [
+            { value: '1', label: '1 — Bypass spawn protection' },
+            { value: '2', label: '2 — Commands & command blocks' },
+            { value: '3', label: '3 — Manage players' },
+            { value: '4', label: '4 — All permissions' },
+          ],
+        },
+      ],
+    },
+    {
+      id: 'network',
+      title: 'Network',
+      icon: 'network',
+      fields: [
+        {
+          key: 'server-port',
+          label: 'Server Port (TCP)',
+          type: 'int',
+          value: '25565',
+          minInt: 1,
+          maxInt: 65535,
+          helpId: 'settings.server-port',
+        },
+      ],
+    },
+  ],
+};

@@ -1,210 +1,280 @@
 <script lang="ts">
+  // Ports DetailsSettingsTabView.swift + ServerSettingsView.swift's Java form
+  // to the S0 disciplined system (docs/msc2/antiAIslop.md): a schema-driven
+  // World/Server (/Network) section list, edited as a local draft that stays
+  // unsaved until Save Changes, matching MSC 1's "changes stay local until
+  // you click Save Changes" model exactly. Same shared-component pattern
+  // ComponentsSection/HomeSection/WorldsSection use (D-003).
+  //
+  // The backend (crates/msc-agent/src/routes/settings.rs) sends sections/
+  // fields generically rather than a closed Java/Bedrock field list, so this
+  // component renders whatever it's given rather than hardcoding property
+  // names -- only `segmentedKeys` below reaches for a key by name, to match
+  // MSC 1's exact choice of segmented-vs-dropdown per field.
+  //
+  // MSC 1's PreferencesJavaSection/RAM/Geyser rows (java executable path,
+  // heap size, Geyser listener) are a *different* MSC 1 screen -- the
+  // app-level "MSC Settings" sheet (General/Remote/Data tabs), not this
+  // per-server tab (confirmed against DetailsSettingsTabView, which embeds
+  // only ServerSettingsView). That sheet is P12.14's scope, not this one; the
+  // previous version of this file conflated the two, which this rebuild
+  // corrects rather than carries forward.
+  //
+  // One real, pre-existing backend gap found while wiring this, left alone
+  // (routes/ wasn't in this step's scope) but worth recording plainly:
+  // bedrock_sections' difficulty/gamemode fields are typed "enum" but carry
+  // no `options` (unlike java_sections' difficulty/gamemode) -- Bedrock
+  // settings stay unported per that file's own header comment. Rendered
+  // honestly below as a plain text field until that lands.
   import { onMount } from 'svelte';
-  import ActionButton from '../../components/ActionButton.svelte';
-  import ScreenHeader from '../shared/ScreenHeader.svelte';
-  import CapabilityNotice from '../shared/CapabilityNotice.svelte';
+  import Icon from '../../components/base/Icon.svelte';
+  import Button from '../../components/base/Button.svelte';
+  import Card from '../../components/base/Card.svelte';
+  import Toggle from '../../components/base/Toggle.svelte';
+  import Field from '../../components/base/Field.svelte';
+  import NumberField from '../../components/base/NumberField.svelte';
+  import Select from '../../components/base/Select.svelte';
+  import SegmentedControl from '../../components/base/SegmentedControl.svelte';
+  import StatusDot from '../../components/base/StatusDot.svelte';
+  import EmptyState from '../../components/base/EmptyState.svelte';
   import HelpLink from '../../help/HelpLink.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
+  import { demoSettings } from './model';
 
   export let api: ScreenProps['api'] = undefined;
   export let hostId = 'local-agent';
   export let serverId = 'survival';
-  let settings: Schema['SettingsResponseDTO'] = {
-    editable: false,
-    sections: [],
-    serverName: 'Survival',
-    serverRunning: false,
-    serverType: 'paper',
-  };
-  let changes: Record<string, string> = {};
-  let javaPath = '';
-  let ramMax = 8;
-  let geyserAddress = '';
-  let geyserPort = 19132;
+
+  // MSC 1's ServerSettingsView uses .pickerStyle(.segmented) only for these
+  // two enum fields; World Type and Op Permission Level are also `enum` but
+  // stay a plain dropdown there, so the split is by key, not by option count.
+  const segmentedKeys = new Set(['difficulty', 'gamemode']);
+
+  let settings: Schema['SettingsResponseDTO'] = demoSettings;
+  let original: Record<string, string> = {};
+  let draft: Record<string, string> = {};
   let notice = '';
+  let rejected: Schema['SettingRejectionDTO'][] = [];
+  let saving = false;
+  let lastServerId: string | undefined;
 
-  onMount(async () => {
+  function snapshot(sections: Schema['SettingsSectionDTO'][]): Record<string, string> {
+    const next: Record<string, string> = {};
+    for (const section of sections) {
+      for (const field of section.fields) next[field.key] = field.value;
+    }
+    return next;
+  }
+
+  function setValue(key: string, value: string): void {
+    draft = { ...draft, [key]: value };
+  }
+
+  function revert(): void {
+    draft = { ...original };
+  }
+
+  async function load(): Promise<void> {
     settings = await call(api, settings, '/v1/settings');
-    const java = await call<Schema['JavaConfigResponseDTO']>(api, {}, '/v1/config/java-runtime');
-    javaPath = java.executablePath ?? '';
-    const ram = await call<Schema['RAMConfigResponseDTO']>(
-      api,
-      {
-        hasActiveServer: false,
-        maxRamGB: 8,
-        minRamGB: 2,
-        physicalRAMGB: 16,
-        recommendedMaxGB: 12,
-        serverName: settings.serverName,
-        serverRunning: settings.serverRunning,
-        serverType: settings.serverType,
-      },
-      '/v1/config/ram',
-    );
-    ramMax = ram.maxRamGB;
-    const geyser = await call<Schema['GeyserConfigResponseDTO']>(
-      api,
-      {
-        configFileExists: false,
-        isGeyserInstalled: false,
-        serverName: settings.serverName,
-        serverType: settings.serverType,
-      },
-      '/v1/config/geyser',
-    );
-    geyserAddress = geyser.address ?? '';
-    geyserPort = geyser.port ?? geyserPort;
-  });
+    original = snapshot(settings.sections);
+    draft = { ...original };
+  }
 
-  async function saveSettings(): Promise<void> {
+  $: changes = Object.fromEntries(
+    Object.entries(draft).filter(([key, value]) => value !== original[key]),
+  );
+  $: dirty = Object.keys(changes).length > 0;
+
+  function summarize(result: Schema['SettingsUpdateResultDTO']): string {
+    const parts = [result.success ? 'Settings saved.' : 'No changes applied.'];
+    if (result.restartRequired) parts.push('Restart the server to apply.');
+    return parts.join(' ');
+  }
+
+  async function save(): Promise<void> {
+    if (!dirty) return;
+    saving = true;
     try {
       const result = await mutate<Schema['SettingsUpdateResultDTO']>(api, '/v1/settings', {
         changes,
       });
-      notice = result.message;
       if (result.sections) settings = { ...settings, sections: result.sections };
-      changes = {};
+      original = snapshot(settings.sections);
+      draft = { ...original };
+      rejected = result.rejected ?? [];
+      notice = summarize(result);
     } catch (error) {
       notice = errorMessage(error);
+    } finally {
+      saving = false;
     }
   }
-  async function saveJava(): Promise<void> {
-    try {
-      notice = (
-        await mutate<Schema['JavaConfigResponseDTO']>(api, '/v1/config/java-runtime', {
-          executablePath: javaPath,
-        })
-      ).executablePath
-        ? 'Java executable saved.'
-        : 'Java executable cleared.';
-    } catch (error) {
-      notice = errorMessage(error);
-    }
+
+  $: if (serverId !== lastServerId) {
+    lastServerId = serverId;
+    void load();
   }
-  async function saveRam(): Promise<void> {
-    try {
-      notice =
-        (
-          await mutate<Schema['RAMConfigUpdateResultDTO']>(api, '/v1/config/ram', {
-            maxRamGB: ramMax,
-          })
-        ).message ?? 'RAM settings saved.';
-    } catch (error) {
-      notice = errorMessage(error);
-    }
-  }
-  async function saveGeyser(): Promise<void> {
-    try {
-      notice = (
-        await mutate<Schema['GeyserConfigUpdateResultDTO']>(api, '/v1/config/geyser', {
-          address: geyserAddress,
-          port: geyserPort,
-        })
-      ).message;
-    } catch (error) {
-      notice = errorMessage(error);
-    }
-  }
+
+  onMount(() => void load());
 </script>
 
-<div class="screen">
-  <ScreenHeader
-    eyebrow="Server configuration"
-    title="Settings"
-    description="Fields come from the agent's schema. The client does not carry a closed list of server.properties keys."
-    status={settings.editable ? 'Editable' : 'Read-only'}
-    statusTone={settings.editable ? 'positive' : 'warning'}
-    actionLabel="Save changes"
-    onAction={saveSettings}
-  />
-  {#if notice}<p class="muted" role="status">{notice}</p>{/if}
-  {#if settings.note}<CapabilityNotice message={settings.note} />{/if}
-  {#each settings.sections as section (section.id)}<section class="screen-card">
-      <h3>{section.title}</h3>
-      <div class="form-grid" style="margin-top: .7rem">
-        {#each section.fields as field (field.key)}<div class="field">
-            <label for={`setting-${field.key}`}>{field.label}</label
-            >{#if field.options?.length}<select
-                id={`setting-${field.key}`}
-                value={changes[field.key] ?? field.value}
-                onchange={(event) =>
-                  (changes = {
-                    ...changes,
-                    [field.key]: (event.currentTarget as HTMLSelectElement).value,
-                  })}
-                >{#each field.options as option}<option value={option.value}>{option.label}</option
-                  >{/each}</select
-              >{:else}<input
-                id={`setting-${field.key}`}
-                value={changes[field.key] ?? field.value}
-                type={field.type === 'int' || field.type === 'number' ? 'number' : 'text'}
-                maxlength={field.maxLength}
-                min={field.minInt}
-                max={field.maxInt}
-                oninput={(event) =>
-                  (changes = {
-                    ...changes,
-                    [field.key]: (event.currentTarget as HTMLInputElement).value,
-                  })}
-              />{/if}{#if field.helpId}<HelpLink helpId={field.helpId} {hostId} {serverId} />{/if}
-          </div>{/each}
-      </div>
-    </section>{:else}<CapabilityNotice
-      title="No setting schema loaded"
-      message="Connect to an agent to receive the current server.properties fields and their validation bounds."
-    />{/each}
-  <div class="screen-grid">
-    <section class="screen-card">
-      <h3>Java executable</h3>
-      <p>Host-wide Java selection is separate from each server's Java family.</p>
-      <div class="inline-form">
-        <div class="field">
-          <label for="java-path">Executable path</label><input
-            id="java-path"
-            bind:value={javaPath}
-            placeholder="Agent default"
-          />
-        </div>
-        <ActionButton label="Save Java" onclick={saveJava}>Save</ActionButton>
-      </div>
-    </section>
-    <section class="screen-card">
-      <h3>RAM allocation</h3>
-      <div class="inline-form">
-        <div class="field">
-          <label for="ram-max">Maximum GB</label><input
-            id="ram-max"
-            type="number"
-            min="1"
-            bind:value={ramMax}
-          />
-        </div>
-        <ActionButton label="Save RAM" onclick={saveRam}>Save</ActionButton>
-      </div>
-    </section>
-  </div>
-  <section class="screen-card">
-    <h3>Geyser listener</h3>
-    <p>
-      Only the managed top-level listener fields are shown; the rest of Geyser's YAML remains
-      Geyser-owned.
-    </p>
-    <div class="form-grid">
-      <div class="field">
-        <label for="geyser-address">Address</label><input
-          id="geyser-address"
-          bind:value={geyserAddress}
-        />
-      </div>
-      <div class="field">
-        <label for="geyser-port">Port</label><input
-          id="geyser-port"
-          type="number"
-          bind:value={geyserPort}
-        />
-      </div>
+<div class="settings">
+  <div class="section-header">
+    <div class="overline">
+      <Icon name="gear" size={13} />
+      <span class="msc2-type-overline">Server Properties</span>
     </div>
-    <ActionButton label="Save Geyser" onclick={saveGeyser}>Save</ActionButton>
-  </section>
+    <div class="header-actions">
+      {#if dirty}<StatusDot tone="warn" label="Unsaved changes" />{/if}
+    </div>
+  </div>
+  <p class="hint">Changes in this tab stay local until you click Save Changes.</p>
+
+  {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+  {#if rejected.length}
+    <ul class="rejected">
+      {#each rejected as item (item.key)}<li>{item.key}: {item.reason}</li>{/each}
+    </ul>
+  {/if}
+
+  {#if !settings.editable}
+    <EmptyState title="No server selected" message="Select a server to view its settings.">
+      <Icon name="gear" size={26} slot="icon" />
+    </EmptyState>
+  {:else}
+    {#each settings.sections as section (section.id)}
+      <section class="zone">
+        <p class="msc2-type-overline">{section.title}</p>
+        <Card padding="0">
+          {#each section.fields as field, index (field.key)}
+            <div class="row" class:bordered={index > 0}>
+              <span class="name">{field.label}</span>
+              <div class="control">
+                {#if field.type === 'bool'}
+                  <Toggle
+                    checked={draft[field.key] === 'true'}
+                    label={field.label}
+                    onchange={(checked) => setValue(field.key, checked ? 'true' : 'false')}
+                  />
+                {:else if field.type === 'enum' && field.options?.length}
+                  {#if segmentedKeys.has(field.key)}
+                    <SegmentedControl
+                      options={field.options}
+                      value={draft[field.key] ?? ''}
+                      onchange={(value) => setValue(field.key, value)}
+                    />
+                  {:else}
+                    <Select
+                      options={field.options}
+                      value={draft[field.key] ?? ''}
+                      width="220px"
+                      onchange={(value) => setValue(field.key, value)}
+                    />
+                  {/if}
+                {:else if field.type === 'int'}
+                  <NumberField
+                    value={draft[field.key] ?? ''}
+                    min={field.minInt}
+                    max={field.maxInt}
+                    width="80px"
+                    onchange={(value) => setValue(field.key, value)}
+                  />
+                  {#if field.unit}<span class="unit">{field.unit}</span>{/if}
+                {:else}
+                  <Field bind:value={draft[field.key]} width="260px" />
+                {/if}
+                {#if field.helpId}<HelpLink helpId={field.helpId} {hostId} {serverId} />{/if}
+              </div>
+            </div>
+          {/each}
+        </Card>
+      </section>
+    {/each}
+
+    <div class="footer-actions">
+      <Button size="sm" variant="secondary" disabled={!dirty || saving} onclick={revert}>
+        Revert
+      </Button>
+      <Button size="sm" variant="primary" disabled={!dirty || saving} onclick={() => void save()}>
+        {saving ? 'Saving…' : 'Save Changes'}
+      </Button>
+    </div>
+  {/if}
 </div>
+
+<style>
+  .settings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .overline {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--msc2-text-tertiary);
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hint {
+    margin: -10px 0 0;
+    font-size: 12px;
+    color: var(--msc2-text-tertiary);
+  }
+  .notice {
+    margin: 0;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+  }
+  .rejected {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: var(--msc2-status-warn);
+  }
+  .zone {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 14px;
+  }
+  .row.bordered {
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
+  }
+  .control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .unit {
+    font-size: 11px;
+    color: var(--msc2-text-tertiary);
+  }
+  .footer-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+</style>

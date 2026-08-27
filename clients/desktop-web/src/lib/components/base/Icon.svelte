@@ -19,7 +19,8 @@
     | 'note'
     | 'clock'
     | 'id-card'
-    | 'chevron';
+    | 'chevron'
+    | 'gear';
   export let size = 14;
 
   const paths: Record<string, string> = {
@@ -40,6 +41,7 @@
     'id-card':
       'M3.5 5h17v14h-17zM12 10.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7.5 17c.8-1.8 2.4-2.5 4.5-2.5s3.7.7 4.5 2.5M15 8.5h3',
     chevron: 'M9 5l7 7-7 7',
+    gear: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1',
   };
 </script>
 

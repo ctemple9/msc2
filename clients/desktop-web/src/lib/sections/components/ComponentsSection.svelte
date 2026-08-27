@@ -39,8 +39,10 @@
   import Badge from '../../components/base/Badge.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
+  import Menu from '../../components/base/Menu.svelte';
   import VersionPickerSheet from './VersionPickerSheet.svelte';
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
+  import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import ImportModpackSheet from './ImportModpackSheet.svelte';
   import CurseForgeManualDownloadSheet from './CurseForgeManualDownloadSheet.svelte';
   import { getPlatform } from '../../platform';
@@ -64,6 +66,7 @@
     pollOperation,
     serversPath,
     supportsCrossplay,
+    type ProjectDetailItem,
   } from './model';
 
   export let api: ScreenProps['api'] = undefined;
@@ -104,6 +107,8 @@
   let togglingStems: Set<string> = new Set();
   let updatingStems: Set<string> = new Set();
   let confirmingRemove: string | undefined;
+  let addonMenu: { addon: Schema['AddonItemDTO']; x: number; y: number } | undefined;
+  let detailAddon: Schema['AddonItemDTO'] | undefined;
 
   let showVersionPicker = false;
   let showBrowser = false;
@@ -217,6 +222,18 @@
     } catch (error) {
       flash(error instanceof Error ? error.message : `Failed to remove ${addon.displayName}.`);
     }
+  }
+
+  function openAddonMenu(event: MouseEvent, addon: Schema['AddonItemDTO']): void {
+    addonMenu = { addon, x: event.clientX, y: event.clientY };
+  }
+
+  function addonDetailItem(addon: Schema['AddonItemDTO']): ProjectDetailItem {
+    return {
+      projectId: addon.projectId as string,
+      title: addon.displayName,
+      iconURL: addon.iconURL,
+    };
   }
 
   function pickBrowserFile(): Promise<{ name: string; bytes: Uint8Array } | null> {
@@ -409,25 +426,11 @@
           <Card padding="0">
             {#each addons as addon, index (addon.jarStem)}
               <div class="addon-row" class:bordered={index > 0} class:disabled={!addon.isEnabled}>
-                <Toggle
-                  checked={addon.isEnabled}
-                  label={`Enable ${addon.displayName}`}
-                  onchange={() => void toggleAddon(addon)}
-                />
-                <div class="info">
-                  <span class="name">{addon.displayName}</span>
-                  <span class="subtitle">
-                    {addon.currentVersion ?? 'Unknown version'}
-                    {#if addon.bucket === 'updateAvailable' && addon.availableVersion}
-                      → {addon.availableVersion}
-                    {/if}
-                  </span>
-                </div>
-                {#if addonStatusLabel(addon)}
-                  <StatusDot tone="warn" label={addonStatusLabel(addon) ?? ''} />
-                {/if}
                 {#if confirmingRemove === addon.jarStem}
-                  <span class="confirm">Remove?</span>
+                  <div class="info">
+                    <span class="name">{addon.displayName}</span>
+                  </div>
+                  <span class="confirm">Uninstall?</span>
                   <Button
                     size="sm"
                     variant="secondary"
@@ -436,9 +439,27 @@
                     Cancel
                   </Button>
                   <Button size="sm" variant="destructive" onclick={() => void removeAddon(addon)}>
-                    Remove
+                    Uninstall
                   </Button>
                 {:else}
+                  <button
+                    type="button"
+                    class="addon-row-link"
+                    onclick={(event) => openAddonMenu(event, addon)}
+                  >
+                    <div class="info">
+                      <span class="name">{addon.displayName}</span>
+                      <span class="subtitle">
+                        {addon.currentVersion ?? 'Unknown version'}
+                        {#if addon.bucket === 'updateAvailable' && addon.availableVersion}
+                          → {addon.availableVersion}
+                        {/if}
+                      </span>
+                    </div>
+                    {#if addonStatusLabel(addon)}
+                      <StatusDot tone="warn" label={addonStatusLabel(addon) ?? ''} />
+                    {/if}
+                  </button>
                   {#if addon.bucket === 'updateAvailable'}
                     <Button
                       size="sm"
@@ -449,13 +470,6 @@
                       {updatingStems.has(addon.jarStem) ? 'Updating…' : 'Update'}
                     </Button>
                   {/if}
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onclick={() => (confirmingRemove = addon.jarStem)}
-                  >
-                    Remove
-                  </Button>
                 {/if}
               </div>
             {/each}
@@ -555,6 +569,42 @@
   />
 {/if}
 
+{#if addonMenu}
+  {@const menuAddon = addonMenu.addon}
+  <Menu
+    x={addonMenu.x}
+    y={addonMenu.y}
+    onClose={() => (addonMenu = undefined)}
+    items={[
+      {
+        label: menuAddon.isEnabled ? 'Disable' : 'Enable',
+        onSelect: () => void toggleAddon(menuAddon),
+      },
+      {
+        label: 'View',
+        disabled: !menuAddon.projectId,
+        onSelect: () => (detailAddon = menuAddon),
+      },
+      {
+        label: 'Uninstall',
+        tone: 'destructive',
+        onSelect: () => (confirmingRemove = menuAddon.jarStem),
+      },
+    ]}
+  />
+{/if}
+
+{#if detailAddon}
+  <ProjectDetailSheet
+    {api}
+    item={addonDetailItem(detailAddon)}
+    javaFlavor={activeServer?.javaFlavor}
+    serverMinecraftVersion={primaryComponent?.installedVersion}
+    onClose={() => (detailAddon = undefined)}
+    onInstalled={() => void loadAddons()}
+  />
+{/if}
+
 {#if showBrowser && kind}
   <PluginBrowserSheet
     {api}
@@ -636,6 +686,20 @@
   }
   .addon-row.disabled .name {
     color: var(--msc2-text-secondary);
+  }
+  .addon-row-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+    min-width: 0;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+    font: inherit;
   }
   .info {
     display: flex;

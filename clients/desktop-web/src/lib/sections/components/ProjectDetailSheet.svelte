@@ -27,10 +27,11 @@
     parseInlineMarkdown,
     pollOperation,
     sanitizeModrinthBody,
+    type ProjectDetailItem,
   } from './model';
 
   export let api: ScreenApi | undefined = undefined;
-  export let item: Schema['CatalogItemDTO'];
+  export let item: ProjectDetailItem;
   export let javaFlavor: string | undefined = undefined;
   export let serverMinecraftVersion: string | undefined = undefined;
   export let onClose: () => void;
@@ -51,10 +52,13 @@
   $: collapsed = collapseVersions(versions, serverLoaders);
   $: visible = filterVisibleVersions(collapsed, { stableOnly, loaders: loaderFilter });
   $: hasCompatibleVersion = versions.some((v) => isVersionCompatible(v, serverMinecraftVersion));
-  $: aboutParagraphs = sanitizeModrinthBody(project?.body ?? item.description)
+  $: aboutParagraphs = sanitizeModrinthBody(project?.body ?? item.description ?? '')
     .split('\n\n')
     .filter((p) => p.trim().length > 0);
-  $: modrinthURL = `https://modrinth.com/${item.projectType}/${item.slug}`;
+  $: modrinthSlug = item.slug ?? project?.slug ?? item.projectId;
+  $: modrinthURL = item.projectType
+    ? `https://modrinth.com/${item.projectType}/${modrinthSlug}`
+    : `https://modrinth.com/project/${modrinthSlug}`;
 
   onMount(async () => {
     if (!api) {
@@ -96,7 +100,7 @@
     try {
       const result = await mutate<Schema['CatalogInstallResultDTO']>(api, addonPaths.install, {
         projectId: item.projectId,
-        slug: item.slug,
+        slug: item.slug ?? project?.slug,
         title: item.title,
         versionId: version.id,
       });
@@ -143,11 +147,14 @@
     </div>
     <div class="header-info">
       <span class="title">{item.title}</span>
-      <p class="byline">by {item.author}</p>
-      <p class="stats">
-        {formatCount(project?.downloads ?? item.downloads)} downloads{#if project}
-          · {formatCount(project.followers)} followers{/if}
-      </p>
+      {#if item.author}<p class="byline">by {item.author}</p>{/if}
+      {#if project}
+        <p class="stats">
+          {formatCount(project.downloads)} downloads · {formatCount(project.followers)} followers
+        </p>
+      {:else if item.downloads !== undefined}
+        <p class="stats">{formatCount(item.downloads)} downloads</p>
+      {/if}
       {#if project}
         <Badge variant="status" tone={project.serverSide === 'unsupported' ? 'warn' : 'ok'}>
           {serverSideLabel(project.serverSide)}

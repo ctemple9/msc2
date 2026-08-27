@@ -24,6 +24,22 @@ export const serversPath = '/v1/servers';
 export const healthPath = '/v1/health';
 export const operationPath = (id: string): string => `/v1/operations/${id}`;
 
+/** ProjectDetailSheet's minimum input -- satisfied directly by a
+ *  CatalogItemDTO search hit (every optional field present), or built from
+ *  an already-installed AddonItemDTO (which only ever has projectId/
+ *  displayName/iconURL -- the rest loads from the P12.7c project-detail
+ *  fetch itself, same as the sheet's own loading-state fallbacks). */
+export interface ProjectDetailItem {
+  projectId: string;
+  title: string;
+  slug?: string;
+  author?: string;
+  downloads?: number;
+  description?: string;
+  iconURL?: string;
+  projectType?: string;
+}
+
 // ModrinthProjectDetailView's two extra fetches (ModrinthBrowserView.swift:
 // 748-753) -- both new P12.7c routes, keyed by Modrinth project id/slug.
 export const catalogDetailPaths = {

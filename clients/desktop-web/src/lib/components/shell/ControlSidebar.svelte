@@ -6,12 +6,17 @@
   // later step), matching how the console dock is frame-only here too.
   // docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
   import Button from '../base/Button.svelte';
+  import Menu from '../base/Menu.svelte';
   import ShellIcon from './ShellIcon.svelte';
   import PlayerAvatar from './PlayerAvatar.svelte';
   import { bannerColorAccent } from '../../styles/bannerColor';
+  import type { HostId, HostRecord } from '../../hosts/types';
   import type { Schema } from '../../sections/shared/types';
 
   export let hostLabel: string;
+  export let hosts: readonly HostRecord[] = [];
+  export let activeHostId: HostId = '';
+  export let isDesktopShell = false;
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
   export let running = false;
@@ -19,8 +24,57 @@
   export let canControl = true;
   export let bannerColor: string;
   export let onSelectServer: (id: string) => void;
+  export let onSwitchHost: (id: HostId) => void = () => undefined;
   export let onLifecycle: (action: 'start' | 'stop') => void;
   export let onManage: () => void;
+
+  let pickerOpen = false;
+  let pickerPos = { x: 0, y: 0 };
+
+  function openPicker(event: MouseEvent): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    pickerPos = { x: rect.left, y: rect.bottom + 4 };
+    pickerOpen = true;
+  }
+
+  $: multiHost = isDesktopShell && hosts.length > 1;
+
+  type PickerItem = { label: string; onSelect: () => void; disabled?: boolean };
+
+  function buildPickerItems(): PickerItem[] {
+    if (!multiHost) {
+      return [
+        ...servers.map((server): PickerItem => ({
+          label: server.name,
+          onSelect: () => onSelectServer(server.id),
+        })),
+        { label: 'Manage…', onSelect: onManage },
+      ];
+    }
+    const items: PickerItem[] = [];
+    for (const host of hosts) {
+      items.push({ label: `— ${host.label} —`, onSelect: () => {}, disabled: true });
+      if (host.id === activeHostId) {
+        for (const server of servers) {
+          items.push({ label: server.name, onSelect: () => onSelectServer(server.id) });
+        }
+      } else {
+        items.push({ label: 'Switch to this host…', onSelect: () => onSwitchHost(host.id) });
+      }
+    }
+    items.push({ label: 'Manage…', onSelect: onManage });
+    return items;
+  }
+
+  // Referenced directly (not just through buildPickerItems' internals) so
+  // Svelte re-runs this whenever any of them changes.
+  $: pickerItems = (() => {
+    void multiHost;
+    void hosts;
+    void servers;
+    void activeHostId;
+    return buildPickerItems();
+  })();
 
   const DISCLOSURE_SECTIONS = [
     'Console access',
@@ -47,23 +101,25 @@
     <div class="block">
       <p class="overline">Server controls</p>
 
-      <div class="picker" style="background: {bannerColorAccent(bannerColor, 0.12)};">
+      <button
+        type="button"
+        class="picker"
+        style="background: {bannerColorAccent(bannerColor, 0.12)};"
+        aria-haspopup="menu"
+        onclick={openPicker}
+      >
         <span class="sr-only">{connected ? 'Connected' : 'Disconnected'}</span>
         <span class="picker-label">{hostLabel} ▸ {activeServer?.name ?? 'No server'}</span>
         <ShellIcon name="selector" size={14} />
-        {#if servers.length}
-          <select
-            class="picker-input"
-            aria-label="Select server"
-            value={activeServerId}
-            onchange={(event) => onSelectServer((event.currentTarget as HTMLSelectElement).value)}
-          >
-            {#each servers as server (server.id)}
-              <option value={server.id}>{server.name}</option>
-            {/each}
-          </select>
-        {/if}
-      </div>
+      </button>
+      {#if pickerOpen}
+        <Menu
+          x={pickerPos.x}
+          y={pickerPos.y}
+          onClose={() => (pickerOpen = false)}
+          items={pickerItems}
+        />
+      {/if}
 
       <div class="control-row">
         <Button
@@ -136,15 +192,20 @@
   .picker {
     position: relative;
     display: flex;
+    width: 100%;
     align-items: center;
     gap: 6px;
     margin-top: 8px;
     padding: 7px 9px;
+    font: inherit;
+    text-align: left;
     border: 1px solid var(--msc2-hairline-field);
     border-radius: 8px;
     color: var(--msc2-text-secondary);
+    cursor: pointer;
+    box-sizing: border-box;
   }
-  .picker:focus-within {
+  .picker:focus-visible {
     border-color: var(--msc2-hairline-field-focus);
   }
   .sr-only {
@@ -162,14 +223,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-  }
-  .picker-input {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
   }
   .control-row {
     display: flex;

@@ -11,9 +11,14 @@
   import ConsoleDock from './shell/ConsoleDock.svelte';
   import ShellIcon from './shell/ShellIcon.svelte';
   import type { PrimaryTab } from '../navigation/primaryTabs';
+  import type { HostId, HostRecord } from '../hosts/types';
   import type { Schema, ScreenApi } from '../sections/shared/types';
 
   export let hostLabel = 'No host selected';
+  export let hosts: readonly HostRecord[] = [];
+  export let activeHostId: HostId = '';
+  export let isDesktopShell = false;
+  export let onSwitchHost: (id: HostId) => void = () => undefined;
   // Threaded straight through to ConsoleDock (P12.10) — the docked console is the
   // one piece of shell chrome that needs to call the agent directly, the same `api`
   // every section already receives.
@@ -115,6 +120,9 @@
     {:else}
       <ControlSidebar
         {hostLabel}
+        {hosts}
+        {activeHostId}
+        {isDesktopShell}
         {servers}
         {activeServerId}
         {running}
@@ -122,6 +130,7 @@
         {canControl}
         {bannerColor}
         {onSelectServer}
+        {onSwitchHost}
         {onLifecycle}
         {onManage}
       />

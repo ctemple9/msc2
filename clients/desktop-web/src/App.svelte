@@ -12,10 +12,16 @@
   import {
     AgentHealthTimeoutError,
     createAgentTransport,
+    getPlatform,
+    LOCAL_AGENT_ORIGIN,
     prepareLocalAgent,
     type AgentReadiness,
     type AgentServiceStatus,
   } from './lib/platform';
+  import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from './lib/auth/desktop';
+  import { HostStore } from './lib/hosts/registry';
+  import type { HostId, HostRecord } from './lib/hosts/types';
+  import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
@@ -44,14 +50,6 @@
       segment: 'handbook',
       scope: 'server',
       load: () => import('./lib/sections/handbook/HelpSection.svelte'),
-    },
-    {
-      id: 'fleet',
-      label: 'Fleet',
-      segment: 'fleet',
-      scope: 'server',
-      requiredPermissions: ['fleet'],
-      load: () => import('./lib/sections/fleet/FleetSection.svelte'),
     },
     {
       id: 'console',
@@ -147,7 +145,56 @@
   ];
   const router = createClientRouter(sections);
   const localAgentHostId = 'local-agent';
+
+  // Keeps every host's connection/credential/cache state (D-013). A browser
+  // tab only ever has this one Local entry -- createAgentTransport's browser
+  // branch always targets window.location.origin, with no per-host baseUrl,
+  // so a second host is unreachable from a browser regardless of what's
+  // registered here. Add Host / host switching UI is gated on isDesktopShell.
+  const hostStore = new HostStore();
+  let hosts: readonly HostRecord[] = [];
   let hostId = localAgentHostId;
+  let isDesktopShell = false;
+  let manageOpen = false;
+
+  function refreshHosts(): void {
+    hosts = hostStore.listHosts();
+  }
+
+  function hostSummaries(): Map<HostId, { connection: string; serverCount: number }> {
+    const summaries = new Map<HostId, { connection: string; serverCount: number }>();
+    for (const host of hosts) {
+      const cache = hostStore.getState(host.id).cache;
+      summaries.set(host.id, { connection: cache.connection, serverCount: cache.servers.length });
+    }
+    return summaries;
+  }
+
+  async function switchHost(id: HostId): Promise<void> {
+    if (id === hostId) return;
+    hostStore.selectHost(id);
+    hostId = id;
+    await initializeClient();
+  }
+
+  async function addRemoteHost(
+    label: string,
+    baseUrl: string,
+    pairingCode: string,
+  ): Promise<string> {
+    const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
+    const result = await auth.redeemRemotePairing(baseUrl, pairingCode);
+    hostStore.addHost({ id: result.agentHostId, label, baseUrl });
+    refreshHosts();
+    return result.agentHostId;
+  }
+
+  function removeRemoteHost(id: HostId): void {
+    if (id === localAgentHostId) return;
+    if (id === hostId) void switchHost(localAgentHostId);
+    hostStore.removeHost(id);
+    refreshHosts();
+  }
 
   async function createClient(id: string): Promise<ApiClient> {
     const transport = await createAgentTransport(id);
@@ -205,6 +252,15 @@
     available: visibleSections.some((section) => section.id === tab.id),
   }));
   $: bannerColor = bannerColorFor(hostId, selectedServerId);
+  // Referencing servers/status/hostId directly (not just through hostSummaries'
+  // internals) makes Svelte re-run this when the active host's live state
+  // changes, not only when a host is added or removed.
+  $: currentHostSummaries = ((): Map<HostId, { connection: string; serverCount: number }> => {
+    void servers;
+    void status;
+    void hostId;
+    return hosts.length ? hostSummaries() : new Map();
+  })();
 
   function readinessForService(status: AgentServiceStatus): AgentReadiness {
     switch (status.state) {
@@ -240,7 +296,9 @@
       status = await selectedClient.requestJson<Schema['RemoteAPIStatus']>('GET', '/v1/status');
       if (status.activeServerId) selectedServerId = status.activeServerId;
       agentReadiness = 'ready';
-      shellMessage = 'Connected to Local agent';
+      shellMessage = `Connected to ${hosts.find((host) => host.id === hostId)?.label ?? hostId}`;
+      hostStore.setServers(hostId, servers);
+      hostStore.updateConnection(hostId, 'connected');
       await selectFromLocation();
       return true;
     } catch (error) {
@@ -248,6 +306,7 @@
       permissions = [];
       agentReadiness = readinessForError(error);
       shellMessage = `Unable to establish the selected host context: ${String(error)}`;
+      hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
       return false;
     }
@@ -279,8 +338,12 @@
     capabilities = null;
     permissions = [];
     agentReadiness = 'starting';
+    hostStore.updateConnection(hostId, 'connecting');
     try {
-      const serviceStatus = await prepareLocalAgent();
+      // Only the local host has an OS service this client can prepare --
+      // a remote host's agent is either already reachable or it isn't;
+      // there is nothing here to install/start on someone else's machine.
+      const serviceStatus = hostId === localAgentHostId ? await prepareLocalAgent() : null;
       if (serviceStatus) {
         agentReadiness = readinessForService(serviceStatus);
         if (serviceStatus.state !== 'running') {
@@ -294,12 +357,16 @@
     } catch (error) {
       agentReadiness = readinessForError(error);
       shellMessage = `Unable to prepare the local agent connection: ${String(error)}`;
+      hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
     }
   }
 
   onMount(() => {
     restoreAccent();
+    hostStore.addHost({ id: localAgentHostId, label: 'Local agent', baseUrl: LOCAL_AGENT_ORIGIN });
+    refreshHosts();
+    void getPlatform().then((platform) => (isDesktopShell = platform.kind === 'tauri'));
     const onPopState = () => void selectFromLocation();
     void initializeClient();
     window.addEventListener('popstate', onPopState);
@@ -348,7 +415,10 @@
 </svelte:head>
 
 <ApplicationShell
-  hostLabel="Local agent"
+  hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
+  {hosts}
+  activeHostId={hostId}
+  {isDesktopShell}
   api={screenApi}
   {servers}
   activeServerId={selectedServerId}
@@ -360,8 +430,9 @@
   {activeSection}
   selectSection={(id) => void selectSection(id)}
   onSelectServer={(id) => void selectServer(id)}
+  onSwitchHost={(id) => void switchHost(id)}
   onLifecycle={(action) => void lifecycle(action)}
-  onManage={() => void selectSection('fleet')}
+  onManage={() => (manageOpen = true)}
   onHelp={() => void selectSection('handbook')}
   onRefresh={() => void initializeClient()}
 >
@@ -375,7 +446,7 @@
       readiness={agentReadiness}
       onAgentRetry={() => void initializeClient()}
       onServerSelected={(id: string) => (selectedServerId = id)}
-      onFleet={() => void selectSection('fleet')}
+      onFleet={() => (manageOpen = true)}
       onWorlds={() => void selectSection('worlds')}
     />
   {:else}
@@ -390,6 +461,24 @@
     </div>
   {/if}
 </ApplicationShell>
+
+{#if manageOpen}
+  <ManageSheet
+    api={screenApi}
+    {servers}
+    {status}
+    {permissions}
+    {hosts}
+    hostSummaries={currentHostSummaries}
+    activeHostId={hostId}
+    {isDesktopShell}
+    onClose={() => (manageOpen = false)}
+    onSwitchHost={(id) => void switchHost(id)}
+    onAddHost={(label, baseUrl, code) => addRemoteHost(label, baseUrl, code)}
+    onRemoveHost={(id) => removeRemoteHost(id)}
+    onServersChanged={(updated) => (servers = updated)}
+  />
+{/if}
 
 <SplashGate />
 {#if clientReady}<FirstLaunchGate api={screenApi} agentReady={agentReadiness === 'ready'} />{/if}

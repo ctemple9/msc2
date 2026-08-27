@@ -616,6 +616,14 @@ If a screen needs a UI pattern not covered by the locked S0 primitives, stop and
 **Commit:** `P12.11b: make the agent screen reachable from the host picker`
 **Batch:** solo
 
+### P12.11c — Use macOS elevation for the agent Stop control
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `crates/msc-platform-macos/src/service.rs`, `docs/msc2/rolling-plan.md`
+**What:** Correct the P12.11a verification finding: the desktop app was sending `launchctl stop <label>` from its unprivileged GUI process, which targets the GUI launchd context and fails with exit 3 for MSC's system LaunchDaemon. Add the matching elevated macOS stop helper beside `start_elevated`, wait until the shared status model reports `Stopped`, and route Tauri's existing Stop action through it. Keep the shared `ServiceManager` contract and non-macOS behavior unchanged. Include a focused unit check that protects the bare-label command shape (the privileged process resolves that label in the system domain).
+**Verify:** `cargo nextest run -p msc-platform-macos --lib && cd clients/desktop-web && npx tauri dev` — open **Agent…**, click **Stop agent**, approve the macOS prompt, and confirm the page reports stopped; then click **Start agent** and confirm it returns to running.
+**Commit:** `P12.11c: elevate macOS agent stop control`
+**Batch:** solo
+
 ### P12.12 — Server Editor sheet (7 sub-tabs)
 **Status:** not started
 **Files:** server-editor sheet components

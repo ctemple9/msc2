@@ -441,9 +441,10 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             msc_platform_macos::service::start_elevated(service_name.as_str())
                 .map_err(|error| error.to_string())?
         }
-        AgentServiceAction::Stop => service_manager()?
-            .execute(ServiceManagerCommand::Stop { service_name })
-            .map_err(|error| error.to_string())?,
+        AgentServiceAction::Stop => {
+            msc_platform_macos::service::stop_elevated(service_name.as_str())
+                .map_err(|error| error.to_string())?
+        }
     };
     #[cfg(not(target_os = "macos"))]
     let report = {

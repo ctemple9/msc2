@@ -320,7 +320,7 @@ pub fn install_and_start_elevated(
     let _ = fs::remove_file(&temporary_plist);
     result?;
 
-    wait_for_service(&request.service_name)
+    wait_for_service_state(&request.service_name, ServiceState::Running)
 }
 
 /// Starts an already-installed LaunchDaemon through the same OS-owned
@@ -330,11 +330,26 @@ pub fn start_elevated(service_name: &str) -> Result<ServiceStatusReport, Service
         "/bin/launchctl kickstart -k {}",
         shell_quote(&format!("system/{service_name}"))
     ))?;
-    wait_for_service(&msc_infrastructure::service::ServiceName::new(service_name))
+    wait_for_service_state(
+        &msc_infrastructure::service::ServiceName::new(service_name),
+        ServiceState::Running,
+    )
 }
 
-fn wait_for_service(
+/// Stops an already-installed LaunchDaemon through the same elevation boundary
+/// as start. A GUI process's `launchctl stop <label>` targets its own launchd
+/// context, not the system LaunchDaemon domain that owns the agent.
+pub fn stop_elevated(service_name: &str) -> Result<ServiceStatusReport, ServiceError> {
+    run_as_administrator(&elevated_stop_command(service_name))?;
+    wait_for_service_state(
+        &msc_infrastructure::service::ServiceName::new(service_name),
+        ServiceState::Stopped,
+    )
+}
+
+fn wait_for_service_state(
     service_name: &msc_infrastructure::service::ServiceName,
+    expected_state: ServiceState,
 ) -> Result<ServiceStatusReport, ServiceError> {
     let manager = MacosLaunchdServiceManager::new();
     let mut latest = ServiceStatusReport::not_installed(service_name.as_str().to_string());
@@ -342,7 +357,7 @@ fn wait_for_service(
         latest = manager.execute(ServiceManagerCommand::Status {
             service_name: service_name.clone(),
         })?;
-        if latest.state == ServiceState::Running {
+        if latest.state == expected_state {
             return Ok(latest);
         }
         std::thread::sleep(std::time::Duration::from_millis(250));
@@ -375,6 +390,21 @@ fn run_as_administrator(command: &str) -> Result<(), ServiceError> {
 
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\\''"))
+}
+
+fn elevated_stop_command(service_name: &str) -> String {
+    format!("/bin/launchctl stop {}", shell_quote(service_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn elevated_stop_uses_the_bare_launchd_label() {
+        let command = elevated_stop_command("com.ctemple.msc2.agent");
+        assert_eq!(command, "/bin/launchctl stop 'com.ctemple.msc2.agent'");
+    }
 }
 
 fn validate_request(request: &ServiceInstallRequest) -> Result<(), ServiceError> {

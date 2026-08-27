@@ -24,6 +24,7 @@
     "test:screen-worlds-backups": "vitest run tests/screens/worlds-backups.test.ts",
     "test:screen-addons": "vitest run tests/screens/addons.test.ts",
     "test:screen-administration": "vitest run tests/screens/administration.test.ts",
+    "test:screen-files": "vitest run tests/screens/files.test.ts",
     "test:screen-help": "vitest run tests/screens/help.test.ts",
     "test:tauri-boundary": "vitest run tests/tauri",
     "test:agent-install": "vitest run tests/agent-install",

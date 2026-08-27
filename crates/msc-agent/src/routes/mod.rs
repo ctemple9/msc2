@@ -8,6 +8,7 @@ pub mod capabilities;
 pub mod commands;
 pub mod components;
 pub mod desktop_session;
+pub mod files;
 pub mod geyser;
 pub mod health;
 pub mod help;

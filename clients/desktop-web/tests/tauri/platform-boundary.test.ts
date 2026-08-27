@@ -26,6 +26,7 @@ function nativeDependencies(): TauriPlatformDependencies {
     showMenu: vi.fn(async () => undefined),
     closeWindow: vi.fn(async () => undefined),
     openExternal: vi.fn(async () => undefined),
+    revealInFileManager: vi.fn(async () => undefined),
     onCloseRequested: vi.fn(async () => () => undefined),
     agentHealthCheck: vi.fn(async () => true),
     agentServiceStatus: vi.fn(async () => ({
@@ -58,9 +59,10 @@ describe('Tauri boundary', () => {
     await browser.showMenu([], notifyFallback);
     await browser.closeWindow(notifyFallback);
     await browser.requestAgentAction('install', notifyFallback);
+    await browser.revealInFileManager('/srv/example', notifyFallback);
 
     expect(fallback).toHaveBeenCalledOnce();
-    expect(notifyFallback).toHaveBeenCalledTimes(4);
+    expect(notifyFallback).toHaveBeenCalledTimes(5);
     expect(await browser.credentialFor('remote-host')).toBeNull();
     expect((await browser.agentServiceStatus()).state).toBe('unavailable');
     expect((await browser.manageAgentService('install')).available).toBe(false);
@@ -86,6 +88,7 @@ describe('Tauri boundary', () => {
     );
     await desktop.closeWindow(workflowFallback);
     await desktop.openExternal('https://example.test');
+    await desktop.revealInFileManager('/srv/example', workflowFallback);
 
     expect(dependencies.pickFile).toHaveBeenCalledWith({
       label: 'World archive',
@@ -97,6 +100,7 @@ describe('Tauri boundary', () => {
     expect(dependencies.showMenu).toHaveBeenCalledOnce();
     expect(dependencies.closeWindow).toHaveBeenCalledOnce();
     expect(dependencies.openExternal).toHaveBeenCalledWith('https://example.test');
+    expect(dependencies.revealInFileManager).toHaveBeenCalledWith('/srv/example');
     expect(fileFallback).not.toHaveBeenCalled();
     expect(workflowFallback).not.toHaveBeenCalled();
     expect(await desktop.credentialFor('remote-host')).toBeNull();

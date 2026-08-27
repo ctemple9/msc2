@@ -52,6 +52,11 @@ export interface PlatformAdapter {
   showMenu(entries: readonly MenuEntry[], browserFallback: () => Promise<void>): Promise<void>;
   closeWindow(browserFallback: () => Promise<void>): Promise<void>;
   openExternal(url: string): Promise<void>;
+  /** Reveals `path` (an absolute local filesystem path) in the OS file
+   *  manager. Only meaningful for a locally-connected agent -- callers must
+   *  not invoke this for a remote host's path, since nothing local exists
+   *  there to reveal. */
+  revealInFileManager(path: string, browserFallback: () => Promise<void>): Promise<void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   credentialFor(hostId: string): Promise<string | null>;
   requestAgentAction(action: AgentAction, browserFallback: () => Promise<void>): Promise<void>;
@@ -68,6 +73,7 @@ export interface TauriPlatformDependencies {
   showMenu(entries: readonly MenuEntry[]): Promise<void>;
   closeWindow(): Promise<void>;
   openExternal(url: string): Promise<void>;
+  revealInFileManager(path: string): Promise<void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;

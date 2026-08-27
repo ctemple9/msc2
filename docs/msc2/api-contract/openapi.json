@@ -3894,6 +3894,86 @@
         "x-notes": "Always 200. note conveys two distinct honest-failure states, both non-fatal: an unsupported add-on kind for this server (supportsAddons=false), and a reachable-server-but-unreachable-Modrinth provider failure (supportsAddons stays true, results is empty, code provider_unavailable is not surfaced here since this route never errors -- only note explains it). A client branches on supportsAddons/results.length, never on note's text."
       }
     },
+    "/v1/catalog/projects/{projectId}": {
+      "get": {
+        "summary": "Fetch full Modrinth project detail for the catalog browser",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "full project detail",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogProjectDetailDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "provider_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "provider_unavailable"
+          }
+        },
+        "x-permission-category": "none",
+        "x-notes": "Passes Modrinth's full body and gallery through as untrusted third-party content; the client owns safe Markdown/HTML rendering."
+      }
+    },
+    "/v1/catalog/projects/{projectId}/versions": {
+      "get": {
+        "summary": "Fetch every Modrinth version for a catalog project",
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "all project versions; compatibility filtering is client-side",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogVersionsResponseDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "provider_unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "provider_unavailable"
+          }
+        },
+        "x-permission-category": "none",
+        "x-notes": "The agent calls Modrinth without loaders or game_versions query filters, matching ModrinthProjectDetailView.load; the client decides compatibility against the active server."
+      }
+    },
     "/v1/java-runtimes": {
       "get": {
         "summary": "Java runtimes detected on this host",
@@ -6368,6 +6448,10 @@
           "stagedUploadId": {
             "type": "string",
             "description": "Install from a staged local JAR (purpose addon-local-file) instead of the catalog. Exactly one of {projectId+slug+title} or stagedUploadId must be given -- not both, not neither."
+          },
+          "versionId": {
+            "type": "string",
+            "description": "Install this exact Modrinth version instead of resolving the latest compatible one server-side. When present, projectId/slug/title are still used for the install-result message and staging metadata; the version is fetched directly by id (GET /v2/version/{id}) rather than searched for."
           }
         },
         "required": []
@@ -8662,6 +8746,214 @@
         },
         "required": [
           "supportsAddons"
+        ]
+      },
+      "CatalogGalleryImageDTO": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "featured": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "url",
+          "featured"
+        ]
+      },
+      "CatalogProjectDetailDTO": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string",
+            "description": "Full Markdown/HTML project body (Modrinth's 'body' field). Client is responsible for safely rendering it -- this is untrusted third-party content."
+          },
+          "iconURL": {
+            "type": "string",
+            "nullable": true
+          },
+          "downloads": {
+            "type": "integer"
+          },
+          "followers": {
+            "type": "integer"
+          },
+          "serverSide": {
+            "type": "string",
+            "description": "One of required/optional/unsupported, Modrinth's own vocabulary -- unchanged, not remapped to a boolean."
+          },
+          "gallery": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogGalleryImageDTO"
+            }
+          },
+          "sourceURL": {
+            "type": "string",
+            "nullable": true
+          },
+          "issuesURL": {
+            "type": "string",
+            "nullable": true
+          },
+          "wikiURL": {
+            "type": "string",
+            "nullable": true
+          },
+          "discordURL": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "projectId",
+          "slug",
+          "title",
+          "description",
+          "body",
+          "downloads",
+          "followers",
+          "serverSide",
+          "gallery"
+        ]
+      },
+      "CatalogVersionDependencyDTO": {
+        "type": "object",
+        "properties": {
+          "projectId": {
+            "type": "string",
+            "nullable": true
+          },
+          "versionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "dependencyType": {
+            "type": "string",
+            "description": "required/optional/incompatible/embedded"
+          }
+        },
+        "required": [
+          "dependencyType"
+        ]
+      },
+      "CatalogVersionFileDTO": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "primary": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "integer",
+            "nullable": true
+          }
+        },
+        "required": [
+          "url",
+          "filename",
+          "primary"
+        ]
+      },
+      "CatalogVersionDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "versionNumber": {
+            "type": "string"
+          },
+          "versionType": {
+            "type": "string",
+            "description": "release/beta/alpha"
+          },
+          "gameVersions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "loaders": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "datePublished": {
+            "type": "string",
+            "nullable": true
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogVersionDependencyDTO"
+            }
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogVersionFileDTO"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "projectId",
+          "name",
+          "versionNumber",
+          "versionType",
+          "gameVersions",
+          "loaders",
+          "dependencies",
+          "files"
+        ]
+      },
+      "CatalogVersionsResponseDTO": {
+        "type": "object",
+        "properties": {
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogVersionDTO"
+            }
+          }
+        },
+        "required": [
+          "versions"
         ]
       },
       "JavaRuntimeDTO": {

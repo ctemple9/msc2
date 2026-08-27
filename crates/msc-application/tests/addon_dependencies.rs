@@ -123,7 +123,12 @@ fn root_version(dependencies: Vec<ModrinthDependency>) -> ModrinthVersionInfo {
     ModrinthVersionInfo {
         id: "root-version".to_string(),
         project_id: "root-project".to_string(),
+        name: String::new(),
         version_number: "1.0.0".to_string(),
+        version_type: String::new(),
+        game_versions: Vec::new(),
+        loaders: Vec::new(),
+        date_published: None,
         files: Vec::new(),
         dependencies,
     }

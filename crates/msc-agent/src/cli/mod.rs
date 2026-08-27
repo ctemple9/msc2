@@ -2481,6 +2481,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         slug,
                         title,
                         staged_upload_id: None,
+                        version_id: None,
                     },
                 )
                 .await?;
@@ -2519,6 +2520,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         slug: None,
                         title: None,
                         staged_upload_id: Some(staged_upload_id),
+                        version_id: None,
                     },
                 )
                 .await?;

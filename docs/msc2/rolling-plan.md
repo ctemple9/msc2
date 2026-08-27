@@ -1201,8 +1201,8 @@ Added three inline unit tests in `crates/msc-api/src/dto/addons.rs` (`#[cfg(test
 **Batch:** solo
 
 ### P12.7c — Contract + backend: Modrinth project detail and version list
-**Status:** not started
-**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`, `crates/msc-domain/src/addon_provider.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-application/src/addons.rs` (or wherever `install_from_catalog` actually lives — confirm before editing), `crates/msc-api/src/dto/addons.rs`
+**Status:** awaiting verification
+**Files:** `docs/msc2/api-contract/openapi.json`, `tools/api-contract-check.py`, `crates/msc-domain/src/addon_provider.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-application/src/addons.rs` (or wherever `install_from_catalog` actually lives — confirm before editing), `crates/msc-api/src/dto/addons.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-application/tests/addon_dependencies.rs` (approved compile-callsite updates)
 **What:** Cameron reviewed MSC 1's plugin browser (`ModrinthProjectDetailView.swift`, screenshotted directly) against MSC 2's and asked for parity: tapping a search result opens a detail page with a gallery, the project's full "About" text, and a per-version list scoped to compatibility with the active server, with a specific version installable (not just "latest"). P12.7/P12.7a/P12.7b already documented this as a real, undone gap — no route exists for a single project's detail or version list. This step closes that gap on the backend + contract side only; the client (P12.7d) is a separate step so Codex and Claude Code can work it without colliding.
 
 Port two more `ModrinthAPI` functions (`ModrinthAPI.swift`) plus the version-picking half of `installVersion`/`installModrinthVersion` (`ModrinthBrowserView.swift` lines 296-311, 768-784):
@@ -1291,7 +1291,7 @@ Port two more `ModrinthAPI` functions (`ModrinthAPI.swift`) plus the version-pic
    This is additive and optional — every existing caller (the plain "Add" button, which never sets it) keeps today's latest-resolution behavior unchanged. Add `modrinth_decode_version(body: &str) -> Result<ModrinthVersionInfo, AddonProviderError>` to `addon_provider.rs` (same shape as `modrinth_decode_project`, decoding a lone `ModrinthVersionInfo` rather than an array), wire `install_component`'s handler to call Modrinth's `GET /v2/version/{id}` and use that decoded version directly when `version_id` is present, and extend whichever `msc-application` function actually resolves-then-installs (confirm the real name/location first; `components.rs` calls it as `addons::install_from_catalog`) to accept an already-resolved version and skip its own latest-lookup in that case.
 
 Bump `EXPECTED_TOTAL` in `tools/api-contract-check.py` by 2 (the two new GET routes; the `CatalogInstallRequestDTO` field is additive to an existing route, not a new one) and append one clause to its running-total comment, matching every prior entry there.
-**Verify:** `python3 tools/api-contract-check.py`; `cargo nextest run -p msc-domain --lib -- addon_provider`; `cargo test -p msc-api --lib dto::addons::tests::` (existing 3 plus the new acronym-casing tests for this step's 5 new `*URL` fields); `cargo nextest run -p msc-agent --test phase8_routes`; `cargo clippy -p msc-domain -p msc-agent -p msc-application -p msc-api --tests` clean; `cargo fmt --check` clean.
+**Verify:** `python3 tools/api-contract-check.py`; `cargo nextest run -p msc-domain --test addon_providers`; `cargo test -p msc-api --lib dto::addons::tests::` (existing 3 plus the new acronym-casing tests for this step's 5 new `*URL` fields); `cargo nextest run -p msc-agent --test phase8_routes`; `cargo clippy -p msc-domain -p msc-agent -p msc-application -p msc-api --tests` clean; `cargo fmt --check` clean.
 **Commit:** `P12.7c: add Modrinth project-detail and version-list routes`
 **Batch:** solo
 

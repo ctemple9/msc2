@@ -260,7 +260,17 @@ pub fn modrinth_legacy_fetch_latest(
 pub struct ModrinthVersionInfo {
     pub id: String,
     pub project_id: String,
+    #[serde(default)]
+    pub name: String,
     pub version_number: String,
+    #[serde(default)]
+    pub version_type: String,
+    #[serde(default)]
+    pub game_versions: Vec<String>,
+    #[serde(default)]
+    pub loaders: Vec<String>,
+    #[serde(default)]
+    pub date_published: Option<String>,
     #[serde(default)]
     pub files: Vec<ModrinthVersionFile>,
     /// P8.15 amendment: `ModrinthVersionInfo.dependencies`, read by
@@ -271,6 +281,12 @@ pub struct ModrinthVersionInfo {
     /// decode sites are unaffected by a response that omits it.
     #[serde(default)]
     pub dependencies: Vec<ModrinthDependency>,
+}
+
+impl ModrinthVersionInfo {
+    pub fn is_stable(&self) -> bool {
+        self.version_type == "release"
+    }
 }
 
 /// P8.15 amendment: `ModrinthAPI.project(idOrSlug:)`'s response shape --
@@ -287,10 +303,52 @@ pub fn modrinth_decode_project(body: &str) -> Result<ModrinthProjectSummary, Add
     serde_json::from_str(body).map_err(|e| malformed("Modrinth project", e))
 }
 
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModrinthGalleryImage {
+    pub url: String,
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    pub featured: bool,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ModrinthProject {
+    pub id: String,
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub body: String,
+    #[serde(default)]
+    pub icon_url: Option<String>,
+    pub downloads: i64,
+    pub followers: i64,
+    pub server_side: String,
+    #[serde(default)]
+    pub gallery: Vec<ModrinthGalleryImage>,
+    #[serde(default)]
+    pub source_url: Option<String>,
+    #[serde(default)]
+    pub issues_url: Option<String>,
+    #[serde(default)]
+    pub wiki_url: Option<String>,
+    #[serde(default)]
+    pub discord_url: Option<String>,
+}
+
+pub fn modrinth_decode_project_detail(body: &str) -> Result<ModrinthProject, AddonProviderError> {
+    serde_json::from_str(body).map_err(|e| malformed("Modrinth project detail", e))
+}
+
 pub fn modrinth_decode_project_versions(
     body: &str,
 ) -> Result<Vec<ModrinthVersionInfo>, AddonProviderError> {
     serde_json::from_str(body).map_err(|e| malformed("Modrinth project versions", e))
+}
+
+pub fn modrinth_decode_version(body: &str) -> Result<ModrinthVersionInfo, AddonProviderError> {
+    serde_json::from_str(body).map_err(|e| malformed("Modrinth version", e))
 }
 
 /// `ModrinthAPI.versionFromHash(_:)` (line 375-390): the exact-identity

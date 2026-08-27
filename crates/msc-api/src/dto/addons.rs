@@ -148,6 +148,87 @@ pub struct CatalogSearchResponseDto {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CatalogGalleryImageDto {
+    pub url: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    pub featured: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogProjectDetailDto {
+    pub project_id: String,
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    pub body: String,
+    #[serde(rename = "iconURL", default, skip_serializing_if = "Option::is_none")]
+    pub icon_url: Option<String>,
+    pub downloads: i64,
+    pub followers: i64,
+    pub server_side: String,
+    pub gallery: Vec<CatalogGalleryImageDto>,
+    #[serde(rename = "sourceURL", default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
+    #[serde(rename = "issuesURL", default, skip_serializing_if = "Option::is_none")]
+    pub issues_url: Option<String>,
+    #[serde(rename = "wikiURL", default, skip_serializing_if = "Option::is_none")]
+    pub wiki_url: Option<String>,
+    #[serde(
+        rename = "discordURL",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub discord_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogVersionDependencyDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub project_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
+    pub dependency_type: String,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogVersionFileDto {
+    pub url: String,
+    pub filename: String,
+    pub primary: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogVersionDto {
+    pub id: String,
+    pub project_id: String,
+    pub name: String,
+    pub version_number: String,
+    pub version_type: String,
+    pub game_versions: Vec<String>,
+    pub loaders: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub date_published: Option<String>,
+    pub dependencies: Vec<CatalogVersionDependencyDto>,
+    pub files: Vec<CatalogVersionFileDto>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CatalogVersionsResponseDto {
+    pub versions: Vec<CatalogVersionDto>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CatalogInstallRequestDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_id: Option<String>,
@@ -157,6 +238,8 @@ pub struct CatalogInstallRequestDto {
     pub title: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub staged_upload_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub version_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -327,5 +410,28 @@ mod tests {
         assert_eq!(value["projectURL"], "https://example.test/project");
         assert!(value.get("iconUrl").is_none());
         assert!(value.get("projectUrl").is_none());
+    }
+
+    #[test]
+    fn catalog_project_detail_urls_serialize_with_acronyms() {
+        let dto = CatalogProjectDetailDto {
+            icon_url: Some("https://example.test/icon.png".to_string()),
+            source_url: Some("https://example.test/source".to_string()),
+            issues_url: Some("https://example.test/issues".to_string()),
+            wiki_url: Some("https://example.test/wiki".to_string()),
+            discord_url: Some("https://example.test/discord".to_string()),
+            ..Default::default()
+        };
+        let value = serde_json::to_value(&dto).unwrap();
+        assert_eq!(value["iconURL"], "https://example.test/icon.png");
+        assert_eq!(value["sourceURL"], "https://example.test/source");
+        assert_eq!(value["issuesURL"], "https://example.test/issues");
+        assert_eq!(value["wikiURL"], "https://example.test/wiki");
+        assert_eq!(value["discordURL"], "https://example.test/discord");
+        assert!(value.get("iconUrl").is_none());
+        assert!(value.get("sourceUrl").is_none());
+        assert!(value.get("issuesUrl").is_none());
+        assert!(value.get("wikiUrl").is_none());
+        assert!(value.get("discordUrl").is_none());
     }
 }

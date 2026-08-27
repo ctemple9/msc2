@@ -15,13 +15,14 @@ use axum::routing::{get, post, put};
 use axum::{Json, Router};
 use msc_api::dto::{
     AddonItemDto, AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto,
-    AddonsResponseDto, CatalogInstallRequestDto, CatalogInstallResultDto, CatalogItemDto,
-    CatalogSearchResponseDto, ClientExportItemDto, ClientExportResponseDto, ComponentStatusDto,
-    ComponentUpdateRequestDto, ComponentsStatusDto, ModpackImportRequestDto,
-    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
-    ModpackManualFileDto, ModpackManualFileRequestDto, ModpackManualFileResultDto,
-    PermissionCategoryDto, StagedUploadBeginRequestDto, StagedUploadBeginResultDto,
-    StagedUploadCompleteResultDto, StagedUploadPurposeDto,
+    AddonsResponseDto, CatalogGalleryImageDto, CatalogInstallRequestDto, CatalogInstallResultDto,
+    CatalogItemDto, CatalogProjectDetailDto, CatalogSearchResponseDto, CatalogVersionDependencyDto,
+    CatalogVersionDto, CatalogVersionFileDto, CatalogVersionsResponseDto, ClientExportItemDto,
+    ClientExportResponseDto, ComponentStatusDto, ComponentUpdateRequestDto, ComponentsStatusDto,
+    ModpackImportRequestDto, ModpackImportResultDto, ModpackInspectionRequestDto,
+    ModpackInspectionResultDto, ModpackManualFileDto, ModpackManualFileRequestDto,
+    ModpackManualFileResultDto, PermissionCategoryDto, StagedUploadBeginRequestDto,
+    StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
 };
 use msc_application::addon_updates;
 use msc_application::addons::{self, AddonMutationError};
@@ -29,10 +30,11 @@ use msc_application::client_export::{self, ClientSideStatus};
 use msc_application::curseforge_manual::{self, PendingManualFile};
 use msc_application::geyser;
 use msc_application::modpacks;
+use msc_domain::addon_provider::{self, AddonProviderError};
 use msc_domain::addon_update::AddonUpdateBucket;
 use msc_domain::app_config_schema::{AddonLink, AddonLinkProvenance, PluginSourceConfig};
 use msc_domain::identity::{AddOnKind, JavaServerFlavor, ServerType};
-use msc_infrastructure::addon_provider::{self as provider, HttpTransport};
+use msc_infrastructure::addon_provider::{self as provider, AddonTransport, HttpTransport};
 use msc_infrastructure::audit_log::Entry as AuditEntry;
 use msc_infrastructure::download_staging::sha512_hex;
 use msc_infrastructure::fs::StdFileSystem;
@@ -89,6 +91,45 @@ pub(crate) struct ClientExportQuery {
     selected: Option<String>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct ModrinthCatalogVersion {
+    id: String,
+    project_id: String,
+    name: String,
+    version_number: String,
+    version_type: String,
+    #[serde(default)]
+    game_versions: Vec<String>,
+    #[serde(default)]
+    loaders: Vec<String>,
+    #[serde(default)]
+    date_published: Option<String>,
+    #[serde(default)]
+    dependencies: Vec<ModrinthCatalogDependency>,
+    #[serde(default)]
+    files: Vec<ModrinthCatalogFile>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct ModrinthCatalogDependency {
+    #[serde(default)]
+    project_id: Option<String>,
+    #[serde(default)]
+    version_id: Option<String>,
+    dependency_type: String,
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ModrinthCatalogFile {
+    url: String,
+    filename: String,
+    primary: bool,
+    #[serde(default)]
+    size: Option<i64>,
+}
+
 pub fn router(state: ComponentsRoutesState) -> Router {
     Router::new()
         .route("/staged-uploads", post(begin_staged_upload))
@@ -100,6 +141,11 @@ pub fn router(state: ComponentsRoutesState) -> Router {
         .route("/staged-downloads/:id", get(download_staged_bytes))
         .route("/addons", get(get_addons))
         .route("/catalog/search", get(search_catalog))
+        .route("/catalog/projects/:project_id", get(get_catalog_project))
+        .route(
+            "/catalog/projects/:project_id/versions",
+            get(get_catalog_project_versions),
+        )
         .route("/components", get(get_components))
         .route("/components/client-export", get(get_client_export))
         .route("/components/install", post(install_component))
@@ -165,6 +211,45 @@ fn parse_selected_ids(query: &ClientExportQuery) -> Option<Vec<String>> {
             .map(str::to_string)
             .collect()
     })
+}
+
+fn modrinth_path_segment(value: &str) -> String {
+    let mut encoded = String::with_capacity(value.len());
+    for byte in value.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.' | b'~') {
+            encoded.push(byte as char);
+        } else {
+            encoded.push_str(&format!("%{byte:02X}"));
+        }
+    }
+    encoded
+}
+
+fn modrinth_get(path: &str, what: &str) -> Result<String, AddonProviderError> {
+    let base = std::env::var("MSC2_PROVIDER_MODRINTH_BASE")
+        .ok()
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| "https://api.modrinth.com".to_string());
+    let transport = HttpTransport::new();
+    let response = transport
+        .get(
+            &format!("{}/v2/{path}", base.trim_end_matches('/')),
+            what,
+            &[],
+            provider::RESPONSE_MAX_BYTES,
+        )
+        .map_err(|error| AddonProviderError::Network(error.to_string()))?;
+    addon_provider::ensure_modrinth_ok(response.status)?;
+    String::from_utf8(response.body)
+        .map_err(|_| AddonProviderError::Network(format!("{what}: response was not valid UTF-8.")))
+}
+
+fn provider_error(error: AddonProviderError) -> Response {
+    error_response(
+        StatusCode::BAD_GATEWAY,
+        "provider_unavailable",
+        &error.to_string(),
+    )
 }
 
 fn is_paper_like(flavor: JavaServerFlavor) -> bool {
@@ -692,6 +777,107 @@ pub async fn search_catalog(
     .into_response()
 }
 
+pub async fn get_catalog_project(
+    State(_state): State<ComponentsRoutesState>,
+    Extension(_credential): Extension<AuthenticatedCredential>,
+    AxumPath(project_id): AxumPath<String>,
+) -> Response {
+    let body = match modrinth_get(
+        &format!("project/{}", modrinth_path_segment(&project_id)),
+        "Modrinth project",
+    ) {
+        Ok(body) => body,
+        Err(error) => return provider_error(error),
+    };
+    let project = match addon_provider::modrinth_decode_project_detail(&body) {
+        Ok(project) => project,
+        Err(error) => return provider_error(error),
+    };
+    Json(CatalogProjectDetailDto {
+        project_id: project.id,
+        slug: project.slug,
+        title: project.title,
+        description: project.description,
+        body: project.body,
+        icon_url: project.icon_url,
+        downloads: project.downloads,
+        followers: project.followers,
+        server_side: project.server_side,
+        gallery: project
+            .gallery
+            .into_iter()
+            .map(|image| CatalogGalleryImageDto {
+                url: image.url,
+                title: image.title,
+                description: image.description,
+                featured: image.featured,
+            })
+            .collect(),
+        source_url: project.source_url,
+        issues_url: project.issues_url,
+        wiki_url: project.wiki_url,
+        discord_url: project.discord_url,
+    })
+    .into_response()
+}
+
+pub async fn get_catalog_project_versions(
+    State(_state): State<ComponentsRoutesState>,
+    Extension(_credential): Extension<AuthenticatedCredential>,
+    AxumPath(project_id): AxumPath<String>,
+) -> Response {
+    let body = match modrinth_get(
+        &format!("project/{}/version", modrinth_path_segment(&project_id)),
+        "Modrinth project versions",
+    ) {
+        Ok(body) => body,
+        Err(error) => return provider_error(error),
+    };
+    let versions: Vec<ModrinthCatalogVersion> = match serde_json::from_str(&body) {
+        Ok(versions) => versions,
+        Err(error) => {
+            return provider_error(AddonProviderError::Network(format!(
+                "Malformed Modrinth project versions response: {error}"
+            )));
+        }
+    };
+    Json(CatalogVersionsResponseDto {
+        versions: versions
+            .into_iter()
+            .map(|version| CatalogVersionDto {
+                id: version.id,
+                project_id: version.project_id,
+                name: version.name,
+                version_number: version.version_number,
+                version_type: version.version_type,
+                game_versions: version.game_versions,
+                loaders: version.loaders,
+                date_published: version.date_published,
+                dependencies: version
+                    .dependencies
+                    .into_iter()
+                    .map(|dependency| CatalogVersionDependencyDto {
+                        project_id: dependency.project_id,
+                        version_id: dependency.version_id,
+                        dependency_type: dependency.dependency_type,
+                    })
+                    .collect(),
+                files: version
+                    .files
+                    .into_iter()
+                    .map(|file| CatalogVersionFileDto {
+                        url: file.url,
+                        filename: file.filename,
+                        primary: file.primary,
+                        size: file.size,
+                    })
+                    .collect(),
+            })
+            .collect(),
+    })
+    .into_response()
+}
+
 pub async fn get_client_export(
     State(state): State<ComponentsRoutesState>,
     Extension(_credential): Extension<AuthenticatedCredential>,
@@ -912,12 +1098,26 @@ pub async fn install_component(
             Err(response) => return response,
         };
         let transport = HttpTransport::new();
-        let versions = match provider::modrinth_project_versions(
-            &transport,
-            project_id,
-            &loaders_for(server.java_flavor),
-            server.minecraft_version.as_deref(),
-        ) {
+        let versions = if let Some(version_id) = body
+            .version_id
+            .as_deref()
+            .filter(|value| !value.trim().is_empty())
+        {
+            modrinth_get(
+                &format!("version/{}", modrinth_path_segment(version_id)),
+                "Modrinth version",
+            )
+            .and_then(|body| addon_provider::modrinth_decode_version(&body))
+            .map(|version| vec![version])
+        } else {
+            provider::modrinth_project_versions(
+                &transport,
+                project_id,
+                &loaders_for(server.java_flavor),
+                server.minecraft_version.as_deref(),
+            )
+        };
+        let versions = match versions {
             Ok(versions) => versions,
             Err(error) => {
                 let _ = state.lifecycle.finish_operation_failure(

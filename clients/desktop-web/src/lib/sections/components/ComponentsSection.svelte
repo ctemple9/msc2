@@ -453,7 +453,10 @@
                     onclick={(event) => openAddonMenu(event, addon)}
                   >
                     <div class="info">
-                      <span class="name">{addon.displayName}</span>
+                      <span class="title-row">
+                        <span class="name">{addon.displayName}</span>
+                        <span class="row-affordance"><Icon name="chevron" size={10} /></span>
+                      </span>
                       <span class="subtitle">
                         {addon.currentVersion ?? 'Unknown version'}
                         {#if addon.bucket === 'updateAvailable' && addon.availableVersion}
@@ -696,6 +699,10 @@
     border-radius: var(--msc2-radius-2);
     background: rgba(59, 130, 246, 0.06);
     box-shadow: inset 0 0 0 1.5px var(--msc2-selection);
+  }
+  .row-affordance {
+    display: inline-flex;
+    color: var(--msc2-text-tertiary);
   }
   .addon-row-link {
     display: flex;

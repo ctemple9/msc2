@@ -1,16 +1,137 @@
 <script lang="ts">
-  // The docked console frame — shape only. Filter chips, buffered log, and
-  // command input become real in P12.10; this step wires collapse/expand and
-  // manual resize (MSC 1 ContentView.swift's consoleDivider drag).
-  // docs/msc2/renderings/shell.html, MSC 1 ConsoleView.
+  // The docked console — real behavior (P12.10): filter chips, search, a polled
+  // buffered tail, command input + Send, copy/clear. docs/msc2/renderings/shell.html,
+  // MSC 1 ConsoleView/ConsoleManager, ~/Documents/MSCSS/Main View.
+  import { onDestroy, onMount } from 'svelte';
+  import Button from '../base/Button.svelte';
+  import Toggle from '../base/Toggle.svelte';
+  import type { ScreenApi } from '../../sections/shared/types';
+  import {
+    CONSOLE_CHIPS,
+    type ConsoleChipId,
+    type ConsoleLine,
+    type ConsoleOrigin,
+    type ConsoleLevel,
+    type CustomFilter,
+    EMPTY_CUSTOM_FILTER,
+    commandEchoLine,
+    consoleLineTone,
+    livePaths,
+    rememberCommand,
+    visibleConsoleLines,
+  } from '../../sections/console/model';
+
   export let collapsed = false;
   export let onToggle: () => void;
   // Explicit pixel height while expanded — undefined lets the collapsed
   // header-only row size itself naturally.
   export let height: number | undefined = undefined;
+  export let api: ScreenApi | undefined = undefined;
 
-  const filters = ['All', 'Server', 'Plugins', 'Warnings', 'Controller', 'Commands', 'Custom'];
-  let activeFilter = 'All';
+  const POLL_INTERVAL_MS = 2000;
+
+  let lines: ConsoleLine[] = [];
+  let chip: ConsoleChipId = 'all';
+  let custom: CustomFilter = EMPTY_CUSTOM_FILTER;
+  let showCustomPanel = false;
+  let search = '';
+  let command = '';
+  let history: string[] = [];
+  let sendError = '';
+  let logEl: HTMLDivElement | undefined;
+  let followTail = true;
+  let pollTimer: ReturnType<typeof setInterval> | undefined;
+
+  $: visible = visibleConsoleLines(lines, chip, custom, search);
+
+  $: if (logEl && visible.length && followTail) {
+    const target = logEl;
+    requestAnimationFrame(() => {
+      target.scrollTop = target.scrollHeight;
+    });
+  }
+
+  async function poll(): Promise<void> {
+    if (!api) return;
+    try {
+      lines = await api.get<ConsoleLine[]>(livePaths.tail);
+    } catch {
+      // Agent unreachable this cycle — keep showing the last known buffer.
+    }
+  }
+
+  onMount(() => {
+    void poll();
+    pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
+  });
+
+  onDestroy(() => {
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  function onLogScroll(): void {
+    if (!logEl) return;
+    followTail = logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight < 24;
+  }
+
+  function selectChip(id: ConsoleChipId): void {
+    if (id === 'custom') {
+      showCustomPanel = !showCustomPanel;
+      return;
+    }
+    chip = id;
+    showCustomPanel = false;
+  }
+
+  function setOrigin(origin: ConsoleOrigin, enabled: boolean): void {
+    const next = new Set(custom.origins);
+    if (enabled) next.add(origin);
+    else next.delete(origin);
+    custom = { ...custom, origins: next };
+    chip = 'custom';
+  }
+
+  function setLevel(level: ConsoleLevel, enabled: boolean): void {
+    const next = new Set(custom.levels);
+    if (enabled) next.add(level);
+    else next.delete(level);
+    custom = { ...custom, levels: next };
+    chip = 'custom';
+  }
+
+  function resetCustom(): void {
+    custom = EMPTY_CUSTOM_FILTER;
+    chip = 'all';
+    showCustomPanel = false;
+  }
+
+  async function send(value = command): Promise<void> {
+    const trimmed = value.trim();
+    if (!trimmed || !api) return;
+    history = rememberCommand(history, trimmed);
+    lines = [...lines, commandEchoLine(trimmed)];
+    command = '';
+    sendError = '';
+    followTail = true;
+    try {
+      await api.post(livePaths.command, { command: trimmed });
+      void poll();
+    } catch (error) {
+      sendError = error instanceof Error ? error.message : 'The agent did not run that command.';
+    }
+  }
+
+  async function copyVisible(): Promise<void> {
+    try {
+      await navigator.clipboard?.writeText(visible.map((line) => line.text).join('\n'));
+    } catch {
+      // Clipboard access can be unavailable outside a secure context.
+    }
+  }
+
+  function clearConsole(): void {
+    lines = [];
+  }
 </script>
 
 <div
@@ -36,28 +157,196 @@
       </svg>
     </button>
     <span class="label">Console</span>
+
     {#if !collapsed}
-      <div class="filters">
-        {#each filters as filter (filter)}
-          <button
-            type="button"
-            class="chip"
-            class:active={filter === activeFilter}
-            onclick={() => (activeFilter = filter)}>{filter}</button
-          >
-        {/each}
+      <div class="search-field">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+          <path
+            d="M20 20l-4.3-4.3"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          />
+        </svg>
+        <input type="text" bind:value={search} placeholder="Search…" aria-label="Search console" />
       </div>
     {/if}
   </div>
 
   {#if !collapsed}
-    <div class="body">
-      <p class="line">Connect to a running server to see console output here.</p>
+    <div class="filters">
+      {#each CONSOLE_CHIPS as item (item.id)}
+        {#if item.id === 'custom'}
+          <button
+            type="button"
+            class="chip custom"
+            class:active={chip === 'custom'}
+            aria-expanded={showCustomPanel}
+            onclick={() => selectChip(item.id)}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M4 7h16M4 12h10M4 17h6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+            {item.label}
+          </button>
+        {:else}
+          <button
+            type="button"
+            class="chip"
+            class:active={chip === item.id}
+            onclick={() => selectChip(item.id)}
+          >
+            {item.label}
+          </button>
+        {/if}
+      {/each}
     </div>
+
+    {#if showCustomPanel}
+      <div class="scrim" role="presentation" onclick={() => (showCustomPanel = false)}></div>
+      <div class="custom-panel" role="dialog" aria-label="Custom console filter">
+        <div class="custom-panel-header">
+          <span>Custom filter</span>
+          <button type="button" class="reset" onclick={resetCustom}>Reset</button>
+        </div>
+        <p class="group-label">Sources</p>
+        <div class="check-row">
+          <Toggle
+            checked={custom.origins.has('server')}
+            label="Server process"
+            onchange={(checked) => setOrigin('server', checked)}
+          />
+          <span>Server process</span>
+        </div>
+        <div class="check-row">
+          <Toggle
+            checked={custom.origins.has('controller')}
+            label="Controller"
+            onchange={(checked) => setOrigin('controller', checked)}
+          />
+          <span>Controller</span>
+        </div>
+        <p class="group-label">Levels</p>
+        <div class="check-row">
+          <Toggle
+            checked={custom.levels.has('info')}
+            label="Info"
+            onchange={(checked) => setLevel('info', checked)}
+          />
+          <span>Info</span>
+        </div>
+        <div class="check-row">
+          <Toggle
+            checked={custom.levels.has('warn')}
+            label="Warn"
+            onchange={(checked) => setLevel('warn', checked)}
+          />
+          <span>Warn</span>
+        </div>
+        <div class="check-row">
+          <Toggle
+            checked={custom.levels.has('error')}
+            label="Error"
+            onchange={(checked) => setLevel('error', checked)}
+          />
+          <span>Error</span>
+        </div>
+      </div>
+    {/if}
+
+    <div
+      class="body"
+      bind:this={logEl}
+      onscroll={onLogScroll}
+      aria-live="polite"
+      aria-label="Server console"
+    >
+      {#if visible.length}
+        {#each visible as line, index (line.ts + '-' + index)}
+          <p
+            class="line"
+            class:alt={index % 2 === 1}
+            class:tone-error={consoleLineTone(line) === 'error'}
+            class:tone-warn={consoleLineTone(line) === 'warn'}
+            class:tone-muted={consoleLineTone(line) === 'muted'}
+          >
+            {line.text}
+          </p>
+        {/each}
+      {:else}
+        <p class="empty">
+          {lines.length
+            ? 'No console lines match this filter.'
+            : 'Connect to a running server to see console output here.'}
+        </p>
+      {/if}
+    </div>
+
     <div class="input-row">
-      <input type="text" class="command" placeholder="Enter command…" disabled />
-      <button type="button" class="send" disabled>Send</button>
+      <span class="prompt" aria-hidden="true">›</span>
+      <input
+        type="text"
+        class="command"
+        bind:value={command}
+        onkeydown={(event) => event.key === 'Enter' && send()}
+        placeholder="Enter command…"
+        disabled={!api}
+        aria-label="Console command"
+      />
+      <button
+        type="button"
+        class="icon-action"
+        title="Copy visible lines"
+        aria-label="Copy visible lines"
+        onclick={copyVisible}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <rect
+            x="9"
+            y="9"
+            width="11"
+            height="11"
+            rx="1.5"
+            stroke="currentColor"
+            stroke-width="1.6"
+          />
+          <path
+            d="M6 15H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v1"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="icon-action"
+        title="Clear console"
+        aria-label="Clear console"
+        onclick={clearConsole}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M7 7l1 12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1l1-12M10 11v6M14 11v6"
+            stroke="currentColor"
+            stroke-width="1.6"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+      </button>
+      <Button variant="primary" size="sm" label="Send" disabled={!api} onclick={() => send()}
+        >Send</Button
+      >
     </div>
+    {#if sendError}<p class="send-error" role="status">{sendError}</p>{/if}
   {/if}
 </div>
 
@@ -68,6 +357,7 @@
     border-top: 1px solid var(--msc2-hairline-subtle);
     padding: 8px 12px;
     box-sizing: border-box;
+    position: relative;
   }
   .dock.expanded {
     display: flex;
@@ -99,25 +389,110 @@
     letter-spacing: 0.8px;
     text-transform: uppercase;
     color: var(--msc2-text-tertiary);
+    flex-shrink: 0;
+  }
+  .search-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 200px;
+    color: var(--msc2-text-tertiary);
+    background: var(--msc2-tier-chrome);
+    border: 1px solid var(--msc2-hairline-field);
+    border-radius: 6px;
+    padding: 4px 8px;
+    margin-left: 8px;
+  }
+  .search-field input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 11px;
+    color: var(--msc2-text-primary);
+    background: transparent;
+    border: none;
+  }
+  .search-field input:focus {
+    outline: none;
   }
   .filters {
+    flex-shrink: 0;
     display: flex;
     gap: 2px;
     overflow-x: auto;
+    margin-top: 7px;
   }
   .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     font-size: 10px;
+    font-weight: 500;
     color: var(--msc2-text-secondary);
     background: transparent;
     border: none;
     border-radius: 5px;
-    padding: 2px 8px;
+    padding: 3px 8px;
     cursor: pointer;
     white-space: nowrap;
   }
   .chip.active {
-    color: rgba(255, 255, 255, 0.85);
+    color: rgba(255, 255, 255, 0.9);
     background: var(--msc2-neutral-elevated);
+    font-weight: 600;
+  }
+  .scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+  }
+  .custom-panel {
+    position: absolute;
+    z-index: 101;
+    top: 62px;
+    left: 12px;
+    width: 200px;
+    background: var(--msc2-tier-chrome);
+    border: 1px solid var(--msc2-hairline);
+    border-radius: 10px;
+    box-shadow: var(--msc2-shadow-float);
+    padding: 10px 12px;
+  }
+  .custom-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--msc2-text-primary);
+    margin-bottom: 6px;
+  }
+  .reset {
+    font-size: 11px;
+    color: var(--msc2-text-secondary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+  }
+  .reset:hover {
+    color: var(--msc2-text-primary);
+  }
+  .group-label {
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: var(--msc2-text-tertiary);
+    margin: 8px 0 4px;
+  }
+  .check-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+    padding: 3px 0;
   }
   .body {
     flex: 1;
@@ -129,39 +504,79 @@
     line-height: 1.5;
     overflow-y: auto;
   }
+  .line {
+    margin: 0;
+    padding: 0.5px 2px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .line.alt {
+    background: rgba(255, 255, 255, 0.018);
+  }
+  .line.tone-error {
+    color: var(--msc2-status-error);
+  }
+  .line.tone-warn {
+    color: var(--msc2-status-warn);
+  }
+  .line.tone-muted {
+    color: var(--msc2-text-tertiary);
+  }
+  .empty {
+    margin: 0;
+    color: var(--msc2-text-tertiary);
+  }
   .input-row {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     margin-top: 7px;
+  }
+  .prompt {
+    color: var(--msc2-text-tertiary);
+    font-family: var(--msc2-font-mono);
+    font-size: 12px;
   }
   .command {
     flex: 1;
     box-sizing: border-box;
-    font-family: inherit;
+    font-family: var(--msc2-font-mono);
     font-size: 11px;
-    color: var(--msc2-text-tertiary);
+    color: var(--msc2-text-primary);
     background: var(--msc2-tier-chrome);
     border: 1px solid var(--msc2-hairline-field);
     border-radius: 7px;
     padding: 5px 9px;
   }
+  .command:focus {
+    outline: none;
+    border-color: var(--msc2-hairline-field-focus);
+  }
   .command:disabled {
     cursor: not-allowed;
+    color: var(--msc2-text-tertiary);
   }
-  .send {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--msc2-neutral-fill-ink);
-    background: var(--msc2-neutral-fill);
-    border: none;
+  .icon-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    color: rgba(255, 255, 255, 0.6);
+    background: transparent;
+    border: 1px solid var(--msc2-hairline-field);
     border-radius: 7px;
-    padding: 5px 12px;
     cursor: pointer;
   }
-  .send:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
+  .icon-action:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .send-error {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--msc2-status-error);
   }
 </style>

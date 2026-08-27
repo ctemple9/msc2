@@ -11,9 +11,13 @@
   import ConsoleDock from './shell/ConsoleDock.svelte';
   import ShellIcon from './shell/ShellIcon.svelte';
   import type { PrimaryTab } from '../navigation/primaryTabs';
-  import type { Schema } from '../sections/shared/types';
+  import type { Schema, ScreenApi } from '../sections/shared/types';
 
   export let hostLabel = 'No host selected';
+  // Threaded straight through to ConsoleDock (P12.10) — the docked console is the
+  // one piece of shell chrome that needs to call the agent directly, the same `api`
+  // every section already receives.
+  export let api: ScreenApi | undefined = undefined;
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
   export let running = false;
@@ -159,6 +163,7 @@
         collapsed={consoleCollapsed}
         onToggle={toggleConsole}
         height={consoleCollapsed ? undefined : consoleHeight}
+        {api}
       />
     </div>
   </div>

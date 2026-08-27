@@ -58,6 +58,11 @@ export function createBrowserPlatform(): PlatformAdapter {
     requestAgentAction: async (_action: AgentAction, browserFallback: () => Promise<void>) => {
       await browserFallback();
     },
+    // A browser has no OS file manager to hand off to -- the caller's
+    // fallback is responsible for telling the user this needs the desktop app.
+    revealInFileManager: async (_path: string, browserFallback: () => Promise<void>) => {
+      await browserFallback();
+    },
     agentHealthCheck: async () => false,
     agentServiceStatus: async (): Promise<AgentServiceStatus> => ({
       available: false,

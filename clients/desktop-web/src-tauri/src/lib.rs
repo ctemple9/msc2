@@ -784,6 +784,55 @@ fn open_external_url(url: String) -> Result<(), String> {
         })
 }
 
+/// Reveals a local file or folder in the OS file manager (Finder/Explorer/
+/// the desktop Linux file manager `xdg-open` hands off to). Mirrors
+/// `open_external_url`'s shape -- one platform-dispatched shell-out -- but
+/// for a local filesystem path instead of an HTTPS URL. Only meaningful for
+/// a locally-connected agent: `path` names something on this same machine,
+/// so the client must never call this for a remote host's server files.
+#[tauri::command]
+fn reveal_in_file_manager(path: String) -> Result<(), String> {
+    let path = PathBuf::from(path);
+    if !path.exists() {
+        return Err("That path no longer exists on this machine.".to_string());
+    }
+
+    reveal_command(&path)
+        .spawn()
+        .map(|_| ())
+        .map_err(|error| format!("Could not open the file manager: {error}"))
+}
+
+#[cfg(target_os = "macos")]
+fn reveal_command(path: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new("open");
+    command.arg("-R").arg(path);
+    command
+}
+
+#[cfg(target_os = "windows")]
+fn reveal_command(path: &Path) -> std::process::Command {
+    let mut command = std::process::Command::new("explorer");
+    command.arg(format!("/select,{}", path.display()));
+    command
+}
+
+#[cfg(target_os = "linux")]
+fn reveal_command(path: &Path) -> std::process::Command {
+    // xdg-open has no "select this item" concept -- it can only open a
+    // directory, so a file target falls back to revealing its parent.
+    let target = if path.is_dir() {
+        path.to_path_buf()
+    } else {
+        path.parent()
+            .map(Path::to_path_buf)
+            .unwrap_or_else(|| path.to_path_buf())
+    };
+    let mut command = std::process::Command::new("xdg-open");
+    command.arg(target);
+    command
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "macos")]
@@ -798,6 +847,7 @@ pub fn run() {
             desktop_bootstrap_local,
             desktop_authorized_request,
             open_external_url,
+            reveal_in_file_manager,
             agent_service_status,
             agent_health_check,
             manage_agent_service,

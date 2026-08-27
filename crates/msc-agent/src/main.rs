@@ -286,6 +286,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
 
     let players = routes::players::router(lifecycle_state.clone());
     let session_log = routes::session_log::router(lifecycle_state.clone());
+    let files = routes::files::router(lifecycle_state.clone());
     let player_mutations = Router::new()
         .route("/players/delete", post(routes::players::delete_player_data))
         .route(
@@ -314,6 +315,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .merge(lifecycle)
         .merge(players)
         .merge(session_log)
+        .merge(files)
         .merge(player_mutations)
         .merge(bedrock)
         .route("/capabilities", get(routes::capabilities::capabilities))

@@ -162,6 +162,21 @@ export interface WizardDraft {
    *  matching `ServerCreateRequestDTO.maxPlayers` and the agent's own
    *  `run_create_bedrock_server` range check (1-10000, default 10). */
   bedrockMaxPlayers: number;
+  /** `AddServerWizardView.swift`'s `enablePlayit` -- Network step's
+   *  Port Forwarding vs Tunnel(playit.gg) choice. */
+  enablePlayit: boolean;
+  /** `AddServerWizardView.swift`'s `javaPort` -- kept numeric (unlike the
+   *  oracle's plain `String`) since `ServerCreateRequestDTO.port` and
+   *  `crossPlayBedrockPort` are both numbers and `NumberField` already
+   *  enforces a valid 1-65535 range, matching `settings/model.ts`'s own
+   *  `server-port` field precedent. */
+  javaPort: number;
+  /** `AddServerWizardView.swift`'s `crossPlayBedrockPort` -- the Geyser port
+   *  shown alongside `javaPort` only when cross-play is on. */
+  crossPlayBedrockPort: number;
+  /** `AddServerWizardView.swift`'s `bedrockPort` -- the standalone port for
+   *  a Bedrock-serverType server (no Java port involved at all). */
+  bedrockPort: number;
 }
 
 export function defaultWizardDraft(): WizardDraft {
@@ -175,6 +190,10 @@ export function defaultWizardDraft(): WizardDraft {
     enableXboxBroadcast: false,
     bedrockVersion: 'LATEST',
     bedrockMaxPlayers: 10,
+    enablePlayit: false,
+    javaPort: 25565,
+    crossPlayBedrockPort: 19132,
+    bedrockPort: 19132,
   };
 }
 
@@ -197,6 +216,16 @@ export const BEDROCK_VERSION_NOTE =
 export function canAdvanceConfigure(draft: WizardDraft): boolean {
   if (draft.serverName.trim().length === 0) return false;
   return draft.serverType === 'java' ? isJavaFlavorImplemented(draft.javaFlavor) : true;
+}
+
+/** `AddServerWizardView.swift`'s `canAdvance` case 3, Fresh branch: the
+ *  server-type-appropriate port field must parse as a real port number.
+ *  `NumberField` already constrains input to 1-65535, so this mostly guards
+ *  against an emptied field, matching the oracle's own `Int(javaPort) != nil`
+ *  / `Int(bedrockPort) != nil` check. */
+export function canAdvanceNetwork(draft: WizardDraft): boolean {
+  const port = draft.serverType === 'java' ? draft.javaPort : draft.bedrockPort;
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
 }
 
 /** `GET /v1/versions/create?serverType=&javaFlavor=` (P7.24) -- the

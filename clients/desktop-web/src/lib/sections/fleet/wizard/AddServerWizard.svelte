@@ -16,16 +16,18 @@
   // per this block's own note in rolling-plan.md (antiAIslop rule #8).
   //
   // Step 1 (Choose Path) and, for the Fresh path, step 2 (Configure,
-  // P12.18b/c) are real. Every step past that is still a placeholder --
-  // P12.18d-i replace each one in turn; the step-chip labels below already
-  // reflect the oracle's real sequence so nothing here needs to change shape
-  // when they land, just content.
+  // P12.18b/c) and step 3 (Network, P12.18d) are real. Every step past that
+  // is still a placeholder -- P12.18e-i replace each one in turn; the
+  // step-chip labels below already reflect the oracle's real sequence so
+  // nothing here needs to change shape when they land, just content.
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
   import ConfigureStep from './ConfigureStep.svelte';
+  import NetworkStep from './NetworkStep.svelte';
   import type { ScreenApi } from '../../shared/types';
   import {
     canAdvanceConfigure,
+    canAdvanceNetwork,
     defaultWizardDraft,
     wizardStepLabels,
     type WizardPath,
@@ -41,7 +43,9 @@
   $: labels = wizardStepLabels(path);
   $: totalSteps = labels.length;
   $: canContinue =
-    currentStep === 1 || (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft));
+    currentStep === 1 ||
+    (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft)) ||
+    (currentStep === 3 && path === 'fresh' && canAdvanceNetwork(draft));
 
   function continueStep(): void {
     if (currentStep < totalSteps && canContinue) currentStep += 1;
@@ -105,6 +109,8 @@
         </div>
       {:else if currentStep === 2 && path === 'fresh'}
         <ConfigureStep {api} bind:draft />
+      {:else if currentStep === 3 && path === 'fresh'}
+        <NetworkStep bind:draft />
       {:else}
         <p class="stub">"{labels[currentStep - 1]}" lands in a later step.</p>
       {/if}

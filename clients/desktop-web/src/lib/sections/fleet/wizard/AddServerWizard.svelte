@@ -15,24 +15,36 @@
   // shape (numbered dot, connector, label) but redone in neutral tones only,
   // per this block's own note in rolling-plan.md (antiAIslop rule #8).
   //
-  // Only step 1 is real here. Every step past it is a placeholder --
-  // P12.18b-i replace each one in turn; the step-chip labels below already
+  // Step 1 (Choose Path) and, for the Fresh path, step 2 (Configure,
+  // P12.18b/c) are real. Every step past that is still a placeholder --
+  // P12.18d-i replace each one in turn; the step-chip labels below already
   // reflect the oracle's real sequence so nothing here needs to change shape
   // when they land, just content.
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
-  import { wizardStepLabels, type WizardPath } from './model';
+  import ConfigureStep from './ConfigureStep.svelte';
+  import type { ScreenApi } from '../../shared/types';
+  import {
+    canAdvanceConfigure,
+    defaultWizardDraft,
+    wizardStepLabels,
+    type WizardPath,
+  } from './model';
 
+  export let api: ScreenApi | undefined = undefined;
   export let onClose: () => void;
 
   let path: WizardPath = 'importExisting';
   let currentStep = 1;
+  let draft = defaultWizardDraft();
 
   $: labels = wizardStepLabels(path);
   $: totalSteps = labels.length;
+  $: canContinue =
+    currentStep === 1 || (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft));
 
   function continueStep(): void {
-    if (currentStep < totalSteps) currentStep += 1;
+    if (currentStep < totalSteps && canContinue) currentStep += 1;
   }
 
   function backStep(): void {
@@ -46,7 +58,11 @@
       {#each labels as label, index (label)}
         {@const stepNum = index + 1}
         <div class="step" role="listitem">
-          <span class="dot" class:done={stepNum < currentStep} class:current={stepNum === currentStep}>
+          <span
+            class="dot"
+            class:done={stepNum < currentStep}
+            class:current={stepNum === currentStep}
+          >
             {#if stepNum < currentStep}✓{:else}{stepNum}{/if}
           </span>
           <span class="label" class:seen={stepNum <= currentStep}>{label}</span>
@@ -82,10 +98,13 @@
             onclick={() => (path = 'fresh')}
           >
             <span class="path-title">Start Fresh</span>
-            <span class="path-subtitle">MSC downloads and sets up a brand new server from scratch.</span
+            <span class="path-subtitle"
+              >MSC downloads and sets up a brand new server from scratch.</span
             >
           </button>
         </div>
+      {:else if currentStep === 2 && path === 'fresh'}
+        <ConfigureStep {api} bind:draft />
       {:else}
         <p class="stub">"{labels[currentStep - 1]}" lands in a later step.</p>
       {/if}
@@ -96,7 +115,7 @@
         <Button variant="secondary" onclick={backStep}>Back</Button>
       {/if}
       <div class="spacer"></div>
-      <Button variant="primary" onclick={continueStep} disabled={currentStep !== 1}>Continue</Button>
+      <Button variant="primary" onclick={continueStep} disabled={!canContinue}>Continue</Button>
     </div>
   </div>
 </Sheet>

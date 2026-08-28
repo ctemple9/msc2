@@ -1,3 +1,5 @@
+import type { Schema } from '../../shared/types';
+
 /** The two entry points `AddServerWizardView.swift`'s step 1 offers. */
 export type WizardPath = 'importExisting' | 'fresh';
 
@@ -14,4 +16,188 @@ export function wizardStepLabels(path: WizardPath): readonly string[] {
   return path === 'fresh'
     ? ['Choose path', 'Configure', 'Network', 'World', 'Confirm']
     : ['Choose path', 'Upload', 'Review', 'Network', 'Confirm'];
+}
+
+// ---------------------------------------------------------------------------
+// Configure step (P12.18b/c) -- draft state accumulated across the wizard.
+// No mutation fires until P12.18g's real POST /v1/servers/create; every step
+// past Choose Path only narrows this same draft object.
+// ---------------------------------------------------------------------------
+
+/** `AddServerWizardView.swift`'s `ServerType` picker -- Bedrock's own
+ *  Configure fields land in P12.18c; this step only builds the selector. */
+export type WizardServerType = 'java' | 'bedrock';
+
+/** Ported from `JavaServerCategory.swift`. */
+export type JavaCategory = 'standard' | 'modded';
+
+/**
+ * Ported from `JavaServerFlavor.swift`'s `CaseIterable` cases, restricted to
+ * the ones `createFlowChoices` ever surfaces (`isAvailableInCreateFlow`
+ * already excludes spigot/quilt/pufferfish there) -- those three are known
+ * to the oracle's model but never reach its Create flow, so this port has no
+ * use for them either.
+ */
+export type JavaFlavor = 'paper' | 'purpur' | 'vanilla' | 'fabric' | 'neoforge' | 'forge';
+
+export interface JavaFlavorInfo {
+  readonly id: JavaFlavor;
+  readonly displayName: string;
+  /** One-line purpose shown on the flavor card, ported verbatim from
+   *  `JavaServerFlavor.swift`'s `shortDescription`. */
+  readonly shortDescription: string;
+  readonly category: JavaCategory;
+  readonly isRecommended: boolean;
+}
+
+/** `JavaServerFlavor.swift`'s `allCases` declaration order, filtered to
+ *  `isAvailableInCreateFlow`. */
+export const JAVA_FLAVOR_CATALOG: readonly JavaFlavorInfo[] = [
+  {
+    id: 'paper',
+    displayName: 'Paper',
+    shortDescription: 'Performance and bug fixes; the standard plugin server',
+    category: 'standard',
+    isRecommended: true,
+  },
+  {
+    id: 'purpur',
+    displayName: 'Purpur',
+    shortDescription: 'Paper plus hundreds of gameplay config options',
+    category: 'standard',
+    isRecommended: false,
+  },
+  {
+    id: 'vanilla',
+    displayName: 'Vanilla',
+    shortDescription: "Mojang's unmodified server",
+    category: 'standard',
+    isRecommended: false,
+  },
+  {
+    id: 'fabric',
+    displayName: 'Fabric',
+    shortDescription: 'Lightweight mod loader; great for performance mods',
+    category: 'modded',
+    isRecommended: true,
+  },
+  {
+    id: 'neoforge',
+    displayName: 'NeoForge',
+    shortDescription: 'Heavyweight loader for big content modpacks',
+    category: 'modded',
+    isRecommended: false,
+  },
+  {
+    id: 'forge',
+    displayName: 'Forge',
+    shortDescription: 'Original loader; huge library of mods and modpacks',
+    category: 'modded',
+    isRecommended: false,
+  },
+];
+
+/**
+ * Flavors whose provisioning is implemented today -- mirrors
+ * `AddServerWizardView.swift`'s own `implementedFlavors` set (grows as later
+ * milestones land; others render disabled with a "Soon" badge). Today it
+ * equals `JAVA_FLAVOR_CATALOG` exactly, same as the oracle's own current
+ * state, so the "Soon" badge is dead code in both places until a new flavor
+ * is added to the catalog above without being added here too.
+ */
+const IMPLEMENTED_JAVA_FLAVORS = new Set<JavaFlavor>([
+  'paper',
+  'purpur',
+  'vanilla',
+  'fabric',
+  'neoforge',
+  'forge',
+]);
+
+export function isJavaFlavorImplemented(flavor: JavaFlavor): boolean {
+  return IMPLEMENTED_JAVA_FLAVORS.has(flavor);
+}
+
+export const JAVA_CATEGORY_INFO: Readonly<
+  Record<JavaCategory, { displayName: string; subtitle: string }>
+> = {
+  standard: { displayName: 'Standard', subtitle: 'Players join normally · add plugins' },
+  modded: { displayName: 'Modded', subtitle: 'Adds new content · players need the mods' },
+};
+
+/** `JavaServerFlavor.createFlowChoices(in:)` -- recommended flavor first,
+ *  catalog order preserved otherwise (a stable sort, like Swift's). */
+export function javaFlavorChoices(category: JavaCategory): readonly JavaFlavorInfo[] {
+  return JAVA_FLAVOR_CATALOG.filter((flavor) => flavor.category === category).sort(
+    (a, b) => Number(!a.isRecommended) - Number(!b.isRecommended),
+  );
+}
+
+/** `AddServerWizardView.swift`'s `selectCategory(_:)` default-flavor pick. */
+export function defaultFlavorForCategory(category: JavaCategory): JavaFlavor {
+  const choices = javaFlavorChoices(category);
+  return (choices.find((flavor) => isJavaFlavorImplemented(flavor.id)) ?? choices[0]).id;
+}
+
+/** Cross-play is unavailable for Modded (Bedrock can't load Java mods) and
+ *  for Vanilla (no plugin API to host Geyser) -- `crossPlayUnavailable`. */
+export function crossPlayUnavailable(category: JavaCategory, flavor: JavaFlavor): boolean {
+  return category === 'modded' || flavor === 'vanilla';
+}
+
+export interface WizardDraft {
+  serverName: string;
+  serverType: WizardServerType;
+  javaCategory: JavaCategory;
+  javaFlavor: JavaFlavor;
+  /** `undefined` means "download latest" -- the oracle's own `nil` sentinel
+   *  on `selectedVersionEntry`. Set only when the Source picker pins one. */
+  versionId: string | undefined;
+  enableCrossPlay: boolean;
+  enableXboxBroadcast: boolean;
+}
+
+export function defaultWizardDraft(): WizardDraft {
+  return {
+    serverName: '',
+    serverType: 'java',
+    javaCategory: 'standard',
+    javaFlavor: 'paper',
+    versionId: undefined,
+    enableCrossPlay: false,
+    enableXboxBroadcast: false,
+  };
+}
+
+/** `AddServerWizardView.swift`'s `canAdvance` case 2, Fresh branch. */
+export function canAdvanceConfigure(draft: WizardDraft): boolean {
+  if (draft.serverName.trim().length === 0) return false;
+  return draft.serverType === 'java' ? isJavaFlavorImplemented(draft.javaFlavor) : true;
+}
+
+/** `GET /v1/versions/create?serverType=&javaFlavor=` (P7.24) -- the
+ *  flavor-aware version list the Source row's "Choose version…" picker
+ *  reads, independent of whether any server exists yet. */
+export function versionsForCreatePath(
+  serverType: WizardServerType,
+  javaFlavor?: JavaFlavor,
+): string {
+  const params = new URLSearchParams({ serverType });
+  if (serverType === 'java' && javaFlavor) params.set('javaFlavor', javaFlavor);
+  return `/v1/versions/create?${params.toString()}`;
+}
+
+/**
+ * Source picker's row label. For the four download-and-go flavors
+ * (Paper/Purpur/Vanilla/Fabric), `displayLabel` alone (a bare Minecraft
+ * version) is unambiguous. For NeoForge/Forge, `create_flow_choices`/
+ * `neoforge_build_entries`/`forge_parse_maven_metadata`
+ * (`server_versions.rs`) list every stable loader build, not just the
+ * newest per Minecraft version, so several rows can share the exact same
+ * `displayLabel` (e.g. several "26.2" entries, one per loader build) --
+ * `buildLabel` (e.g. "NeoForge 26.2.15") is the only field that tells them
+ * apart, so it's appended whenever the entry carries one.
+ */
+export function versionEntryLabel(entry: Schema['VersionEntryDTO']): string {
+  return entry.buildLabel ? `${entry.displayLabel} · ${entry.buildLabel}` : entry.displayLabel;
 }

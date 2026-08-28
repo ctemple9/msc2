@@ -341,7 +341,7 @@
 {/if}
 
 {#if showWizard}
-  <AddServerWizard onClose={() => (showWizard = false)} />
+  <AddServerWizard {api} onClose={() => (showWizard = false)} />
 {/if}
 
 <style>

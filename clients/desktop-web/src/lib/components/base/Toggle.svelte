@@ -2,9 +2,11 @@
   // Green = enabled (Mac-native, matches Start). docs/msc2/renderings/primitives.html
   export let checked = false;
   export let label = '';
+  export let disabled = false;
   export let onchange: ((checked: boolean) => void) | undefined = undefined;
 
   function toggle() {
+    if (disabled) return;
     checked = !checked;
     onchange?.(checked);
   }
@@ -17,6 +19,7 @@
   aria-label={label || undefined}
   class="track"
   class:on={checked}
+  {disabled}
   onclick={toggle}
 >
   <span class="thumb"></span>
@@ -37,6 +40,11 @@
 
   .track.on {
     background: var(--msc2-status-ok);
+  }
+
+  .track:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
   .thumb {

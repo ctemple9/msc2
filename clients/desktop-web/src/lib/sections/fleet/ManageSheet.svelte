@@ -23,9 +23,9 @@
   // - MSC 1's footer has Export.../Import.../Add Server...; there is no
   //   `/v1/servers/export` route in the contract at all, so Export is
   //   omitted rather than wired to nothing.
-  // - "Add Server..." here is the existing simple name+version create form,
-  //   not a port of MSC 1's multi-step AddServerWizardView -- that wizard is
-  //   its own scope, not attempted in this step.
+  // - "Add Server..." opens AddServerWizard.svelte (P12.18a-i), a real port
+  //   of MSC 1's multi-step AddServerWizardView. Only its shell + Choose
+  //   Path step are real so far; see that component's own header comment.
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -35,10 +35,10 @@
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Menu from '../../components/base/Menu.svelte';
   import ServerEditorSheet from '../server-editor/ServerEditorSheet.svelte';
-  import { onboardingAnchor } from '../../help/tourAnchors';
+  import AddServerWizard from './wizard/AddServerWizard.svelte';
   import type { HostId, HostRecord } from '../../hosts/types';
   import type { Schema, ScreenApi } from '../shared/types';
-  import { call, errorMessage, mutate } from '../shared/types';
+  import { errorMessage, mutate } from '../shared/types';
   import { fleetMutationPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -61,17 +61,9 @@
     permissions.includes('serverControl') ||
     permissions.includes('admin');
 
-  let versions: Schema['VersionsResponseDTO'] = {
-    flavorName: 'Paper',
-    isBedrock: false,
-    supportsVersions: true,
-    versions: [],
-  };
-  let selectedVersion = '';
-  let newServerName = '';
   let importPath = '';
-  let showCreate = false;
   let showImport = false;
+  let showWizard = false;
   let showAddHost = false;
   let notice = '';
 
@@ -87,11 +79,6 @@
   let addHostError = '';
 
   $: multiHost = isDesktopShell && hosts.length > 1;
-
-  (async () => {
-    versions = await call(api, versions, fleetMutationPaths.versions);
-    selectedVersion = versions.versions[0]?.id ?? '';
-  })();
 
   async function refreshServers(): Promise<void> {
     if (!api) return;
@@ -118,24 +105,6 @@
         serverId,
       });
       notice = result.message;
-      await refreshServers();
-    } catch (error) {
-      notice = errorMessage(error);
-    }
-  }
-
-  async function createServer(): Promise<void> {
-    const name = newServerName.trim();
-    if (!name) return;
-    try {
-      const result = await mutate<Schema['ServerCreateResultDTO']>(api, fleetMutationPaths.create, {
-        name,
-        serverType: 'paper',
-        versionId: selectedVersion,
-      });
-      notice = result.message;
-      newServerName = '';
-      showCreate = false;
       await refreshServers();
     } catch (error) {
       notice = errorMessage(error);
@@ -327,34 +296,11 @@
       {/if}
       <Button
         variant="primary"
-        onclick={() => (showCreate = !showCreate)}
+        onclick={() => (showWizard = true)}
         disabled={!canControl}
         anchorId="ob_create_server">Add Server…</Button
       >
     </div>
-
-    {#if showCreate}
-      <Card>
-        <div class="inline-form">
-          <Field bind:value={newServerName} placeholder="Server name" anchorId="ob_server_name" />
-          <select
-            class="version-select"
-            bind:value={selectedVersion}
-            use:onboardingAnchor={'ob_server_source'}
-          >
-            {#each versions.versions as version}
-              <option value={version.id}>{version.displayLabel}</option>
-            {/each}
-          </select>
-          <Button
-            variant="primary"
-            onclick={createServer}
-            disabled={!newServerName.trim()}
-            anchorId="ob_confirm_page">Create</Button
-          >
-        </div>
-      </Card>
-    {/if}
 
     {#if showImport}
       <Card>
@@ -392,6 +338,10 @@
     onServersChanged={refreshServers}
     onSetActive={setActive}
   />
+{/if}
+
+{#if showWizard}
+  <AddServerWizard onClose={() => (showWizard = false)} />
 {/if}
 
 <style>
@@ -516,16 +466,6 @@
   .add-host-form {
     flex-direction: column;
     align-items: stretch;
-  }
-  .version-select {
-    box-sizing: border-box;
-    font-family: inherit;
-    font-size: 13px;
-    color: #fff;
-    background: var(--msc2-tier-chrome);
-    border: 1px solid var(--msc2-hairline-field);
-    border-radius: 8px;
-    padding: 7px 10px;
   }
   .error {
     margin: 0;

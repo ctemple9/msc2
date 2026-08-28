@@ -16,13 +16,7 @@
     role="presentation"
     onclick={(event) => event.target === event.currentTarget && onClose?.()}
   >
-    <div
-      class="dialog"
-      role="alertdialog"
-      aria-modal="true"
-      aria-labelledby="dialog-title"
-      tabindex="-1"
-    >
+    <dialog open class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dialog-title">
       <p class="eyebrow">{context}</p>
       <h2 id="dialog-title">{title}</h2>
       <p class="message">{message}</p>
@@ -30,7 +24,7 @@
         <Button variant="secondary" size="sm" onclick={onClose}>Cancel</Button>
         <Button variant="destructive" size="sm" onclick={onConfirm}>{confirmLabel}</Button>
       </div>
-    </div>
+    </dialog>
   </div>
 {/if}
 

@@ -4310,7 +4310,7 @@
           "hostScoped": true,
           "clientResetTransport": "local-only",
           "serviceUninstall": "local-desktop-only",
-          "confirmationFormat": "RESET <current-agent-host-id>",
+          "confirmationFormat": "RESET AGENT",
           "runningServerRefusal": "server_running",
           "modes": {
             "configuration": {
@@ -6829,7 +6829,7 @@
       },
       "HostResetRequestDTO": {
         "type": "object",
-        "description": "A destructive host reset request. The host ID is included only inside confirmation so a stale client cannot confirm a different host after identity rotation.",
+        "description": "A destructive host reset request. The serving agent validates the administrator credential and the fixed confirmation phrase before starting the reset.",
         "properties": {
           "mode": {
             "type": "string",
@@ -6841,7 +6841,7 @@
           },
           "confirmation": {
             "type": "string",
-            "description": "Must exactly equal RESET <current-agent-host-id>."
+            "description": "Must exactly equal RESET AGENT."
           }
         },
         "required": [

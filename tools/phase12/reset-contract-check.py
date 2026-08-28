@@ -22,7 +22,7 @@ REQUIRED_ERROR_CODES = {
 }
 EXPECTED_MODES = ["configuration", "everything"]
 EXPECTED_POST_RESET_STATES = ["restarting", "needs_pairing", "unavailable"]
-EXPECTED_CONFIRMATION = "RESET <current-agent-host-id>"
+EXPECTED_CONFIRMATION = "RESET AGENT"
 EXPECTED_CONFIGURATION_REMOVED = [
     "config/host.json",
     "config/servers.json",
@@ -86,8 +86,8 @@ def check_contract(doc):
         failures.append("request required fields must be mode, confirmation")
     if request_props.get("mode", {}).get("enum") != EXPECTED_MODES:
         failures.append("request mode enum must be configuration, everything")
-    if request_props.get("confirmation", {}).get("description") != "Must exactly equal RESET <current-agent-host-id>.":
-        failures.append("request confirmation must require the host-specific literal")
+    if request_props.get("confirmation", {}).get("description") != "Must exactly equal RESET AGENT.":
+        failures.append("request confirmation must require the RESET AGENT literal")
 
     response = schemas.get(RESPONSE_SCHEMA, {})
     response_props = response.get("properties", {})

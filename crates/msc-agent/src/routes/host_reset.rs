@@ -22,6 +22,8 @@ use crate::routes::lifecycle::{
 };
 use crate::routes::operations::{OperationsState, operation_error_response};
 
+const RESET_CONFIRMATION: &str = "RESET AGENT";
+
 #[derive(Clone)]
 pub struct HostResetRoutesState {
     pub lifecycle: LifecycleRoutesState,
@@ -73,7 +75,7 @@ pub async fn reset(
         }
         Err(_) => unreachable!("reading an agent host id only has store failures"),
     };
-    if request.confirmation != format!("RESET {host_id}") {
+    if request.confirmation != RESET_CONFIRMATION {
         return error_response(
             StatusCode::BAD_REQUEST,
             "confirmation_mismatch",

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
+    "prepare:agent": "node ./tools/prepare-agent-dev.mjs",
     "format": "prettier --write \"*.{html,js,json,ts}\" \"src/**/*.{css,svelte,ts}\" \"static/**/*.json\" \"tools/**/*.mjs\" \"src-tauri/capabilities/*.json\" \"src-tauri/tauri.conf.json\"",
     "format:check": "prettier --check \"*.{html,js,json,ts}\" \"src/**/*.{css,svelte,ts}\" \"static/**/*.json\" \"tools/**/*.mjs\" \"src-tauri/capabilities/*.json\" \"src-tauri/tauri.conf.json\"",
     "check": "svelte-check --tsconfig ./tsconfig.json",

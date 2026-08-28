@@ -39,7 +39,7 @@ test('client reset reopens first launch without touching the host or creating a 
   const resetSheet = page.getByRole('dialog', { name: 'Reset' });
   await resetSheet.getByRole('button', { name: 'Reset this client…' }).click();
   const confirmation = page.getByRole('alertdialog', { name: 'Reset this client?' });
-  await confirmation.locator('button.danger').click();
+  await confirmation.getByRole('button', { name: 'Reset this client' }).click();
 
   await expect(
     page.locator('.gate').getByRole('heading', { name: 'One server. Your worlds.' }),

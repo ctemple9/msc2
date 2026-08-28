@@ -279,7 +279,6 @@
     message: string;
   };
 
-  $: currentAgentHostId = client?.host ?? hostId;
 
   async function resetClientState(): Promise<void> {
     const rememberedHostIds = hosts.map((host) => host.id);
@@ -659,7 +658,6 @@
 {#if resetOpen}
   <ResetSheet
     api={screenApi}
-    agentHostId={currentAgentHostId}
     hostLabel={hostLabelForCurrentHost()}
     {permissions}
     {isDesktopShell}

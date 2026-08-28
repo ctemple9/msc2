@@ -29,11 +29,10 @@ there is no `hostId` selector in the request, so a client cannot accidentally
 send a reset intended for one host through another host's connection.
 
 The route requires an administrator credential and the exact confirmation
-string `RESET <current-agent-host-id>`. The client must show the human-readable
-host label and the resolved server root before it asks for that confirmation.
-The agent compares the supplied host ID with its current identity before it
-starts the operation. A stale client therefore cannot confirm a different host
-after an identity change.
+string `RESET AGENT`. The client must show the human-readable host label and the
+resolved server root before it asks for that confirmation. The reset still acts
+only on the host serving the authenticated request; the short phrase is a
+deliberate usability boundary, not a host selector.
 
 The route refuses with `409 server_running` if any managed Minecraft server is
 running, and with `409 reset_in_progress` if another host reset owns the reset
@@ -89,7 +88,8 @@ The public route and DTOs live in `docs/msc2/api-contract/openapi.json`:
 
 - `POST /v1/host/reset` is `202` operation-backed and `x-permission-category:
   admin`.
-- `HostResetRequestDTO` carries `mode` and the exact `confirmation` value.
+- `HostResetRequestDTO` carries `mode` and the exact `RESET AGENT` confirmation
+  value.
 - `HostResetAcceptedDTO` carries the operation ID, the old host ID, selected
   mode, a human-readable message, and `agentState` (`restarting`,
   `needs_pairing`, or `unavailable`).

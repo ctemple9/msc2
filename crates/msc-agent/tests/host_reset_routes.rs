@@ -57,11 +57,21 @@ fn host_reset_is_mounted_and_performs_full_reset_without_uninstalling_service() 
     );
     let pairing_json: serde_json::Value = serde_json::from_slice(&pairing.stdout).unwrap();
     let host_id = pairing_json["agentHostId"].as_str().unwrap();
-    let reset = http_post(
+    let old_confirmation = http_post(
         port,
         "/v1/host/reset",
         Some(TOKEN),
         &format!(r#"{{"mode":"everything","confirmation":"RESET {host_id}"}}"#),
+    );
+    assert!(
+        old_confirmation.starts_with("HTTP/1.1 400"),
+        "{old_confirmation}"
+    );
+    let reset = http_post(
+        port,
+        "/v1/host/reset",
+        Some(TOKEN),
+        r#"{"mode":"everything","confirmation":"RESET AGENT"}"#,
     );
     assert!(reset.starts_with("HTTP/1.1 202"), "{reset}");
     let deadline = Instant::now() + Duration::from_secs(10);

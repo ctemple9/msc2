@@ -36,7 +36,7 @@ result for each row. Do not paste bearer credentials or pairing codes here.
 | Remote full reset | On the same remote host with all servers stopped, reset with **Everything**. | Managed server folder is removed; agent service remains installed; old credential is rejected; fresh pairing is required and succeeds; no server is created. | Pending |
 | Local full reset | On the desktop host with all servers stopped, reset with **Everything**. | Host state and managed server folder are removed; the desktop uninstalls its local service; the agent screen shows **Install and Continue**; install bootstraps a new credential and opens host setup. | Pending |
 | Running-server refusal | Start a managed server, then attempt both reset modes. | Both reset confirmations are refused with `409 server_running`; files, service, credentials, and host identity remain unchanged. | Pending |
-| Confirmation boundary | Try a wrong host ID, a stale host ID, and the exact `RESET <current-agent-host-id>` value. | Wrong and stale values are rejected; only the exact current identity is accepted. | Pending |
+| Confirmation boundary | Try an incorrect phrase and the exact `RESET AGENT` value. | The incorrect phrase is rejected; only the exact phrase is accepted. | Pending |
 
 The first-server handoff is verified separately after recovery: walk SetupIntro
 → Concept Guide → guided tour, use the highlighted Add Server action, complete

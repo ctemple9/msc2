@@ -673,7 +673,12 @@ Every step of that sequence — the browser, the watched folder, and the server'
 **Decision.** MSC 2 has two explicit reset operations:
 
 1. **Reset this client** is local-only. It clears the selected device's host records, credentials, preferences, and onboarding state. It makes no agent request and never changes a host.
-2. **Reset this host** is an authenticated, host-owned, operation-backed agent action. It is available only to an administrator, refuses while any managed Minecraft server is running, requires an explicit host-specific confirmation, revokes credentials, rotates the host identity, and supports `configuration` (preserve managed Minecraft files) and `everything` (remove them too).
+2. **Reset this host** is an authenticated, host-owned, operation-backed agent action. It is available only to an administrator, refuses while any managed Minecraft server is running, requires the explicit `RESET AGENT` confirmation phrase, revokes credentials, rotates the host identity, and supports `configuration` (preserve managed Minecraft files) and `everything` (remove them too).
+
+**Correction, 2026-08-28.** The confirmation phrase is intentionally the short,
+fixed `RESET AGENT` literal rather than the pre-reset host ID. The route remains
+host-scoped because it acts only on the authenticated serving agent; the phrase
+is confirmation, not target selection.
 
 The HTTP route never installs or uninstalls an operating-system service. A local desktop may uninstall its own service after a successful full reset; a remote client must never control the service on the computer running the agent. After a reset, old credentials are invalid and remote recovery requires a new one-use pairing code created locally on the host. First-time setup may lead to first-server creation, but never creates a server silently.
 

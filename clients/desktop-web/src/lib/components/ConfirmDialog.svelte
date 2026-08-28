@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Button from './base/Button.svelte';
+
   export let open = false;
   export let title = 'Confirm action';
   export let message = '';
@@ -19,8 +21,8 @@
       <h2 id="dialog-title">{title}</h2>
       <p class="message">{message}</p>
       <div class="dialog-actions">
-        <button type="button" class="quiet" onclick={onClose}>Cancel</button>
-        <button type="button" class="danger" onclick={onConfirm}>{confirmLabel}</button>
+        <Button variant="secondary" size="sm" onclick={onClose}>Cancel</Button>
+        <Button variant="destructive" size="sm" onclick={onConfirm}>{confirmLabel}</Button>
       </div>
     </dialog>
   </div>
@@ -29,62 +31,50 @@
 <style>
   .backdrop {
     position: fixed;
-    z-index: 10;
+    z-index: 200;
     inset: 0;
     display: grid;
     place-items: center;
     padding: 1rem;
-    background: rgba(7, 12, 16, 0.72);
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(2px);
   }
 
   .dialog {
+    box-sizing: border-box;
     width: min(100%, 28rem);
-    padding: 1.4rem;
-    border: 1px solid var(--msc-border);
-    border-radius: var(--msc-radius-lg);
-    background: var(--msc-surface-raised);
-    box-shadow: var(--msc-shadow);
+    margin: 0;
+    padding: 20px;
+    border: 1px solid var(--msc2-hairline-faint);
+    border-radius: 14px;
+    color: var(--msc2-text-primary);
+    background: var(--msc2-tier-chrome);
+    box-shadow: var(--msc2-shadow-float);
   }
 
   .eyebrow {
-    margin: 0 0 0.45rem;
-    color: var(--msc-warning);
-    font-size: 0.72rem;
-    font-weight: 800;
+    margin: 0 0 7px;
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
   }
   h2 {
     margin: 0;
-    font-size: 1.25rem;
+    font-size: 17px;
+    font-weight: 600;
   }
   .message {
-    color: var(--msc-muted);
+    margin: 10px 0 0;
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
     line-height: 1.55;
   }
   .dialog-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 0.5rem;
-    margin-top: 1.2rem;
-  }
-  button {
-    border: 0;
-    border-radius: var(--msc-radius-sm);
-    padding: 0.7rem 0.9rem;
-    font: inherit;
-    font-weight: 750;
-    cursor: pointer;
-  }
-  button:focus-visible {
-    outline: none;
-    box-shadow: var(--msc-focus);
-  }
-  .quiet {
-    color: var(--msc-text);
-    background: transparent;
-  }
-  .danger {
-    color: #271415;
-    background: var(--msc-danger);
+    gap: 8px;
+    margin-top: 18px;
   }
 </style>

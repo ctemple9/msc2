@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.ctemple.msc2",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "npm run prepare:agent && npm run dev",
     "beforeBuildCommand": "npm run build",
     "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"

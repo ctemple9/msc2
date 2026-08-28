@@ -26,7 +26,6 @@
   };
 
   export let api: ScreenApi | undefined = undefined;
-  export let agentHostId = '';
   export let hostLabel = 'Selected host';
   export let permissions: readonly string[] = [];
   export let isDesktopShell = false;
@@ -49,7 +48,7 @@
   let clientBusy = false;
 
   const isAdmin = permissions.includes('admin');
-  $: expectedConfirmation = `RESET ${agentHostId}`;
+  const expectedConfirmation = 'RESET AGENT';
   $: hostConfirmationReady =
     isAdmin &&
     !!api &&
@@ -113,7 +112,9 @@
     if (!api) return;
     for (let attempt = 0; attempt < 12; attempt += 1) {
       try {
-        const operation = await api.get<OperationSnapshot>(`/v1/operations/${encodeURIComponent(id)}`);
+        const operation = await api.get<OperationSnapshot>(
+          `/v1/operations/${encodeURIComponent(id)}`,
+        );
         statusLine = operation.statusLine ?? 'Resetting host state…';
         if (['succeeded', 'failed', 'cancelled'].includes(operation.state)) {
           if (operation.state !== 'succeeded') {
@@ -156,11 +157,13 @@
         <p class="msc2-type-overline">This device</p>
         <h2>Reset this client</h2>
         <p class="copy">
-          Forget remembered hosts, credentials, preferences, and first-launch progress on this device.
-          It does not change any host or Minecraft files.
+          Forget remembered hosts, credentials, preferences, and first-launch progress on this
+          device. It does not change any host or Minecraft files.
         </p>
-        <Button variant="destructive" disabled={clientBusy} onclick={() => (showClientConfirmation = true)}
-          >Reset this client…</Button
+        <Button
+          variant="destructive"
+          disabled={clientBusy}
+          onclick={() => (showClientConfirmation = true)}>Reset this client…</Button
         >
       </section>
 
@@ -177,7 +180,9 @@
         </p>
         <Card padding="0">
           <div class="detail-row"><span>Host</span><strong>{hostLabel}</strong></div>
-          <div class="detail-row"><span>Server folder</span><span class="mono path">{serversRootPath || 'Loading…'}</span></div>
+          <div class="detail-row">
+            <span>Server folder</span><span class="mono path">{serversRootPath || 'Loading…'}</span>
+          </div>
         </Card>
       </section>
 
@@ -194,7 +199,10 @@
               onclick={() => selectMode('configuration')}
             >
               <strong>Configuration only</strong>
-              <span>Clear MSC configuration, credentials, and sessions. Keep worlds, jars, logs, backups, and the server folder.</span>
+              <span
+                >Clear MSC configuration, credentials, and sessions. Keep worlds, jars, logs,
+                backups, and the server folder.</span
+              >
             </button>
             <button
               type="button"
@@ -205,11 +213,16 @@
               onclick={() => selectMode('everything')}
             >
               <strong>Everything</strong>
-              <span>Also remove the complete managed server folder. The agent service remains installed unless this is the local desktop.</span>
+              <span
+                >Also remove the complete managed server folder. The agent service remains installed
+                unless this is the local desktop.</span
+              >
             </button>
           </div>
           <div class="confirmation">
-            <label for="host-reset-confirm">Type <span class="mono">{expectedConfirmation}</span> to continue</label>
+            <label for="host-reset-confirm"
+              >Type <span class="mono">{expectedConfirmation}</span> to continue</label
+            >
             <input
               id="host-reset-confirm"
               class="confirm-field"
@@ -218,10 +231,14 @@
               spellcheck="false"
             />
           </div>
-          {#if rootError}<p class="error" role="alert">Could not read the server folder: {rootError}</p>{/if}{#if error}<p class="error" role="alert">{error}</p>{/if}
+          {#if rootError}<p class="error" role="alert">
+              Could not read the server folder: {rootError}
+            </p>{/if}{#if error}<p class="error" role="alert">{error}</p>{/if}
           <div class="actions">
-            <Button variant="destructive" disabled={!hostConfirmationReady} onclick={() => (showHostConfirmation = true)}
-              >Reset {modeTitle}…</Button
+            <Button
+              variant="destructive"
+              disabled={!hostConfirmationReady}
+              onclick={() => (showHostConfirmation = true)}>Reset {modeTitle}…</Button
             >
           </div>
         </section>

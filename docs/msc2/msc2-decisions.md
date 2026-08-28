@@ -680,7 +680,7 @@ fixed `RESET AGENT` literal rather than the pre-reset host ID. The route remains
 host-scoped because it acts only on the authenticated serving agent; the phrase
 is confirmation, not target selection.
 
-The HTTP route never installs or uninstalls an operating-system service. A local desktop may uninstall its own service after a successful full reset; a remote client must never control the service on the computer running the agent. After a reset, old credentials are invalid and remote recovery requires a new one-use pairing code created locally on the host. First-time setup may lead to first-server creation, but never creates a server silently.
+The HTTP route never installs or uninstalls an operating-system service. A local desktop may uninstall its own service after a successful full reset; a remote client must never control the service on the computer running the agent. A full reset also removes the agent-owned downloaded-helper cache and per-server helper secrets, so a fresh setup reacquires helper artifacts such as MCXboxBroadcast instead of inheriting them. After a reset, old credentials are invalid and remote recovery requires a new one-use pairing code created locally on the host. First-time setup may lead to first-server creation, but never creates a server silently.
 
 **Rationale.** The boundary follows D-013's host-scoped state model and D-011's independently installable headless agent. It makes the destructive target visible, preserves server files when the owner only wants to clear MSC's configuration, and prevents a remote browser or desktop from becoming an operating-system service controller.
 

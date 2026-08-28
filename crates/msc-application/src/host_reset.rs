@@ -53,12 +53,15 @@ impl std::error::Error for HostResetError {}
 struct ResetMarker {
     mode: HostResetMode,
     servers_root: PathBuf,
+    #[serde(default)]
+    helper_cache: Option<PathBuf>,
 }
 
 pub struct HostResetWorkflow<'fs> {
     fs: &'fs dyn FileSystem,
     config_path: PathBuf,
     servers_root: PathBuf,
+    helper_cache: Option<PathBuf>,
 }
 
 impl<'fs> HostResetWorkflow<'fs> {
@@ -68,18 +71,32 @@ impl<'fs> HostResetWorkflow<'fs> {
         servers_root: impl Into<PathBuf>,
     ) -> Result<Self, HostResetError> {
         let servers_root = servers_root.into();
-        validate_servers_root(&servers_root)?;
+        validate_reset_root(&servers_root)?;
         Ok(Self {
             fs,
             config_path: config_path.into(),
             servers_root,
+            helper_cache: None,
         })
+    }
+
+    /// Adds the agent-owned downloaded-helper cache to a full reset without
+    /// changing the existing constructor used by other reset tests/callers.
+    pub fn with_helper_cache(
+        mut self,
+        helper_cache: impl Into<PathBuf>,
+    ) -> Result<Self, HostResetError> {
+        let helper_cache = helper_cache.into();
+        validate_reset_root(&helper_cache)?;
+        self.helper_cache = Some(helper_cache);
+        Ok(self)
     }
 
     pub fn begin(&self, mode: HostResetMode) -> Result<(), HostResetError> {
         let marker = ResetMarker {
             mode,
             servers_root: self.servers_root.clone(),
+            helper_cache: self.helper_cache.clone(),
         };
         let bytes = serde_json::to_vec(&marker)
             .map_err(|error| HostResetError::InvalidMarker(error.to_string()))?;
@@ -94,6 +111,9 @@ impl<'fs> HostResetWorkflow<'fs> {
         remove_if_present(self.fs, &self.config_path)?;
         if mode == HostResetMode::Everything {
             remove_if_present(self.fs, &self.servers_root)?;
+            if let Some(helper_cache) = &self.helper_cache {
+                remove_if_present(self.fs, helper_cache)?;
+            }
         }
         Ok(())
     }
@@ -119,9 +139,13 @@ pub fn recover_files(
     };
     let marker: ResetMarker = serde_json::from_slice(&bytes)
         .map_err(|error| HostResetError::InvalidMarker(error.to_string()))?;
-    let workflow = HostResetWorkflow::new(fs, config_path, marker.servers_root)?;
-    workflow.apply_files(marker.mode)?;
-    Ok(Some(marker.mode))
+    let mut workflow = HostResetWorkflow::new(fs, config_path, marker.servers_root)?;
+    if let Some(helper_cache) = marker.helper_cache {
+        workflow = workflow.with_helper_cache(helper_cache)?;
+    }
+    let mode = marker.mode;
+    workflow.apply_files(mode)?;
+    Ok(Some(mode))
 }
 
 pub fn finish_recovery(
@@ -146,7 +170,7 @@ fn remove_if_present(fs: &dyn FileSystem, path: &Path) -> Result<(), HostResetEr
     }
 }
 
-fn validate_servers_root(path: &Path) -> Result<(), HostResetError> {
+fn validate_reset_root(path: &Path) -> Result<(), HostResetError> {
     let components: Vec<Component<'_>> = path.components().collect();
     let normal_count = components
         .iter()
@@ -159,7 +183,7 @@ fn validate_servers_root(path: &Path) -> Result<(), HostResetError> {
             .any(|component| matches!(component, Component::ParentDir))
     {
         return Err(HostResetError::InvalidServersRoot(format!(
-            "refusing to reset an unsafe servers root: {}",
+            "refusing to reset an unsafe host-data root: {}",
             path.display()
         )));
     }

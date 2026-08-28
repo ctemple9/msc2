@@ -18,15 +18,17 @@ describe('client reset state', () => {
   });
 
   it('clears only MSC-owned client storage keys', () => {
-    if (typeof localStorage === 'undefined') return;
+    if (typeof localStorage === 'undefined' || typeof localStorage.setItem !== 'function') return;
     localStorage.setItem('msc.accent', 'blue');
     localStorage.setItem('msc2.bannerColor.alpha.server', '#666679');
+    localStorage.setItem('msc_onboarding_tour_complete', 'true');
     localStorage.setItem('other-app.preference', 'keep');
 
     clearClientPreferences();
 
     expect(localStorage.getItem('msc.accent')).toBeNull();
     expect(localStorage.getItem('msc2.bannerColor.alpha.server')).toBeNull();
+    expect(localStorage.getItem('msc_onboarding_tour_complete')).toBeNull();
     expect(localStorage.getItem('other-app.preference')).toBe('keep');
   });
 });

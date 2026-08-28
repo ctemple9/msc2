@@ -4,7 +4,8 @@ mod auth;
 
 use std::sync::Arc;
 
-use msc_infrastructure::secret_store::FakeSecretStore;
+use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
+use msc_infrastructure::xbox_broadcast::{alt_password_secret_key, auth_token_secret_key};
 
 #[test]
 fn host_local_pairing_can_issue_browser_and_desktop_recovery_codes() {
@@ -24,8 +25,15 @@ fn host_local_pairing_can_issue_browser_and_desktop_recovery_codes() {
 
 #[test]
 fn host_reset_revokes_old_credentials_and_rotates_host_identity() {
-    let auth = auth::AuthState::new(Arc::new(FakeSecretStore::new()));
+    let secrets = Arc::new(FakeSecretStore::new());
+    let auth = auth::AuthState::new(secrets.clone());
     let old_host_id = auth.agent_host_id().unwrap();
+    secrets
+        .set(&alt_password_secret_key("paper"), "old-alt-password")
+        .unwrap();
+    secrets
+        .set(&auth_token_secret_key("paper"), "old-auth-token")
+        .unwrap();
     let issued = auth
         .issue_credential(
             "old-admin",
@@ -44,4 +52,9 @@ fn host_reset_revokes_old_credentials_and_rotates_host_identity() {
     );
     assert!(!auth.bearer_is_authenticated(&headers, "old-client"));
     assert_ne!(auth.agent_host_id().unwrap(), old_host_id);
+    assert_eq!(
+        secrets.get(&alt_password_secret_key("paper")).unwrap(),
+        None
+    );
+    assert_eq!(secrets.get(&auth_token_secret_key("paper")).unwrap(), None);
 }

@@ -13,6 +13,11 @@ fn reset_modes_obey_the_preserve_delete_boundary() {
                 b"world".to_vec(),
                 false,
             )
+            .with_file(
+                "/agent/helpers/xbox-broadcast/151/MCXboxBroadcastStandalone.jar",
+                b"broadcast".to_vec(),
+                false,
+            )
             .with_file("/srv/msc2/unrelated/keep", b"keep".to_vec(), false),
     ));
     let workflow = HostResetWorkflow::new(fs, "/agent/config.json", "/srv/msc2/servers")
@@ -24,16 +29,29 @@ fn reset_modes_obey_the_preserve_delete_boundary() {
         fs.stat(Path::new("/srv/msc2/servers/paper/world/level.dat"))
             .is_ok()
     );
+    assert!(
+        fs.stat(Path::new(
+            "/agent/helpers/xbox-broadcast/151/MCXboxBroadcastStandalone.jar"
+        ))
+        .is_ok()
+    );
     assert!(fs.stat(Path::new("/srv/msc2/unrelated/keep")).is_ok());
     workflow.finish().unwrap();
 
     let workflow = HostResetWorkflow::new(fs, "/agent/config.json", "/srv/msc2/servers")
-        .expect("the same configured root remains valid");
+        .and_then(|workflow| workflow.with_helper_cache("/agent/helpers"))
+        .expect("the same configured roots remain valid");
     workflow.begin(HostResetMode::Everything).unwrap();
     workflow.apply_files(HostResetMode::Everything).unwrap();
     assert!(
         fs.stat(Path::new("/srv/msc2/servers/paper/world/level.dat"))
             .is_err()
+    );
+    assert!(
+        fs.stat(Path::new(
+            "/agent/helpers/xbox-broadcast/151/MCXboxBroadcastStandalone.jar"
+        ))
+        .is_err()
     );
     assert!(fs.stat(Path::new("/srv/msc2/unrelated/keep")).is_ok());
 }
@@ -46,7 +64,9 @@ fn interrupted_reset_recovery_is_idempotent() {
             .with_file("/agent/config.json", b"config".to_vec(), false)
             .with_file("/srv/msc2/servers/paper/world", b"world".to_vec(), false),
     ));
-    let workflow = HostResetWorkflow::new(fs, "/agent/config.json", "/srv/msc2/servers").unwrap();
+    let workflow = HostResetWorkflow::new(fs, "/agent/config.json", "/srv/msc2/servers")
+        .and_then(|workflow| workflow.with_helper_cache("/agent/helpers"))
+        .unwrap();
     workflow.begin(HostResetMode::Everything).unwrap();
 
     assert_eq!(

@@ -19,6 +19,12 @@ fn host_reset_is_mounted_and_performs_full_reset_without_uninstalling_service() 
     fs::create_dir_all(&data_dir).unwrap();
     fs::create_dir_all(servers_root.join("paper")).unwrap();
     fs::write(servers_root.join("paper/world.dat"), b"world").unwrap();
+    fs::create_dir_all(data_dir.join("helpers/xbox-broadcast/151")).unwrap();
+    fs::write(
+        data_dir.join("helpers/xbox-broadcast/151/MCXboxBroadcastStandalone.jar"),
+        b"broadcast",
+    )
+    .unwrap();
     fs::write(
         &config_path,
         format!(
@@ -82,6 +88,10 @@ fn host_reset_is_mounted_and_performs_full_reset_without_uninstalling_service() 
     assert!(
         !servers_root.exists(),
         "managed server tree survived full reset"
+    );
+    assert!(
+        !data_dir.join("helpers").exists(),
+        "downloaded helper cache survived full reset"
     );
 
     stop_child(&mut agent);

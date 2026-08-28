@@ -79,7 +79,7 @@ pub async fn reset(
         return error_response(
             StatusCode::BAD_REQUEST,
             "confirmation_mismatch",
-            "Confirmation must exactly match the current agent host id.",
+            "Confirmation must exactly match RESET AGENT.",
         );
     }
     if state.lifecycle.status_snapshot().running {
@@ -116,7 +116,12 @@ pub async fn reset(
         &msc_infrastructure::fs::StdFileSystem,
         state.lifecycle.app_config_path(),
         state.lifecycle.servers_root(),
-    ) {
+    )
+    .and_then(|workflow| {
+        workflow.with_helper_cache(
+            msc_infrastructure::config_repository::default_app_data_dir().join("helpers"),
+        )
+    }) {
         Ok(workflow) => workflow,
         Err(error) => {
             let _ = state

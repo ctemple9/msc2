@@ -220,7 +220,9 @@ export function clearClientPreferences(): void {
     if (!storage) continue;
     const keys = Object.keys(storage);
     for (const key of keys) {
-      if (key.startsWith('msc.') || key.startsWith('msc2.')) storage.removeItem(key);
+      if (key.startsWith('msc.') || key.startsWith('msc2.') || key.startsWith('msc_')) {
+        storage.removeItem(key);
+      }
     }
   }
 }

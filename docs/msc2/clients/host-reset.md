@@ -48,8 +48,8 @@ and Linux; the platform adapter supplies their OS-specific locations.
 
 | Mode | Removed | Preserved |
 |---|---|---|
-| `configuration` | `config/host.json`; `config/servers.json`; `host/identity.json`; every record under `auth/credentials/`, `auth/sessions/`, and `auth/pairings/`; reset-owned entries under `operations/` | The complete configured `servers-root/` tree, including Minecraft worlds, jars, logs, backups, and server-local configuration files; the installed agent service |
-| `everything` | Everything in `configuration`, plus the complete configured `servers-root/` tree | The installed agent service, unless the local desktop separately uninstalls its own service after the operation succeeds |
+| `configuration` | `config/host.json`; `config/servers.json`; `host/identity.json`; every record under `auth/credentials/`, `auth/sessions/`, and `auth/pairings/`; reset-owned entries under `operations/` | The complete configured `servers-root/` tree, the downloaded helper cache under `helpers/` (including the Broadcast JAR), and the installed agent service |
+| `everything` | Everything in `configuration`, plus the complete configured `servers-root/` tree and the downloaded helper cache under `helpers/` | The installed agent service, unless the local desktop separately uninstalls its own service after the operation succeeds |
 
 The agent deletes only those allowlisted paths. It resolves the configured
 server root before deletion and refuses path traversal, symlink escape, root,
@@ -57,7 +57,8 @@ home-directory, or out-of-scope targets. It never deletes arbitrary paths
 named by the client. `everything` removes the managed tree, not the parent
 directory that contains it.
 
-The reset clears host setup/configuration, revokes all existing browser,
+The reset clears host setup/configuration, removes full-reset helper artifacts,
+revokes all existing browser,
 desktop, iOS, CLI, and named-token credentials, expires outstanding pairing
 challenges, and creates a new host identity. No old credential remains valid
 after the reset is committed. The reset result identifies whether the agent

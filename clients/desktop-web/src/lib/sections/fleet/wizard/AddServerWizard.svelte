@@ -19,10 +19,10 @@
   // P12.18b/c), step 3 (Network, P12.18d), step 4 (World, P12.18e), step 5
   // (Add-ons, P12.18f, only when the flavor accepts add-ons -- otherwise
   // step 5 is Confirm directly), and the final Confirm step (P12.18g) are
-  // real. Only the Import path remains a placeholder -- P12.18h/i replace
-  // each of its steps in turn; the step-chip labels below already reflect
-  // the oracle's real sequence so nothing here needs to change shape when
-  // they land, just content.
+  // real. P12.18h adds the Import path's own Upload/Review steps (its
+  // Network and Confirm steps reuse the Fresh path's own NetworkStep/
+  // ConfirmStep components unchanged, gated by `path` where their content
+  // actually differs) -- only the modpack-drop variant (P12.18i) remains.
   //
   // Confirm's Create/Done buttons replace this footer's Continue in place
   // (same "parent owns Back/primary-action, each step is a presentational
@@ -38,17 +38,22 @@
   import NetworkStep from './NetworkStep.svelte';
   import WorldStep from './WorldStep.svelte';
   import AddOnsStep from './AddOnsStep.svelte';
+  import UploadStep from './UploadStep.svelte';
+  import ReviewStep from './ReviewStep.svelte';
   import ConfirmStep from './ConfirmStep.svelte';
   import type { ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import {
     canAdvanceConfigure,
     canAdvanceNetwork,
+    canAdvanceUpload,
     canAdvanceWorld,
     canCreateServer,
     createServerFromDraft,
     defaultWizardDraft,
     hasAddOnsStep,
+    importDisplayNameFromPath,
+    importServerFromDraft,
     wizardStepLabels,
     type WizardPath,
   } from './model';
@@ -77,16 +82,30 @@
   $: showAddOns = path === 'fresh' && hasAddOnsStep(draft);
   $: labels = wizardStepLabels(path, showAddOns);
   $: totalSteps = labels.length;
-  $: isConfirmStep = path === 'fresh' && currentStep === totalSteps;
-  // `AddServerWizardView.swift`'s own "prefill once, stay editable" default.
-  $: if (isConfirmStep && !displayName.trim() && draft.serverName.trim()) {
-    displayName = draft.serverName;
+  // Confirm is always the final step of either path now that P12.18h gives
+  // Import its own real steps -- `AddServerWizardView.swift`'s own
+  // `confirmStepNum` is likewise just "the last step" for both paths.
+  $: isConfirmStep = currentStep === totalSteps;
+  // `AddServerWizardView.swift`'s own "prefill once, stay editable" default
+  // -- Fresh from `serverName`, Import from the scanned source's own file/
+  // folder name (`advanceStep`'s identical `currentStep == 3` prefill).
+  $: if (isConfirmStep && !displayName.trim()) {
+    if (path === 'fresh' && draft.serverName.trim()) {
+      displayName = draft.serverName;
+    } else if (path === 'importExisting' && draft.importSourcePath) {
+      displayName = importDisplayNameFromPath(draft.importSourcePath);
+    }
   }
   $: canContinue =
     currentStep === 1 ||
     (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft)) ||
+    (currentStep === 2 && path === 'importExisting' && canAdvanceUpload(draft)) ||
     (currentStep === 3 && path === 'fresh' && canAdvanceNetwork(draft)) ||
+    // Review's own `canAdvance` case is unconditional in the oracle --
+    // nothing on this step blocks Continue once it's reachable at all.
+    (currentStep === 3 && path === 'importExisting') ||
     (currentStep === 4 && path === 'fresh' && canAdvanceWorld(draft)) ||
+    (currentStep === 4 && path === 'importExisting' && canAdvanceNetwork(draft)) ||
     (currentStep === 5 && path === 'fresh' && showAddOns);
 
   function continueStep(): void {
@@ -100,11 +119,13 @@
   async function beginCreate(): Promise<void> {
     if (!canCreateServer(displayName) || isCreating) return;
     isCreating = true;
-    statusMessage = 'Creating server…';
+    statusMessage = path === 'fresh' ? 'Creating server…' : 'Importing server…';
+    const onProgress = (line: string) => (statusMessage = line);
     try {
-      const { warnings } = await createServerFromDraft(api, draft, displayName, (line) => {
-        statusMessage = line;
-      });
+      const { warnings } =
+        path === 'fresh'
+          ? await createServerFromDraft(api, draft, displayName, onProgress)
+          : await importServerFromDraft(api, draft, displayName, onProgress);
       createWarnings = warnings;
       createSucceeded = true;
       onCreated();
@@ -169,15 +190,22 @@
         </div>
       {:else if currentStep === 2 && path === 'fresh'}
         <ConfigureStep {api} bind:draft />
+      {:else if currentStep === 2 && path === 'importExisting'}
+        <UploadStep {api} bind:draft />
       {:else if currentStep === 3 && path === 'fresh'}
         <NetworkStep bind:draft />
+      {:else if currentStep === 3 && path === 'importExisting'}
+        <ReviewStep bind:draft />
       {:else if currentStep === 4 && path === 'fresh'}
         <WorldStep {api} bind:draft />
+      {:else if currentStep === 4 && path === 'importExisting'}
+        <NetworkStep bind:draft />
       {:else if currentStep === 5 && path === 'fresh' && showAddOns}
         <AddOnsStep {api} bind:draft />
       {:else if isConfirmStep}
         <ConfirmStep
           {api}
+          {path}
           bind:draft
           bind:displayName
           {isCreating}

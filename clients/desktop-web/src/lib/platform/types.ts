@@ -59,6 +59,14 @@ export interface PlatformAdapter {
    *  not invoke this for a remote host's path, since nothing local exists
    *  there to reveal. */
   revealInFileManager(path: string, browserFallback: () => Promise<void>): Promise<void>;
+  /** Fires with the real local filesystem path(s) whenever the user drops
+   *  something onto the window. Desktop-only: a browser's HTML5 drop event
+   *  never exposes a real filesystem path at all (the same reason
+   *  `PickedFile` returns bytes rather than a path for a browser pick), so
+   *  the browser adapter never calls `handler` -- callers should branch on
+   *  `kind` to show a "use Browse instead" hint rather than an inert drop
+   *  target. Returns an unsubscribe function, mirroring `onCloseRequested`. */
+  onFileDrop(handler: (paths: readonly string[]) => void): Promise<() => void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   credentialFor(hostId: string): Promise<string | null>;
   requestAgentAction(action: AgentAction, browserFallback: () => Promise<void>): Promise<void>;
@@ -77,6 +85,7 @@ export interface TauriPlatformDependencies {
   openExternal(url: string): Promise<void>;
   openLocalAgentBrowser(): Promise<void>;
   revealInFileManager(path: string): Promise<void>;
+  onFileDrop(handler: (paths: readonly string[]) => void): Promise<() => void>;
   onCloseRequested(handler: () => void): Promise<() => void>;
   agentHealthCheck(): Promise<boolean>;
   agentServiceStatus(): Promise<AgentServiceStatus>;

@@ -290,6 +290,31 @@ export interface WizardDraft {
    * `AddOnsStep.svelte`'s own note).
    */
   pendingAddOns: PendingAddOn[];
+
+  /**
+   * Import path (P12.18h) -- `AddServerWizardView.swift`'s `sourceURL`/
+   * `isSourceZip`, the real local path handed to `POST /v1/servers/import`
+   * (`action: 'scan'` then `action: 'importExisting'`). `undefined` until
+   * Upload picks or drops one.
+   */
+  importSourcePath: string | undefined;
+  importIsZip: boolean;
+  /** `AddServerWizardView.swift`'s `scannedInfo` -- the real scan result,
+   *  set once Upload's scan call succeeds. Its own `serverType`/`port` are
+   *  folded onto `serverType`/`javaPort`/`bedrockPort` above (not a separate
+   *  `importPort` field), so `NetworkStep.svelte` needs no import-specific
+   *  branch to reuse unchanged for this path, matching this step's own plan
+   *  text. */
+  importScan: Schema['ServerImportScanResponseDTO'] | undefined;
+  /** `AddServerWizardView.swift`'s `selectedWorldName` -- defaults to the
+   *  scan's own `defaultWorldName` the moment a scan succeeds; only
+   *  overridden by Review's world picker (shown when the scan found more
+   *  than one world). */
+  importActiveWorldName: string | undefined;
+  /** `AddServerWizardView.swift`'s `importMaxPlayers`/`importEulaAccepted`
+   *  -- Review's editable overrides, pre-populated from the scan. */
+  importMaxPlayers: number;
+  importEulaAccepted: boolean;
 }
 
 /** One entry in `WizardDraft.pendingAddOns` -- see that field's own doc
@@ -338,6 +363,12 @@ export function defaultWizardDraft(): WizardDraft {
     stagedWorldBackup: undefined,
     stagedModpack: undefined,
     pendingAddOns: [],
+    importSourcePath: undefined,
+    importIsZip: false,
+    importScan: undefined,
+    importActiveWorldName: undefined,
+    importMaxPlayers: 20,
+    importEulaAccepted: false,
   };
 }
 
@@ -597,4 +628,125 @@ export async function createServerFromDraft(
     }
   }
   return { warnings };
+}
+
+// ---------------------------------------------------------------------------
+// Import path (P12.18h) -- Upload's real POST /v1/servers/import scan call,
+// Review's always-advanceable gate, and the final action: "importExisting"
+// call Confirm makes through the same `pollOperation` durable-operation
+// shape `createServerFromDraft` already established for Fresh.
+// ---------------------------------------------------------------------------
+
+export type ImportScan = Schema['ServerImportScanResponseDTO'];
+
+/**
+ * `AddServerWizardView.swift`'s `performScan` -- the real, synchronous
+ * `POST /v1/servers/import` (`action: 'scan'`) call. Callers assign the
+ * result onto `draft` themselves inside their own `.svelte` script, the same
+ * discipline every other cross-step mutation in this file already follows
+ * (`createServerFromDraft` etc. never touch `draft` directly either) --
+ * Svelte's classic (non-runes) reactivity only instruments assignments
+ * written directly in a component, not ones made inside an imported plain
+ * function.
+ */
+export async function scanImportSource(
+  api: ScreenApi | undefined,
+  sourcePath: string,
+  isZip: boolean,
+): Promise<ImportScan> {
+  return mutate<ImportScan>(api, fleetMutationPaths.import, {
+    action: 'scan',
+    sourcePath,
+    importKind: isZip ? 'zip' : 'folder',
+  });
+}
+
+/** `AddServerWizardView.swift`'s `canAdvance` case 2, Import branch
+ *  (`scannedInfo != nil && !isScanning && scanError == nil`) -- `isScanning`/
+ *  `scanError` are `UploadStep.svelte`'s own local UI state (mirroring
+ *  `WorldStep.svelte`'s identical `staging`/`stageError` precedent), so this
+ *  only needs to check the durable half. */
+export function canAdvanceUpload(draft: WizardDraft): boolean {
+  return draft.importScan !== undefined;
+}
+
+/** `AddServerWizardView.swift`'s displayName prefill on reaching Confirm for
+ *  a non-modpack import (`advanceStep`'s own `currentStep == 3` branch):
+ *  the source path's file/folder name, underscores turned to spaces,
+ *  extension stripped. */
+export function importDisplayNameFromPath(sourcePath: string): string {
+  const base = sourcePath.split(/[\\/]/).filter(Boolean).pop() ?? sourcePath;
+  return base.replace(/\.[^./\\]+$/, '').replace(/_/g, ' ');
+}
+
+/**
+ * `AddServerWizardView.swift`'s `beginCreate`, Import branch: assembles the
+ * real `POST /v1/servers/import` (`action: 'importExisting'`) body.
+ *
+ * **Real gap found and left alone, not silently worked around:**
+ * `ServerImportRequestDTO` (the frozen contract) declares `enablePlayit`,
+ * and this path's own Network step (`NetworkStep.svelte`, reused unchanged
+ * per this step's own plan text) collects `draft.enablePlayit` exactly like
+ * Fresh does -- but `import_raw`'s own `RawImportOverrides`
+ * (`crates/msc-agent/src/routes/servers.rs`) only carries `port`/
+ * `maxPlayers`/`activeWorldName`/`eulaAccepted`; `body.enable_playit` has no
+ * reader anywhere in the import route (`import`/`import_raw`/
+ * `run_raw_import`, confirmed by reading all three directly), unlike the
+ * Fresh create path's own `NewServerRequest.enable_playit`, which really
+ * does reach `provisioning::create_server`. Sent anyway, since the contract
+ * declares the field and a future backend fix should pick it up
+ * automatically -- but choosing Tunnel (playit.gg) on this path's Network
+ * step has no effect today. A real backend gap, not a client one; left for
+ * a dedicated follow-up rather than special-casing `NetworkStep.svelte` per
+ * path, a component built explicitly to need no such branch.
+ */
+export function buildImportRequest(
+  draft: WizardDraft,
+  displayName: string,
+): Record<string, unknown> {
+  if (!draft.importSourcePath || !draft.importScan) {
+    throw new Error('No server has been scanned yet.');
+  }
+  const body: Record<string, unknown> = {
+    action: 'importExisting',
+    sourcePath: draft.importSourcePath,
+    importKind: draft.importIsZip ? 'zip' : 'folder',
+    displayName: displayName.trim(),
+    serverType: draft.serverType,
+    port: draft.serverType === 'bedrock' ? draft.bedrockPort : draft.javaPort,
+    maxPlayers: draft.importMaxPlayers,
+    acceptEula: draft.importEulaAccepted,
+    enablePlayit: draft.enablePlayit,
+  };
+  const activeWorld = draft.importActiveWorldName ?? draft.importScan.defaultWorldName;
+  if (activeWorld) body.activeWorldName = activeWorld;
+  return body;
+}
+
+/**
+ * `AddServerWizardView.swift`'s `beginCreate`, Import branch: the real
+ * `POST /v1/servers/import` call -- a durable operation (202, `operationId`
+ * always populated per `ServerImportResultDTO`), the same `pollOperation`
+ * shape Fresh's create already uses. Unlike Fresh, there is nothing to
+ * redeem afterward: the scan already read every world this import brings
+ * in, and `activeWorldName` picks among them directly in the one request.
+ */
+export async function importServerFromDraft(
+  api: ScreenApi | undefined,
+  draft: WizardDraft,
+  displayName: string,
+  onProgress?: (statusLine: string) => void,
+): Promise<{ warnings: string[] }> {
+  const result = await mutate<Schema['ServerImportResultDTO']>(
+    api,
+    fleetMutationPaths.import,
+    buildImportRequest(draft, displayName),
+  );
+  const operation = await pollOperation(api, result.operationId, (tick) => {
+    if (tick.statusLine) onProgress?.(tick.statusLine);
+  });
+  if (operation?.state !== 'succeeded') {
+    throw new Error(operation?.error?.message ?? 'Failed to import server.');
+  }
+  return { warnings: [] };
 }

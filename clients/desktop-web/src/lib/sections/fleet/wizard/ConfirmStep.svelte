@@ -21,6 +21,12 @@
   // "correct usage" example -- a defined state, always labeled) instead of
   // the oracle's large accent-colored checkmark circle, which is exactly
   // the icon-in-a-tinted-box tell (#6) applied to a status readout.
+  //
+  // P12.18h adds the Import path's own summary/hint branch alongside the
+  // Fresh one this step already had -- same component, same "parent owns
+  // the footer" shape, just a `path`-gated content swap (mirrors the
+  // oracle's own `confirmFormView`/`postCreateHint`, which branch on
+  // `wizardPath` the same way).
   import StatusDot from '../../../components/base/StatusDot.svelte';
   import Field from '../../../components/base/Field.svelte';
   import {
@@ -30,16 +36,28 @@
     versionEntryLabel,
     versionsForCreatePath,
     type WizardDraft,
+    type WizardPath,
   } from './model';
   import type { Schema, ScreenApi } from '../../shared/types';
 
   export let api: ScreenApi | undefined = undefined;
+  export let path: WizardPath;
   export let draft: WizardDraft;
   export let displayName: string;
   export let isCreating: boolean;
   export let statusMessage: string;
   export let createSucceeded: boolean;
   export let createWarnings: readonly string[] = [];
+
+  $: importScan = draft.importScan;
+  $: importActiveWorldName = draft.importActiveWorldName ?? importScan?.defaultWorldName;
+  $: importOtherWorlds =
+    importScan && importScan.worlds && importScan.worlds.length > 1
+      ? importScan.worlds
+          .filter((world) => world.name !== importActiveWorldName)
+          .map((world) => world.name)
+          .join(', ')
+      : '';
 
   $: flavorInfo = JAVA_FLAVOR_CATALOG.find((entry) => entry.id === draft.javaFlavor);
   $: addOnKind = javaAddOnKind(draft.javaFlavor);
@@ -76,7 +94,10 @@
     <div class="success">
       <StatusDot tone="ok" label="{displayName || draft.serverName} created" />
       <p class="hint">
-        {#if draft.javaCategory === 'modded'}
+        {#if path === 'importExisting'}
+          Open Server Settings to review defaults.{#if !draft.importEulaAccepted}
+            The EULA still needs to be accepted before this server can start.{/if}
+        {:else if draft.javaCategory === 'modded'}
           Add mods in the Components tab before starting — world-gen mods must be present on first
           boot.
         {:else}
@@ -103,87 +124,133 @@
     <section class="block">
       <p class="msc2-type-overline">Summary</p>
       <div class="summary">
-        <div class="row">
-          <span class="label">Server type</span>
-          <span class="value">{draft.serverType === 'java' ? 'Java' : 'Bedrock'}</span>
-        </div>
-        {#if draft.serverType === 'java'}
+        {#if path === 'importExisting'}
           <div class="row">
-            <span class="label">Software</span>
+            <span class="label">Method</span>
+            <span class="value">Import existing</span>
+          </div>
+          <div class="row">
+            <span class="label">Server type</span>
+            <span class="value">{draft.serverType === 'java' ? 'Java' : 'Bedrock'}</span>
+          </div>
+          <div class="row">
+            <span class="label">Port</span>
             <span class="value"
-              >{flavorInfo?.displayName ?? draft.javaFlavor} · {JAVA_CATEGORY_INFO[
-                draft.javaCategory
-              ].displayName}</span
+              >{draft.serverType === 'java' ? draft.javaPort : draft.bedrockPort}</span
             >
           </div>
           <div class="row">
-            <span class="label">Version</span>
+            <span class="label">Connectivity</span>
             <span class="value"
-              >{pinnedVersionLabel ?? `Latest ${flavorInfo?.displayName ?? draft.javaFlavor}`}</span
+              >{draft.enablePlayit ? 'Tunnel (playit.gg)' : 'Port Forwarding'}</span
             >
           </div>
           <div class="row">
-            <span class="label">Java Port</span>
-            <span class="value">{draft.javaPort}</span>
+            <span class="label">Max players</span>
+            <span class="value">{draft.importMaxPlayers}</span>
           </div>
-          {#if draft.enableCrossPlay}
+          <div class="row">
+            <span class="label">Active world</span>
+            <span class="value">{importActiveWorldName ?? '—'}</span>
+          </div>
+          {#if importOtherWorlds}
             <div class="row">
-              <span class="label">Bedrock Port</span>
-              <span class="value">{draft.crossPlayBedrockPort}</span>
+              <span class="label">Other worlds</span>
+              <span class="value">{importOtherWorlds}</span>
+            </div>
+          {/if}
+          {#if !draft.importEulaAccepted}
+            <div class="row">
+              <span class="label">EULA</span>
+              <span class="value warn">Not yet accepted — accept before starting</span>
             </div>
           {/if}
         {:else}
           <div class="row">
-            <span class="label">Bedrock Version</span>
-            <span class="value">{draft.bedrockVersion.trim() || 'LATEST'}</span>
+            <span class="label">Server type</span>
+            <span class="value">{draft.serverType === 'java' ? 'Java' : 'Bedrock'}</span>
           </div>
+          {#if draft.serverType === 'java'}
+            <div class="row">
+              <span class="label">Software</span>
+              <span class="value"
+                >{flavorInfo?.displayName ?? draft.javaFlavor} · {JAVA_CATEGORY_INFO[
+                  draft.javaCategory
+                ].displayName}</span
+              >
+            </div>
+            <div class="row">
+              <span class="label">Version</span>
+              <span class="value"
+                >{pinnedVersionLabel ??
+                  `Latest ${flavorInfo?.displayName ?? draft.javaFlavor}`}</span
+              >
+            </div>
+            <div class="row">
+              <span class="label">Java Port</span>
+              <span class="value">{draft.javaPort}</span>
+            </div>
+            {#if draft.enableCrossPlay}
+              <div class="row">
+                <span class="label">Bedrock Port</span>
+                <span class="value">{draft.crossPlayBedrockPort}</span>
+              </div>
+            {/if}
+          {:else}
+            <div class="row">
+              <span class="label">Bedrock Version</span>
+              <span class="value">{draft.bedrockVersion.trim() || 'LATEST'}</span>
+            </div>
+            <div class="row">
+              <span class="label">Max Players</span>
+              <span class="value">{draft.bedrockMaxPlayers}</span>
+            </div>
+            <div class="row">
+              <span class="label">Port</span>
+              <span class="value">{draft.bedrockPort}</span>
+            </div>
+          {/if}
           <div class="row">
-            <span class="label">Max Players</span>
-            <span class="value">{draft.bedrockMaxPlayers}</span>
-          </div>
-          <div class="row">
-            <span class="label">Port</span>
-            <span class="value">{draft.bedrockPort}</span>
-          </div>
-        {/if}
-        <div class="row">
-          <span class="label">Connectivity</span>
-          <span class="value">{draft.enablePlayit ? 'Tunnel (playit.gg)' : 'Port Forwarding'}</span>
-        </div>
-        <div class="row">
-          <span class="label">World source</span>
-          <span class="value"
-            >{draft.worldSourceMode === 'fresh' ? 'New world' : 'From backup (.zip)'}</span
-          >
-        </div>
-        {#if draft.worldSourceMode === 'fresh'}
-          <div class="row">
-            <span class="label">World name</span>
-            <span class="value">{draft.worldName.trim() || draft.serverName || '—'}</span>
-          </div>
-        {:else if draft.stagedWorldBackup}
-          <div class="row">
-            <span class="label">Backup file</span>
-            <span class="value">{draft.stagedWorldBackup.fileName}</span>
-          </div>
-        {/if}
-        {#if draft.stagedModpack}
-          <div class="row">
-            <span class="label">Modpack</span>
+            <span class="label">Connectivity</span>
             <span class="value"
-              >{draft.stagedModpack.inspection.packName ?? draft.stagedModpack.fileName}</span
+              >{draft.enablePlayit ? 'Tunnel (playit.gg)' : 'Port Forwarding'}</span
             >
           </div>
-        {/if}
-        {#if totalStagedAddOns > 0}
           <div class="row">
-            <span class="label">{addOnNoun}</span>
-            <span class="value">{totalStagedAddOns} staged</span>
+            <span class="label">World source</span>
+            <span class="value"
+              >{draft.worldSourceMode === 'fresh' ? 'New world' : 'From backup (.zip)'}</span
+            >
           </div>
+          {#if draft.worldSourceMode === 'fresh'}
+            <div class="row">
+              <span class="label">World name</span>
+              <span class="value">{draft.worldName.trim() || draft.serverName || '—'}</span>
+            </div>
+          {:else if draft.stagedWorldBackup}
+            <div class="row">
+              <span class="label">Backup file</span>
+              <span class="value">{draft.stagedWorldBackup.fileName}</span>
+            </div>
+          {/if}
+          {#if draft.stagedModpack}
+            <div class="row">
+              <span class="label">Modpack</span>
+              <span class="value"
+                >{draft.stagedModpack.inspection.packName ?? draft.stagedModpack.fileName}</span
+              >
+            </div>
+          {/if}
+          {#if totalStagedAddOns > 0}
+            <div class="row">
+              <span class="label">{addOnNoun}</span>
+              <span class="value">{totalStagedAddOns} staged</span>
+            </div>
+          {/if}
         {/if}
       </div>
 
-      {#if draft.serverType === 'java' && draft.javaCategory === 'modded'}
+      {#if path === 'fresh' && draft.serverType === 'java' && draft.javaCategory === 'modded'}
         <p class="hint">
           To join, every player needs the {flavorInfo?.displayName ?? draft.javaFlavor} loader for this
           Minecraft version, plus the same mods installed.
@@ -263,6 +330,9 @@
     font-weight: 500;
     color: var(--msc2-text-primary);
     text-align: right;
+  }
+  .value.warn {
+    color: var(--msc2-status-warn);
   }
 
   .hint {

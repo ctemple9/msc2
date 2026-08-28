@@ -52,6 +52,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
         await browserFallback();
       }
     },
+    onFileDrop: (handler) => dependencies.onFileDrop(handler),
     onCloseRequested: dependencies.onCloseRequested,
     // P11.23 supplies per-host pairing and secret-store behavior. This seam
     // deliberately cannot fabricate a local token before that contract exists.
@@ -66,15 +67,23 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
 }
 
 export async function loadTauriPlatform(): Promise<PlatformAdapter> {
-  const [{ open }, { readFile }, notification, { Menu }, { getCurrentWindow }, { invoke }] =
-    await Promise.all([
-      import('@tauri-apps/plugin-dialog'),
-      import('@tauri-apps/plugin-fs'),
-      import('@tauri-apps/plugin-notification'),
-      import('@tauri-apps/api/menu'),
-      import('@tauri-apps/api/window'),
-      import('@tauri-apps/api/core'),
-    ]);
+  const [
+    { open },
+    { readFile },
+    notification,
+    { Menu },
+    { getCurrentWindow },
+    { invoke },
+    { getCurrentWebview },
+  ] = await Promise.all([
+    import('@tauri-apps/plugin-dialog'),
+    import('@tauri-apps/plugin-fs'),
+    import('@tauri-apps/plugin-notification'),
+    import('@tauri-apps/api/menu'),
+    import('@tauri-apps/api/window'),
+    import('@tauri-apps/api/core'),
+    import('@tauri-apps/api/webview'),
+  ]);
 
   return createTauriPlatform({
     async pickFolder(label: string): Promise<string | null> {
@@ -130,6 +139,14 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
     openExternal: (url: string) => invoke('open_external_url', { url }),
     openLocalAgentBrowser: () => invoke('open_local_agent_browser'),
     revealInFileManager: (path: string) => invoke('reveal_in_file_manager', { path }),
+    // Tauri's webview intercepts native OS drag-drop before it reaches the
+    // DOM (dragDropEnabled defaults true, tauri.conf.json), so this is the
+    // only source of a *real* dropped path -- an HTML5 `ondrop` handler in
+    // the component only ever sees an empty `dataTransfer` here.
+    onFileDrop: async (handler: (paths: readonly string[]) => void) =>
+      getCurrentWebview().onDragDropEvent((event) => {
+        if (event.payload.type === 'drop') handler(event.payload.paths);
+      }),
     onCloseRequested: (handler: () => void) => getCurrentWindow().onCloseRequested(handler),
     agentHealthCheck: () => invoke<boolean>('agent_health_check'),
     agentServiceStatus: () => invoke<AgentServiceStatus>('agent_service_status'),

@@ -272,6 +272,43 @@ createServer(async (request, response) => {
     return json(response, { paperTemplates: [], pluginTemplates: [], serverRunning: false });
   if (url.pathname === '/v1/servers/delete' && request.method === 'POST')
     return json(response, { message: 'Server record removed.' });
+  if (url.pathname === '/v1/servers/import' && request.method === 'POST') {
+    const body = await readJsonBody(request);
+    if (body?.action === 'scan') {
+      return json(response, {
+        success: true,
+        message: 'Server directory scan completed.',
+        sourcePath: body.sourcePath,
+        isZip: body.importKind === 'zip',
+        serverType: 'java',
+        port: 25566,
+        maxPlayers: 15,
+        eulaAccepted: false,
+        worlds: [
+          {
+            id: 'world',
+            name: 'world',
+            sizeBytes: 1024 ** 2,
+            dimensionsLabel: 'Overworld + Nether',
+          },
+          {
+            id: 'world_the_end',
+            name: 'world_the_end',
+            sizeBytes: 512 * 1024,
+            dimensionsLabel: 'The End',
+          },
+        ],
+        defaultWorldName: 'world',
+        javaFlavor: 'paper',
+      });
+    }
+    return json(response, {
+      success: true,
+      message: 'Server import accepted.',
+      operationId: 'op-server-import',
+      serverName: body?.displayName ?? 'Imported Server',
+    });
+  }
   if (url.pathname === '/v1/active-server' && request.method === 'POST')
     return json(response, { success: true, message: 'Active server changed.' });
   if (url.pathname === '/v1/worlds')

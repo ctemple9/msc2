@@ -67,6 +67,9 @@ export function createBrowserPlatform(): PlatformAdapter {
     revealInFileManager: async (_path: string, browserFallback: () => Promise<void>) => {
       await browserFallback();
     },
+    // A browser's HTML5 drop event carries no real filesystem path -- there
+    // is nothing this adapter can hand a caller, so it never fires.
+    onFileDrop: async (_handler: (paths: readonly string[]) => void) => () => undefined,
     agentHealthCheck: async () => false,
     agentServiceStatus: async (): Promise<AgentServiceStatus> => ({
       available: false,

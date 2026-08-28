@@ -28,6 +28,7 @@ function nativeDependencies(): TauriPlatformDependencies {
     openExternal: vi.fn(async () => undefined),
     openLocalAgentBrowser: vi.fn(async () => undefined),
     revealInFileManager: vi.fn(async () => undefined),
+    onFileDrop: vi.fn(async () => () => undefined),
     onCloseRequested: vi.fn(async () => () => undefined),
     agentHealthCheck: vi.fn(async () => true),
     agentServiceStatus: vi.fn(async () => ({
@@ -61,7 +62,10 @@ describe('Tauri boundary', () => {
     await browser.closeWindow(notifyFallback);
     await browser.requestAgentAction('install', notifyFallback);
     await browser.revealInFileManager('/srv/example', notifyFallback);
+    const dropHandler = vi.fn();
+    await browser.onFileDrop(dropHandler);
 
+    expect(dropHandler).not.toHaveBeenCalled();
     expect(fallback).toHaveBeenCalledOnce();
     expect(notifyFallback).toHaveBeenCalledTimes(5);
     expect(await browser.credentialFor('remote-host')).toBeNull();
@@ -91,7 +95,10 @@ describe('Tauri boundary', () => {
     await desktop.openExternal('https://example.test');
     await desktop.openLocalAgentBrowser();
     await desktop.revealInFileManager('/srv/example', workflowFallback);
+    const dropHandler = vi.fn();
+    await desktop.onFileDrop(dropHandler);
 
+    expect(dependencies.onFileDrop).toHaveBeenCalledWith(dropHandler);
     expect(dependencies.pickFile).toHaveBeenCalledWith({
       label: 'World archive',
       extensions: ['zip'],

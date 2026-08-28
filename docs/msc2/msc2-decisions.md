@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.5 · **Date:** 2026-08-21
+**Revision:** 1.7 · **Date:** 2026-08-28
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -56,6 +56,8 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-025 | Service identity and privilege boundaries | Open | — |
 | D-026 | Educational content is served data, not client code | **Approved** (requirement) / Proposed (mechanism) | 2026-07-30 |
 | D-027 | The CurseForge manual-download workflow has no home once agent and client are different machines | Open | — |
+| D-028 | Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred | **Approved** | 2026-08-22 |
+| D-029 | Reset this client is separate from reset this host | **Approved** | 2026-08-28 |
 
 ---
 
@@ -662,6 +664,25 @@ Every step of that sequence — the browser, the watched folder, and the server'
 
 ---
 
+## D-029 — Reset this client is separate from reset this host
+
+**Status:** **Approved** · **Origin:** Owner · **Approved by:** Cameron Temple · **Date:** 2026-08-28
+
+**Context.** MSC 2 stores two different kinds of state. A client stores its remembered hosts, credentials, preferences, and onboarding progress. The agent's host owns the server registry, host configuration, credentials, host identity, and managed server files. Treating both as one reset would make a client-only cleanup unexpectedly destructive, while treating a host reset as local client bookkeeping would leave a remote host unchanged when the owner intended to recover it.
+
+**Decision.** MSC 2 has two explicit reset operations:
+
+1. **Reset this client** is local-only. It clears the selected device's host records, credentials, preferences, and onboarding state. It makes no agent request and never changes a host.
+2. **Reset this host** is an authenticated, host-owned, operation-backed agent action. It is available only to an administrator, refuses while any managed Minecraft server is running, requires an explicit host-specific confirmation, revokes credentials, rotates the host identity, and supports `configuration` (preserve managed Minecraft files) and `everything` (remove them too).
+
+The HTTP route never installs or uninstalls an operating-system service. A local desktop may uninstall its own service after a successful full reset; a remote client must never control the service on the computer running the agent. After a reset, old credentials are invalid and remote recovery requires a new one-use pairing code created locally on the host. First-time setup may lead to first-server creation, but never creates a server silently.
+
+**Rationale.** The boundary follows D-013's host-scoped state model and D-011's independently installable headless agent. It makes the destructive target visible, preserves server files when the owner only wants to clear MSC's configuration, and prevents a remote browser or desktop from becoming an operating-system service controller.
+
+**Revisit if:** the host-owned agent state or local service boundary changes.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -688,6 +709,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.7 | 2026-08-28 | D-029 added: client-only reset is separate from authenticated host reset, with configuration-only/full-delete modes and local-only service teardown. |
 | 1.6 | 2026-08-22 | D-007 and D-022 promoted to Approved, confirmed with the owner during the Phase 10 cross-check. D-028 added: Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred pending test hardware, recorded as "unavailable" in the D-022 matrix rather than omitted or claimed unsupported. |
 | 1.5 | 2026-08-21 | D-027 moved from Open to Approved (P8.1): Cameron chose option 1 (client-side download, agent-side staged-upload verification) for the CurseForge manual-download workflow. Detail moved to `docs/msc2/addons/phase8-scope.md`. |
 | 1.0 | 2026-07-29 | Initial register, 20 entries. |

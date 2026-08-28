@@ -3,7 +3,7 @@
   "info": {
     "title": "MSC 2 v1 API contract",
     "version": "v1",
-    "description": "The versioned HTTP contract MSC 2's skeletal agent (Phase 2) and every later phase implement against. Assembled per docs/msc2/rolling-plan.md P2.8 from the P0.23/P0.30/P0.32 MSC 1 baseline (docs/msc2/api-baseline/openapi.json) plus this phase's own designs: the /v1/ namespace and ErrorDTO envelope (P2.4, versioning-and-errors.md), the operation routes and OperationDTO (P2.5, operation-model.md), the capabilities route (P2.6, capability-model.md), helpId placement (P2.2, helpid-contract.md), and the permission-category annotation on every route (P2.1, permission-vocabulary.csv). Phase 10 extends the shared routes additively for Bedrock runtime state, without adding a parallel /v1/bedrock route family. The console and operation-progress WebSocket channels (P2.7) are documented separately in docs/msc2/api-contract/websocket-v1.json, matching the baseline's own precedent (P0.24) of keeping WS channels out of the OpenAPI paths object. Everything sourced from P2.4/P2.5/P2.6/P2.2's own documents carries their Proposed/Confirmed status forward -- this file does not itself promote anything to Approved."
+    "description": "The versioned HTTP contract MSC 2's skeletal agent (Phase 2) and every later phase implement against. Assembled per docs/msc2/rolling-plan.md P2.8 from the P0.23/P0.30/P0.32 MSC 1 baseline (docs/msc2/api-baseline/openapi.json) plus this phase's own designs: the /v1/ namespace and ErrorDTO envelope (P2.4, versioning-and-errors.md), the operation routes and OperationDTO (P2.5, operation-model.md), the capabilities route (P2.6, capability-model.md), helpId placement (P2.2, helpid-contract.md), and the permission-category annotation on every route (P2.1, permission-vocabulary.csv). Phase 10 extends the shared routes additively for Bedrock runtime state, without adding a parallel /v1/bedrock route family. Phase 12 adds the host-reset contract from D-029; the client-only reset remains local and is intentionally absent from this API. The console and operation-progress WebSocket channels (P2.7) are documented separately in docs/msc2/api-contract/websocket-v1.json, matching the baseline's own precedent (P0.24) of keeping WS channels out of the OpenAPI paths object. Everything sourced from P2.4/P2.5/P2.6/P2.2's own documents carries their Proposed/Confirmed status forward -- this file does not itself promote anything to Approved."
   },
   "x-authentication": {
     "default": "Every /v1 operation requires either Authorization: Bearer <credential> or the msc2_session cookie. Bearer takes precedence when both are present; all existing x-permission-category checks still apply.",
@@ -4233,6 +4233,125 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/host/reset": {
+      "post": {
+        "summary": "Reset this host's MSC state",
+        "description": "Host-scoped, administrator-only reset. The request has no host selector: it always acts on the host serving it. The operation revokes all existing credentials, rotates the host identity, clears host setup/configuration, and either preserves the managed server tree (configuration) or removes it (everything). The route never installs or uninstalls an operating-system service; a local desktop owns that separate action.",
+        "operationId": "resetHost",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HostResetRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Reset accepted as a journaled operation. The old credential may stop working while the agent restarts or changes to a needs-pairing/unavailable state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HostResetAcceptedDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_body, missing_mode, invalid_mode, missing_confirmation, or confirmation_mismatch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "403": {
+            "description": "forbidden (administrator credential required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "forbidden"
+          },
+          "409": {
+            "description": "server_running or reset_in_progress",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          },
+          "500": {
+            "description": "internal_error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "admin",
+        "x-authentication": "admin-bearer-or-browser-session-csrf",
+        "x-reset-contract": {
+          "hostScoped": true,
+          "clientResetTransport": "local-only",
+          "serviceUninstall": "local-desktop-only",
+          "confirmationFormat": "RESET <current-agent-host-id>",
+          "runningServerRefusal": "server_running",
+          "modes": {
+            "configuration": {
+              "preserves": [
+                "servers-root/**"
+              ],
+              "removes": [
+                "config/host.json",
+                "config/servers.json",
+                "host/identity.json",
+                "auth/credentials/**",
+                "auth/sessions/**",
+                "auth/pairings/**",
+                "operations/reset-owned/**"
+              ]
+            },
+            "everything": {
+              "preserves": [
+                "agent service"
+              ],
+              "removes": [
+                "config/host.json",
+                "config/servers.json",
+                "host/identity.json",
+                "auth/credentials/**",
+                "auth/sessions/**",
+                "auth/pairings/**",
+                "operations/reset-owned/**",
+                "servers-root/**"
+              ]
+            }
+          },
+          "postResetStates": [
+            "restarting",
+            "needs_pairing",
+            "unavailable"
+          ],
+          "remoteRecovery": "fresh-one-use-host-local-pairing"
+        }
+      }
+    },
     "/v1/auth/pairings": {
       "post": {
         "summary": "Create a one-use pairing code for a browser or desktop client",
@@ -6707,6 +6826,70 @@
         "required": [
           "complete"
         ]
+      },
+      "HostResetRequestDTO": {
+        "type": "object",
+        "description": "A destructive host reset request. The host ID is included only inside confirmation so a stale client cannot confirm a different host after identity rotation.",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "configuration",
+              "everything"
+            ],
+            "description": "configuration clears MSC host state but preserves the managed server tree; everything removes that tree too."
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Must exactly equal RESET <current-agent-host-id>."
+          }
+        },
+        "required": [
+          "mode",
+          "confirmation"
+        ],
+        "additionalProperties": false
+      },
+      "HostResetAcceptedDTO": {
+        "type": "object",
+        "description": "The last reliable response may be returned under the old credential. Poll the operation when the agent remains reachable; otherwise follow the state-specific recovery path.",
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "description": "Journaled reset operation ID."
+          },
+          "hostId": {
+            "type": "string",
+            "description": "The pre-reset agent host identity, for client-side correlation only."
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "configuration",
+              "everything"
+            ]
+          },
+          "agentState": {
+            "type": "string",
+            "enum": [
+              "restarting",
+              "needs_pairing",
+              "unavailable"
+            ],
+            "description": "Truthful post-admission state: the agent will restart, remains installed but requires fresh pairing, or cannot be reached to report completion."
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "operationId",
+          "hostId",
+          "mode",
+          "agentState",
+          "message"
+        ],
+        "additionalProperties": false
       },
       "JavaConfigResponseDTO": {
         "type": "object",
@@ -10723,4 +10906,3 @@
     }
   }
 }
-

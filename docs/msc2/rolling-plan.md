@@ -982,7 +982,7 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Batch:** solo
 
 ### P12.19a — Freeze the reset contract and recovery states
-**Status:** not started
+**Status:** built, awaiting verification
 **Files:** `docs/msc2/msc2-decisions.md`, `docs/msc2/clients/host-reset.md` (new), `docs/msc2/api-contract/openapi.json`, `tools/phase12/reset-contract-check.py` (new), `tools/api-contract-check.py`
 **What:** Record Cameron's approved reset model and amend the public contract before implementation. Define client-only reset as a local operation with no agent call; define `POST /v1/host/reset` as an admin-only, host-scoped, operation-backed action with `configuration` and `everything` modes, explicit confirmation, running-server refusal, credential revocation, host-identity rotation, and a truthful result when the agent must restart or become unavailable. State the exact files each mode removes, that only the local desktop—not the agent HTTP route—owns service uninstall, and that remote recovery requires a fresh one-use pairing code. Add a focused checker self-test so the route, permission, request, response, and error semantics cannot drift.
 **Verify:** `python3 tools/phase12/reset-contract-check.py --selftest && python3 tools/api-contract-check.py --v1-summary`

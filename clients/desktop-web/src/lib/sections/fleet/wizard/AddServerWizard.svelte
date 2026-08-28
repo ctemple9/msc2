@@ -41,6 +41,7 @@
   import UploadStep from './UploadStep.svelte';
   import ReviewStep from './ReviewStep.svelte';
   import ConfirmStep from './ConfirmStep.svelte';
+  import { onboardingAnchor } from '../../../help/tourAnchors';
   import type { ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import {
@@ -80,7 +81,8 @@
   // add-ons, shifting Confirm from 5 to 6. When it's false, position 5 is
   // Confirm directly and the layout is unchanged from before this step.
   $: showAddOns = path === 'fresh' && hasAddOnsStep(draft);
-  $: labels = wizardStepLabels(path, showAddOns);
+  $: showModpack = path === 'importExisting' && draft.stagedModpack !== undefined;
+  $: labels = wizardStepLabels(path, showAddOns, showModpack);
   $: totalSteps = labels.length;
   // Confirm is always the final step of either path now that P12.18h gives
   // Import its own real steps -- `AddServerWizardView.swift`'s own
@@ -92,6 +94,8 @@
   $: if (isConfirmStep && !displayName.trim()) {
     if (path === 'fresh' && draft.serverName.trim()) {
       displayName = draft.serverName;
+    } else if (path === 'importExisting' && draft.stagedModpack?.inspection.packName) {
+      displayName = draft.stagedModpack.inspection.packName;
     } else if (path === 'importExisting' && draft.importSourcePath) {
       displayName = importDisplayNameFromPath(draft.importSourcePath);
     }
@@ -101,15 +105,30 @@
     (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft)) ||
     (currentStep === 2 && path === 'importExisting' && canAdvanceUpload(draft)) ||
     (currentStep === 3 && path === 'fresh' && canAdvanceNetwork(draft)) ||
+    (currentStep === 3 && path === 'importExisting' && showModpack && canAdvanceNetwork(draft)) ||
     // Review's own `canAdvance` case is unconditional in the oracle --
     // nothing on this step blocks Continue once it's reachable at all.
-    (currentStep === 3 && path === 'importExisting') ||
+    (currentStep === 3 && path === 'importExisting' && !showModpack) ||
     (currentStep === 4 && path === 'fresh' && canAdvanceWorld(draft)) ||
-    (currentStep === 4 && path === 'importExisting' && canAdvanceNetwork(draft)) ||
+    (currentStep === 4 && path === 'importExisting' && showModpack && canAdvanceWorld(draft)) ||
+    (currentStep === 4 && path === 'importExisting' && !showModpack && canAdvanceNetwork(draft)) ||
     (currentStep === 5 && path === 'fresh' && showAddOns);
 
   function continueStep(): void {
     if (currentStep < totalSteps && canContinue) currentStep += 1;
+  }
+
+  function selectPath(next: WizardPath): void {
+    path = next;
+    if (next === 'fresh') {
+      draft = {
+        ...draft,
+        stagedModpack: undefined,
+        importSourcePath: undefined,
+        importIsZip: false,
+        importScan: undefined,
+      };
+    }
   }
 
   function backStep(): void {
@@ -125,7 +144,9 @@
       const { warnings } =
         path === 'fresh'
           ? await createServerFromDraft(api, draft, displayName, onProgress)
-          : await importServerFromDraft(api, draft, displayName, onProgress);
+          : showModpack
+            ? await createServerFromDraft(api, draft, displayName, onProgress)
+            : await importServerFromDraft(api, draft, displayName, onProgress);
       createWarnings = warnings;
       createSucceeded = true;
       onCreated();
@@ -138,7 +159,7 @@
 </script>
 
 <Sheet title="Add Server" size="lg" onClose={isCreating ? undefined : onClose}>
-  <div class="wizard">
+  <div class="wizard" use:onboardingAnchor={'ob_wizard_sheet'}>
     <div class="steps" role="list" aria-label="Add Server progress">
       {#each labels as label, index (label)}
         {@const stepNum = index + 1}
@@ -164,12 +185,12 @@
           <h2>How do you want to add this server?</h2>
           <p>Import a server you already have, or start a brand new one from scratch.</p>
         </div>
-        <div class="paths">
+        <div class="paths" use:onboardingAnchor={'ob_wizard_path_picker'}>
           <button
             type="button"
             class="path-card"
             class:selected={path === 'importExisting'}
-            onclick={() => (path = 'importExisting')}
+            onclick={() => selectPath('importExisting')}
           >
             <span class="path-title">Import Existing</span>
             <span class="path-subtitle"
@@ -180,7 +201,8 @@
             type="button"
             class="path-card"
             class:selected={path === 'fresh'}
-            onclick={() => (path = 'fresh')}
+            use:onboardingAnchor={'ob_wizard_fresh_card'}
+            onclick={() => selectPath('fresh')}
           >
             <span class="path-title">Start Fresh</span>
             <span class="path-subtitle"
@@ -194,9 +216,13 @@
         <UploadStep {api} bind:draft />
       {:else if currentStep === 3 && path === 'fresh'}
         <NetworkStep bind:draft />
+      {:else if currentStep === 3 && path === 'importExisting' && showModpack}
+        <NetworkStep bind:draft />
       {:else if currentStep === 3 && path === 'importExisting'}
         <ReviewStep bind:draft />
       {:else if currentStep === 4 && path === 'fresh'}
+        <WorldStep {api} bind:draft />
+      {:else if currentStep === 4 && path === 'importExisting' && showModpack}
         <WorldStep {api} bind:draft />
       {:else if currentStep === 4 && path === 'importExisting'}
         <NetworkStep bind:draft />
@@ -228,13 +254,19 @@
       {:else if isConfirmStep}
         <Button
           variant="primary"
+          anchorId="ob_create_save"
           onclick={() => void beginCreate()}
           disabled={!canCreateServer(displayName) || isCreating}
         >
           Create Server
         </Button>
       {:else}
-        <Button variant="primary" onclick={continueStep} disabled={!canContinue}>Continue</Button>
+        <Button
+          variant="primary"
+          anchorId="ob_wizard_continue"
+          onclick={continueStep}
+          disabled={!canContinue}>Continue</Button
+        >
       {/if}
     </div>
   </div>

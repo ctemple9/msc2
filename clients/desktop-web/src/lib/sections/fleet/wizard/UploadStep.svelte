@@ -1,41 +1,22 @@
 <script lang="ts">
-  // Real port of AddServerWizardView.swift's step2ImportUpload, existing-
-  // server branch only -- modpack detection is the merged step-2 variant
-  // P12.18i owns, per this step's own plan text: "Port the Import path's
-  // Upload step ... calling POST /v1/servers/import with action: 'scan'".
-  // Drop zone plus Browse for a folder or .zip, either way a real local
-  // path: `sourcePath` names a path on the *agent's own host filesystem* to
-  // scan on disk, not bytes to upload (confirmed against `perform_raw_scan`,
-  // crates/msc-agent/src/routes/servers.rs). Browse already works on both
-  // platforms via the established `PlatformAdapter.pickFolder`/
-  // `pickFilePath` vocabulary -- a real native picker on Tauri, a typed-path
-  // `window.prompt` on browser, the same "ask for a path" fallback
-  // `platform/browser.ts` already uses for `JavaTab.svelte`'s Java-
-  // executable field.
-  //
-  // Drag-and-drop needed a new platform primitive: Tauri's webview drag-drop
-  // carries real absolute paths (`@tauri-apps/api/webview`'s
-  // `onDragDropEvent`), but a browser's HTML5 drop event never exposes a
-  // real filesystem path at all (the same reason `PickedFile` returns bytes,
-  // not a path). Added `PlatformAdapter.onFileDrop` (platform/types.ts,
-  // tauri.ts, browser.ts) rather than reaching into `@tauri-apps/api`
-  // directly here -- no section or component in this codebase imports Tauri
-  // APIs itself; they all go through `getPlatform()`. The browser adapter's
-  // implementation never calls the handler, so this drop zone shows a
-  // "use Browse" hint there instead of an inert target; a plain
-  // `ondrop`/`ondragover` pair still exists for the hover highlight and to
-  // stop the browser navigating to the dropped file, but never reads
-  // `dataTransfer` for a path (there isn't a real one to read).
+  // Real port of AddServerWizardView.swift's merged Import step: a server
+  // folder/archive is scanned in place, while a Modrinth or CurseForge
+  // archive is staged and inspected before the wizard continues. The staged
+  // pack is redeemed by the existing create operation after this step.
   import { onDestroy, onMount } from 'svelte';
   import Button from '../../../components/base/Button.svelte';
+  import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform } from '../../../platform';
-  import type { ScreenApi } from '../../shared/types';
-  import { errorMessage } from '../../shared/types';
-  import { scanImportSource, type WizardDraft } from './model';
+  import type { PickedFile } from '../../../platform/types';
+  import type { Schema, ScreenApi } from '../../shared/types';
+  import { errorMessage, mutate } from '../../shared/types';
+  import { addonPaths } from '../../addons/model';
+  import { scanImportSource, type JavaCategory, type JavaFlavor, type WizardDraft } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
 
+  let fileInput: HTMLInputElement;
   let isScanning = false;
   let scanError: string | undefined;
   let dropTargeted = false;
@@ -48,31 +29,58 @@
     unsubscribeDrop = await platform.onFileDrop((paths) => {
       dropTargeted = false;
       const first = paths[0];
-      if (first) void handleSource(first);
+      if (first) void handlePath(first);
     });
   });
 
   onDestroy(() => unsubscribeDrop?.());
 
-  async function handleSource(path: string): Promise<void> {
-    const isZip = path.toLowerCase().endsWith('.zip');
+  function baseName(path: string): string {
+    return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
+  }
+
+  function flavorForLoader(
+    loaderName: string | undefined,
+  ): { javaCategory: JavaCategory; javaFlavor: JavaFlavor } | undefined {
+    const loader = loaderName?.toLowerCase().replace(/[^a-z]/g, '');
+    if (loader?.includes('neoforge')) return { javaCategory: 'modded', javaFlavor: 'neoforge' };
+    if (loader?.includes('forge')) return { javaCategory: 'modded', javaFlavor: 'forge' };
+    if (loader?.includes('fabric')) return { javaCategory: 'modded', javaFlavor: 'fabric' };
+    if (loader?.includes('purpur')) return { javaCategory: 'standard', javaFlavor: 'purpur' };
+    if (loader?.includes('paper')) return { javaCategory: 'standard', javaFlavor: 'paper' };
+    if (loader?.includes('vanilla')) return { javaCategory: 'standard', javaFlavor: 'vanilla' };
+    return undefined;
+  }
+
+  async function scanServerPath(path: string, isZip: boolean): Promise<void> {
     isScanning = true;
     scanError = undefined;
-    draft.importScan = undefined;
+    draft = {
+      ...draft,
+      stagedModpack: undefined,
+      importSourcePath: undefined,
+      importIsZip: false,
+      importScan: undefined,
+    };
     try {
       const scan = await scanImportSource(api, path, isZip);
-      draft.importSourcePath = path;
-      draft.importIsZip = isZip;
-      draft.importScan = scan;
-      draft.serverType = scan.serverType === 'bedrock' ? 'bedrock' : 'java';
-      if (draft.serverType === 'bedrock') {
-        if (scan.port !== undefined) draft.bedrockPort = scan.port;
-      } else if (scan.port !== undefined) {
-        draft.javaPort = scan.port;
-      }
-      draft.importMaxPlayers = scan.maxPlayers ?? draft.importMaxPlayers;
-      draft.importEulaAccepted = scan.eulaAccepted ?? false;
-      draft.importActiveWorldName = scan.defaultWorldName;
+      draft = {
+        ...draft,
+        importSourcePath: path,
+        importIsZip: isZip,
+        importScan: scan,
+        serverType: scan.serverType === 'bedrock' ? 'bedrock' : 'java',
+        ...(scan.serverType === 'bedrock'
+          ? scan.port === undefined
+            ? {}
+            : { bedrockPort: scan.port }
+          : scan.port === undefined
+            ? {}
+            : { javaPort: scan.port }),
+        importMaxPlayers: scan.maxPlayers ?? draft.importMaxPlayers,
+        importEulaAccepted: scan.eulaAccepted ?? false,
+        importActiveWorldName: scan.defaultWorldName,
+      };
     } catch (error) {
       scanError = errorMessage(error);
     } finally {
@@ -80,45 +88,216 @@
     }
   }
 
-  async function browseFolder(): Promise<void> {
-    const path = await (await getPlatform()).pickFolder('Choose Server Folder');
-    if (path) void handleSource(path);
+  async function inspectModpack(
+    fileName: string,
+    bytes: Uint8Array,
+    fallbackPath: string | undefined,
+  ): Promise<void> {
+    if (!api?.upload) throw new Error('Modpack staging needs a connected agent.');
+    isScanning = true;
+    scanError = undefined;
+    try {
+      const staged = await api.upload('modpack-archive', bytes);
+      const inspection = await mutate<Schema['ModpackInspectionResultDTO']>(
+        api,
+        addonPaths.inspectPack,
+        { stagedUploadId: staged.stagedUploadId },
+      );
+      const detected = flavorForLoader(inspection.loaderName);
+      draft = {
+        ...draft,
+        serverName: inspection.packName?.trim() || baseName(fileName).replace(/\.[^.]+$/, ''),
+        serverType: 'java',
+        ...(detected ?? {}),
+        stagedModpack: {
+          fileName,
+          stagedUploadId: staged.stagedUploadId,
+          inspection,
+        },
+        importSourcePath: undefined,
+        importIsZip: false,
+        importScan: undefined,
+        importActiveWorldName: undefined,
+      };
+    } catch (error) {
+      // A normal server .zip is not a modpack. On desktop, the same dropped
+      // path can be handed to the existing agent-side scan without uploading
+      // the whole server archive first.
+      if (fallbackPath && fallbackPath.toLowerCase().endsWith('.zip')) {
+        await scanServerPath(fallbackPath, true);
+      } else {
+        throw error;
+      }
+    } finally {
+      isScanning = false;
+    }
   }
 
-  async function browseZip(): Promise<void> {
+  async function handlePath(path: string): Promise<void> {
+    const lower = path.toLowerCase();
+    if (!lower.endsWith('.zip') && !lower.endsWith('.mrpack')) {
+      await scanServerPath(path, false);
+      return;
+    }
+
+    try {
+      const readFile = (await getPlatform()).readFile;
+      if (!readFile)
+        throw new Error('Reading a dropped file is unavailable in this desktop build.');
+      const bytes = await readFile(path);
+      await inspectModpack(baseName(path), bytes, path);
+    } catch (error) {
+      if (lower.endsWith('.zip')) {
+        await scanServerPath(path, true);
+      } else {
+        scanError = errorMessage(error);
+      }
+    }
+  }
+
+  async function handlePickedFile(file: PickedFile): Promise<void> {
+    try {
+      await inspectModpack(file.name, file.bytes, undefined);
+    } catch (error) {
+      scanError = errorMessage(error);
+    }
+  }
+
+  function browseBrowserFile(): Promise<PickedFile | null> {
+    return new Promise((resolve) => {
+      fileInput.addEventListener(
+        'change',
+        async () => {
+          const file = fileInput.files?.[0];
+          resolve(
+            file ? { name: file.name, bytes: new Uint8Array(await file.arrayBuffer()) } : null,
+          );
+        },
+        { once: true },
+      );
+      fileInput.click();
+    });
+  }
+
+  async function browseFolder(): Promise<void> {
+    const path = await (await getPlatform()).pickFolder('Choose Server Folder');
+    if (path) await scanServerPath(path, false);
+  }
+
+  async function browseServerArchive(): Promise<void> {
     const path = await (
       await getPlatform()
     ).pickFilePath({ label: 'Choose Server .zip', extensions: ['zip'] });
-    if (path) void handleSource(path);
+    if (path) await scanServerPath(path, true);
   }
 
-  function tryAgain(): void {
+  async function browseModpack(): Promise<void> {
+    const picked = await (
+      await getPlatform()
+    ).pickFile(
+      { label: 'Choose a modpack archive', extensions: ['mrpack', 'zip'] },
+      browseBrowserFile,
+    );
+    if (picked) await handlePickedFile(picked);
+  }
+
+  function chooseDifferentFile(): void {
+    draft = {
+      ...draft,
+      serverName: '',
+      stagedModpack: undefined,
+      importSourcePath: undefined,
+      importIsZip: false,
+      importScan: undefined,
+    };
     scanError = undefined;
   }
 </script>
 
-<div class="upload">
-  <div class="intro">
-    <h2>Drop your server folder or archive</h2>
-    <p>Drop a server folder or .zip to import an existing server.</p>
-  </div>
+<div class="upload" use:onboardingAnchor={'ob_wizard_body'}>
+  <input bind:this={fileInput} type="file" accept=".mrpack,.zip" class="hidden-input" />
 
-  {#if isScanning}
+  {#if draft.stagedModpack}
+    {@const inspection = draft.stagedModpack.inspection}
+    <div class="intro">
+      <h2>Modpack detected</h2>
+      <p>{inspection.message}</p>
+    </div>
+
+    <div class="summary">
+      <div class="row">
+        <span class="label">Pack</span>
+        <span class="value">{inspection.packName ?? draft.stagedModpack.fileName}</span>
+      </div>
+      {#if inspection.packVersion}
+        <div class="row">
+          <span class="label">Version</span>
+          <span class="value">{inspection.packVersion}</span>
+        </div>
+      {/if}
+      <div class="row">
+        <span class="label">Software</span>
+        <span class="value"
+          >{inspection.loaderName ?? 'Java'}{inspection.loaderVersion
+            ? ` · ${inspection.loaderVersion}`
+            : ''}</span
+        >
+      </div>
+      {#if inspection.minecraftVersion}
+        <div class="row">
+          <span class="label">Minecraft</span>
+          <span class="value">{inspection.minecraftVersion}</span>
+        </div>
+      {/if}
+      <div class="row">
+        <span class="label">Files</span>
+        <span class="value">{inspection.fileCount}</span>
+      </div>
+    </div>
+
+    {#if inspection.warnings?.length}
+      <ul class="warnings">
+        {#each inspection.warnings as warning}
+          <li>{warning}</li>
+        {/each}
+      </ul>
+    {/if}
+
+    <details class="disclosure">
+      <summary>Change loader/version…</summary>
+      <p>
+        This pack's manifest pins its loader and Minecraft version for creation. To use a different
+        loader or version, choose a different pack or start fresh.
+      </p>
+    </details>
+
+    <Button variant="secondary" size="sm" onclick={chooseDifferentFile}
+      >Choose a different file</Button
+    >
+  {:else if isScanning}
     <div class="status">
       <span class="spinner" aria-hidden="true"></span>
-      <span class="hint">Scanning server folder…</span>
+      <span class="hint">Inspecting archive or scanning server folder…</span>
     </div>
   {:else if scanError}
     <div class="status column">
       <p class="hint warn">{scanError}</p>
-      <Button variant="secondary" size="sm" onclick={tryAgain}>Try Again</Button>
+      <Button variant="secondary" size="sm" onclick={chooseDifferentFile}>Try Again</Button>
     </div>
   {:else}
+    <div class="intro">
+      <h2>Drop your server folder, archive, or modpack</h2>
+      <p>
+        Drop a server folder or .zip to import an existing server, or a .mrpack / CurseForge .zip to
+        start from a modpack.
+      </p>
+    </div>
+
     <div
       class="dropzone"
       class:targeted={dropTargeted}
       role="group"
-      aria-label="Drop a server folder or archive"
+      aria-label="Drop a server folder, archive, or modpack"
       ondragover={(event) => event.preventDefault()}
       ondragenter={() => (dropTargeted = true)}
       ondragleave={() => (dropTargeted = false)}
@@ -128,14 +307,19 @@
       }}
     >
       <p class="dropzone-title">
-        {supportsDrop ? 'Drop server folder or .zip here' : 'Browse for a server folder or .zip'}
+        {supportsDrop
+          ? 'Drop server folder, .zip, or .mrpack here'
+          : 'Browse for a server folder, archive, or modpack'}
       </p>
       {#if !supportsDrop}
         <p class="hint">Dragging a file in isn't available in the browser — use Browse below.</p>
       {/if}
       <div class="actions">
         <Button variant="secondary" onclick={() => void browseFolder()}>Choose Folder…</Button>
-        <Button variant="secondary" onclick={() => void browseZip()}>Choose .zip…</Button>
+        <Button variant="secondary" onclick={() => void browseServerArchive()}
+          >Choose Server .zip…</Button
+        >
+        <Button variant="secondary" onclick={() => void browseModpack()}>Choose Modpack…</Button>
       </div>
     </div>
   {/if}
@@ -162,6 +346,7 @@
   .intro p {
     margin: 0;
     font-size: 12.5px;
+    line-height: 1.5;
     color: var(--msc2-text-tertiary);
   }
 
@@ -184,32 +369,78 @@
     font-size: 13.5px;
     font-weight: 500;
     color: var(--msc2-text-primary);
+    text-align: center;
   }
 
   .actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 10px;
+  }
+
+  .summary {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    background: var(--msc2-tier-chrome);
+    border-radius: 10px;
+  }
+  .row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+  }
+  .label {
+    font-size: 12px;
+    color: var(--msc2-text-tertiary);
+  }
+  .value {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
+    text-align: right;
+  }
+  .warnings {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--msc2-status-warn);
+  }
+  .disclosure {
+    font-size: 12px;
+    color: var(--msc2-text-secondary);
+  }
+  .disclosure summary {
+    cursor: pointer;
+    color: var(--msc2-text-primary);
+  }
+  .disclosure p {
+    margin: 8px 0 0;
+    color: var(--msc2-text-tertiary);
+    line-height: 1.5;
   }
 
   .status {
     display: flex;
     align-items: center;
+    justify-content: center;
     gap: 8px;
     padding: 44px 0;
-    justify-content: center;
   }
   .status.column {
     flex-direction: column;
     gap: 10px;
   }
-
   .spinner {
     width: 13px;
     height: 13px;
     flex-shrink: 0;
-    border-radius: 50%;
     border: 2px solid var(--msc2-hairline-subtle);
     border-top-color: var(--msc2-text-secondary);
+    border-radius: 50%;
     animation: spin 0.7s linear infinite;
   }
   @keyframes spin {
@@ -217,7 +448,6 @@
       transform: rotate(360deg);
     }
   }
-
   .hint {
     margin: 0;
     font-size: 11.5px;
@@ -227,5 +457,12 @@
   }
   .hint.warn {
     color: var(--msc2-status-warn);
+  }
+  .hidden-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    overflow: hidden;
   }
 </style>

@@ -19,6 +19,7 @@
   // rather than wired to a dead link; add it back once P12.16 ships real
   // guide content.
   import NumberField from '../../../components/base/NumberField.svelte';
+  import { onboardingAnchor } from '../../../help/tourAnchors';
   import type { WizardDraft } from './model';
 
   export let draft: WizardDraft;
@@ -36,7 +37,7 @@
     <p>Choose how players outside your local network will join your server.</p>
   </div>
 
-  <div class="cards two-up">
+  <div class="cards two-up" use:onboardingAnchor={'ob_server_connectivity'}>
     <button
       type="button"
       class="card"
@@ -60,7 +61,7 @@
     </button>
   </div>
 
-  <div class="ports">
+  <div class="ports" use:onboardingAnchor={'ob_server_connectivity_ports'}>
     {#if isBedrock}
       <section class="block">
         <p class="msc2-type-overline">

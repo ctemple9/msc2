@@ -29,6 +29,7 @@
   // `wizardPath` the same way).
   import StatusDot from '../../../components/base/StatusDot.svelte';
   import Field from '../../../components/base/Field.svelte';
+  import { onboardingAnchor } from '../../../help/tourAnchors';
   import {
     JAVA_CATEGORY_INFO,
     JAVA_FLAVOR_CATALOG,
@@ -89,7 +90,7 @@
   }
 </script>
 
-<div class="confirm">
+<div class="confirm" use:onboardingAnchor={'ob_confirm_page'}>
   {#if createSucceeded}
     <div class="success">
       <StatusDot tone="ok" label="{displayName || draft.serverName} created" />

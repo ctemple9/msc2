@@ -31,6 +31,7 @@
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import Toggle from '../../../components/base/Toggle.svelte';
   import Badge from '../../../components/base/Badge.svelte';
+  import { onboardingAnchor } from '../../../help/tourAnchors';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import {
@@ -62,7 +63,8 @@
   // oracle) but gated differently: Java gates it behind crossplay being both
   // enabled and available, while Bedrock always shows it -- there's no
   // Java-side plugin to enable first.
-  $: showXboxBroadcast = draft.serverType === 'bedrock' || (draft.enableCrossPlay && !unavailableForCrossPlay);
+  $: showXboxBroadcast =
+    draft.serverType === 'bedrock' || (draft.enableCrossPlay && !unavailableForCrossPlay);
 
   function resetVersionSelection(): void {
     draft.versionId = undefined;
@@ -132,7 +134,7 @@
 </script>
 
 <div class="configure">
-  <section class="block">
+  <section class="block" use:onboardingAnchor={'ob_server_type'}>
     <p class="msc2-type-overline">Server Type</p>
     <div class="cards two-up">
       <button
@@ -158,11 +160,15 @@
 
   <section class="block">
     <p class="msc2-type-overline">Server Name</p>
-    <Field bind:value={draft.serverName} placeholder="Enter server name" />
+    <Field
+      bind:value={draft.serverName}
+      placeholder="Enter server name"
+      anchorId="ob_server_name"
+    />
   </section>
 
   {#if draft.serverType === 'java'}
-    <section class="block">
+    <section class="block" use:onboardingAnchor={'ob_server_category'}>
       <p class="msc2-type-overline">Server Software</p>
       <div class="cards two-up">
         {#each categories as category (category)}
@@ -179,7 +185,7 @@
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" use:onboardingAnchor={'ob_server_flavor'}>
       <div class="flavor-list">
         {#each javaFlavorChoices(draft.javaCategory) as flavor (flavor.id)}
           {@const available = isJavaFlavorImplemented(flavor.id)}
@@ -203,7 +209,7 @@
       </div>
     </section>
 
-    <section class="block">
+    <section class="block" use:onboardingAnchor={'ob_server_source'}>
       <p class="msc2-type-overline">Source</p>
       <SegmentedControl
         options={[
@@ -243,7 +249,7 @@
       {/if}
     </section>
 
-    <section class="block">
+    <section class="block" use:onboardingAnchor={'ob_server_crossplay'}>
       <p class="msc2-type-overline">Crossplay</p>
       <div class="toggle-card">
         <div class="toggle-row">
@@ -272,9 +278,8 @@
         </p>
       {/if}
     </section>
-
   {:else}
-    <section class="block">
+    <section class="block" use:onboardingAnchor={'ob_server_xbox_broadcast'}>
       <p class="msc2-type-overline">Bedrock Version</p>
       <Field bind:value={draft.bedrockVersion} placeholder="LATEST" width="200px" />
       <p class="hint">{BEDROCK_VERSION_NOTE}</p>

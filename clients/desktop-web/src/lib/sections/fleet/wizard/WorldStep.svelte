@@ -35,6 +35,7 @@
   import Field from '../../../components/base/Field.svelte';
   import Select from '../../../components/base/Select.svelte';
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
+  import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform } from '../../../platform';
   import type { PickedFile } from '../../../platform/types';
   import type { ScreenApi } from '../../shared/types';
@@ -105,7 +106,7 @@
     <p>Start with a brand new world, or bring in one from a backup.</p>
   </div>
 
-  <section class="block">
+  <section class="block" use:onboardingAnchor={'ob_world_source'}>
     <p class="msc2-type-overline">World Source</p>
     <SegmentedControl
       options={[
@@ -118,7 +119,7 @@
   </section>
 
   {#if draft.worldSourceMode === 'fresh'}
-    <section class="block">
+    <section class="block" use:onboardingAnchor={'ob_world_creation'}>
       <p class="msc2-type-overline">World Name</p>
       <Field
         bind:value={draft.worldName}

@@ -21,6 +21,9 @@ export function createBrowserPlatform(): PlatformAdapter {
       if (typeof window === 'undefined') return null;
       return window.prompt(request.label, 'java')?.trim() || null;
     },
+    readFile: async (_path: string) => {
+      throw new Error('Reading a local path needs the desktop app. Use the file picker instead.');
+    },
     pickFile: (_request: FilePickerRequest, browserFallback: () => Promise<PickedFile | null>) =>
       browserFallback(),
     notify: async (notification: DesktopNotification, browserFallback: () => Promise<void>) => {

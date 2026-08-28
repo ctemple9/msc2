@@ -4,10 +4,9 @@ import { writable } from 'svelte/store';
  * Anchor ids this MSC 2 build actually wires up to real UI, ported 1:1 from
  * MSC 1's `OnboardingAnchorID` string values. The agent's `/v1/guides/onboarding`
  * data is oracle-faithful and untouched (content/order/branching are agent
- * data per that guide's own `presentationBoundary`), but MSC 2 hasn't built
- * everything MSC 1 has yet: `AddServerWizardView`'s multi-page create flow is
- * still the plain create form in ManageSheet.svelte (see that file's own
- * comment), and the Packs tab was permanently dropped (P12.5). A guide step
+ * data per that guide's own `presentationBoundary`). The Add Server wizard
+ * now exposes its real multi-page flow; the Packs tab was permanently dropped
+ * (P12.5). A guide step
  * whose anchor isn't in this set points at UI that doesn't exist in this
  * client build -- `applicableTourSteps` (./onboarding.ts) filters those out
  * rather than showing a coach mark with nothing to highlight.
@@ -15,9 +14,25 @@ import { writable } from 'svelte/store';
 export const KNOWN_TOUR_ANCHOR_IDS: ReadonlySet<string> = new Set([
   'ob_manage_servers',
   'ob_create_server',
+  'ob_wizard_path_picker',
+  'ob_wizard_fresh_card',
+  'ob_wizard_continue',
   'ob_server_name',
+  'ob_server_type',
+  'ob_server_category',
+  'ob_server_flavor',
   'ob_server_source',
+  'ob_server_crossplay',
+  'ob_server_xbox_broadcast',
+  'ob_server_settings',
+  'ob_server_connectivity',
+  'ob_server_connectivity_ports',
   'ob_confirm_page',
+  'ob_wizard_body',
+  'ob_wizard_sheet',
+  'ob_world_source',
+  'ob_world_creation',
+  'ob_create_save',
   'ob_manage_done',
   'ob_accept_eula',
   'ob_start_button',

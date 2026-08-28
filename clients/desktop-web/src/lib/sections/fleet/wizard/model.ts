@@ -15,14 +15,20 @@ export type WizardPath = 'importExisting' | 'fresh';
  * Fresh/Java flavors with a plugin or mod ecosystem (`hasAddOnsStep`,
  * `showAddOns` here), between World and Confirm.
  */
-export function wizardStepLabels(path: WizardPath, showAddOns = false): readonly string[] {
+export function wizardStepLabels(
+  path: WizardPath,
+  showAddOns = false,
+  isModpackImport = false,
+): readonly string[] {
   if (path === 'fresh') {
     const labels = ['Choose path', 'Configure', 'Network', 'World'];
     if (showAddOns) labels.push('Add-ons');
     labels.push('Confirm');
     return labels;
   }
-  return ['Choose path', 'Upload', 'Review', 'Network', 'Confirm'];
+  return isModpackImport
+    ? ['Choose path', 'Upload', 'Network', 'World', 'Confirm']
+    : ['Choose path', 'Upload', 'Review', 'Network', 'Confirm'];
 }
 
 // ---------------------------------------------------------------------------
@@ -667,7 +673,7 @@ export async function scanImportSource(
  *  `WorldStep.svelte`'s identical `staging`/`stageError` precedent), so this
  *  only needs to check the durable half. */
 export function canAdvanceUpload(draft: WizardDraft): boolean {
-  return draft.importScan !== undefined;
+  return draft.importScan !== undefined || draft.stagedModpack !== undefined;
 }
 
 /** `AddServerWizardView.swift`'s displayName prefill on reaching Confirm for

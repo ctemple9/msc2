@@ -44,6 +44,8 @@ export interface PlatformAdapter {
   readonly kind: PlatformKind;
   pickFolder(label: string): Promise<string | null>;
   pickFilePath(request: FilePickerRequest): Promise<string | null>;
+  /** Reads a path delivered by the desktop drag-and-drop bridge. */
+  readFile?(path: string): Promise<Uint8Array>;
   pickFile(
     request: FilePickerRequest,
     browserFallback: () => Promise<PickedFile | null>,
@@ -78,6 +80,7 @@ export interface PlatformAdapter {
 export interface TauriPlatformDependencies {
   pickFolder(label: string): Promise<string | null>;
   pickFilePath(request: FilePickerRequest): Promise<string | null>;
+  readFile?(path: string): Promise<Uint8Array>;
   pickFile(request: FilePickerRequest): Promise<PickedFile | null>;
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;

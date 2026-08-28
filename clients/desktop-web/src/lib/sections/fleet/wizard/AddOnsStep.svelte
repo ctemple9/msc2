@@ -47,6 +47,7 @@
   // route to unpack an arbitrary zip of jars server-side (only a structured
   // mrpack/CurseForge manifest, via the modpack path below).
   import { onMount } from 'svelte';
+  import { onboardingAnchor } from '../../../help/tourAnchors';
   import Button from '../../../components/base/Button.svelte';
   import { getPlatform } from '../../../platform';
   import type { PickedFile } from '../../../platform/types';
@@ -204,7 +205,7 @@
   }
 </script>
 
-<div class="addons">
+<div class="addons" use:onboardingAnchor={'ob_wizard_sheet'}>
   <input bind:this={modpackFileInput} type="file" accept=".mrpack,.zip" class="hidden-input" />
   <input bind:this={jarFileInput} type="file" accept=".jar" class="hidden-input" />
 

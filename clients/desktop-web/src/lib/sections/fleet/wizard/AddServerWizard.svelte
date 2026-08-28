@@ -16,23 +16,37 @@
   // per this block's own note in rolling-plan.md (antiAIslop rule #8).
   //
   // Step 1 (Choose Path) and, for the Fresh path, step 2 (Configure,
-  // P12.18b/c), step 3 (Network, P12.18d), step 4 (World, P12.18e), and step
-  // 5 (Add-ons, P12.18f, only when the flavor accepts add-ons -- otherwise
-  // step 5 is Confirm directly) are real. Every step past that is still a
-  // placeholder -- P12.18g-i replace each one in turn; the step-chip labels
-  // below already reflect the oracle's real sequence so nothing here needs
-  // to change shape when they land, just content.
+  // P12.18b/c), step 3 (Network, P12.18d), step 4 (World, P12.18e), step 5
+  // (Add-ons, P12.18f, only when the flavor accepts add-ons -- otherwise
+  // step 5 is Confirm directly), and the final Confirm step (P12.18g) are
+  // real. Only the Import path remains a placeholder -- P12.18h/i replace
+  // each of its steps in turn; the step-chip labels below already reflect
+  // the oracle's real sequence so nothing here needs to change shape when
+  // they land, just content.
+  //
+  // Confirm's Create/Done buttons replace this footer's Continue in place
+  // (same "parent owns Back/primary-action, each step is a presentational
+  // view over the shared draft" shape every prior step already established)
+  // rather than ConfirmStep growing its own footer -- see its own header
+  // comment. The sheet (and Back) refuse to close mid-create, matching
+  // worlds/WorldConversionWizard.svelte's identical `onClose={... ?
+  // undefined : onClose}` precedent for a durable operation already
+  // in flight.
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
   import ConfigureStep from './ConfigureStep.svelte';
   import NetworkStep from './NetworkStep.svelte';
   import WorldStep from './WorldStep.svelte';
   import AddOnsStep from './AddOnsStep.svelte';
+  import ConfirmStep from './ConfirmStep.svelte';
   import type { ScreenApi } from '../../shared/types';
+  import { errorMessage } from '../../shared/types';
   import {
     canAdvanceConfigure,
     canAdvanceNetwork,
     canAdvanceWorld,
+    canCreateServer,
+    createServerFromDraft,
     defaultWizardDraft,
     hasAddOnsStep,
     wizardStepLabels,
@@ -41,10 +55,20 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let onClose: () => void;
+  /** Called once the real create operation succeeds, so the caller can
+   *  refresh its own server list -- mirrors `ManageSheet.svelte`'s existing
+   *  `refreshServers` used after Import. */
+  export let onCreated: () => void = () => {};
 
   let path: WizardPath = 'importExisting';
   let currentStep = 1;
   let draft = defaultWizardDraft();
+
+  let displayName = '';
+  let isCreating = false;
+  let statusMessage = '';
+  let createSucceeded = false;
+  let createWarnings: string[] = [];
 
   // `AddServerWizardView.swift`'s `hasAddOnsStep` -- inserts a sixth "Add-ons"
   // step at position 5 (Fresh path only) once the chosen Java flavor accepts
@@ -53,6 +77,11 @@
   $: showAddOns = path === 'fresh' && hasAddOnsStep(draft);
   $: labels = wizardStepLabels(path, showAddOns);
   $: totalSteps = labels.length;
+  $: isConfirmStep = path === 'fresh' && currentStep === totalSteps;
+  // `AddServerWizardView.swift`'s own "prefill once, stay editable" default.
+  $: if (isConfirmStep && !displayName.trim() && draft.serverName.trim()) {
+    displayName = draft.serverName;
+  }
   $: canContinue =
     currentStep === 1 ||
     (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft)) ||
@@ -67,9 +96,27 @@
   function backStep(): void {
     if (currentStep > 1) currentStep -= 1;
   }
+
+  async function beginCreate(): Promise<void> {
+    if (!canCreateServer(displayName) || isCreating) return;
+    isCreating = true;
+    statusMessage = 'Creating server…';
+    try {
+      const { warnings } = await createServerFromDraft(api, draft, displayName, (line) => {
+        statusMessage = line;
+      });
+      createWarnings = warnings;
+      createSucceeded = true;
+      onCreated();
+    } catch (error) {
+      statusMessage = errorMessage(error);
+    } finally {
+      isCreating = false;
+    }
+  }
 </script>
 
-<Sheet title="Add Server" size="lg" {onClose}>
+<Sheet title="Add Server" size="lg" onClose={isCreating ? undefined : onClose}>
   <div class="wizard">
     <div class="steps" role="list" aria-label="Add Server progress">
       {#each labels as label, index (label)}
@@ -128,17 +175,39 @@
         <WorldStep {api} bind:draft />
       {:else if currentStep === 5 && path === 'fresh' && showAddOns}
         <AddOnsStep {api} bind:draft />
+      {:else if isConfirmStep}
+        <ConfirmStep
+          {api}
+          bind:draft
+          bind:displayName
+          {isCreating}
+          {statusMessage}
+          {createSucceeded}
+          {createWarnings}
+        />
       {:else}
         <p class="stub">"{labels[currentStep - 1]}" lands in a later step.</p>
       {/if}
     </div>
 
     <div class="footer">
-      {#if currentStep > 1}
-        <Button variant="secondary" onclick={backStep}>Back</Button>
+      {#if !createSucceeded && currentStep > 1}
+        <Button variant="secondary" onclick={backStep} disabled={isCreating}>Back</Button>
       {/if}
       <div class="spacer"></div>
-      <Button variant="primary" onclick={continueStep} disabled={!canContinue}>Continue</Button>
+      {#if createSucceeded}
+        <Button variant="primary" onclick={onClose}>Done</Button>
+      {:else if isConfirmStep}
+        <Button
+          variant="primary"
+          onclick={() => void beginCreate()}
+          disabled={!canCreateServer(displayName) || isCreating}
+        >
+          Create Server
+        </Button>
+      {:else}
+        <Button variant="primary" onclick={continueStep} disabled={!canContinue}>Continue</Button>
+      {/if}
     </div>
   </div>
 </Sheet>

@@ -126,6 +126,16 @@ function bytes(response, body) {
   response.writeHead(200, { 'content-type': 'application/zip', 'content-length': body.byteLength });
   response.end(body);
 }
+async function readJsonBody(request) {
+  const chunks = [];
+  for await (const chunk of request) chunks.push(chunk);
+  if (chunks.length === 0) return undefined;
+  try {
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  } catch {
+    return undefined;
+  }
+}
 
 function hostSetupComplete(request) {
   const cookie = request.headers.cookie ?? '';
@@ -309,8 +319,52 @@ createServer(async (request, response) => {
       ],
     });
   }
-  if (url.pathname === '/v1/worlds/import' && request.method === 'POST')
-    return json(response, { result: 'Imported' });
+  if (url.pathname === '/v1/servers/create' && request.method === 'POST') {
+    const body = await readJsonBody(request);
+    return json(response, {
+      success: true,
+      message: 'Server creation started.',
+      operationId: 'op-server-create',
+      serverName: body?.name ?? 'New Server',
+    });
+  }
+  // Any operation id resolves succeeded on its first poll -- this harness
+  // has no queued/running transitions to simulate, matching every route
+  // above that hands back an operationId for pollOperation to consume.
+  if (url.pathname.startsWith('/v1/operations/') && request.method === 'GET')
+    return json(response, {
+      id: url.pathname.slice('/v1/operations/'.length),
+      type: 'test-operation',
+      state: 'succeeded',
+      statusLine: 'Done.',
+      result: {},
+    });
+  if (url.pathname === '/v1/worlds/import' && request.method === 'POST') {
+    const body = await readJsonBody(request);
+    const imported = {
+      id: 'world-2',
+      name: body?.name ?? 'Imported World',
+      isActive: false,
+      createdAt: '2026-08-28T12:00:00Z',
+      hasThumbnail: false,
+    };
+    return json(response, {
+      success: true,
+      message: 'Imported.',
+      updated: { slots: [...worlds, imported], activeSlotId: 'world-1', serverRunning: false },
+    });
+  }
+  if (url.pathname === '/v1/worlds/activate' && request.method === 'POST')
+    return json(response, { result: 'Activated', operationId: 'op-world-activate' });
+  if (url.pathname === '/v1/components/install' && request.method === 'POST') {
+    const body = await readJsonBody(request);
+    return json(response, {
+      success: true,
+      message: 'Installed.',
+      projectId: body?.projectId ?? 'local-jar',
+      operationId: 'op-component-install',
+    });
+  }
   if (url.pathname === '/v1/worlds/export' && request.method === 'POST')
     return json(response, { stagedDownloadId: 'download-1' });
   if (url.pathname === '/v1/staged-downloads/download-1')

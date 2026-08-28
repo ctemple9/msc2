@@ -24,8 +24,12 @@
   //   `/v1/servers/export` route in the contract at all, so Export is
   //   omitted rather than wired to nothing.
   // - "Add Server..." opens AddServerWizard.svelte (P12.18a-i), a real port
-  //   of MSC 1's multi-step AddServerWizardView. Only its shell + Choose
-  //   Path step are real so far; see that component's own header comment.
+  //   of MSC 1's multi-step AddServerWizardView. The Fresh path (shell,
+  //   Choose Path, Configure, Network, World, Add-ons, and the real Confirm
+  //   + create) is real end to end as of P12.18g; the Import path is still a
+  //   placeholder until P12.18h. `refreshServers` (already used after
+  //   Import) also runs once the wizard's own create succeeds, so a newly
+  //   created server shows up here without closing and reopening this sheet.
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -341,7 +345,7 @@
 {/if}
 
 {#if showWizard}
-  <AddServerWizard {api} onClose={() => (showWizard = false)} />
+  <AddServerWizard {api} onClose={() => (showWizard = false)} onCreated={refreshServers} />
 {/if}
 
 <style>

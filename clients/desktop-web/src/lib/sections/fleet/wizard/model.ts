@@ -1,4 +1,8 @@
-import type { Schema } from '../../shared/types';
+import type { Schema, ScreenApi } from '../../shared/types';
+import { errorMessage, mutate } from '../../shared/types';
+import { fleetMutationPaths } from '../model';
+import { worldPaths } from '../../worlds/model';
+import { addonPaths } from '../../addons/model';
 
 /** The two entry points `AddServerWizardView.swift`'s step 1 offers. */
 export type WizardPath = 'importExisting' | 'fresh';
@@ -401,4 +405,196 @@ export function versionsForCreatePath(
  */
 export function versionEntryLabel(entry: Schema['VersionEntryDTO']): string {
   return entry.buildLabel ? `${entry.displayLabel} · ${entry.buildLabel}` : entry.displayLabel;
+}
+
+// ---------------------------------------------------------------------------
+// Confirm step (P12.18g) -- the real POST /v1/servers/create call and the
+// draft-only fields no create request can carry, redeemed once the server
+// (and its default world slot) is real. `pollOperation`/`operationPath`
+// duplicate worlds/model.ts's and components/model.ts's own copies -- this
+// codebase's established per-domain convention, not shared to avoid
+// cross-domain coupling (see either file's own doc comment).
+// ---------------------------------------------------------------------------
+
+export const operationPath = (id: string): string => `/v1/operations/${id}`;
+
+const OPERATION_POLL_MS = 900;
+
+export async function pollOperation(
+  api: ScreenApi | undefined,
+  operationId: string,
+  onTick?: (operation: Schema['OperationDTO']) => void,
+  delayMs = OPERATION_POLL_MS,
+): Promise<Schema['OperationDTO'] | undefined> {
+  if (!api) return undefined;
+  for (;;) {
+    const operation = await api.get<Schema['OperationDTO']>(operationPath(operationId));
+    onTick?.(operation);
+    if (
+      operation.state === 'succeeded' ||
+      operation.state === 'failed' ||
+      operation.state === 'cancelled'
+    ) {
+      return operation;
+    }
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+  }
+}
+
+/** `AddServerWizardView.swift`'s `canCreate`. */
+export function canCreateServer(displayName: string): boolean {
+  return displayName.trim().length > 0;
+}
+
+/**
+ * `AddServerWizardView.swift`'s `beginCreate`, Fresh branch: assembles the
+ * real `POST /v1/servers/create` body from the accumulated draft.
+ *
+ * `worldSourceMode: 'backupZip'` is deliberately **not** represented here --
+ * `run_create_server`'s own `NewServerRequest` (`crates/msc-agent/src/routes/
+ * servers.rs`) always provisions `WorldSource::Fresh` no matter what this
+ * body contains, since `ServerCreateRequestDTO` carries no world-source
+ * field at all (confirmed against the frozen contract: `worldName`/
+ * `worldSeed` are the only world-shape fields it takes). A staged backup can
+ * only be redeemed *after* the server -- and its one default world slot --
+ * actually exists; see `redeemStagedWorldBackup` below, called only once
+ * this request's own operation has succeeded.
+ */
+export function buildServerCreateRequest(
+  draft: WizardDraft,
+  displayName: string,
+): Record<string, unknown> {
+  const name = displayName.trim() || draft.serverName.trim();
+  const body: Record<string, unknown> = {
+    name,
+    serverType: draft.serverType,
+    enablePlayit: draft.enablePlayit,
+    enableXboxBroadcast: draft.enableXboxBroadcast,
+    difficulty: draft.worldDifficulty,
+    gamemode: draft.worldGamemode,
+  };
+  const worldName = draft.worldName.trim();
+  if (worldName) body.worldName = worldName;
+  const worldSeed = draft.worldSeed.trim();
+  if (worldSeed) body.worldSeed = worldSeed;
+  if (draft.serverType === 'java') {
+    body.javaFlavor = draft.javaFlavor;
+    if (draft.versionId) body.versionId = draft.versionId;
+    body.port = draft.javaPort;
+    body.enableCrossPlay = draft.enableCrossPlay;
+    if (draft.enableCrossPlay) body.crossPlayBedrockPort = draft.crossPlayBedrockPort;
+    if (draft.stagedModpack) body.stagedModpackUploadId = draft.stagedModpack.stagedUploadId;
+  } else {
+    body.bedrockVersion = draft.bedrockVersion.trim() || 'LATEST';
+    body.maxPlayers = draft.bedrockMaxPlayers;
+    body.port = draft.bedrockPort;
+  }
+  return body;
+}
+
+/**
+ * Redeems `WizardDraft.stagedWorldBackup` against the just-created server:
+ * `POST /v1/worlds/import` (the same call `ImportWorldZipSheet.svelte`
+ * already makes) lands it as a *new* world slot alongside the server's own
+ * default fresh-created one, then `POST /v1/worlds/activate` makes it the
+ * active world -- matching the oracle's `worldSource: .backupZip(url)`
+ * being handed straight into `createNewServer` as the server's one and only
+ * world. Both routes resolve "the active server" server-side with no
+ * `serverId` field to pass; `finish_created_server` (`servers.rs`) already
+ * selected the new server active once its own operation succeeded, so this
+ * is safe to call immediately after that.
+ */
+export async function redeemStagedWorldBackup(
+  api: ScreenApi | undefined,
+  staged: NonNullable<WizardDraft['stagedWorldBackup']>,
+): Promise<void> {
+  const name = staged.fileName.replace(/\.zip$/i, '').trim() || 'Imported World';
+  const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.import, {
+    name,
+    stagedUploadId: staged.stagedUploadId,
+  });
+  const updated = result.updated;
+  const newSlot = updated?.slots.find((slot) => slot.id !== updated.activeSlotId);
+  if (!newSlot) return;
+  const activated = await mutate<Schema['WorldActivateResultDTO']>(api, worldPaths.activate, {
+    slotId: newSlot.id,
+  });
+  if (activated.operationId) await pollOperation(api, activated.operationId);
+}
+
+/**
+ * Redeems one `WizardDraft.pendingAddOns` entry via the same
+ * `POST /v1/components/install` route `ProjectDetailSheet.svelte`/
+ * `ComponentsSection.svelte` already call for an existing server --
+ * `AddOnsStep.svelte`'s own note explains why this can't fire until now.
+ */
+export async function redeemPendingAddOn(
+  api: ScreenApi | undefined,
+  addOn: PendingAddOn,
+): Promise<void> {
+  const body =
+    addOn.kind === 'catalog'
+      ? {
+          projectId: addOn.projectId,
+          slug: addOn.slug,
+          title: addOn.title,
+          versionId: addOn.versionId,
+        }
+      : { stagedUploadId: addOn.stagedUploadId };
+  const result = await mutate<Schema['CatalogInstallResultDTO']>(api, addonPaths.install, body);
+  if (result.operationId) await pollOperation(api, result.operationId);
+}
+
+/** A pending add-on's display name, for a warning line if its redemption fails. */
+export function pendingAddOnLabel(addOn: PendingAddOn): string {
+  return addOn.kind === 'catalog' ? addOn.title : addOn.fileName;
+}
+
+/**
+ * Orchestrates the whole real create: the durable `POST /v1/servers/create`
+ * operation, then -- only once it has actually succeeded -- the staged
+ * world backup and every pending add-on, each independently best-effort so
+ * one failure doesn't hide the others. Mirrors the oracle's own two-phase
+ * shape (`createNewServer` then `applyStagedAddOn` per staged item) without
+ * its single in-process call, since this port's staged items redeem over
+ * HTTP instead.
+ */
+export async function createServerFromDraft(
+  api: ScreenApi | undefined,
+  draft: WizardDraft,
+  displayName: string,
+  onProgress?: (statusLine: string) => void,
+): Promise<{ warnings: string[] }> {
+  const result = await mutate<Schema['ServerCreateResultDTO']>(
+    api,
+    fleetMutationPaths.create,
+    buildServerCreateRequest(draft, displayName),
+  );
+  if (!result.operationId) {
+    if (!result.success) throw new Error(result.message);
+    return { warnings: [] };
+  }
+  const operation = await pollOperation(api, result.operationId, (tick) => {
+    if (tick.statusLine) onProgress?.(tick.statusLine);
+  });
+  if (operation?.state !== 'succeeded') {
+    throw new Error(operation?.error?.message ?? 'Failed to create server.');
+  }
+
+  const warnings: string[] = [];
+  if (draft.worldSourceMode === 'backupZip' && draft.stagedWorldBackup) {
+    try {
+      await redeemStagedWorldBackup(api, draft.stagedWorldBackup);
+    } catch (error) {
+      warnings.push(`World backup: ${errorMessage(error)}`);
+    }
+  }
+  for (const addOn of draft.pendingAddOns) {
+    try {
+      await redeemPendingAddOn(api, addOn);
+    } catch (error) {
+      warnings.push(`${pendingAddOnLabel(addOn)}: ${errorMessage(error)}`);
+    }
+  }
+  return { warnings };
 }

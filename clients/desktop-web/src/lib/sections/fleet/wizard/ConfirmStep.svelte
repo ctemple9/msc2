@@ -1,0 +1,304 @@
+<script lang="ts">
+  // Real port of AddServerWizardView.swift's step5Confirm/confirmFormView --
+  // a Display Name field, a read-only summary of every prior pick, the
+  // Modded "every player needs the loader" note, and (while creating) a
+  // progress line. This component only presents that state; the real
+  // POST /v1/servers/create call, its operation-progress polling, and the
+  // staged-world-backup/pending-add-on redemption that follows it all live
+  // in AddServerWizard.svelte + model.ts's `createServerFromDraft`, the same
+  // "parent owns the footer's primary action, each step is a presentational
+  // view over the shared draft" shape ConfigureStep/NetworkStep/WorldStep/
+  // AddOnsStep already established -- Create/Done replace Continue on
+  // AddServerWizard's own footer rather than this component growing its own.
+  //
+  // Not ported: the oracle's live `installerLogView` (raw installer stdout
+  // lines streamed from a local subprocess). MSC 2's client/agent split has
+  // no such stream -- OperationDTO.statusLine is the one human-readable
+  // progress line the agent exposes for this operation, shown directly
+  // instead, matching worlds/WorldConversionWizard.svelte's own precedent.
+  //
+  // Success state reuses StatusDot (docs/msc2/antiAIslop.md tell #12's own
+  // "correct usage" example -- a defined state, always labeled) instead of
+  // the oracle's large accent-colored checkmark circle, which is exactly
+  // the icon-in-a-tinted-box tell (#6) applied to a status readout.
+  import StatusDot from '../../../components/base/StatusDot.svelte';
+  import Field from '../../../components/base/Field.svelte';
+  import {
+    JAVA_CATEGORY_INFO,
+    JAVA_FLAVOR_CATALOG,
+    javaAddOnKind,
+    versionEntryLabel,
+    versionsForCreatePath,
+    type WizardDraft,
+  } from './model';
+  import type { Schema, ScreenApi } from '../../shared/types';
+
+  export let api: ScreenApi | undefined = undefined;
+  export let draft: WizardDraft;
+  export let displayName: string;
+  export let isCreating: boolean;
+  export let statusMessage: string;
+  export let createSucceeded: boolean;
+  export let createWarnings: readonly string[] = [];
+
+  $: flavorInfo = JAVA_FLAVOR_CATALOG.find((entry) => entry.id === draft.javaFlavor);
+  $: addOnKind = javaAddOnKind(draft.javaFlavor);
+  $: addOnNoun = addOnKind === 'plugin' ? 'Plugins' : 'Mods';
+  $: totalStagedAddOns = draft.pendingAddOns.length;
+
+  // The oracle keeps one shared `selectedVersionEntry` state var visible to
+  // every step; this port only knows the picked `versionId` by the time it
+  // reaches Confirm, so -- matching AddOnsStep.svelte's identical situation
+  // -- it re-resolves the flavor's version list here rather than threading
+  // more state back through Configure.
+  let pinnedVersionLabel: string | undefined;
+  $: if (api && draft.serverType === 'java' && draft.versionId) {
+    void resolvePinnedVersionLabel(draft.versionId);
+  } else {
+    pinnedVersionLabel = undefined;
+  }
+
+  async function resolvePinnedVersionLabel(versionId: string): Promise<void> {
+    try {
+      const response = await api?.get<Schema['VersionsResponseDTO']>(
+        versionsForCreatePath('java', draft.javaFlavor),
+      );
+      const entry = response?.versions?.find((candidate) => candidate.id === versionId);
+      pinnedVersionLabel = entry ? versionEntryLabel(entry) : undefined;
+    } catch {
+      pinnedVersionLabel = undefined;
+    }
+  }
+</script>
+
+<div class="confirm">
+  {#if createSucceeded}
+    <div class="success">
+      <StatusDot tone="ok" label="{displayName || draft.serverName} created" />
+      <p class="hint">
+        {#if draft.javaCategory === 'modded'}
+          Add mods in the Components tab before starting — world-gen mods must be present on first
+          boot.
+        {:else}
+          Open Server Settings to review defaults. Install {addOnKind === 'plugin'
+            ? 'plugins'
+            : 'add-ons'} from the Components tab any time.
+        {/if}
+      </p>
+      {#each createWarnings as warning (warning)}
+        <p class="hint warn">{warning}</p>
+      {/each}
+    </div>
+  {:else}
+    <div class="intro">
+      <h2>Name and confirm</h2>
+      <p>Review the summary below, then give your server a display name.</p>
+    </div>
+
+    <section class="block">
+      <p class="msc2-type-overline">Display Name</p>
+      <Field bind:value={displayName} placeholder="Server display name" disabled={isCreating} />
+    </section>
+
+    <section class="block">
+      <p class="msc2-type-overline">Summary</p>
+      <div class="summary">
+        <div class="row">
+          <span class="label">Server type</span>
+          <span class="value">{draft.serverType === 'java' ? 'Java' : 'Bedrock'}</span>
+        </div>
+        {#if draft.serverType === 'java'}
+          <div class="row">
+            <span class="label">Software</span>
+            <span class="value"
+              >{flavorInfo?.displayName ?? draft.javaFlavor} · {JAVA_CATEGORY_INFO[
+                draft.javaCategory
+              ].displayName}</span
+            >
+          </div>
+          <div class="row">
+            <span class="label">Version</span>
+            <span class="value"
+              >{pinnedVersionLabel ?? `Latest ${flavorInfo?.displayName ?? draft.javaFlavor}`}</span
+            >
+          </div>
+          <div class="row">
+            <span class="label">Java Port</span>
+            <span class="value">{draft.javaPort}</span>
+          </div>
+          {#if draft.enableCrossPlay}
+            <div class="row">
+              <span class="label">Bedrock Port</span>
+              <span class="value">{draft.crossPlayBedrockPort}</span>
+            </div>
+          {/if}
+        {:else}
+          <div class="row">
+            <span class="label">Bedrock Version</span>
+            <span class="value">{draft.bedrockVersion.trim() || 'LATEST'}</span>
+          </div>
+          <div class="row">
+            <span class="label">Max Players</span>
+            <span class="value">{draft.bedrockMaxPlayers}</span>
+          </div>
+          <div class="row">
+            <span class="label">Port</span>
+            <span class="value">{draft.bedrockPort}</span>
+          </div>
+        {/if}
+        <div class="row">
+          <span class="label">Connectivity</span>
+          <span class="value">{draft.enablePlayit ? 'Tunnel (playit.gg)' : 'Port Forwarding'}</span>
+        </div>
+        <div class="row">
+          <span class="label">World source</span>
+          <span class="value"
+            >{draft.worldSourceMode === 'fresh' ? 'New world' : 'From backup (.zip)'}</span
+          >
+        </div>
+        {#if draft.worldSourceMode === 'fresh'}
+          <div class="row">
+            <span class="label">World name</span>
+            <span class="value">{draft.worldName.trim() || draft.serverName || '—'}</span>
+          </div>
+        {:else if draft.stagedWorldBackup}
+          <div class="row">
+            <span class="label">Backup file</span>
+            <span class="value">{draft.stagedWorldBackup.fileName}</span>
+          </div>
+        {/if}
+        {#if draft.stagedModpack}
+          <div class="row">
+            <span class="label">Modpack</span>
+            <span class="value"
+              >{draft.stagedModpack.inspection.packName ?? draft.stagedModpack.fileName}</span
+            >
+          </div>
+        {/if}
+        {#if totalStagedAddOns > 0}
+          <div class="row">
+            <span class="label">{addOnNoun}</span>
+            <span class="value">{totalStagedAddOns} staged</span>
+          </div>
+        {/if}
+      </div>
+
+      {#if draft.serverType === 'java' && draft.javaCategory === 'modded'}
+        <p class="hint">
+          To join, every player needs the {flavorInfo?.displayName ?? draft.javaFlavor} loader for this
+          Minecraft version, plus the same mods installed.
+        </p>
+      {/if}
+    </section>
+
+    {#if isCreating}
+      <div class="progress">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="hint">{statusMessage || 'Working…'}</span>
+      </div>
+    {:else if statusMessage}
+      <p class="hint warn">{statusMessage}</p>
+    {/if}
+  {/if}
+</div>
+
+<style>
+  .confirm {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .intro {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .intro h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--msc2-text-primary);
+  }
+  .intro p {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--msc2-text-tertiary);
+  }
+
+  .block {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .block > .summary {
+    width: 100%;
+  }
+
+  .summary {
+    display: flex;
+    flex-direction: column;
+    background: var(--msc2-tier-chrome);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .row:first-child {
+    border-top: none;
+  }
+  .label {
+    font-size: 12px;
+    color: var(--msc2-text-tertiary);
+  }
+  .value {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
+    text-align: right;
+  }
+
+  .hint {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
+  }
+  .hint.warn {
+    color: var(--msc2-status-warn);
+  }
+
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .spinner {
+    width: 13px;
+    height: 13px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    border: 2px solid var(--msc2-hairline-subtle);
+    border-top-color: var(--msc2-text-secondary);
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .success {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 0;
+  }
+</style>

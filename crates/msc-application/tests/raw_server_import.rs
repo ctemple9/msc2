@@ -249,6 +249,7 @@ fn raw_server_import_applies_port_max_players_world_name_and_eula_overrides() {
         max_players: Some(8),
         active_world_name: Some("survival".to_string()),
         eula_accepted: Some(true),
+        enable_playit: Some(true),
     };
 
     let imported = import_raw_server(&request, &temp.home_dir()).expect("import should succeed");
@@ -260,6 +261,26 @@ fn raw_server_import_applies_port_max_players_world_name_and_eula_overrides() {
 
     let eula = std::fs::read_to_string(dest.join("eula.txt")).unwrap();
     assert_eq!(eula, "eula=true\n");
+    assert!(imported.config.playit_enabled);
+}
+
+/// Source line 81: `enablePlayit: Bool = false` -- an import that never
+/// supplies the override must register with playit disabled, matching
+/// every other freshly-imported server's default and `ConfigServer::new`'s
+/// own default (`app_config_schema.rs`), not silently inherit `true` from
+/// whatever the copied source folder happened to contain.
+#[test]
+fn raw_server_import_defaults_playit_disabled_when_override_omitted() {
+    let temp = TempRoot::new("playit-default");
+    write_paper_source(&temp.source_dir());
+
+    let request = base_request(
+        &temp,
+        RawImportSource::Folder(temp.source_dir()),
+        ServerType::Java,
+    );
+    let imported = import_raw_server(&request, &temp.home_dir()).expect("import should succeed");
+    assert!(!imported.config.playit_enabled);
 }
 
 #[test]

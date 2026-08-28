@@ -364,6 +364,7 @@ fn import_raw(
         max_players: body.max_players,
         active_world_name: body.active_world_name.clone(),
         eula_accepted: body.accept_eula,
+        enable_playit: body.enable_playit,
     };
 
     let worker_state = state.clone();
@@ -2729,6 +2730,7 @@ mod tests {
         request.max_players = Some(7);
         request.active_world_name = Some("survival".to_string());
         request.accept_eula = Some(true);
+        request.enable_playit = Some(true);
 
         let (status, _, operation) = await_import(&state, call_import(&state, request).await).await;
 
@@ -2747,6 +2749,7 @@ mod tests {
             .expect("imported server should be registered");
         assert_eq!(registered.server_type, ServerType::Java);
         assert_eq!(registered.java_flavor, JavaServerFlavor::Paper);
+        assert!(registered.playit_enabled);
 
         let properties =
             std::fs::read_to_string(Path::new(&registered.server_dir).join("server.properties"))

@@ -1022,6 +1022,12 @@ pub struct RawImportOverrides {
     /// = eulaOverride, eula`); `None`/`Some(false)` leave the copied
     /// source's `eula.txt`, if any, untouched.
     pub eula_accepted: Option<bool>,
+    /// Source line 194: `cfgServer.playitEnabled = enablePlayit` — always a
+    /// concrete value (the source parameter itself defaults to `false`,
+    /// `AppViewModel+ServerImport.swift:81`), not a "leave as-is" override
+    /// like the others here; `None` (the client omitted it) is treated the
+    /// same as `Some(false)`.
+    pub enable_playit: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1180,6 +1186,7 @@ pub fn import_raw_server(
         4.0,
     );
     config.server_type = request.server_type;
+    config.playit_enabled = request.overrides.enable_playit.unwrap_or(false);
     if request.server_type == ServerType::Bedrock {
         config.bedrock_port = Some(pre_override_port);
     }

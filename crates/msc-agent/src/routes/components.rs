@@ -82,6 +82,16 @@ pub(crate) struct CatalogQuery {
     q: Option<String>,
     #[serde(default)]
     offset: Option<usize>,
+    /// Search against this flavor instead of the active server's -- lets a
+    /// caller with no active server yet (the Add Server wizard's Add-ons
+    /// step, before the server it's configuring exists) search for real.
+    /// When present, `minecraft_version` is used too if given; the active
+    /// server is not consulted at all. Absent, this route's behavior is
+    /// unchanged from before this field existed.
+    #[serde(default)]
+    java_flavor: Option<String>,
+    #[serde(default)]
+    minecraft_version: Option<String>,
 }
 
 #[derive(serde::Deserialize)]
@@ -703,36 +713,50 @@ pub async fn search_catalog(
     Extension(_credential): Extension<AuthenticatedCredential>,
     Query(query): Query<CatalogQuery>,
 ) -> Response {
-    let Some(server) = state.lifecycle.active_config_server() else {
-        return Json(CatalogSearchResponseDto {
-            supports_addons: false,
-            addon_kind: None,
-            loader_name: None,
-            game_version: None,
-            results: Vec::new(),
-            note: Some("No active server.".to_string()),
-        })
-        .into_response();
+    // A `javaFlavor` query param searches against that flavor directly,
+    // without any active server at all -- the Add Server wizard's Add-ons
+    // step uses this to search Modrinth for the flavor it's configuring,
+    // before that server exists. Absent, this falls back to the active
+    // server exactly as before this param existed.
+    let (java_flavor, minecraft_version) = if let Some(requested) = query
+        .java_flavor
+        .as_deref()
+        .and_then(JavaServerFlavor::from_raw_value)
+    {
+        (requested, query.minecraft_version.clone())
+    } else {
+        let Some(server) = state.lifecycle.active_config_server() else {
+            return Json(CatalogSearchResponseDto {
+                supports_addons: false,
+                addon_kind: None,
+                loader_name: None,
+                game_version: None,
+                results: Vec::new(),
+                note: Some("No active server.".to_string()),
+            })
+            .into_response();
+        };
+        (server.java_flavor, server.minecraft_version.clone())
     };
-    let Some(add_on_kind) = server.java_flavor.add_on_kind() else {
+    let Some(add_on_kind) = java_flavor.add_on_kind() else {
         return Json(CatalogSearchResponseDto {
             supports_addons: false,
             addon_kind: None,
             loader_name: None,
-            game_version: server.minecraft_version.clone(),
+            game_version: minecraft_version,
             results: Vec::new(),
             note: Some("This server flavor has no add-ons.".to_string()),
         })
         .into_response();
     };
     let transport = HttpTransport::new();
-    let loaders = loaders_for(server.java_flavor);
+    let loaders = loaders_for(java_flavor);
     let search = match provider::modrinth_search(
         &transport,
         query.q.as_deref().unwrap_or_default(),
         add_on_kind_name(add_on_kind),
         &loaders,
-        server.minecraft_version.as_deref(),
+        minecraft_version.as_deref(),
         20,
         query.offset.unwrap_or(0).try_into().unwrap_or(0),
     ) {
@@ -741,8 +765,8 @@ pub async fn search_catalog(
             return Json(CatalogSearchResponseDto {
                 supports_addons: true,
                 addon_kind: Some(add_on_kind_name(add_on_kind).to_string()),
-                loader_name: Some(server.java_flavor.raw_value().to_string()),
-                game_version: server.minecraft_version.clone(),
+                loader_name: Some(java_flavor.raw_value().to_string()),
+                game_version: minecraft_version,
                 results: Vec::new(),
                 note: Some(error.to_string()),
             })
@@ -752,8 +776,8 @@ pub async fn search_catalog(
     Json(CatalogSearchResponseDto {
         supports_addons: true,
         addon_kind: Some(add_on_kind_name(add_on_kind).to_string()),
-        loader_name: Some(server.java_flavor.raw_value().to_string()),
-        game_version: server.minecraft_version.clone(),
+        loader_name: Some(java_flavor.raw_value().to_string()),
+        game_version: minecraft_version,
         results: search
             .hits
             .into_iter()

@@ -3924,7 +3924,7 @@
     },
     "/v1/catalog/search": {
       "get": {
-        "summary": "Search the Modrinth add-on catalog for the active server (query params q, offset)",
+        "summary": "Search the Modrinth add-on catalog for the active server, or an explicit flavor with no active server needed (query params q, offset, javaFlavor, minecraftVersion)",
         "responses": {
           "200": {
             "description": "search results (always 200; supportsAddons=false + note conveys unsupported states)",
@@ -3938,7 +3938,7 @@
           }
         },
         "x-permission-category": "none",
-        "x-notes": "Always 200. note conveys two distinct honest-failure states, both non-fatal: an unsupported add-on kind for this server (supportsAddons=false), and a reachable-server-but-unreachable-Modrinth provider failure (supportsAddons stays true, results is empty, code provider_unavailable is not surfaced here since this route never errors -- only note explains it). A client branches on supportsAddons/results.length, never on note's text."
+        "x-notes": "Always 200. note conveys two distinct honest-failure states, both non-fatal: an unsupported add-on kind for this server (supportsAddons=false), and a reachable-server-but-unreachable-Modrinth provider failure (supportsAddons stays true, results is empty, code provider_unavailable is not surfaced here since this route never errors -- only note explains it). A client branches on supportsAddons/results.length, never on note's text. javaFlavor (a JavaServerFlavor raw value, e.g. 'paper'/'fabric') and minecraftVersion are additive: when javaFlavor is present and recognized, the search resolves loaders/add-on-kind/game-version filtering from it directly and the active server is not consulted at all -- added for the Add Server wizard's Add-ons step (P12.18f), which searches for the flavor it is configuring before that server exists. Omitting javaFlavor preserves this route's original active-server-scoped behavior exactly."
       }
     },
     "/v1/catalog/projects/{projectId}": {

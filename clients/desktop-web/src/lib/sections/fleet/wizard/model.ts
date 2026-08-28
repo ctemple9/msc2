@@ -270,7 +270,46 @@ export interface WizardDraft {
         inspection: Schema['ModpackInspectionResultDTO'];
       }
     | undefined;
+  /**
+   * Individual add-on picks staged during the Add-ons step -- either a
+   * Modrinth catalog pick (`PluginBrowserSheet.svelte`/`ProjectDetailSheet.svelte`
+   * in `mode="stage"`) or a local `.jar` file staged via
+   * `POST /v1/staged-uploads` (purpose `addon-local-file`). Mirrors
+   * `AddServerWizardView.swift`'s `stagedAddOns`/`WizardStagedAddOn`, but
+   * unlike the oracle (which downloads/copies files directly), nothing
+   * installs until P12.18g's real create call, once the server these are
+   * for actually exists -- each entry redeems through the same
+   * `POST /v1/components/install` route `ProjectDetailSheet.svelte` and
+   * `install_from_staged_local_jar` already use for an existing server,
+   * just called once per pending item right after creation instead of
+   * pre-create (that route hard-requires an active server; see
+   * `AddOnsStep.svelte`'s own note).
+   */
+  pendingAddOns: PendingAddOn[];
 }
+
+/** One entry in `WizardDraft.pendingAddOns` -- see that field's own doc
+ *  comment for how each kind gets redeemed. */
+export type PendingAddOn =
+  | {
+      readonly id: string;
+      readonly kind: 'catalog';
+      readonly projectId: string;
+      readonly slug: string | undefined;
+      readonly title: string;
+      readonly description: string | undefined;
+      readonly author: string | undefined;
+      readonly iconURL: string | undefined;
+      /** `undefined` means "latest compatible version," matching
+       *  `CatalogInstallRequestDTO.versionId`'s own optional semantics. */
+      readonly versionId: string | undefined;
+    }
+  | {
+      readonly id: string;
+      readonly kind: 'localFile';
+      readonly fileName: string;
+      readonly stagedUploadId: string;
+    };
 
 export function defaultWizardDraft(): WizardDraft {
   return {
@@ -294,6 +333,7 @@ export function defaultWizardDraft(): WizardDraft {
     worldSeed: '',
     stagedWorldBackup: undefined,
     stagedModpack: undefined,
+    pendingAddOns: [],
   };
 }
 

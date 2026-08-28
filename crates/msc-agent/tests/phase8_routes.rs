@@ -146,6 +146,26 @@ fn phase8_routes_accept_the_bootstrap_token() {
     let response = http_get(port, "/v1/catalog/search?q=fabric&offset=0", Some(TOKEN));
     assert!(response.starts_with("HTTP/1.1 200"), "{}", response);
     assert!(response.contains("\"supportsAddons\":false"));
+    assert!(response.contains("No active server."));
+
+    // A javaFlavor query param resolves add-on support from that flavor
+    // directly, without any active server -- the Add Server wizard's
+    // Add-ons step (P12.18f) searches this way before its server exists.
+    // Fabric has an add-on kind, so this must not hit the same
+    // no-active-server 200 the bare query above returns, regardless of
+    // whether this sandbox can actually reach Modrinth.
+    let response = http_get(
+        port,
+        "/v1/catalog/search?q=fabric&javaFlavor=fabric",
+        Some(TOKEN),
+    );
+    assert!(response.starts_with("HTTP/1.1 200"), "{}", response);
+    assert!(!response.contains("No active server."), "{}", response);
+    assert!(
+        !response.contains("\"supportsAddons\":false"),
+        "{}",
+        response
+    );
 
     let response = http_post_json(
         port,

@@ -36,6 +36,11 @@
   export let serverMinecraftVersion: string | undefined = undefined;
   export let onClose: () => void;
   export let onInstalled: (projectId: string) => void;
+  /** 'stage' (PluginBrowserSheet.svelte's own `mode` doc comment): picking a
+   *  version stages it via `onStaged` instead of calling
+   *  POST /v1/components/install, which requires an already-active server. */
+  export let mode: 'install' | 'stage' = 'install';
+  export let onStaged: ((versionId: string) => void) | undefined = undefined;
 
   let project: Schema['CatalogProjectDetailDTO'] | undefined;
   let versions: Schema['CatalogVersionDTO'][] = [];
@@ -95,6 +100,11 @@
   }
 
   async function installVersion(version: Schema['CatalogVersionDTO']): Promise<void> {
+    if (mode === 'stage') {
+      onStaged?.(version.id);
+      installedVersionIds = new Set(installedVersionIds).add(version.id);
+      return;
+    }
     if (!api) return;
     installingVersionId = version.id;
     try {
@@ -273,7 +283,11 @@
                 <span class="added">Installing…</span>
               {:else}
                 <Button size="sm" variant="secondary" onclick={() => void installVersion(version)}>
-                  {compatible ? 'Install' : 'Install anyway'}
+                  {#if mode === 'stage'}
+                    {compatible ? 'Add' : 'Add anyway'}
+                  {:else}
+                    {compatible ? 'Install' : 'Install anyway'}
+                  {/if}
                 </Button>
               {/if}
             </div>

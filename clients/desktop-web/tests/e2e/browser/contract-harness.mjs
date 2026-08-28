@@ -287,6 +287,28 @@ createServer(async (request, response) => {
       manualFiles: [],
       warnings: [],
     });
+  if (url.pathname === '/v1/catalog/search' && request.method === 'GET') {
+    const javaFlavor = url.searchParams.get('javaFlavor');
+    return json(response, {
+      supportsAddons: true,
+      addonKind: javaFlavor === 'fabric' ? 'mod' : 'plugin',
+      loaderName: javaFlavor ?? 'paper',
+      gameVersion: url.searchParams.get('minecraftVersion') ?? '1.20.4',
+      results: [
+        {
+          projectId: 'proj-1',
+          slug: 'test-addon',
+          title: 'Test Addon',
+          description: 'A fake search result from the harness.',
+          author: 'Someone',
+          downloads: 4200,
+          iconURL: null,
+          isClientOnly: false,
+          projectType: javaFlavor === 'fabric' ? 'mod' : 'plugin',
+        },
+      ],
+    });
+  }
   if (url.pathname === '/v1/worlds/import' && request.method === 'POST')
     return json(response, { result: 'Imported' });
   if (url.pathname === '/v1/worlds/export' && request.method === 'POST')

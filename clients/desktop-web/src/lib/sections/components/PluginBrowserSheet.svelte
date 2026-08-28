@@ -4,6 +4,14 @@
   // or click into ProjectDetailSheet (P12.7d) for the full ModrinthProjectDetailView
   // experience -- gallery, About text, and a per-version compatibility/install list.
   //
+  // `mode="stage"` (AddOnsStep.svelte, P12.18f) reuses this same component the
+  // way the oracle's own ModrinthBrowserView is reused for wizard-time staging
+  // (AddServerWizardView.swift's `onAddToStaging` sheet, `wizardStagingConfig`
+  // carrying the flavor being configured): search resolves against an explicit
+  // javaFlavor/minecraftVersion instead of the active server (there isn't one
+  // yet), and "Add" stages the pick through `onStage` instead of calling
+  // POST /v1/components/install, which also requires an active server.
+  //
   // The per-result icon here is real Modrinth artwork (CatalogItemDTO
   // .iconURL), the same category of content as a world slot's thumbnail --
   // not the rule #6 tell (a generic icon in a same-hue tinted box standing
@@ -27,6 +35,23 @@
   export let serverMinecraftVersion: string | undefined = undefined;
   export let onClose: () => void;
   export let onInstalled: () => void;
+  /**
+   * 'install' (default): every caller today -- ComponentsSection's real
+   * add-on browser for the active server. 'stage': the Add Server wizard's
+   * AddOnsStep.svelte, browsing for a flavor with no server created yet.
+   * In stage mode, javaFlavor/serverMinecraftVersion (already props above,
+   * previously display-only) also drive the search itself via GET
+   * /v1/catalog/search's javaFlavor/minecraftVersion query params, and
+   * "Add" stages the pick through onStage instead of calling
+   * POST /v1/components/install -- that route (like search without these
+   * params) hard-requires an already-active server, which is exactly what
+   * doesn't exist yet during the wizard. See AddOnsStep.svelte's own note
+   * for the full finding.
+   */
+  export let mode: 'install' | 'stage' = 'install';
+  export let onStage:
+    ((item: Schema['CatalogItemDTO'], versionId: string | undefined) => void) | undefined =
+    undefined;
 
   let detailItem: Schema['CatalogItemDTO'] | undefined;
 
@@ -47,9 +72,14 @@
     if (!api) return;
     loading = true;
     try {
-      const response = await api.get<Schema['CatalogSearchResponseDTO']>(
-        `${addonPaths.search}${encodeURIComponent(query)}`,
-      );
+      let path = `${addonPaths.search}${encodeURIComponent(query)}`;
+      if (mode === 'stage' && javaFlavor) {
+        path += `&javaFlavor=${encodeURIComponent(javaFlavor)}`;
+        if (serverMinecraftVersion) {
+          path += `&minecraftVersion=${encodeURIComponent(serverMinecraftVersion)}`;
+        }
+      }
+      const response = await api.get<Schema['CatalogSearchResponseDTO']>(path);
       supportsAddons = response.supportsAddons;
       results = response.results ?? [];
       note = response.note;
@@ -76,6 +106,11 @@
   }
 
   async function install(item: Schema['CatalogItemDTO']): Promise<void> {
+    if (mode === 'stage') {
+      onStage?.(item, undefined);
+      installed = new Set(installed).add(item.projectId);
+      return;
+    }
     if (!api) return;
     installing = new Set(installing).add(item.projectId);
     try {
@@ -107,6 +142,12 @@
   function handleDetailInstalled(projectId: string): void {
     installed = new Set(installed).add(projectId);
     onInstalled();
+  }
+
+  function handleDetailStaged(versionId: string): void {
+    if (!detailItem) return;
+    onStage?.(detailItem, versionId);
+    installed = new Set(installed).add(detailItem.projectId);
   }
 </script>
 
@@ -171,8 +212,10 @@
     item={detailItem}
     {javaFlavor}
     {serverMinecraftVersion}
+    {mode}
     onClose={() => (detailItem = undefined)}
     onInstalled={handleDetailInstalled}
+    onStaged={handleDetailStaged}
   />
 {/if}
 

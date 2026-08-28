@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: e3793b828c36587acf4d25f6c6620a73d446d74d6ef7fc06f1a357843fc00219
+// Contract SHA-256: 4d8d11dc69521c4aef7d5a3457af1492a2dbc51790f3786eff227bc1af1173d8
 
 export interface paths {
   '/v1/active-server': {
@@ -1038,7 +1038,7 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** Search the Modrinth add-on catalog for the active server (query params q, offset) */
+    /** Search the Modrinth add-on catalog for the active server, or an explicit flavor with no active server needed (query params q, offset, javaFlavor, minecraftVersion) */
     get: {
       parameters: {
         query?: never;

@@ -272,6 +272,8 @@ createServer(async (request, response) => {
     return json(response, { paperTemplates: [], pluginTemplates: [], serverRunning: false });
   if (url.pathname === '/v1/servers/delete' && request.method === 'POST')
     return json(response, { message: 'Server record removed.' });
+  if (url.pathname === '/v1/active-server' && request.method === 'POST')
+    return json(response, { success: true, message: 'Active server changed.' });
   if (url.pathname === '/v1/worlds')
     return json(response, { slots: worlds, activeSlotId: 'world-1', serverRunning: false });
   if (url.pathname === '/v1/staged-uploads' && request.method === 'POST')

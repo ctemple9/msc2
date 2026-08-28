@@ -524,6 +524,10 @@
     onAddHost={(label, baseUrl, code) => addRemoteHost(label, baseUrl, code)}
     onRemoveHost={(id) => removeRemoteHost(id)}
     onServersChanged={(updated) => (servers = updated)}
+    onActivated={(id) => {
+      selectedServerId = id;
+      status = { ...status, activeServerId: id };
+    }}
   />
 {/if}
 

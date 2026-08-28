@@ -59,6 +59,16 @@
   export let onAddHost: (label: string, baseUrl: string, pairingCode: string) => Promise<string>;
   export let onRemoveHost: (id: HostId) => void;
   export let onServersChanged: (servers: readonly Schema['ServerDTO'][]) => void;
+  /** Called after `setActive`'s own `POST /v1/active-server` succeeds, so the
+   *  caller can sync its *local* active-server state (sidebar dropdown,
+   *  header, section routing) -- `App.svelte`'s own `selectServer` already
+   *  does this for the sidebar's server picker, but this sheet posted the
+   *  same mutation directly and never told the parent, so "Set Active" here
+   *  changed the agent's active server without the client ever finding out.
+   *  Real bug Cameron hit verifying P12.18g: a just-created server's own
+   *  "Set Active" button did nothing visible until picked again from the
+   *  sidebar dropdown, which goes through `selectServer` instead. */
+  export let onActivated: (serverId: string) => void = () => {};
 
   const canControl =
     permissions.length === 0 ||
@@ -97,6 +107,7 @@
   async function setActive(serverId: string): Promise<void> {
     try {
       await mutate(api, fleetMutationPaths.active, { serverId });
+      onActivated(serverId);
     } catch (error) {
       notice = errorMessage(error);
     }

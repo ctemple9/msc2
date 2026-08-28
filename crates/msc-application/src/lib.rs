@@ -17,6 +17,7 @@ pub mod curseforge_manual;
 pub mod diagnostics;
 pub mod fleet;
 pub mod geyser;
+pub mod host_reset;
 pub mod import;
 pub mod java_launch;
 pub mod lifecycle;

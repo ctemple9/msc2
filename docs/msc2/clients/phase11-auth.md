@@ -120,6 +120,17 @@ credential; a copied binary, stale challenge, wrong host, or unregistered
 package identity fails closed. The successful backend stores its resulting
 host-scoped bearer credential using the same key above.
 
+## Host reset recovery
+
+The host-local agent command `msc pairing create` is the recovery handoff
+after a host reset. It creates a desktop- or browser-bound administrator
+pairing code with a ten-minute lifetime and prints the code once to the local
+terminal; the agent does not log it. The remote desktop's Pair Again flow or
+the browser's Add Host flow redeems that code through the ordinary one-use
+pairing routes. A reset revokes the previous credentials and pairing records,
+rotates the agent host id, and requires a new pairing; it never grants a
+remote client control of the operating-system service registration.
+
 The local IPC endpoint is never exposed through HTTP, Tailscale, a webview
 command, or a URL. If a platform cannot prove the installed package identity
 and key protection at runtime, automatic bootstrap is unavailable and the

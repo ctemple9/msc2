@@ -20,7 +20,7 @@ pub(crate) mod desktop;
 #[path = "auth/local_bootstrap.rs"]
 mod local_bootstrap;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -64,6 +64,7 @@ const AUTH_FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const AUTH_FAILURE_LIMIT: usize = 10;
 const PAIRING_CREATE_WINDOW: Duration = Duration::from_secs(5);
 const PAIRING_CREATE_LIMIT: usize = 10;
+const PAIRING_INDEX_KEY: &str = "remote-api.pairing-index";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -107,6 +108,14 @@ struct CredentialRecord {
 pub struct IssuedCredential {
     pub credential_id: String,
     pub token: String,
+}
+
+#[derive(Debug, Clone)]
+#[allow(dead_code)]
+pub(crate) struct HostLocalPairing {
+    pub pairing_code: String,
+    pub agent_host_id: String,
+    pub expires_at: SystemTime,
 }
 
 /// Safe, non-secret data returned by the named-token administration routes.
@@ -171,6 +180,8 @@ struct AuthStateInner {
     registry: Mutex<HashMap<String, CredentialRecord>>,
     failures: Mutex<HashMap<String, VecDeque<Instant>>>,
     pairing_creations: Mutex<HashMap<String, VecDeque<Instant>>>,
+    pairing_keys: Mutex<HashSet<String>>,
+    session_keys: Mutex<HashSet<String>>,
     audit_events: Mutex<Vec<AuthAuditEvent>>,
     /// Where the non-secret registry is durably persisted, if at all --
     /// `None` for the in-memory-only constructors tests use.
@@ -292,6 +303,8 @@ impl AuthState {
                 registry: Mutex::new(registry),
                 failures: Mutex::new(HashMap::new()),
                 pairing_creations: Mutex::new(HashMap::new()),
+                pairing_keys: Mutex::new(HashSet::new()),
+                session_keys: Mutex::new(HashSet::new()),
                 audit_events: Mutex::new(Vec::new()),
                 credential_store,
             }),
@@ -547,6 +560,138 @@ impl AuthState {
             self.persist_registry(&registry)?;
         }
         Ok(())
+    }
+
+    /// Revokes every credential and ephemeral auth record, then replaces the
+    /// host identity. This is the auth half of the host-reset transaction.
+    pub(crate) fn reset_for_host_reset(
+        &self,
+        previous_server_ids: &[String],
+    ) -> Result<String, SecretStoreError> {
+        let credential_ids: Vec<String> = self
+            .inner
+            .registry
+            .lock()
+            .unwrap()
+            .keys()
+            .cloned()
+            .collect();
+        let mut keys = credential_ids
+            .iter()
+            .map(|id| secret_store_key(id))
+            .collect::<Vec<_>>();
+        if let Some(index) = self.inner.secret_store.get(PAIRING_INDEX_KEY)? {
+            let indexed_keys: Vec<String> = serde_json::from_str(&index)
+                .map_err(|error| SecretStoreError(format!("reading pairing index: {error}")))?;
+            keys.extend(indexed_keys);
+        }
+        keys.extend(self.inner.pairing_keys.lock().unwrap().iter().cloned());
+        keys.extend(self.inner.session_keys.lock().unwrap().iter().cloned());
+        keys.extend([
+            LEGACY_OWNER_TOKEN_SECRET_KEY.to_string(),
+            "remote-api.guest-token".to_string(),
+            "playit.secret-key".to_string(),
+            "curseforge.api-key".to_string(),
+            desktop::AGENT_HOST_ID_KEY.to_string(),
+            PAIRING_INDEX_KEY.to_string(),
+        ]);
+        keys.extend(
+            previous_server_ids
+                .iter()
+                .map(|id| legacy_alt_password_secret_key(id)),
+        );
+        for key in keys {
+            self.inner.secret_store.delete(&key)?;
+        }
+        self.inner.pairing_keys.lock().unwrap().clear();
+        self.inner.session_keys.lock().unwrap().clear();
+        {
+            let mut registry = self.inner.registry.lock().unwrap();
+            registry.clear();
+            if let Some(store) = &self.inner.credential_store {
+                let _ = store.fs.remove(&store.path);
+            }
+        }
+        let host_id = format!("agent_{}", random_hex_id());
+        self.inner
+            .secret_store
+            .set(desktop::AGENT_HOST_ID_KEY, &host_id)?;
+        Ok(host_id)
+    }
+
+    pub(crate) fn remember_pairing_key(&self, key: String) -> Result<(), SecretStoreError> {
+        let mut indexed_keys: Vec<String> = self
+            .inner
+            .secret_store
+            .get(PAIRING_INDEX_KEY)?
+            .map(|value| {
+                serde_json::from_str(&value)
+                    .map_err(|error| SecretStoreError(format!("reading pairing index: {error}")))
+            })
+            .transpose()?
+            .unwrap_or_default();
+        if !indexed_keys.iter().any(|indexed| indexed == &key) {
+            indexed_keys.push(key.clone());
+            self.inner.secret_store.set(
+                PAIRING_INDEX_KEY,
+                &serde_json::to_string(&indexed_keys).expect("pairing key index serializes"),
+            )?;
+        }
+        self.inner.pairing_keys.lock().unwrap().insert(key);
+        Ok(())
+    }
+
+    pub(crate) fn forget_pairing_key(&self, key: &str) {
+        self.inner.pairing_keys.lock().unwrap().remove(key);
+    }
+
+    pub(crate) fn track_session_key(&self, key: String) {
+        self.inner.session_keys.lock().unwrap().insert(key);
+    }
+
+    pub(crate) fn forget_session_key(&self, key: &str) {
+        self.inner.session_keys.lock().unwrap().remove(key);
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn create_host_local_pairing(
+        &self,
+        client_kind: &str,
+        label: String,
+    ) -> Result<HostLocalPairing, String> {
+        match client_kind {
+            "desktop" => self
+                .create_desktop_pairing(desktop::CreateDesktopPairing {
+                    label,
+                    role: CredentialRole::Admin,
+                    permissions: all_permissions(),
+                    expires_at: None,
+                })
+                .map(|pairing| HostLocalPairing {
+                    pairing_code: pairing.pairing_code,
+                    agent_host_id: pairing.agent_host_id,
+                    expires_at: pairing.expires_at,
+                })
+                .map_err(|error| error.to_string()),
+            "browser" => self
+                .create_browser_pairing(browser::CreateBrowserPairing {
+                    label,
+                    role: CredentialRole::Admin,
+                    permissions: all_permissions(),
+                    expires_at: None,
+                })
+                .map_err(|error| error.to_string())
+                .and_then(|pairing| {
+                    self.agent_host_id()
+                        .map_err(|error| error.to_string())
+                        .map(|agent_host_id| HostLocalPairing {
+                            pairing_code: pairing.pairing_code,
+                            agent_host_id,
+                            expires_at: pairing.expires_at,
+                        })
+                }),
+            _ => Err("client kind must be 'desktop' or 'browser'".to_string()),
+        }
     }
 
     /// Shared by [`Self::issue_credential`] (fresh random `secret`) and

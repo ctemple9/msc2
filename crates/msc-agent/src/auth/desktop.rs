@@ -14,7 +14,7 @@ use msc_infrastructure::secret_store::SecretStoreError;
 
 const PAIRING_TTL: Duration = Duration::from_secs(10 * 60);
 const PAIRING_KEY_PREFIX: &str = "remote-api.desktop-pairing.";
-const AGENT_HOST_ID_KEY: &str = "remote-api.agent-host-id";
+pub(crate) const AGENT_HOST_ID_KEY: &str = "remote-api.agent-host-id";
 
 #[derive(Debug, Clone)]
 pub(crate) struct CreateDesktopPairing {
@@ -44,6 +44,17 @@ pub(crate) enum DesktopPairingError {
     Consumed,
     Expired,
     Store(String),
+}
+
+impl std::fmt::Display for DesktopPairingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unauthorized => write!(f, "pairing is unauthorized"),
+            Self::Consumed => write!(f, "pairing was already consumed"),
+            Self::Expired => write!(f, "pairing has expired"),
+            Self::Store(message) => write!(f, "{message}"),
+        }
+    }
 }
 
 impl From<SecretStoreError> for DesktopPairingError {
@@ -123,6 +134,7 @@ impl AuthState {
             &pairing_key(&id),
             &serde_json::to_string(&record).expect("desktop pairing serializes"),
         )?;
+        self.remember_pairing_key(pairing_key(&id))?;
         Ok(CreatedDesktopPairing {
             pairing_code: format!("pair_{id}_{secret}"),
             agent_host_id: self.agent_host_id()?,
@@ -161,6 +173,7 @@ impl AuthState {
         }
 
         self.inner.secret_store.delete(&key)?;
+        self.forget_pairing_key(&key);
         let expires_at = record.credential_expires_at.map(from_unix_secs);
         let issued = self
             .issue_credential(record.label, record.role, record.permissions, expires_at)

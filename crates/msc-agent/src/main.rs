@@ -18,6 +18,8 @@ use axum::Extension;
 use axum::Router;
 use axum::routing::{delete, get, post};
 use clap::Parser;
+use msc_infrastructure::config_repository::default_app_config_path;
+use msc_infrastructure::fs::StdFileSystem;
 
 #[derive(Parser)]
 #[command(name = "msc", about = "MSC 2 service and CLI")]
@@ -71,6 +73,16 @@ async fn run_service(bind: SocketAddr) -> Result<(), cli::CliError> {
     println!("msc listening on {bind}");
 
     let auth_state = auth::production_auth_state();
+    if msc_application::host_reset::recover_files(&StdFileSystem, default_app_config_path())
+        .expect("host reset recovery must be readable")
+        .is_some()
+    {
+        auth_state
+            .reset_for_host_reset(&[])
+            .expect("interrupted host reset auth recovery must succeed");
+        msc_application::host_reset::finish_recovery(&StdFileSystem, default_app_config_path())
+            .expect("interrupted host reset marker must be removable");
+    }
     #[cfg(target_os = "macos")]
     auth::spawn_local_bootstrap(auth_state.clone());
 
@@ -119,6 +131,11 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
             auth_state.clone(),
             bedrock_runtime,
         );
+    let host_reset_state = routes::host_reset::HostResetRoutesState::new(
+        lifecycle_state.clone(),
+        auth_state.clone(),
+        operations_state.clone(),
+    );
     let notification_state = ws::notifications::NotificationState::default();
     let networking_state = routes::networking::NetworkingState::new(
         lifecycle_state.clone(),
@@ -289,6 +306,10 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         // in-memory, purpose-tagged store.
         .layer(Extension(shared_staging));
 
+    let host_reset = Router::new()
+        .route("/host/reset", post(routes::host_reset::reset))
+        .with_state(host_reset_state);
+
     let players = routes::players::router(lifecycle_state.clone());
     let session_log = routes::session_log::router(lifecycle_state.clone());
     let files = routes::files::router(lifecycle_state.clone());
@@ -318,6 +339,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
     // special case is reached").
     let protected = Router::new()
         .merge(lifecycle)
+        .merge(host_reset)
         .merge(players)
         .merge(session_log)
         .merge(files)

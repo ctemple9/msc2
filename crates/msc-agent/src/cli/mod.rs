@@ -1,6 +1,7 @@
 //! Phase 4 CLI commands. Every subcommand except `serve` talks to the
 //! same HTTP API the iOS client uses.
 
+pub mod pairing;
 pub mod service;
 
 use std::collections::HashMap;
@@ -132,6 +133,11 @@ pub enum Command {
     Service {
         #[command(subcommand)]
         command: service::ServiceCommand,
+    },
+    /// Create a local one-use code for remote recovery pairing.
+    Pairing {
+        #[command(subcommand)]
+        command: pairing::PairingCommand,
     },
     /// Read recent console lines from the active server.
     Console {
@@ -936,6 +942,7 @@ pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {
         Command::Broadcast { command } => run_broadcast(common, command).await,
         Command::ResourcePack { command } => run_resource_pack(common, command).await,
         Command::Service { command } => service::run(common, command).await,
+        Command::Pairing { command } => pairing::run(common, command),
         Command::Server { command } => run_server(common, command).await,
         Command::Send(args) => run_command(common, args).await,
         Command::Console { command } => run_console(common, command).await,

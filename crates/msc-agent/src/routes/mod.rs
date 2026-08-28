@@ -12,6 +12,7 @@ pub mod files;
 pub mod geyser;
 pub mod health;
 pub mod help;
+pub mod host_reset;
 pub mod lifecycle;
 pub mod network_diagnostics;
 pub mod networking;

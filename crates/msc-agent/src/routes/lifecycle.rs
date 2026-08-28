@@ -529,6 +529,17 @@ impl LifecycleRoutesState {
         self.inner.app_config.servers_root()
     }
 
+    pub fn app_config_path(&self) -> PathBuf {
+        self.inner.app_config.path.clone()
+    }
+
+    pub fn reset_after_host_reset(&self) {
+        self.inner.app_config.reset_in_memory();
+        self.inner.lifecycle.lock().unwrap().clear_selection();
+        *self.inner.bedrock_active_server_id.lock().unwrap() = None;
+        self.inner.reconciliation.lock().unwrap().clear();
+    }
+
     #[cfg(test)]
     pub fn merge_config_servers(
         &self,
@@ -1555,6 +1566,12 @@ impl AgentAppConfigStore {
 
     pub fn snapshot(&self) -> AppConfig {
         self.config.lock().unwrap().clone()
+    }
+
+    pub fn reset_in_memory(&self) {
+        let servers_root = self.servers_root();
+        *self.config.lock().unwrap() =
+            AppConfig::default_config(servers_root.to_string_lossy().into_owned());
     }
 
     pub fn servers(&self) -> Vec<ConfigServer> {

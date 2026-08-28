@@ -235,6 +235,20 @@ impl<'deps> LifecycleService<'deps> {
         self.active_server.as_ref()
     }
 
+    /// Drops the selected server after a host reset. The reset route refuses
+    /// live processes first, so clearing this in-memory pointer cannot orphan
+    /// a process that the lifecycle service still owns.
+    pub fn clear_selection(&mut self) {
+        self.active_server = None;
+        self.active_process = None;
+        self.active_ram_max_mb = None;
+        self.state = LifecycleState::Stopped;
+        self.output_reducer = JavaOutputReducer::new();
+        self.latest_tps = None;
+        self.pending_restart = None;
+        self.recent_console_lines.clear();
+    }
+
     pub fn active_process(&self) -> Option<ProcessId> {
         self.active_process
     }

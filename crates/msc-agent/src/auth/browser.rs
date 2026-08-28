@@ -54,6 +54,17 @@ pub(crate) enum BrowserSessionError {
     Store(String),
 }
 
+impl std::fmt::Display for BrowserSessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Unauthorized => write!(f, "browser session is unauthorized"),
+            Self::Consumed => write!(f, "pairing was already consumed"),
+            Self::Expired => write!(f, "pairing or session has expired"),
+            Self::Store(message) => write!(f, "{message}"),
+        }
+    }
+}
+
 impl From<SecretStoreError> for BrowserSessionError {
     fn from(error: SecretStoreError) -> Self {
         Self::Store(error.to_string())
@@ -105,6 +116,7 @@ impl AuthState {
             &pairing_key(&id),
             &serde_json::to_string(&record).expect("browser pairing serializes"),
         )?;
+        self.remember_pairing_key(pairing_key(&id))?;
         Ok(CreatedBrowserPairing {
             pairing_code: format!("pair_{id}_{secret}"),
             expires_at,
@@ -142,6 +154,7 @@ impl AuthState {
         // Delete before issuing the credential. A concurrent or retried
         // exchange therefore observes `pairing_consumed`, never two sessions.
         self.inner.secret_store.delete(&key)?;
+        self.forget_pairing_key(&key);
         let issued = self
             .issue_credential(
                 record.label,
@@ -180,6 +193,7 @@ impl AuthState {
             &session_key(&session_id),
             &serde_json::to_string(&record).expect("browser session serializes"),
         )?;
+        self.track_session_key(session_key(&session_id));
         Ok(BrowserSession {
             session_id,
             credential_id: credential_id.to_string(),
@@ -256,6 +270,7 @@ impl AuthState {
         session_id: &str,
     ) -> Result<(), BrowserSessionError> {
         self.inner.secret_store.delete(&session_key(session_id))?;
+        self.forget_session_key(&session_key(session_id));
         Ok(())
     }
 }

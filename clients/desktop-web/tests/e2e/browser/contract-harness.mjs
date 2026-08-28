@@ -272,6 +272,21 @@ createServer(async (request, response) => {
     });
   if (url.pathname === '/v1/staged-uploads/upload-1' && request.method === 'PUT')
     return json(response, { stagedUploadId: 'upload-1', receivedBytes: 4 });
+  if (url.pathname === '/v1/modpacks/inspect' && request.method === 'POST')
+    return json(response, {
+      success: true,
+      message: 'Inspected archive.',
+      format: 'mrpack',
+      packName: 'Test Pack',
+      packVersion: '1.0.0',
+      minecraftVersion: '1.20.4',
+      loaderName: 'Fabric',
+      loaderVersion: '0.15.0',
+      fileCount: 12,
+      clientOnlyFileCount: 0,
+      manualFiles: [],
+      warnings: [],
+    });
   if (url.pathname === '/v1/worlds/import' && request.method === 'POST')
     return json(response, { result: 'Imported' });
   if (url.pathname === '/v1/worlds/export' && request.method === 'POST')

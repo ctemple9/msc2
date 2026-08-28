@@ -8,14 +8,17 @@ export type WizardPath = 'importExisting' | 'fresh';
  * `AddServerWizardView.swift`'s `stepLabel(_:)` -- Fresh and Import each walk
  * a different five-step sequence, sharing only step 1 (Choose path) and the
  * final step (Confirm). The oracle also inserts a sixth Add-ons step for
- * Fresh/Java flavors with a plugin or mod ecosystem (`hasAddOnsStep`); that
- * depends on the Configure step's flavor picker, which P12.18b builds, so
- * it isn't wired into this list yet -- P12.18f adds it there.
+ * Fresh/Java flavors with a plugin or mod ecosystem (`hasAddOnsStep`,
+ * `showAddOns` here), between World and Confirm.
  */
-export function wizardStepLabels(path: WizardPath): readonly string[] {
-  return path === 'fresh'
-    ? ['Choose path', 'Configure', 'Network', 'World', 'Confirm']
-    : ['Choose path', 'Upload', 'Review', 'Network', 'Confirm'];
+export function wizardStepLabels(path: WizardPath, showAddOns = false): readonly string[] {
+  if (path === 'fresh') {
+    const labels = ['Choose path', 'Configure', 'Network', 'World'];
+    if (showAddOns) labels.push('Add-ons');
+    labels.push('Confirm');
+    return labels;
+  }
+  return ['Choose path', 'Upload', 'Review', 'Network', 'Confirm'];
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +119,28 @@ const IMPLEMENTED_JAVA_FLAVORS = new Set<JavaFlavor>([
 
 export function isJavaFlavorImplemented(flavor: JavaFlavor): boolean {
   return IMPLEMENTED_JAVA_FLAVORS.has(flavor);
+}
+
+/** `JavaServerFlavor.swift`'s `AddOnKind` -- `plugin` installs to `plugins/`
+ *  (server-side only), `mod` to `mods/` (server and every client). */
+export type AddOnKind = 'plugin' | 'mod';
+
+/** `JavaServerFlavor.swift`'s `addOnKind` -- Vanilla has no plugin/mod API
+ *  (datapacks only) and returns `undefined`; standard-category flavors
+ *  (Paper/Purpur) take plugins, modded-category flavors (Fabric/NeoForge/
+ *  Forge) take mods. */
+export function javaAddOnKind(flavor: JavaFlavor): AddOnKind | undefined {
+  if (flavor === 'vanilla') return undefined;
+  const info = JAVA_FLAVOR_CATALOG.find((entry) => entry.id === flavor);
+  return info?.category === 'standard' ? 'plugin' : 'mod';
+}
+
+/** `AddServerWizardView.swift`'s `hasAddOnsStep` -- Fresh/Java servers whose
+ *  flavor accepts add-ons get an extra wizard step between World and
+ *  Confirm (always skippable once shown, matching the oracle's own
+ *  `canAdvance` case 5). */
+export function hasAddOnsStep(draft: WizardDraft): boolean {
+  return draft.serverType === 'java' && javaAddOnKind(draft.javaFlavor) !== undefined;
 }
 
 export const JAVA_CATEGORY_INFO: Readonly<
@@ -224,6 +249,27 @@ export interface WizardDraft {
    *  only; nothing is redeemed until P12.18g's real create call exists to
    *  redeem it against. */
   stagedWorldBackup: { fileName: string; stagedUploadId: string } | undefined;
+  /**
+   * Set once the Add-ons step has staged and inspected a modpack archive via
+   * `POST /v1/modpacks/inspect` (`addonPaths.inspectPack`) -- the same
+   * staged-upload-then-inspect primitive `ImportModpackSheet.svelte` already
+   * uses, stopped short of its own `POST /v1/modpacks/import` call (which
+   * always targets an already-existing "active server" and would be wrong
+   * here; see `AddOnsStep.svelte`'s own note). `stagedUploadId` carries
+   * forward for P12.18g's real create call to redeem directly as
+   * `ServerCreateRequestDTO.stagedModpackUploadId` -- the one field the
+   * frozen contract actually offers for a pre-create staged pack. Only
+   * offered for mod-kind flavors (Fabric/NeoForge/Forge); see
+   * `AddOnsStep.svelte`'s own note for why plugin-kind flavors have no
+   * pre-create equivalent at all.
+   */
+  stagedModpack:
+    | {
+        fileName: string;
+        stagedUploadId: string;
+        inspection: Schema['ModpackInspectionResultDTO'];
+      }
+    | undefined;
 }
 
 export function defaultWizardDraft(): WizardDraft {
@@ -247,6 +293,7 @@ export function defaultWizardDraft(): WizardDraft {
     worldGamemode: 'survival',
     worldSeed: '',
     stagedWorldBackup: undefined,
+    stagedModpack: undefined,
   };
 }
 

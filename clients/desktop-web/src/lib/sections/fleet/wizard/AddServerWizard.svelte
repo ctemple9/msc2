@@ -16,22 +16,25 @@
   // per this block's own note in rolling-plan.md (antiAIslop rule #8).
   //
   // Step 1 (Choose Path) and, for the Fresh path, step 2 (Configure,
-  // P12.18b/c), step 3 (Network, P12.18d), and step 4 (World, P12.18e) are
-  // real. Every step past that is still a placeholder -- P12.18f-i replace
-  // each one in turn; the step-chip labels below already reflect the
-  // oracle's real sequence so nothing here needs to change shape when they
-  // land, just content.
+  // P12.18b/c), step 3 (Network, P12.18d), step 4 (World, P12.18e), and step
+  // 5 (Add-ons, P12.18f, only when the flavor accepts add-ons -- otherwise
+  // step 5 is Confirm directly) are real. Every step past that is still a
+  // placeholder -- P12.18g-i replace each one in turn; the step-chip labels
+  // below already reflect the oracle's real sequence so nothing here needs
+  // to change shape when they land, just content.
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
   import ConfigureStep from './ConfigureStep.svelte';
   import NetworkStep from './NetworkStep.svelte';
   import WorldStep from './WorldStep.svelte';
+  import AddOnsStep from './AddOnsStep.svelte';
   import type { ScreenApi } from '../../shared/types';
   import {
     canAdvanceConfigure,
     canAdvanceNetwork,
     canAdvanceWorld,
     defaultWizardDraft,
+    hasAddOnsStep,
     wizardStepLabels,
     type WizardPath,
   } from './model';
@@ -43,13 +46,19 @@
   let currentStep = 1;
   let draft = defaultWizardDraft();
 
-  $: labels = wizardStepLabels(path);
+  // `AddServerWizardView.swift`'s `hasAddOnsStep` -- inserts a sixth "Add-ons"
+  // step at position 5 (Fresh path only) once the chosen Java flavor accepts
+  // add-ons, shifting Confirm from 5 to 6. When it's false, position 5 is
+  // Confirm directly and the layout is unchanged from before this step.
+  $: showAddOns = path === 'fresh' && hasAddOnsStep(draft);
+  $: labels = wizardStepLabels(path, showAddOns);
   $: totalSteps = labels.length;
   $: canContinue =
     currentStep === 1 ||
     (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft)) ||
     (currentStep === 3 && path === 'fresh' && canAdvanceNetwork(draft)) ||
-    (currentStep === 4 && path === 'fresh' && canAdvanceWorld(draft));
+    (currentStep === 4 && path === 'fresh' && canAdvanceWorld(draft)) ||
+    (currentStep === 5 && path === 'fresh' && showAddOns);
 
   function continueStep(): void {
     if (currentStep < totalSteps && canContinue) currentStep += 1;
@@ -117,6 +126,8 @@
         <NetworkStep bind:draft />
       {:else if currentStep === 4 && path === 'fresh'}
         <WorldStep {api} bind:draft />
+      {:else if currentStep === 5 && path === 'fresh' && showAddOns}
+        <AddOnsStep {api} bind:draft />
       {:else}
         <p class="stub">"{labels[currentStep - 1]}" lands in a later step.</p>
       {/if}

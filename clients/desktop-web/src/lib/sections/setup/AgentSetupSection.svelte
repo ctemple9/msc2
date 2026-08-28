@@ -186,13 +186,11 @@
         <span class="quiet-label">This computer</span>
       </div>
       <h2>Keep servers independent of the window</h2>
-      <p class="detail">
-        Use the installed desktop app to change this computer’s agent service.
-      </p>
+      <p class="detail">Use the installed desktop app to change this computer’s agent service.</p>
       <p class="detail">Closing the app window never stops the service.</p>
       <p class="detail">It never stops any Minecraft server either.</p>
       <div class="actions">
-        {#if status?.state === 'not-installed'}
+        {#if readiness === 'missing' || status?.state === 'not-installed'}
           <Button variant="primary" disabled={busy} onclick={() => manage('install')}
             >Install and Continue</Button
           >

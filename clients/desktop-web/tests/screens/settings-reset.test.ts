@@ -29,6 +29,8 @@ describe('settings reset flows', () => {
     expect(confirmDialogSource).toContain('<Button variant="secondary"');
     expect(confirmDialogSource).toContain('<Button variant="destructive"');
     expect(confirmDialogSource).toContain('var(--msc2-tier-chrome)');
+    expect(confirmDialogSource).toContain('position: relative');
+    expect(confirmDialogSource).not.toContain('<dialog');
     expect(confirmDialogSource).not.toContain('font-weight: 750');
     expect(confirmDialogSource).not.toContain('var(--msc-surface-raised)');
   });

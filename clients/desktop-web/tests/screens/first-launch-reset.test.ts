@@ -7,6 +7,7 @@ import setupSource from '../../src/lib/sections/setup/AgentSetupSection.svelte?r
 describe('first-launch reset recovery', () => {
   it('offers a continuation action for each local service recovery state', () => {
     expect(setupSource).toContain('Install and Continue');
+    expect(setupSource).toContain("readiness === 'missing' || status?.state === 'not-installed'");
     expect(setupSource).toContain('Start and Continue');
     expect(setupSource).toContain("readiness === 'incompatible'");
     expect(setupSource).toContain('Repair service');

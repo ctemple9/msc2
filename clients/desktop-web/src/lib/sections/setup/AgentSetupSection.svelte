@@ -19,6 +19,7 @@
   export let isDesktopShell = false;
   export let isLocalHost = true;
   export let browserHandoffError = '';
+  export let onPairAgain: ((pairingCode: string) => Promise<void>) | undefined = undefined;
 
   const readinessTitles: Record<AgentReadiness, string> = {
     missing: 'Agent not installed',
@@ -29,8 +30,8 @@
     unavailable: 'Agent unavailable',
   };
   const readinessMessages: Record<AgentReadiness, string> = {
-    missing: 'Install the local agent to continue. MSC will not install it automatically.',
-    stopped: 'The installed agent is stopped. Start it, then reconnect to this computer.',
+    missing: 'Install the local agent, then continue into host setup.',
+    stopped: 'The installed agent is stopped. Start it, then continue into host setup.',
     starting: 'The agent is starting. Reconnect after its health endpoint responds.',
     ready: 'The local agent is ready for server management.',
     incompatible: 'This agent cannot serve the current client. Install a compatible update.',
@@ -40,6 +41,8 @@
   let status: AgentServiceStatus | undefined;
   let busy = false;
   let errorMessage = '';
+  let pairingCode = '';
+  let pairingBusy = false;
   let copiedCommand = '';
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
@@ -85,6 +88,21 @@
       errorMessage = String(error);
     } finally {
       busy = false;
+    }
+  }
+
+  async function pairAgain(): Promise<void> {
+    const code = pairingCode.trim();
+    if (!onPairAgain || !code || pairingBusy) return;
+    pairingBusy = true;
+    errorMessage = '';
+    try {
+      await onPairAgain(code);
+      pairingCode = '';
+    } catch (error) {
+      errorMessage = String(error);
+    } finally {
+      pairingBusy = false;
     }
   }
 
@@ -168,11 +186,23 @@
         <span class="quiet-label">This computer</span>
       </div>
       <h2>Keep servers independent of the window</h2>
-      <p class="detail">Use the installed desktop app to change this computer’s agent service.</p>
+      <p class="detail">
+        Use the installed desktop app to change this computer’s agent service.
+      </p>
+      <p class="detail">Closing the app window never stops the service.</p>
+      <p class="detail">It never stops any Minecraft server either.</p>
       <div class="actions">
         {#if status?.state === 'not-installed'}
           <Button variant="primary" disabled={busy} onclick={() => manage('install')}
-            >Install and start</Button
+            >Install and Continue</Button
+          >
+        {:else if readiness === 'stopped' || status?.state === 'stopped'}
+          <Button variant="primary" disabled={busy} onclick={() => manage('start')}
+            >Start and Continue</Button
+          >
+        {:else if readiness === 'incompatible'}
+          <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
+            >Repair service</Button
           >
         {:else}
           <Button
@@ -218,6 +248,24 @@
           {/each}
         </div>
       {/if}
+    {:else if isDesktopShell && onPairAgain}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Fresh pairing</span>
+        <span class="quiet-label">{hostLabel}</span>
+      </div>
+      <h2>Pair this host again</h2>
+      <p class="detail">
+        Run <span class="mono">msc pairing create</span> on {hostLabel}, then paste its one-use code
+        here. Pairing replaces the old credential and reopens host setup.
+      </p>
+      <div class="pairing-row">
+        <Field bind:value={pairingCode} placeholder="pair_…" />
+        <Button
+          variant="primary"
+          disabled={pairingBusy || !pairingCode.trim()}
+          onclick={() => void pairAgain()}>Pair Again</Button
+        >
+      </div>
     {:else}
       <div class="card-heading">
         <span class="msc2-type-overline">Service controls</span>
@@ -301,6 +349,16 @@
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
+  }
+  .pairing-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .mono {
+    font-family: var(--msc2-font-mono, monospace);
+    color: var(--msc2-text-primary);
   }
   .error {
     color: var(--msc2-status-error);

@@ -196,6 +196,31 @@
     return result.agentHostId;
   }
 
+  async function pairAgain(pairingCode: string): Promise<void> {
+    if (!isDesktopShell || hostId === localAgentHostId) {
+      throw new Error('Fresh pairing is available only for a remote desktop host.');
+    }
+    const previousHost = hosts.find((host) => host.id === hostId);
+    if (!previousHost) throw new Error('The selected host is no longer registered.');
+
+    const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
+    // The reset already revoked this credential on the host. Forget it here as
+    // well so a failed or interrupted recovery cannot leave stale local state.
+    await auth.forgetCredentials([previousHost.id], false);
+    const result = await auth.redeemRemotePairing(previousHost.baseUrl, pairingCode);
+
+    hostStore.removeHost(previousHost.id);
+    hostStore.addHost({
+      id: result.agentHostId,
+      label: previousHost.label,
+      baseUrl: previousHost.baseUrl,
+    });
+    hostStore.selectHost(result.agentHostId);
+    hostId = result.agentHostId;
+    refreshHosts();
+    await initializeClient();
+  }
+
   function removeRemoteHost(id: HostId): void {
     if (id === localAgentHostId) return;
     if (id === hostId) void switchHost(localAgentHostId);
@@ -583,6 +608,7 @@
       readiness={agentReadiness}
       {browserHandoffError}
       onAgentRetry={() => void initializeClient()}
+      onPairAgain={(code: string) => pairAgain(code)}
       onServerSelected={(id: string) => (selectedServerId = id)}
       onFleet={() => (manageOpen = true)}
       onWorlds={() => void selectSection('worlds')}

@@ -262,6 +262,12 @@
 />
 
 <style>
+  /* The final confirmation is rendered above this sheet. Keep its backdrop
+     above the sheet's scrim too, otherwise the sheet intercepts the click. */
+  :global(.backdrop) {
+    z-index: 200 !important;
+  }
+
   .stack,
   section,
   .mode-list {

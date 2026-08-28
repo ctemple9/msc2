@@ -117,6 +117,7 @@ const worlds = [
 const statusRequests = new Map();
 const hostSetupOverrides = new Map();
 let broadcastJar = { installed: false, filename: null };
+let serverCreateRequests = 0;
 
 function json(response, body, status = 200) {
   response.writeHead(status, { 'content-type': 'application/json' });
@@ -188,6 +189,8 @@ createServer(async (request, response) => {
     response.setHeader('set-cookie', 'msc_test_host_setup=false; Path=/; SameSite=Lax');
     return json(response, { complete: false });
   }
+  if (url.pathname === '/__test/server-create-count' && request.method === 'GET')
+    return json(response, { count: serverCreateRequests });
   if (url.pathname === '/v1/config/host-setup' && request.method === 'GET')
     return json(response, { complete: hostSetupComplete(request) });
   if (url.pathname === '/v1/config/host-setup/complete' && request.method === 'POST') {
@@ -359,6 +362,7 @@ createServer(async (request, response) => {
     });
   }
   if (url.pathname === '/v1/servers/create' && request.method === 'POST') {
+    serverCreateRequests += 1;
     const body = await readJsonBody(request);
     return json(response, {
       success: true,

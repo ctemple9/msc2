@@ -155,6 +155,13 @@ export interface WizardDraft {
   versionId: string | undefined;
   enableCrossPlay: boolean;
   enableXboxBroadcast: boolean;
+  /** `AddServerWizardView.swift`'s `bedrockVersion` -- free text, not a
+   *  picker; see `BEDROCK_VERSION_NOTE`'s own doc comment for why. */
+  bedrockVersion: string;
+  /** `AddServerWizardView.swift`'s `bedrockMaxPlayers`; sent as a number,
+   *  matching `ServerCreateRequestDTO.maxPlayers` and the agent's own
+   *  `run_create_bedrock_server` range check (1-10000, default 10). */
+  bedrockMaxPlayers: number;
 }
 
 export function defaultWizardDraft(): WizardDraft {
@@ -166,8 +173,25 @@ export function defaultWizardDraft(): WizardDraft {
     versionId: undefined,
     enableCrossPlay: false,
     enableXboxBroadcast: false,
+    bedrockVersion: 'LATEST',
+    bedrockMaxPlayers: 10,
   };
 }
+
+/**
+ * `GET /v1/versions/create?serverType=bedrock` (`versions_for_create` in
+ * `crates/msc-agent/src/routes/versions.rs`) always resolves to
+ * `bedrock_versions_response(None, None)` for this query regardless of any
+ * state -- it never looks at the active server, because there isn't one yet
+ * during Configure. The response is a compile-time constant:
+ * `supportsVersions: false`, empty `versions`, and this note. Calling it over
+ * HTTP from this step would be a network round trip for a fixed string, so
+ * this step renders the note directly instead and ports the oracle's own
+ * free-text field (default "LATEST") rather than inventing a picker the real
+ * route can never populate before the server exists.
+ */
+export const BEDROCK_VERSION_NOTE =
+  'Bedrock versions are limited to the verified distribution selected for this runtime. Leave as LATEST unless you need a specific build.';
 
 /** `AddServerWizardView.swift`'s `canAdvance` case 2, Fresh branch. */
 export function canAdvanceConfigure(draft: WizardDraft): boolean {

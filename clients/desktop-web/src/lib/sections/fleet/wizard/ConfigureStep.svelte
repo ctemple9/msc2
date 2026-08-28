@@ -1,10 +1,11 @@
 <script lang="ts">
   // Real port of AddServerWizardView.swift's step 2 Fresh/Configure --
   // Server Type, Server Name, then the Java branch (Server Software,
-  // Source, Crossplay, Xbox Broadcast). The Bedrock branch is P12.18c's
-  // own step; until it lands, picking Bedrock here shows a plain "lands in
-  // a later step" placeholder, the same shape AddServerWizard.svelte
-  // already uses for steps 3+.
+  // Source, Crossplay, Xbox Broadcast) or the Bedrock branch (Bedrock
+  // Version, Max Players, Xbox Broadcast -- always available, not gated
+  // behind crossplay). MSC 1's Docker Image field is commented-out dead
+  // code in the oracle itself (VM backend ignores it), so it's left out
+  // here too -- not a silent drop.
   //
   // Selection cards (Server Type, Category, Flavor) port the oracle's
   // WizardServerTypeCard/WizardFlavorCard *information* -- title, subtitle,
@@ -26,12 +27,14 @@
   // of the real create operation (P12.18g), so there is nothing to poll yet
   // -- a deliberate omission, not a silent drop.
   import Field from '../../../components/base/Field.svelte';
+  import NumberField from '../../../components/base/NumberField.svelte';
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import Toggle from '../../../components/base/Toggle.svelte';
   import Badge from '../../../components/base/Badge.svelte';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import {
+    BEDROCK_VERSION_NOTE,
     JAVA_CATEGORY_INFO,
     crossPlayUnavailable,
     defaultFlavorForCategory,
@@ -55,6 +58,11 @@
   let versionsError: string | undefined;
 
   $: unavailableForCrossPlay = crossPlayUnavailable(draft.javaCategory, draft.javaFlavor);
+  // Xbox Broadcast is shared by both branches (`xboxBroadcastSection` in the
+  // oracle) but gated differently: Java gates it behind crossplay being both
+  // enabled and available, while Bedrock always shows it -- there's no
+  // Java-side plugin to enable first.
+  $: showXboxBroadcast = draft.serverType === 'bedrock' || (draft.enableCrossPlay && !unavailableForCrossPlay);
 
   function resetVersionSelection(): void {
     draft.versionId = undefined;
@@ -265,29 +273,46 @@
       {/if}
     </section>
 
-    {#if draft.enableCrossPlay && !unavailableForCrossPlay}
-      <section class="block">
-        <p class="msc2-type-overline">Xbox Broadcast</p>
-        <div class="toggle-card">
-          <div class="toggle-row">
-            <Toggle
-              checked={draft.enableXboxBroadcast}
-              label="Enable Xbox Broadcast"
-              onchange={(enabled) => (draft.enableXboxBroadcast = enabled)}
-            />
-            <span class="toggle-text">
-              <span class="toggle-name">Enable Xbox Broadcast</span>
-              <span class="toggle-hint"
-                >Let console, mobile, and PC players see your server in the Xbox Friends tab. MSC
-                downloads the broadcast tool automatically.</span
-              >
-            </span>
-          </div>
-        </div>
-      </section>
-    {/if}
   {:else}
-    <p class="stub">Bedrock configuration lands in a later step.</p>
+    <section class="block">
+      <p class="msc2-type-overline">Bedrock Version</p>
+      <Field bind:value={draft.bedrockVersion} placeholder="LATEST" width="200px" />
+      <p class="hint">{BEDROCK_VERSION_NOTE}</p>
+    </section>
+
+    <section class="block">
+      <p class="msc2-type-overline">Max Players</p>
+      <NumberField
+        value={draft.bedrockMaxPlayers}
+        min={1}
+        max={10000}
+        width="80px"
+        onchange={(value) => (draft.bedrockMaxPlayers = Number(value) || 10)}
+      />
+      <p class="hint">Port and connectivity options are on the next step.</p>
+    </section>
+  {/if}
+
+  {#if showXboxBroadcast}
+    <section class="block">
+      <p class="msc2-type-overline">Xbox Broadcast</p>
+      <div class="toggle-card">
+        <div class="toggle-row">
+          <Toggle
+            checked={draft.enableXboxBroadcast}
+            label="Enable Xbox Broadcast"
+            onchange={(enabled) => (draft.enableXboxBroadcast = enabled)}
+          />
+          <span class="toggle-text">
+            <span class="toggle-name">Enable Xbox Broadcast</span>
+            <span class="toggle-hint"
+              >Let console, mobile, and PC players see your server in the Xbox Friends tab. MSC
+              downloads the broadcast tool automatically.</span
+            >
+          </span>
+        </div>
+      </div>
+    </section>
   {/if}
 </div>
 
@@ -452,12 +477,6 @@
   .toggle-hint {
     font-size: 11.5px;
     line-height: 1.5;
-    color: var(--msc2-text-tertiary);
-  }
-
-  .stub {
-    margin: 0;
-    font-size: 12.5px;
     color: var(--msc2-text-tertiary);
   }
 </style>

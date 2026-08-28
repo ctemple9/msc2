@@ -18,6 +18,10 @@ export interface DesktopResponse {
 export interface DesktopCredentialBridge {
   bootstrapLocal(): Promise<DesktopPairingResult>;
   exchangePairing(request: { baseUrl: string; pairingCode: string }): Promise<DesktopPairingResult>;
+  forgetCredentials(request: {
+    hostIds: readonly string[];
+    includeLocalHost: boolean;
+  }): Promise<void>;
   authorizedRequest(request: {
     agentHostId: string;
     method: HttpMethod;
@@ -36,6 +40,13 @@ export class DesktopSessionAuth {
 
   async bootstrapLocal(): Promise<DesktopPairingResult> {
     return this.bridge.bootstrapLocal();
+  }
+
+  async forgetCredentials(
+    hostIds: readonly string[],
+    includeLocalHost = false,
+  ): Promise<void> {
+    await this.bridge.forgetCredentials({ hostIds, includeLocalHost });
   }
 
   /**
@@ -70,6 +81,10 @@ export async function loadTauriDesktopCredentialBridge(): Promise<DesktopCredent
     bootstrapLocal: () => invoke<DesktopPairingResult>('desktop_bootstrap_local'),
     exchangePairing: (request) =>
       invoke<DesktopPairingResult>('desktop_exchange_pairing', { request }),
+    forgetCredentials: (request) =>
+      invoke<void>('desktop_forget_credentials', {
+        request: { ...request, hostIds: [...request.hostIds] },
+      }),
     authorizedRequest: (request) =>
       invoke<DesktopResponse>('desktop_authorized_request', {
         request: { ...request, body: request.body ? [...request.body] : null },

@@ -22,7 +22,7 @@ export interface MenuEntry {
 }
 
 export type AgentAction = 'install' | 'update';
-export type AgentServiceAction = 'install' | 'start' | 'stop' | 'repair';
+export type AgentServiceAction = 'install' | 'start' | 'stop' | 'repair' | 'uninstall';
 export type AgentReadiness =
   'missing' | 'stopped' | 'starting' | 'ready' | 'incompatible' | 'unavailable';
 

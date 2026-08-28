@@ -347,6 +347,16 @@ pub fn stop_elevated(service_name: &str) -> Result<ServiceStatusReport, ServiceE
     )
 }
 
+/// Removes the local LaunchDaemon through the administrator boundary. The
+/// desktop may do this only for its own local agent after a full host reset.
+pub fn uninstall_elevated(service_name: &str) -> Result<ServiceStatusReport, ServiceError> {
+    run_as_administrator(&elevated_uninstall_command(service_name))?;
+    wait_for_service_state(
+        &msc_infrastructure::service::ServiceName::new(service_name),
+        ServiceState::NotInstalled,
+    )
+}
+
 fn wait_for_service_state(
     service_name: &msc_infrastructure::service::ServiceName,
     expected_state: ServiceState,
@@ -396,6 +406,14 @@ fn elevated_stop_command(service_name: &str) -> String {
     format!("/bin/launchctl stop {}", shell_quote(service_name))
 }
 
+fn elevated_uninstall_command(service_name: &str) -> String {
+    let plist_path = format!("/Library/LaunchDaemons/{service_name}.plist");
+    format!(
+        "if [ -e {path} ]; then /bin/launchctl bootout system {path} >/dev/null 2>&1 || true; /bin/rm -f {path}; fi",
+        path = shell_quote(&plist_path),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,6 +422,15 @@ mod tests {
     fn elevated_stop_uses_the_bare_launchd_label() {
         let command = elevated_stop_command("com.ctemple.msc2.agent");
         assert_eq!(command, "/bin/launchctl stop 'com.ctemple.msc2.agent'");
+    }
+
+    #[test]
+    fn elevated_uninstall_removes_the_system_launchdaemon() {
+        let command = elevated_uninstall_command("com.ctemple.msc2.agent");
+        assert_eq!(
+            command,
+            "if [ -e '/Library/LaunchDaemons/com.ctemple.msc2.agent.plist' ]; then /bin/launchctl bootout system '/Library/LaunchDaemons/com.ctemple.msc2.agent.plist' >/dev/null 2>&1 || true; /bin/rm -f '/Library/LaunchDaemons/com.ctemple.msc2.agent.plist'; fi"
+        );
     }
 }
 

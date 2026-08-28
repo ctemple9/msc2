@@ -118,6 +118,8 @@ describe('Tauri boundary', () => {
     expect((await desktop.agentServiceStatus()).state).toBe('running');
     await desktop.manageAgentService('repair');
     expect(dependencies.manageAgentService).toHaveBeenCalledWith('repair');
+    await desktop.manageAgentService('uninstall');
+    expect(dependencies.manageAgentService).toHaveBeenCalledWith('uninstall');
   });
 
   it('treats cancelling a native file picker as a user choice', async () => {

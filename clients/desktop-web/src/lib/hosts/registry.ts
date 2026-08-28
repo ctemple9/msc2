@@ -62,6 +62,13 @@ export class HostStore {
     }
   }
 
+  /** Drops all in-memory host records before the client forgets their secrets. */
+  reset(): void {
+    this.hosts.clear();
+    this.caches.clear();
+    this.selectedHostId = null;
+  }
+
   listHosts(): readonly HostRecord[] {
     return [...this.hosts.values()].map((host) => ({ ...host }));
   }
@@ -201,6 +208,20 @@ export class HostStore {
       throw new Error(`Host '${hostId}' has no cache`);
     }
     return cache;
+  }
+}
+
+/** Clears only MSC-owned browser/client preferences, never unrelated site data. */
+export function clearClientPreferences(): void {
+  for (const storage of [
+    typeof localStorage === 'undefined' ? undefined : localStorage,
+    typeof sessionStorage === 'undefined' ? undefined : sessionStorage,
+  ]) {
+    if (!storage) continue;
+    const keys = Object.keys(storage);
+    for (const key of keys) {
+      if (key.startsWith('msc.') || key.startsWith('msc2.')) storage.removeItem(key);
+    }
   }
 }
 

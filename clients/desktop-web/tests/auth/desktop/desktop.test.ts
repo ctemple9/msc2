@@ -6,6 +6,7 @@ function bridge(): DesktopCredentialBridge {
   return {
     bootstrapLocal: vi.fn(async () => ({ agentHostId: 'agent-local' })),
     exchangePairing: vi.fn(async () => ({ agentHostId: 'agent-beta' })),
+    forgetCredentials: vi.fn(async () => undefined),
     authorizedRequest: vi.fn(async () => ({
       status: 200,
       headers: [['X-MSC-Api-Version', '1.0']],
@@ -54,5 +55,17 @@ describe('desktop credentials', () => {
       expect.objectContaining({ agentHostId: 'agent-alpha', path: '/v1/me' }),
     );
     expect(JSON.stringify(native.authorizedRequest.mock.calls)).not.toContain('msc2_');
+  });
+
+  it('forgets only the requested host credentials and can include the local bootstrap record', async () => {
+    const native = bridge();
+    const session = new DesktopSessionAuth(native);
+
+    await session.forgetCredentials(['agent-beta'], true);
+
+    expect(native.forgetCredentials).toHaveBeenCalledWith({
+      hostIds: ['agent-beta'],
+      includeLocalHost: true,
+    });
   });
 });

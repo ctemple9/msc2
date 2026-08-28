@@ -38,6 +38,8 @@
   export let serverLabel: string | undefined = undefined;
   export let onClose: () => void;
   export let onAccentColorSaved: () => void = () => {};
+  export let onOpenReset: () => void = () => {};
+  export let canResetHost = false;
 
   let colorDraft = serverId ? bannerColorFor(hostId, serverId) : clampBannerColor('');
   let colorNotice = '';
@@ -133,6 +135,33 @@
         </div>
       </Card>
       {#if revealNotice}<p class="hint">{revealNotice}</p>{/if}
+    </section>
+
+    <section class="zone">
+      <p class="msc2-type-overline">Reset</p>
+      <Card padding="0">
+        <div class="row">
+          <div class="row-text">
+            <span class="name">Reset this client</span>
+            <span class="hint">Forget this device's hosts, credentials, preferences, and onboarding.</span>
+          </div>
+          <Button variant="destructive" size="sm" onclick={onOpenReset}>Reset…</Button>
+        </div>
+        <div class="row">
+          <div class="row-text">
+            <span class="name">Reset this host</span>
+            <span class="hint">Clear MSC host state, with an option to remove the managed server folder.</span>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={!canResetHost}
+            title={canResetHost ? undefined : 'Administrator access is required'}
+            onclick={onOpenReset}>Reset…</Button
+          >
+        </div>
+      </Card>
+      {#if !canResetHost}<p class="hint">Reset this host is available to administrators only.</p>{/if}
     </section>
   </div>
 </Sheet>

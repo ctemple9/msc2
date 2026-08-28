@@ -43,6 +43,7 @@ enum AgentServiceAction {
     Start,
     Stop,
     Repair,
+    Uninstall,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,6 +93,13 @@ struct DesktopResponse {
 struct StoredDesktopCredential {
     base_url: String,
     token: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ForgetDesktopCredentialsRequest {
+    host_ids: Vec<String>,
+    include_local_host: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -193,6 +201,35 @@ fn desktop_bootstrap_local() -> Result<DesktopPairingResult, String> {
     }
     #[allow(unreachable_code)]
     Err("Local desktop bootstrap is unavailable on this platform.".to_string())
+}
+
+/// Removes only credentials named by the client, plus the special local-host
+/// record when requested. The bearer values never cross back into the webview.
+#[tauri::command]
+fn desktop_forget_credentials(request: ForgetDesktopCredentialsRequest) -> Result<(), String> {
+    let store = desktop_secret_store()?;
+    for host_id in request.host_ids {
+        let host_id = host_id.trim();
+        if !host_id.is_empty() {
+            store
+                .delete(&credential_key(host_id))
+                .map_err(|error| error.to_string())?;
+        }
+    }
+    if request.include_local_host {
+        if let Some(local_host_id) = store
+            .get(LOCAL_HOST_ID_KEY)
+            .map_err(|error| error.to_string())?
+        {
+            store
+                .delete(&credential_key(&local_host_id))
+                .map_err(|error| error.to_string())?;
+        }
+        store
+            .delete(LOCAL_HOST_ID_KEY)
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -549,6 +586,10 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
             msc_platform_macos::service::stop_elevated(service_name.as_str())
                 .map_err(|error| error.to_string())?
         }
+        AgentServiceAction::Uninstall => {
+            msc_platform_macos::service::uninstall_elevated(service_name.as_str())
+                .map_err(|error| error.to_string())?
+        }
     };
     #[cfg(not(target_os = "macos"))]
     let report = {
@@ -568,6 +609,9 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
                 .map_err(|error| error.to_string())?,
             AgentServiceAction::Stop => manager
                 .execute(ServiceManagerCommand::Stop { service_name })
+                .map_err(|error| error.to_string())?,
+            AgentServiceAction::Uninstall => manager
+                .execute(ServiceManagerCommand::Uninstall { service_name })
                 .map_err(|error| error.to_string())?,
         }
     };
@@ -1079,6 +1123,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             desktop_exchange_pairing,
             desktop_bootstrap_local,
+            desktop_forget_credentials,
             desktop_authorized_request,
             open_local_agent_browser,
             open_external_url,

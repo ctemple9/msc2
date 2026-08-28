@@ -20,10 +20,11 @@
   } from './lib/platform';
   import { redeemBrowserHandoff } from './lib/auth/browser-handoff';
   import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from './lib/auth/desktop';
-  import { HostStore } from './lib/hosts/registry';
+  import { clearClientPreferences, HostStore } from './lib/hosts/registry';
   import type { HostId, HostRecord } from './lib/hosts/types';
   import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
   import AppSettingsSheet from './lib/sections/app-settings/AppSettingsSheet.svelte';
+  import ResetSheet from './lib/sections/app-settings/ResetSheet.svelte';
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
@@ -160,6 +161,7 @@
   let isDesktopShell = false;
   let manageOpen = false;
   let settingsOpen = false;
+  let resetOpen = false;
   let browserHandoffError = '';
 
   function refreshHosts(): void {
@@ -201,6 +203,11 @@
     refreshHosts();
   }
 
+  function openReset(): void {
+    settingsOpen = false;
+    resetOpen = true;
+  }
+
   async function createClient(id: string): Promise<ApiClient> {
     const transport = await createAgentTransport(id);
     return new ApiClient({ ...transport, hostId: transport.hostId });
@@ -238,6 +245,85 @@
   let shellMessage = 'Connecting to the selected host…';
   let servers: readonly Schema['ServerDTO'][] = [];
   let status: Schema['RemoteAPIStatus'] = defaultStatus;
+
+  type HostResetResult = {
+    operationId: string;
+    hostId: string;
+    mode: 'configuration' | 'everything';
+    agentState: 'restarting' | 'needs_pairing' | 'unavailable';
+    message: string;
+  };
+
+  $: currentAgentHostId = client?.host ?? hostId;
+
+  async function resetClientState(): Promise<void> {
+    const rememberedHostIds = hosts.map((host) => host.id);
+    if (isDesktopShell) {
+      const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
+      await auth.forgetCredentials(rememberedHostIds, true);
+    }
+    hostStore.reset();
+    clearClientPreferences();
+    // Re-entering through the normal startup path recreates only the local
+    // connection placeholder and reopens first-launch from a clean profile.
+    window.location.reload();
+  }
+
+  async function completeHostReset(result: HostResetResult): Promise<void> {
+    let cleanupError = '';
+    if (isDesktopShell) {
+      try {
+        const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
+        await auth.forgetCredentials([result.hostId], hostId === localAgentHostId);
+      } catch (error) {
+        cleanupError = `The host reset completed, but this desktop could not forget its old credential: ${String(error)}`;
+      }
+    }
+
+    settingsOpen = false;
+    resetOpen = false;
+    clientReady = false;
+    client = undefined;
+    capabilities = null;
+    permissions = [];
+    servers = [];
+    selectedServerId = '';
+    status = defaultStatus;
+
+    if (isLocalHostForReset() && isDesktopShell && result.mode === 'everything') {
+      try {
+        await (await getPlatform()).manageAgentService('uninstall');
+        agentReadiness = 'missing';
+        shellMessage = cleanupError || 'The local host was reset. Install the agent to continue.';
+      } catch (error) {
+        agentReadiness = 'unavailable';
+        shellMessage = `The host was reset, but the local agent service could not be removed: ${String(error)}`;
+      }
+      hostStore.updateConnection(hostId, 'error');
+      await selectSection('agent-setup');
+      return;
+    }
+
+    hostStore.updateConnection(hostId, 'error');
+    if (isLocalHostForReset() && isDesktopShell) {
+      agentReadiness = 'starting';
+      shellMessage = cleanupError || 'The local host was reset. Reconnecting with its new identity…';
+      await selectSection('agent-setup');
+      void initializeClient();
+    } else {
+      agentReadiness = 'unavailable';
+      shellMessage = cleanupError || `Host reset complete. Pair ${hostLabelForCurrentHost()} again.`;
+      await selectSection('agent-setup');
+    }
+  }
+
+  function isLocalHostForReset(): boolean {
+    return hostId === localAgentHostId;
+  }
+
+  function hostLabelForCurrentHost(): string {
+    return hosts.find((host) => host.id === hostId)?.label ?? hostId;
+  }
 
   $: navigationContext = capabilities
     ? ({
@@ -539,6 +625,22 @@
     serverLabel={servers.find((server) => server.id === selectedServerId)?.name}
     onClose={() => (settingsOpen = false)}
     onAccentColorSaved={() => (bannerColorAccentVersion += 1)}
+    onOpenReset={openReset}
+    canResetHost={permissions.includes('admin')}
+  />
+{/if}
+
+{#if resetOpen}
+  <ResetSheet
+    api={screenApi}
+    agentHostId={currentAgentHostId}
+    hostLabel={hostLabelForCurrentHost()}
+    {permissions}
+    {isDesktopShell}
+    isLocalHost={isLocalHostForReset()}
+    onClose={() => (resetOpen = false)}
+    onClientReset={resetClientState}
+    onHostResetComplete={completeHostReset}
   />
 {/if}
 

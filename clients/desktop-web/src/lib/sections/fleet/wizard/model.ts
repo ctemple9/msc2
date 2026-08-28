@@ -145,6 +145,31 @@ export function crossPlayUnavailable(category: JavaCategory, flavor: JavaFlavor)
   return category === 'modded' || flavor === 'vanilla';
 }
 
+/** `AddServerWizardView.swift`'s `FreshWorldSourceMode`, minus `.folder` --
+ *  see `WizardDraft.worldSourceMode`'s own doc comment for why. */
+export type WorldSourceMode = 'fresh' | 'backupZip';
+
+/** `ServerDifficulty`'s raw values (`AppViewModelModels.swift`), which are
+ *  also the exact wire strings `ServerCreateRequestDTO.difficulty` expects. */
+export type WorldDifficulty = 'peaceful' | 'easy' | 'normal' | 'hard';
+
+/** `ServerGamemode`'s raw values, Spectator excluded (oracle's own
+ *  `.filter { $0 != .spectator }` on this specific picker). */
+export type WorldGamemode = 'survival' | 'creative' | 'adventure';
+
+export const WORLD_DIFFICULTY_OPTIONS: readonly { value: WorldDifficulty; label: string }[] = [
+  { value: 'peaceful', label: 'Peaceful' },
+  { value: 'easy', label: 'Easy' },
+  { value: 'normal', label: 'Normal' },
+  { value: 'hard', label: 'Hard' },
+];
+
+export const WORLD_GAMEMODE_OPTIONS: readonly { value: WorldGamemode; label: string }[] = [
+  { value: 'survival', label: 'Survival' },
+  { value: 'creative', label: 'Creative' },
+  { value: 'adventure', label: 'Adventure' },
+];
+
 export interface WizardDraft {
   serverName: string;
   serverType: WizardServerType;
@@ -177,6 +202,28 @@ export interface WizardDraft {
   /** `AddServerWizardView.swift`'s `bedrockPort` -- the standalone port for
    *  a Bedrock-serverType server (no Java port involved at all). */
   bedrockPort: number;
+  /** `AddServerWizardView.swift`'s `FreshWorldSourceMode` -- New World or an
+   *  external backup ZIP. The oracle's third case, an existing world
+   *  *folder*, is not offered at all; see `WorldStep.svelte`'s own note for
+   *  why (the same folder-to-archive gap `worlds/ReplaceWorldSheet.svelte`
+   *  already found and dropped for the identical reason). */
+  worldSourceMode: WorldSourceMode;
+  /** `AddServerWizardView.swift`'s `initialWorldName` -- blank means "use
+   *  the server name," resolved when P12.18g actually creates the server. */
+  worldName: string;
+  /** `AddServerWizardView.swift`'s `initialWorldDifficulty`. */
+  worldDifficulty: WorldDifficulty;
+  /** `AddServerWizardView.swift`'s `initialWorldGamemode` (Spectator
+   *  excluded from the picker, matching the oracle's own `.filter`). */
+  worldGamemode: WorldGamemode;
+  /** `AddServerWizardView.swift`'s `initialWorldSeed`. */
+  worldSeed: string;
+  /** Set once "From backup (.zip)" has staged a file via
+   *  `api.upload('world-import', ...)` -- the same staged-upload primitive
+   *  `worlds/ImportWorldZipSheet.svelte` already uses. Held client-side
+   *  only; nothing is redeemed until P12.18g's real create call exists to
+   *  redeem it against. */
+  stagedWorldBackup: { fileName: string; stagedUploadId: string } | undefined;
 }
 
 export function defaultWizardDraft(): WizardDraft {
@@ -194,6 +241,12 @@ export function defaultWizardDraft(): WizardDraft {
     javaPort: 25565,
     crossPlayBedrockPort: 19132,
     bedrockPort: 19132,
+    worldSourceMode: 'fresh',
+    worldName: '',
+    worldDifficulty: 'normal',
+    worldGamemode: 'survival',
+    worldSeed: '',
+    stagedWorldBackup: undefined,
   };
 }
 
@@ -226,6 +279,14 @@ export function canAdvanceConfigure(draft: WizardDraft): boolean {
 export function canAdvanceNetwork(draft: WizardDraft): boolean {
   const port = draft.serverType === 'java' ? draft.javaPort : draft.bedrockPort;
   return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
+/** `AddServerWizardView.swift`'s `canAdvance` case 4, Fresh branch. New
+ *  World always advances; the backup-ZIP path needs a file already staged.
+ *  There is no `folder` case here -- `WizardDraft.worldSourceMode` never
+ *  takes that value. */
+export function canAdvanceWorld(draft: WizardDraft): boolean {
+  return draft.worldSourceMode === 'fresh' || draft.stagedWorldBackup !== undefined;
 }
 
 /** `GET /v1/versions/create?serverType=&javaFlavor=` (P7.24) -- the

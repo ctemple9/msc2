@@ -25,7 +25,13 @@ export type ConceptGuide = {
 };
 
 export type RouterGuideCatalog = {
-  guides: readonly { id: string; displayName: string; steps: readonly string[] }[];
+  guides: readonly {
+    id: string;
+    family: string;
+    category: string;
+    displayName: string;
+    steps: readonly string[];
+  }[];
   troubleshooting: readonly { id: string; title: string; summary: string }[];
 };
 

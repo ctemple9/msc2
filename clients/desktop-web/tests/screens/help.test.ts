@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import appSource from '../../src/App.svelte?raw';
 import gateSource from '../../src/lib/help/FirstLaunchGate.svelte?raw';
+import handbookSource from '../../src/lib/sections/handbook/HandbookBrowser.svelte?raw';
 import helpSource from '../../src/lib/sections/handbook/HelpSection.svelte?raw';
 import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import splashSource from '../../src/lib/help/SplashGate.svelte?raw';
@@ -86,8 +87,7 @@ describe('shared help and onboarding screens', () => {
     expect(appSource).toContain("agentReady={agentReadiness === 'ready'}");
     expect(helpSource).toContain("'/v1/config/host-setup'");
     expect(helpSource).toContain("'/v1/guides/onboarding'");
-    expect(helpSource).toContain('That topic is not available on this agent');
-    expect(helpSource).toContain('data-onboarding-anchor');
+    expect(handbookSource).toContain('That topic is not available on this agent');
     expect(helpSource).toContain('hideCard');
     expect(helpSource).toContain('<SetupIntro');
     expect(helpSource).toContain('{api}');

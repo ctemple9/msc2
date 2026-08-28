@@ -13,11 +13,16 @@
 
 <style>
   .help-link {
-    color: var(--msc-accent);
-    font-size: 0.78rem;
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .help-link:hover {
+    color: var(--msc2-text-primary);
   }
   .help-link:focus-visible {
-    outline: none;
-    box-shadow: var(--msc-focus);
+    outline: 2px solid var(--msc2-hairline-field-focus);
+    outline-offset: 2px;
   }
 </style>

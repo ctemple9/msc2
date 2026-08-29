@@ -64,10 +64,67 @@
     {#if topic}
       {#if categoryLabel}<Badge>{categoryLabel}</Badge>{/if}
       <h3 class="msc2-type-page">{topic.title}</h3>
+      {#if topic.subtitle}<p class="subtitle msc2-type-body">{topic.subtitle}</p>{/if}
       {#if topic.analogy}<p class="analogy msc2-type-body">{topic.analogy}</p>{/if}
       <div class="markdown msc2-type-body" data-safe-markdown="true">
         {@html renderMarkdown(topic.body)}
       </div>
+      {#each topic.sections ?? [] as block, blockIndex (blockIndex)}
+        {#if block.type === 'body'}
+          <div class="markdown msc2-type-body" data-safe-markdown="true">
+            {@html renderMarkdown(block.markdown)}
+          </div>
+        {:else if block.type === 'bulletList'}
+          <div class="markdown msc2-type-body" data-safe-markdown="true">
+            {@html renderMarkdown(block.items.map((item) => `- ${item}`).join('\n'))}
+          </div>
+        {:else if block.type === 'callout'}
+          <div class="callout">
+            <p class="callout-label msc2-type-overline">{block.style}</p>
+            <p class="callout-text msc2-type-body">{block.text}</p>
+          </div>
+        {:else if block.type === 'inApp'}
+          <div class="callout">
+            <p class="callout-label msc2-type-overline">In this app</p>
+            <div class="markdown msc2-type-body" data-safe-markdown="true">
+              {@html renderMarkdown(block.items.map((item) => `- ${item}`).join('\n'))}
+            </div>
+          </div>
+        {:else if block.type === 'advanced'}
+          <details class="advanced">
+            <summary class="msc2-type-overline">Advanced details</summary>
+            <div class="markdown msc2-type-body" data-safe-markdown="true">
+              {@html renderMarkdown(block.markdown)}
+            </div>
+          </details>
+        {:else if block.type === 'checklist'}
+          <div class="checklist">
+            <p class="checklist-phase msc2-type-section">{block.phase}</p>
+            <ol class="checklist-steps msc2-type-body" start={block.steps[0]?.number}>
+              {#each block.steps as step (step.number)}
+                <li><strong>{step.title}</strong> — {step.detail}</li>
+              {/each}
+            </ol>
+          </div>
+        {:else if block.type === 'table'}
+          <div class="table-wrap">
+            <table class="guide-table msc2-type-body">
+              <thead>
+                <tr>
+                  {#each block.headers as header (header)}<th>{header}</th>{/each}
+                </tr>
+              </thead>
+              <tbody>
+                {#each block.rows as row, rowIndex (rowIndex)}
+                  <tr>
+                    {#each row as cell, cellIndex (cellIndex)}<td>{cell}</td>{/each}
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {/if}
+      {/each}
       {#if topic.relatedIds.length}
         <p class="msc2-type-overline related-label">Related topics</p>
         <div class="related-topics">
@@ -167,6 +224,10 @@
   .reader h3 {
     margin: 2px 0 0;
   }
+  .subtitle {
+    color: var(--msc2-text-secondary);
+    margin: 0;
+  }
   .analogy {
     color: var(--msc2-text-secondary);
     font-style: italic;
@@ -179,6 +240,9 @@
   .markdown :global(p) {
     margin: 0 0 10px;
   }
+  .markdown :global(p:last-child) {
+    margin-bottom: 0;
+  }
   .markdown :global(h1),
   .markdown :global(h2),
   .markdown :global(h3) {
@@ -188,6 +252,85 @@
   .markdown :global(a) {
     color: var(--msc2-text-primary);
     text-decoration: underline;
+  }
+  .markdown :global(strong) {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
+  }
+  .markdown :global(code) {
+    font-family: var(--msc2-font-mono);
+    font-size: 0.9em;
+    color: var(--msc2-text-primary);
+    background: var(--msc2-hairline-subtle);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  .markdown :global(ul) {
+    margin: 0 0 10px;
+    padding-left: 1.1rem;
+  }
+  .markdown :global(li) {
+    margin-bottom: 4px;
+  }
+  .callout,
+  .checklist,
+  .advanced {
+    border: 1px solid var(--msc2-hairline);
+    border-radius: var(--msc2-radius-2);
+    padding: 12px 14px;
+  }
+  .callout-label {
+    margin: 0 0 4px;
+  }
+  .callout-text {
+    color: var(--msc2-text-secondary);
+    margin: 0;
+    line-height: 1.6;
+  }
+  .checklist-phase {
+    margin: 0 0 8px;
+  }
+  .checklist-steps {
+    margin: 0;
+    padding-left: 1.2rem;
+    color: var(--msc2-text-secondary);
+    line-height: 1.6;
+  }
+  .checklist-steps li {
+    margin-bottom: 6px;
+  }
+  .checklist-steps strong {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
+  }
+  .advanced summary {
+    cursor: pointer;
+    color: var(--msc2-text-tertiary);
+  }
+  .advanced .markdown {
+    margin-top: 10px;
+  }
+  .table-wrap {
+    overflow-x: auto;
+  }
+  .guide-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .guide-table th,
+  .guide-table td {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+    color: var(--msc2-text-secondary);
+  }
+  .guide-table th {
+    color: var(--msc2-text-tertiary);
+    font-weight: 500;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
   }
   .related-label {
     margin: 6px 0 0;

@@ -1,10 +1,25 @@
+export type ChecklistStepEntry = { number: number; title: string; detail: string };
+
+/** Mirrors `HelpContentBlock` (crates/msc-agent/src/help.rs) — one ordered content
+ *  block, additional to `HelpTopic.body`. Only handbook.* topics carry these. */
+export type HelpContentBlock =
+  | { type: 'body'; markdown: string }
+  | { type: 'bulletList'; items: readonly string[] }
+  | { type: 'callout'; style: 'tip' | 'warning' | 'pitfall' | 'note'; text: string }
+  | { type: 'inApp'; items: readonly string[] }
+  | { type: 'advanced'; markdown: string }
+  | { type: 'checklist'; phase: string; steps: readonly ChecklistStepEntry[] }
+  | { type: 'table'; headers: readonly string[]; rows: readonly (readonly string[])[] };
+
 export type HelpTopic = {
   helpId: string;
   title: string;
+  subtitle?: string;
   category: string;
   analogy?: string;
   body: string;
   relatedIds: readonly string[];
+  sections?: readonly HelpContentBlock[];
 };
 
 export type HelpCatalog = {

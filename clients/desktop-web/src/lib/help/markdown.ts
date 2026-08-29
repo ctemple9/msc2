@@ -22,10 +22,15 @@ function safeUrl(value: string): string | null {
 
 function inline(value: string): string {
   const escaped = escapeHtml(value);
-  return escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, rawUrl) => {
+  const linked = escaped.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match, label, rawUrl) => {
     const url = safeUrl(rawUrl);
     return url ? `<a href="${escapeHtml(url)}" rel="noopener noreferrer">${label}</a>` : label;
   });
+  // The real handbook prose (content/help/handbook/*.md, restored verbatim from
+  // MSC 1's GuideBodyText) uses **bold** and `code` throughout -- both were
+  // silently dropped as literal asterisks/backticks before this.
+  const bolded = linked.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  return bolded.replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
 /** Render Markdown as a safe, intentionally limited HTML fragment. */

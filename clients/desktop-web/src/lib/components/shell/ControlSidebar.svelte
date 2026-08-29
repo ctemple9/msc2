@@ -228,12 +228,7 @@
                 {canControl}
               />
             {:else if section === 'How to connect'}
-              <HowToConnectSection
-                {api}
-                serverType={activeServer?.serverType}
-                gamePort={activeServer?.gamePort}
-                {activeServerId}
-              />
+              <HowToConnectSection {api} serverType={activeServer?.serverType} {activeServerId} />
             {:else if section === 'Maintenance'}
               <div class="maintenance-row">
                 <button

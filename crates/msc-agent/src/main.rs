@@ -142,8 +142,16 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         operations_state.clone(),
         secret_store.clone(),
     );
-    let help_content =
-        help::HelpContent::embedded().expect("embedded educational content must be valid");
+    let help_content = help::HelpContent::embedded()
+        .expect("embedded educational content must be valid")
+        .with_router_runtime_provider(std::sync::Arc::new({
+            let lifecycle_state = lifecycle_state.clone();
+            move || {
+                lifecycle_state
+                    .active_config_server()
+                    .map(|server| help::router_runtime_context_for_server(&server))
+            }
+        }));
 
     // GET /v1/health is the one route the dev-mode auth gate does not
     // cover (docs/msc2/api-contract/auth-scope-phase2.md §3, item 1).

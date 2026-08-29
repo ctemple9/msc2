@@ -1,15 +1,192 @@
 {
-  "source": {"path": "MSCmacOS/MSCmacOS Swift/RouterPortForwardGuidesFoundation.swift", "symbol": "v1TroubleshootingTopics"},
-  "contentBoundary": "Topic copy is data. Rule evaluation remains executable behavior in crates/msc-domain/src/router/troubleshooting.rs and fallback_tree.rs.",
+  "schemaVersion": 1,
+  "source": {
+    "path": "MSCmacOS/MSCmacOS Swift/RouterPortForwardTroubleshootingEngine.swift",
+    "symbol": "RouterPortForwardTroubleshootingKnowledgeBase.supportedSymptoms + v1TroubleshootingTopics"
+  },
+  "contentBoundary": "Topic copy is data. The symptom checklist is client-owned reference data; rule evaluation remains executable behavior in crates/msc-domain/src/router/troubleshooting.rs and fallback_tree.rs.",
+  "symptoms": [
+    {
+      "id": "cannot_connect_externally",
+      "title": "No one can connect from outside your network",
+      "description": "The server may work locally, but internet players still cannot join."
+    },
+    {
+      "id": "local_network_works_but_internet_fails",
+      "title": "It works on the local network but not from the internet",
+      "description": "This often means the server itself is running, but upstream networking is still wrong."
+    },
+    {
+      "id": "router_rule_points_to_old_ip",
+      "title": "The router rule points to an old local IP",
+      "description": "The forwarding rule still targets a previous address instead of the host Mac's current address."
+    },
+    {
+      "id": "mac_ip_address_changed",
+      "title": "The Mac's IP changed",
+      "description": "DHCP may have given the Mac a new local address."
+    },
+    {
+      "id": "selected_wrong_target_device",
+      "title": "The wrong target device was selected",
+      "description": "The forwarding rule may target another Mac, PC, console, or stale DHCP entry."
+    },
+    {
+      "id": "forwarded_on_provider_but_own_router_exists",
+      "title": "You forwarded on the provider device, but your own router is also present",
+      "description": "The upstream provider box may not be the device doing LAN routing."
+    },
+    {
+      "id": "forwarded_on_own_router_but_provider_gateway_exists",
+      "title": "You forwarded on your own router, but provider gateway hardware is also present",
+      "description": "The provider gateway may still be doing routing unless bridge mode is enabled."
+    },
+    {
+      "id": "two_routers_present",
+      "title": "Two routers or router-like devices are present",
+      "description": "Common examples include ISP gateway + personal router or gateway + mesh system."
+    },
+    {
+      "id": "wan_ip_differs_from_public_ip",
+      "title": "The router WAN IP does not match the public IP",
+      "description": "This can indicate CGNAT or another upstream routing layer."
+    },
+    {
+      "id": "apartment_dorm_managed_network",
+      "title": "You are on an apartment, dorm, campus, or managed network",
+      "description": "Those environments often block direct forwarding or do not give router admin access."
+    },
+    {
+      "id": "no_router_admin_access",
+      "title": "You do not have router admin access",
+      "description": "Without admin access, you may not be allowed to create or edit forwarding rules."
+    },
+    {
+      "id": "java_works_bedrock_fails",
+      "title": "Java works but Bedrock fails",
+      "description": "The Bedrock port and protocol are often different from Java."
+    },
+    {
+      "id": "bedrock_works_java_fails",
+      "title": "Bedrock works but Java fails",
+      "description": "The Java side may be missing its TCP rule or using the wrong target."
+    },
+    {
+      "id": "firewall_prompt_seen",
+      "title": "You saw a macOS firewall or permission prompt",
+      "description": "The host may still be blocking inbound traffic even if the router rule is correct."
+    },
+    {
+      "id": "security_tool_may_be_blocking",
+      "title": "Another security or network tool may be blocking traffic",
+      "description": "Third-party security tools can override otherwise correct routing."
+    },
+    {
+      "id": "changes_saved_but_still_fails",
+      "title": "You saved the rule, but it still does not work",
+      "description": "Some routers need Apply, reboot, or a short delay before the rule becomes active."
+    },
+    {
+      "id": "router_asked_to_reboot",
+      "title": "The router asked to reboot or apply changes",
+      "description": "The new rule may not be active yet."
+    },
+    {
+      "id": "using_mesh_bridge_or_ap_mode",
+      "title": "Your mesh or router may be in bridge / AP mode",
+      "description": "If the device is not routing, forwarding must happen elsewhere."
+    }
+  ],
   "topics": [
-    {"id":"local_ip_changed","title":"Your host's local IP changed","summary":"The router may still forward to an old device address."},
-    {"id":"double_nat","title":"You may be behind two routers","summary":"Forwarding on the wrong router does not expose the server."},
-    {"id":"cgnat","title":"Your ISP may be using CGNAT","summary":"Some internet plans do not provide a public IPv4 address to forward through."},
-    {"id":"wrong_router","title":"You configured the wrong device","summary":"The provider name is not always the device doing routing."},
-    {"id":"wrong_device","title":"The port forward may point to the wrong target device","summary":"The rule must target the computer hosting MSC."},
-    {"id":"firewall_blocked","title":"A firewall may be blocking the port","summary":"A correct router rule still needs the host firewall to permit the server port."},
-    {"id":"wrong_protocol","title":"The forwarding protocol may be wrong","summary":"The router rule must use the protocol the selected server requires."},
-    {"id":"router_reboot_required","title":"Your router may need to apply the change","summary":"Some routers do not activate a new rule until settings are saved or the router restarts."},
-    {"id":"no_admin_access","title":"You may not have router admin access","summary":"A landlord, parent, ISP, or administrator may control the router settings."}
+    {
+      "id": "local_ip_changed",
+      "suggestedNextActions": [
+        "Check the Mac's current local IP in the app.",
+        "Update the router rule so it points to the current local IP.",
+        "Reserve the Mac's IP in the router later so it stops changing."
+      ],
+      "summary": "Your router may still be forwarding to an old device address.",
+      "title": "Your Mac's local IP changed"
+    },
+    {
+      "id": "double_nat",
+      "suggestedNextActions": [
+        "Check whether your ISP device and your own router are both doing routing.",
+        "If possible, put one device into bridge / passthrough mode.",
+        "Otherwise forward on the upstream router as well."
+      ],
+      "summary": "Port forwarding on the wrong router will not expose the server to the internet.",
+      "title": "You may be behind two routers"
+    },
+    {
+      "id": "cgnat",
+      "suggestedNextActions": [
+        "Compare the router WAN IP with your public IP.",
+        "Ask the ISP whether they offer a public IP option.",
+        "Use an alternative remote-access method if needed."
+      ],
+      "summary": "Some internet plans do not give you a public IPv4 address you can forward through.",
+      "title": "Your ISP may be using CGNAT"
+    },
+    {
+      "id": "wrong_router",
+      "suggestedNextActions": [
+        "Find which device is acting as the main router.",
+        "If you use mesh, open the mesh app first.",
+        "If your own router is connected to ISP hardware, configure the router that owns the LAN."
+      ],
+      "summary": "The provider name is not always the router actually doing the routing.",
+      "title": "You configured the wrong device"
+    },
+    {
+      "id": "wrong_device",
+      "suggestedNextActions": [
+        "Confirm the selected target device matches the host Mac.",
+        "Use the detected local IP from the app when possible.",
+        "Delete duplicate rules that point to old devices."
+      ],
+      "summary": "The rule must target the Mac that is hosting Minecraft Server Controller.",
+      "title": "The port forward may point to the wrong target device"
+    },
+    {
+      "id": "firewall_blocked",
+      "suggestedNextActions": [
+        "Verify the server is running and reachable on the local network first.",
+        "Review macOS firewall or security-tool rules.",
+        "Re-test from outside your network after confirming local connectivity."
+      ],
+      "summary": "A correct router rule is not enough if the host still rejects inbound traffic.",
+      "title": "The Mac firewall or another filter may still be blocking traffic"
+    },
+    {
+      "id": "wrong_protocol",
+      "suggestedNextActions": [
+        "Confirm which game mode you are exposing.",
+        "Use TCP for Java and UDP for Bedrock unless your specific setup says otherwise.",
+        "Check whether both Java and Bedrock need separate rules."
+      ],
+      "summary": "Java usually needs TCP 25565. Bedrock usually needs UDP 19132.",
+      "title": "The protocol may be wrong"
+    },
+    {
+      "id": "router_reboot_required",
+      "suggestedNextActions": [
+        "Press Save / Apply in the forwarding page.",
+        "If the router asks to reboot, do it.",
+        "Re-test after the router is fully back online."
+      ],
+      "summary": "Some firmware does not activate the new rule immediately.",
+      "title": "The router may need a save/apply cycle or reboot"
+    },
+    {
+      "id": "no_admin_access",
+      "suggestedNextActions": [
+        "Check whether you have the router admin login.",
+        "Ask the network owner or ISP whether forwarding is allowed.",
+        "Use a fallback remote-access solution if direct forwarding is blocked."
+      ],
+      "summary": "Some ISP, dorm, apartment, or managed-network environments lock down forwarding.",
+      "title": "You may not have permission to change router settings"
+    }
   ]
 }

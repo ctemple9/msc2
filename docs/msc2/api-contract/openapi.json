@@ -5030,6 +5030,106 @@
         "x-notes": "P11.24. The agent returns structured data; matcher, fallback, composer, runtime replacement, and troubleshooting evaluation remain domain rules."
       }
     },
+    "/v1/guides/router/search": {
+      "get": {
+        "summary": "Search and match router guides",
+        "x-permission-category": "none",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Provider, router, model, or troubleshooting query."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ranked router-guide matches and fallback resolution.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RouterGuideSearchDTO" }
+              }
+            }
+          }
+        },
+        "x-notes": "P12.16a. Matching and fallback resolution are domain-engine outputs; clients own the picker presentation."
+      }
+    },
+    "/v1/guides/router/{guideId}": {
+      "get": {
+        "summary": "Compose and resolve one router guide",
+        "x-permission-category": "none",
+        "parameters": [
+          {
+            "name": "guideId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Composed guide with runtime token replacements.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ResolvedRouterGuideDTO" }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown router guide.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorDTO" }
+              }
+            }
+          },
+          "409": {
+            "description": "No server is selected for runtime token resolution.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorDTO" }
+              }
+            },
+            "x-error-code": "no_active_server"
+          }
+        }
+      }
+    },
+    "/v1/guides/router/troubleshooting/analyze": {
+      "post": {
+        "summary": "Analyze router troubleshooting symptoms",
+        "x-permission-category": "none",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/RouterTroubleshootingAnalyzeRequestDTO" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Prioritized causes and recommended actions.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/RouterTroubleshootingAnalyzeResponseDTO" }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON or unknown symptom id.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorDTO" }
+              }
+            },
+            "x-error-code": "invalid_symptom"
+          }
+        }
+      }
+    },
     "/v1/worlds/update": {
       "post": {
         "summary": "Save the current live world into the active slot",
@@ -10447,10 +10547,230 @@
       "RouterGuideCatalogDTO": {
         "type": "object",
         "properties": {
-          "guides": { "type": "array", "items": { "type": "object" } },
-          "troubleshooting": { "type": "array", "items": { "type": "object" } }
+          "guides": { "type": "array", "items": { "$ref": "#/components/schemas/RouterGuideDTO" } },
+          "troubleshooting": { "type": "array", "items": { "$ref": "#/components/schemas/RouterTroubleshootingTopicDTO" } },
+          "symptoms": { "type": "array", "items": { "$ref": "#/components/schemas/RouterSymptomDTO" } }
         },
-        "required": ["guides", "troubleshooting"]
+        "required": ["guides", "troubleshooting", "symptoms"]
+      },
+      "RouterGuideDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "displayName": { "type": "string" },
+          "category": { "type": "string" },
+          "family": { "type": "string" },
+          "searchKeywords": { "type": "array", "items": { "type": "string" } },
+          "adminAddresses": { "type": "array", "items": { "type": "string" } },
+          "adminSurface": { "type": "string" },
+          "menuPath": { "type": "array", "items": { "type": "string" } },
+          "alternateMenuNames": { "type": "array", "items": { "type": "string" } },
+          "steps": { "type": "array", "items": { "$ref": "#/components/schemas/RouterGuideStepDTO" } },
+          "notes": { "type": "array", "items": { "$ref": "#/components/schemas/RouterGuideNoteDTO" } },
+          "troubleshooting": { "type": "array", "items": { "type": "string" } },
+          "sharedSections": { "$ref": "#/components/schemas/RouterGuideSharedSectionsDTO" },
+          "review": { "$ref": "#/components/schemas/RouterGuideReviewMetadataDTO" },
+          "providerDisplayName": { "type": "string", "nullable": true },
+          "deviceDisplayName": { "type": "string", "nullable": true }
+        },
+        "required": ["id", "displayName", "category", "family", "searchKeywords", "adminAddresses", "adminSurface", "menuPath", "alternateMenuNames", "steps", "notes", "troubleshooting", "sharedSections", "review"]
+      },
+      "RouterGuideStepDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "title": { "type": "string" },
+          "body": { "type": "string" },
+          "referencedTokens": { "type": "array", "items": { "type": "string" } },
+          "alternateTerms": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["id", "kind", "title", "body", "referencedTokens", "alternateTerms"]
+      },
+      "RouterGuideNoteDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string", "nullable": true },
+          "body": { "type": "string" }
+        },
+        "required": ["id", "body"]
+      },
+      "RouterGuideSharedSectionsDTO": {
+        "type": "object",
+        "properties": {
+          "includeSharedIntro": { "type": "boolean" },
+          "includeSharedPrerequisites": { "type": "boolean" },
+          "includeSharedValueSummary": { "type": "boolean" },
+          "includeSharedTroubleshootingFooter": { "type": "boolean" }
+        },
+        "required": ["includeSharedIntro", "includeSharedPrerequisites", "includeSharedValueSummary", "includeSharedTroubleshootingFooter"]
+      },
+      "RouterGuideReviewMetadataDTO": {
+        "type": "object",
+        "properties": {
+          "sourceConfidence": { "type": "string" },
+          "lastReviewed": { "type": "string", "nullable": true },
+          "reviewNotes": { "type": "string", "nullable": true }
+        },
+        "required": ["sourceConfidence"]
+      },
+      "RouterTroubleshootingTopicDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "summary": { "type": "string" },
+          "suggestedNextActions": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["id", "title", "summary", "suggestedNextActions"]
+      },
+      "RouterSymptomDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "description": { "type": "string" }
+        },
+        "required": ["id", "title", "description"]
+      },
+      "RouterGuideSearchDTO": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "normalizedQuery": { "type": "string" },
+          "normalizedTokens": { "type": "array", "items": { "type": "string" } },
+          "inferredFamilies": { "type": "array", "items": { "type": "string" } },
+          "candidates": { "type": "array", "items": { "$ref": "#/components/schemas/RouterGuideMatchCandidateDTO" } },
+          "suggestedFallbackGuide": { "$ref": "#/components/schemas/RouterGuideSummaryDTO", "nullable": true },
+          "isAmbiguous": { "type": "boolean" },
+          "matchedDirectGuide": { "type": "boolean" },
+          "fallbackResolution": { "$ref": "#/components/schemas/RouterFallbackResolutionDTO" }
+        },
+        "required": ["query", "normalizedQuery", "normalizedTokens", "inferredFamilies", "candidates", "isAmbiguous", "matchedDirectGuide", "fallbackResolution"]
+      },
+      "RouterGuideSummaryDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "family": { "type": "string" },
+          "category": { "type": "string" },
+          "displayName": { "type": "string" },
+          "providerDisplayName": { "type": "string", "nullable": true },
+          "deviceDisplayName": { "type": "string", "nullable": true }
+        },
+        "required": ["id", "family", "category", "displayName"]
+      },
+      "RouterGuideMatchCandidateDTO": {
+        "type": "object",
+        "properties": {
+          "guide": { "$ref": "#/components/schemas/RouterGuideSummaryDTO" },
+          "score": { "type": "integer" },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["guide", "score", "reasons"]
+      },
+      "RouterFallbackResolutionDTO": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string" },
+          "availability": { "type": "string" },
+          "matchedGuideId": { "type": "string", "nullable": true },
+          "fallbackGuideId": { "type": "string", "nullable": true },
+          "desiredFamily": { "type": "string", "nullable": true },
+          "inferredFamilies": { "type": "array", "items": { "type": "string" } },
+          "explanationBullets": { "type": "array", "items": { "type": "string" } },
+          "recommendedNextNodeId": { "type": "string", "nullable": true },
+          "suggestedSearchTerms": { "type": "array", "items": { "type": "string" } },
+          "matchedQuery": { "type": "string", "nullable": true }
+        },
+        "required": ["kind", "availability", "inferredFamilies", "explanationBullets", "suggestedSearchTerms"]
+      },
+      "ResolvedRouterGuideDTO": {
+        "type": "object",
+        "properties": {
+          "guide": { "$ref": "#/components/schemas/RouterGuideDTO" },
+          "runtime": { "$ref": "#/components/schemas/RouterRuntimeSummaryDTO" },
+          "sections": { "type": "array", "items": { "$ref": "#/components/schemas/RouterResolvedSectionDTO" } },
+          "unresolvedTokens": { "type": "array", "items": { "$ref": "#/components/schemas/RouterUnresolvedTokenDTO" } }
+        },
+        "required": ["guide", "runtime", "sections", "unresolvedTokens"]
+      },
+      "RouterRuntimeSummaryDTO": {
+        "type": "object",
+        "properties": {
+          "selectedServerId": { "type": "string", "nullable": true },
+          "selectedServerName": { "type": "string", "nullable": true },
+          "detectedLocalIpAddress": { "type": "string", "nullable": true },
+          "detectedGatewayIpAddress": { "type": "string", "nullable": true },
+          "javaPort": { "type": "integer", "nullable": true },
+          "bedrockPort": { "type": "integer", "nullable": true },
+          "recommendedProtocol": { "type": "string", "nullable": true },
+          "bedrockEnabled": { "type": "boolean", "nullable": true }
+        },
+        "required": ["selectedServerId", "selectedServerName", "detectedLocalIpAddress", "detectedGatewayIpAddress", "javaPort", "bedrockPort", "recommendedProtocol", "bedrockEnabled"]
+      },
+      "RouterResolvedSectionDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string" },
+          "title": { "type": "string" },
+          "origin": { "type": "string" },
+          "items": { "type": "array", "items": { "type": "object" } }
+        },
+        "required": ["id", "kind", "title", "origin", "items"]
+      },
+      "RouterUnresolvedTokenDTO": {
+        "type": "object",
+        "properties": {
+          "sectionId": { "type": "string" },
+          "token": { "type": "string" }
+        },
+        "required": ["sectionId", "token"]
+      },
+      "RouterTroubleshootingAnalyzeRequestDTO": {
+        "type": "object",
+        "properties": {
+          "symptoms": { "type": "array", "items": { "type": "string" } },
+          "fallbackState": { "$ref": "#/components/schemas/RouterFallbackStateDTO", "nullable": true }
+        },
+        "required": ["symptoms"]
+      },
+      "RouterFallbackStateDTO": {
+        "type": "object",
+        "properties": {
+          "networkType": { "type": "string", "nullable": true },
+          "searchQuery": { "type": "string", "nullable": true },
+          "onlyKnowsIsp": { "type": "boolean" },
+          "onlyKnowsMeshSystem": { "type": "boolean" },
+          "unsureWhetherIspOrOwnRouter": { "type": "boolean" },
+          "wantsAdvancedTroubleshooting": { "type": "boolean" }
+        }
+      },
+      "RouterTroubleshootingAnalyzeResponseDTO": {
+        "type": "object",
+        "properties": {
+          "symptoms": { "type": "array", "items": { "type": "string" } },
+          "likelyCauses": { "type": "array", "items": { "$ref": "#/components/schemas/RouterAnalysisCauseDTO" } },
+          "recommendedActions": { "type": "array", "items": { "type": "string" } },
+          "escalationBullets": { "type": "array", "items": { "type": "string" } },
+          "fallbackResolution": { "$ref": "#/components/schemas/RouterFallbackResolutionDTO", "nullable": true },
+          "summary": { "type": "string" }
+        },
+        "required": ["symptoms", "likelyCauses", "recommendedActions", "escalationBullets", "summary"]
+      },
+      "RouterAnalysisCauseDTO": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "confidence": { "type": "string" },
+          "score": { "type": "integer" },
+          "severity": { "type": "string" },
+          "matchedSymptoms": { "type": "array", "items": { "type": "string" } },
+          "topic": { "$ref": "#/components/schemas/RouterTroubleshootingTopicDTO" }
+        },
+        "required": ["id", "confidence", "score", "severity", "matchedSymptoms", "topic"]
       },
       "PerformanceMetricNumberDTO": {
         "type": "object",

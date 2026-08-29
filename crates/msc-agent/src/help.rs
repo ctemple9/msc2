@@ -2,9 +2,15 @@
 //! handbook instead of carrying its own copy of the prose.
 
 use std::collections::BTreeMap;
+use std::net::UdpSocket;
+use std::path::Path;
+use std::sync::Arc;
 
 use include_dir::{Dir, DirEntry, include_dir};
-use msc_domain::router_guides::{RouterGuide, TroubleshootingTopic};
+use msc_domain::app_config_schema::ConfigServer;
+use msc_domain::identity::ServerType;
+use msc_domain::router::runtime_resolver::RuntimeContext;
+use msc_domain::router_guides::{RouterGuide, RouterSymptom, RouterTroubleshootingTopic};
 use serde::{Deserialize, Serialize};
 
 static CONTENT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../content");
@@ -83,9 +89,12 @@ pub struct HelpCatalog {
     pub topics: Vec<HelpCatalogEntry>,
 }
 
-#[derive(Debug, Clone, Default)]
+pub type RouterRuntimeProvider = Arc<dyn Fn() -> Option<RuntimeContext> + Send + Sync>;
+
+#[derive(Clone, Default)]
 pub struct HelpContent {
     topics: BTreeMap<String, HelpTopic>,
+    router_runtime_provider: Option<RouterRuntimeProvider>,
 }
 
 #[derive(Deserialize)]
@@ -104,7 +113,21 @@ impl HelpContent {
         if topics.is_empty() {
             return Err("embedded help corpus contains no Markdown topics".to_string());
         }
-        Ok(Self { topics })
+        Ok(Self {
+            topics,
+            router_runtime_provider: None,
+        })
+    }
+
+    pub fn with_router_runtime_provider(mut self, provider: RouterRuntimeProvider) -> Self {
+        self.router_runtime_provider = Some(provider);
+        self
+    }
+
+    pub fn router_runtime_context(&self) -> Option<RuntimeContext> {
+        self.router_runtime_provider
+            .as_ref()
+            .and_then(|provider| provider())
     }
 
     pub fn topic(&self, help_id: &str) -> Option<&HelpTopic> {
@@ -141,11 +164,75 @@ impl HelpContent {
     pub fn router_catalog(&self) -> Result<serde_json::Value, String> {
         let guides: Vec<RouterGuide> =
             msc_domain::router_guides::embedded_catalog().map_err(|error| error.to_string())?;
-        let troubleshooting: Vec<TroubleshootingTopic> =
+        let troubleshooting: Vec<RouterTroubleshootingTopic> =
             msc_domain::router_guides::embedded_troubleshooting_topics()
                 .map_err(|error| error.to_string())?;
-        Ok(serde_json::json!({ "guides": guides, "troubleshooting": troubleshooting }))
+        let symptoms: Vec<RouterSymptom> =
+            msc_domain::router_guides::embedded_symptoms().map_err(|error| error.to_string())?;
+        Ok(serde_json::json!({
+            "guides": guides,
+            "troubleshooting": troubleshooting,
+            "symptoms": symptoms,
+        }))
     }
+}
+
+/// Builds the runtime values used by router-guide placeholders from the
+/// currently selected MSC server. Local-IP discovery is best effort because a
+/// guide must remain useful on an offline host; the resolver supplies its
+/// documented fallback text when discovery is unavailable.
+#[allow(dead_code)]
+pub fn router_runtime_context_for_server(server: &ConfigServer) -> RuntimeContext {
+    let java_port = (server.server_type == ServerType::Java).then(|| {
+        read_server_port(
+            Path::new(&server.server_dir).join("server.properties"),
+            25565,
+        )
+    });
+    let bedrock_port = server
+        .bedrock_port
+        .map(|port| port as i32)
+        .or_else(|| (server.server_type == ServerType::Bedrock).then_some(19132));
+    let bedrock_enabled = server.server_type == ServerType::Bedrock
+        || server.bedrock_enabled
+        || bedrock_port.is_some();
+    RuntimeContext {
+        selected_server_id: Some(server.id.clone()),
+        selected_server_name: Some(server.display_name.clone()),
+        detected_local_ip_address: detect_local_ip(),
+        detected_gateway_ip_address: None,
+        java_port,
+        bedrock_port,
+        recommended_protocol: Some(
+            msc_domain::router::runtime_resolver::make_recommended_protocol(
+                java_port,
+                bedrock_port,
+                bedrock_enabled,
+            ),
+        ),
+        bedrock_enabled: Some(bedrock_enabled),
+    }
+}
+
+#[allow(dead_code)]
+fn read_server_port(path: std::path::PathBuf, default: i32) -> i32 {
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|contents| {
+            contents.lines().find_map(|line| {
+                line.strip_prefix("server-port=")
+                    .and_then(|port| port.trim().parse::<i32>().ok())
+            })
+        })
+        .unwrap_or(default)
+}
+
+#[allow(dead_code)]
+fn detect_local_ip() -> Option<String> {
+    let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
+    socket.connect("8.8.8.8:80").ok()?;
+    let ip = socket.local_addr().ok()?.ip();
+    (!ip.is_loopback()).then(|| ip.to_string())
 }
 
 fn collect_markdown(dir: &Dir<'_>, topics: &mut BTreeMap<String, HelpTopic>) -> Result<(), String> {

@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+import csv
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -273,6 +274,427 @@ def check_repo() -> list[str]:
     )
 
 
+def check_source_fragments(required_by_file: dict[str, list[str]]) -> list[str]:
+    problems: list[str] = []
+    for relative, required in required_by_file.items():
+        text = read_text(relative)
+        problems.extend(
+            f"{relative}: missing {fragment!r}"
+            for fragment in missing_fragments(text, required)
+        )
+    return problems
+
+
+def check_runtime_selection() -> list[str]:
+    return check_source_fragments(
+        {
+            "crates/msc-application/src/bedrock_runtime.rs": [
+                "pub fn detect(fs: &dyn FileSystem, paths: &BedrockRuntimePaths)",
+                "BedrockHost::Linux => Self::native(fs, host, paths, BedrockPlatform::Linux)",
+                "BedrockHost::Windows => Self::native(fs, host, paths, BedrockPlatform::Windows)",
+                "BedrockHost::MacosIntel => Self::sidecar(fs, host, paths)",
+                "BedrockHost::MacosAppleSilicon => Self {",
+                'reason_code: Some("no_test_hardware".to_owned())',
+                'message: "Bedrock is unavailable on Apple Silicon under D-028."',
+                "pub trait BedrockRuntime",
+                "fn provision(&mut self, request: BedrockProvisionRequest)",
+                "fn start(&mut self, request: BedrockStartRequest)",
+                "fn stop(&mut self) -> Result<(), BedrockRuntimeError>",
+                "fn command(&mut self, command: &str)",
+                "fn poll_event(&mut self)",
+            ],
+            "crates/msc-agent/src/routes/bedrock_runtime.rs": [
+                "pub fn production(app_config: &AgentAppConfigStore)",
+                "BedrockHost::Linux => {",
+                "BedrockRuntimeHandle::Linux(Box::new(runtime))",
+                "BedrockHost::Windows => {",
+                "BedrockRuntimeHandle::Windows(Box::new(runtime))",
+                "BedrockHost::MacosIntel => {",
+                "BedrockRuntimeHandle::Macos(Box::new(runtime))",
+                "BedrockRuntimeHandle::Unavailable",
+                "pub fn state_dto(&self) -> BedrockRuntimeStateDto",
+                "pub fn refresh_for_server(&self, server_dir: impl AsRef<Path>)",
+                "pub fn ensure_distribution(",
+                "(BedrockHost::Linux, Some(BedrockRuntimeBackend::Native)) => Some(BedrockPlatform::Linux)",
+                "(BedrockHost::Windows, Some(BedrockRuntimeBackend::Native)) =>",
+                "(BedrockHost::MacosIntel, Some(BedrockRuntimeBackend::Sidecar)) =>",
+                'std::env::var_os("MSC2_BEDROCK_SIDECAR_DIR")',
+                'root.join("BedrockSidecar")',
+                'root.join("vmlinuz-kata")',
+                'root.join("appliance-initramfs.gz")',
+            ],
+            "crates/msc-application/src/bedrock_linux.rs": [
+                "pub struct LinuxBedrockRuntime",
+                "impl<C: BedrockRuntimeClock> BedrockRuntime for LinuxBedrockRuntime",
+                "bedrock_native::linux_bedrock_spawn_request(server_dir)",
+                "bedrock_native::preflight_udp_bind(",
+                "BedrockRuntimeState::Starting",
+                "BedrockRuntimeEvent::Ready",
+                "BedrockRuntimeEvent::Terminated",
+            ],
+            "crates/msc-application/src/bedrock_windows.rs": [
+                "pub struct WindowsBedrockRuntime",
+                "impl<C: BedrockRuntimeClock> BedrockRuntime for WindowsBedrockRuntime",
+                "bedrock_native::windows_bedrock_spawn_request(server_dir)",
+                "bedrock_native::preflight_udp_bind(",
+                "BedrockRuntimeState::Starting",
+                "BedrockRuntimeEvent::Ready",
+                "BedrockRuntimeEvent::Terminated",
+            ],
+            "crates/msc-application/src/bedrock_macos.rs": [
+                "pub struct MacosBedrockRuntime",
+                "impl<T: SidecarTransport> BedrockRuntime for MacosBedrockRuntime<T>",
+                "self.inner.provision(request)",
+                "self.inner.start(request)",
+                "self.inner.stop()",
+                "self.inner.command(command)",
+                "self.inner.poll_event()",
+            ],
+            "crates/msc-infrastructure/src/bedrock_native.rs": [
+                "pub const BEDROCK_EXECUTABLE_NAME: &str = \"bedrock_server\"",
+                "pub const WINDOWS_BEDROCK_EXECUTABLE_NAME: &str = \"bedrock_server.exe\"",
+                "pub const BEDROCK_BIND_ADDRESS",
+                "pub fn preflight_udp_bind(",
+                "pub fn linux_bedrock_spawn_request(",
+                "pub fn windows_bedrock_spawn_request(",
+            ],
+        }
+    )
+
+
+def check_verified_provisioning() -> list[str]:
+    return check_source_fragments(
+        {
+            "crates/msc-infrastructure/src/bedrock_distribution.rs": [
+                "pub enum BedrockPlatform",
+                "pub fn inspect_installed_distribution(",
+                "pub fn resolve_release(",
+                "sha256",
+                "pub fn stage_archive(",
+                "BEDROCK_PROVENANCE_MARKER",
+                "ArchiveMissingExecutable",
+                "enclosed_name()",
+            ],
+            "crates/msc-application/src/bedrock_provisioning.rs": [
+                "pub fn ensure_installed(",
+                "request.platform",
+                "bedrock_distribution::resolve_release(",
+                "bedrock_distribution::stage_archive(",
+                "const PRESERVED_FILES: [&str; 4]",
+                '"server.properties"',
+                '"allowlist.json"',
+                '"permissions.json"',
+                '"whitelist.json"',
+                'child_relative == Path::new("worlds")',
+                "write_provenance(",
+                "BEDROCK_PROVENANCE_MARKER",
+                "atomic_write(",
+                "fs.rename(&candidate, server_dir)",
+            ],
+            "crates/msc-agent/src/routes/bedrock_runtime.rs": [
+                "self.refresh_for_server(&server_dir);",
+                "msc_application::bedrock_provisioning::ensure_installed(",
+                "let refreshed = BedrockRuntimeEligibility::for_host(",
+                "if refreshed.state != BedrockRuntimeEligibilityState::Available",
+                "self.ensure_distribution(request.clone(), pre_downgrade_backup)?;",
+            ],
+        }
+    )
+
+
+def check_shared_lifecycle() -> list[str]:
+    problems = check_source_fragments(
+        {
+            "crates/msc-agent/src/main.rs": [
+                '.route("/servers/create", post(routes::servers::create))',
+                '.route("/active-server", post(routes::lifecycle::active_server))',
+                '.route("/start", post(routes::lifecycle::start))',
+                '.route("/stop", post(routes::lifecycle::stop))',
+                '.route("/command", post(routes::commands::command))',
+                '.route("/status", get(routes::status::status))',
+                '.route("/capabilities", get(routes::capabilities::capabilities))',
+            ],
+            "crates/msc-agent/src/routes/lifecycle.rs": [
+                "if self.active_bedrock_server().is_some()",
+                "self.provision_bedrock_server(&active).and_then(|()|",
+                "self.inner.bedrock_runtime.start(BedrockStartRequest {",
+                "fn spawn_bedrock_pump(&self)",
+                "BedrockRuntimeEvent::Ready",
+                "BedrockRuntimeEvent::Terminated",
+                "self.inner.bedrock_runtime.poll_event()",
+                '"capability_unavailable"',
+            ],
+            "crates/msc-agent/src/routes/commands.rs": [
+                "if state.active_bedrock_server().is_some()",
+                "state.send_bedrock_command(&command)",
+                "runtime: Some(state.bedrock_runtime_state())",
+            ],
+            "crates/msc-agent/src/routes/status.rs": [
+                "pub async fn status(State(state): State<LifecycleRoutesState>)",
+                "runtime: state",
+                "state.bedrock_runtime_state()",
+            ],
+            "crates/msc-agent/src/routes/capabilities.rs": [
+                "let bedrock_runtime = networking.lifecycle.bedrock_runtime_state();",
+                'let bedrock_supported = bedrock_runtime.state == "available";',
+                "runtime: Some(bedrock_runtime),",
+            ],
+            "crates/msc-agent/tests/bedrock_production_lifecycle.rs": [
+                "fn production_router_runs_fixture_backed_bedrock_lifecycle()",
+                '"/v1/start"',
+                '"/v1/command"',
+                '"/v1/stop"',
+                "fn production_router_provisions_bedrock_before_create_completes()",
+                '"/v1/servers/create"',
+                '".msc_bds_provenance.json"',
+                "fn production_router_reports_unavailable_bedrock_lifecycle()",
+            ],
+            "crates/msc-agent/tests/bedrock_production_surfaces.rs": [
+                "fn production_router_exposes_shared_bedrock_surfaces_and_runtime_errors()",
+                '"/v1/settings"',
+                '"/v1/versions"',
+                '"/v1/players"',
+                '"/v1/allowlist"',
+                '"/v1/performance"',
+                '"/v1/worlds"',
+                '"/v1/backups"',
+                '"capability_unavailable"',
+            ],
+        }
+    )
+
+    relative = "docs/msc2/api-contract/openapi.json"
+    path = ROOT / relative
+    if not path.is_file():
+        problems.append(f"missing API contract: {relative}")
+    else:
+        try:
+            document = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            problems.append(f"could not read {relative}: {error}")
+        else:
+            paths = document.get("paths", {})
+            for route, method in {
+                "/v1/servers/create": "post",
+                "/v1/start": "post",
+                "/v1/stop": "post",
+                "/v1/command": "post",
+                "/v1/status": "get",
+                "/v1/capabilities": "get",
+            }.items():
+                operation = paths.get(route, {}).get(method)
+                if operation is None:
+                    problems.append(f"{relative}: missing {method.upper()} {route}")
+
+            schemas = document.get("components", {}).get("schemas", {})
+            if "BedrockRuntimeStateDTO" not in schemas:
+                problems.append(f"{relative}: missing BedrockRuntimeStateDTO schema")
+
+            def schema_has_runtime(schema_name: str, seen: set[str] | None = None) -> bool:
+                seen = set() if seen is None else seen
+                if schema_name in seen:
+                    return False
+                seen.add(schema_name)
+                schema = schemas.get(schema_name, {})
+                if "runtime" in schema.get("properties", {}):
+                    return True
+                for value in schema.values():
+                    if isinstance(value, dict) and "$ref" in value:
+                        reference = value["$ref"]
+                        prefix = "#/components/schemas/"
+                        if reference.startswith(prefix) and schema_has_runtime(
+                            reference[len(prefix) :], seen
+                        ):
+                            return True
+                    elif isinstance(value, (dict, list)):
+                        nested = json.dumps(value)
+                        if '"$ref": "#/components/schemas/' in nested:
+                            for nested_name in schemas:
+                                if (
+                                    f'"$ref": "#/components/schemas/{nested_name}"'
+                                    in nested
+                                    and schema_has_runtime(nested_name, seen)
+                                ):
+                                    return True
+                return False
+
+            for route in ("/v1/start", "/v1/stop", "/v1/command", "/v1/status"):
+                operation = paths.get(route, {}).get(
+                    "post" if route != "/v1/status" else "get", {}
+                )
+                response = operation.get("responses", {}).get("200", {})
+                schema = (
+                    response.get("content", {})
+                    .get("application/json", {})
+                    .get("schema", {})
+                )
+                reference = schema.get("$ref", "")
+                prefix = "#/components/schemas/"
+                schema_name = reference[len(prefix) :] if reference.startswith(prefix) else ""
+                if not schema_has_runtime(schema_name):
+                    problems.append(f"{relative}: {route} does not disclose runtime state")
+    return problems
+
+
+def check_service_and_headless_layout() -> list[str]:
+    relative = "packaging/update-release-schema.json"
+    path = ROOT / relative
+    if not path.is_file():
+        return [f"missing release schema: {relative}"]
+    try:
+        document = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"could not read {relative}: {error}"]
+
+    problems: list[str] = []
+    expected = {
+        "releaseSet": "desktop-agent-sidecar",
+        "macos": {"requiredArtifacts": ["desktop", "agent", "sidecar"]},
+        "windows": {
+            "requiredArtifacts": ["desktop", "agent"],
+            "forbiddenArtifacts": ["sidecar"],
+        },
+        "linux": {"installation": "package-manager-only"},
+    }
+    for key, value in expected.items():
+        if key in ("macos", "windows", "linux"):
+            for nested_key, nested_value in value.items():
+                if document.get(key, {}).get(nested_key) != nested_value:
+                    problems.append(
+                        f"{relative}: {key}.{nested_key} must be {nested_value!r}"
+                    )
+        elif document.get(key) != value:
+            problems.append(f"{relative}: {key} must be {value!r}")
+
+    preserved_data = document.get("preservedData", [])
+    for item in ("configuration", "secrets", "worlds", "server-files"):
+        if item not in preserved_data:
+            problems.append(f"{relative}: updates must preserve {item}")
+
+    return problems
+
+
+def check_matrix_boundary() -> list[str]:
+    relative = "docs/msc2/bedrock/compatibility-matrix.csv"
+    path = ROOT / relative
+    if not path.is_file():
+        return [f"missing compatibility matrix: {relative}"]
+
+    expected = {
+        "Linux (Debian 12)": ("x86_64", "native-linux-bds"),
+        "Windows": ("x86_64", "native-windows-bds"),
+        "macOS (Intel)": ("x86_64", "macos-vz-swift-sidecar"),
+        "macOS (Apple Silicon)": ("arm64", "macos-vz-swift-sidecar"),
+    }
+    try:
+        with path.open(newline="", encoding="utf-8") as stream:
+            rows = list(csv.DictReader(stream))
+    except (OSError, csv.Error) as error:
+        return [f"could not read {relative}: {error}"]
+
+    problems: list[str] = []
+    actual_hosts = {row.get("host", "") for row in rows}
+    missing_hosts = sorted(set(expected) - actual_hosts)
+    if missing_hosts:
+        problems.append(f"{relative}: missing matrix rows {missing_hosts!r}")
+    for row in rows:
+        host = row.get("host", "")
+        if host not in expected:
+            problems.append(f"{relative}: unexpected matrix row {host!r}")
+            continue
+        architecture, backend = expected[host]
+        if row.get("architecture") != architecture:
+            problems.append(f"{relative}: {host} architecture must be {architecture!r}")
+        if row.get("bedrock_backend") != backend:
+            problems.append(f"{relative}: {host} backend must be {backend!r}")
+        if row.get("bedrock_runtime_status") != "unavailable":
+            problems.append(
+                f"{relative}: {host} must remain unavailable until live evidence exists"
+            )
+        for field in ("agent_host_evidence", "bedrock_runtime_evidence"):
+            evidence = row.get(field, "")
+            if not evidence or not (ROOT / evidence).is_file():
+                problems.append(f"{relative}: {host} evidence path is missing: {evidence!r}")
+    return problems
+
+
+def check_readiness_doc() -> list[str]:
+    relative = "docs/msc2/bedrock/phase12-readiness.md"
+    required = [
+        "# Bedrock implementation readiness",
+        "implementation-ready",
+        "does not claim live Bedrock support",
+        "native Linux",
+        "native Windows",
+        "macOS (Intel)",
+        "native-linux-bds",
+        "native-windows-bds",
+        "macos-vz-swift-sidecar",
+        "Apple Silicon",
+        "no_test_hardware",
+        "verified BDS",
+        ".msc_bds_provenance.json",
+        "server.properties",
+        "allowlist.json",
+        "permissions.json",
+        "worlds/",
+        "launchd LaunchDaemon",
+        "Windows Service",
+        "systemd",
+        "headless",
+        "POST /v1/start",
+        "POST /v1/stop",
+        "POST /v1/command",
+        "GET /v1/status",
+        "GET /v1/capabilities",
+        "compatibility matrix",
+        "P12.33 handoff",
+        "disposable Bedrock server",
+        "UDP reachability",
+        "lifecycle recovery",
+        "promote only the matching matrix cells",
+        "No real server, VM boot, Windows run, or macOS run is required here.",
+    ]
+    return [
+        f"{relative}: missing {fragment!r}"
+        for fragment in missing_fragments(read_text(relative), required)
+    ]
+
+
+def readiness() -> tuple[int, list[str]]:
+    checks = [
+        ("package-contract", check_repo()),
+        ("runtime-selection", check_runtime_selection()),
+        ("verified-provisioning", check_verified_provisioning()),
+        ("shared-lifecycle", check_shared_lifecycle()),
+        ("service-headless-layout", check_service_and_headless_layout()),
+        ("matrix-boundary", check_matrix_boundary()),
+        ("readiness-record", check_readiness_doc()),
+    ]
+    problems = [
+        f"{name}: {problem}"
+        for name, check_problems in checks
+        for problem in check_problems
+    ]
+    lines = [
+        f"{name}={'pass' if not check_problems else 'fail'}"
+        for name, check_problems in checks
+    ]
+    if problems:
+        lines.extend(f"error: {problem}" for problem in problems)
+        return 1, lines
+
+    lines.extend(
+        [
+            "implementation-readiness=pass",
+            "live-runtime-evidence=deferred",
+            "compatibility-matrix-promotion=deferred",
+            "handoff: run one disposable Bedrock server per available host, verify UDP reachability and lifecycle recovery, then promote only matching cells",
+        ]
+    )
+    return 0, lines
+
+
 def selftest() -> tuple[int, list[str]]:
     problems = check_repo()
     with TemporaryDirectory() as temporary:
@@ -316,10 +738,16 @@ def selftest() -> tuple[int, list[str]]:
 
 
 def main() -> int:
-    if sys.argv[1:] != ["--selftest"]:
-        print("usage: python3 tools/phase12/bedrock-package-check.py --selftest")
+    if sys.argv[1:] == ["--selftest"]:
+        code, lines = selftest()
+    elif sys.argv[1:] == ["--readiness"]:
+        code, lines = readiness()
+    else:
+        print(
+            "usage: python3 tools/phase12/bedrock-package-check.py "
+            "--selftest|--readiness"
+        )
         return 2
-    code, lines = selftest()
     print("\n".join(lines))
     return code
 

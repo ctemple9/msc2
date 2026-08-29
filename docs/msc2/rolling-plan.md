@@ -1347,12 +1347,13 @@ The inventory explicitly covers the Java create-world choices (world type/flat p
 **Notes:** Rebound production Bedrock selection to the persisted active record and refresh its eligibility on every Bedrock activation. Creation provisions and records the adapter binding so its first start can reuse it; imports verify distributions without binding the shared adapter. Cross-server selection is refused while that adapter is bound or running. The active-server response and server list expose the selected runtime state, and import/create operation results no longer claim `ready` without runtime availability. Compatibility-matrix cells and live evidence remain unchanged for Cameron's later cross-platform verification.
 
 ### P12.33 — Bedrock implementation-readiness gate
-**Status:** planned 2026-08-29, not yet built
+**Status:** awaiting verification
 **Files:** `tools/phase12/bedrock-package-check.py`, `docs/msc2/bedrock/phase12-readiness.md` (new), `docs/msc2/rolling-plan.md`
 **What:** Check the implementation boundary without pretending to have live server evidence: native Linux and Windows runtime selection, macOS Intel sidecar/resource lookup, verified BDS provisioning, service/headless package inclusion, and the shared public lifecycle path. Record the exact handoff for Cameron's later phase: run one disposable Bedrock server on each available OS, confirm UDP reachability and lifecycle recovery, then promote only the matching matrix cells. This is the end of the implementation work; no real server, VM boot, Windows run, or macOS run is required here.
 **Verify:** `python3 tools/phase12/bedrock-package-check.py --readiness`
 **Commit:** `P12.33: close Bedrock implementation readiness`
 **Batch:** stop-after
+**Notes:** Added a readiness mode to the existing package checker and recorded the implementation boundary. The checker validates native Linux/Windows selection, the Intel-macOS Swift sidecar and guest-package mapping, verified archive/provenance promotion with user-state preservation, the shared public lifecycle routes, and GUI/headless service layouts. It explicitly verifies that the compatibility matrix remains unavailable and leaves the live handoff — one disposable server per available host, UDP reachability, lifecycle recovery, and matching-cell promotion — for Cameron; no real server, VM boot, Windows run, or macOS run is claimed here.
 
 ### P12.LAST — Consistency sweep + parity gate
 **Status:** not started

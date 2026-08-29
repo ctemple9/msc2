@@ -20,9 +20,9 @@
   export let activeHostId: HostId = '';
   export let isDesktopShell = false;
   export let onSwitchHost: (id: HostId) => void = () => undefined;
-  // Threaded straight through to ConsoleDock (P12.10) — the docked console is the
-  // one piece of shell chrome that needs to call the agent directly, the same `api`
-  // every section already receives.
+  // Threaded straight through to ConsoleDock (P12.10) and ControlSidebar
+  // (P12.21) — the shell chrome that needs to call the agent directly, the
+  // same `api` every section already receives.
   export let api: ScreenApi | undefined = undefined;
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
@@ -127,6 +127,7 @@
         {hosts}
         {activeHostId}
         {isDesktopShell}
+        {api}
         {servers}
         {activeServerId}
         {running}

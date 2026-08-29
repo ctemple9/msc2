@@ -1,22 +1,27 @@
 <script lang="ts">
   // Server-control rail: host-aware picker, Start/Stop, Manage…, and MSC 1's
-  // four collapsible sections. Their content is real shape (labels, collapse
-  // behavior); their data-carrying content becomes real as its own screen is
-  // rebuilt later (Console Access -> P12.7, Maintenance/Quick Commands -> a
-  // later step), matching how the console dock is frame-only here too.
-  // docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
+  // four collapsible sections. How to Connect and Maintenance are real now
+  // (P12.21); Console Access and Quick Commands are still placeholders,
+  // rebuilt in P12.22. docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
   import Button from '../base/Button.svelte';
   import Menu from '../base/Menu.svelte';
+  import Icon from '../base/Icon.svelte';
   import ShellIcon from './ShellIcon.svelte';
   import PlayerAvatar from './PlayerAvatar.svelte';
+  import HowToConnectSection from './sidebar/HowToConnectSection.svelte';
   import { bannerColorAccent } from '../../styles/bannerColor';
+  import { getPlatform } from '../../platform';
   import type { HostId, HostRecord } from '../../hosts/types';
-  import type { Schema } from '../../sections/shared/types';
+  import type { Schema, ScreenApi } from '../../sections/shared/types';
 
   export let hostLabel: string;
   export let hosts: readonly HostRecord[] = [];
   export let activeHostId: HostId = '';
   export let isDesktopShell = false;
+  // Threaded through for the sections that call the agent directly
+  // (How to Connect, and P12.22's Console Access/Quick Commands) — the same
+  // `api` every section and ConsoleDock (P12.10) already receive.
+  export let api: ScreenApi | undefined = undefined;
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
   export let running = false;
@@ -97,6 +102,34 @@
   }
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
+
+  // MSC 1's SidebarView.swift hides How to Connect entirely with no server
+  // selected (`if viewModel.selectedServer != nil`); Maintenance always
+  // shows, its two buttons disabled instead.
+  $: visibleSections = DISCLOSURE_SECTIONS.filter(
+    (section) => section !== 'How to connect' || !!activeServer,
+  );
+
+  let maintenanceNotice = '';
+
+  async function revealFolder(path: string): Promise<void> {
+    maintenanceNotice = '';
+    await (
+      await getPlatform()
+    ).revealInFileManager(path, async () => {
+      maintenanceNotice = 'This needs the desktop app.';
+    });
+  }
+
+  function openServerDirectory(): void {
+    if (!activeServer) return;
+    void revealFolder(activeServer.directory);
+  }
+
+  function openLogsDirectory(): void {
+    if (!activeServer) return;
+    void revealFolder(`${activeServer.directory}/logs`);
+  }
 </script>
 
 <aside class="sidebar" aria-label="Server controls">
@@ -141,7 +174,7 @@
       </div>
     </div>
 
-    {#each DISCLOSURE_SECTIONS as section (section)}
+    {#each visibleSections as section (section)}
       <div class="disclosure">
         <button
           type="button"
@@ -153,7 +186,42 @@
           <span class="overline">{section}</span>
         </button>
         {#if expanded[section]}
-          <p class="placeholder">Rebuilt in a later Phase 12 step.</p>
+          <div class="disclosure-content">
+            {#if section === 'How to connect'}
+              <HowToConnectSection
+                {api}
+                serverType={activeServer?.serverType}
+                gamePort={activeServer?.gamePort}
+                {activeServerId}
+              />
+            {:else if section === 'Maintenance'}
+              <div class="maintenance-row">
+                <button
+                  type="button"
+                  class="maintenance-button"
+                  disabled={!activeServer}
+                  onclick={openServerDirectory}
+                >
+                  <Icon name="folder" size={13} />
+                  <span>Directory</span>
+                </button>
+                <button
+                  type="button"
+                  class="maintenance-button"
+                  disabled={!activeServer}
+                  onclick={openLogsDirectory}
+                >
+                  <Icon name="note" size={13} />
+                  <span>Logs</span>
+                </button>
+              </div>
+              {#if maintenanceNotice}
+                <p class="maintenance-notice">{maintenanceNotice}</p>
+              {/if}
+            {:else}
+              <p class="placeholder">Rebuilt in a later Phase 12 step.</p>
+            {/if}
+          </div>
         {/if}
       </div>
     {/each}
@@ -259,11 +327,49 @@
   .disclosure-header:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.4);
   }
-  .placeholder {
+  .disclosure-content {
     margin: 0 0 10px 19px;
+  }
+  .placeholder {
+    margin: 0;
     font-size: 11px;
     color: rgba(255, 255, 255, 0.35);
     line-height: 1.5;
+  }
+  .maintenance-row {
+    display: flex;
+    gap: 6px;
+  }
+  .maintenance-button {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 4px;
+    font: inherit;
+    color: var(--msc2-text-secondary);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .maintenance-button:hover:not(:disabled) {
+    color: var(--msc2-text-primary);
+    background: rgba(255, 255, 255, 0.07);
+  }
+  .maintenance-button:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .maintenance-button span {
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .maintenance-notice {
+    margin: 6px 0 0;
+    font-size: 10px;
+    color: var(--msc2-text-tertiary);
   }
   .actions-block {
     flex-shrink: 0;

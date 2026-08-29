@@ -896,6 +896,14 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Commit:** `P12.15e: filter xbox broadcast by server choices`
 **Batch:** solo
 
+### P12.15f — Advance Connectivity from its real Continue action
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Apply the common action-confirmation correction to the Connectivity “Ready to Continue” card. Clicking the wizard’s highlighted Continue button now advances the tour directly; the card no longer asks for “I did that.”
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/TourOverlay.svelte tests/screens/help.test.ts && npx vitest run tests/screens/help.test.ts && npm run build` — then reach Connectivity → Ready to Continue and confirm clicking the real Continue button advances the tour.
+**Commit:** `P12.15f: advance connectivity from continue action`
+**Batch:** solo
+
 ### P12.16 — Guides / Handbook / How MSC Works
 **Status:** built, awaiting Cameron's verification
 **Files:** `src/lib/sections/handbook/`, `src/lib/help/`

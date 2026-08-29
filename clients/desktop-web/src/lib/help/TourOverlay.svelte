@@ -34,6 +34,7 @@
     'create-server': 'ob_create_server',
     'choose-path': 'ob_wizard_continue',
     'server-settings': 'ob_wizard_continue',
+    'network-continue': 'ob_wizard_continue',
   };
 
   let cardHidden = false;
@@ -198,10 +199,14 @@
             <Button variant="secondary" size="sm" onclick={onSkip}>Finish tour</Button>
             <Button variant="primary" size="sm" onclick={() => onAdvance(false)}>Continue</Button>
           </div>
-        {:else if step.id === 'manage-servers' || step.id === 'create-server'}
+        {:else if step.id === 'manage-servers' || step.id === 'create-server' || step.id === 'network-continue'}
           <div class="hint-row">
             <p class="hint">
-              Click {step.id === 'manage-servers' ? 'Manage…' : 'Add Server…'} to continue.
+              Click {step.id === 'manage-servers'
+                ? 'Manage…'
+                : step.id === 'create-server'
+                  ? 'Add Server…'
+                  : 'Continue'} to continue.
             </p>
           </div>
         {:else if step.id === 'choose-path'}

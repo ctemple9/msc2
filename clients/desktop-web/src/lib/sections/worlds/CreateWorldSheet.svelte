@@ -1,23 +1,35 @@
 <script lang="ts">
-  // Ports CreateWorldSlotSheet.swift: name + optional seed, a note that
-  // difficulty/gamemode are server-wide (set from the Settings tab, not here).
-  import Sheet from '../../components/base/Sheet.svelte';
-  import Field from '../../components/base/Field.svelte';
-  import Button from '../../components/base/Button.svelte';
+  // A new world is created first because the profile route is slot-scoped.
+  // Once the slot exists, the same WorldSettingsForm values are saved through
+  // that route, including the central safety confirmation when needed.
   import { ApiError } from '../../api/client';
-  import type { Schema, ScreenApi } from '../shared/types';
+  import Sheet from '../../components/base/Sheet.svelte';
+  import Button from '../../components/base/Button.svelte';
+  import WorldSettingsForm from './WorldSettingsForm.svelte';
+  import type { ScreenApi } from '../shared/types';
   import { mutate } from '../shared/types';
-  import { worldPaths } from './model';
+  import {
+    defaultWorldSettingsValues,
+    worldPaths,
+    worldSettingsChanges,
+    type WorldProfileUpdateResult,
+    type WorldServerType,
+    type WorldSettingsValues,
+  } from './model';
+  import type { Schema } from '../shared/types';
 
   export let api: ScreenApi | undefined = undefined;
+  export let serverType: WorldServerType = 'java';
   export let onClose: () => void;
   export let onCreated: (updated: Schema['WorldSlotsResponseDTO']) => void;
 
-  let name = '';
-  let seed = '';
+  let values: WorldSettingsValues = defaultWorldSettingsValues(serverType);
   let busy = false;
   let error: string | undefined;
   let confirmation: SafetyPrompt | undefined;
+  let createdWorlds: Schema['WorldSlotsResponseDTO'] | undefined;
+  let createdSlotId: string | undefined;
+  let status: string | undefined;
 
   type SafetyPrompt = {
     token: string;
@@ -44,76 +56,132 @@
     };
   }
 
-  $: trimmedName = name.trim();
+  function updateValues(next: WorldSettingsValues): void {
+    values = next;
+  }
+
+  function slotCreatedByRequest(
+    before: ReadonlySet<string>,
+    updated: Schema['WorldSlotsResponseDTO'],
+  ): Schema['WorldSlotDTO'] | undefined {
+    return (
+      updated.slots.find((slot) => !before.has(slot.id)) ??
+      updated.slots
+        .filter((slot) => slot.name === values.name.trim())
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+    );
+  }
+
+  function replaceUpdatedSlot(
+    worlds: Schema['WorldSlotsResponseDTO'],
+    slot: Schema['WorldSlotDTO'],
+  ): Schema['WorldSlotsResponseDTO'] {
+    return { ...worlds, slots: worlds.slots.map((item) => (item.id === slot.id ? slot : item)) };
+  }
+
+  async function saveProfile(confirmationToken?: string): Promise<void> {
+    if (!createdSlotId) return;
+    const result = await mutate<WorldProfileUpdateResult>(api, worldPaths.profile(createdSlotId), {
+      changes: worldSettingsChanges({ ...values, name: values.name.trim() }, serverType),
+      ...(confirmationToken ? { confirmation: confirmationToken } : {}),
+    });
+    status = result.status;
+    values = {
+      ...values,
+      name: result.slot.profile.identity.name ?? result.slot.slot.name,
+      levelName: result.slot.profile.identity.levelName ?? '',
+      seed: result.slot.profile.identity.seed ?? values.seed,
+    };
+    if (createdWorlds) {
+      createdWorlds = replaceUpdatedSlot(createdWorlds, result.slot.slot);
+      onCreated(createdWorlds);
+    }
+  }
 
   async function submit(confirmationToken?: string): Promise<void> {
+    const trimmedName = values.name.trim();
     if (!trimmedName || busy) return;
     busy = true;
     error = undefined;
     confirmation = undefined;
     try {
-      const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.create, {
-        name: trimmedName,
-        seed: seed.trim() || undefined,
-        ...(confirmationToken ? { confirmation: confirmationToken } : {}),
-      });
-      if (result.updated) onCreated(result.updated);
-      onClose();
+      if (!createdSlotId) {
+        const before = new Set(createdWorlds?.slots.map((slot) => slot.id) ?? []);
+        const result = await mutate<Schema['WorldMutationResultDTO']>(api, worldPaths.create, {
+          name: trimmedName,
+          seed: values.seed.trim() || undefined,
+        });
+        if (!result.updated) throw new Error('The agent created no world slot to configure.');
+        createdWorlds = result.updated;
+        onCreated(result.updated);
+        const slot = slotCreatedByRequest(before, result.updated);
+        if (!slot) throw new Error('The new world slot could not be identified.');
+        createdSlotId = slot.id;
+      }
+      await saveProfile(confirmationToken);
     } catch (caught) {
       confirmation = safetyPrompt(caught);
       if (!confirmation) {
-        error = caught instanceof Error ? caught.message : 'Failed to create the new world.';
+        error = createdSlotId
+          ? `World created, but its settings were not saved: ${caught instanceof Error ? caught.message : 'unknown error'}`
+          : caught instanceof Error
+            ? caught.message
+            : 'Failed to create the new world.';
       }
     } finally {
       busy = false;
     }
   }
+
+  function statusLabel(value: string): string {
+    if (value === 'pending_restart') return 'Saved. Restart the server to apply these settings.';
+    if (value === 'blocked') return 'Saved, but the active runtime could not apply these settings.';
+    return 'World settings saved and applied.';
+  }
 </script>
 
-<Sheet title="Create New World" size="sm" {onClose}>
-  <form class="body" onsubmit={(event) => (event.preventDefault(), submit())}>
-    <div class="field-group">
-      <span class="msc2-type-overline">World Name</span>
-      <Field bind:value={name} placeholder="e.g. Survival World" />
-      <p class="hint">
-        This is the display name for the world slot, separate from the server name.
-      </p>
-    </div>
+<Sheet title="Create New World" size="md" onClose={busy ? undefined : onClose}>
+  <div class="body">
+    {#if createdSlotId}
+      <p class="created-note">The world slot exists. Its profile is being saved now.</p>
+    {/if}
 
-    <div class="field-group">
-      <span class="msc2-type-overline">Seed</span>
-      <Field bind:value={seed} placeholder="Optional — leave blank for a random world" />
-      <p class="hint">
-        Only used the first time this slot generates terrain; has no effect once a world exists.
-      </p>
-    </div>
-
-    <p class="note">
-      Difficulty and game mode are server-wide settings that apply to every world slot. Change them
-      from the Settings tab.
-    </p>
+    <WorldSettingsForm
+      mode="create"
+      {serverType}
+      {values}
+      serverSettingsHref="../settings"
+      onChange={updateValues}
+    />
 
     {#if confirmation}
       <div class="confirmation" role="alert">
         <p class="confirmation-title">{confirmation.title}</p>
         <p>{confirmation.message}</p>
         <div class="confirmation-actions">
-          <Button variant="secondary" type="button" onclick={() => (confirmation = undefined)}>
-            Cancel
-          </Button>
-          <Button variant="primary" type="button" onclick={() => void submit(confirmation?.token)}>
+          <Button variant="secondary" onclick={() => (confirmation = undefined)}>Cancel</Button>
+          <Button variant="primary" onclick={() => void submit(confirmation?.token)}>
             Continue
           </Button>
         </div>
       </div>
     {/if}
-    {#if error}<p class="error">{error}</p>{/if}
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {#if status}<p class="status" role="status">{statusLabel(status)}</p>{/if}
 
     <div class="footer">
-      <Button variant="secondary" type="button" onclick={onClose}>Cancel</Button>
-      <Button variant="primary" type="submit" disabled={!trimmedName || busy}>Create World</Button>
+      {#if createdSlotId}
+        <Button variant="primary" onclick={onClose}>Done</Button>
+      {:else}
+        <Button variant="secondary" onclick={onClose}>Cancel</Button>
+        <Button
+          variant="primary"
+          disabled={!values.name.trim() || busy}
+          onclick={() => void submit()}>Create World</Button
+        >
+      {/if}
     </div>
-  </form>
+  </div>
 </Sheet>
 
 <style>
@@ -122,34 +190,20 @@
     flex-direction: column;
     gap: 16px;
   }
-  .field-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .field-group span {
-    color: var(--msc2-text-tertiary);
-  }
-  .hint {
-    margin: 0;
-    font-size: 11px;
-    color: var(--msc2-text-tertiary);
-  }
-  .note {
+  .created-note,
+  .status,
+  .error,
+  .confirmation p {
     margin: 0;
     font-size: 12px;
+    line-height: 1.5;
+  }
+  .created-note,
+  .status {
     color: var(--msc2-text-secondary);
-    background: var(--msc2-tier-chrome);
-    border-radius: 8px;
-    padding: 10px 12px;
   }
   .error {
-    margin: 0;
-    font-size: 12px;
     color: var(--msc2-status-warn);
-    background: var(--msc2-status-warn-tint);
-    border-radius: 8px;
-    padding: 8px 10px;
   }
   .confirmation {
     display: flex;
@@ -162,18 +216,11 @@
     font-size: 12px;
     line-height: 1.45;
   }
-  .confirmation p {
-    margin: 0;
-  }
   .confirmation-title {
     color: var(--msc2-text-primary);
     font-weight: 600;
   }
-  .confirmation-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-  }
+  .confirmation-actions,
   .footer {
     display: flex;
     justify-content: flex-end;

@@ -26,12 +26,15 @@
   // the same anchored `Menu` list ComponentsSection.svelte's addon rows and
   // ManageSheet.svelte's server rows already use, one shared overlay owned
   // here (`actionMenu`) rather than one per card.
+  import { ApiError } from '../../api/client';
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Menu from '../../components/base/Menu.svelte';
+  import Sheet from '../../components/base/Sheet.svelte';
   import WorldSlotCard from './WorldSlotCard.svelte';
+  import WorldSettingsForm from './WorldSettingsForm.svelte';
   import BackupsPanel from './BackupsPanel.svelte';
   import CreateWorldSheet from './CreateWorldSheet.svelte';
   import RenameWorldSheet from './RenameWorldSheet.svelte';
@@ -49,6 +52,12 @@
     pollOperation,
     serversPath,
     worldPaths,
+    diffWorldSettings,
+    profileToWorldSettings,
+    type WorldServerType,
+    type WorldSettingsValues,
+    type WorldSlotWithProfile,
+    type WorldProfileUpdateResult,
   } from './model';
 
   export let api: ScreenProps['api'] = undefined;
@@ -62,6 +71,7 @@
   let backups: Schema['BackupItemDTO'][] = demoBackups;
   let servers: Schema['ServerDTO'][] = [];
   let backupConfig: Schema['BackupConfigResponseDTO'] | undefined;
+  let profiles: Record<string, WorldSlotWithProfile> = {};
 
   let selectedSlotId: string | undefined;
   let confirming: { slotId: string; kind: 'activate' | 'delete' | 'duplicate' } | undefined;
@@ -75,6 +85,14 @@
   let convertingSlot: Schema['WorldSlotDTO'] | undefined;
   let importZipOpen = false;
   let replaceOpen = false;
+  let editingSlot: Schema['WorldSlotDTO'] | undefined;
+  let editingProfile: WorldSlotWithProfile | undefined;
+  let editingValues: WorldSettingsValues | undefined;
+  let editingLoading = false;
+  let editingBusy = false;
+  let editingError: string | undefined;
+  let editingNotice: string | undefined;
+  let editingConfirmation: SafetyPrompt | undefined;
   /** The floating per-card action menu (Set as Active/Convert/Rename/
    *  Duplicate/Delete) -- one shared overlay instance owned here, same
    *  pattern as ComponentsSection.svelte's `addonMenu`/ManageSheet.svelte's
@@ -84,6 +102,12 @@
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
   $: selectedSlot = worlds.slots.find((slot) => slot.id === selectedSlotId);
+
+  type SafetyPrompt = {
+    token: string;
+    title: string;
+    message: string;
+  };
 
   async function loadWorlds(): Promise<void> {
     worlds = await call(api, worlds, worldPaths.list);
@@ -95,11 +119,31 @@
   async function loadServers(): Promise<void> {
     servers = await call(api, servers, serversPath);
   }
+
+  async function loadProfiles(): Promise<void> {
+    if (!api) return;
+    const entries = await Promise.all(
+      worlds.slots.map(async (slot) => {
+        try {
+          return [
+            slot.id,
+            await api.get<WorldSlotWithProfile>(worldPaths.profile(slot.id)),
+          ] as const;
+        } catch {
+          return undefined;
+        }
+      }),
+    );
+    profiles = Object.fromEntries(
+      entries.filter((entry): entry is [string, WorldSlotWithProfile] => Boolean(entry)),
+    );
+  }
   async function loadBackupConfig(): Promise<void> {
     backupConfig = await call(api, backupConfig, backupPaths.config);
   }
   async function loadAll(): Promise<void> {
     await Promise.all([loadWorlds(), loadBackups(), loadServers(), loadBackupConfig()]);
+    await loadProfiles();
   }
 
   function flash(message: string): void {
@@ -108,6 +152,116 @@
 
   function onWorldsCreatedOrRenamed(updated: Schema['WorldSlotsResponseDTO']): void {
     worlds = updated;
+    void loadProfiles();
+  }
+
+  function safetyPrompt(caught: unknown): SafetyPrompt | undefined {
+    if (!(caught instanceof ApiError) || caught.error.code !== 'confirmation_required') return;
+    const raw = (caught.error.details as Record<string, unknown> | null | undefined)?.confirmation;
+    if (!raw || typeof raw !== 'object') return;
+    const prompt = raw as Record<string, unknown>;
+    if (
+      typeof prompt.acknowledgement !== 'string' ||
+      typeof prompt.title !== 'string' ||
+      typeof prompt.message !== 'string'
+    ) {
+      return;
+    }
+    return {
+      token: prompt.acknowledgement,
+      title: prompt.title,
+      message: prompt.message,
+    };
+  }
+
+  function worldServerType(): WorldServerType {
+    return activeServer?.serverType === 'bedrock' ? 'bedrock' : 'java';
+  }
+
+  async function openWorldSettings(slot: Schema['WorldSlotDTO']): Promise<void> {
+    editingSlot = slot;
+    editingProfile = undefined;
+    editingValues = undefined;
+    editingLoading = true;
+    editingBusy = false;
+    editingError = undefined;
+    editingNotice = undefined;
+    editingConfirmation = undefined;
+    try {
+      const detail =
+        profiles[slot.id] ?? (await api?.get<WorldSlotWithProfile>(worldPaths.profile(slot.id)));
+      if (!detail) throw new Error('Connect to an agent to load world settings.');
+      if (editingSlot?.id !== slot.id) return;
+      editingProfile = detail;
+      editingValues = profileToWorldSettings(detail.profile, detail.slot);
+    } catch (error) {
+      if (editingSlot?.id === slot.id) {
+        editingError = error instanceof Error ? error.message : 'Failed to load world settings.';
+      }
+    } finally {
+      if (editingSlot?.id === slot.id) editingLoading = false;
+    }
+  }
+
+  function closeWorldSettings(): void {
+    if (editingBusy) return;
+    editingSlot = undefined;
+    editingProfile = undefined;
+    editingValues = undefined;
+    editingError = undefined;
+    editingNotice = undefined;
+    editingConfirmation = undefined;
+  }
+
+  function updateEditingValues(next: WorldSettingsValues): void {
+    editingValues = next;
+  }
+
+  function profileStatusLabel(value: string): string {
+    if (value === 'pending_restart') return 'Saved. Restart the server to apply these settings.';
+    if (value === 'blocked') return 'Saved, but the active runtime could not apply these settings.';
+    return 'World settings saved and applied.';
+  }
+
+  async function saveWorldSettings(confirmationToken?: string): Promise<void> {
+    if (!editingSlot || !editingProfile || !editingValues || editingBusy) return;
+    const changes = diffWorldSettings(
+      profileToWorldSettings(editingProfile.profile, editingProfile.slot),
+      editingValues,
+      worldServerType(),
+    );
+    if (Object.keys(changes).length === 0) {
+      editingNotice = 'No changes to save.';
+      return;
+    }
+    editingBusy = true;
+    editingError = undefined;
+    editingNotice = undefined;
+    editingConfirmation = undefined;
+    try {
+      const result = await mutate<WorldProfileUpdateResult>(
+        api,
+        worldPaths.profile(editingSlot.id),
+        { changes, ...(confirmationToken ? { confirmation: confirmationToken } : {}) },
+      );
+      editingProfile = result.slot;
+      editingValues = profileToWorldSettings(result.slot.profile, result.slot.slot);
+      profiles = { ...profiles, [editingSlot.id]: result.slot };
+      worlds = {
+        ...worlds,
+        slots: worlds.slots.map((slot) =>
+          slot.id === result.slot.slot.id ? result.slot.slot : slot,
+        ),
+      };
+      editingNotice = profileStatusLabel(result.status);
+    } catch (caught) {
+      editingConfirmation = safetyPrompt(caught);
+      if (!editingConfirmation) {
+        editingError = caught instanceof Error ? caught.message : 'Failed to save world settings.';
+      }
+    } finally {
+      editingBusy = false;
+    }
   }
 
   function requestActivate(slotId: string): void {
@@ -348,6 +502,11 @@
       </div>
     </div>
 
+    <p class="ownership">
+      World settings travel with each slot. Server settings—ports, player limits, access, MOTD,
+      runtime, and network helpers—apply to every world and stay in Settings.
+    </p>
+
     {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
     {#if worlds.slots.length === 0}
@@ -368,6 +527,7 @@
           <WorldSlotCard
             {api}
             {slot}
+            profile={profiles[slot.id]?.profile}
             selected={selectedSlotId === slot.id}
             {busy}
             confirming={confirming?.slotId === slot.id ? confirming.kind : undefined}
@@ -405,6 +565,7 @@
           disabled: worlds.serverRunning,
           onSelect: () => (convertingSlot = menuSlot),
         },
+        { label: 'World Settings…', onSelect: () => void openWorldSettings(menuSlot) },
         { label: 'Rename…', onSelect: () => (renamingSlot = menuSlot) },
         { label: 'Duplicate…', onSelect: () => requestDuplicate(menuSlot.id) },
         {
@@ -441,6 +602,7 @@
 {#if showCreate}
   <CreateWorldSheet
     {api}
+    serverType={worldServerType()}
     onClose={() => (showCreate = false)}
     onCreated={onWorldsCreatedOrRenamed}
   />
@@ -503,6 +665,68 @@
   />
 {/if}
 
+{#if editingSlot}
+  <Sheet
+    title={`World Settings — ${editingSlot.name}`}
+    size="lg"
+    onClose={editingBusy ? undefined : closeWorldSettings}
+  >
+    {#if editingLoading}
+      <p class="edit-status">Loading the saved world profile…</p>
+    {:else if editingError && !editingProfile}
+      <div class="edit-message">
+        <p class="edit-error" role="alert">{editingError}</p>
+        <Button size="sm" variant="secondary" onclick={closeWorldSettings}>Close</Button>
+      </div>
+    {:else if editingProfile && editingValues}
+      <div class="edit-body">
+        <WorldSettingsForm
+          mode="edit"
+          serverType={worldServerType()}
+          metadata={editingProfile.profile.fieldMetadata}
+          values={editingValues}
+          serverSettingsHref="../settings"
+          onChange={updateEditingValues}
+        />
+
+        {#if editingConfirmation}
+          <div class="confirmation" role="alert">
+            <p class="confirmation-title">{editingConfirmation.title}</p>
+            <p>{editingConfirmation.message}</p>
+            <div class="confirmation-actions">
+              <Button variant="secondary" onclick={() => (editingConfirmation = undefined)}>
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                onclick={() => void saveWorldSettings(editingConfirmation?.token)}
+              >
+                Continue
+              </Button>
+            </div>
+          </div>
+        {/if}
+        {#if editingError}<p class="edit-error" role="alert">{editingError}</p>{/if}
+        {#if editingNotice}<p class="edit-status" role="status">{editingNotice}</p>{/if}
+        {#if editingNotice && editingProfile}
+          <p class="edit-detail">
+            The agent read back the saved profile. Creation-only values stay locked after
+            generation; use Replace World or create a new slot when the terrain itself must change.
+          </p>
+        {/if}
+        <div class="edit-footer">
+          <Button variant="secondary" onclick={closeWorldSettings} disabled={editingBusy}>
+            Close
+          </Button>
+          <Button variant="primary" disabled={editingBusy} onclick={() => void saveWorldSettings()}>
+            {editingBusy ? 'Saving…' : 'Save World Settings'}
+          </Button>
+        </div>
+      </div>
+    {/if}
+  </Sheet>
+{/if}
+
 <style>
   .worlds {
     display: flex;
@@ -537,6 +761,56 @@
     margin: 0;
     font-size: 12px;
     color: var(--msc2-text-secondary);
+  }
+  .ownership {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
+  }
+  .edit-body,
+  .edit-message {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .edit-status,
+  .edit-detail,
+  .edit-error {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .edit-status,
+  .edit-detail {
+    color: var(--msc2-text-secondary);
+  }
+  .edit-error {
+    color: var(--msc2-status-warn);
+  }
+  .edit-footer,
+  .confirmation-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+  }
+  .confirmation {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 10px 12px;
+    border: 1px solid var(--msc2-hairline-strong);
+    border-radius: 8px;
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .confirmation p {
+    margin: 0;
+  }
+  .confirmation-title {
+    color: var(--msc2-text-primary);
+    font-weight: 600;
   }
   .grid {
     display: grid;

@@ -1,14 +1,9 @@
 <script lang="ts">
-  // Real port of AddServerWizardView.swift's step4FreshWorld -- a segmented
-  // World Source picker, then (for New World) the field set this block's
-  // own rolling-plan.md note calls out: World Name, Difficulty, Game Mode
-  // (Spectator excluded, matching the oracle's own picker), and an optional
-  // Seed. Values only accumulate into the wizard's draft state -- nothing
-  // is created yet, matching P12.18b-d's own established pattern; the real
-  // `POST /v1/servers/create` call is P12.18g's job.
-  //
-  // Segmented control and field styling reuse SegmentedControl/Select/Field
-  // exactly as ConfigureStep.svelte already established -- no new primitive.
+  // Real port of AddServerWizardView.swift's step4FreshWorld -- the source
+  // picker stays here, while world-local settings use the same form as the
+  // Worlds tab. The current create contract carries the Essentials
+  // projection; the shared form marks the rest unavailable until the server
+  // exists instead of collecting values that would be silently lost.
   //
   // Real gap found and handled, not silently worked around: the oracle
   // offers a third World Source, an existing world *folder*, alongside New
@@ -32,20 +27,15 @@
   // staging bytes commits nothing -- only P12.18g's real create call
   // redeems the resulting stagedUploadId.
   import Button from '../../../components/base/Button.svelte';
-  import Field from '../../../components/base/Field.svelte';
-  import Select from '../../../components/base/Select.svelte';
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform } from '../../../platform';
   import type { PickedFile } from '../../../platform/types';
   import type { ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
-  import {
-    WORLD_DIFFICULTY_OPTIONS,
-    WORLD_GAMEMODE_OPTIONS,
-    type WizardDraft,
-    type WorldSourceMode,
-  } from './model';
+  import WorldSettingsForm from '../../worlds/WorldSettingsForm.svelte';
+  import { defaultWorldSettingsValues, type WorldSettingsValues } from '../../worlds/model';
+  import { type WizardDraft, type WorldSourceMode } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
@@ -53,6 +43,13 @@
   let fileInput: HTMLInputElement;
   let staging = false;
   let stageError: string | undefined;
+  let worldSettings: WorldSettingsValues = {
+    ...defaultWorldSettingsValues(draft.serverType),
+    name: draft.worldName,
+    seed: draft.worldSeed,
+    difficulty: draft.worldDifficulty,
+    defaultGameMode: draft.worldGamemode,
+  };
 
   function selectSourceMode(mode: string): void {
     draft.worldSourceMode = mode as WorldSourceMode;
@@ -96,6 +93,14 @@
       staging = false;
     }
   }
+
+  function updateWorldSettings(next: WorldSettingsValues): void {
+    worldSettings = next;
+    draft.worldName = next.name;
+    draft.worldSeed = next.seed;
+    draft.worldDifficulty = next.difficulty as WizardDraft['worldDifficulty'];
+    draft.worldGamemode = next.defaultGameMode as WizardDraft['worldGamemode'];
+  }
 </script>
 
 <div class="world">
@@ -119,48 +124,15 @@
   </section>
 
   {#if draft.worldSourceMode === 'fresh'}
-    <section class="block" use:onboardingAnchor={'ob_world_creation'}>
-      <p class="msc2-type-overline">World Name</p>
-      <Field
-        bind:value={draft.worldName}
-        placeholder={draft.serverName ? `Defaults to "${draft.serverName}"` : 'World name'}
+    <div use:onboardingAnchor={'ob_world_creation'}>
+      <WorldSettingsForm
+        mode="wizard"
+        heading="First world settings"
+        serverType={draft.serverType}
+        values={worldSettings}
+        onChange={updateWorldSettings}
       />
-      <p class="hint">
-        This names the first world slot. You can add more worlds later in the Worlds tab.
-      </p>
-    </section>
-
-    <div class="row">
-      <section class="block">
-        <p class="msc2-type-overline">Difficulty</p>
-        <Select
-          options={WORLD_DIFFICULTY_OPTIONS}
-          value={draft.worldDifficulty}
-          onchange={(value) => (draft.worldDifficulty = value as WizardDraft['worldDifficulty'])}
-        />
-      </section>
-      <section class="block">
-        <p class="msc2-type-overline">Game Mode</p>
-        <Select
-          options={WORLD_GAMEMODE_OPTIONS}
-          value={draft.worldGamemode}
-          onchange={(value) => (draft.worldGamemode = value as WizardDraft['worldGamemode'])}
-        />
-      </section>
     </div>
-
-    {#if draft.worldGamemode === 'creative'}
-      <p class="safety-note">
-        Creative is a deliberate safety change. The agent will explain the impact and require an
-        acknowledgement before it can be applied; on Bedrock, achievements may be permanently
-        disabled for this world.
-      </p>
-    {/if}
-
-    <section class="block">
-      <p class="msc2-type-overline">Seed</p>
-      <Field bind:value={draft.worldSeed} placeholder="Optional" width="200px" />
-    </section>
   {:else}
     <section class="block">
       <Button variant="secondary" disabled={staging} onclick={() => void chooseBackup()}>
@@ -207,11 +179,6 @@
     gap: 8px;
     align-items: flex-start;
   }
-  .row {
-    display: flex;
-    gap: 24px;
-  }
-
   .hint {
     margin: 0;
     font-size: 11.5px;
@@ -221,17 +188,6 @@
   .hint.warn {
     color: var(--msc2-status-warn);
   }
-  .safety-note {
-    max-width: 520px;
-    margin: -6px 0 0;
-    padding: 9px 11px;
-    border: 1px solid var(--msc2-hairline-strong);
-    border-radius: 7px;
-    font-size: 11.5px;
-    line-height: 1.5;
-    color: var(--msc2-text-secondary);
-  }
-
   .hidden-input {
     position: absolute;
     width: 1px;

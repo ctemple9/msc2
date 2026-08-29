@@ -6,6 +6,8 @@ import {
   currentLevelName,
   demoBackups,
   demoSlots,
+  defaultWorldSettingsValues,
+  diffWorldSettings,
   formatBackupDay,
   formatDisplayName,
   groupBackupsByDay,
@@ -19,9 +21,12 @@ import {
   settingsPath,
   slotThumbnailUrl,
   targetFormats,
+  profileToWorldSettings,
+  worldSettingsChanges,
   worldPaths,
 } from '../../src/lib/sections/worlds/model';
 import type { Schema, ScreenApi } from '../../src/lib/sections/shared/types';
+import type { WorldProfile } from '../../src/lib/sections/worlds/model';
 
 describe('routes -- DetailsWorldsTabView.swift is the real oracle', () => {
   it('exposes the real, frozen world-slot routes this tab actually calls', () => {
@@ -39,6 +44,7 @@ describe('routes -- DetailsWorldsTabView.swift is the real oracle', () => {
       replaceActive: '/v1/worlds/replace-active-world',
       duplicate: '/v1/worlds/duplicate',
     });
+    expect(worldPaths.profile('slot-1')).toBe('/v1/worlds/slot-1/profile');
     expect(worldPaths.thumbnail('slot-1')).toBe('/v1/worlds/slot-1/thumbnail');
     expect(settingsPath).toBe('/v1/settings');
   });
@@ -57,6 +63,67 @@ describe('routes -- DetailsWorldsTabView.swift is the real oracle', () => {
 
   it('keeps demo fixtures wired to each other (a backup belongs to a demo slot)', () => {
     expect(demoBackups[0].slotId).toBe(demoSlots[0].id);
+  });
+});
+
+describe('world profiles -- settings stay with the slot', () => {
+  const profile: WorldProfile = {
+    schemaVersion: 1,
+    identity: { name: 'Overworld', levelName: 'world', seed: '12345' },
+    generation: {
+      worldType: 'default',
+      flatPreset: null,
+      structures: true,
+      biomeSource: null,
+      generatorOptions: null,
+      bonusChest: false,
+      dataPacks: ['vanilla'],
+    },
+    gameplay: {
+      difficulty: 'normal',
+      defaultGameMode: 'survival',
+      hardcore: false,
+      commands: true,
+      gamerules: { keepInventory: 'true' },
+      cheats: null,
+      experiments: {},
+      coordinates: null,
+      startingMap: null,
+      supportedToggles: {},
+    },
+    safety: { state: 'safe', reasons: [] },
+    fieldMetadata: {},
+  };
+
+  it('round-trips profile values through the shared form model', () => {
+    const values = profileToWorldSettings(profile, demoSlots[0]);
+    expect(values).toMatchObject({
+      name: 'Overworld',
+      seed: '12345',
+      difficulty: 'normal',
+      defaultGameMode: 'survival',
+      gamerules: 'keepInventory=true',
+    });
+    expect(worldSettingsChanges(values, 'java')).toMatchObject({
+      'identity.name': 'Overworld',
+      'identity.seed': '12345',
+      'generation.data-packs': ['vanilla'],
+      'gameplay.gamerules': { keepInventory: 'true' },
+    });
+  });
+
+  it('filters the other edition from a sparse update', () => {
+    const bedrock = { ...defaultWorldSettingsValues('bedrock'), cheats: true };
+    const changes = worldSettingsChanges(bedrock, 'bedrock');
+    expect(changes).toHaveProperty('gameplay.cheats', true);
+    expect(changes).not.toHaveProperty('generation.flat-preset');
+    expect(changes).not.toHaveProperty('gameplay.hardcore');
+  });
+
+  it('only submits changed supported values when editing a slot', () => {
+    const before = profileToWorldSettings(profile);
+    const after = { ...before, difficulty: 'hard' };
+    expect(diffWorldSettings(before, after, 'java')).toEqual({ 'gameplay.difficulty': 'hard' });
   });
 });
 

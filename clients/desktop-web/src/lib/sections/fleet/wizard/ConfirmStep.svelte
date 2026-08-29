@@ -123,7 +123,7 @@
     </section>
 
     <section class="block">
-      <p class="msc2-type-overline">Summary</p>
+      <p class="msc2-type-overline">Server settings — apply to every world</p>
       <div class="summary">
         {#if path === 'importExisting'}
           <div class="row">
@@ -150,16 +150,6 @@
             <span class="label">Max players</span>
             <span class="value">{draft.importMaxPlayers}</span>
           </div>
-          <div class="row">
-            <span class="label">Active world</span>
-            <span class="value">{importActiveWorldName ?? '—'}</span>
-          </div>
-          {#if importOtherWorlds}
-            <div class="row">
-              <span class="label">Other worlds</span>
-              <span class="value">{importOtherWorlds}</span>
-            </div>
-          {/if}
           {#if !draft.importEulaAccepted}
             <div class="row">
               <span class="label">EULA</span>
@@ -217,23 +207,6 @@
               >{draft.enablePlayit ? 'Tunnel (playit.gg)' : 'Port Forwarding'}</span
             >
           </div>
-          <div class="row">
-            <span class="label">World source</span>
-            <span class="value"
-              >{draft.worldSourceMode === 'fresh' ? 'New world' : 'From backup (.zip)'}</span
-            >
-          </div>
-          {#if draft.worldSourceMode === 'fresh'}
-            <div class="row">
-              <span class="label">World name</span>
-              <span class="value">{draft.worldName.trim() || draft.serverName || '—'}</span>
-            </div>
-          {:else if draft.stagedWorldBackup}
-            <div class="row">
-              <span class="label">Backup file</span>
-              <span class="value">{draft.stagedWorldBackup.fileName}</span>
-            </div>
-          {/if}
           {#if draft.stagedModpack}
             <div class="row">
               <span class="label">Modpack</span>
@@ -250,7 +223,69 @@
           {/if}
         {/if}
       </div>
+    </section>
 
+    <section class="block">
+      <p class="msc2-type-overline">
+        {path === 'importExisting'
+          ? 'Imported world settings — saved with this world'
+          : 'First world settings — saved with this world'}
+      </p>
+      <div class="summary">
+        {#if path === 'importExisting'}
+          <div class="row">
+            <span class="label">Active world</span>
+            <span class="value">{importActiveWorldName ?? '—'}</span>
+          </div>
+          {#if importOtherWorlds}
+            <div class="row">
+              <span class="label">Other worlds</span>
+              <span class="value">{importOtherWorlds}</span>
+            </div>
+          {/if}
+          <div class="row">
+            <span class="label">World profile</span>
+            <span class="value">Imported from the selected server</span>
+          </div>
+        {:else}
+          <div class="row">
+            <span class="label">World source</span>
+            <span class="value"
+              >{draft.worldSourceMode === 'fresh' ? 'New world' : 'From backup (.zip)'}</span
+            >
+          </div>
+          {#if draft.worldSourceMode === 'fresh'}
+            <div class="row">
+              <span class="label">World name</span>
+              <span class="value">{draft.worldName.trim() || draft.serverName || '—'}</span>
+            </div>
+            <div class="row">
+              <span class="label">Difficulty</span>
+              <span class="value">{draft.worldDifficulty}</span>
+            </div>
+            <div class="row">
+              <span class="label">Default game mode</span>
+              <span class="value">{draft.worldGamemode}</span>
+            </div>
+            <div class="row">
+              <span class="label">Seed</span>
+              <span class="value">{draft.worldSeed.trim() || 'Random'}</span>
+            </div>
+          {:else if draft.stagedWorldBackup}
+            <div class="row">
+              <span class="label">Backup file</span>
+              <span class="value">{draft.stagedWorldBackup.fileName}</span>
+            </div>
+          {/if}
+        {/if}
+      </div>
+
+      {#if path === 'fresh' && draft.worldGamemode === 'creative'}
+        <p class="hint warn">
+          Creative is saved with this world. The agent will ask for an acknowledgement before it
+          applies the gameplay change.
+        </p>
+      {/if}
       {#if path === 'fresh' && draft.serverType === 'java' && draft.javaCategory === 'modded'}
         <p class="hint">
           To join, every player needs the {flavorInfo?.displayName ?? draft.javaFlavor} loader for this

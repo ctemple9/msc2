@@ -30,10 +30,11 @@
   import type { Schema, ScreenApi } from '../shared/types';
   import { bytesLabel, dateLabel, mutate } from '../shared/types';
   import { getPlatform } from '../../platform';
-  import { placeholderHue, slotThumbnailUrl, worldPaths } from './model';
+  import { placeholderHue, slotThumbnailUrl, worldPaths, type WorldProfile } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let slot: Schema['WorldSlotDTO'];
+  export let profile: WorldProfile | undefined = undefined;
   export let selected = false;
   export let busy = false;
   /** Which inline confirmation (P12.3g's expand-in-place pattern, not a
@@ -55,6 +56,10 @@
   $: thumbnail = slotThumbnailUrl(slot);
   $: hue = placeholderHue(slot.name || slot.id);
   $: seed = slot.worldSeed?.trim();
+  $: profileSummary = [profile?.gameplay.difficulty, profile?.gameplay.defaultGameMode]
+    .filter((value): value is string => Boolean(value))
+    .map((value) => value.charAt(0).toUpperCase() + value.slice(1))
+    .join(' · ');
 
   async function setThumbnail(): Promise<void> {
     if (!api?.upload) return;
@@ -142,6 +147,7 @@
         <span class="name">{slot.name}</span>
         <span class="saved">Saved {dateLabel(slot.createdAt)}</span>
         {#if seed}<span class="seed">Seed {seed}</span>{/if}
+        {#if profileSummary}<span class="saved-profile">{profileSummary}</span>{/if}
       </button>
       {#if !confirming}
         <Button variant="ghost-icon" size="sm" label="World actions" onclick={onOpenMenu}>
@@ -323,12 +329,16 @@
     white-space: nowrap;
   }
   .saved,
-  .seed {
+  .seed,
+  .saved-profile {
     font-size: 10px;
     color: var(--msc2-text-tertiary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .saved-profile {
+    color: var(--msc2-text-secondary);
   }
   .confirm-block {
     display: flex;

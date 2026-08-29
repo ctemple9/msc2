@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import configureSource from '../../src/lib/sections/fleet/wizard/ConfigureStep.svelte?raw';
+import confirmSource from '../../src/lib/sections/fleet/wizard/ConfirmStep.svelte?raw';
+import worldSource from '../../src/lib/sections/fleet/wizard/WorldStep.svelte?raw';
+import worldSettingsFormSource from '../../src/lib/sections/worlds/WorldSettingsForm.svelte?raw';
 import {
   buildServerCreateRequest,
   canCreateServer,
@@ -165,5 +168,16 @@ describe('add server wizard confirm step (P12.18g)', () => {
     expect(buildServerCreateRequest(draft, 'Packed Server').stagedModpackUploadId).toBe(
       'upload-42',
     );
+  });
+});
+
+describe('shared world settings flow (P12.27)', () => {
+  it('uses the shared world form for fresh creation and separates ownership in review', () => {
+    expect(worldSource).toContain('WorldSettingsForm');
+    expect(worldSettingsFormSource).toContain('Essentials');
+    expect(worldSettingsFormSource).toContain('World Generation');
+    expect(worldSettingsFormSource).toContain('Gameplay Rules');
+    expect(confirmSource).toContain('Server settings — apply to every world');
+    expect(confirmSource).toContain('First world settings — saved with this world');
   });
 });

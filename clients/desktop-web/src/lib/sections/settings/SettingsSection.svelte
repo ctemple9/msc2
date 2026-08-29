@@ -169,7 +169,11 @@
       {#if dirty}<StatusDot tone="warn" label="Unsaved changes" />{/if}
     </div>
   </div>
-  <p class="hint">Changes in this tab stay local until you click Save Changes.</p>
+  <p class="hint">
+    These are server settings shared by every world. Changes stay local until you click Save
+    Changes.
+    <a href="../worlds">Edit active world settings in Worlds</a>
+  </p>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
   {#if confirmation}
@@ -239,7 +243,9 @@
                   <Field bind:value={draft[field.key]} width="260px" />
                 {/if}
                 {#if field.key === 'force-gamemode'}
-                  <span class="field-hint">Applies to every world and can override saved defaults.</span>
+                  <span class="field-hint"
+                    >Applies to every world and can override saved defaults.</span
+                  >
                 {/if}
               </div>
             </div>
@@ -287,6 +293,12 @@
     margin: -10px 0 0;
     font-size: 12px;
     color: var(--msc2-text-tertiary);
+  }
+  .hint a {
+    margin-left: 4px;
+    color: var(--msc2-text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .notice {
     margin: 0;

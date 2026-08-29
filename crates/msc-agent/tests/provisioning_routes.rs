@@ -79,6 +79,7 @@ fn provisioning_routes_are_mounted_behind_bearer_auth() {
 
     // Same proof for every new POST route.
     for path in [
+        "/v1/capabilities",
         "/v1/servers/create",
         "/v1/servers/delete",
         "/v1/servers/rename",
@@ -168,6 +169,37 @@ fn provisioning_routes_accept_the_bootstrap_token() {
         response.lines().next().unwrap_or_default()
     );
     assert!(response.contains("name_required"));
+
+    // Create-time capability context is queryable before a server exists.
+    // The selected version and flavor must be reflected in the response so
+    // the wizard can re-evaluate its advanced world settings after a picker
+    // change rather than retaining a static Java list.
+    let response = http_get(
+        port,
+        "/v1/capabilities?serverType=java&minecraftVersion=1.21.8&javaFlavor=paper",
+        Some(TOKEN),
+    );
+    assert!(
+        response.starts_with("HTTP/1.1 200"),
+        "create-time capabilities expected 200, got: {}",
+        response.lines().next().unwrap_or_default()
+    );
+    assert!(response.contains("\"worldSettings\""));
+    assert!(response.contains("\"minecraftVersion\":\"1.21.8\""));
+    assert!(response.contains("\"capability\":\"world.java.paper\""));
+
+    let response = http_get(
+        port,
+        "/v1/capabilities?serverType=bedrock&minecraftVersion=1.20.80",
+        Some(TOKEN),
+    );
+    assert!(
+        response.starts_with("HTTP/1.1 200"),
+        "Bedrock capabilities expected 200, got: {}",
+        response.lines().next().unwrap_or_default()
+    );
+    assert!(response.contains("\"serverType\":\"bedrock\""));
+    assert!(response.contains("\"gameplay.cheats\""));
 
     stop_child(&mut agent);
     cleanup_secret(&keychain_service, "remote-api.owner-token");

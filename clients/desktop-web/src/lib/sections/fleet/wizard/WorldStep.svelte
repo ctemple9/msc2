@@ -1,9 +1,9 @@
 <script lang="ts">
   // Real port of AddServerWizardView.swift's step4FreshWorld -- the source
   // picker stays here, while world-local settings use the same form as the
-  // Worlds tab. The current create contract carries the Essentials
-  // projection; the shared form marks the rest unavailable until the server
-  // exists instead of collecting values that would be silently lost.
+  // Worlds tab. The create request still carries the Essentials projection,
+  // while the form asks the agent which native settings belong to the
+  // selected edition/version/flavor before it presents advanced context.
   //
   // Real gap found and handled, not silently worked around: the oracle
   // offers a third World Source, an existing world *folder*, alongside New
@@ -34,7 +34,11 @@
   import type { ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import WorldSettingsForm from '../../worlds/WorldSettingsForm.svelte';
-  import { defaultWorldSettingsValues, type WorldSettingsValues } from '../../worlds/model';
+  import {
+    defaultWorldSettingsValues,
+    type WorldSettingsCapabilities,
+    type WorldSettingsValues,
+  } from '../../worlds/model';
   import { type WizardDraft, type WorldSourceMode } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -43,6 +47,9 @@
   let fileInput: HTMLInputElement;
   let staging = false;
   let stageError: string | undefined;
+  let capabilities: WorldSettingsCapabilities | undefined;
+  let capabilitiesError: string | undefined;
+  let capabilityRequestKey = '';
   let worldSettings: WorldSettingsValues = {
     ...defaultWorldSettingsValues(draft.serverType),
     name: draft.worldName,
@@ -50,6 +57,35 @@
     difficulty: draft.worldDifficulty,
     defaultGameMode: draft.worldGamemode,
   };
+
+  $: {
+    const requestKey = [draft.serverType, draft.javaFlavor, draft.versionId ?? ''].join('|');
+    if (requestKey !== capabilityRequestKey) {
+      capabilityRequestKey = requestKey;
+      if (api) void loadCapabilities(requestKey);
+      else capabilities = undefined;
+    }
+  }
+
+  async function loadCapabilities(requestKey: string): Promise<void> {
+    if (!api) return;
+    capabilitiesError = undefined;
+    const params = new URLSearchParams({ serverType: draft.serverType });
+    if (draft.versionId) params.set('minecraftVersion', draft.versionId);
+    if (draft.serverType === 'java') params.set('javaFlavor', draft.javaFlavor);
+    try {
+      const response = await api.get<{ worldSettings?: WorldSettingsCapabilities }>(
+        `/v1/capabilities?${params.toString()}`,
+      );
+      if (requestKey !== capabilityRequestKey) return;
+      capabilities = response.worldSettings;
+    } catch (error) {
+      if (requestKey === capabilityRequestKey) {
+        capabilities = undefined;
+        capabilitiesError = errorMessage(error);
+      }
+    }
+  }
 
   function selectSourceMode(mode: string): void {
     draft.worldSourceMode = mode as WorldSourceMode;
@@ -130,8 +166,16 @@
         heading="First world settings"
         serverType={draft.serverType}
         values={worldSettings}
+        {capabilities}
+        serverSettingsHref="../settings"
         onChange={updateWorldSettings}
       />
+      {#if capabilitiesError}
+        <p class="hint warn" role="status">
+          Advanced settings could not be checked: {capabilitiesError} The available fields remain
+          conservative until the agent responds.
+        </p>
+      {/if}
     </div>
   {:else}
     <section class="block">

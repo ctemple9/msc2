@@ -43,3 +43,7 @@ Each adds more features and performance improvements on top of the last. Vanilla
 Paper is the sweet spot for most home servers. Purpur is for server operators who want hundreds of extra configuration toggles on top of Paper’s foundation. Vanilla is for purists who want zero modifications.
 
 The Standard family is entirely separate from Modded servers (Fabric, NeoForge, Forge). Those use a different loading system and a different add-on ecosystem (mods instead of plugins). See the Modded Servers section of this handbook for details.
+
+MSC checks the selected Minecraft version, Paper-family flavor, loader information, and installed Java runtime before showing native world controls. Paper and Purpur can advertise the common Java profile plus their own native server options; a control the selected runtime does not advertise is unavailable and is never submitted as if it applied. Unknown properties are kept and shown as unknown so an upgrade does not erase them.
+
+Purpur and plugins may add settings of their own. Those are **provided by this server/mod**. Open the server's own configuration path for them rather than expecting MSC to present a universal editor.

@@ -15,6 +15,7 @@
     profileFieldUnavailableReason,
     type WorldProfileFieldMetadata,
     type WorldServerType,
+    type WorldSettingsCapabilities,
     type WorldSettingsValues,
   } from './model';
 
@@ -25,6 +26,7 @@
    * profile can be saved; `edit` additionally locks creation-only values. */
   export let mode: 'wizard' | 'create' | 'edit' = 'edit';
   export let metadata: Record<string, WorldProfileFieldMetadata> = {};
+  export let capabilities: WorldSettingsCapabilities | undefined = undefined;
   export let heading: string | undefined = undefined;
   export let serverSettingsHref: string | undefined = undefined;
   export let onChange: ((values: WorldSettingsValues) => void) | undefined = undefined;
@@ -48,7 +50,11 @@
   ]);
 
   function update(patch: Partial<WorldSettingsValues>): void {
-    values = { ...values, ...patch };
+    values = { ...values, ...patch, ...(capabilities ? { capabilities } : {}) };
+  }
+
+  $: if (capabilities && values.capabilities !== capabilities) {
+    values = { ...values, capabilities };
   }
 
   // Field and Select are deliberately small presentational primitives. Their
@@ -64,11 +70,11 @@
   }
 
   function unavailable(key: string): boolean {
-    return profileFieldIsUnavailable(key, serverType, mode, metadata);
+    return profileFieldIsUnavailable(key, serverType, mode, metadata, capabilities);
   }
 
   function reason(key: string): string | undefined {
-    return profileFieldUnavailableReason(key, serverType, mode, metadata);
+    return profileFieldUnavailableReason(key, serverType, mode, metadata, capabilities);
   }
 
   function readOnly(key: string): boolean {
@@ -101,6 +107,15 @@
     return Object.keys(values.supportedToggles).length > 0;
   }
 
+  function unknownFieldNotice(): string | undefined {
+    const unknown = Object.entries(metadata).some(
+      ([key, field]) => key.startsWith('unknown.') || field.valueState === 'unknown',
+    );
+    return unknown
+      ? 'Some properties are unknown to this MSC version. They remain preserved and are not rewritten.'
+      : undefined;
+  }
+
   $: creativeSelected = values.defaultGameMode === 'creative';
   $: bedrockSafetyRisk =
     serverType === 'bedrock' &&
@@ -117,6 +132,30 @@
     </div>
   {/if}
 
+  {#if capabilities}
+    <section class="context" aria-label="Advanced settings context">
+      <p class="context-label">Advanced settings context</p>
+      <p class="context-value">
+        {capabilities.context.serverType === 'bedrock' ? 'Bedrock' : 'Java'}
+        · {capabilities.context.minecraftVersion ?? 'Minecraft version not selected'}
+        {#if capabilities.context.javaFlavor}
+          · {capabilities.context.javaFlavor}
+        {/if}
+        {#if capabilities.context.loaderVersion}
+          · loader {capabilities.context.loaderVersion}
+        {/if}
+      </p>
+      {#if capabilities.context.javaRuntime}
+        <p class="hint">
+          Java runtime: {capabilities.context.javaRuntime.state}
+          {#if capabilities.context.javaRuntime.reason}
+            — {capabilities.context.javaRuntime.reason}
+          {/if}
+        </p>
+      {/if}
+    </section>
+  {/if}
+
   <p class="ownership">
     These settings are saved with this world. Server settings—ports, player limits, access, MOTD,
     runtime, and network helpers—apply to every world.
@@ -124,6 +163,20 @@
       <a href={serverSettingsHref}>Open Server Settings</a>
     {/if}
   </p>
+
+  {#if capabilities?.thirdParty}
+    <p class="boundary" role="note">
+      <span class="boundary-label">{capabilities.thirdParty.label}</span>
+      {capabilities.thirdParty.message}
+      {#if serverSettingsHref && capabilities.thirdParty.handoff === 'server_settings'}
+        <a href={serverSettingsHref}>Open Server Settings</a>
+      {/if}
+    </p>
+  {/if}
+
+  {#if unknownFieldNotice()}
+    <p class="boundary" role="status">{unknownFieldNotice()}</p>
+  {/if}
 
   <section class="essentials">
     <p class="section-title">Essentials</p>
@@ -530,6 +583,8 @@
   }
   .intro p,
   .ownership,
+  .context-value,
+  .boundary,
   .hint,
   .safety-note {
     margin: 0;
@@ -540,6 +595,44 @@
   .ownership,
   .hint {
     color: var(--msc2-text-tertiary);
+  }
+  .context {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 10px 0;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+    border-bottom: 1px solid var(--msc2-hairline-subtle);
+  }
+  .context-label,
+  .context-value {
+    margin: 0;
+  }
+  .context-label,
+  .boundary-label {
+    color: var(--msc2-text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+  }
+  .context-value {
+    color: var(--msc2-text-primary);
+    font-size: 12px;
+  }
+  .boundary {
+    padding-left: 10px;
+    border-left: 2px solid var(--msc2-hairline-field);
+    color: var(--msc2-text-tertiary);
+  }
+  .boundary-label {
+    margin-right: 5px;
+  }
+  .boundary a {
+    margin-left: 4px;
+    color: var(--msc2-text-secondary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
   .ownership a {
     margin-left: 4px;

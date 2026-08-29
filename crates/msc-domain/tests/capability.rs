@@ -13,8 +13,10 @@
 
 use msc_domain::capability::{
     BedrockBackend, BedrockSupport, CapabilitySet, HelperPresence, HostOs, PermissionCategory,
-    ServerTypeSupport,
+    ServerTypeSupport, WorldCapabilityContext, WorldSettingCapabilityState,
 };
+use msc_domain::identity::{JavaServerFlavor, ServerType};
+use msc_domain::world_profile::WorldProfileField;
 use std::collections::BTreeSet;
 
 #[test]
@@ -150,5 +152,83 @@ fn capability_bedrock_support_equality_respects_backend() {
             supported: false,
             backend: None,
         }
+    );
+}
+
+#[test]
+fn capability_world_settings_use_the_selected_java_profile() {
+    let context = WorldCapabilityContext {
+        server_type: ServerType::Java,
+        minecraft_version: Some("1.21.8".to_string()),
+        java_flavor: Some(JavaServerFlavor::Purpur),
+        loader_version: None,
+    };
+    let capabilities = msc_domain::capability::world_setting_capabilities(&context);
+    let flat_preset = capabilities
+        .iter()
+        .find(|capability| capability.field == WorldProfileField::GenerationFlatPreset)
+        .unwrap();
+    assert_eq!(flat_preset.state, WorldSettingCapabilityState::Available);
+    assert_eq!(flat_preset.capability, "world.java.purpur");
+    assert!(
+        msc_domain::capability::native_world_capabilities(&context)
+            .contains(&"world.java.purpur.standard".to_string())
+    );
+}
+
+#[test]
+fn capability_world_settings_refuse_old_or_unselected_versions_explicitly() {
+    let old = WorldCapabilityContext {
+        server_type: ServerType::Java,
+        minecraft_version: Some("1.19.4".to_string()),
+        java_flavor: Some(JavaServerFlavor::Vanilla),
+        loader_version: None,
+    };
+    let old_difficulty = msc_domain::capability::world_setting_capabilities(&old)
+        .into_iter()
+        .find(|capability| capability.field == WorldProfileField::GameplayDifficulty)
+        .unwrap();
+    assert_eq!(
+        old_difficulty.state,
+        WorldSettingCapabilityState::Unsupported
+    );
+    assert_eq!(
+        old_difficulty.reason.as_deref(),
+        Some("Requires Minecraft 1.20 or newer.")
+    );
+
+    let unselected = WorldCapabilityContext {
+        minecraft_version: None,
+        ..old
+    };
+    let unknown = msc_domain::capability::world_setting_capabilities(&unselected)
+        .into_iter()
+        .find(|capability| capability.field == WorldProfileField::GameplayDifficulty)
+        .unwrap();
+    assert_eq!(unknown.state, WorldSettingCapabilityState::Unknown);
+}
+
+#[test]
+fn capability_world_settings_keep_bedrock_fields_separate_from_java() {
+    let context = WorldCapabilityContext {
+        server_type: ServerType::Bedrock,
+        minecraft_version: Some("1.20.80".to_string()),
+        java_flavor: None,
+        loader_version: None,
+    };
+    let capabilities = msc_domain::capability::world_setting_capabilities(&context);
+    let cheats = capabilities
+        .iter()
+        .find(|capability| capability.field == WorldProfileField::GameplayCheats)
+        .unwrap();
+    let hardcore = capabilities
+        .iter()
+        .find(|capability| capability.field == WorldProfileField::GameplayHardcore)
+        .unwrap();
+    assert_eq!(cheats.state, WorldSettingCapabilityState::Available);
+    assert_eq!(hardcore.state, WorldSettingCapabilityState::Unsupported);
+    assert_eq!(
+        msc_domain::capability::native_world_capabilities(&context),
+        ["world.bedrock"]
     );
 }

@@ -40,3 +40,9 @@ You can run both from this app simultaneously.
 - Bedrock server port: Default port is 19132 UDP (not TCP). Port forwarding must be UDP.
 - Player management uses allowlist.json and permissions.json — the app handles these for you.
 - No Java installation needed for Bedrock servers — the built-in VM provides the runtime.
+
+### Advanced Details
+
+MSC checks the selected Bedrock version and installed Bedrock runtime before presenting native controls. The common 1.20+ profile includes generation, difficulty, game mode, gamerules, coordinates, starting-map, cheats, and experiments where that runtime advertises them. Unavailable controls are explained and are never sent as though the runtime applied them; unknown properties remain visible and preserved.
+
+Settings supplied by a particular server build or add-on are **provided by this server/mod**, outside MSC's native Bedrock profile. Use that server or mod's own configuration path for them; MSC will not silently discard a setting it cannot understand.

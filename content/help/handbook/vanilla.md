@@ -47,3 +47,7 @@ Vanilla servers support full vanilla Java Edition clients and all vanilla gamepl
 The Vanilla server JAR is downloaded directly from Mojang’s version manifest. Each Minecraft version has an exact JAR SHA1 that MSC verifies before using it.
 
 Performance notes: Vanilla’s chunk loading and entity processing is noticeably slower than Paper under multi-player load. For 1–2 players casually exploring, this doesn’t matter. For 5+ players or redstone-heavy builds, Paper’s optimizations become meaningful.
+
+MSC shows native world settings only when the selected Minecraft version and installed Java runtime can support them. The common 1.20+ profile includes generation choices, difficulty, game mode, gamerules, and Java's native creation options. A setting the runtime does not advertise is marked unavailable and is not sent as though Vanilla applied it; unrecognized values remain visible as unknown and are preserved.
+
+Settings added by a datapack or another third-party component are **provided by this server/mod**, not part of MSC's universal world editor. Use the server's own configuration path for those values; MSC does not invent controls or silently drop them.

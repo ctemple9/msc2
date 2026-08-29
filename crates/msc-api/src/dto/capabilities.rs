@@ -6,6 +6,7 @@
 //! no serde dependency, so the wire representation lives here.
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 use super::ErrorDto;
 
@@ -158,4 +159,93 @@ pub struct CapabilitiesDto {
     pub permissions: Vec<PermissionCategoryDto>,
     pub server_types: ServerTypesDto,
     pub helpers: HelpersDto,
+}
+
+/// The runtime probe used while evaluating the selected server's native
+/// world settings. A string state keeps older clients tolerant of future
+/// probe outcomes.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct JavaRuntimeCapabilityDto {
+    pub state: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executable_path: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub required_major: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub detected_major: Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+}
+
+/// The exact edition/flavor/version selection that produced a world-setting
+/// capability response. This prevents a client from displaying a generic
+/// "Java settings" label after the user changes the version or loader.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldSettingsContextDto {
+    pub server_type: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minecraft_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub java_flavor: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub loader_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub java_runtime: Option<JavaRuntimeCapabilityDto>,
+    #[serde(default)]
+    pub native_capabilities: Vec<String>,
+}
+
+/// One field is always present in the map, even when it is unavailable. The
+/// reason is part of the response so the UI can disable or hide it honestly
+/// instead of reverse-engineering edition/version rules.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldSettingCapabilityDto {
+    pub capability: String,
+    pub state: String,
+    pub available: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(rename = "helpId", default, skip_serializing_if = "Option::is_none")]
+    pub help_id: Option<String>,
+}
+
+/// MSC-owned world settings stop at the native profile. Mod-defined settings
+/// are deliberately handed back to the server/mod configuration path rather
+/// than being guessed into a universal editor.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ThirdPartyWorldConfigBoundaryDto {
+    pub available: bool,
+    pub label: String,
+    pub message: String,
+    pub handoff: String,
+    #[serde(rename = "helpId", default, skip_serializing_if = "Option::is_none")]
+    pub help_id: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldSettingsCapabilitiesDto {
+    pub context: WorldSettingsContextDto,
+    pub fields: BTreeMap<String, WorldSettingCapabilityDto>,
+    pub third_party: ThirdPartyWorldConfigBoundaryDto,
+}
+
+/// Additive extension of the original `CapabilitiesDTO`. Keeping the base
+/// value as a nested field means existing typed Rust fixtures and older iOS
+/// clients retain their original construction/decoding surface while the
+/// wire response gains version-aware world settings.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CapabilitiesResponseDto {
+    #[serde(flatten)]
+    pub base: CapabilitiesDto,
+    #[serde(
+        rename = "worldSettings",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub world_settings: Option<WorldSettingsCapabilitiesDto>,
 }

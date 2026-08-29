@@ -108,6 +108,29 @@ fn flavor_supports_versions(flavor: JavaServerFlavor) -> bool {
     )
 }
 
+/// The create picker sends the selected entry's `id`, not a second hand-
+/// written Minecraft-version field. Forge and NeoForge encode that id as
+/// `minecraft—loader`; the other flavors use the Minecraft version directly.
+/// Keeping this normalization beside the version route means capability
+/// evaluation and version selection agree about the context they advertise.
+pub(crate) fn minecraft_version_from_selection(
+    flavor: Option<JavaServerFlavor>,
+    selection: Option<String>,
+) -> Option<String> {
+    let selection = selection?;
+    let selection = selection.trim();
+    if selection.is_empty() {
+        return None;
+    }
+    let version = match flavor {
+        Some(JavaServerFlavor::Forge | JavaServerFlavor::NeoForge) => {
+            selection.split('\u{2014}').next().unwrap_or(selection)
+        }
+        _ => selection,
+    };
+    Some(version.to_string())
+}
+
 /// Shared by `GET /v1/versions` (a real, already-registered server) and
 /// `GET /v1/versions/create` (a hypothetical one, `current_version:
 /// None`) — real network fetch, run off the async executor thread.

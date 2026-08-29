@@ -49,6 +49,39 @@ export type WorldProfileFieldMetadata = {
   helpId?: string | null;
 };
 
+export type WorldSettingCapability = {
+  capability: string;
+  state: 'available' | 'unsupported' | 'unknown' | string;
+  available: boolean;
+  reason?: string | null;
+  helpId?: string | null;
+};
+
+export type WorldSettingsCapabilities = {
+  context: {
+    serverType: WorldServerType | string;
+    minecraftVersion?: string | null;
+    javaFlavor?: string | null;
+    loaderVersion?: string | null;
+    javaRuntime?: {
+      state: 'available' | 'unavailable' | 'unknown' | string;
+      executablePath?: string | null;
+      requiredMajor?: number | null;
+      detectedMajor?: number | null;
+      reason?: string | null;
+    } | null;
+    nativeCapabilities: string[];
+  };
+  fields: Record<string, WorldSettingCapability>;
+  thirdParty: {
+    available: boolean;
+    label: string;
+    message: string;
+    handoff: string;
+    helpId?: string | null;
+  };
+};
+
 export type WorldProfile = {
   schemaVersion: number;
   identity: {
@@ -127,6 +160,10 @@ export type WorldSettingsValues = {
   coordinates: boolean | null;
   startingMap: boolean | null;
   supportedToggles: Record<string, boolean>;
+  /** Runtime capability context is carried through the shared form only so
+   *  profile writes can omit fields the agent did not advertise. It is not a
+   *  persisted world-profile property. */
+  capabilities?: WorldSettingsCapabilities;
 };
 
 export const WORLD_DIFFICULTY_OPTIONS: readonly { value: string; label: string }[] = [
@@ -299,6 +336,7 @@ export function profileToWorldSettings(
 export function worldSettingsChanges(
   values: WorldSettingsValues,
   serverType?: WorldServerType,
+  capabilities?: WorldSettingsCapabilities,
 ): Record<string, unknown> {
   const changes: Record<string, unknown> = {
     'identity.name': optionalText(values.name),
@@ -332,6 +370,13 @@ export function worldSettingsChanges(
   } else if (serverType === 'bedrock') {
     for (const key of JAVA_ONLY_PROFILE_FIELDS) delete changes[key];
   }
+
+  const advertised = capabilities ?? values.capabilities;
+  if (advertised) {
+    for (const key of Object.keys(changes)) {
+      if (!advertised.fields[key]?.available) delete changes[key];
+    }
+  }
   return changes;
 }
 
@@ -339,9 +384,10 @@ export function diffWorldSettings(
   before: WorldSettingsValues,
   after: WorldSettingsValues,
   serverType?: WorldServerType,
+  capabilities?: WorldSettingsCapabilities,
 ): Record<string, unknown> {
-  const previous = worldSettingsChanges(before, serverType);
-  const next = worldSettingsChanges(after, serverType);
+  const previous = worldSettingsChanges(before, serverType, capabilities);
+  const next = worldSettingsChanges(after, serverType, capabilities);
   return Object.fromEntries(
     Object.entries(next).filter(
       ([key, value]) => JSON.stringify(value) !== JSON.stringify(previous[key]),
@@ -354,8 +400,10 @@ export function profileFieldIsUnavailable(
   serverType: WorldServerType,
   mode: 'wizard' | 'create' | 'edit',
   metadata: Record<string, WorldProfileFieldMetadata>,
+  capabilities?: WorldSettingsCapabilities,
 ): boolean {
   if (mode === 'wizard' && WIZARD_UNAVAILABLE_PROFILE_FIELDS.has(key)) return true;
+  if (capabilities && !capabilities.fields[key]?.available) return true;
   if (metadata[key]?.valueState === 'unsupported') return true;
   if (serverType === 'java' && BEDROCK_ONLY_PROFILE_FIELDS.has(key)) return true;
   if (serverType === 'bedrock' && JAVA_ONLY_PROFILE_FIELDS.has(key)) return true;
@@ -367,9 +415,13 @@ export function profileFieldUnavailableReason(
   serverType: WorldServerType,
   mode: 'wizard' | 'create' | 'edit',
   metadata: Record<string, WorldProfileFieldMetadata>,
+  capabilities?: WorldSettingsCapabilities,
 ): string | undefined {
   if (mode === 'wizard' && WIZARD_UNAVAILABLE_PROFILE_FIELDS.has(key)) {
     return 'Available after the server is created.';
+  }
+  if (capabilities && !capabilities.fields[key]?.available) {
+    return capabilities.fields[key]?.reason ?? 'This setting was not advertised by the selected runtime.';
   }
   if (metadata[key]?.valueState === 'unsupported') return 'Unavailable for this server type.';
   if (serverType === 'java' && BEDROCK_ONLY_PROFILE_FIELDS.has(key)) {

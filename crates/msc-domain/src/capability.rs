@@ -15,6 +15,8 @@
 //! serialization (the JSON `CapabilitiesDTO` shape) is `msc-api`'s job —
 //! this crate takes on no serde dependency.
 
+use crate::identity::{JavaServerFlavor, ServerType};
+use crate::world_profile::WorldProfileField;
 use std::collections::BTreeSet;
 
 /// closed enum, `msc2-engineering.md` §8's first support matrix ("MSC
@@ -185,4 +187,165 @@ pub struct CapabilitySet {
     pub permissions: BTreeSet<PermissionCategory>,
     pub server_types: ServerTypeSupport,
     pub helpers: HelperPresence,
+}
+
+/// The selected server context used to evaluate world-setting support. This
+/// is separate from [`CapabilitySet`] because the latter remains the small
+/// host-and-token capability envelope used by older clients.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldCapabilityContext {
+    pub server_type: ServerType,
+    pub minecraft_version: Option<String>,
+    pub java_flavor: Option<JavaServerFlavor>,
+    pub loader_version: Option<String>,
+}
+
+/// Why a world setting can or cannot be presented as an applicable setting.
+/// `Unknown` is intentionally distinct from `Unsupported`: an unselected
+/// version must not turn into a false promise about a future server.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldSettingCapabilityState {
+    Available,
+    Unsupported,
+    Unknown,
+}
+
+impl WorldSettingCapabilityState {
+    pub const fn raw_value(self) -> &'static str {
+        match self {
+            Self::Available => "available",
+            Self::Unsupported => "unsupported",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
+/// One advertised world-profile field. The capability layer returns every
+/// known field, including unavailable ones, so clients can explain why a
+/// control is absent without guessing from a Java/Bedrock static list.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldSettingCapability {
+    pub field: WorldProfileField,
+    pub capability: String,
+    pub state: WorldSettingCapabilityState,
+    pub reason: Option<String>,
+    pub help_id: Option<String>,
+}
+
+/// MSC 2's native world-settings floor for this release. The runtime's
+/// ability to launch a server is reported beside these fields; it is not
+/// silently conflated with whether a persisted native setting has a known
+/// Minecraft meaning.
+pub const NATIVE_WORLD_SETTINGS_MIN_VERSION: &str = "1.20";
+
+/// Evaluate native world settings for one concrete server selection.
+///
+/// The common profile is deliberately small and version-bounded. Java flavor
+/// and loader are retained in the capability name so a client can show the
+/// actual context, while unknown or unsupported selections remain explicit.
+pub fn world_setting_capabilities(context: &WorldCapabilityContext) -> Vec<WorldSettingCapability> {
+    WorldProfileField::ALL
+        .into_iter()
+        .map(|field| {
+            let (state, reason) = if !field.applies_to(context.server_type) {
+                (
+                    WorldSettingCapabilityState::Unsupported,
+                    Some(match context.server_type {
+                        ServerType::Java => "This setting belongs to Bedrock servers.",
+                        ServerType::Bedrock => "This setting belongs to Java servers.",
+                    }),
+                )
+            } else if field != WorldProfileField::SafetyState && context.minecraft_version.is_none()
+            {
+                (
+                    WorldSettingCapabilityState::Unknown,
+                    Some("Minecraft version has not been selected."),
+                )
+            } else if field != WorldProfileField::SafetyState
+                && !minecraft_version_at_least_1_20(
+                    context.minecraft_version.as_deref().unwrap_or_default(),
+                )
+            {
+                (
+                    WorldSettingCapabilityState::Unsupported,
+                    Some("Requires Minecraft 1.20 or newer."),
+                )
+            } else if context.server_type == ServerType::Java
+                && field.capability() == "world.java"
+                && context.java_flavor.is_none()
+            {
+                (
+                    WorldSettingCapabilityState::Unknown,
+                    Some("Java server flavor has not been selected."),
+                )
+            } else {
+                (WorldSettingCapabilityState::Available, None)
+            };
+
+            WorldSettingCapability {
+                field,
+                capability: capability_name(field, context),
+                state,
+                reason: reason.map(str::to_string),
+                help_id: field.help_id().map(str::to_string),
+            }
+        })
+        .collect()
+}
+
+/// Names the native server family in addition to the broad Java/Bedrock
+/// bucket. The names are data, not executable configuration paths; arbitrary
+/// mod-defined settings stay outside this list and use the explicit handoff
+/// advertised by the API/UI.
+pub fn native_world_capabilities(context: &WorldCapabilityContext) -> Vec<String> {
+    match context.server_type {
+        ServerType::Bedrock => vec!["world.bedrock".to_string()],
+        ServerType::Java => {
+            let mut capabilities = vec!["world.java".to_string()];
+            if let Some(flavor) = context.java_flavor {
+                capabilities.push(format!("world.java.{}", flavor.raw_value()));
+                capabilities.push(format!(
+                    "world.java.{}.{}",
+                    flavor.raw_value(),
+                    match flavor {
+                        JavaServerFlavor::Paper
+                        | JavaServerFlavor::Purpur
+                        | JavaServerFlavor::Pufferfish
+                        | JavaServerFlavor::Vanilla
+                        | JavaServerFlavor::Spigot => "standard",
+                        JavaServerFlavor::Fabric
+                        | JavaServerFlavor::NeoForge
+                        | JavaServerFlavor::Forge
+                        | JavaServerFlavor::Quilt => "modded",
+                    }
+                ));
+            }
+            if let Some(loader) = &context.loader_version {
+                capabilities.push(format!("loader.{}", loader));
+            }
+            capabilities
+        }
+    }
+}
+
+fn capability_name(field: WorldProfileField, context: &WorldCapabilityContext) -> String {
+    match (context.server_type, context.java_flavor, field.capability()) {
+        (ServerType::Java, Some(flavor), "world.java") => {
+            format!("world.java.{}", flavor.raw_value())
+        }
+        _ => field.capability().to_string(),
+    }
+}
+
+fn minecraft_version_at_least_1_20(version: &str) -> bool {
+    let numbers: Vec<u32> = version
+        .split(|character: char| !character.is_ascii_digit())
+        .filter(|part| !part.is_empty())
+        .filter_map(|part| part.parse().ok())
+        .collect();
+    match numbers.as_slice() {
+        [1, minor, ..] => *minor >= 20,
+        [major, ..] => *major > 1,
+        [] => false,
+    }
 }

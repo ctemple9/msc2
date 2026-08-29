@@ -4902,6 +4902,55 @@
       "get": {
         "summary": "Report agent capabilities for this host and this token",
         "x-permission-category": "none",
+        "parameters": [
+          {
+            "name": "serverType",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "java",
+                "bedrock"
+              ]
+            },
+            "description": "Optional create-time server edition to evaluate instead of the active server."
+          },
+          {
+            "name": "minecraftVersion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional selected Minecraft version or version-entry id."
+          },
+          {
+            "name": "javaFlavor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "loaderVersion",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "javaRuntimePath",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional executable to probe without changing the saved Java preference."
+          }
+        ],
         "responses": {
           "200": {
             "description": "CapabilitiesDTO.",
@@ -4914,7 +4963,7 @@
             }
           }
         },
-        "x-notes": "P2.6. No documented failure response beyond the standard auth/skew ones every /v1/ route shares."
+        "x-notes": "P2.6, extended additively by P12.28. Without query context this reports the active server when one exists; create-time callers pass the selected edition/version/flavor/loader so world settings are re-evaluated after each selection change."
       }
     },
     "/v1/help/{helpId}": {
@@ -10843,7 +10892,7 @@
       },
       "CapabilitiesDTO": {
         "type": "object",
-        "description": "P2.6 SS3 -- GET /v1/capabilities response.",
+        "description": "P2.6 SS3 -- GET /v1/capabilities response; P12.28 adds optional version-aware worldSettings.",
         "properties": {
           "agentVersion": {
             "type": "string"
@@ -10957,6 +11006,10 @@
               "geyser"
             ],
             "description": "Placeholder this phase (P2.6 SS3) -- real presence detection is Phase 3 substrate work."
+          },
+          "worldSettings": {
+            "$ref": "#/components/schemas/WorldSettingsCapabilitiesDTO",
+            "description": "Optional active or create-time context for native world settings. Omitted when no server context was selected."
           }
         },
         "required": [
@@ -10967,6 +11020,140 @@
           "permissions",
           "serverTypes",
           "helpers"
+        ]
+      },
+      "JavaRuntimeCapabilityDTO": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "description": "available, unavailable, or unknown; newer agents may add states."
+          },
+          "executablePath": {
+            "type": "string"
+          },
+          "requiredMajor": {
+            "type": "integer"
+          },
+          "detectedMajor": {
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "WorldSettingsContextDTO": {
+        "type": "object",
+        "properties": {
+          "serverType": {
+            "type": "string",
+            "enum": [
+              "java",
+              "bedrock"
+            ]
+          },
+          "minecraftVersion": {
+            "type": "string"
+          },
+          "javaFlavor": {
+            "type": "string"
+          },
+          "loaderVersion": {
+            "type": "string"
+          },
+          "javaRuntime": {
+            "$ref": "#/components/schemas/JavaRuntimeCapabilityDTO"
+          },
+          "nativeCapabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "serverType",
+          "nativeCapabilities"
+        ]
+      },
+      "WorldSettingCapabilityDTO": {
+        "type": "object",
+        "properties": {
+          "capability": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "helpId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capability",
+          "state",
+          "available"
+        ]
+      },
+      "ThirdPartyWorldConfigBoundaryDTO": {
+        "type": "object",
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "label": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "handoff": {
+            "type": "string",
+            "enum": [
+              "server_settings"
+            ]
+          },
+          "helpId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "available",
+          "label",
+          "message",
+          "handoff"
+        ]
+      },
+      "WorldSettingsCapabilitiesDTO": {
+        "type": "object",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/WorldSettingsContextDTO"
+          },
+          "fields": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorldSettingCapabilityDTO"
+            }
+          },
+          "thirdParty": {
+            "$ref": "#/components/schemas/ThirdPartyWorldConfigBoundaryDTO"
+          }
+        },
+        "required": [
+          "context",
+          "fields",
+          "thirdParty"
         ]
       },
       "HelpTopicDTO": {

@@ -16,7 +16,7 @@
   import { onDestroy, onMount } from 'svelte';
   import Button from '../components/base/Button.svelte';
   import { anchorFrames, ONBOARDING_ANCHOR_ACTION_EVENT, remeasureAll } from './tourAnchors';
-  import { activeTourStep } from './onboarding';
+  import { activeTourStep, tourServerCreated } from './onboarding';
   import type { OnboardingStep } from './types';
 
   export let steps: readonly OnboardingStep[] = [];
@@ -24,6 +24,7 @@
   export let skipLabel = 'Skip tour';
   export let onAdvance: (userActionCompleted?: boolean) => void;
   export let onSkip: () => void;
+  export let onComplete: () => void = () => onSkip();
 
   const PAD = 10;
   const MARGIN = 16;
@@ -35,13 +36,18 @@
     'choose-path': 'ob_wizard_continue',
     'server-settings': 'ob_wizard_continue',
     'network-continue': 'ob_wizard_continue',
+    'first-world': 'ob_wizard_continue',
+    'add-ons': 'ob_wizard_continue',
   };
+  const REVIEW_STEP_IDS = new Set(['server-settings', 'first-world', 'add-ons', 'create']);
 
   let cardHidden = false;
   let lastIndex = -1;
+  let createCompletionHandled = false;
   $: if (stepIndex !== lastIndex) {
     cardHidden = false;
     lastIndex = stepIndex;
+    createCompletionHandled = false;
   }
 
   let reduceMotion = false;
@@ -65,6 +71,13 @@
   });
 
   $: activeTourStep.set(step?.id ?? null);
+  // Wait for the real asynchronous create operation before ending this pass of
+  // the tour, so the success page is visible and later setup cards do not take
+  // over while the wizard is still creating the server.
+  $: if (step?.id === 'create' && $tourServerCreated && !createCompletionHandled) {
+    createCompletionHandled = true;
+    onComplete();
+  }
   onDestroy(() => activeTourStep.set(null));
 
   // Catches spotlights going stale when a layout change moves an anchor without
@@ -96,7 +109,7 @@
   $: spotlightAnchor =
     step?.id === 'choose-path'
       ? 'ob_wizard_continue'
-      : step?.id === 'server-settings'
+      : step && REVIEW_STEP_IDS.has(step.id)
         ? null
         : step?.anchor;
   $: hasAnchor = spotlightAnchor !== null && spotlightAnchor !== undefined;
@@ -132,7 +145,7 @@
 
 <svelte:window on:resize={onResize} />
 
-{#if step && !(step.id === 'server-settings' && cardHidden)}
+{#if step && !(REVIEW_STEP_IDS.has(step.id) && cardHidden)}
   <div class="tour-root" role="dialog" aria-modal="true" aria-live="polite">
     {#if !cardHidden}
       {#if blocking}
@@ -152,11 +165,27 @@
         <Button variant="secondary" size="sm" onclick={() => (cardHidden = false)}>Show tip</Button>
         <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
       </div>
-    {:else if step.id === 'server-settings'}
+    {:else if REVIEW_STEP_IDS.has(step.id)}
       <div class="bookend-card">
         <h2>{step.title}</h2>
         <p>{step.body}</p>
-        <p class="hint review-hint">Click Continue once you have reviewed your settings.</p>
+        {#if step.id === 'server-settings'}
+          <p class="hint review-hint">Click Continue once you have reviewed your settings.</p>
+        {:else if step.id === 'add-ons'}
+          <p class="hint review-hint">
+            Nothing is required for a basic server. Feel free to browse or add files, then click
+            Okay and Continue when you are ready.
+          </p>
+        {:else if step.id === 'first-world'}
+          <p class="hint review-hint">
+            Choose your world settings, then click Okay and Continue when you are ready.
+          </p>
+        {:else}
+          <p class="hint review-hint">
+            Review the summary and display name, then click Okay and Create Server when you are
+            ready.
+          </p>
+        {/if}
         <div class="actions center">
           <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
           <Button variant="primary" onclick={() => (cardHidden = true)}>Okay</Button>

@@ -145,6 +145,7 @@
       skipLabel={onboarding.skip.label}
       onAdvance={advance}
       onSkip={() => writeState({ ...state, tourComplete: true })}
+      onComplete={() => writeState({ ...state, tourComplete: true })}
     />
   {/if}
 {/if}

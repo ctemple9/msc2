@@ -15,6 +15,9 @@ export type TourServerContext = {
 /** Current wizard choices used to omit tour cards that do not apply. */
 export const tourServerContext = writable<TourServerContext | null>(null);
 
+/** Becomes true after the wizard's real create operation reaches success. */
+export const tourServerCreated = writable(false);
+
 /**
  * MSC 2 doesn't yet cover every screen the oracle's tour walks through (no
  * AddServerWizardView port, no Packs tab -- see tourAnchors.ts). Keep only
@@ -34,6 +37,24 @@ export function applicableTourSteps(
         context.javaFlavor !== 'vanilla' &&
         context.enableCrossPlay
       );
+    }
+    if (
+      step.id === 'server-category' ||
+      step.id === 'server-flavor' ||
+      step.id === 'server-version'
+    ) {
+      return !context || context.serverType === 'java';
+    }
+    if (step.id === 'crossplay') {
+      return (
+        !context ||
+        (context.serverType === 'java' &&
+          context.javaCategory === 'standard' &&
+          context.javaFlavor !== 'vanilla')
+      );
+    }
+    if (step.id === 'add-ons' && context) {
+      return context.serverType === 'java' && context.javaFlavor !== 'vanilla';
     }
     return true;
   });

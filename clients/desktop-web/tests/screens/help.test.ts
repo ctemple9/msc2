@@ -79,6 +79,50 @@ describe('shared help and onboarding screens', () => {
     }
   });
 
+  it('keeps the create tour on the path supported by the live wizard', () => {
+    const steps = [
+      {
+        order: 0,
+        id: 'server-category',
+        title: '',
+        body: '',
+        anchor: null,
+        requiresUserAction: false,
+      },
+      {
+        order: 1,
+        id: 'server-flavor',
+        title: '',
+        body: '',
+        anchor: null,
+        requiresUserAction: false,
+      },
+      {
+        order: 2,
+        id: 'server-version',
+        title: '',
+        body: '',
+        anchor: null,
+        requiresUserAction: false,
+      },
+      { order: 3, id: 'crossplay', title: '', body: '', anchor: null, requiresUserAction: false },
+      { order: 4, id: 'add-ons', title: '', body: '', anchor: null, requiresUserAction: false },
+      { order: 5, id: 'create', title: '', body: '', anchor: null, requiresUserAction: false },
+    ];
+    const bedrock = {
+      serverType: 'bedrock' as const,
+      javaCategory: 'standard' as const,
+      javaFlavor: 'paper',
+      enableCrossPlay: false,
+    };
+    expect(applicableTourSteps(steps, bedrock).map((step) => step.id)).toEqual(['create']);
+    expect(
+      applicableTourSteps(steps, { ...bedrock, serverType: 'java', javaFlavor: 'vanilla' }).map(
+        (step) => step.id,
+      ),
+    ).toEqual(['server-category', 'server-flavor', 'server-version', 'create']);
+  });
+
   it('uses contract fixtures for every explanation and retains an additive unknown-topic boundary', () => {
     const setupText = setupSource.replace(/\s+/g, ' ');
     expect(helpSource).toContain("'/v1/help/catalog'");
@@ -123,7 +167,11 @@ describe('shared help and onboarding screens', () => {
     expect(helpSource).toContain('hideCard');
     expect(tourSource).toContain("'server-settings': 'ob_wizard_continue'");
     expect(tourSource).toContain("'network-continue': 'ob_wizard_continue'");
+    expect(tourSource).toContain("'first-world': 'ob_wizard_continue'");
+    expect(tourSource).toContain("'add-ons': 'ob_wizard_continue'");
     expect(tourSource).toContain('Click Continue once you have reviewed your settings.');
+    expect(tourSource).toContain('Nothing is required for a basic server.');
+    expect(tourSource).toContain('onComplete');
     expect(tourSource).toContain('>Okay</Button>');
     expect(helpSource).toContain('<SetupIntro');
     expect(helpSource).toContain('{api}');

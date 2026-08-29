@@ -35,7 +35,7 @@
   import { onDestroy } from 'svelte';
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
-  import { activeTourStep, tourServerContext } from '../../../help/onboarding';
+  import { activeTourStep, tourServerContext, tourServerCreated } from '../../../help/onboarding';
   import ConfigureStep from './ConfigureStep.svelte';
   import NetworkStep from './NetworkStep.svelte';
   import WorldStep from './WorldStep.svelte';
@@ -87,7 +87,10 @@
     enableCrossPlay: draft.enableCrossPlay,
   });
 
-  onDestroy(() => tourServerContext.set(null));
+  onDestroy(() => {
+    tourServerContext.set(null);
+    tourServerCreated.set(false);
+  });
 
   // `AddServerWizardView.swift`'s `hasAddOnsStep` -- inserts a sixth "Add-ons"
   // step at position 5 (Fresh path only) once the chosen Java flavor accepts
@@ -162,6 +165,7 @@
             : await importServerFromDraft(api, draft, displayName, onProgress);
       createWarnings = warnings;
       createSucceeded = true;
+      tourServerCreated.set(true);
       onCreated();
     } catch (error) {
       statusMessage = errorMessage(error);

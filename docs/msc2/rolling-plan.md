@@ -904,6 +904,14 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Commit:** `P12.15f: advance connectivity from continue action`
 **Batch:** solo
 
+### P12.15g — Complete the onboarding create-server flow
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/onboarding.ts`, `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/src/lib/help/FirstLaunchGate.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Carry the guided tour through World, optional Add-ons, and Confirm/Create. World and Add-ons use an unobstructed Okay-and-resume pause so the user can freely configure a basic server; Add-ons explicitly stays optional. Confirm uses the same pause while the user reviews the summary and display name. The tour waits for the real create operation to succeed, then ends on the wizard's server-created page instead of showing the later EULA/start/console cards. Filter Java-only Configure and Add-ons cards from Bedrock and Vanilla paths based on the live wizard choices. Served onboarding content remains unchanged, and the Server Handbook is out of scope.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/onboarding.ts src/lib/help/TourOverlay.svelte src/lib/help/FirstLaunchGate.svelte src/lib/sections/fleet/wizard/AddServerWizard.svelte tests/screens/help.test.ts && npx vitest run tests/screens/help.test.ts && npm run build` — then visually run the tour through World, confirm Add-ons says it is optional and Okay removes the overlay, confirm Continue resumes it, create the server, and verify the success page remains visible with no EULA/start/console tour card.
+**Commit:** `P12.15g: complete onboarding create-server flow`
+**Batch:** solo
+
 ### P12.16 — Guides / Handbook / How MSC Works
 **Status:** built, awaiting Cameron's verification
 **Files:** `src/lib/sections/handbook/`, `src/lib/help/`

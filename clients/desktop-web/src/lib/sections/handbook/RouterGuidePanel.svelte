@@ -176,6 +176,18 @@
 </div>
 
 <style>
+  /* Router Guide runs a size step above the shared type scale -- Cameron's
+     own visual-review call, this component only. */
+  .panel :global(.msc2-type-overline) {
+    font-size: 11px;
+  }
+  .panel :global(.msc2-type-body),
+  .panel :global(.msc2-type-card) {
+    font-size: 15px;
+  }
+  .panel :global(.msc2-type-meta) {
+    font-size: 13px;
+  }
   .panel {
     display: flex;
     flex-direction: column;

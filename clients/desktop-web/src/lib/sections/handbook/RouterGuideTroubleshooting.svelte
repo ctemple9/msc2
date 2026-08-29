@@ -219,6 +219,18 @@
 </div>
 
 <style>
+  /* Router Guide runs a size step above the shared type scale, and this
+     screen a step above that again -- Cameron's own visual-review call. */
+  .troubleshooting :global(.msc2-type-overline) {
+    font-size: 12px;
+  }
+  .troubleshooting :global(.msc2-type-body),
+  .troubleshooting :global(.msc2-type-card) {
+    font-size: 16px;
+  }
+  .troubleshooting :global(.msc2-type-meta) {
+    font-size: 14px;
+  }
   .troubleshooting {
     display: flex;
     flex-direction: column;
@@ -263,9 +275,9 @@
     color: var(--msc2-text-primary);
   }
   .symptom-row.selected .check {
-    background: var(--msc2-neutral-fill);
-    color: var(--msc2-neutral-fill-ink);
-    border-color: var(--msc2-neutral-fill);
+    background: var(--msc2-neutral-muted);
+    color: var(--msc2-text-primary);
+    border-color: var(--msc2-neutral-muted);
   }
   .text {
     display: flex;

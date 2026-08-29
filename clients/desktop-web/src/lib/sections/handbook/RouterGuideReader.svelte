@@ -31,7 +31,6 @@
 
   let phase: Phase = { kind: 'loading' };
   let completedStepIds = new Set<string>();
-  let expandedStepIds = new Set<string>();
   let expandedTopicIds = new Set<string>();
   let introExpanded = true;
   let notesExpanded = false;
@@ -42,7 +41,6 @@
   async function load(id: string): Promise<void> {
     phase = { kind: 'loading' };
     completedStepIds = new Set();
-    expandedStepIds = new Set();
     expandedTopicIds = new Set();
     introExpanded = true;
     notesExpanded = false;
@@ -78,12 +76,6 @@
     if (next.has(id)) next.delete(id);
     else next.add(id);
     completedStepIds = next;
-  }
-  function toggleDetail(id: string): void {
-    const next = new Set(expandedStepIds);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    expandedStepIds = next;
   }
   function toggleTopic(id: string): void {
     const next = new Set(expandedTopicIds);
@@ -260,8 +252,6 @@
         <div class="steps">
           {#each steps as step, stepIndex (step.id)}
             {@const done = completedStepIds.has(step.id)}
-            {@const long = step.body.length > 100}
-            {@const expanded = expandedStepIds.has(step.id)}
             <Card>
               <div class="step">
                 <button
@@ -275,12 +265,7 @@
                 </button>
                 <div class="step-body">
                   <p class="msc2-type-card" class:muted={done}>{step.title}</p>
-                  <p class="msc2-type-body muted" class:clamped={long && !expanded}>{step.body}</p>
-                  {#if long}
-                    <button type="button" class="detail-toggle" onclick={() => toggleDetail(step.id)}>
-                      {expanded ? 'Less' : 'Details'}
-                    </button>
-                  {/if}
+                  <p class="msc2-type-body step-desc muted">{step.body}</p>
                   {#if step.alternateTerms.length}
                     <p class="msc2-type-meta">Also called: {step.alternateTerms.join(', ')}</p>
                   {/if}
@@ -360,6 +345,21 @@
 </div>
 
 <style>
+  /* Router Guide runs a size step above the shared type scale -- Cameron's
+     own visual-review call, this component only. */
+  .reader :global(.msc2-type-overline) {
+    font-size: 11px;
+  }
+  .reader :global(.msc2-type-body),
+  .reader :global(.msc2-type-card) {
+    font-size: 15px;
+  }
+  .reader :global(.msc2-type-meta) {
+    font-size: 13px;
+  }
+  .reader :global(.msc2-type-mono) {
+    font-size: 13px;
+  }
   .reader {
     display: flex;
     flex-direction: column;
@@ -478,12 +478,12 @@
   }
   .step-check {
     flex: none;
-    width: 26px;
-    height: 26px;
+    width: 20px;
+    height: 20px;
     border-radius: 50%;
     border: none;
-    background: var(--msc2-neutral-fill);
-    color: var(--msc2-neutral-fill-ink);
+    background: var(--msc2-neutral-muted);
+    color: var(--msc2-text-primary);
     font-size: 11px;
     font-weight: 600;
     cursor: pointer;
@@ -501,25 +501,11 @@
   .step-body p {
     margin: 0;
   }
-  .clamped {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .step-desc {
+    font-style: italic;
   }
-  .detail-toggle,
   .copy-btn {
     align-self: flex-start;
-  }
-  .detail-toggle {
-    border: none;
-    background: transparent;
-    color: var(--msc2-text-primary);
-    font-size: 11px;
-    font-weight: 500;
-    padding: 0;
-    cursor: pointer;
   }
   .topic {
     border-top: 1px solid var(--msc2-hairline-subtle);

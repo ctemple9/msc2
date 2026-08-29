@@ -990,6 +990,19 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16d: drop duplicated "agent" from the background agent breadcrumb`
 **Batch:** solo
 
+### P12.16e — Router Guide visual polish (Cameron's live review)
+
+**Status:** DONE
+**Files:** `clients/desktop-web/src/lib/sections/handbook/{RouterGuidePanel,RouterGuideReader,RouterGuideTroubleshooting}.svelte`
+**What:** Four fixes from Cameron's first real-agent look at the working screen, all scoped to these three files only (not the shared `tokens.css` type scale or `Badge`/base components other screens depend on):
+- **Step-number circles too big:** `RouterGuideReader.svelte`'s `.step-check` shrunk 26px→20px.
+- **Drop the "Details" toggle, italicize instead:** the step body's line-clamp + expand/collapse "Details"/"Less" button is gone; the full body always renders now, styled `font-style: italic` (`.step-desc`). Removed the now-dead `expandedStepIds` state and `toggleDetail`.
+- **Dark ("black") text Cameron flagged in Notes/quirks and Troubleshooting:** both `.step-check` (Reader) and the selected-symptom `.check` (Troubleshooting) used `--msc2-neutral-fill-ink` (`#14141a`, near-black) as text color against a light `--msc2-neutral-fill` circle — a legitimate "dark ink on light fill" pattern everywhere else it's used in this design system, but not one Cameron wants here. Both switched to a `--msc2-neutral-muted` (dark elevated) circle with `--msc2-text-primary` (near-white) text instead — no black anywhere in these three files now.
+- **Font size too small, especially Troubleshooting:** the shared type scale (`msc2-type-body`/`-card`/`-meta`/`-overline`) is one size up in all three router-guide files (e.g. body/card 13px→15px, meta 11px→13px), and a further step up again in Troubleshooting specifically (body/card→16px, meta→14px) — done via scoped `:global()` overrides keyed off each component's own wrapper class (`.reader`/`.troubleshooting`/`.panel`), so no other screen sharing these type classes is affected.
+**Verify:** `npm run check` (same 5 pre-existing baseline errors, 0 new); `npm run test:unit` (same pre-existing 2 failing files, 0 new).
+**Commit:** `P12.16e: router guide visual polish from live review`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

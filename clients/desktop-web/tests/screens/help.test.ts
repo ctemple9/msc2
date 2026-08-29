@@ -3,6 +3,9 @@ import appSource from '../../src/App.svelte?raw';
 import gateSource from '../../src/lib/help/FirstLaunchGate.svelte?raw';
 import handbookSource from '../../src/lib/sections/handbook/HandbookBrowser.svelte?raw';
 import helpSource from '../../src/lib/sections/handbook/HelpSection.svelte?raw';
+import routerPanelSource from '../../src/lib/sections/handbook/RouterGuidePanel.svelte?raw';
+import routerReaderSource from '../../src/lib/sections/handbook/RouterGuideReader.svelte?raw';
+import routerTroubleshootingSource from '../../src/lib/sections/handbook/RouterGuideTroubleshooting.svelte?raw';
 import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import splashSource from '../../src/lib/help/SplashGate.svelte?raw';
 import tourSource from '../../src/lib/help/TourOverlay.svelte?raw';
@@ -181,5 +184,18 @@ describe('shared help and onboarding screens', () => {
     expect(splashSource).toContain('autoplay');
     expect(splashSource).toContain('onended={finish}');
     expect(splashSource).toContain('onerror={handleVideoError}');
+  });
+
+  it('rebuilds the Router Guide to the oracle\'s 3-screen depth against the real routes P12.16a wired', () => {
+    expect(routerPanelSource).toContain('/v1/guides/router/search?q=');
+    expect(routerPanelSource).toContain('Step 1 of 3 — Find your router');
+    expect(routerPanelSource).toContain("I don't know my router");
+    expect(routerReaderSource).toContain('/v1/guides/router/');
+    expect(routerReaderSource).toContain('Step 2 of 3 — Follow the steps');
+    expect(routerReaderSource).toContain('no_active_server');
+    expect(routerReaderSource).toContain('Mark all done');
+    expect(routerTroubleshootingSource).toContain('/v1/guides/router/troubleshooting/analyze');
+    expect(routerTroubleshootingSource).toContain('Step 3 of 3 — Diagnose issues');
+    expect(routerTroubleshootingSource).toContain('Analyze');
   });
 });

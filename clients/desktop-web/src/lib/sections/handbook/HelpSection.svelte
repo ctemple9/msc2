@@ -43,7 +43,7 @@
   let topicId = '';
   let concept: ConceptGuide | null = null;
   let conceptPage = 0;
-  let routerGuides: RouterGuideCatalog = { guides: [], troubleshooting: [] };
+  let routerGuides: RouterGuideCatalog = { guides: [], troubleshooting: [], symptoms: [] };
   let onboarding: OnboardingGuide | null = null;
   let tourIndex = 0;
   let loaded = false;
@@ -149,7 +149,7 @@
             onOpenHandbook={() => void selectTopic('handbook.overview')}
           />
         {:else}
-          <RouterGuidePanel catalog={routerGuides} />
+          <RouterGuidePanel {api} catalog={routerGuides} />
         {/if}
       </Card>
     </section>

@@ -94,6 +94,244 @@ const onboarding = {
     },
   ],
 };
+const routerGuides = [
+  {
+    id: 'generic-router',
+    displayName: 'Generic Router Guide',
+    category: 'generic_fallback',
+    family: 'generic_router',
+    searchKeywords: ['generic router', 'router', 'port forwarding'],
+    adminAddresses: ['192.168.1.1'],
+    adminSurface: 'web_browser',
+    menuPath: ['Login', 'Advanced', 'Port Forwarding'],
+    alternateMenuNames: ['NAT Forwarding', 'Virtual Server'],
+    steps: [
+      {
+        id: 'generic-step-1',
+        kind: 'navigate',
+        title: 'Log into the router',
+        body: 'Open the router admin page in a browser.',
+        referencedTokens: [],
+        alternateTerms: ['Gateway', 'Admin'],
+      },
+    ],
+    notes: [
+      { id: 'generic-note-1', title: 'Transparency', body: 'Exact labels vary by firmware.' },
+    ],
+    troubleshooting: ['double_nat'],
+    sharedSections: {
+      includeSharedIntro: true,
+      includeSharedPrerequisites: true,
+      includeSharedValueSummary: true,
+      includeSharedTroubleshootingFooter: true,
+    },
+    review: { sourceConfidence: 'common_flow', lastReviewed: null, reviewNotes: null },
+    providerDisplayName: null,
+    deviceDisplayName: 'Generic Router',
+  },
+  {
+    id: 'xfinity-gateway',
+    displayName: 'Xfinity Gateway',
+    category: 'isp_gateway',
+    family: 'xfinity_gateway',
+    searchKeywords: ['xfinity', 'comcast', 'xfi'],
+    adminAddresses: ['10.0.0.1'],
+    adminSurface: 'either',
+    menuPath: ['xFi app or 10.0.0.1', 'Advanced', 'Port Forwarding'],
+    alternateMenuNames: ['xFi', 'Gateway'],
+    steps: [
+      {
+        id: 'xfinity-step-1',
+        kind: 'navigate',
+        title: 'Open xFi or log in to 10.0.0.1',
+        body: 'Use the Xfinity app first, or try 10.0.0.1 in a browser.',
+        referencedTokens: [],
+        alternateTerms: ['xFi', 'Gateway'],
+      },
+    ],
+    notes: [],
+    troubleshooting: ['double_nat'],
+    sharedSections: {
+      includeSharedIntro: true,
+      includeSharedPrerequisites: true,
+      includeSharedValueSummary: true,
+      includeSharedTroubleshootingFooter: true,
+    },
+    review: { sourceConfidence: 'verified_recently', lastReviewed: null, reviewNotes: null },
+    providerDisplayName: 'Xfinity / Comcast',
+    deviceDisplayName: 'Xfinity Gateway',
+  },
+  {
+    id: 'eero-mesh',
+    displayName: 'eero',
+    category: 'mesh_system',
+    family: 'eero',
+    searchKeywords: ['eero', 'mesh wifi'],
+    adminAddresses: [],
+    adminSurface: 'mobile_app',
+    menuPath: ['eero app', 'Settings', 'Reservations & Port Forwarding'],
+    alternateMenuNames: [],
+    steps: [
+      {
+        id: 'eero-step-1',
+        kind: 'navigate',
+        title: 'Open the eero app',
+        body: 'eero is app-managed. Open Settings, then Network Settings.',
+        referencedTokens: [],
+        alternateTerms: [],
+      },
+    ],
+    notes: [],
+    troubleshooting: ['double_nat'],
+    sharedSections: {
+      includeSharedIntro: true,
+      includeSharedPrerequisites: true,
+      includeSharedValueSummary: true,
+      includeSharedTroubleshootingFooter: true,
+    },
+    review: { sourceConfidence: 'common_flow', lastReviewed: null, reviewNotes: null },
+    providerDisplayName: null,
+    deviceDisplayName: 'eero',
+  },
+];
+const routerTroubleshootingTopics = [
+  {
+    id: 'double_nat',
+    title: 'You may be behind two routers',
+    summary: 'Port forwarding on the wrong router will not expose the server to the internet.',
+    suggestedNextActions: [
+      'Check whether both an ISP device and your own router are routing.',
+      'Put one device into bridge mode if possible.',
+      'Otherwise forward on the upstream router as well.',
+    ],
+  },
+];
+const routerSymptoms = [
+  {
+    id: 'cannot_connect_externally',
+    title: 'No one can connect from outside your network',
+    description: 'The server may work locally, but internet players still cannot join.',
+  },
+  {
+    id: 'two_routers_present',
+    title: 'Two routers or router-like devices are present',
+    description: 'Common examples include ISP gateway + personal router or gateway + mesh system.',
+  },
+];
+function routerGuideSummary(guide) {
+  return {
+    id: guide.id,
+    family: guide.family,
+    category: guide.category,
+    displayName: guide.displayName,
+    providerDisplayName: guide.providerDisplayName,
+    deviceDisplayName: guide.deviceDisplayName,
+  };
+}
+function composeRouterGuideSections(guide) {
+  const sections = [];
+  if (guide.sharedSections.includeSharedIntro) {
+    sections.push({
+      id: `${guide.id}.intro`,
+      kind: 'intro',
+      title: 'What you are doing',
+      origin: 'shared',
+      items: [
+        {
+          type: 'paragraph',
+          title: null,
+          body: `This guide helps you create a port-forward rule for ${guide.deviceDisplayName ?? guide.displayName}.`,
+        },
+      ],
+    });
+  }
+  if (guide.sharedSections.includeSharedPrerequisites) {
+    sections.push({
+      id: `${guide.id}.prerequisites`,
+      kind: 'prerequisites',
+      title: 'Before you start',
+      origin: 'shared',
+      items: [
+        {
+          type: 'bulletList',
+          title: null,
+          bullets: ['Confirm the host Mac is the device that will receive the forward.'],
+        },
+      ],
+    });
+  }
+  if (guide.sharedSections.includeSharedValueSummary) {
+    sections.push({
+      id: `${guide.id}.value-summary`,
+      kind: 'valueSummary',
+      title: 'Values you will enter',
+      origin: 'shared',
+      items: [
+        {
+          type: 'bulletList',
+          title: null,
+          bullets: [
+            'Target device / internal IP: 192.168.1.20',
+            'Java port: 25565 (usually TCP)',
+            'Recommended protocol guidance: Forward TCP for Java.',
+          ],
+        },
+      ],
+    });
+  }
+  if (guide.menuPath.length || guide.alternateMenuNames.length) {
+    sections.push({
+      id: `${guide.id}.menu-path`,
+      kind: 'menuPath',
+      title: 'Where to look',
+      origin: 'mixed',
+      items: [
+        {
+          type: 'menuPath',
+          title: null,
+          path: guide.menuPath,
+          alternateMenuNames: guide.alternateMenuNames,
+        },
+      ],
+    });
+  }
+  sections.push({
+    id: `${guide.id}.steps`,
+    kind: 'routerSpecificSteps',
+    title: 'Steps',
+    origin: 'guideSpecific',
+    items: guide.steps.map((step) => ({ type: 'step', ...step })),
+  });
+  if (guide.notes.length) {
+    sections.push({
+      id: `${guide.id}.notes`,
+      kind: 'notes',
+      title: 'Notes and quirks',
+      origin: 'guideSpecific',
+      items: guide.notes.map((note) => ({ type: 'note', ...note })),
+    });
+  }
+  if (guide.sharedSections.includeSharedTroubleshootingFooter) {
+    const topics = routerTroubleshootingTopics.filter((topic) =>
+      guide.troubleshooting.includes(topic.id),
+    );
+    sections.push({
+      id: `${guide.id}.troubleshooting`,
+      kind: 'troubleshootingFooter',
+      title: 'Still not working?',
+      origin: 'mixed',
+      items: [
+        {
+          type: 'paragraph',
+          title: null,
+          body: 'If the rule still does not work, continue with the matching troubleshooting topics below.',
+        },
+        ...topics.map((topic) => ({ type: 'troubleshootingTopic', ...topic })),
+      ],
+    });
+  }
+  return sections;
+}
 const servers = [
   {
     id: 'survival',
@@ -235,7 +473,95 @@ createServer(async (request, response) => {
   if (url.pathname === '/v1/guides/concept-guide') return json(response, concept);
   if (url.pathname === '/v1/guides/onboarding') return json(response, onboarding);
   if (url.pathname === '/v1/guides/router-catalog')
-    return json(response, { guides: [], troubleshooting: [] });
+    return json(response, {
+      guides: routerGuides,
+      troubleshooting: routerTroubleshootingTopics,
+      symptoms: routerSymptoms,
+    });
+  if (url.pathname === '/v1/guides/router/search' && request.method === 'GET') {
+    const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+    const matches = routerGuides.filter(
+      (guide) =>
+        guide.displayName.toLowerCase().includes(q) ||
+        guide.searchKeywords.some((keyword) => keyword.includes(q)),
+    );
+    const candidates = matches.map((guide) => ({
+      guide: routerGuideSummary(guide),
+      score: 10,
+      reasons: ['keyword match'],
+    }));
+    const fallback = routerGuides.find((guide) => guide.family === 'generic_router');
+    const matchedDirectGuide = candidates.length === 1;
+    return json(response, {
+      query: q,
+      normalizedQuery: q,
+      normalizedTokens: q.split(/\s+/).filter(Boolean),
+      inferredFamilies: [],
+      candidates,
+      suggestedFallbackGuide:
+        candidates.length === 0 && fallback ? routerGuideSummary(fallback) : null,
+      isAmbiguous: candidates.length > 1,
+      matchedDirectGuide,
+      fallbackResolution: {
+        kind: matchedDirectGuide ? 'exactGuide' : candidates.length > 1 ? 'familyGuide' : 'genericRouterGuide',
+        availability: candidates.length > 0 ? 'exactMatch' : 'fallbackUsed',
+        matchedGuideId: matchedDirectGuide ? candidates[0].guide.id : null,
+        fallbackGuideId: candidates.length === 0 ? (fallback?.id ?? null) : null,
+        desiredFamily: null,
+        inferredFamilies: [],
+        explanationBullets: [],
+        recommendedNextNodeId: null,
+        suggestedSearchTerms: [],
+        matchedQuery: q,
+      },
+    });
+  }
+  if (url.pathname === '/v1/guides/router/troubleshooting/analyze' && request.method === 'POST') {
+    const topic = routerTroubleshootingTopics[0];
+    return json(response, {
+      symptoms: ['two_routers_present'],
+      likelyCauses: [
+        {
+          id: topic.id,
+          confidence: 'strong',
+          score: 10,
+          severity: 'high',
+          matchedSymptoms: ['two_routers_present'],
+          topic,
+        },
+      ],
+      recommendedActions: topic.suggestedNextActions,
+      escalationBullets: [],
+      fallbackResolution: null,
+      summary: 'Likely a double-NAT setup.',
+    });
+  }
+  if (url.pathname.startsWith('/v1/guides/router/') && request.method === 'GET') {
+    const guideId = decodeURIComponent(url.pathname.slice('/v1/guides/router/'.length));
+    const guide = routerGuides.find((candidate) => candidate.id === guideId);
+    if (!guide) {
+      return json(
+        response,
+        { code: 'not_found', message: 'Unknown router guide', helpId: null },
+        404,
+      );
+    }
+    return json(response, {
+      guide,
+      runtime: {
+        selectedServerId: 'survival',
+        selectedServerName: 'Survival Server',
+        detectedLocalIpAddress: '192.168.1.20',
+        detectedGatewayIpAddress: '192.168.1.1',
+        javaPort: 25565,
+        bedrockPort: null,
+        recommendedProtocol: 'Forward TCP for Java.',
+        bedrockEnabled: false,
+      },
+      sections: composeRouterGuideSections(guide),
+      unresolvedTokens: [],
+    });
+  }
   if (url.pathname === '/v1/config/servers-root')
     return json(response, { path: '/Users/camerontemple/MinecraftServers' });
   if (url.pathname === '/v1/config/java-runtime') return json(response, { executablePath: '' });

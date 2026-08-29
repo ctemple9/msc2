@@ -132,10 +132,14 @@
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
 
-  // MSC 1's SidebarView.swift's `showCrossPlatform`: always for Bedrock;
-  // for Java, only flavors that can host Geyser/Xbox Broadcast (not
-  // Vanilla, not a modded loader).
-  $: showConsoleAccess =
+  // Console Access is MSC2's own external-services panel (playit.gg +
+  // Xbox Broadcast, not an oracle 1:1 port), so it shows whenever a server
+  // is selected -- playit applies to any server type/flavor. Xbox
+  // Broadcast's own crossplay rule (MSC 1 SidebarView.swift's
+  // `showCrossPlatform`: always for Bedrock; for Java, only flavors that
+  // can host Geyser/Xbox Broadcast, not Vanilla, not a modded loader) only
+  // gates its own sub-block within the section, passed down separately.
+  $: showXboxBroadcast =
     activeServer !== undefined &&
     (activeServer.serverType === 'bedrock' ||
       (!!activeServer.javaFlavor &&
@@ -149,7 +153,7 @@
   // shows, its two buttons disabled instead.
   $: visibleSections = DISCLOSURE_SECTIONS.filter((section) => {
     if (section === 'How to connect') return !!activeServer;
-    if (section === 'Console access') return showConsoleAccess;
+    if (section === 'Console access') return !!activeServer;
     return true;
   });
 
@@ -266,6 +270,7 @@
                 serverType={activeServer?.serverType}
                 {activeServerId}
                 {canControl}
+                {showXboxBroadcast}
               />
             {:else if section === 'How to connect'}
               <HowToConnectSection

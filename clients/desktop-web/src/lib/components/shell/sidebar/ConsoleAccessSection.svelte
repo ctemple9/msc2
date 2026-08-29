@@ -1,14 +1,21 @@
 <script lang="ts">
-  // Ports MSC 1 SidebarView.swift's BedrockCrossPlatformSidebarSection /
-  // CrossPlatformAccessSidebarSection -- a condensed Xbox Broadcast
-  // quick-control, not the deeper setup surface (that stays
-  // BroadcastTab.svelte's job, per the oracle's own contextual-help copy:
-  // "use Edit Server for the deeper setup path"). Reuses the same three
-  // routes and status/autostart shape BroadcastTab.svelte already calls.
+  // Console Access is MSC2's own external-services quick control -- the two
+  // helper processes the agent manages that are not the Minecraft server
+  // process itself (crates/msc-infrastructure/src/helper_process.rs's
+  // HelperKey has exactly two call sites: "xbox-broadcast" and "playit").
+  // Xbox Broadcast started here as a port of MSC 1 SidebarView.swift's
+  // BedrockCrossPlatformSidebarSection/CrossPlatformAccessSidebarSection;
+  // Playit is Cameron's own addition on top of that, not an oracle port --
+  // the oracle has no sidebar Playit control at all. Neither service is the
+  // deeper setup surface (that stays BroadcastTab.svelte's job, per the
+  // oracle's own contextual-help copy: "use Edit Server for the deeper
+  // setup path"). Reuses the same routes and status shapes BroadcastTab.svelte
+  // already calls for both.
   //
-  // Visibility (who renders this component at all) lives in ControlSidebar,
-  // since it depends on the server-picker's flavor/category, not on
-  // anything this component itself fetches.
+  // Playit applies to any server type/flavor (it's a generic tunnel, not
+  // crossplay-specific), so it always renders here. Xbox Broadcast's own
+  // crossplay visibility rule lives in ControlSidebar and is passed down as
+  // showXboxBroadcast.
   import Button from '../../base/Button.svelte';
   import Toggle from '../../base/Toggle.svelte';
   import type { Schema, ScreenApi } from '../../../sections/shared/types';
@@ -19,23 +26,26 @@
   export let serverType: string | undefined = undefined;
   export let activeServerId: string | undefined = undefined;
   export let canControl = true;
+  export let showXboxBroadcast = false;
 
   let status: Schema['BroadcastStatusDTO'] | undefined;
   let autostart: Schema['BroadcastAutoStartDTO'] | undefined;
   let jarStatus: Schema['BroadcastJarStatusDTO'] | undefined;
+  let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let broadcastBusy = false;
+  let playitBusy = false;
   let notice = '';
   let loadedForServerId: string | undefined;
 
   $: isBedrock = serverType === 'bedrock';
-  $: running = isBedrock
+  $: broadcastRunning = isBedrock
     ? (status?.bedrockBroadcastRunning ?? false)
     : (status?.xboxBroadcastRunning ?? false);
   // Bedrock's Xbox Broadcast ships as a background process alongside BDS --
   // no separate "helper installed" concept the way Java's downloadable JAR
   // has, so it always shows controls; Java hides them behind the same
   // jar-installed gate the oracle's own XboxBroadcastSidebarRow uses.
-  $: showControls = isBedrock || (jarStatus?.installed ?? false);
+  $: showBroadcastControls = isBedrock || (jarStatus?.installed ?? false);
 
   $: if (activeServerId !== loadedForServerId) {
     loadedForServerId = activeServerId;
@@ -43,10 +53,11 @@
   }
 
   async function load(): Promise<void> {
-    [status, autostart, jarStatus] = await Promise.all([
+    [status, autostart, jarStatus, playit] = await Promise.all([
       call(api, status, serverEditorPaths.broadcastStatus),
       call(api, autostart, serverEditorPaths.broadcastAutostart),
       call(api, jarStatus, serverEditorPaths.broadcastJarStatus),
+      call(api, playit, serverEditorPaths.playit),
     ]);
   }
 
@@ -54,7 +65,9 @@
     if (broadcastBusy) return;
     broadcastBusy = true;
     try {
-      const path = running ? serverEditorPaths.broadcastStop : serverEditorPaths.broadcastStart;
+      const path = broadcastRunning
+        ? serverEditorPaths.broadcastStop
+        : serverEditorPaths.broadcastStart;
       await mutate<Schema['BroadcastSimpleResultDTO']>(api, path);
       status = await call(api, status, serverEditorPaths.broadcastStatus);
     } catch (error) {
@@ -75,34 +88,73 @@
       notice = errorMessage(error);
     }
   }
+
+  async function togglePlayit(): Promise<void> {
+    if (playitBusy || !playit) return;
+    playitBusy = true;
+    try {
+      const path = playit.isRunning ? serverEditorPaths.playitStop : serverEditorPaths.playitStart;
+      await mutate(api, path);
+      playit = { ...playit, isRunning: !playit.isRunning };
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      playitBusy = false;
+    }
+  }
 </script>
 
 <div class="console-access">
-  {#if showControls}
+  <div class="service">
+    <p class="msc2-type-overline">playit.gg</p>
     <div class="row">
-      <span class="dot" class:online={running}></span>
-      <span class="status-label">{running ? 'Running' : 'Stopped'}</span>
+      <span class="dot" class:online={playit?.isRunning}></span>
+      <span class="status-label">{playit?.isRunning ? 'Running' : 'Stopped'}</span>
       <Button
         variant="secondary"
         size="sm"
-        disabled={broadcastBusy || !canControl}
-        onclick={toggleBroadcast}
+        disabled={playitBusy || !playit?.playitEnabled || !canControl}
+        onclick={togglePlayit}
       >
-        {running ? 'Stop' : 'Start'}
+        {playit?.isRunning ? 'Stop' : 'Start'}
       </Button>
     </div>
-    <div class="row toggle-row">
-      <Toggle
-        checked={autostart?.enabled ?? false}
-        label="Start Xbox broadcast automatically"
-        disabled={!canControl}
-        onchange={toggleAutostart}
-      />
-      <span class="label">Auto-start with server</span>
+    {#if !playit?.playitEnabled}
+      <p class="hint">Enable in Edit Server → Broadcast</p>
+    {/if}
+  </div>
+
+  {#if showXboxBroadcast}
+    <div class="service">
+      <p class="msc2-type-overline">Xbox Broadcast</p>
+      {#if showBroadcastControls}
+        <div class="row">
+          <span class="dot" class:online={broadcastRunning}></span>
+          <span class="status-label">{broadcastRunning ? 'Running' : 'Stopped'}</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={broadcastBusy || !canControl}
+            onclick={toggleBroadcast}
+          >
+            {broadcastRunning ? 'Stop' : 'Start'}
+          </Button>
+        </div>
+        <div class="row toggle-row">
+          <Toggle
+            checked={autostart?.enabled ?? false}
+            label="Start Xbox broadcast automatically"
+            disabled={!canControl}
+            onchange={toggleAutostart}
+          />
+          <span class="label">Auto-start with server</span>
+        </div>
+      {:else}
+        <p class="hint">Set up in Edit Server → Broadcast</p>
+      {/if}
     </div>
-  {:else}
-    <p class="hint">Set up in Edit Server → Broadcast</p>
   {/if}
+
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 </div>
 
@@ -110,7 +162,12 @@
   .console-access {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 14px;
+  }
+  .service {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
   .row {
     display: flex;

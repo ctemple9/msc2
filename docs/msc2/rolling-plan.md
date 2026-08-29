@@ -872,6 +872,14 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Commit:** `P12.15b: spotlight choose path continue action`
 **Batch:** solo
 
+### P12.15c — Anchor Xbox Broadcast to its visible card
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/ConfigureStep.svelte`, `clients/desktop-web/tests/screens/add-server-wizard.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Fix the Xbox Broadcast tour dead-end for Java Paper servers with Crossplay enabled. Move `ob_server_xbox_broadcast` from the Bedrock Version section onto the conditional Xbox Broadcast section itself, so the anchor mounts when that card is visible and the tour can resolve and advance normally.
+**Verify:** `cd clients/desktop-web && npx vitest run tests/screens/add-server-wizard.test.ts && npm run build` — then run the tour through Java → Paper → enable Crossplay and confirm the Xbox Broadcast card is spotlighted and the tour can continue.
+**Commit:** `P12.15c: anchor xbox broadcast card`
+**Batch:** solo
+
 ### P12.16 — Guides / Handbook / How MSC Works
 **Status:** built, awaiting Cameron's verification
 **Files:** `src/lib/sections/handbook/`, `src/lib/help/`

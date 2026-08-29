@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import configureSource from '../../src/lib/sections/fleet/wizard/ConfigureStep.svelte?raw';
 import {
   buildServerCreateRequest,
   canCreateServer,
@@ -38,6 +39,16 @@ describe('add server wizard step labels', () => {
       'Network',
       'Confirm',
     ]);
+  });
+});
+
+describe('add server wizard onboarding anchors', () => {
+  it('anchors the Xbox Broadcast card itself', () => {
+    const anchor = "use:onboardingAnchor={'ob_server_xbox_broadcast'}";
+    expect(configureSource).toContain(anchor);
+    expect(configureSource.indexOf(anchor)).toBeGreaterThan(
+      configureSource.indexOf('{#if showXboxBroadcast}'),
+    );
   });
 });
 

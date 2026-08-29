@@ -279,7 +279,7 @@
       {/if}
     </section>
   {:else}
-    <section class="block" use:onboardingAnchor={'ob_server_xbox_broadcast'}>
+    <section class="block">
       <p class="msc2-type-overline">Bedrock Version</p>
       <Field bind:value={draft.bedrockVersion} placeholder="LATEST" width="200px" />
       <p class="hint">{BEDROCK_VERSION_NOTE}</p>
@@ -299,7 +299,7 @@
   {/if}
 
   {#if showXboxBroadcast}
-    <section class="block">
+    <section class="block" use:onboardingAnchor={'ob_server_xbox_broadcast'}>
       <p class="msc2-type-overline">Xbox Broadcast</p>
       <div class="toggle-card">
         <div class="toggle-row">

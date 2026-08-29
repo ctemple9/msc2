@@ -4,9 +4,7 @@
 //! here means HTTP handlers only report the selected result; they do not need
 //! to know how a native process or a macOS sidecar is built.
 
-#[cfg(target_os = "macos")]
-use std::path::Path;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use msc_api::dto::{BedrockBackendDto, BedrockRuntimeStateDto, HostOsDto};
@@ -159,6 +157,7 @@ impl BedrockRuntimeHandle {
 pub struct BedrockRuntimeSelection {
     eligibility: Arc<Mutex<BedrockRuntimeEligibility>>,
     runtime: Arc<Mutex<BedrockRuntimeHandle>>,
+    bound_server_dir: Arc<Mutex<Option<PathBuf>>>,
 }
 
 impl BedrockRuntimeSelection {
@@ -166,11 +165,23 @@ impl BedrockRuntimeSelection {
     /// Native adapters can exist in a provisioning-required state; the
     /// macOS adapter is spawned only after all sidecar prerequisites pass.
     pub fn production(app_config: &AgentAppConfigStore) -> Self {
+        let servers = app_config.servers();
         let server_dir = app_config
-            .servers()
-            .into_iter()
-            .find(|server| server.server_type == ServerType::Bedrock)
-            .map(|server| PathBuf::from(server.server_dir))
+            .active_server_id()
+            .and_then(|active_id| {
+                servers
+                    .iter()
+                    .find(|server| {
+                        server.id == active_id && server.server_type == ServerType::Bedrock
+                    })
+                    .map(|server| PathBuf::from(&server.server_dir))
+            })
+            .or_else(|| {
+                servers
+                    .iter()
+                    .find(|server| server.server_type == ServerType::Bedrock)
+                    .map(|server| PathBuf::from(&server.server_dir))
+            })
             .unwrap_or_else(|| app_config.servers_root());
         let paths = runtime_paths(server_dir);
         let eligibility =
@@ -307,25 +318,64 @@ impl BedrockRuntimeSelection {
         self.runtime.lock().unwrap().state()
     }
 
-    /// The route layer owns the application operation, while this selection
-    /// owns the one mutable backend instance chosen at agent startup.
-    pub fn provision(
+    /// Rebind the shared eligibility snapshot to the server that is about to
+    /// become active. The runtime itself is shared by all Bedrock routes, so
+    /// leaving the startup server's filesystem result in place would let one
+    /// server borrow another server's readiness claim.
+    pub fn refresh_for_server(&self, server_dir: impl AsRef<Path>) {
+        let host = self.eligibility.lock().unwrap().host;
+        let refreshed = BedrockRuntimeEligibility::for_host(
+            &msc_infrastructure::fs::StdFileSystem,
+            host,
+            &runtime_paths(server_dir.as_ref().to_path_buf()),
+        );
+        {
+            let mut runtime = self.runtime.lock().unwrap();
+            runtime.refresh_eligibility(refreshed.clone());
+        }
+        *self.eligibility.lock().unwrap() = refreshed;
+    }
+
+    pub fn is_bound(&self) -> bool {
+        matches!(
+            self.state(),
+            BedrockRuntimeState::Provisioned
+                | BedrockRuntimeState::Starting
+                | BedrockRuntimeState::Running
+                | BedrockRuntimeState::Stopping
+        )
+    }
+
+    pub fn is_bound_to_other_server(&self, server_dir: impl AsRef<Path>) -> bool {
+        self.is_bound()
+            && self
+                .bound_server_dir
+                .lock()
+                .unwrap()
+                .as_deref()
+                .is_some_and(|bound| bound != server_dir.as_ref())
+    }
+
+    /// Download and verify the BDS distribution for a server without binding
+    /// the lifecycle adapter to it. Imports can prepare several records while
+    /// the one shared adapter remains free for the eventual active server.
+    pub fn ensure_distribution(
         &self,
         request: BedrockProvisionRequest,
         pre_downgrade_backup: impl FnOnce() -> bool,
     ) -> Result<(), BedrockRuntimeError> {
+        let server_dir = PathBuf::from(&request.server_dir);
+        self.refresh_for_server(&server_dir);
         let eligibility = self.eligibility.lock().unwrap().clone();
         let platform = distribution_platform(&eligibility).ok_or_else(|| {
             BedrockRuntimeError::Provisioning("no Bedrock distribution platform is selected".into())
         })?;
-        let mut runtime = self.runtime.lock().unwrap();
-        if !runtime.is_selected() {
+        if !self.runtime.lock().unwrap().is_selected() {
             return Err(BedrockRuntimeError::Transport(
                 "Bedrock runtime is unavailable.".to_owned(),
             ));
         }
 
-        let server_dir = PathBuf::from(&request.server_dir);
         let manifest_url = msc_application::bedrock_provisioning::production_manifest_url();
         let provisioning_request = msc_application::bedrock_provisioning::ProvisionRequest {
             server_dir: &server_dir,
@@ -350,9 +400,37 @@ impl BedrockRuntimeSelection {
         if refreshed.state != BedrockRuntimeEligibilityState::Available {
             return Err(BedrockRuntimeError::Provisioning(refreshed.message));
         }
-        runtime.refresh_eligibility(refreshed.clone());
+        {
+            let mut runtime = self.runtime.lock().unwrap();
+            runtime.refresh_eligibility(refreshed.clone());
+        }
         *self.eligibility.lock().unwrap() = refreshed;
-        runtime.provision(request)
+        Ok(())
+    }
+
+    /// The route layer owns the application operation, while this selection
+    /// owns the one mutable backend instance chosen at agent startup.
+    pub fn provision(
+        &self,
+        request: BedrockProvisionRequest,
+        pre_downgrade_backup: impl FnOnce() -> bool,
+    ) -> Result<(), BedrockRuntimeError> {
+        let server_dir = PathBuf::from(&request.server_dir);
+        if self.is_bound_to_other_server(&server_dir) {
+            return Err(BedrockRuntimeError::InvalidState {
+                operation: "provision",
+                state: self.state(),
+            });
+        }
+        self.ensure_distribution(request.clone(), pre_downgrade_backup)?;
+        if self.state() == BedrockRuntimeState::Provisioned
+            && self.bound_server_dir.lock().unwrap().as_deref() == Some(server_dir.as_path())
+        {
+            return Ok(());
+        }
+        self.runtime.lock().unwrap().provision(request)?;
+        *self.bound_server_dir.lock().unwrap() = Some(server_dir);
+        Ok(())
     }
 
     pub fn start(&self, request: BedrockStartRequest) -> Result<(), BedrockRuntimeError> {
@@ -379,6 +457,7 @@ impl BedrockRuntimeSelection {
         Self {
             eligibility: Arc::new(Mutex::new(eligibility)),
             runtime: Arc::new(Mutex::new(runtime)),
+            bound_server_dir: Arc::new(Mutex::new(None)),
         }
     }
 }

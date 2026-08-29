@@ -23,7 +23,7 @@ use msc_application::java_launch::{
 };
 use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
-    ServerId,
+    LifecycleState, ServerId,
 };
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 use msc_application::transfer::TransferExportServerInput;
@@ -674,6 +674,19 @@ impl LifecycleRoutesState {
         self.inner.bedrock_runtime.state_dto()
     }
 
+    pub(crate) fn bedrock_runtime_is_busy(&self) -> bool {
+        matches!(
+            self.inner.bedrock_runtime.state(),
+            msc_application::bedrock_runtime::BedrockRuntimeState::Starting
+                | msc_application::bedrock_runtime::BedrockRuntimeState::Running
+                | msc_application::bedrock_runtime::BedrockRuntimeState::Stopping
+        )
+    }
+
+    pub(crate) fn bedrock_runtime_is_bound(&self) -> bool {
+        self.inner.bedrock_runtime.is_bound()
+    }
+
     /// Applies `update` to the durable `AppConfig` and persists it,
     /// exactly like [`AgentAppConfigStore::mutate`] but for a caller
     /// whose own mutation can itself fail (delete/rename/version-change/
@@ -841,7 +854,21 @@ impl LifecycleRoutesState {
                     ServerId::new(server_id.clone()),
                 ))
             })?;
+        if self.active_server_id().as_deref() != Some(server_id.as_str())
+            && (self.status_snapshot().running
+                || self
+                    .inner
+                    .bedrock_runtime
+                    .is_bound_to_other_server(&server.server_dir))
+        {
+            return Err(ActiveServerSelectionError::Lifecycle(
+                LifecycleError::AlreadyInState(LifecycleState::Running),
+            ));
+        }
         if server.server_type == ServerType::Bedrock {
+            self.inner
+                .bedrock_runtime
+                .refresh_for_server(&server.server_dir);
             self.inner
                 .app_config
                 .set_active_server_id(Some(server_id.clone()))
@@ -1106,6 +1133,40 @@ impl LifecycleRoutesState {
             .unwrap_or_else(|| "LATEST".to_owned());
         let server_dir = PathBuf::from(&server.server_dir);
         self.inner.bedrock_runtime.provision(
+            BedrockProvisionRequest {
+                server_dir: server.server_dir.clone(),
+                version,
+            },
+            || bedrock_safety_backup(&server_dir),
+        )
+    }
+
+    pub(crate) fn provision_imported_bedrock_servers(
+        &self,
+        servers: &[ConfigServer],
+    ) -> Result<(), BedrockRuntimeError> {
+        if self.bedrock_runtime_is_bound() {
+            return Ok(());
+        }
+        for server in servers
+            .iter()
+            .filter(|server| server.server_type == ServerType::Bedrock)
+        {
+            self.ensure_bedrock_server(server)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn ensure_bedrock_server(
+        &self,
+        server: &ConfigServer,
+    ) -> Result<(), BedrockRuntimeError> {
+        let version = server
+            .bedrock_version
+            .clone()
+            .unwrap_or_else(|| "LATEST".to_owned());
+        let server_dir = PathBuf::from(&server.server_dir);
+        self.inner.bedrock_runtime.ensure_distribution(
             BedrockProvisionRequest {
                 server_dir: server.server_dir.clone(),
                 version,
@@ -1506,7 +1567,10 @@ pub async fn active_server(
             result: "activated".to_string(),
             active_server_id: Some(active_server_id),
             operation_id: None,
-            runtime: None,
+            runtime: state
+                .active_config_server()
+                .filter(|server| server.server_type == ServerType::Bedrock)
+                .map(|_| state.bedrock_runtime_state()),
         })
         .into_response(),
         Err(error) => active_server_selection_error_response(error),

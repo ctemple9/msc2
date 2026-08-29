@@ -51,18 +51,24 @@ use crate::routes::operations::operation_error_response;
 use crate::routes::worlds::{StagedUpload, StagingStore, now_unix, staging_root};
 
 pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerDto>> {
+    let active_server_id = state.active_server_id();
     let servers: Vec<ServerDto> = state
         .servers()
         .into_iter()
-        .map(|server| ServerDto {
-            id: server.id,
-            name: server.name,
-            directory: server.directory,
-            server_type: server.server_type,
-            java_flavor: server.java_flavor,
-            game_port: server.game_port,
-            host_address: None,
-            runtime: None,
+        .map(|server| {
+            let runtime = (server.server_type == ServerType::Bedrock.raw_value()
+                && active_server_id.as_deref() == Some(server.id.as_str()))
+            .then(|| state.bedrock_runtime_state());
+            ServerDto {
+                id: server.id,
+                name: server.name,
+                directory: server.directory,
+                server_type: server.server_type,
+                java_flavor: server.java_flavor,
+                game_port: server.game_port,
+                host_address: None,
+                runtime,
+            }
         })
         .collect();
     Json(servers)
@@ -181,10 +187,19 @@ fn run_rescan_import(
     }
     let first_lifecycle_server_id = result.added.first().map(|server| server.id.clone());
     let first_added = result.added.first().cloned();
+    let added_servers = result.added.clone();
     let imported = result.added.len() as i64;
     let skipped = result.skipped as i64;
     match state.register_imported_config_servers(result.added, false) {
         Ok(statuses) => {
+            if let Err(error) = state.provision_imported_bedrock_servers(&added_servers) {
+                let _ = state.finish_operation_failure(
+                    &operation_id,
+                    "bedrock_provisioning_failed",
+                    error.to_string(),
+                );
+                return;
+            }
             if let Some(server_id) = first_lifecycle_server_id
                 && statuses.iter().any(|(id, status)| {
                     id == &server_id
@@ -438,6 +453,7 @@ fn run_raw_import(
     match import_raw_server(&request, &agent_home_dir()) {
         Ok(imported) => {
             let config = imported.config;
+            let imported_server = config.clone();
             if should_cancel() {
                 remove_unregistered_raw_import(&request, &config);
                 let _ = state.operations().cancel(
@@ -456,13 +472,28 @@ fn run_raw_import(
             let imported_server_id = config.id.clone();
             match state.register_imported_config_servers(vec![config], false) {
                 Ok(statuses) => {
-                    let ready = statuses.iter().any(|(id, status)| {
+                    if let Err(error) = state
+                        .provision_imported_bedrock_servers(std::slice::from_ref(&imported_server))
+                    {
+                        let _ = state.finish_operation_failure(
+                            &operation_id,
+                            "bedrock_provisioning_failed",
+                            error.to_string(),
+                        );
+                        return;
+                    }
+                    let reconciled = statuses.iter().any(|(id, status)| {
                         id == &imported_server_id
                             && matches!(
                                 status,
                                 crate::routes::lifecycle::ReconciliationStatus::Ready
                             )
                     });
+                    let runtime_ready = imported_server.server_type != ServerType::Bedrock
+                        || (!state.bedrock_runtime_is_bound()
+                            && !state.bedrock_runtime_is_busy()
+                            && state.bedrock_runtime_state().state == "available");
+                    let ready = reconciled && runtime_ready;
                     result.insert("ready".to_string(), ready.to_string());
                     if ready {
                         let _ = state.select_active_server(imported_server_id);
@@ -986,6 +1017,14 @@ fn run_transfer_import(
     match result {
         Ok(applied) => {
             let lifecycle_server_id = applied.servers.first().map(|server| server.id.clone());
+            if let Err(error) = state.provision_imported_bedrock_servers(&applied.servers) {
+                let _ = state.finish_operation_failure(
+                    &operation_id,
+                    "bedrock_provisioning_failed",
+                    error.to_string(),
+                );
+                return;
+            }
             let mode_note = if replace_all {
                 " (replaced existing set)"
             } else {
@@ -1443,7 +1482,7 @@ fn run_create_bedrock_server(
         Ok(created) => {
             match state.register_imported_config_servers(vec![created.config.clone()], false) {
                 Ok(statuses) => {
-                    let ready = statuses.iter().any(|(id, status)| {
+                    let reconciled = statuses.iter().any(|(id, status)| {
                         id == &created.config.id
                             && matches!(
                                 status,
@@ -1458,6 +1497,9 @@ fn run_create_bedrock_server(
                         );
                         return;
                     }
+                    let ready = reconciled
+                        && !state.bedrock_runtime_is_busy()
+                        && state.bedrock_runtime_state().state == "available";
                     if ready {
                         let _ = state.select_active_server(created.config.id.clone());
                     }

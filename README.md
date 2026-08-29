@@ -1,5 +1,7 @@
 # MSC 2
-> Built by ctemple9
+Built by ctemple9
+
+>**Hi. I recognize this readme is kinda long, but if you are interested in hosting a Minecraft server on your own stuff, and know nothing, it think it is worth the read. If you know what your doing, here's the quick stuff:     " WILL BE ADDING LATER"**
 
 I wanted running a Minecraft server to feel like running an app.
 
@@ -29,7 +31,7 @@ Some of these capabilities are already working in the engine. Others are part of
 
 - **Handles Java/Bedrock cross-play.** MSC 2 sets up Geyser and Floodgate and handles the version matching so Java and Bedrock players can join the same server.
 
-- **Installs modpacks.** You can install packs, mods, and plugins from Modrinth and CurseForge. MSC 2 resolves the dependencies and filters out client-only mods that don't belong on the server.
+- **Installs mods and plugins.** You can install packs, mods, and plugins from Modrinth (through the MSC2!) and CurseForge . MSC 2 resolves the dependencies and filters out client-only mods that don't belong on the server.
 
 - **Manages worlds.** Worlds are treated as actual things in the app instead of just folders you hopefully remember not to mess up. You can swap them, duplicate them, export them, and repair them.
 
@@ -40,6 +42,8 @@ Some of these capabilities are already working in the engine. Others are part of
 - **Explains why something broke.** If a server doesn't start, the goal isn't to dump a wall of Java output on you and wish you luck. MSC 2 tries to figure out what actually happened, explain it normally, and give you the fix when it can.
 
 - **Watches the server and the computer running it.** RAM usage, CPU usage, TPS, player activity, and the other numbers are useful, but only if you know what they mean. MSC 2 tries to tell you that too.
+
+- And a bunch of other things you'd probably expect when it comes to hosting server.
 
 ## What makes it different
 
@@ -134,7 +138,7 @@ Convenience is nice. Not losing somebody's Minecraft world is more important.
 
 ## Why I built this
 
-I really just wanted to play Minecraft with my friends.
+I really just wanted to play Minecraft with my people.
 
 I had switched from Bedrock on Console to Java on my MacBook, but most of my people were still playing Bedrock. So if I wanted everybody in the same world, I needed cross-play.
 
@@ -146,7 +150,7 @@ So now, just to play Minecraft, I had to figure out Java, server jars, plugins, 
 
 It was just a lot of stuff to deal with when all I was trying to do was play Minecraft with my friends.
 
-So I built something to handle it for me. First a rough script, then a real Mac app called **MSC 1** that I taught myself Swift to write.
+So I built something to handle it for me. First a rough script built in python, then a real Mac app called **Minecraft Server Controller (MSC)** that I taught myself Swift to write.
 
 MSC 1 worked, and I used it for a long time. But two limitations eventually became hard to ignore.
 

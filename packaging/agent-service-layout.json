@@ -2,23 +2,55 @@
   "serviceName": "com.ctemple.msc2.agent",
   "managementBind": "127.0.0.1:48001",
   "identity": "installing-user",
+  "package": {
+    "agentResourceSource": "clients/desktop-web/src-tauri/target/package/agent",
+    "agentResourceTarget": "agent",
+    "bedrockRuntimeArchive": "verified-first-run-download",
+    "bedrockRuntimeBundled": false
+  },
   "platforms": {
     "macos": {
       "manager": "launchd LaunchDaemon",
       "agentPath": "MSC 2.app/Contents/Resources/agent/msc",
       "sidecarPath": "MSC 2.app/Contents/Resources/agent/sidecar",
+      "headlessAgentPath": "agent/msc",
+      "headlessSidecarPath": "agent/sidecar",
+      "bedrock": {
+        "backend": "intel-vm-sidecar",
+        "sidecarExecutable": "MSC 2.app/Contents/Resources/agent/sidecar/BedrockSidecar",
+        "applianceArchitecture": "x86_64",
+        "applianceResources": [
+          "MSC 2.app/Contents/Resources/agent/sidecar/vmlinuz-kata",
+          "MSC 2.app/Contents/Resources/agent/sidecar/appliance-initramfs.gz"
+        ],
+        "applianceBuildInput": "MSC2_BEDROCK_APPLIANCE_DIR",
+        "runtimeArchive": "verified-first-run-download",
+        "runtimeBundled": false
+      },
       "dataPath": "~/Library/Application Support/MSC 2"
     },
     "windows": {
       "manager": "Windows Service",
       "agentPath": "agent/msc.exe",
-      "sidecarPath": "agent/sidecar",
+      "sidecarPath": null,
+      "bedrock": {
+        "backend": "native",
+        "executable": "server-directory/bedrock_server.exe",
+        "runtimeArchive": "verified-first-run-download",
+        "runtimeBundled": false
+      },
       "dataPath": "%USERPROFILE%\\AppData\\Roaming\\MSC2"
     },
     "linux": {
       "manager": "systemd",
-      "agentPath": "../lib/msc2/agent/msc",
-      "sidecarPath": "../lib/msc2/agent/sidecar",
+      "agentPath": "../lib/msc2-desktop-web/agent/msc",
+      "sidecarPath": null,
+      "bedrock": {
+        "backend": "native",
+        "executable": "server-directory/bedrock_server",
+        "runtimeArchive": "verified-first-run-download",
+        "runtimeBundled": false
+      },
       "dataPath": "~/.local/share/msc2"
     }
   }

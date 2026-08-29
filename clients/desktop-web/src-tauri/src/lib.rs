@@ -20,6 +20,7 @@ const AGENT_SERVICE_NAME: &str = "com.ctemple.msc2.agent";
 const AGENT_PORT: u16 = 48001;
 const LOCAL_AGENT_BROWSER_ORIGIN: &str = "http://127.0.0.1:48001";
 const LOCAL_BOOTSTRAP_SOCKET: &str = "bootstrap.sock";
+const BEDROCK_SIDECAR_DIRECTORY_ENV: &str = "MSC2_BEDROCK_SIDECAR_DIR";
 const PROTOCOL_VERSION: u32 = 1;
 const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
 static STAGED_PACKAGED_AGENT_PATH: PackagedAgentPathCache = PackagedAgentPathCache::new();
@@ -653,6 +654,8 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
     let binary_path = staged_packaged_agent_path()?;
     let working_directory = agent_data_directory()?;
     let secret_store_directory = working_directory.join("secrets");
+    #[cfg(target_os = "macos")]
+    let sidecar_directory = packaged_bedrock_sidecar_directory()?;
     std::fs::create_dir_all(working_directory.join("logs"))
         .map_err(|error| format!("Could not create the agent data directory: {error}"))?;
     std::fs::create_dir_all(&secret_store_directory)
@@ -690,7 +693,9 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
             .to_string(),
     );
     #[cfg(target_os = "macos")]
-    let request = request.env("MSC2_MACOS_DESKTOP_REQUIREMENT", desktop_requirement);
+    let request = request
+        .env(BEDROCK_SIDECAR_DIRECTORY_ENV, sidecar_directory.display().to_string())
+        .env("MSC2_MACOS_DESKTOP_REQUIREMENT", desktop_requirement);
     Ok(request.run_user(installing_user()?))
 }
 
@@ -782,9 +787,35 @@ fn packaged_agent_path() -> Result<PathBuf, String> {
     #[cfg(target_os = "windows")]
     return Ok(directory.join("agent/msc.exe"));
     #[cfg(target_os = "linux")]
-    return Ok(directory.join("../lib/msc2/agent/msc"));
+    {
+        let development_path = directory.join("agent/msc");
+        if development_path.is_file() {
+            return Ok(development_path);
+        }
+        return Ok(directory.join("../lib/msc2-desktop-web/agent/msc"));
+    }
     #[allow(unreachable_code)]
     Err("This desktop platform has no agent-package layout.".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn packaged_bedrock_sidecar_directory() -> Result<PathBuf, String> {
+    let desktop_binary = std::env::current_exe()
+        .map_err(|error| format!("Could not locate the desktop application: {error}"))?;
+    let directory = desktop_binary
+        .parent()
+        .ok_or_else(|| "The desktop application has no containing directory.".to_string())?;
+    let sidecar = directory.join("../Resources/agent/sidecar");
+    for name in ["BedrockSidecar", "vmlinuz-kata", "appliance-initramfs.gz"] {
+        let resource = sidecar.join(name);
+        if !resource.is_file() {
+            return Err(format!(
+                "The Bedrock sidecar package is missing {name} at {}. Rebuild the macOS package with MSC2_BEDROCK_APPLIANCE_DIR set before registering the service.",
+                resource.display()
+            ));
+        }
+    }
+    Ok(sidecar)
 }
 
 fn staged_packaged_agent_path() -> Result<PathBuf, String> {

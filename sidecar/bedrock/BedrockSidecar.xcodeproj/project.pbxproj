@@ -12,6 +12,8 @@
 		A00000000000000000000013 /* BedrockSidecar.entitlements in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000003 /* BedrockSidecar.entitlements */; };
 		A00000000000000000000014 /* BedrockSidecar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000006 /* BedrockSidecar.swift */; };
 		A00000000000000000000015 /* BedrockSidecarCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000001 /* BedrockSidecarCore.swift */; };
+		A00000000000000000000016 /* vmlinuz-kata in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000007 /* vmlinuz-kata */; };
+		A00000000000000000000017 /* appliance-initramfs.gz in Resources */ = {isa = PBXBuildFile; fileRef = A00000000000000000000008 /* appliance-initramfs.gz */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -21,6 +23,9 @@
 		A00000000000000000000004 /* BedrockSidecar */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = BedrockSidecar; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000005 /* BedrockSidecarTests.xctest */ = {isa = PBXFileReference; explicitFileType = "wrapper.xctest"; includeInIndex = 0; path = BedrockSidecarTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A00000000000000000000006 /* BedrockSidecar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BedrockSidecar.swift; sourceTree = "<group>"; };
+		A00000000000000000000007 /* vmlinuz-kata */ = {isa = PBXFileReference; lastKnownFileType = file; name = vmlinuz-kata; path = "$(MSC2_BEDROCK_APPLIANCE_DIR)/vmlinuz-kata"; sourceTree = "<group>"; };
+		A00000000000000000000008 /* appliance-initramfs.gz */ = {isa = PBXFileReference; lastKnownFileType = archive.gzip; name = appliance-initramfs.gz; path = "$(MSC2_BEDROCK_APPLIANCE_DIR)/appliance-initramfs.gz"; sourceTree = "<group>"; };
+		A00000000000000000000009 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = README.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -31,13 +36,13 @@
 /* Begin PBXGroup section */
 		A00000000000000000000030 = {isa = PBXGroup; children = (A00000000000000000000001, A00000000000000000000006, A00000000000000000000003, A00000000000000000000032,); name = BedrockSidecar; sourceTree = "<group>"; };
 		A00000000000000000000031 = {isa = PBXGroup; children = (A00000000000000000000002,); name = Tests; path = Tests; sourceTree = "<group>"; };
-		A00000000000000000000032 = {isa = PBXVariantGroup; children = (); name = Resources; path = Resources; sourceTree = "<group>"; };
+		A00000000000000000000032 = {isa = PBXGroup; children = (A00000000000000000000007, A00000000000000000000008, A00000000000000000000009,); name = Resources; path = Resources; sourceTree = "<group>"; };
 		A00000000000000000000033 = {isa = PBXGroup; children = (A00000000000000000000030, A00000000000000000000031, A00000000000000000000040,); sourceTree = "<group>"; };
 		A00000000000000000000040 = {isa = PBXGroup; children = (A00000000000000000000004, A00000000000000000000005,); name = Products; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		A00000000000000000000050 /* BedrockSidecar */ = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000061; buildPhases = (A00000000000000000000020, A00000000000000000000021, A00000000000000000000023,); buildRules = (); dependencies = (); name = BedrockSidecar; productName = BedrockSidecar; productReference = A00000000000000000000004; productType = "com.apple.product-type.tool"; };
+		A00000000000000000000050 /* BedrockSidecar */ = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000061; buildPhases = (A00000000000000000000020, A00000000000000000000021, A00000000000000000000026, A00000000000000000000023,); buildRules = (); dependencies = (); name = BedrockSidecar; productName = BedrockSidecar; productReference = A00000000000000000000004; productType = "com.apple.product-type.tool"; };
 		A00000000000000000000051 /* BedrockSidecarTests */ = {isa = PBXNativeTarget; buildConfigurationList = A00000000000000000000062; buildPhases = (A00000000000000000000024, A00000000000000000000022, A00000000000000000000025,); buildRules = (); dependencies = (A00000000000000000000070,); name = BedrockSidecarTests; productName = BedrockSidecarTests; productReference = A00000000000000000000005; productType = "com.apple.product-type.bundle.unit-test"; };
 /* End PBXNativeTarget section */
 
@@ -46,12 +51,25 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A00000000000000000000023 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000013,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000023 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000013, A00000000000000000000016, A00000000000000000000017,); runOnlyForDeploymentPostprocessing = 0; };
 		A00000000000000000000025 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		A00000000000000000000024 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A00000000000000000000012, A00000000000000000000015,); runOnlyForDeploymentPostprocessing = 0; };
+		A00000000000000000000026 /* Validate Intel appliance resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = ();
+			inputPaths = (
+				"$(MSC2_BEDROCK_APPLIANCE_DIR)/vmlinuz-kata",
+				"$(MSC2_BEDROCK_APPLIANCE_DIR)/appliance-initramfs.gz",
+			);
+			name = "Validate Intel appliance resources";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\ninput=\"${MSC2_BEDROCK_APPLIANCE_DIR:-}\"\nif [ -z \"$input\" ]; then\n  echo \"error: MSC2_BEDROCK_APPLIANCE_DIR must point to the supplied Intel appliance directory\" >&2\n  exit 1\nfi\ncheck_checksum() {\n  file=\"$1\"\n  expected=\"$2\"\n  if [ ! -f \"$file\" ]; then\n    echo \"error: missing Bedrock appliance resource: $file\" >&2\n    exit 1\n  fi\n  actual=\"$(shasum -a 256 \"$file\" | awk '{print $1}')\"\n  if [ \"$actual\" != \"$expected\" ]; then\n    echo \"error: Bedrock appliance checksum mismatch for $(basename \"$file\")\" >&2\n    echo \"       expected $expected, got $actual\" >&2\n    exit 1\n  fi\n}\ncheck_checksum \"$input/vmlinuz-kata\" \"$MSC2_BEDROCK_KERNEL_SHA256\"\ncheck_checksum \"$input/appliance-initramfs.gz\" \"$MSC2_BEDROCK_INITRAMFS_SHA256\"\necho \"validated Intel Bedrock appliance resources\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -67,8 +85,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin XCBuildConfiguration section */
-		A00000000000000000000090 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.msc2.bedrock-sidecar; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; SWIFT_MODULE_NAME = BedrockSidecar; }; name = Debug; };
-		A00000000000000000000091 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.msc2.bedrock-sidecar; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; }; name = Release; };
+		A00000000000000000000090 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; ARCHS = x86_64; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; MSC2_BEDROCK_APPLIANCE_DIR = "$(SRCROOT)/Resources"; MSC2_BEDROCK_INITRAMFS_SHA256 = 0865eb432f61249a5a2f76770e7c79e53cf803c5fa435d110ced03747da8a278; MSC2_BEDROCK_KERNEL_SHA256 = 85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e; ONLY_ACTIVE_ARCH = NO; PRODUCT_BUNDLE_IDENTIFIER = com.msc2.bedrock-sidecar; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; SWIFT_MODULE_NAME = BedrockSidecar; }; name = Debug; };
+		A00000000000000000000091 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; ARCHS = x86_64; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; MSC2_BEDROCK_APPLIANCE_DIR = "$(SRCROOT)/Resources"; MSC2_BEDROCK_INITRAMFS_SHA256 = 0865eb432f61249a5a2f76770e7c79e53cf803c5fa435d110ced03747da8a278; MSC2_BEDROCK_KERNEL_SHA256 = 85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e; ONLY_ACTIVE_ARCH = NO; PRODUCT_BUNDLE_IDENTIFIER = com.msc2.bedrock-sidecar; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; }; name = Release; };
 		A00000000000000000000092 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.msc2.bedrock-sidecar.tests; PRODUCT_NAME = BedrockSidecarTests; SWIFT_MODULE_NAME = BedrockSidecarTests; SWIFT_VERSION = 6.0; }; name = Debug; };
 		A00000000000000000000093 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ENABLE_MODULES = YES; CODE_SIGNING_ALLOWED = NO; CURRENT_PROJECT_VERSION = 1; GENERATE_INFOPLIST_FILE = YES; MACOSX_DEPLOYMENT_TARGET = 15.0; PRODUCT_BUNDLE_IDENTIFIER = com.msc2.bedrock-sidecar.tests; SWIFT_VERSION = 6.0; }; name = Release; };
 		A00000000000000000000094 /* Project Debug */ = {isa = XCBuildConfiguration; buildSettings = {MACOSX_DEPLOYMENT_TARGET = 15.0; SWIFT_VERSION = 6.0; }; name = Debug; };

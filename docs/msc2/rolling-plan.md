@@ -1329,12 +1329,13 @@ The inventory explicitly covers the Java create-world choices (world type/flat p
 **Notes:** Production create and first-start now invoke verified Bedrock archive provisioning, preserve existing server state during promotion, select Linux/Windows/native or Linux-guest/macOS packages explicitly, and refresh eligibility after provenance is written. The P12.29 handbook additions used headings unsupported by the embedded help parser, and its new Rust test was not rustfmt-clean; both stale HEAD baselines were repaired so this step's declared verifier can run.
 
 ### P12.31 — Package the three Bedrock runtime variants
-**Status:** planned 2026-08-29, not yet built
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/tools/prepare-agent-dev.mjs`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/src-tauri/tauri.conf.json`, `sidecar/bedrock/BedrockSidecar.xcodeproj/project.pbxproj`, `sidecar/bedrock/Resources/README.md`, `packaging/agent-service-layout.json`, `tools/phase12/bedrock-package-check.py` (new)
 **What:** Make the distributable layouts match the runtime lookup paths. Linux and Windows packages carry the native agent that launches their native BDS executable. macOS GUI and headless packages build and ship `BedrockSidecar` beside the agent together with the Intel `vmlinuz-kata` and `appliance-initramfs.gz` pair; the build must fail clearly when those binary resources are not supplied, rather than producing a package that can never boot Bedrock. Use an explicit build input and recorded checksums for the appliance pair (the pair remains a distribution artifact, not source), and do not add an Apple Silicon runtime. Keep the runtime BDS archive as a verified first-run download, not a GUI-package payload.
 **Verify:** `python3 tools/phase12/bedrock-package-check.py --selftest`
 **Commit:** `P12.31: package Bedrock runtimes for all hosts`
 **Batch:** solo
+**Notes:** Added one `agent/` Tauri resource payload and aligned the macOS, Windows, and Linux service paths with the desktop runtime lookup. Linux and Windows stage the native agent and keep their native BDS archives as verified first-run downloads; macOS requires `MSC2_BEDROCK_APPLIANCE_DIR`, validates the recorded MSC1 Intel appliance checksums, builds `BedrockSidecar` as x86_64, and stages the sidecar plus kernel/initramfs pair for GUI and headless layouts. The macOS installer passes the sibling sidecar directory to launchd. Apple Silicon remains intentionally unsupported. The exact package self-test passed; appliance binaries and live cross-platform package builds remain Cameron's verification work.
 
 ### P12.32 — Make Bedrock creation and capability state honest after provisioning
 **Status:** planned 2026-08-29, not yet built

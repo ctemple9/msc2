@@ -49,12 +49,54 @@ export const KNOWN_TOUR_ANCHOR_IDS: ReadonlySet<string> = new Set([
 
 export type AnchorRect = { top: number; left: number; width: number; height: number };
 
+/** Window event emitted after a real anchored control receives a click. */
+export const ONBOARDING_ANCHOR_ACTION_EVENT = 'msc:onboarding-anchor-action';
+
 /** Live viewport rects of every mounted `use:onboardingAnchor` element, keyed by anchor id. */
 export const anchorFrames = writable<Record<string, AnchorRect>>({});
+
+/**
+ * Live element references behind every current key in `anchorFrames`, kept
+ * so `remeasureAll` can re-read real geometry on demand. ResizeObserver only
+ * fires when a *tracked* element's own box changes size -- an anchor sitting
+ * in a sheet that grows taller and gets re-centered (`Sheet.svelte`'s
+ * `.scrim` is `align-items: center`) moves without resizing, so the last
+ * push-based measurement goes stale. `TourOverlay.svelte` covers that gap by
+ * calling `remeasureAll` every animation frame while a tour is on screen.
+ */
+const elements = new Map<string, HTMLElement>();
 
 function measure(node: HTMLElement): AnchorRect {
   const rect = node.getBoundingClientRect();
   return { top: rect.top, left: rect.left, width: rect.width, height: rect.height };
+}
+
+/** Re-reads every currently-registered anchor's real position and syncs the store. */
+export function remeasureAll(): void {
+  anchorFrames.update((frames) => {
+    let changed = false;
+    let next = frames;
+    for (const [id, node] of elements) {
+      const rect = measure(node);
+      if (rect.width === 0 && rect.height === 0) continue;
+      const previous = frames[id];
+      if (
+        previous &&
+        previous.top === rect.top &&
+        previous.left === rect.left &&
+        previous.width === rect.width &&
+        previous.height === rect.height
+      ) {
+        continue;
+      }
+      if (!changed) {
+        next = { ...frames };
+        changed = true;
+      }
+      next[id] = rect;
+    }
+    return changed ? next : frames;
+  });
 }
 
 /**
@@ -66,6 +108,13 @@ function measure(node: HTMLElement): AnchorRect {
 export function onboardingAnchor(node: HTMLElement, anchorId: string | undefined) {
   let id = anchorId;
 
+  function announceAction(): void {
+    if (!id) return;
+    window.dispatchEvent(
+      new CustomEvent(ONBOARDING_ANCHOR_ACTION_EVENT, { detail: { anchorId: id } }),
+    );
+  }
+
   function report(): void {
     if (!id) return;
     const rect = measure(node);
@@ -75,6 +124,7 @@ export function onboardingAnchor(node: HTMLElement, anchorId: string | undefined
 
   function clear(clearId: string | undefined): void {
     if (!clearId) return;
+    elements.delete(clearId);
     anchorFrames.update((frames) => {
       if (!(clearId in frames)) return frames;
       const next = { ...frames };
@@ -83,9 +133,16 @@ export function onboardingAnchor(node: HTMLElement, anchorId: string | undefined
     });
   }
 
+  function register(nextId: string | undefined): void {
+    if (!nextId) return;
+    elements.set(nextId, node);
+  }
+
+  register(id);
   report();
   const observer = new ResizeObserver(report);
   observer.observe(node);
+  node.addEventListener('click', announceAction);
   window.addEventListener('resize', report);
   window.addEventListener('scroll', report, true);
 
@@ -93,10 +150,12 @@ export function onboardingAnchor(node: HTMLElement, anchorId: string | undefined
     update(nextId: string | undefined): void {
       clear(id);
       id = nextId;
+      register(id);
       report();
     },
     destroy(): void {
       observer.disconnect();
+      node.removeEventListener('click', announceAction);
       window.removeEventListener('resize', report);
       window.removeEventListener('scroll', report, true);
       clear(id);

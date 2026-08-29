@@ -45,10 +45,14 @@ test('walks a fresh profile through setup, Concept Guide, tour pauses, handoff, 
   await gate.getByRole('button', { name: 'Continue to tour' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
   await page.getByRole('button', { name: "Let's go →" }).click();
-  await expect(page.locator('[data-onboarding-anchor="ob_manage_servers"]')).toBeVisible();
-  await page.getByRole('button', { name: 'I did that' }).click();
-  await expect(page.locator('[data-onboarding-anchor="ob_world_creation"]')).toBeVisible();
-  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByRole('button', { name: 'Manage…', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Manage…', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Add Server…', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Add Server…', exact: true }).click();
+  await expect(page.locator('button.path-card.selected')).toContainText('Start Fresh');
+  await expect(page.getByRole('button', { name: 'Import Existing', exact: true })).toBeDisabled();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByRole('heading', { name: "You're All Set", level: 2 })).toBeVisible();
   await gate.getByRole('button', { name: 'Finish', exact: true }).click();
   await expect(
     page.locator('.topic-reader').getByRole('heading', { name: 'Overview' }),

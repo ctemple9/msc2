@@ -856,6 +856,14 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Commit:** `P12.15: rebuild the onboarding tour`
 **Batch:** solo
 
+### P12.15a — Advance the onboarding tour through Choose Path
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/src/lib/help/tourAnchors.ts`, `clients/desktop-web/src/lib/help/onboarding.ts`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/tests/e2e/browser/contract-harness.mjs`, `clients/desktop-web/tests/e2e/browser/workflows.spec.ts`, `docs/msc2/rolling-plan.md`
+**What:** Correct the first three action-driven tour cards. Real anchored controls now emit a completion event after their click, and the tour consumes it for Manage Servers, Create a Server, and Choose Your Path. Choose Path is tour-locked to Start Fresh, disables Import Existing while that card is active, and advances from the wizard's real Continue button. Normal wizard use outside the tour is unchanged; later required-action cards retain their existing behavior for the next slide-by-slide pass.
+**Verify:** `cd clients/desktop-web && npm run build && npx vitest run tests/screens/help.test.ts && npx prettier --check src/lib/help/onboarding.ts src/lib/help/TourOverlay.svelte src/lib/sections/fleet/wizard/AddServerWizard.svelte tests/e2e/browser/contract-harness.mjs tests/e2e/browser/workflows.spec.ts` — then run the tour visually: click Manage…, click Add Server…, confirm Start Fresh is selected and Import Existing is disabled, and click Continue to advance.
+**Commit:** `P12.15a: advance the onboarding tour through choose path`
+**Batch:** solo
+
 ### P12.16 — Guides / Handbook / How MSC Works
 **Status:** built, awaiting Cameron's verification
 **Files:** `src/lib/sections/handbook/`, `src/lib/help/`

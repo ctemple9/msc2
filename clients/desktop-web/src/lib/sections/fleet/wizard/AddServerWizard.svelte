@@ -34,6 +34,7 @@
   // in flight.
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
+  import { activeTourStep } from '../../../help/onboarding';
   import ConfigureStep from './ConfigureStep.svelte';
   import NetworkStep from './NetworkStep.svelte';
   import WorldStep from './WorldStep.svelte';
@@ -75,6 +76,9 @@
   let statusMessage = '';
   let createSucceeded = false;
   let createWarnings: string[] = [];
+
+  $: tourPathLocked = $activeTourStep === 'choose-path';
+  $: if (tourPathLocked && path !== 'fresh') selectPath('fresh');
 
   // `AddServerWizardView.swift`'s `hasAddOnsStep` -- inserts a sixth "Add-ons"
   // step at position 5 (Fresh path only) once the chosen Java flavor accepts
@@ -190,6 +194,7 @@
             type="button"
             class="path-card"
             class:selected={path === 'importExisting'}
+            disabled={tourPathLocked}
             onclick={() => selectPath('importExisting')}
           >
             <span class="path-title">Import Existing</span>
@@ -376,6 +381,10 @@
   .path-card.selected {
     border-color: rgba(255, 255, 255, 0.32);
     background: rgba(255, 255, 255, 0.05);
+  }
+  .path-card:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
   .path-title {
     font-size: 13.5px;

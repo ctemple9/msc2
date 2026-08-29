@@ -13,9 +13,10 @@
   // cards, no accent-colored glow ring (a plain white ring reads the
   // highlight without spending the accent budget), buttons are the shared
   // Button component (solid neutral fill, no gradient/capsule).
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import Button from '../components/base/Button.svelte';
-  import { anchorFrames } from './tourAnchors';
+  import { anchorFrames, ONBOARDING_ANCHOR_ACTION_EVENT, remeasureAll } from './tourAnchors';
+  import { activeTourStep } from './onboarding';
   import type { OnboardingStep } from './types';
 
   export let steps: readonly OnboardingStep[] = [];
@@ -28,6 +29,11 @@
   const MARGIN = 16;
   const CARD_WIDTH = 320;
   const CARD_EST_HEIGHT = 190;
+  const ACTION_ANCHORS: Readonly<Record<string, string>> = {
+    'manage-servers': 'ob_manage_servers',
+    'create-server': 'ob_create_server',
+    'choose-path': 'ob_wizard_continue',
+  };
 
   let cardHidden = false;
   let lastIndex = -1;
@@ -43,6 +49,33 @@
     const onChange = (event: MediaQueryListEvent) => (reduceMotion = event.matches);
     mql.addEventListener('change', onChange);
     return () => mql.removeEventListener('change', onChange);
+  });
+
+  onMount(() => {
+    const onAnchorAction = (event: Event) => {
+      const anchorId = (event as CustomEvent<{ anchorId?: string }>).detail?.anchorId;
+      if (step && ACTION_ANCHORS[step.id] === anchorId) {
+        onAdvance(true);
+      }
+    };
+    window.addEventListener(ONBOARDING_ANCHOR_ACTION_EVENT, onAnchorAction);
+    return () => window.removeEventListener(ONBOARDING_ANCHOR_ACTION_EVENT, onAnchorAction);
+  });
+
+  $: activeTourStep.set(step?.id ?? null);
+  onDestroy(() => activeTourStep.set(null));
+
+  // Catches spotlights going stale when a layout change moves an anchor without
+  // resizing it -- e.g. Sheet.svelte's vertically-centered scrim shifting every
+  // child upward as the create-server form grows the sheet taller. ResizeObserver
+  // (tourAnchors.ts) only fires on the tracked element's own size changing, so
+  // this re-reads real positions every frame for as long as the tour is showing.
+  onMount(() => {
+    let frame = requestAnimationFrame(function tick() {
+      remeasureAll();
+      frame = requestAnimationFrame(tick);
+    });
+    return () => cancelAnimationFrame(frame);
   });
 
   let viewportW = typeof window !== 'undefined' ? window.innerWidth : 1024;
@@ -142,6 +175,16 @@
           <div class="actions">
             <Button variant="secondary" size="sm" onclick={onSkip}>Finish tour</Button>
             <Button variant="primary" size="sm" onclick={() => onAdvance(false)}>Continue</Button>
+          </div>
+        {:else if step.id === 'manage-servers' || step.id === 'create-server'}
+          <div class="hint-row">
+            <p class="hint">
+              Click {step.id === 'manage-servers' ? 'Manage…' : 'Add Server…'} to continue.
+            </p>
+          </div>
+        {:else if step.id === 'choose-path'}
+          <div class="hint-row">
+            <p class="hint">Start Fresh is selected. Click Continue to continue.</p>
           </div>
         {:else if step.requiresUserAction}
           <!-- Checked before hideCard: this client confirms a required action by an

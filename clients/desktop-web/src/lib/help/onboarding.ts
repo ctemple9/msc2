@@ -1,5 +1,9 @@
 import type { OnboardingStep } from './types';
 import { KNOWN_TOUR_ANCHOR_IDS } from './tourAnchors';
+import { writable } from 'svelte/store';
+
+/** The current guided-tour card, shared with UI that needs tour-only limits. */
+export const activeTourStep = writable<string | null>(null);
 
 /**
  * MSC 2 doesn't yet cover every screen the oracle's tour walks through (no

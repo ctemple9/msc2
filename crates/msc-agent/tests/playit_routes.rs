@@ -2,7 +2,9 @@
 //! rule from P9.7 and pin P12.20a's credential redaction and host-reset wire
 //! contract without contacting playit.gg.
 
-use msc_api::dto::{PlayitResetResultDto, PlayitSetupAcceptedDto};
+use msc_api::dto::{
+    PlayitActionResultDto, PlayitResetResultDto, PlayitSetupAcceptedDto, PlayitStatusDto,
+};
 use msc_domain::identity::ServerType;
 use msc_domain::networking::{
     PlayitTunnelKind, playit_public_address, playit_tunnel_specs, safe_player_address,
@@ -128,6 +130,34 @@ fn setup_and_reset_responses_contain_no_credentials_or_agent_details() {
                 "response exposed {forbidden}"
             );
         }
+    }
+}
+
+#[test]
+fn playit_status_and_actions_cannot_return_the_secret_key() {
+    let secret = "playit-secret-must-not-leak";
+    let status = serde_json::to_value(PlayitStatusDto {
+        server_name: "Survival".into(),
+        server_type: "java".into(),
+        playit_enabled: true,
+        is_running: true,
+        has_secret_key: true,
+        java_address: Some("join.example.joinmc.link".into()),
+        bedrock_address: None,
+        voice_address: None,
+        voice_chat_enabled: false,
+        note: Some("Waiting for Playit tunnels.".into()),
+    })
+    .unwrap();
+    let action = serde_json::to_value(PlayitActionResultDto {
+        result: "started".into(),
+        message: Some("Playit tunnel start accepted.".into()),
+        operation_id: Some("op-playit".into()),
+    })
+    .unwrap();
+    for value in [status, action] {
+        assert!(!value.to_string().contains(secret));
+        assert!(!value.to_string().contains("secretKey"));
     }
 }
 

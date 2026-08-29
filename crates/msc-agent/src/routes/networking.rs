@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
@@ -25,7 +26,7 @@ use msc_api::dto::{
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{
     PLAYIT_SETUP_OPERATION_TARGET, PLAYIT_SETUP_OPERATION_TYPE, PlayitAccountSetup, PlayitError,
-    PlayitService, PlayitSetupError, PlayitSetupStage,
+    PlayitLifecycleStatus, PlayitService, PlayitSetupError, PlayitSetupStage,
 };
 use msc_application::resource_packs::ResourcePackService;
 use msc_application::xbox_broadcast::{XboxBroadcastError, XboxBroadcastService};
@@ -37,7 +38,7 @@ use msc_infrastructure::addon_provider::HttpTransport as ProviderHttpTransport;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::helper_acquisition::HelperAcquisitionError;
 use msc_infrastructure::jar_provider::HttpTransport;
-use msc_infrastructure::playit::PLAYIT_SECRET_KEY;
+use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitSecretBridge};
 use msc_infrastructure::playit_api::PlayitHttpTransport;
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
@@ -86,10 +87,17 @@ impl NetworkingState {
             config_repository::default_app_data_dir().join("helpers"),
         ));
         let _ = std::fs::create_dir_all(helper_cache);
-        Self {
+        let playit = Arc::new(Mutex::new(BTreeMap::new()));
+        for server in lifecycle.app_config_snapshot().servers {
+            let bridge = Path::new(&server.server_dir)
+                .join(".msc2-playit")
+                .join("secret-bridge");
+            let _ = PlayitSecretBridge::remove_path(&bridge);
+        }
+        let state = Self {
             lifecycle,
             operations,
-            playit: Arc::new(Mutex::new(BTreeMap::new())),
+            playit: playit.clone(),
             broadcast: Arc::new(Mutex::new(BTreeMap::new())),
             process,
             secrets,
@@ -98,7 +106,9 @@ impl NetworkingState {
             playit_transport,
             fs,
             helper_cache,
-        }
+        };
+        spawn_playit_output_pump(playit);
+        state
     }
 
     #[allow(clippy::result_large_err)]
@@ -211,6 +221,24 @@ pub fn router(state: NetworkingState) -> Router {
         .with_state(state)
 }
 
+fn spawn_playit_output_pump(services: Arc<Mutex<BTreeMap<String, SharedPlayitService>>>) {
+    let Ok(handle) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    handle.spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(100));
+        loop {
+            interval.tick().await;
+            let Ok(mut services) = services.lock() else {
+                continue;
+            };
+            for service in services.values_mut() {
+                let _ = service.poll();
+            }
+        }
+    });
+}
+
 pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     let Ok(server) = state.active_server() else {
         return Json(PlayitStatusDto {
@@ -230,21 +258,30 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
     let mut services = state.playit_service(&server);
     let service = services.get_mut(&server.id).expect("service was inserted");
     let has_secret = service.has_secret().unwrap_or(false);
-    let snapshot = service.status().clone();
+    let lifecycle_status = service.lifecycle_status();
+    let status_note = match &lifecycle_status {
+        PlayitLifecycleStatus::SetupRequired => Some("Playit setup is required.".into()),
+        PlayitLifecycleStatus::Starting => Some("Playit is starting.".into()),
+        PlayitLifecycleStatus::WaitingForTunnels => Some("Waiting for Playit tunnels.".into()),
+        PlayitLifecycleStatus::Running => None,
+        PlayitLifecycleStatus::Stopping => Some("Playit is stopping.".into()),
+        PlayitLifecycleStatus::Stopped => None,
+        PlayitLifecycleStatus::TimedOut => {
+            Some("Playit timed out while waiting for tunnels.".into())
+        }
+        PlayitLifecycleStatus::Failed { message } => Some(message.clone()),
+    };
     Json(PlayitStatusDto {
         server_name: server.display_name,
         server_type: server.server_type.raw_value().into(),
         playit_enabled: server.playit_enabled,
-        is_running: matches!(
-            snapshot.status,
-            HelperStatus::Running | HelperStatus::Starting
-        ),
+        is_running: lifecycle_status.is_active(),
         has_secret_key: has_secret,
         java_address: state.lifecycle.app_config_snapshot().playit_java_address,
         bedrock_address: state.lifecycle.app_config_snapshot().playit_bedrock_address,
         voice_address: state.lifecycle.app_config_snapshot().playit_voice_address,
         voice_chat_enabled: server.playit_voice_chat_enabled,
-        note: None,
+        note: status_note,
     })
     .into_response()
 }
@@ -417,15 +454,20 @@ pub async fn playit_reset(
 
     let mut services = state.playit.lock().expect("Playit service lock poisoned");
     for service in services.values_mut() {
-        if matches!(
-            service.status().status,
-            HelperStatus::Running | HelperStatus::Starting
-        ) && let Err(error) = service.stop()
-        {
+        if let Err(error) = service.reset() {
             return helper_error_response(error.to_string(), "playit_reset_failed");
         }
     }
     drop(services);
+
+    for server in state.lifecycle.app_config_snapshot().servers {
+        let bridge = Path::new(&server.server_dir)
+            .join(".msc2-playit")
+            .join("secret-bridge");
+        if let Err(error) = PlayitSecretBridge::remove_path(&bridge) {
+            return helper_error_response(error.to_string(), "playit_reset_failed");
+        }
+    }
 
     let had_secret = match state.secrets.get(PLAYIT_SECRET_KEY) {
         Ok(value) => value.is_some_and(|secret| !secret.trim().is_empty()),
@@ -485,10 +527,7 @@ pub async fn playit_start(
     };
     let mut services = state.playit_service(&server);
     let service = services.get_mut(&server.id).expect("service was inserted");
-    if matches!(
-        service.status().status,
-        HelperStatus::Running | HelperStatus::Starting
-    ) {
+    if service.is_active() {
         return Json(PlayitActionResultDto {
             result: "already_running".into(),
             message: None,
@@ -529,10 +568,7 @@ pub async fn playit_stop(
     };
     let mut services = state.playit_service(&server);
     let service = services.get_mut(&server.id).expect("service was inserted");
-    if matches!(
-        service.status().status,
-        HelperStatus::Stopped | HelperStatus::TimedOut
-    ) {
+    if !service.is_active() {
         return Json(PlayitActionResultDto {
             result: "not_running".into(),
             message: None,
@@ -541,12 +577,19 @@ pub async fn playit_stop(
         .into_response();
     }
     match service.stop() {
-        Ok(()) => Json(PlayitActionResultDto {
-            result: "stopped".into(),
-            message: Some("Playit tunnel stop requested.".into()),
-            operation_id: None,
-        })
-        .into_response(),
+        Ok(operation_id) => (
+            if operation_id.is_some() {
+                StatusCode::ACCEPTED
+            } else {
+                StatusCode::OK
+            },
+            Json(PlayitActionResultDto {
+                result: "stopped".into(),
+                message: Some("Playit tunnel stop requested.".into()),
+                operation_id,
+            }),
+        )
+            .into_response(),
         Err(error) => helper_error_response(error.to_string(), "playit_stop_failed"),
     }
 }

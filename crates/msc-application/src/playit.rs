@@ -11,8 +11,12 @@ use msc_domain::helper::{
 use msc_domain::networking::{
     PlayitTunnelAddresses, PlayitTunnelKind, PlayitTunnelSpec, parse_playit_address,
 };
-use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperProcessManager};
-use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch};
+use msc_infrastructure::helper_process::{
+    HelperKey, HelperProcessError, HelperProcessManager, ManagedHelperEvent,
+};
+use msc_infrastructure::playit::{
+    PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch, PlayitSecretBridge,
+};
 use msc_infrastructure::playit_api::{
     PLAYIT_AGENT_NAME, PlayitApi, PlayitApiError, PlayitHttpTransport, PlayitTunnel,
 };
@@ -20,6 +24,7 @@ use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::path::PathBuf;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -34,11 +39,46 @@ pub struct PlayitStartResult {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayitLifecycleStatus {
+    SetupRequired,
+    Starting,
+    WaitingForTunnels,
+    Running,
+    Stopping,
+    Stopped,
+    TimedOut,
+    Failed { message: String },
+}
+
+impl PlayitLifecycleStatus {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::SetupRequired => "Setup required",
+            Self::Starting => "Starting",
+            Self::WaitingForTunnels => "Waiting for tunnels",
+            Self::Running => "Running",
+            Self::Stopping => "Stopping",
+            Self::Stopped => "Stopped",
+            Self::TimedOut => "Timed out",
+            Self::Failed { .. } => "Failed",
+        }
+    }
+
+    pub fn is_active(&self) -> bool {
+        matches!(
+            self,
+            Self::Starting | Self::WaitingForTunnels | Self::Running | Self::Stopping
+        )
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayitError {
     Disabled,
     MissingSecret,
     AlreadyManaged,
     Acquisition(String),
+    SecretBridge(String),
     SecretStore(String),
     Operation(String),
     Process(String),
@@ -51,6 +91,9 @@ impl fmt::Display for PlayitError {
             Self::MissingSecret => write!(f, "no Playit secret is configured"),
             Self::AlreadyManaged => write!(f, "the Playit tunnel is already managed"),
             Self::Acquisition(message) => write!(f, "Playit binary acquisition failed: {message}"),
+            Self::SecretBridge(message) => {
+                write!(f, "Playit secret bridge could not be created: {message}")
+            }
             Self::SecretStore(message) | Self::Operation(message) | Self::Process(message) => {
                 write!(f, "{message}")
             }
@@ -491,6 +534,10 @@ pub struct PlayitService<'a> {
     snapshot: HelperSnapshot,
     expecting_address: bool,
     active_operation: Option<msc_domain::operation::OperationId>,
+    active_stop_operation: Option<msc_domain::operation::OperationId>,
+    lifecycle_status: PlayitLifecycleStatus,
+    secret_bridge: Option<PlayitSecretBridge>,
+    secret_bridge_path: Option<PathBuf>,
 }
 
 impl<'a> PlayitService<'a> {
@@ -510,11 +557,36 @@ impl<'a> PlayitService<'a> {
             snapshot: HelperSnapshot::stopped(),
             expecting_address: false,
             active_operation: None,
+            active_stop_operation: None,
+            lifecycle_status: PlayitLifecycleStatus::Stopped,
+            secret_bridge: None,
+            secret_bridge_path: None,
         }
     }
 
     pub fn status(&self) -> &HelperSnapshot {
         &self.snapshot
+    }
+
+    pub fn lifecycle_status(&self) -> PlayitLifecycleStatus {
+        if self.lifecycle_status == PlayitLifecycleStatus::Stopped
+            && self.enabled
+            && !self.has_secret().unwrap_or(false)
+        {
+            return PlayitLifecycleStatus::SetupRequired;
+        }
+        self.lifecycle_status.clone()
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.lifecycle_status().is_active()
+    }
+
+    pub fn diagnostics(&self) -> Vec<msc_infrastructure::helper_process::HelperDiagnostic> {
+        self.helpers
+            .snapshot(&self.key())
+            .map(|snapshot| snapshot.diagnostics)
+            .unwrap_or_default()
     }
 
     pub fn has_secret(&self) -> Result<bool, PlayitError> {
@@ -548,8 +620,13 @@ impl<'a> PlayitService<'a> {
         launch: PlayitLaunch,
         acquisition: &PlayitBinaryAcquisition<'_>,
     ) -> Result<PlayitStartResult, PlayitError> {
-        let secret_present = self.has_secret()?;
-        match decide_playit_start(self.enabled, secret_present) {
+        let secret = self
+            .secrets
+            .get(PLAYIT_SECRET_KEY)
+            .map_err(|error| PlayitError::SecretStore(error.to_string()))?
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| value.trim().to_owned());
+        match decide_playit_start(self.enabled, secret.is_some()) {
             msc_domain::helper::HelperStartDecision::NoAction => return Err(PlayitError::Disabled),
             msc_domain::helper::HelperStartDecision::PromptSecretSetup => {
                 return Err(PlayitError::MissingSecret);
@@ -577,13 +654,29 @@ impl<'a> PlayitService<'a> {
                 return Err(PlayitError::Acquisition(message));
             }
         };
+        let secret_bridge =
+            match launch.write_secret_bridge(secret.as_deref().expect("checked above")) {
+                Ok(bridge) => bridge,
+                Err(error) => {
+                    let message = error.to_string();
+                    let _ = self.operations.fail(
+                        &operation_id,
+                        lifecycle_error("playit_secret_bridge_failed", message.clone()),
+                    );
+                    return Err(PlayitError::SecretBridge(message));
+                }
+            };
         match self
             .helpers
             .start(key, launch.process_request(&acquired.artifact.path))
         {
             Ok(_) => {
                 self.snapshot.status = HelperStatus::Starting;
+                self.lifecycle_status = PlayitLifecycleStatus::Starting;
                 self.active_operation = Some(operation_id.clone());
+                self.active_stop_operation = None;
+                self.secret_bridge_path = Some(secret_bridge.path().to_owned());
+                self.secret_bridge = Some(secret_bridge);
                 Ok(PlayitStartResult {
                     operation_id: Some(operation_id.as_str().to_string()),
                     status: HelperStatus::Starting,
@@ -602,16 +695,30 @@ impl<'a> PlayitService<'a> {
     /// Feed one already-framed helper line into the provider-specific parser.
     /// This is where a tunnel's readiness is established, never at process spawn.
     pub fn observe_output(&mut self, line: &str) -> Result<(), PlayitError> {
+        self.observe_output_line(line, true)
+    }
+
+    fn observe_output_line(
+        &mut self,
+        line: &str,
+        record_helper_ready: bool,
+    ) -> Result<(), PlayitError> {
         if line.to_ascii_lowercase().contains("tunnel setup") {
             self.expecting_address = true;
+            if self.lifecycle_status == PlayitLifecycleStatus::Starting {
+                self.lifecycle_status = PlayitLifecycleStatus::WaitingForTunnels;
+            }
             return Ok(());
         }
         let address = parse_playit_address(line, self.expecting_address);
         self.expecting_address = false;
         if let Some(address) = address {
             let key = self.key();
-            self.helpers.record_ready(&key).map_err(map_process_error)?;
+            if record_helper_ready {
+                self.helpers.record_ready(&key).map_err(map_process_error)?;
+            }
             self.snapshot = self.snapshot.clone().on_ready(address.clone());
+            self.lifecycle_status = PlayitLifecycleStatus::Running;
             if let Some(operation_id) = self.active_operation.take() {
                 self.operations
                     .succeed(
@@ -625,19 +732,155 @@ impl<'a> PlayitService<'a> {
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<(), PlayitError> {
-        let key = self.key();
-        self.helpers
-            .request_graceful_stop(&key)
+    /// Drain the process supervisor without relying on an HTTP status request
+    /// to make progress. Output is redacted before it reaches diagnostics and
+    /// the readiness parser, and exits reconcile the operation immediately.
+    pub fn poll(&mut self) -> Result<(), PlayitError> {
+        let secret = self
+            .secrets
+            .get(PLAYIT_SECRET_KEY)
+            .ok()
+            .flatten()
+            .filter(|value| !value.trim().is_empty())
+            .map(|value| value.trim().to_owned());
+        let events = self
+            .helpers
+            .poll_with_redactor(|line| redact_secret(line, secret.as_deref()))
             .map_err(map_process_error)?;
+        for event in events {
+            match event {
+                ManagedHelperEvent::Output { line, .. } => {
+                    self.observe_output_line(&line, false)?;
+                }
+                ManagedHelperEvent::Exited(exit) => self.reconcile_exit(exit)?,
+            }
+        }
+        if self.lifecycle_status == PlayitLifecycleStatus::Starting
+            && matches!(
+                self.helpers.snapshot(&self.key()).map(|value| value.status),
+                Some(msc_infrastructure::helper_process::ManagedHelperStatus::Starting)
+            )
+        {
+            self.lifecycle_status = PlayitLifecycleStatus::WaitingForTunnels;
+        }
+        Ok(())
+    }
+
+    fn reconcile_exit(
+        &mut self,
+        exit: msc_infrastructure::process::ProcessExitStatus,
+    ) -> Result<(), PlayitError> {
+        self.cleanup_secret_bridge()?;
+        let stop_operation = self.active_stop_operation.take();
+        if let Some(operation_id) = stop_operation {
+            if exit.success() {
+                self.operations
+                    .succeed(&operation_id, "Playit tunnel stopped.", BTreeMap::new())
+                    .map_err(|error| PlayitError::Operation(error.to_string()))?;
+                self.lifecycle_status = self.stopped_lifecycle_status();
+            } else {
+                let message = exit_message(exit);
+                self.operations
+                    .fail(
+                        &operation_id,
+                        lifecycle_error("playit_stop_failed", message.clone()),
+                    )
+                    .map_err(|error| PlayitError::Operation(error.to_string()))?;
+                self.lifecycle_status = PlayitLifecycleStatus::Failed { message };
+            }
+        } else if let Some(operation_id) = self.active_operation.take() {
+            let error = if exit.success() {
+                lifecycle_error(
+                    "playit_exited_before_ready",
+                    "Playit stopped before it reported a usable player address.",
+                )
+            } else {
+                lifecycle_error("playit_helper_failed", exit_message(exit))
+            };
+            let message = error.message.clone();
+            self.operations
+                .fail(&operation_id, error)
+                .map_err(|error| PlayitError::Operation(error.to_string()))?;
+            self.lifecycle_status = PlayitLifecycleStatus::Failed { message };
+        } else if exit.success() {
+            self.lifecycle_status = self.stopped_lifecycle_status();
+        } else {
+            self.lifecycle_status = PlayitLifecycleStatus::Failed {
+                message: exit_message(exit),
+            };
+        }
+        self.snapshot = HelperSnapshot::stopped();
+        Ok(())
+    }
+
+    pub fn stop(&mut self) -> Result<Option<String>, PlayitError> {
+        if !self.lifecycle_status().is_active() {
+            return Ok(None);
+        }
+        let key = self.key();
+        if let Some(operation_id) = self.active_operation.clone() {
+            self.helpers
+                .request_graceful_stop(&key)
+                .map_err(map_process_error)?;
+            self.operations
+                .cancel(&operation_id, "Playit tunnel start stopped.")
+                .map_err(|error| PlayitError::Operation(error.to_string()))?;
+            self.active_operation = None;
+        }
+        let operation_id = self
+            .operations
+            .begin_running(
+                PLAYIT_OPERATION_TYPE,
+                Some(key.operation_target()),
+                "Stopping Playit tunnel.",
+            )
+            .map_err(|error| PlayitError::Operation(error.to_string()))?;
+        if self.active_operation.is_none() {
+            // A start operation already requested graceful shutdown above.
+            // Running helpers still need the stop request here.
+            let helper_status = self.helpers.snapshot(&key).map(|snapshot| snapshot.status);
+            if !matches!(
+                helper_status,
+                Some(msc_infrastructure::helper_process::ManagedHelperStatus::Stopping)
+            ) && let Err(error) = self.helpers.request_graceful_stop(&key)
+            {
+                let message = error.to_string();
+                let _ = self.operations.fail(
+                    &operation_id,
+                    lifecycle_error("playit_stop_failed", message.clone()),
+                );
+                return Err(map_process_error(error));
+            }
+        }
+        self.lifecycle_status = PlayitLifecycleStatus::Stopping;
         self.snapshot.status = HelperStatus::Starting;
+        self.active_stop_operation = Some(operation_id.clone());
+        Ok(Some(operation_id.as_str().to_owned()))
+    }
+
+    /// Reset removes only this host's bridge and key. The helper receives a
+    /// graceful stop request first; the pump finishes its stop operation when
+    /// the process actually exits.
+    pub fn reset(&mut self) -> Result<(), PlayitError> {
+        let _ = self.stop()?;
+        self.cleanup_secret_bridge()?;
+        self.lifecycle_status = if self.enabled {
+            PlayitLifecycleStatus::SetupRequired
+        } else {
+            PlayitLifecycleStatus::Stopped
+        };
         Ok(())
     }
 
     /// Recovery never trusts a former PID.  The caller must reconcile with
     /// Playit before starting a fresh tunnel after an agent restart.
     pub fn recover_after_restart(&mut self) {
+        let _ = self.cleanup_secret_bridge();
+        self.helpers.discard_live_processes_after_restart();
         self.snapshot = HelperSnapshot::after_agent_restart();
+        self.lifecycle_status = PlayitLifecycleStatus::Stopped;
+        self.active_operation = None;
+        self.active_stop_operation = None;
     }
 
     pub fn cancel_start_if_requested(&mut self) -> Result<bool, PlayitError> {
@@ -654,7 +897,8 @@ impl<'a> PlayitService<'a> {
             .cancel(&operation_id, "Playit tunnel start cancelled.")
             .map_err(|error| PlayitError::Operation(error.to_string()))?;
         self.active_operation = None;
-        self.snapshot = HelperSnapshot::stopped();
+        self.lifecycle_status = PlayitLifecycleStatus::Stopping;
+        self.snapshot.status = HelperStatus::Starting;
         Ok(true)
     }
 
@@ -668,7 +912,9 @@ impl<'a> PlayitService<'a> {
         {
             return Ok(false);
         }
+        let _ = self.helpers.request_graceful_stop(&self.key());
         self.snapshot.status = HelperStatus::TimedOut;
+        self.lifecycle_status = PlayitLifecycleStatus::TimedOut;
         if let Some(operation_id) = self.active_operation.take() {
             self.operations
                 .fail(
@@ -685,6 +931,42 @@ impl<'a> PlayitService<'a> {
 
     fn key(&self) -> HelperKey {
         HelperKey::new(&self.server_id, "playit")
+    }
+
+    fn stopped_lifecycle_status(&self) -> PlayitLifecycleStatus {
+        if self.enabled && !self.has_secret().unwrap_or(false) {
+            PlayitLifecycleStatus::SetupRequired
+        } else {
+            PlayitLifecycleStatus::Stopped
+        }
+    }
+
+    fn cleanup_secret_bridge(&mut self) -> Result<(), PlayitError> {
+        if let Some(bridge) = self.secret_bridge.take() {
+            bridge
+                .remove()
+                .map_err(|error| PlayitError::SecretBridge(error.to_string()))?;
+        } else if let Some(path) = self.secret_bridge_path.as_deref() {
+            PlayitSecretBridge::remove_path(path)
+                .map_err(|error| PlayitError::SecretBridge(error.to_string()))?;
+        }
+        self.secret_bridge_path = None;
+        Ok(())
+    }
+}
+
+fn redact_secret(line: &str, secret: Option<&str>) -> String {
+    secret.filter(|secret| !secret.is_empty()).map_or_else(
+        || line.to_owned(),
+        |secret| line.replace(secret, "<redacted>"),
+    )
+}
+
+fn exit_message(exit: msc_infrastructure::process::ProcessExitStatus) -> String {
+    match (exit.code, exit.signal) {
+        (Some(code), _) => format!("Playit helper exited with code {code}."),
+        (_, Some(signal)) => format!("Playit helper was terminated by signal {signal}."),
+        (None, None) => "Playit helper exited without a status.".to_owned(),
     }
 }
 

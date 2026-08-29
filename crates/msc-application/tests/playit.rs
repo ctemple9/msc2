@@ -1,5 +1,7 @@
 use msc_application::operations::LifecycleOperations;
-use msc_application::playit::{PLAYIT_OPERATION_TYPE, PlayitError, PlayitService};
+use msc_application::playit::{
+    PLAYIT_OPERATION_TYPE, PlayitError, PlayitLifecycleStatus, PlayitService,
+};
 use msc_domain::helper::HelperStatus;
 use msc_domain::networking::{PlayitTunnelKind, PlayitTunnelSpec};
 use msc_domain::operation::OperationState;
@@ -23,9 +25,11 @@ use std::sync::Mutex;
 const OPERATIONS_DIR: &str = "/agent/operations";
 
 fn launch() -> PlayitLaunch {
+    let working_directory =
+        std::env::temp_dir().join(format!("msc2-playit-test-{}", uuid::Uuid::new_v4()));
     PlayitLaunch {
-        working_directory: PathBuf::from("/agent"),
-        secret_path: PathBuf::from("/agent/secret-bridge/playit"),
+        secret_path: working_directory.join("secret-bridge/playit"),
+        working_directory,
     }
 }
 
@@ -154,9 +158,27 @@ fn playit_start_is_journaled_and_secret_never_reaches_process_arguments() {
         .unwrap();
     let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
 
-    let started = service.start(launch(), &binary).unwrap();
+    let launch = launch();
+    let bridge_path = launch.secret_path.clone();
+    let started = service.start(launch, &binary).unwrap();
     let operation_id = started.operation_id.unwrap();
     assert_eq!(started.status, HelperStatus::Starting);
+    assert_eq!(
+        std::fs::read_to_string(&bridge_path).unwrap(),
+        "playit-secret-must-not-leak\n"
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(
+            std::fs::metadata(&bridge_path)
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+    }
     assert_eq!(
         operations
             .snapshot(&msc_domain::operation::OperationId::new(operation_id))
@@ -169,13 +191,202 @@ fn playit_start_is_journaled_and_secret_never_reaches_process_arguments() {
     let (_, request) = supervisor.spawned_requests().pop().unwrap();
     assert_eq!(
         request.arguments,
-        ["--secret-path", "/agent/secret-bridge/playit"]
+        [
+            "--secret-path".to_owned(),
+            bridge_path.to_string_lossy().into_owned()
+        ]
     );
     assert_eq!(
         request.executable_path,
         PathBuf::from("/cache/playitd/playitd-v1.0.10/playitd-linux-x86_64")
     );
     assert!(!format!("{request:?}").contains("playit-secret-must-not-leak"));
+    let operation_path = fs
+        .list(Path::new(OPERATIONS_DIR))
+        .unwrap()
+        .into_iter()
+        .find(|path| path.extension().and_then(|value| value.to_str()) == Some("json"))
+        .expect("start operation");
+    assert!(
+        !String::from_utf8_lossy(&fs.read(&operation_path).unwrap())
+            .contains("playit-secret-must-not-leak")
+    );
+}
+
+#[test]
+fn playit_lifecycle_distinguishes_setup_and_supervised_states() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let secrets = FakeSecretStore::new();
+    let service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+
+    assert_eq!(
+        service.lifecycle_status(),
+        PlayitLifecycleStatus::SetupRequired
+    );
+    assert_eq!(PlayitLifecycleStatus::Starting.label(), "Starting");
+    assert_eq!(
+        PlayitLifecycleStatus::WaitingForTunnels.label(),
+        "Waiting for tunnels"
+    );
+    assert_eq!(PlayitLifecycleStatus::Running.label(), "Running");
+    assert_eq!(PlayitLifecycleStatus::Stopping.label(), "Stopping");
+    assert_eq!(PlayitLifecycleStatus::Stopped.label(), "Stopped");
+    assert_eq!(PlayitLifecycleStatus::TimedOut.label(), "Timed out");
+    assert_eq!(
+        PlayitLifecycleStatus::Failed {
+            message: "failed".into()
+        }
+        .label(),
+        "Failed"
+    );
+}
+
+#[test]
+fn playit_output_pump_redacts_diagnostics_and_reconciles_exit() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    let secret = "playit-secret-must-not-leak";
+    secrets.set(PLAYIT_SECRET_KEY, secret).unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    let launch = launch();
+    let bridge_path = launch.secret_path.clone();
+    let started = service.start(launch, &binary).unwrap();
+    let operation_id = msc_domain::operation::OperationId::new(started.operation_id.unwrap());
+    let (pid, _request) = supervisor.spawned_requests().pop().unwrap();
+
+    supervisor
+        .emit_stderr(pid, format!("provider output contains {secret}\n"))
+        .unwrap();
+    supervisor.emit_stdout(pid, b"tunnel setup\n").unwrap();
+    supervisor
+        .emit_stdout(pid, b"join.example.joinmc.link\n")
+        .unwrap();
+    service.poll().unwrap();
+
+    assert!(bridge_path.exists());
+    assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Running);
+    assert!(
+        service
+            .diagnostics()
+            .iter()
+            .all(|diagnostic| !diagnostic.line.contains(secret))
+    );
+    assert!(
+        service
+            .diagnostics()
+            .iter()
+            .any(|diagnostic| diagnostic.line.contains("<redacted>"))
+    );
+    assert_eq!(
+        operations.snapshot(&operation_id).unwrap().unwrap().state,
+        OperationState::Succeeded
+    );
+    assert!(!format!("{:?}", operations.snapshot(&operation_id).unwrap()).contains(secret));
+
+    supervisor.exit_normally(pid).unwrap();
+    service.poll().unwrap();
+    assert!(!bridge_path.exists());
+    assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Stopped);
+}
+
+#[test]
+fn playit_stop_is_journaled_until_graceful_exit() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    let launch = launch();
+    let bridge_path = launch.secret_path.clone();
+    service.start(launch, &binary).unwrap();
+    let pid = supervisor.spawned_requests().pop().unwrap().0;
+    supervisor.emit_stdout(pid, b"tunnel setup\n").unwrap();
+    supervisor
+        .emit_stdout(pid, b"join.example.joinmc.link\n")
+        .unwrap();
+    service.poll().unwrap();
+
+    let stop_operation_id = msc_domain::operation::OperationId::new(
+        service
+            .stop()
+            .unwrap()
+            .expect("running helper stop operation"),
+    );
+    assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Stopping);
+    assert_eq!(supervisor.graceful_stops(), vec![pid]);
+    assert_eq!(
+        operations
+            .snapshot(&stop_operation_id)
+            .unwrap()
+            .unwrap()
+            .state,
+        OperationState::Running
+    );
+    assert!(bridge_path.exists());
+
+    supervisor.exit_normally(pid).unwrap();
+    service.poll().unwrap();
+    assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Stopped);
+    assert_eq!(
+        operations
+            .snapshot(&stop_operation_id)
+            .unwrap()
+            .unwrap()
+            .state,
+        OperationState::Succeeded
+    );
+    assert!(!bridge_path.exists());
+}
+
+#[test]
+fn playit_exit_before_readiness_fails_operation_and_removes_bridge() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    let launch = launch();
+    let bridge_path = launch.secret_path.clone();
+    let operation_id = msc_domain::operation::OperationId::new(
+        service
+            .start(launch, &binary)
+            .unwrap()
+            .operation_id
+            .unwrap(),
+    );
+    let pid = supervisor.spawned_requests().pop().unwrap().0;
+
+    supervisor
+        .emit_stderr(pid, b"startup diagnostics\n")
+        .unwrap();
+    supervisor.crash(pid, 23).unwrap();
+    service.poll().unwrap();
+
+    assert!(!bridge_path.exists());
+    assert_eq!(service.lifecycle_status().label(), "Failed");
+    let operation = operations.snapshot(&operation_id).unwrap().unwrap();
+    assert_eq!(operation.state, OperationState::Failed);
+    assert_eq!(operation.error.unwrap().code, "playit_helper_failed");
 }
 
 #[test]

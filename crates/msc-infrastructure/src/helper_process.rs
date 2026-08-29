@@ -56,6 +56,12 @@ pub struct HelperDiagnostic {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ManagedHelperEvent {
+    Output { stream: OutputStream, line: String },
+    Exited(ProcessExitStatus),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagedHelperSnapshot {
     pub key: HelperKey,
     pub status: ManagedHelperStatus,
@@ -223,7 +229,19 @@ impl<'supervisor> HelperProcessManager<'supervisor> {
     /// Drains output and exit events for every live helper. Complete lines
     /// retain their original stream; partial lines are retained when exit
     /// makes them final.
-    pub fn poll(&mut self) -> Result<(), HelperProcessError> {
+    pub fn poll(&mut self) -> Result<Vec<ManagedHelperEvent>, HelperProcessError> {
+        self.poll_with_redactor(|line| line.to_owned())
+    }
+
+    /// Drains helper output while replacing provider secrets before either
+    /// diagnostics or returned events can retain them. The application layer
+    /// uses this for Playit; the plain [`Self::poll`] form remains available
+    /// to helpers whose output has no secret-bearing provider boundary.
+    pub fn poll_with_redactor(
+        &mut self,
+        redact: impl Fn(&str) -> String,
+    ) -> Result<Vec<ManagedHelperEvent>, HelperProcessError> {
+        let mut observed = Vec::new();
         let live = self
             .helpers
             .iter()
@@ -237,12 +255,16 @@ impl<'supervisor> HelperProcessManager<'supervisor> {
                 match event {
                     crate::process::ProcessEvent::Output { stream, bytes } => {
                         for line in helper.framer.push(stream, &bytes) {
-                            push_diagnostic(&mut helper.diagnostics, stream, line);
+                            let line = redact(&line);
+                            push_diagnostic(&mut helper.diagnostics, stream, line.clone());
+                            observed.push(ManagedHelperEvent::Output { stream, line });
                         }
                     }
                     crate::process::ProcessEvent::Exited(exit) => {
                         for (stream, line) in helper.framer.flush() {
-                            push_diagnostic(&mut helper.diagnostics, stream, line);
+                            let line = redact(&line);
+                            push_diagnostic(&mut helper.diagnostics, stream, line.clone());
+                            observed.push(ManagedHelperEvent::Output { stream, line });
                         }
                         helper.pid = None;
                         helper.status = if exit.success() {
@@ -250,11 +272,17 @@ impl<'supervisor> HelperProcessManager<'supervisor> {
                         } else {
                             ManagedHelperStatus::Failed { exit: Some(exit) }
                         };
+                        observed.push(ManagedHelperEvent::Exited(exit));
                     }
                 }
             }
         }
-        Ok(())
+        Ok(observed)
+    }
+
+    pub fn discard_live_processes_after_restart(&mut self) {
+        let keys = self.helpers.keys().cloned().collect::<Vec<_>>();
+        *self = Self::recover_after_restart(self.supervisor, keys);
     }
 
     /// Resolves a restart-unknown helper only after the caller has performed

@@ -24,7 +24,7 @@
   // category regardless of Create-flow availability: pufferfish/spigot are
   // standard (plugin) like Paper/Purpur; quilt is modded (loader) like
   // Fabric/NeoForge/Forge. This fills that gap rather than mis-hiding
-  // Console Access for a flavor the wizard's own catalog doesn't list.
+  // Xbox Broadcast for a flavor the wizard's own catalog doesn't list.
   const MODDED_FLAVORS = new Set(['fabric', 'neoforge', 'forge', 'quilt']);
 
   function javaFlavorCategory(flavor: string): JavaCategory {
@@ -38,8 +38,8 @@
   export let activeHostId: HostId = '';
   export let isDesktopShell = false;
   // Threaded through for the sections that call the agent directly
-  // (How to Connect, and P12.22's Console Access/Quick Commands) — the same
-  // `api` every section and ConsoleDock (P12.10) already receive.
+  // (How to Connect, Services, and Quick Commands) — the same `api` every
+  // section and ConsoleDock (P12.10) already receive.
   export let api: ScreenApi | undefined = undefined;
   export let servers: readonly Schema['ServerDTO'][] = [];
   export let activeServerId: string | undefined = undefined;
@@ -104,13 +104,13 @@
   })();
 
   const DISCLOSURE_SECTIONS = [
-    'Console access',
+    'Services',
     'How to connect',
     'Maintenance',
     'Quick commands',
   ] as const;
   let expanded: Record<(typeof DISCLOSURE_SECTIONS)[number], boolean> = {
-    'Console access': false,
+    Services: false,
     'How to connect': false,
     Maintenance: false,
     'Quick commands': false,
@@ -132,13 +132,14 @@
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
 
-  // Console Access is MSC2's own external-services panel (playit.gg +
-  // Xbox Broadcast, not an oracle 1:1 port), so it shows whenever a server
-  // is selected -- playit applies to any server type/flavor. Xbox
-  // Broadcast's own crossplay rule (MSC 1 SidebarView.swift's
-  // `showCrossPlatform`: always for Bedrock; for Java, only flavors that
-  // can host Geyser/Xbox Broadcast, not Vanilla, not a modded loader) only
-  // gates its own sub-block within the section, passed down separately.
+  // Services is MSC2's own external-services panel (playit.gg + Xbox
+  // Broadcast, not an oracle 1:1 port; MSC 1 calls its Xbox-Broadcast-only
+  // equivalent "Console Access"), so it shows whenever a server is
+  // selected -- playit applies to any server type/flavor. Xbox Broadcast's
+  // own crossplay rule (MSC 1 SidebarView.swift's `showCrossPlatform`:
+  // always for Bedrock; for Java, only flavors that can host Geyser/Xbox
+  // Broadcast, not Vanilla, not a modded loader) only gates its own
+  // sub-block within the section, passed down separately.
   $: showXboxBroadcast =
     activeServer !== undefined &&
     (activeServer.serverType === 'bedrock' ||
@@ -153,7 +154,7 @@
   // shows, its two buttons disabled instead.
   $: visibleSections = DISCLOSURE_SECTIONS.filter((section) => {
     if (section === 'How to connect') return !!activeServer;
-    if (section === 'Console access') return !!activeServer;
+    if (section === 'Services') return !!activeServer;
     return true;
   });
 
@@ -264,7 +265,7 @@
         </div>
         {#if expanded[section]}
           <div class="disclosure-content">
-            {#if section === 'Console access'}
+            {#if section === 'Services'}
               <ConsoleAccessSection
                 {api}
                 serverType={activeServer?.serverType}

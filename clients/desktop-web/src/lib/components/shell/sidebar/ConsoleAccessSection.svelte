@@ -1,8 +1,10 @@
 <script lang="ts">
-  // Console Access is MSC2's own external-services quick control -- the two
-  // helper processes the agent manages that are not the Minecraft server
-  // process itself (crates/msc-infrastructure/src/helper_process.rs's
-  // HelperKey has exactly two call sites: "xbox-broadcast" and "playit").
+  // Shown in the sidebar under "Services" (renamed from "Console Access" --
+  // Xbox Broadcast's own MSC 1 name -- once this became a general panel).
+  // MSC2's own external-services quick control -- the two helper processes
+  // the agent manages that are not the Minecraft server process itself
+  // (crates/msc-infrastructure/src/helper_process.rs's HelperKey has
+  // exactly two call sites: "xbox-broadcast" and "playit").
   // Xbox Broadcast started here as a port of MSC 1 SidebarView.swift's
   // BedrockCrossPlatformSidebarSection/CrossPlatformAccessSidebarSection;
   // Playit is Cameron's own addition on top of that, not an oracle port --
@@ -17,7 +19,6 @@
   // crossplay visibility rule lives in ControlSidebar and is passed down as
   // showXboxBroadcast.
   import Button from '../../base/Button.svelte';
-  import Toggle from '../../base/Toggle.svelte';
   import type { Schema, ScreenApi } from '../../../sections/shared/types';
   import { call, errorMessage, mutate } from '../../../sections/shared/types';
   import { serverEditorPaths } from '../../../sections/server-editor/model';
@@ -131,6 +132,16 @@
         <div class="row">
           <span class="dot" class:online={broadcastRunning}></span>
           <span class="status-label">{broadcastRunning ? 'Running' : 'Stopped'}</span>
+          <label class="auto-check" title="Start Xbox broadcast automatically">
+            <input
+              type="checkbox"
+              checked={autostart?.enabled ?? false}
+              disabled={!canControl}
+              onchange={(event) =>
+                toggleAutostart((event.currentTarget as HTMLInputElement).checked)}
+            />
+            Auto-start
+          </label>
           <Button
             variant="secondary"
             size="sm"
@@ -139,15 +150,6 @@
           >
             {broadcastRunning ? 'Stop' : 'Start'}
           </Button>
-        </div>
-        <div class="row toggle-row">
-          <Toggle
-            checked={autostart?.enabled ?? false}
-            label="Start Xbox broadcast automatically"
-            disabled={!canControl}
-            onchange={toggleAutostart}
-          />
-          <span class="label">Auto-start with server</span>
         </div>
       {:else}
         <p class="hint">Set up in Edit Server → Broadcast</p>
@@ -162,17 +164,18 @@
   .console-access {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 8px;
   }
   .service {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
   .row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
   }
   .dot {
     width: 6px;
@@ -189,12 +192,21 @@
     font-size: 11px;
     color: var(--msc2-text-secondary);
   }
-  .toggle-row {
-    gap: 8px;
-  }
-  .label {
-    font-size: 11px;
+  .auto-check {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
     color: var(--msc2-text-secondary);
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .auto-check input {
+    width: 12px;
+    height: 12px;
+    margin: 0;
+    accent-color: var(--msc2-status-ok);
+    cursor: pointer;
   }
   .hint {
     margin: 0;

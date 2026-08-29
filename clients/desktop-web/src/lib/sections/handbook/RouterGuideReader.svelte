@@ -389,6 +389,7 @@
     padding: 12px 16px;
     border: none;
     background: transparent;
+    color: var(--msc2-text-primary);
     font: inherit;
     cursor: pointer;
   }
@@ -525,6 +526,7 @@
     padding: 10px 0;
     border: none;
     background: transparent;
+    color: var(--msc2-text-primary);
     font: inherit;
     cursor: pointer;
   }

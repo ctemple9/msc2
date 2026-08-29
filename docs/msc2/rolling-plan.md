@@ -1012,6 +1012,15 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16f: fix router guide text contrast and italicize remaining asides`
 **Batch:** solo
 
+### P12.16g — Fix the real black-text bug: raw `<button>` elements don't inherit color
+
+**Status:** DONE
+**Files:** `clients/desktop-web/src/lib/sections/handbook/{RouterGuideReader,RouterGuideTroubleshooting}.svelte`
+**What:** P12.16f's fix wasn't wrong, but it wasn't complete — Cameron pointed at one specific still-black spot ("Your Mac's local IP changed," a collapsed troubleshooting-topic title in the Reader's "Still not working?" section) and it exposed the actual mechanism: raw `<button>` elements do not inherit `color` from their ancestors by default (unlike every other element) — browsers apply their own UA-stylesheet button color instead (black, on this platform) — and `app.css`'s global reset only normalizes `font: inherit` for form controls, not `color`. Every button *that already set its own `color`* (`.guide-row`, `.generic-card`, `.step-check`, `.copy-btn`) was fine; the four that didn't (`.section-toggle`, `.topic-header` in the Reader; `.symptom-row`, `.cause-header` in Troubleshooting) silently fell back to black for any child text that also had no explicit color of its own (plain `msc2-type-card` spans — symptom titles, cause titles, topic titles). P12.16f's `:global(.msc2-type-meta)` color fix incidentally masked *some* of this (meta-classed text got a color from that rule, cascading in over the button's UA default), which is why only the `msc2-type-card`-classed titles were still visibly black. Fixed by adding `color: var(--msc2-text-primary)` directly to all four button classes, closing the actual gap rather than patching around it per-instance again. Not fixed globally in `app.css` (out of scope for this step; flagged here since the same latent gap likely affects any other raw `<button>` elsewhere in the codebase that doesn't set its own color).
+**Verify:** `npm run check` (same 5 pre-existing baseline errors, 0 new); `npm run test:unit` (same pre-existing 2 failing files, 0 new).
+**Commit:** `P12.16g: fix raw buttons not inheriting text color`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

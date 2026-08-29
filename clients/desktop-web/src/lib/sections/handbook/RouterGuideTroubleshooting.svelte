@@ -252,6 +252,7 @@
     padding: 10px 14px;
     border: none;
     background: transparent;
+    color: var(--msc2-text-primary);
     font: inherit;
     text-align: left;
     cursor: pointer;
@@ -311,6 +312,7 @@
     padding: 11px 14px;
     border: none;
     background: transparent;
+    color: var(--msc2-text-primary);
     font: inherit;
     text-align: left;
     cursor: pointer;

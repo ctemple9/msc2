@@ -758,6 +758,40 @@ world-slot portability guarantee.
 
 ---
 
+## D-031 — Native Playit credentials stay inside the host agent
+
+**Status:** **Approved** · **Origin:** Owner scope decision recorded for P12.20 · **Approved by:** Cameron Temple · **Date:** 2026-08-29
+
+**Context.** MSC 1's native Playit flow signs in, claims or reuses an agent,
+exchanges the claim for the permanent agent key, and provisions the tunnels
+from the app. In MSC 2 the client and the host can be different machines, so
+the client cannot safely become a second Playit API client or receive the
+long-lived key.
+
+**Decision.** The authenticated MSC agent owns all Playit provider calls. The
+email, password, and temporary Playit session are held in memory only for the
+setup operation; they are never persisted, logged, returned in an operation,
+or included in status/diagnostic data. Only the resulting agent key is saved,
+host-scoped, and disclosed through the boolean `hasSecretKey` status field.
+Two-factor accounts produce an explicit unsupported error. The host-local
+reset stops MSC-managed helpers first, clears the key, agent ID, addresses,
+and protected bridge/prompt state, is idempotent, and never deletes cloud-side
+Playit agents or tunnels.
+
+The setup and reset routes use the existing `networking` permission category,
+alongside Playit start/stop. Administrator credentials inherit access through
+the existing permission helper; no browser-side Playit API client is allowed.
+
+**Rationale.** This preserves MSC 1's native convenience while respecting
+MSC 2's single-owner principle and multi-host boundary. It also makes the
+destructive scope explicit: reset forgets this host's local integration, not
+the user's Playit account or cloud resources.
+
+**Revisit if:** Playit introduces a supported, safer delegated credential
+flow, or the host/client ownership boundary changes.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -784,6 +818,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.9 | 2026-08-29 | Added D-031: native Playit credentials stay inside the host agent, with memory-only sign-in state and host-local idempotent reset. |
 | 1.8 | 2026-08-28 | Added D-030: world-local profile ownership, server-wide runtime policy, and honest change timing classes. |
 | 1.7 | 2026-08-28 | D-029 added: client-only reset is separate from authenticated host reset, with configuration-only/full-delete modes and local-only service teardown. |
 | 1.6 | 2026-08-22 | D-007 and D-022 promoted to Approved, confirmed with the owner during the Phase 10 cross-check. D-028 added: Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred pending test hardware, recorded as "unavailable" in the D-022 matrix rather than omitted or claimed unsupported. |

@@ -1985,6 +1985,179 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/playit/setup": {
+      "post": {
+        "summary": "Start native Playit account and tunnel setup",
+        "description": "Accepts Playit email and password only through the authenticated MSC agent API. The agent signs in, claims or reuses the host's Playit agent, creates or reuses applicable tunnels, and reports progress through the shared operation routes. Credentials and temporary Playit session details are memory-only; the resulting agent key is stored in the host secret store and is never returned.",
+        "operationId": "setupPlayit",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlayitSetupRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Native setup accepted; operationId is populated and progress is available from GET /v1/operations/{id} or its stream.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitSetupAcceptedDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json / missing_email / missing_password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "403": {
+            "description": "forbidden (networking permission required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "forbidden"
+          },
+          "409": {
+            "description": "setup_in_progress / setup_unavailable / credential_store_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          }
+        },
+        "x-permission-category": "networking",
+        "x-authentication": "authenticated-bearer-or-browser-session-csrf",
+        "x-operation": {
+          "type": "playit-setup",
+          "target": null,
+          "states": [
+            "queued",
+            "running",
+            "succeeded",
+            "failed",
+            "cancelled"
+          ],
+          "progressStates": [
+            "signing_in",
+            "claiming_or_reusing_agent",
+            "waiting_for_agent",
+            "creating_or_reusing_java_tunnel",
+            "creating_or_reusing_bedrock_tunnel",
+            "creating_or_reusing_voice_tunnel",
+            "receiving_public_addresses"
+          ],
+          "cancellation": "POST /v1/operations/{id}/cancel; cooperative and truthful",
+          "cancelledState": "The operation is cancelled only after the agent stops at a safe boundary; no partial credential or session detail is returned."
+        },
+        "x-error-codes": [
+          "incorrect_credentials",
+          "account_banned",
+          "two_factor_required",
+          "rate_limited",
+          "agent_not_found",
+          "playit_api_error",
+          "credential_store_failed",
+          "setup_in_progress"
+        ],
+        "x-security-boundary": {
+          "credentials": "memory-only",
+          "passwordAndSession": "never-persisted-or-logged",
+          "agentKey": "stored-host-scoped-and-never-returned",
+          "browserApiClient": "forbidden",
+          "twoFactor": "explicit-two_factor_required-error"
+        },
+        "x-notes": "P12.20a freezes the native flow before P12.20c implements the provider transport. The transitional implementation may return setup_unavailable; it must not accept credentials as a paste-key shortcut or expose upstream Playit response details."
+      }
+    },
+    "/v1/playit/reset": {
+      "post": {
+        "summary": "Clear host-local Playit credentials and derived state",
+        "description": "Stops every MSC-managed Playit helper before clearing the host-scoped agent key, saved agent ID, public addresses, and setup prompt state. The operation is idempotent: an already-clear host returns success. It never deletes Playit cloud agents or tunnels.",
+        "operationId": "resetPlayit",
+        "responses": {
+          "200": {
+            "description": "Host-local state cleared or already clear",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlayitResetResultDTO"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "forbidden (networking permission required)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "forbidden"
+          },
+          "409": {
+            "description": "playit_reset_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          },
+          "500": {
+            "description": "playit_reset_failed while persisting cleared state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "networking",
+        "x-authentication": "authenticated-bearer-or-browser-session-csrf",
+        "x-reset-contract": {
+          "hostScoped": true,
+          "idempotent": true,
+          "stopsHelperBeforeClearing": true,
+          "clears": [
+            "host secret store key playit.secret-key",
+            "playitAgentId",
+            "playitJavaAddress",
+            "playitBedrockAddress",
+            "playitVoiceAddress",
+            "protected secret bridge and setup prompt state"
+          ],
+          "deletesCloudAgentsOrTunnels": false,
+          "responseContainsSecrets": false
+        }
+      }
+    },
     "/v1/playit/start": {
       "post": {
         "summary": "Start the Playit tunnel as a cancellable managed operation",
@@ -8026,6 +8199,77 @@
         "required": [
           "result"
         ]
+      },
+      "PlayitSetupRequestDTO": {
+        "type": "object",
+        "description": "Native Playit sign-in input. Both fields are write-only at the API boundary and are held in memory only while the setup operation is running.",
+        "properties": {
+          "email": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "email",
+          "password"
+        ],
+        "additionalProperties": false
+      },
+      "PlayitSetupAcceptedDTO": {
+        "type": "object",
+        "description": "Admission response for a native Playit setup operation. It contains no submitted credential, agent key, or provider session detail.",
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "setup_accepted"
+            ]
+          },
+          "operationId": {
+            "type": "string",
+            "description": "Opaque operation identifier for GET /v1/operations/{id} or the operation stream."
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "result",
+          "operationId"
+        ],
+        "additionalProperties": false
+      },
+      "PlayitResetResultDTO": {
+        "type": "object",
+        "description": "Non-secret result of clearing host-local Playit state. Repeating reset is successful and returns already_clear once no local state remains.",
+        "properties": {
+          "result": {
+            "type": "string",
+            "enum": [
+              "cleared",
+              "already_clear"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "operationId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "result"
+        ],
+        "additionalProperties": false
       },
       "BroadcastStatusDTO": {
         "type": "object",

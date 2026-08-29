@@ -33,7 +33,7 @@ import json
 import sys
 
 CONTRACT_PATH = "docs/msc2/api-contract/openapi.json"
-EXPECTED_TOTAL = 137  # The contract currently contains 133 operations before P12.19a; the historical additive breakdown in this comment predates later route additions. + 1 P12.19a (POST /v1/host/reset) + 3 P12.16a (GET /v1/guides/router/search, GET /v1/guides/router/{guideId}, POST /v1/guides/router/troubleshooting/analyze)
+EXPECTED_TOTAL = 141  # The contract currently contains 139 operations before P12.20a; the historical additive breakdown in this comment predates later route additions. + 2 P12.20a (POST /v1/playit/setup and POST /v1/playit/reset)
 
 # helpid-contract.md SS4's table: schema -> field(s) that must carry helpId.
 HELPID_FIELDS = {

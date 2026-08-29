@@ -17,10 +17,10 @@ use axum::{Json, Router, routing::post};
 use msc_api::dto::{
     BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
     BroadcastJarDownloadResultDto, BroadcastJarStatusDto, BroadcastSimpleResultDto,
-    BroadcastStatusDto, PermissionCategoryDto, PlayitActionResultDto, PlayitStatusDto,
-    ResourcePackActivateRequestDto, ResourcePackItemDto, ResourcePackMutationResultDto,
-    ResourcePackRemoveRequestDto, ResourcePackSetUrlRequestDto, ResourcePackToggleRequestDto,
-    ResourcePacksResponseDto,
+    BroadcastStatusDto, PermissionCategoryDto, PlayitActionResultDto, PlayitResetResultDto,
+    PlayitSetupRequestDto, PlayitStatusDto, ResourcePackActivateRequestDto, ResourcePackItemDto,
+    ResourcePackMutationResultDto, ResourcePackRemoveRequestDto, ResourcePackSetUrlRequestDto,
+    ResourcePackToggleRequestDto, ResourcePacksResponseDto,
 };
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{PlayitError, PlayitService};
@@ -32,6 +32,7 @@ use msc_domain::identity::ServerType;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::helper_acquisition::HelperAcquisitionError;
 use msc_infrastructure::jar_provider::HttpTransport;
+use msc_infrastructure::playit::PLAYIT_SECRET_KEY;
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::{config_repository, xbox_broadcast};
@@ -166,6 +167,8 @@ impl NetworkingState {
 pub fn router(state: NetworkingState) -> Router {
     Router::new()
         .route("/playit", axum::routing::get(playit_status))
+        .route("/playit/setup", post(playit_setup))
+        .route("/playit/reset", post(playit_reset))
         .route("/playit/start", post(playit_start))
         .route("/playit/stop", post(playit_stop))
         .route("/broadcast/status", axum::routing::get(broadcast_status))
@@ -232,6 +235,104 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         voice_address: state.lifecycle.app_config_snapshot().playit_voice_address,
         voice_chat_enabled: server.playit_voice_chat_enabled,
         note: None,
+    })
+    .into_response()
+}
+
+/// `POST /v1/playit/setup` is the authenticated boundary for native account
+/// provisioning. The outbound Playit client and operation worker land in
+/// P12.20c; until then, validate the request shape without accepting or
+/// retaining credentials as if setup had succeeded.
+pub async fn playit_setup(
+    State(_state): State<NetworkingState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<PlayitSetupRequestDto>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Networking) {
+        return response;
+    }
+    let Json(request) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    if request.email.trim().is_empty() {
+        return invalid_body("missing_email", "email is required.");
+    }
+    if request.password.is_empty() {
+        return invalid_body("missing_password", "password is required.");
+    }
+
+    // P12.20a freezes the wire and security boundary. Returning a structured
+    // unavailable response is truthful until P12.20c owns the provider calls
+    // and operation worker; it also guarantees this route never echoes the
+    // submitted credentials while the implementation is incomplete.
+    error_response(
+        StatusCode::CONFLICT,
+        "setup_unavailable",
+        "Native Playit setup is not available in this agent build.",
+    )
+}
+
+/// Clear host-local Playit state after requesting every currently managed
+/// helper to stop. The secret store delete is idempotent, and the cloud-side
+/// Playit agent and tunnels are deliberately untouched.
+pub async fn playit_reset(
+    State(state): State<NetworkingState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Networking) {
+        return response;
+    }
+
+    let mut services = state.playit.lock().expect("Playit service lock poisoned");
+    for service in services.values_mut() {
+        if matches!(
+            service.status().status,
+            HelperStatus::Running | HelperStatus::Starting
+        ) && let Err(error) = service.stop()
+        {
+            return helper_error_response(error.to_string(), "playit_reset_failed");
+        }
+    }
+    drop(services);
+
+    let had_secret = match state.secrets.get(PLAYIT_SECRET_KEY) {
+        Ok(value) => value.is_some_and(|secret| !secret.trim().is_empty()),
+        Err(error) => return helper_error_response(error.to_string(), "playit_reset_failed"),
+    };
+    if let Err(error) = state.secrets.delete(PLAYIT_SECRET_KEY) {
+        return helper_error_response(error.to_string(), "playit_reset_failed");
+    }
+    if state
+        .lifecycle
+        .try_mutate_config(|config| {
+            config.playit_agent_id = None;
+            config.playit_java_address = None;
+            config.playit_bedrock_address = None;
+            config.playit_voice_address = None;
+            for server in &mut config.servers {
+                server.svc_tunnel_prompt_dismissed = false;
+            }
+            Ok::<_, std::convert::Infallible>(())
+        })
+        .is_err()
+    {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "playit_reset_failed",
+            "Could not clear the saved Playit state.",
+        );
+    }
+
+    Json(PlayitResetResultDto {
+        result: if had_secret {
+            "cleared"
+        } else {
+            "already_clear"
+        }
+        .into(),
+        message: Some("Host-local Playit credentials and addresses were cleared.".into()),
+        operation_id: None,
     })
     .into_response()
 }

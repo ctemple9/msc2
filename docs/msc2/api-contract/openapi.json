@@ -6226,6 +6226,10 @@
           "stagedModpackUploadId": {
             "type": "string",
             "description": "A staged upload (purpose modpack-archive) already inspected via POST /v1/modpacks/inspect. When present, provisioning pins the loader/Minecraft version from the pack and applies its mod list as part of this same create operation (P8.21) -- MSC 1 has no separate create-from-pack primitive; this mirrors createNewServer + applyStagedAddOn composed into one durable operation instead of two."
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Acknowledgement token returned in a confirmation_required error for a Creative or other safety-sensitive world choice."
           }
         },
         "required": [
@@ -6814,6 +6818,10 @@
           },
           "profile": {
             "$ref": "#/components/schemas/WorldProfileDTO"
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Acknowledgement token returned in a confirmation_required error before applying a safety-sensitive profile change."
           }
         },
         "oneOf": [
@@ -6939,6 +6947,10 @@
           },
           "seed": {
             "type": "string"
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Acknowledgement token returned in a confirmation_required error before applying a safety-sensitive world choice."
           }
         },
         "required": [
@@ -6991,6 +7003,10 @@
         "properties": {
           "slotId": {
             "type": "string"
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Acknowledgement token returned in a confirmation_required error before activating a safety-sensitive world."
           }
         },
         "required": [
@@ -8287,6 +8303,10 @@
         "properties": {
           "command": {
             "type": "string"
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Acknowledgement token returned in a confirmation_required error before sending a Creative-changing command."
           }
         },
         "required": [
@@ -10349,6 +10369,10 @@
             "additionalProperties": {
               "type": "string"
             }
+          },
+          "confirmation": {
+            "type": "string",
+            "description": "Acknowledgement token returned in a confirmation_required error before applying the server-wide gamemode override."
           }
         },
         "required": [
@@ -10677,6 +10701,41 @@
               },
               "hostOs": {
                 "type": "string"
+              },
+              "confirmation": {
+                "type": "object",
+                "description": "Structured confirmation required before the requested safety-sensitive change may be applied.",
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "bedrock_achievements",
+                      "java_creative",
+                      "java_commands",
+                      "server_force_gamemode"
+                    ]
+                  },
+                  "scope": {
+                    "type": "string",
+                    "enum": ["world", "server"]
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "acknowledgement": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "scope",
+                  "title",
+                  "message",
+                  "acknowledgement"
+                ]
               }
             },
             "additionalProperties": true

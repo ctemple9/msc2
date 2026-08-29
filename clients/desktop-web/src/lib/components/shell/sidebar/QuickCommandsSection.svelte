@@ -17,6 +17,7 @@
   // resume branching client-side, exactly as MSC 1 does.
   import Select from '../../base/Select.svelte';
   import Toggle from '../../base/Toggle.svelte';
+  import { ApiError } from '../../../api/client';
   import type { Schema, ScreenApi } from '../../../sections/shared/types';
   import { call, errorMessage, mutate } from '../../../sections/shared/types';
 
@@ -55,7 +56,35 @@
   let gamemode = 'survival';
   let whitelistEnabled = false;
   let notice = '';
+  let confirmation: SafetyPrompt | undefined;
   let loadedForServerId: string | undefined;
+
+  type SafetyPrompt = {
+    token: string;
+    title: string;
+    message: string;
+    command: string;
+    restoreGamemode?: string;
+  };
+
+  function safetyPrompt(error: unknown): Omit<SafetyPrompt, 'command' | 'restoreGamemode'> | undefined {
+    if (!(error instanceof ApiError) || error.error.code !== 'confirmation_required') return;
+    const raw = (error.error.details as Record<string, unknown> | null | undefined)?.confirmation;
+    if (!raw || typeof raw !== 'object') return;
+    const prompt = raw as Record<string, unknown>;
+    if (
+      typeof prompt.acknowledgement !== 'string' ||
+      typeof prompt.title !== 'string' ||
+      typeof prompt.message !== 'string'
+    ) {
+      return;
+    }
+    return {
+      token: prompt.acknowledgement,
+      title: prompt.title,
+      message: prompt.message,
+    };
+  }
 
   $: tps = performance?.tps1m?.value;
   $: onlineCount = players?.count ?? 0;
@@ -80,11 +109,24 @@
     whitelistEnabled = fields.find((field) => field.key === 'white-list')?.value === 'true';
   }
 
-  async function sendCommand(command: string): Promise<void> {
+  async function sendCommand(
+    command: string,
+    confirmationToken?: string,
+    restoreGamemode?: string,
+  ): Promise<void> {
+    confirmation = undefined;
     try {
-      await mutate(api, '/v1/command', { command });
+      await mutate(api, '/v1/command', {
+        command,
+        ...(confirmationToken ? { confirmation: confirmationToken } : {}),
+      });
     } catch (error) {
-      notice = errorMessage(error);
+      const prompt = safetyPrompt(error);
+      if (prompt) {
+        confirmation = { ...prompt, command, restoreGamemode };
+      } else {
+        notice = errorMessage(error);
+      }
     }
   }
 
@@ -94,8 +136,20 @@
   }
 
   function applyGamemode(value: string): void {
+    const previous = gamemode;
     gamemode = value;
-    void sendCommand(`defaultgamemode ${value}`);
+    void sendCommand(`defaultgamemode ${value}`, undefined, previous);
+  }
+
+  function cancelConfirmation(): void {
+    if (confirmation?.restoreGamemode) gamemode = confirmation.restoreGamemode;
+    confirmation = undefined;
+  }
+
+  function confirmCommand(): void {
+    if (!confirmation) return;
+    const pending = confirmation;
+    void sendCommand(pending.command, pending.token, pending.restoreGamemode);
   }
 
   function setWhitelist(enabled: boolean): void {
@@ -190,6 +244,16 @@
     </div>
   </div>
 
+  {#if confirmation}
+    <div class="confirmation" role="alert">
+      <p class="confirmation-title">{confirmation.title}</p>
+      <p>{confirmation.message}</p>
+      <div class="confirmation-actions">
+        <button type="button" class="pill" onclick={cancelConfirmation}>Cancel</button>
+        <button type="button" class="pill" onclick={confirmCommand}>Continue</button>
+      </div>
+    </div>
+  {/if}
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 </div>
 
@@ -275,5 +339,27 @@
     margin: 0;
     font-size: 10px;
     color: var(--msc2-text-tertiary);
+  }
+  .confirmation {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 9px 10px;
+    border: 1px solid var(--msc2-hairline-strong);
+    border-radius: 7px;
+    color: var(--msc2-text-secondary);
+    font-size: 10px;
+    line-height: 1.45;
+  }
+  .confirmation p {
+    margin: 0;
+  }
+  .confirmation-title {
+    color: var(--msc2-text-primary);
+    font-weight: 600;
+  }
+  .confirmation-actions {
+    display: flex;
+    gap: 5px;
   }
 </style>

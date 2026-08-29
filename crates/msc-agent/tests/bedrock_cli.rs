@@ -22,6 +22,20 @@ fn bedrock_cli_exposes_players_and_allowlist() {
     );
 }
 
+#[test]
+fn safety_sensitive_cli_commands_expose_confirmation_tokens() {
+    let output = Command::new(env!("CARGO_BIN_EXE_msc"))
+        .args(["command", "--help"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    let help = String::from_utf8(output.stdout).unwrap();
+    assert!(
+        help.contains("--confirm"),
+        "missing command confirmation flag: {help}"
+    );
+}
+
 fn cli(url: &str, args: &[&str]) -> std::process::Output {
     Command::new(env!("CARGO_BIN_EXE_msc"))
         .args(["--base-url", url, "--token", "synthetic-token", "--json"])

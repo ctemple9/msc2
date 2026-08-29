@@ -20,27 +20,26 @@ use msc_api::dto::{
     BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
     BroadcastJarDownloadResultDto, BroadcastSimpleResultDto, BroadcastStatusDto, CapabilitiesDto,
     CatalogInstallRequestDto, CatalogInstallResultDto, CatalogSearchResponseDto,
-    ClientExportResponseDto, CommandRequestDto, CommandResultDto, ComponentUpdateRequestDto,
-    ConnectivityResponseDto, DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto,
-    HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto,
-    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
-    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
-    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
-    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
-    PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
+    ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto, ConnectivityResponseDto,
+    DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto, HealthProblemsResponseDto,
+    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto,
+    JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto,
+    JavaRuntimesResponseDto, ModpackImportRequestDto, ModpackImportResultDto,
+    ModpackInspectionRequestDto, ModpackInspectionResultDto, ModpackManualFileRequestDto,
+    ModpackManualFileResultDto, OperationDto, OperationStateDto, PlayitActionResultDto,
+    PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
     ResourcePackMutationResultDto, ResourcePacksResponseDto, ServerCreateRequestDto,
     ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
     ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
     ServerImportScanResponseDto, ServerRenameRequestDto, ServerRenameResultDto,
-    SettingsResponseDto, SettingsUpdateRequestDto, SettingsUpdateResultDto, SimpleResultDto,
-    StagedUploadBeginRequestDto, StagedUploadBeginResultDto, StagedUploadCompleteResultDto,
-    StagedUploadPurposeDto, TemplateMutationRequestDto, TemplateMutationResultDto,
-    TemplatesResponseDto, VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto,
-    WorldActivateRequestDto, WorldActivateResultDto, WorldConvertRequestDto, WorldConvertResultDto,
-    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
-    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto, WorldRenameRequestDto,
-    WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto, WorldReplaceRequestDto,
-    WorldSlotDto, WorldSlotsResponseDto,
+    SettingsResponseDto, SettingsUpdateResultDto, SimpleResultDto, StagedUploadBeginRequestDto,
+    StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
+    TemplateMutationRequestDto, TemplateMutationResultDto, TemplatesResponseDto,
+    VersionChangeRequestDto, VersionChangeResultDto, VersionsResponseDto, WorldActivateResultDto,
+    WorldConvertRequestDto, WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto,
+    WorldDuplicateRequestDto, WorldExportRequestDto, WorldExportResultDto, WorldImportRequestDto,
+    WorldMutationResultDto, WorldRenameRequestDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto,
 };
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
@@ -439,6 +438,10 @@ pub struct ServerCreateArgs {
     /// for creation to finish.
     #[arg(long)]
     no_wait: bool,
+    /// Acknowledgement token returned by the agent for a safety-sensitive
+    /// world choice, for example `bedrock_achievements`.
+    #[arg(long)]
+    confirm: Option<String>,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -625,6 +628,11 @@ pub struct CommandArgs {
 
     /// The exact console command to send.
     text: String,
+
+    /// Acknowledgement token returned by the agent for a safety-sensitive
+    /// command, for example `bedrock_achievements`.
+    #[arg(long)]
+    confirm: Option<String>,
 }
 
 #[derive(Debug, Clone, Subcommand)]
@@ -658,6 +666,11 @@ pub enum SettingsCommand {
         /// One or more `key=value` pairs, for example `max-players=42`.
         #[arg(required = true)]
         changes: Vec<String>,
+
+        /// Acknowledgement token returned by the agent for a safety-sensitive
+        /// setting change.
+        #[arg(long)]
+        confirm: Option<String>,
     },
 }
 
@@ -746,10 +759,26 @@ pub enum WorldCommand {
     /// the live world folders.
     Activate {
         slot_id: String,
+        /// Acknowledgement token returned by the agent for activating a
+        /// safety-sensitive world profile.
+        #[arg(long)]
+        confirm: Option<String>,
         /// Print the operation id and return immediately instead of
         /// waiting for activation to finish.
         #[arg(long)]
         no_wait: bool,
+    },
+    /// Update one or more world-profile fields as `key=value` pairs.
+    ProfileSet {
+        slot_id: String,
+        /// One or more profile changes, for example
+        /// `gameplay.default-game-mode=creative`.
+        #[arg(long = "change", required = true)]
+        changes: Vec<String>,
+        /// Acknowledgement token returned by the agent for a safety-sensitive
+        /// profile change.
+        #[arg(long)]
+        confirm: Option<String>,
     },
     /// Convert a slot to another server's edition/format via Chunker.
     /// Long-running and always operation-backed — there is no
@@ -859,7 +888,23 @@ impl CliError {
     fn api(status: StatusCode, body: &[u8]) -> Self {
         let text = String::from_utf8_lossy(body);
         let message = match serde_json::from_slice::<ErrorDto>(body) {
-            Ok(error) => format!("API {} {}: {}", status.as_u16(), error.code, error.message),
+            Ok(error) => {
+                let confirmation = error
+                    .details
+                    .as_ref()
+                    .and_then(|details| details.get("confirmation"))
+                    .and_then(|confirmation| confirmation.get("acknowledgement"))
+                    .and_then(serde_json::Value::as_str);
+                match confirmation {
+                    Some(token) => format!(
+                        "API {} {}: {} Re-run with --confirm {token}.",
+                        status.as_u16(),
+                        error.code,
+                        error.message
+                    ),
+                    None => format!("API {} {}: {}", status.as_u16(), error.code, error.message),
+                }
+            }
             Err(_) => format!("API {}: {}", status.as_u16(), text.trim()),
         };
         Self {
@@ -1234,6 +1279,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
         }
         ServerCommand::Create(args) => {
             let no_wait = args.no_wait;
+            let confirm = args.confirm.clone();
             let staged_modpack_upload_id = if let Some(path) = args.modpack.as_ref() {
                 Some(
                     stage_file_upload(
@@ -1271,8 +1317,14 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 java_path: args.java_path,
                 staged_modpack_upload_id,
             };
+            let mut request = serde_json::to_value(body).map_err(|error| {
+                CliError::internal(format!("failed to encode create request: {error}"))
+            })?;
+            if let Some(confirm) = confirm {
+                request["confirmation"] = serde_json::Value::String(confirm);
+            }
             let result: ServerCreateResultDto =
-                client.post_json("/v1/servers/create", &body).await?;
+                client.post_json("/v1/servers/create", &request).await?;
             if !common.json {
                 println!("{}", result.message);
                 if let Some(name) = &result.server_name {
@@ -1437,9 +1489,10 @@ async fn run_command(common: CommonArgs, args: CommandArgs) -> Result<(), CliErr
     if args.server.is_some() {
         ensure_active_server(&client, args.server.as_deref()).await?;
     }
-    let body = CommandRequestDto {
-        command: Some(args.text.clone()),
-    };
+    let mut body = serde_json::json!({ "command": args.text });
+    if let Some(confirm) = args.confirm {
+        body["confirmation"] = serde_json::Value::String(confirm);
+    }
     let result: CommandResultDto = client.post_json("/v1/command", &body).await?;
     if common.json {
         print_json(&result)?;
@@ -1787,7 +1840,11 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
             }
             Ok(())
         }
-        SettingsCommand::Set { server, changes } => {
+        SettingsCommand::Set {
+            server,
+            changes,
+            confirm,
+        } => {
             if server.is_some() {
                 ensure_active_server(&client, server.as_deref()).await?;
             }
@@ -1804,7 +1861,10 @@ async fn run_settings(common: CommonArgs, command: SettingsCommand) -> Result<()
                 }
                 parsed.insert(key.to_string(), value.trim().to_string());
             }
-            let body = SettingsUpdateRequestDto { changes: parsed };
+            let mut body = serde_json::json!({ "changes": parsed });
+            if let Some(confirm) = confirm {
+                body["confirmation"] = serde_json::Value::String(confirm);
+            }
             let result: SettingsUpdateResultDto = client.post_json("/v1/settings", &body).await?;
             if common.json {
                 print_json(&result)?;
@@ -1833,6 +1893,46 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             let result: WorldMutationResultDto =
                 client.post_json("/v1/worlds/create", &body).await?;
             print_world_mutation_result(common.json, &result)
+        }
+        WorldCommand::ProfileSet {
+            slot_id,
+            changes,
+            confirm,
+        } => {
+            let mut parsed = serde_json::Map::new();
+            for change in changes {
+                let (key, value) = change.split_once('=').ok_or_else(|| {
+                    CliError::usage(format!(
+                        "invalid profile change {change:?}; expected key=value"
+                    ))
+                })?;
+                let key = key.trim();
+                if key.is_empty() {
+                    return Err(CliError::usage(format!(
+                        "invalid profile change {change:?}; key cannot be empty"
+                    )));
+                }
+                let value = value.trim();
+                let parsed_value = match value {
+                    "true" => serde_json::Value::Bool(true),
+                    "false" => serde_json::Value::Bool(false),
+                    _ => serde_json::Value::String(value.to_string()),
+                };
+                parsed.insert(key.to_string(), parsed_value);
+            }
+            let mut body = serde_json::json!({ "changes": parsed });
+            if let Some(confirm) = confirm {
+                body["confirmation"] = serde_json::Value::String(confirm);
+            }
+            let result: serde_json::Value = client
+                .post_json(&format!("/v1/worlds/{slot_id}/profile"), &body)
+                .await?;
+            if common.json {
+                print_json(&result)?;
+            } else {
+                println!("{}", result["message"].as_str().unwrap_or("Profile saved."));
+            }
+            Ok(())
         }
         WorldCommand::Rename { slot_id, name } => {
             let body = WorldRenameRequestDto { slot_id, name };
@@ -1955,8 +2055,15 @@ async fn run_world(common: CommonArgs, command: WorldCommand) -> Result<(), CliE
             }
             Ok(())
         }
-        WorldCommand::Activate { slot_id, no_wait } => {
-            let body = WorldActivateRequestDto { slot_id };
+        WorldCommand::Activate {
+            slot_id,
+            confirm,
+            no_wait,
+        } => {
+            let mut body = serde_json::json!({ "slotId": slot_id });
+            if let Some(confirm) = confirm {
+                body["confirmation"] = serde_json::Value::String(confirm);
+            }
             let result: WorldActivateResultDto =
                 client.post_json("/v1/worlds/activate", &body).await?;
             finish_operation(

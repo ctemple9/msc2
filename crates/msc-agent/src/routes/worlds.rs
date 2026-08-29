@@ -52,15 +52,15 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use msc_api::dto::{
-    PermissionCategoryDto, StagedUploadPurposeDto, WorldActivateRequestDto, WorldActivateResultDto,
-    WorldConvertFormatsResponseDto, WorldConvertRequestDto, WorldConvertResultDto,
-    WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
-    WorldExportResultDto, WorldGameplayDto, WorldGenerationDto, WorldIdentityDto,
-    WorldImportRequestDto, WorldMutationResultDto, WorldProfileDto, WorldProfileFieldMetadataDto,
-    WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
-    WorldRepairResultDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
-    WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto, WorldSlotWithProfileDto,
-    WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
+    ErrorDto, PermissionCategoryDto, StagedUploadPurposeDto, WorldActivateRequestDto,
+    WorldActivateResultDto, WorldConvertFormatsResponseDto, WorldConvertRequestDto,
+    WorldConvertResultDto, WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto,
+    WorldExportRequestDto, WorldExportResultDto, WorldGameplayDto, WorldGenerationDto,
+    WorldIdentityDto, WorldImportRequestDto, WorldMutationResultDto, WorldProfileDto,
+    WorldProfileFieldMetadataDto, WorldRenameActiveWorldRequestDto, WorldRenameRequestDto,
+    WorldRepairRequestDto, WorldRepairResultDto, WorldReplaceActiveRequestDto,
+    WorldReplaceActiveResultDto, WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto,
+    WorldSlotWithProfileDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -71,6 +71,7 @@ use msc_application::world_conversion::{
     self, ConversionError, ConversionPlacement, WorldConverter,
 };
 use msc_application::world_repair::{RepairServerControl, WorldRepairError, repair_world};
+use msc_application::world_safety::{self, SafetyConfirmation};
 use msc_application::worlds::{self, WorldError, WorldReplaceSource};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
@@ -735,6 +736,16 @@ pub async fn update_profile(
             return invalid_body("invalid_body", &message);
         }
     }
+    let confirmation = body
+        .get("confirmation")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    if let Some(required) =
+        world_safety::confirmation_for_profile_changes(server.server_type, &changes)
+        && !world_safety::is_confirmed(required, confirmation.as_deref())
+    {
+        return confirmation_required_response(required);
+    }
 
     let active = resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str());
     let running = state.lifecycle.status_snapshot().running;
@@ -825,6 +836,19 @@ pub async fn update_profile(
         changes: response_changes,
     })
     .into_response()
+}
+
+fn confirmation_required_response(required: SafetyConfirmation) -> Response {
+    (
+        StatusCode::CONFLICT,
+        Json(ErrorDto {
+            code: "confirmation_required".to_string(),
+            message: required.message().to_string(),
+            help_id: None,
+            details: Some(required.details()),
+        }),
+    )
+        .into_response()
 }
 
 fn mutation_ok(state: &LifecycleRoutesState, server: &ConfigServer, message: &str) -> Response {
@@ -1949,14 +1973,22 @@ pub async fn download_staged_bytes(
 pub async fn activate(
     State(state): State<WorldsRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
-    body: Option<Json<WorldActivateRequestDto>>,
+    body: Option<Json<serde_json::Value>>,
 ) -> Response {
     let lifecycle = state.lifecycle.clone();
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
         return response;
     }
-    let Some(Json(body)) = body else {
+    let Some(Json(raw_body)) = body else {
         return invalid_body("invalid_json", "Request body must be valid JSON.");
+    };
+    let confirmation = raw_body
+        .get("confirmation")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let body = match serde_json::from_value::<WorldActivateRequestDto>(raw_body) {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_body", "Request body must be a world object."),
     };
     let server = match active_server_or_response(&lifecycle) {
         Ok(server) => server,
@@ -1973,6 +2005,13 @@ pub async fn activate(
             "server_running_or_slot_not_found",
         );
     };
+    let profile = world_store::load_profile(&StdFileSystem, &server_dir, &slot);
+    if let Some(required) =
+        world_safety::confirmation_for_world_profile(server.server_type, &profile)
+        && !world_safety::is_confirmed(required, confirmation.as_deref())
+    {
+        return confirmation_required_response(required);
+    }
     let operation_id = match begin_operation(
         &lifecycle,
         &server.id,
@@ -3196,9 +3235,7 @@ mod tests {
         let response = activate(
             State(state.clone()),
             Extension(credential.clone()),
-            Some(Json(WorldActivateRequestDto {
-                slot_id: slot_id.clone(),
-            })),
+            Some(Json(serde_json::json!({ "slotId": slot_id.clone() }))),
         )
         .await;
         assert_eq!(response.status(), StatusCode::OK);

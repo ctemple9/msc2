@@ -13,10 +13,11 @@ use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
-    PermissionCategoryDto, ServerCreateRequestDto, ServerCreateResultDto, ServerDeleteRequestDto,
-    ServerDeleteResultDto, ServerDto, ServerEulaRequestDto, ServerEulaResultDto,
-    ServerImportRequestDto, ServerImportResultDto, ServerImportScanResponseDto,
-    ServerImportWorldDto, ServerRenameRequestDto, ServerRenameResultDto,
+    ErrorDto, PermissionCategoryDto, ServerCreateRequestDto, ServerCreateResultDto,
+    ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto, ServerEulaRequestDto,
+    ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
+    ServerImportScanResponseDto, ServerImportWorldDto, ServerRenameRequestDto,
+    ServerRenameResultDto,
 };
 use msc_application::fleet::{self, AcceptEulaError, DeleteServerError, RenameServerError};
 use msc_application::import::{
@@ -32,6 +33,7 @@ use msc_application::transfer::{
     TransferApplyRequest, TransferApplyResult, TransferExportRequest, TransferExportServerInput,
     TransferInspection, apply_transfer_import, export_server_transfer, inspect_transfer_package,
 };
+use msc_application::world_safety::{self, SafetyConfirmation};
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::{JavaServerFlavor, ServerProvisioningKind, ServerType};
 use msc_domain::operation::OperationId;
@@ -1145,14 +1147,22 @@ pub async fn create(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
     Extension(staging): Extension<StagingStore>,
-    body: Result<Json<ServerCreateRequestDto>, JsonRejection>,
+    body: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
         return response;
     }
-    let Json(body) = match body {
+    let Json(raw_body) = match body {
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let confirmation = raw_body
+        .get("confirmation")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let body = match serde_json::from_value::<ServerCreateRequestDto>(raw_body) {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_body", "Request body must be a server object."),
     };
 
     let Some(safe_name) = msc_domain::provisioning::trimmed_server_name(&body.name) else {
@@ -1168,6 +1178,12 @@ pub async fn create(
             }
         },
     };
+    if let Some(required) =
+        world_safety::confirmation_for_server_creation(server_type, body.gamemode.as_deref())
+        && !world_safety::is_confirmed(required, confirmation.as_deref())
+    {
+        return confirmation_required_response(required);
+    }
     if server_type == ServerType::Bedrock {
         let port = match body.port.unwrap_or(19132).try_into() {
             Ok(port) if port > 0 => port,
@@ -1366,6 +1382,19 @@ pub async fn create(
         runtime: None,
     })
     .into_response()
+}
+
+fn confirmation_required_response(required: SafetyConfirmation) -> Response {
+    (
+        StatusCode::CONFLICT,
+        Json(ErrorDto {
+            code: "confirmation_required".to_string(),
+            message: required.message().to_string(),
+            help_id: None,
+            details: Some(required.details()),
+        }),
+    )
+        .into_response()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2984,7 +3013,7 @@ mod tests {
             State(state.clone()),
             Extension(transfer_credential()),
             Extension(staging),
-            Ok(Json(body)),
+            Ok(Json(serde_json::to_value(body).unwrap())),
         )
         .await
     }

@@ -2,7 +2,7 @@
 //! offline: it proves the shared Bedrock route names are represented by the
 //! agent's public surface without requiring a live BDS process.
 
-use serde_json::json;
+use serde_json::{Value, json};
 use std::process::Command;
 
 #[path = "support/bedrock_smoke.rs"]
@@ -21,6 +21,27 @@ fn bedrock_public_surface_is_advertised() {
         help.contains("bedrock"),
         "missing Bedrock CLI surface: {help}"
     );
+}
+
+#[test]
+fn safety_confirmation_is_part_of_the_shared_api_contract() {
+    let contract: Value =
+        serde_json::from_str(include_str!("../../../docs/msc2/api-contract/openapi.json")).unwrap();
+    let schemas = &contract["components"]["schemas"];
+    for schema in [
+        "CommandRequest",
+        "SettingsUpdateRequestDTO",
+        "WorldCreateRequestDTO",
+        "WorldActivateRequestDTO",
+        "WorldProfileUpdateRequestDTO",
+        "ServerCreateRequestDTO",
+    ] {
+        assert!(
+            schemas[schema]["properties"]["confirmation"].is_object(),
+            "{schema}"
+        );
+    }
+    assert!(schemas["ErrorDTO"]["properties"]["details"]["properties"]["confirmation"].is_object());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

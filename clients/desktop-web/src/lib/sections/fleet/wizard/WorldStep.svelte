@@ -149,6 +149,14 @@
       </section>
     </div>
 
+    {#if draft.worldGamemode === 'creative'}
+      <p class="safety-note">
+        Creative is a deliberate safety change. The agent will explain the impact and require an
+        acknowledgement before it can be applied; on Bedrock, achievements may be permanently
+        disabled for this world.
+      </p>
+    {/if}
+
     <section class="block">
       <p class="msc2-type-overline">Seed</p>
       <Field bind:value={draft.worldSeed} placeholder="Optional" width="200px" />
@@ -212,6 +220,16 @@
   }
   .hint.warn {
     color: var(--msc2-status-warn);
+  }
+  .safety-note {
+    max-width: 520px;
+    margin: -6px 0 0;
+    padding: 9px 11px;
+    border: 1px solid var(--msc2-hairline-strong);
+    border-radius: 7px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--msc2-text-secondary);
   }
 
   .hidden-input {

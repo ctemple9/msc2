@@ -26,9 +26,10 @@ use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
-    PermissionCategoryDto, SettingFieldDto, SettingOptionDto, SettingRejectionDto,
+    ErrorDto, PermissionCategoryDto, SettingFieldDto, SettingOptionDto, SettingRejectionDto,
     SettingsResponseDto, SettingsSectionDto, SettingsUpdateRequestDto, SettingsUpdateResultDto,
 };
+use msc_application::world_safety::{self, SafetyConfirmation};
 use msc_domain::identity::ServerType;
 use msc_domain::properties::ServerPropertiesModel;
 use msc_domain::settings_schema;
@@ -52,21 +53,51 @@ pub async fn get_settings(State(state): State<LifecycleRoutesState>) -> Json<Set
 pub async fn update_settings(
     State(state): State<LifecycleRoutesState>,
     Extension(credential): Extension<AuthenticatedCredential>,
-    body: Result<Json<SettingsUpdateRequestDto>, JsonRejection>,
+    body: Result<Json<serde_json::Value>, JsonRejection>,
 ) -> Response {
     if let Some(response) = require_permission(&credential, PermissionCategoryDto::Settings) {
         return response;
     }
 
-    let Json(body) = match body {
+    let Json(raw_body) = match body {
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let confirmation = raw_body
+        .get("confirmation")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned);
+    let body = match serde_json::from_value::<SettingsUpdateRequestDto>(raw_body) {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_body", "Request body must be a settings object."),
     };
     if body.changes.is_empty() {
         return invalid_body("no_changes", "changes must include at least one key.");
     }
 
+    if let Some(required) = body
+        .changes
+        .iter()
+        .find_map(|(key, value)| world_safety::confirmation_for_server_setting(key, value))
+        && !world_safety::is_confirmed(required, confirmation.as_deref())
+    {
+        return confirmation_required_response(required);
+    }
+
     apply_settings_update(&state, &StdFileSystem, &body.changes)
+}
+
+fn confirmation_required_response(required: SafetyConfirmation) -> Response {
+    (
+        StatusCode::CONFLICT,
+        Json(ErrorDto {
+            code: "confirmation_required".to_string(),
+            message: required.message().to_string(),
+            help_id: None,
+            details: Some(required.details()),
+        }),
+    )
+        .into_response()
 }
 
 fn active_server_directory(state: &LifecycleRoutesState) -> Option<(String, String)> {

@@ -45,6 +45,7 @@
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
+  import { ApiError } from '../../api/client';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
   import { demoSettings } from './model';
@@ -67,7 +68,33 @@
   let notice = '';
   let rejected: Schema['SettingRejectionDTO'][] = [];
   let saving = false;
+  let confirmation: SafetyPrompt | undefined;
   let lastServerId: string | undefined;
+
+  type SafetyPrompt = {
+    token: string;
+    title: string;
+    message: string;
+  };
+
+  function safetyPrompt(error: unknown): SafetyPrompt | undefined {
+    if (!(error instanceof ApiError) || error.error.code !== 'confirmation_required') return;
+    const raw = (error.error.details as Record<string, unknown> | null | undefined)?.confirmation;
+    if (!raw || typeof raw !== 'object') return;
+    const prompt = raw as Record<string, unknown>;
+    if (
+      typeof prompt.acknowledgement !== 'string' ||
+      typeof prompt.title !== 'string' ||
+      typeof prompt.message !== 'string'
+    ) {
+      return;
+    }
+    return {
+      token: prompt.acknowledgement,
+      title: prompt.title,
+      message: prompt.message,
+    };
+  }
 
   function snapshot(sections: Schema['SettingsSectionDTO'][]): Record<string, string> {
     const next: Record<string, string> = {};
@@ -102,12 +129,14 @@
     return parts.join(' ');
   }
 
-  async function save(): Promise<void> {
+  async function save(confirmationToken?: string): Promise<void> {
     if (!dirty) return;
     saving = true;
+    confirmation = undefined;
     try {
       const result = await mutate<Schema['SettingsUpdateResultDTO']>(api, '/v1/settings', {
         changes,
+        ...(confirmationToken ? { confirmation: confirmationToken } : {}),
       });
       if (result.sections) settings = { ...settings, sections: result.sections };
       original = snapshot(settings.sections);
@@ -115,7 +144,8 @@
       rejected = result.rejected ?? [];
       notice = summarize(result);
     } catch (error) {
-      notice = errorMessage(error);
+      confirmation = safetyPrompt(error);
+      if (!confirmation) notice = errorMessage(error);
     } finally {
       saving = false;
     }
@@ -142,6 +172,20 @@
   <p class="hint">Changes in this tab stay local until you click Save Changes.</p>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
+  {#if confirmation}
+    <div class="confirmation" role="alert">
+      <p class="confirmation-title">{confirmation.title}</p>
+      <p>{confirmation.message}</p>
+      <div class="confirmation-actions">
+        <Button size="sm" variant="secondary" onclick={() => (confirmation = undefined)}>
+          Cancel
+        </Button>
+        <Button size="sm" variant="primary" onclick={() => void save(confirmation?.token)}>
+          Continue
+        </Button>
+      </div>
+    </div>
+  {/if}
   {#if rejected.length}
     <ul class="rejected">
       {#each rejected as item (item.key)}<li>{item.key}: {item.reason}</li>{/each}
@@ -193,6 +237,9 @@
                   {#if field.unit}<span class="unit">{field.unit}</span>{/if}
                 {:else}
                   <Field bind:value={draft[field.key]} width="260px" />
+                {/if}
+                {#if field.key === 'force-gamemode'}
+                  <span class="field-hint">Applies to every world and can override saved defaults.</span>
                 {/if}
               </div>
             </div>
@@ -274,8 +321,16 @@
   }
   .control {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 8px;
+  }
+  .field-hint {
+    max-width: 260px;
+    font-size: 10px;
+    line-height: 1.4;
+    text-align: right;
+    color: var(--msc2-text-tertiary);
   }
   .unit {
     font-size: 11px;
@@ -284,6 +339,29 @@
   .footer-actions {
     display: flex;
     justify-content: space-between;
+    gap: 8px;
+  }
+  .confirmation {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--msc2-hairline-strong);
+    border-radius: 8px;
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .confirmation p {
+    margin: 0;
+  }
+  .confirmation-title {
+    color: var(--msc2-text-primary);
+    font-weight: 600;
+  }
+  .confirmation-actions {
+    display: flex;
+    justify-content: flex-end;
     gap: 8px;
   }
 </style>

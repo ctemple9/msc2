@@ -3,6 +3,10 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     ServerId,
 };
+use msc_application::world_safety::{
+    ConfirmationKind, SafetyConfirmation, confirmation_for_command, confirmation_for_server_setting,
+};
+use msc_domain::identity::ServerType;
 use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::process::{FakeProcessSupervisor, ProcessSpawnRequest};
 use serde_json::Value;
@@ -163,4 +167,26 @@ fn command_input_stopped_server_refuses_command() {
 
     assert_eq!(error, LifecycleError::ServerNotRunning);
     assert!(process.spawned_requests().is_empty());
+}
+
+#[test]
+fn world_safety_confirmation_contract_distinguishes_bedrock_and_server_scope() {
+    let bedrock = confirmation_for_command(ServerType::Bedrock, "gamemode creative")
+        .expect("Creative commands need a Bedrock warning");
+    let override_confirmation = confirmation_for_server_setting("force-gamemode", "true")
+        .expect("override needs a warning");
+
+    assert_eq!(bedrock.kind, ConfirmationKind::BedrockAchievements);
+    assert_eq!(bedrock.kind.scope(), "world");
+    assert_eq!(
+        override_confirmation.kind,
+        ConfirmationKind::ServerForceGamemode
+    );
+    assert_eq!(override_confirmation.kind.scope(), "server");
+    assert!(!msc_application::world_safety::is_confirmed(
+        SafetyConfirmation {
+            kind: ConfirmationKind::BedrockAchievements,
+        },
+        Some("server_force_gamemode")
+    ));
 }

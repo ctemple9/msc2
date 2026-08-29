@@ -39,5 +39,6 @@ pub mod templates;
 pub mod transfer;
 pub mod world_conversion;
 pub mod world_repair;
+pub mod world_safety;
 pub mod worlds;
 pub mod xbox_broadcast;

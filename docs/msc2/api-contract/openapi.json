@@ -4141,6 +4141,7 @@
     "/v1/settings": {
       "get": {
         "summary": "Typed server.properties schema for the active server, as sections of fields",
+        "x-notes": "P12.23 ownership boundary: this response is the server-profile surface. World-local values belong to WorldProfileDTO attached to a WorldSlot; agents during the compatibility window may still expose difficulty, gamemode, or other legacy world projections here, but clients must not treat those projections as the source of truth.",
         "responses": {
           "200": {
             "description": "Typed server.properties schema for the active server, as sections of fields",
@@ -4157,6 +4158,7 @@
       },
       "post": {
         "summary": "Apply a sparse set of settings changes (key -> string value), validated and clamped per field",
+        "x-notes": "P12.23 ownership boundary: new world-profile writes use the slot-owned world profile surface. This legacy route continues to accept its baseline mixed keys during the compatibility window; an accepted world-looking key is a projection update until P12.25 moves it to the profile application path.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6426,6 +6428,7 @@
       },
       "WorldSlotDTO": {
         "type": "object",
+        "description": "Legacy slot summary. A detailed slot response pairs this summary with WorldProfileDTO; P12.24 begins emitting the profile after safe metadata migration.",
         "properties": {
           "id": {
             "type": "string"
@@ -6455,6 +6458,239 @@
           "isActive",
           "createdAt",
           "hasThumbnail"
+        ]
+      },
+      "WorldSlotWithProfileDTO": {
+        "type": "object",
+        "description": "A world slot together with the versioned profile that travels with it. The profile is slot-owned; it is not duplicated in SettingsResponseDTO.",
+        "properties": {
+          "slot": {
+            "$ref": "#/components/schemas/WorldSlotDTO"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/WorldProfileDTO"
+          }
+        },
+        "required": [
+          "slot",
+          "profile"
+        ]
+      },
+      "WorldProfileDTO": {
+        "type": "object",
+        "description": "The world-local source of truth for one WorldSlot. This object is versioned independently from the server profile so a client can degrade when a runtime adds a field it does not know.",
+        "properties": {
+          "schemaVersion": {
+            "type": "integer",
+            "description": "World profile schema version. Version 1 is the initial MSC 2 shape."
+          },
+          "identity": {
+            "$ref": "#/components/schemas/WorldIdentityDTO"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/WorldGenerationDTO"
+          },
+          "gameplay": {
+            "$ref": "#/components/schemas/WorldGameplayDTO"
+          },
+          "safety": {
+            "$ref": "#/components/schemas/WorldSafetyDTO"
+          },
+          "fieldMetadata": {
+            "type": "object",
+            "description": "Metadata keyed by stable profile field key. It tells clients which capability gates the field, when a change takes effect, how confidently the value was read, and where to find the explanation.",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/WorldProfileFieldMetadataDTO"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "identity",
+          "generation",
+          "gameplay",
+          "safety",
+          "fieldMetadata"
+        ]
+      },
+      "WorldIdentityDTO": {
+        "type": "object",
+        "description": "Identity that belongs to one slot, not to every server world.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true,
+            "description": "MSC display name for the slot."
+          },
+          "levelName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Minecraft level/folder name used when the slot is active."
+          },
+          "seed": {
+            "type": "string",
+            "nullable": true,
+            "description": "Seed used for generation when this world is first created."
+          }
+        },
+        "required": []
+      },
+      "WorldGenerationDTO": {
+        "type": "object",
+        "description": "World generation choices. Creation-only values are retained even when the generated world can no longer safely change them.",
+        "properties": {
+          "worldType": {
+            "type": "string",
+            "nullable": true
+          },
+          "flatPreset": {
+            "type": "string",
+            "nullable": true
+          },
+          "structures": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "biomeSource": {
+            "type": "string",
+            "nullable": true
+          },
+          "generatorOptions": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opaque generator-options payload retained for round-trip safety."
+          },
+          "bonusChest": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "dataPacks": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "dataPacks"
+        ]
+      },
+      "WorldGameplayDTO": {
+        "type": "object",
+        "description": "Persistent gameplay choices for the selected world. Gamerules, experiments, and supported toggles are open maps so newer keys are not silently discarded.",
+        "properties": {
+          "difficulty": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultGameMode": {
+            "type": "string",
+            "nullable": true
+          },
+          "hardcore": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "commands": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Java allow-commands state for the world."
+          },
+          "gamerules": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "cheats": {
+            "type": "boolean",
+            "nullable": true,
+            "description": "Bedrock cheat state."
+          },
+          "experiments": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "coordinates": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "startingMap": {
+            "type": "boolean",
+            "nullable": true
+          },
+          "supportedToggles": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "description": "Edition-specific gameplay toggles advertised by the agent."
+          }
+        },
+        "required": [
+          "gamerules",
+          "experiments",
+          "supportedToggles"
+        ]
+      },
+      "WorldSafetyDTO": {
+        "type": "object",
+        "description": "Detected safety state for the world. Known state values are safe, achievement_disabled, unknown, and unsupported.",
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "state",
+          "reasons"
+        ]
+      },
+      "WorldProfileFieldMetadataDTO": {
+        "type": "object",
+        "description": "Capability and teaching metadata for one world-profile field.",
+        "properties": {
+          "capability": {
+            "type": "string",
+            "description": "Capability key supplied by the agent for this field."
+          },
+          "lifecycle": {
+            "type": "string",
+            "enum": [
+              "creation_only",
+              "apply_on_activation",
+              "live_safe",
+              "restart_required"
+            ]
+          },
+          "valueState": {
+            "type": "string",
+            "enum": [
+              "configured",
+              "detected",
+              "unknown",
+              "unsupported",
+              "achievement_disabled"
+            ]
+          },
+          "helpId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Agent-served explanation resolved through GET /v1/help/{helpId}."
+          }
+        },
+        "required": [
+          "capability",
+          "lifecycle",
+          "valueState"
         ]
       },
       "WorldSlotsResponseDTO": {

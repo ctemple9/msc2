@@ -10,7 +10,13 @@
 //! fixtures (MSC 1's `ServerSettingsSchemaTests.swift` only covers Java) so
 //! it stays unported too.
 
+//! The ownership helpers below are deliberately separate from `apply_java`:
+//! MSC 1's compatibility-shaped settings route still accepts the old mixed
+//! key set, while P12.25 will move world-owned values to the slot profile and
+//! leave this schema focused on server-owned settings.
+
 use crate::properties::{LevelType, ServerDifficulty, ServerGamemode, ServerPropertiesModel};
+use crate::world_profile::{SettingApplyPolicy, SettingContract, SettingOwner};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -53,6 +59,159 @@ pub fn level_from_token(s: &str) -> Option<LevelType> {
         "amplified" => Some(LevelType::Amplified),
         _ => None,
     }
+}
+
+fn server_contract(
+    apply_policy: SettingApplyPolicy,
+    capability: &'static str,
+    help_id: Option<&'static str>,
+) -> SettingContract {
+    SettingContract {
+        owner: SettingOwner::ServerProfile,
+        apply_policy,
+        capability,
+        help_id,
+    }
+}
+
+fn world_contract(
+    apply_policy: SettingApplyPolicy,
+    capability: &'static str,
+    help_id: Option<&'static str>,
+) -> SettingContract {
+    SettingContract {
+        owner: SettingOwner::WorldProfile,
+        apply_policy,
+        capability,
+        help_id,
+    }
+}
+
+/// Ownership and change policy for the Java keys that MSC 1 exposed through
+/// its mixed settings form. The values are the contract for the eventual
+/// split; `apply_java` remains unchanged for compatibility until P12.25.
+pub fn java_setting_contract(key: &str) -> Option<SettingContract> {
+    let contract = match key {
+        "difficulty" => world_contract(
+            SettingApplyPolicy::LiveSafe,
+            "world.common",
+            Some("settings.difficulty"),
+        ),
+        "gamemode" => world_contract(
+            SettingApplyPolicy::LiveSafe,
+            "world.common",
+            Some("concept.settings"),
+        ),
+        "level-type" => world_contract(
+            SettingApplyPolicy::CreationOnly,
+            "world.java",
+            Some("handbook.worlds-backups"),
+        ),
+        "hardcore" => world_contract(
+            SettingApplyPolicy::CreationOnly,
+            "world.java",
+            Some("concept.settings"),
+        ),
+        "motd" => server_contract(
+            SettingApplyPolicy::LiveSafe,
+            "server.settings",
+            Some("settings.motd"),
+        ),
+        "max-players" => server_contract(SettingApplyPolicy::LiveSafe, "server.capacity", None),
+        "online-mode" => server_contract(
+            SettingApplyPolicy::RestartRequired,
+            "server.access",
+            Some("settings.online-mode"),
+        ),
+        "server-port" => server_contract(
+            SettingApplyPolicy::RestartRequired,
+            "server.network",
+            Some("settings.server-port"),
+        ),
+        "pvp" | "spawn-monsters" | "spawn-animals" | "spawn-npcs" | "allow-flight" => {
+            server_contract(SettingApplyPolicy::LiveSafe, "server.runtime", None)
+        }
+        "allow-nether" => {
+            server_contract(SettingApplyPolicy::RestartRequired, "server.runtime", None)
+        }
+        "force-gamemode" => server_contract(SettingApplyPolicy::LiveSafe, "server.runtime", None),
+        "spawn-protection" => server_contract(
+            SettingApplyPolicy::LiveSafe,
+            "server.access",
+            Some("settings.spawn-protection"),
+        ),
+        "view-distance" | "simulation-distance" => {
+            server_contract(SettingApplyPolicy::LiveSafe, "server.visibility", None)
+        }
+        "white-list" | "enforce-whitelist" => {
+            server_contract(SettingApplyPolicy::LiveSafe, "server.access", None)
+        }
+        "player-idle-timeout" => server_contract(
+            SettingApplyPolicy::LiveSafe,
+            "server.players",
+            Some("settings.player-idle-timeout"),
+        ),
+        "op-permission-level" => {
+            server_contract(SettingApplyPolicy::LiveSafe, "server.players", None)
+        }
+        _ => return None,
+    };
+    Some(contract)
+}
+
+/// Ownership and change policy for Bedrock values. Some entries are not yet
+/// accepted by the compatibility validator, but naming them here prevents a
+/// future route from deciding ownership by whichever screen happens to render
+/// the value first.
+pub fn bedrock_setting_contract(key: &str) -> Option<SettingContract> {
+    let contract = match key {
+        "difficulty" | "gamemode" => world_contract(
+            SettingApplyPolicy::LiveSafe,
+            "world.common",
+            Some("settings.difficulty"),
+        ),
+        "allow-cheats" => world_contract(
+            SettingApplyPolicy::RestartRequired,
+            "world.bedrock",
+            Some("concept.settings"),
+        ),
+        "level-name" => world_contract(
+            SettingApplyPolicy::ApplyOnActivation,
+            "world.identity",
+            Some("handbook.worlds-backups"),
+        ),
+        "level-seed" | "level-type" | "bonus-chest" | "starting-map" => world_contract(
+            SettingApplyPolicy::CreationOnly,
+            "world.bedrock",
+            Some("handbook.worlds-backups"),
+        ),
+        "experiments" => world_contract(
+            SettingApplyPolicy::RestartRequired,
+            "world.bedrock",
+            Some("concept.settings"),
+        ),
+        "show-coordinates" => world_contract(
+            SettingApplyPolicy::LiveSafe,
+            "world.bedrock",
+            Some("concept.settings"),
+        ),
+        "max-players" => server_contract(SettingApplyPolicy::LiveSafe, "server.capacity", None),
+        "online-mode" => server_contract(
+            SettingApplyPolicy::RestartRequired,
+            "server.access",
+            Some("settings.online-mode"),
+        ),
+        "server-port" | "server-portv6" => server_contract(
+            SettingApplyPolicy::RestartRequired,
+            "server.network",
+            Some("settings.server-port"),
+        ),
+        "force-gamemode" | "default-player-permission-level" => {
+            server_contract(SettingApplyPolicy::LiveSafe, "server.runtime", None)
+        }
+        _ => return None,
+    };
+    Some(contract)
 }
 
 /// Mutates `m` with the provided string changes. Ints clamp to their range,

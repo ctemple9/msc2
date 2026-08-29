@@ -2,6 +2,109 @@
 //! (P6.8) and ported here verbatim (`docs/msc2/worlds/phase6-api.md`).
 
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
+
+/// A slot-local profile is intentionally a nested object rather than another
+/// group of world-looking fields on `SettingsResponseDto`. The profile is
+/// attached to a slot when persistence/readback lands in P12.24; this step
+/// freezes its wire shape without inventing values for legacy slots.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldProfileDto {
+    pub schema_version: u32,
+    pub identity: WorldIdentityDto,
+    pub generation: WorldGenerationDto,
+    pub gameplay: WorldGameplayDto,
+    pub safety: WorldSafetyDto,
+    pub field_metadata: BTreeMap<String, WorldProfileFieldMetadataDto>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldIdentityDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub level_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub seed: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldGenerationDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_type: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub flat_preset: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub structures: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub biome_source: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generator_options: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bonus_chest: Option<bool>,
+    #[serde(default)]
+    pub data_packs: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldGameplayDto {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub difficulty: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default_game_mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hardcore: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commands: Option<bool>,
+    #[serde(default)]
+    pub gamerules: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cheats: Option<bool>,
+    #[serde(default)]
+    pub experiments: BTreeMap<String, bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coordinates: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub starting_map: Option<bool>,
+    #[serde(default)]
+    pub supported_toggles: BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldSafetyDto {
+    /// Known values are `safe`, `achievement_disabled`, `unknown`, and
+    /// `unsupported`; this remains a string so a newer agent can add a
+    /// safety state without making an older client reject the whole profile.
+    pub state: String,
+    #[serde(default)]
+    pub reasons: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorldProfileFieldMetadataDto {
+    /// Capability key the client should use when deciding whether the field
+    /// is meaningful for this edition/version/flavor.
+    pub capability: String,
+    pub lifecycle: String,
+    pub value_state: String,
+    #[serde(rename = "helpId", default, skip_serializing_if = "Option::is_none")]
+    pub help_id: Option<String>,
+}
+
+/// Future detailed slot shape: the existing slot summary plus the profile
+/// that travels with it. The current `/v1/worlds` route remains the legacy
+/// summary until P12.24 can populate profiles from metadata safely.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WorldSlotWithProfileDto {
+    pub slot: WorldSlotDto,
+    pub profile: WorldProfileDto,
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -18,6 +18,35 @@ The base name (`world`) comes from the `level-name` setting in `server.propertie
 
 For Bedrock servers, world data is stored in a `worlds/` folder inside your server directory and is shared with the VM automatically via a direct file share.
 
+## World settings and server settings
+
+**This world has its own gameplay and generation settings. They are saved with the world and applied whenever this world becomes active. Server settings such as ports and player limits apply to every world.**
+
+That distinction follows where Minecraft actually stores and applies a value,
+not which group an older editor placed it in. A slot's profile carries its
+display name and level name, seed, generator/world type, flat preset,
+structures, biome and generator options, bonus chest, and data packs. It also
+carries the world's difficulty, default game mode, hardcore/commands state,
+gamerules, and the edition-specific Bedrock choices: cheats, experiments,
+coordinates, starting map, and supported gameplay toggles.
+
+Java's `difficulty` and `gamemode` keys may still appear in a compatibility
+settings response, but MSC treats the active values as the selected world's
+profile and reads them back from that world. `force-gamemode` is different: it
+is a server-wide policy that can override a world's default for joining
+players. PvP, mob spawning, flight, Nether availability, spawn protection,
+view/simulation distance, whitelist and ops, MOTD, authentication, ports,
+player limits, runtime/process settings, crossplay, broadcast, and tunnels are
+server-owned. On Bedrock, the same rule keeps ports, max players, online mode,
+and default player permission out of the world profile.
+
+MSC labels when a change takes effect. Seeds and generator choices are
+creation-only; slot identity and data-pack selection are applied on
+activation; values the active runtime can accept safely are live-safe; and
+Bedrock cheats or experiments that require a stopped runtime are marked
+restart-required. An imported or older world is never given a made-up value:
+the profile can say detected, unknown, unsupported, or achievement-disabled.
+
 **Always back up before:**
 - Installing or updating plugins
 - Changing major server settings

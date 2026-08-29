@@ -1,6 +1,6 @@
 # MSC 2 — Decision Register
 
-**Revision:** 1.7 · **Date:** 2026-08-28
+**Revision:** 1.8 · **Date:** 2026-08-28
 **Owner:** Cameron Temple
 
 **Purpose:** the authoritative record of *what was decided, by whom, and why*. The product and engineering documents describe the destination; this document explains how it was chosen, what was rejected, and when a decision should be reopened.
@@ -58,6 +58,7 @@ Every entry records **Origin** (where the idea came from), **Approved by**, and 
 | D-027 | The CurseForge manual-download workflow has no home once agent and client are different machines | Open | — |
 | D-028 | Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred | **Approved** | 2026-08-22 |
 | D-029 | Reset this client is separate from reset this host | **Approved** | 2026-08-28 |
+| D-030 | World-local settings travel with slots; runtime policy stays server-owned | Proposed | — |
 
 ---
 
@@ -688,6 +689,75 @@ The HTTP route never installs or uninstalls an operating-system service. A local
 
 ---
 
+## D-030 — World-local settings travel with slots; runtime policy stays server-owned
+
+**Status:** Proposed · **Origin:** P12.23 contract freeze and MSC 1 runtime/storage audit · **Approved by:** — · **Date:** 2026-08-28
+
+**Context.** MSC 1 places world values and server values in the same
+`server.properties` editor. That presentation is convenient, but it is not a
+source-of-truth boundary. Some keys are defaults used while a world is first
+created; some are persisted in world data; and some control the server process
+or every player connection regardless of which world is active.
+
+**Decision.** Every `WorldSlot` owns one versioned `WorldProfile`. The profile
+travels with the slot and contains:
+
+- identity: display name, Minecraft level name, and seed;
+- generation: world type, flat preset, structures, biome/generator options,
+  bonus chest, and the world's data packs;
+- gameplay: difficulty, default game mode, hardcore, Java commands,
+  gamerules, Bedrock cheats and experiments, coordinates, starting map, and
+  supported edition-specific gameplay toggles; and
+- detected safety: explicit safe, achievement-disabled, unknown, or
+  unsupported state with reasons.
+
+The active runtime is a projection of the selected slot's profile. It is not a
+second source of truth, and changing one active world must never rewrite the
+profiles of other slots.
+
+The server profile owns values that govern the running server rather than one
+world: ports, player limits, MOTD, authentication, allowlist/ops, process and
+runtime policy, view/simulation distance, crossplay, broadcast, tunnels, and
+other connection or host-helper settings. `force-gamemode` is a server-wide
+policy and is not the same thing as a world's saved default game mode.
+
+**Borderline values.** Java `difficulty` and `gamemode` are currently exposed
+as `server.properties` keys, but their world defaults and read-back state are
+world-local in this model. The old settings response may expose them as a
+legacy projection until the split is implemented. Java `level-type`,
+`hardcore`, seed, generator choices, and commands are world data or creation
+choices; PvP, mob spawning, flight, Nether availability, spawn protection,
+whitelist, and visibility distances are server policy. Bedrock's difficulty,
+default mode, generator/seed, cheats, experiments, coordinates, starting map,
+bonus chest, and supported gameplay toggles travel with the world. Bedrock
+ports, max players, online mode, and default player permission remain server
+settings even when the current screen displays them beside world choices.
+
+**Change policy.** The contract exposes the following honest timing classes:
+
+| Class | World-profile examples |
+|---|---|
+| `creation_only` | seed, world type, flat preset, structures, generator options, hardcore, commands, starting map |
+| `apply_on_activation` | slot identity/level name and data-pack selection |
+| `live_safe` | difficulty, default game mode, gamerules, coordinates, supported live toggles |
+| `restart_required` | Bedrock cheats/experiments and any world value the runtime cannot safely accept live |
+
+The API carries this policy, the required capability key, value-detection
+state, and a `helpId` with each profile field. The existing `/v1/settings`
+response remains the server-settings surface after the split; it does not gain
+a second copy of the world profile.
+
+**Rationale.** A saved world must remain portable and predictable when a user
+switches slots, restores a backup, or moves the server to another host. The
+screen that happened to contain a control in MSC 1 cannot provide that
+guarantee; the runtime's persisted data and live process behavior can.
+
+**Revisit if:** a supported Java or Bedrock runtime proves that one of these
+values is not persisted or applied as described, or the owner changes the
+world-slot portability guarantee.
+
+---
+
 ## Appendix A — corrections made during planning
 
 Recorded because each produced a confident wrong answer, and each is the kind of mistake likely to recur.
@@ -714,6 +784,7 @@ Recorded because each produced a confident wrong answer, and each is the kind of
 
 | Rev | Date | Change |
 |---|---|---|
+| 1.8 | 2026-08-28 | Added D-030: world-local profile ownership, server-wide runtime policy, and honest change timing classes. |
 | 1.7 | 2026-08-28 | D-029 added: client-only reset is separate from authenticated host reset, with configuration-only/full-delete modes and local-only service teardown. |
 | 1.6 | 2026-08-22 | D-007 and D-022 promoted to Approved, confirmed with the owner during the Phase 10 cross-check. D-028 added: Bedrock macOS support is Intel-only for Phase 10; Apple Silicon is deferred pending test hardware, recorded as "unavailable" in the D-022 matrix rather than omitted or claimed unsupported. |
 | 1.5 | 2026-08-21 | D-027 moved from Open to Approved (P8.1): Cameron chose option 1 (client-side download, agent-side staged-upload verification) for the CurseForge manual-download workflow. Detail moved to `docs/msc2/addons/phase8-scope.md`. |

@@ -114,14 +114,49 @@ async fn composes_and_resolves_a_router_guide_for_the_selected_server() {
     assert_eq!(guide["runtime"]["selectedServerName"], "Survival Server");
     assert_eq!(guide["runtime"]["javaPort"], 25570);
     assert_eq!(guide["unresolvedTokens"].as_array().unwrap().len(), 0);
+    let items: Vec<&serde_json::Value> = guide["sections"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|section| section["items"].as_array().unwrap())
+        .collect();
     assert!(
-        guide["sections"]
-            .as_array()
-            .unwrap()
+        items
             .iter()
-            .flat_map(|section| section["items"].as_array().unwrap())
             .any(|item| item["type"] == "step" && item["body"].as_str().unwrap().contains("25570"))
     );
+    // Regression: `ResolvedItemDto`'s enum-level `rename_all = "camelCase"` renames
+    // variant tags only, not fields inside a struct-shaped variant -- these three
+    // fields need their own `#[serde(rename = ...)]` or they silently wire as
+    // snake_case (`alternate_menu_names`/`alternate_terms`/`suggested_next_actions`),
+    // which the client reads as `undefined` and throws on.
+    let menu_path = items
+        .iter()
+        .find(|item| item["type"] == "menuPath")
+        .unwrap();
+    assert!(
+        !menu_path["alternateMenuNames"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let step_with_alternates = items
+        .iter()
+        .find(|item| {
+            item["type"] == "step" && !item["alternateTerms"].as_array().unwrap().is_empty()
+        })
+        .unwrap();
+    assert!(
+        !step_with_alternates["alternateTerms"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
+    let topic = items
+        .iter()
+        .find(|item| item["type"] == "troubleshootingTopic")
+        .unwrap();
+    assert!(!topic["suggestedNextActions"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]

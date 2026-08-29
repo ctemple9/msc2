@@ -253,6 +253,7 @@ enum ResolvedItemDto {
     MenuPath {
         title: Option<String>,
         path: Vec<String>,
+        #[serde(rename = "alternateMenuNames")]
         alternate_menu_names: Vec<String>,
     },
     Step {
@@ -260,6 +261,7 @@ enum ResolvedItemDto {
         kind: String,
         title: String,
         body: String,
+        #[serde(rename = "alternateTerms")]
         alternate_terms: Vec<String>,
     },
     Note {
@@ -271,6 +273,7 @@ enum ResolvedItemDto {
         id: String,
         title: String,
         summary: String,
+        #[serde(rename = "suggestedNextActions")]
         suggested_next_actions: Vec<String>,
     },
 }

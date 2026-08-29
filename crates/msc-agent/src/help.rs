@@ -14,10 +14,59 @@ static CONTENT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../content");
 pub struct HelpTopic {
     pub help_id: String,
     pub title: String,
+    pub subtitle: Option<String>,
     pub analogy: Option<String>,
     pub body: String,
     pub category: String,
     pub related_ids: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sections: Vec<HelpContentBlock>,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub enum HelpContentBlock {
+    Body {
+        markdown: String,
+    },
+    BulletList {
+        items: Vec<String>,
+    },
+    Callout {
+        style: CalloutStyle,
+        text: String,
+    },
+    InApp {
+        items: Vec<String>,
+    },
+    Advanced {
+        markdown: String,
+    },
+    Checklist {
+        phase: String,
+        steps: Vec<ChecklistStepBlock>,
+    },
+    Table {
+        headers: Vec<String>,
+        rows: Vec<Vec<String>>,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum CalloutStyle {
+    Tip,
+    Warning,
+    Pitfall,
+    Note,
+}
+
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ChecklistStepBlock {
+    pub number: u32,
+    pub title: String,
+    pub detail: String,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -127,13 +176,21 @@ fn parse_topic(text: &str, source: String) -> Result<HelpTopic, String> {
     };
     let fields = front_matter
         .lines()
-        .filter_map(|line| line.split_once(": "))
-        .map(|(key, value)| (key, value.trim()))
-        .collect::<BTreeMap<_, _>>();
+        .filter(|line| !line.trim().is_empty())
+        .map(|line| {
+            let (key, value) = line
+                .split_once(':')
+                .ok_or_else(|| format!("{source}: malformed front-matter line '{line}'"))?;
+            Ok((
+                key.trim().to_string(),
+                parse_front_matter_value(value.trim(), &source)?,
+            ))
+        })
+        .collect::<Result<BTreeMap<_, _>, String>>()?;
     let required = |key: &str| {
         fields
             .get(key)
-            .map(|value| (*value).to_string())
+            .cloned()
             .ok_or_else(|| format!("{source}: missing {key}"))
     };
     let related_ids = fields
@@ -148,14 +205,235 @@ fn parse_topic(text: &str, source: String) -> Result<HelpTopic, String> {
                 .collect()
         })
         .unwrap_or_default();
+    let (body, sections) = parse_content_blocks(body, &source)?;
     Ok(HelpTopic {
         help_id: required("id")?,
         title: required("title")?,
-        analogy: fields.get("analogy").map(|value| (*value).to_string()),
-        body: body.trim().to_string(),
+        subtitle: fields.get("subtitle").cloned(),
+        analogy: fields.get("analogy").cloned(),
+        body,
         category: required("category")?,
         related_ids,
+        sections,
     })
+}
+
+fn parse_front_matter_value(value: &str, source: &str) -> Result<String, String> {
+    if value.starts_with('"') {
+        serde_json::from_str(value)
+            .map_err(|error| format!("{source}: invalid quoted front-matter value: {error}"))
+    } else {
+        Ok(value.to_string())
+    }
+}
+
+fn parse_content_blocks(
+    body: &str,
+    source: &str,
+) -> Result<(String, Vec<HelpContentBlock>), String> {
+    if !body.lines().any(|line| line.starts_with("### ")) {
+        return Ok((body.trim().to_string(), Vec::new()));
+    }
+
+    let mut preamble = Vec::new();
+    let mut blocks: Vec<(&str, Vec<&str>)> = Vec::new();
+    let mut current_marker: Option<&str> = None;
+    let mut current_lines = Vec::new();
+
+    for line in body.lines() {
+        if let Some(marker) = line.strip_prefix("### ") {
+            if let Some(previous_marker) = current_marker.take() {
+                blocks.push((previous_marker, current_lines));
+                current_lines = Vec::new();
+            }
+            current_marker = Some(marker.trim());
+        } else if current_marker.is_some() {
+            current_lines.push(line);
+        } else {
+            preamble.push(line);
+        }
+    }
+    if let Some(marker) = current_marker {
+        blocks.push((marker, current_lines));
+    }
+
+    let sections = blocks
+        .into_iter()
+        .map(|(marker, lines)| parse_content_block(marker, &lines, source))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((preamble.join("\n").trim().to_string(), sections))
+}
+
+fn parse_content_block(
+    marker: &str,
+    lines: &[&str],
+    source: &str,
+) -> Result<HelpContentBlock, String> {
+    let text = lines.join("\n").trim().to_string();
+    match marker {
+        "Body" => non_empty_block(HelpContentBlock::Body { markdown: text }, marker, source),
+        "Bullet List" => Ok(HelpContentBlock::BulletList {
+            items: parse_markdown_list(lines, marker, source)?,
+        }),
+        "In This App" => Ok(HelpContentBlock::InApp {
+            items: parse_markdown_list(lines, marker, source)?,
+        }),
+        "Advanced Details" => non_empty_block(
+            HelpContentBlock::Advanced { markdown: text },
+            marker,
+            source,
+        ),
+        "Table" => Ok(parse_table(lines, source)?),
+        marker if marker.starts_with("Callout: ") => {
+            let style = parse_callout_style(&marker[9..], source)?;
+            non_empty_block(HelpContentBlock::Callout { style, text }, marker, source)
+        }
+        marker if marker.starts_with("Checklist: ") => Ok(HelpContentBlock::Checklist {
+            phase: marker[11..].trim().to_string(),
+            steps: parse_checklist(lines, marker, source)?,
+        }),
+        _ => Err(format!(
+            "{source}: unrecognized content heading '### {marker}'"
+        )),
+    }
+}
+
+fn non_empty_block(
+    block: HelpContentBlock,
+    marker: &str,
+    source: &str,
+) -> Result<HelpContentBlock, String> {
+    let empty = match &block {
+        HelpContentBlock::Body { markdown } | HelpContentBlock::Advanced { markdown } => {
+            markdown.is_empty()
+        }
+        HelpContentBlock::Callout { text, .. } => text.is_empty(),
+        _ => false,
+    };
+    if empty {
+        Err(format!(
+            "{source}: content heading '### {marker}' has no content"
+        ))
+    } else {
+        Ok(block)
+    }
+}
+
+fn parse_markdown_list(lines: &[&str], marker: &str, source: &str) -> Result<Vec<String>, String> {
+    let items = lines
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            line.strip_prefix("- ")
+                .map(ToOwned::to_owned)
+                .ok_or_else(|| format!("{source}: '### {marker}' contains a non-list line"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    if items.is_empty() {
+        return Err(format!(
+            "{source}: list heading '### {marker}' has no items"
+        ));
+    }
+    Ok(items)
+}
+
+fn parse_callout_style(value: &str, source: &str) -> Result<CalloutStyle, String> {
+    match value.trim() {
+        "tip" => Ok(CalloutStyle::Tip),
+        "warning" => Ok(CalloutStyle::Warning),
+        "pitfall" => Ok(CalloutStyle::Pitfall),
+        "note" => Ok(CalloutStyle::Note),
+        style => Err(format!("{source}: unknown callout style '{style}'")),
+    }
+}
+
+fn parse_checklist(
+    lines: &[&str],
+    marker: &str,
+    source: &str,
+) -> Result<Vec<ChecklistStepBlock>, String> {
+    let mut steps = Vec::new();
+    for line in lines
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+    {
+        let Some((number, rest)) = line.split_once(". **") else {
+            return Err(format!(
+                "{source}: malformed checklist line in '### {marker}'"
+            ));
+        };
+        let number = number
+            .parse::<u32>()
+            .map_err(|_| format!("{source}: invalid checklist number '{number}'"))?;
+        let Some((title, detail)) = rest.split_once("** — ") else {
+            return Err(format!(
+                "{source}: malformed checklist line in '### {marker}'"
+            ));
+        };
+        if title.is_empty() || detail.trim().is_empty() {
+            return Err(format!(
+                "{source}: incomplete checklist line in '### {marker}'"
+            ));
+        }
+        steps.push(ChecklistStepBlock {
+            number,
+            title: title.to_string(),
+            detail: detail.trim().to_string(),
+        });
+    }
+    if steps.is_empty() {
+        return Err(format!(
+            "{source}: checklist heading '### {marker}' has no steps"
+        ));
+    }
+    Ok(steps)
+}
+
+fn parse_table(lines: &[&str], source: &str) -> Result<HelpContentBlock, String> {
+    let rows = lines
+        .iter()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>();
+    if rows.len() < 3 {
+        return Err(format!("{source}: table needs a header, divider, and row"));
+    }
+    let headers = parse_pipe_row(rows[0], source)?;
+    let divider = parse_pipe_row(rows[1], source)?;
+    if divider.len() != headers.len()
+        || divider
+            .iter()
+            .any(|cell| cell.is_empty() || cell.chars().any(|character| character != '-'))
+    {
+        return Err(format!("{source}: malformed table divider"));
+    }
+    let data = rows[2..]
+        .iter()
+        .map(|row| {
+            let values = parse_pipe_row(row, source)?;
+            if values.len() != headers.len() {
+                return Err(format!("{source}: table row has the wrong number of cells"));
+            }
+            Ok(values)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    Ok(HelpContentBlock::Table {
+        headers,
+        rows: data,
+    })
+}
+
+fn parse_pipe_row(line: &str, source: &str) -> Result<Vec<String>, String> {
+    let trimmed = line.trim();
+    if !trimmed.starts_with('|') || !trimmed.ends_with('|') {
+        return Err(format!("{source}: malformed table row"));
+    }
+    Ok(trimmed[1..trimmed.len() - 1]
+        .split('|')
+        .map(|cell| cell.trim().to_string())
+        .collect())
 }
 
 fn file_text(path: &str) -> Result<&'static str, String> {
@@ -179,5 +457,86 @@ mod tests {
         let topic = content.topic("bedrock.runtime-unavailable").unwrap();
         assert!(topic.body.contains("reason code"));
         assert!(content.catalog().topics.len() >= 60);
+    }
+
+    #[test]
+    fn parses_every_content_block_variant() {
+        let topic = parse_topic(
+            "---\nid: handbook.fixture\ntitle: Fixture\ncategory: test\nsubtitle: \"A subtitle: with punctuation\"\nanalogy: \"An analogy\"\nrelatedIds: []\n---\nPreamble.\n\n### Body\nA second paragraph.\n\n### Bullet List\n- First\n- Second\n\n### Callout: warning\nBe careful.\n\n### In This App\n- One setting\n\n### Advanced Details\nMore detail.\n\n### Checklist: Phase 1 — Setup\n1. **Install Java** — Use Java 21.\n\n### Table\n| Players | Min RAM | Max RAM |\n|---|---|---|\n| 1–2 players | 2 GB | 4 GB |\n",
+            "inline fixture".into(),
+        )
+        .unwrap();
+
+        assert_eq!(
+            topic.subtitle.as_deref(),
+            Some("A subtitle: with punctuation")
+        );
+        assert_eq!(topic.body, "Preamble.");
+        assert!(matches!(
+            &topic.sections[0],
+            HelpContentBlock::Body { markdown } if markdown == "A second paragraph."
+        ));
+        assert!(matches!(
+            &topic.sections[1],
+            HelpContentBlock::BulletList { items } if items == &["First", "Second"]
+        ));
+        assert!(matches!(
+            &topic.sections[2],
+            HelpContentBlock::Callout { style: CalloutStyle::Warning, text } if text == "Be careful."
+        ));
+        assert!(matches!(
+            &topic.sections[3],
+            HelpContentBlock::InApp { items } if items == &["One setting"]
+        ));
+        assert!(matches!(
+            &topic.sections[4],
+            HelpContentBlock::Advanced { markdown } if markdown == "More detail."
+        ));
+        assert!(matches!(
+            &topic.sections[5],
+            HelpContentBlock::Checklist { phase, steps }
+                if phase == "Phase 1 — Setup"
+                    && steps == &[ChecklistStepBlock {
+                        number: 1,
+                        title: "Install Java".into(),
+                        detail: "Use Java 21.".into(),
+                    }]
+        ));
+        assert!(matches!(
+            &topic.sections[6],
+            HelpContentBlock::Table { headers, rows }
+                if headers == &["Players", "Min RAM", "Max RAM"]
+                    && rows == &[["1–2 players", "2 GB", "4 GB"].map(String::from).to_vec()]
+        ));
+    }
+
+    #[test]
+    fn rejects_an_unrecognized_content_heading() {
+        let error = parse_topic(
+            "---\nid: handbook.fixture\ntitle: Fixture\ncategory: test\n---\n### Unknown\nText.",
+            "inline fixture".into(),
+        )
+        .unwrap_err();
+        assert!(error.contains("unrecognized content heading"));
+    }
+
+    #[test]
+    fn every_handbook_topic_has_rich_content_and_flat_topics_stay_compatible() {
+        let content = HelpContent::embedded().unwrap();
+        let handbook = content
+            .topics
+            .values()
+            .filter(|topic| topic.help_id.starts_with("handbook."))
+            .collect::<Vec<_>>();
+        assert_eq!(handbook.len(), 31);
+        assert!(
+            handbook
+                .iter()
+                .all(|topic| topic.subtitle.is_some() && !topic.sections.is_empty())
+        );
+
+        let flat = content.topic("bedrock.runtime-unavailable").unwrap();
+        assert!(flat.subtitle.is_none());
+        assert!(flat.sections.is_empty());
     }
 }

@@ -130,7 +130,7 @@
 
 <div class="screen">
   <div class="heading">
-    <p class="breadcrumb">{hostLabel} agent</p>
+    <p class="breadcrumb">{hostLabel}</p>
     <div class="heading-row">
       <div>
         <h1>Background agent</h1>

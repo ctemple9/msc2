@@ -981,6 +981,15 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16c: fix camelCase serialization on router guide item fields`
 **Batch:** solo
 
+### P12.16d — Fix duplicated "agent" in the Background Agent screen's breadcrumb
+
+**Status:** DONE
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`
+**What:** Cameron flagged the Background Agent screen reading "Local agent agent." `hostLabel` (default `'Local agent'`, otherwise a host's own display label from `App.svelte`'s `hosts` list or `hostLabelForCurrentHost()`) is already a complete host identity string — every other use of it in this file (`Managed on {hostLabel}`, `on {hostLabel}`, `{hostLabel}` alone) treats it that way. Only the top breadcrumb appended a literal `" agent"` after it, unconditionally duplicating the word whenever the label already ends in "agent" (which the built-in local-host label always does). Fixed by dropping the redundant suffix: `<p class="breadcrumb">{hostLabel}</p>`.
+**Verify:** `npm run check` (same 5 pre-existing baseline errors, 0 new).
+**Commit:** `P12.16d: drop duplicated "agent" from the background agent breadcrumb`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

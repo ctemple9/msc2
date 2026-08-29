@@ -4141,7 +4141,7 @@
     "/v1/settings": {
       "get": {
         "summary": "Typed server.properties schema for the active server, as sections of fields",
-        "x-notes": "P12.23 ownership boundary: this response is the server-profile surface. World-local values belong to WorldProfileDTO attached to a WorldSlot; agents during the compatibility window may still expose difficulty, gamemode, or other legacy world projections here, but clients must not treat those projections as the source of truth.",
+        "x-notes": "P12.25 ownership boundary: this response is the server-profile surface only. World-local values such as difficulty, default gamemode, generation, and Bedrock world toggles belong to WorldProfileDTO at /v1/worlds/{slotId}/profile.",
         "responses": {
           "200": {
             "description": "Typed server.properties schema for the active server, as sections of fields",
@@ -4158,7 +4158,7 @@
       },
       "post": {
         "summary": "Apply a sparse set of settings changes (key -> string value), validated and clamped per field",
-        "x-notes": "P12.23 ownership boundary: new world-profile writes use the slot-owned world profile surface. This legacy route continues to accept its baseline mixed keys during the compatibility window; an accepted world-looking key is a projection update until P12.25 moves it to the profile application path.",
+        "x-notes": "P12.25 ownership boundary: this route accepts server-owned settings only. World-local keys are rejected with world_profile_key and must be written through the selected slot's profile surface.",
         "requestBody": {
           "required": true,
           "content": {
@@ -5733,6 +5733,116 @@
         "operationId": "convertWorld"
       }
     },
+    "/v1/worlds/{slotId}/profile": {
+      "get": {
+        "summary": "Read one world slot's saved profile and runtime metadata",
+        "operationId": "getWorldSlotProfile",
+        "x-permission-category": "none",
+        "parameters": [
+          {
+            "name": "slotId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "World slot and its profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldSlotWithProfileDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "no_active_server / slot_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          }
+        }
+      },
+      "post": {
+        "summary": "Save a world slot profile and apply its accepted runtime projection",
+        "operationId": "updateWorldSlotProfile",
+        "x-permission-category": "worlds",
+        "parameters": [
+          {
+            "name": "slotId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorldProfileUpdateRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profile saved with per-field application status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorldProfileUpdateResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_body / invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "slot_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "409": {
+            "description": "no_active_server / world_reconciliation_degraded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          }
+        }
+      }
+    },
     "/v1/worlds/{slotId}/thumbnail": {
       "get": {
         "summary": "A world slot's thumbnail image, if one was generated",
@@ -6691,6 +6801,92 @@
           "capability",
           "lifecycle",
           "valueState"
+        ]
+      },
+      "WorldProfileUpdateRequestDTO": {
+        "type": "object",
+        "description": "Sparse updates to one slot-local world profile. Keys use the stable dotted profile names; a nested profile section is also accepted for client convenience.",
+        "properties": {
+          "changes": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Stable dotted world profile field keys and JSON values."
+          },
+          "profile": {
+            "$ref": "#/components/schemas/WorldProfileDTO"
+          }
+        },
+        "oneOf": [
+          {
+            "required": [
+              "changes"
+            ]
+          },
+          {
+            "required": [
+              "profile"
+            ]
+          }
+        ]
+      },
+      "WorldProfileChangeDTO": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "live",
+              "pending_restart",
+              "blocked"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "key",
+          "status"
+        ]
+      },
+      "WorldProfileUpdateResultDTO": {
+        "type": "object",
+        "description": "The saved slot profile plus the status of each requested projection change.",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "live",
+              "pending_restart",
+              "blocked"
+            ]
+          },
+          "slot": {
+            "$ref": "#/components/schemas/WorldSlotWithProfileDTO"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorldProfileChangeDTO"
+            }
+          }
+        },
+        "required": [
+          "success",
+          "message",
+          "status",
+          "slot",
+          "changes"
         ]
       },
       "WorldSlotsResponseDTO": {

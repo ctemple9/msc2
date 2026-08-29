@@ -256,4 +256,54 @@ impl ServerPropertiesModel {
         );
         r
     }
+
+    /// Overlays only server-owned fields. World difficulty, default
+    /// gamemode, hardcore, and generation type travel with a world slot and
+    /// must survive a settings save unchanged.
+    pub fn merged_server_into(
+        &self,
+        existing: &HashMap<String, String>,
+    ) -> HashMap<String, String> {
+        let mut r = existing.clone();
+        r.insert("motd".to_string(), self.motd.clone());
+        r.insert("max-players".to_string(), self.max_players.to_string());
+        r.insert("online-mode".to_string(), self.online_mode.to_string());
+        r.insert("server-port".to_string(), self.server_port.to_string());
+        r.insert("pvp".to_string(), self.pvp.to_string());
+        r.insert("allow-nether".to_string(), self.allow_nether.to_string());
+        r.insert("allow-flight".to_string(), self.allow_flight.to_string());
+        r.insert(
+            "force-gamemode".to_string(),
+            self.force_gamemode.to_string(),
+        );
+        r.insert(
+            "spawn-monsters".to_string(),
+            self.spawn_monsters.to_string(),
+        );
+        r.insert("spawn-animals".to_string(), self.spawn_animals.to_string());
+        r.insert("spawn-npcs".to_string(), self.spawn_npcs.to_string());
+        r.insert(
+            "spawn-protection".to_string(),
+            self.spawn_protection.to_string(),
+        );
+        r.insert("view-distance".to_string(), self.view_distance.to_string());
+        r.insert(
+            "simulation-distance".to_string(),
+            self.simulation_distance.to_string(),
+        );
+        r.insert("white-list".to_string(), self.whitelist.to_string());
+        r.insert(
+            "enforce-whitelist".to_string(),
+            self.enforce_whitelist.to_string(),
+        );
+        r.insert(
+            "player-idle-timeout".to_string(),
+            self.player_idle_timeout.to_string(),
+        );
+        r.insert(
+            "op-permission-level".to_string(),
+            self.op_permission_level.to_string(),
+        );
+        r
+    }
 }

@@ -214,6 +214,21 @@ pub fn bedrock_setting_contract(key: &str) -> Option<SettingContract> {
     Some(contract)
 }
 
+/// Returns the contract only when `key` belongs on the server-profile
+/// surface. Keeping this check beside the legacy validators prevents a route
+/// from deciding ownership by looking at whichever section happened to render
+/// the key first.
+pub fn server_setting_contract(
+    server_type: crate::identity::ServerType,
+    key: &str,
+) -> Option<SettingContract> {
+    let contract = match server_type {
+        crate::identity::ServerType::Java => java_setting_contract(key),
+        crate::identity::ServerType::Bedrock => bedrock_setting_contract(key),
+    }?;
+    (contract.owner == SettingOwner::ServerProfile).then_some(contract)
+}
+
 /// Mutates `m` with the provided string changes. Ints clamp to their range,
 /// bools/enums validate against their allowed set, unknown keys are
 /// rejected. Note: MSC 1's `String(raw.prefix(200))` for `motd` truncates by

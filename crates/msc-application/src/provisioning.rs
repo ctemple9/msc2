@@ -69,7 +69,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::modpacks::{self, ModpackInspection};
-use crate::worlds::{self, WorldError, WorldIdentity};
+use crate::worlds::{self, WorldError};
 
 /// `AppViewModel.WorldSource` (`AppViewModel+ServerCreation.swift:12-16`).
 #[derive(Debug, Clone)]
@@ -718,12 +718,10 @@ fn acquire_jar(
 /// The initial persistent world-slot creation dispatch
 /// (`createInitialPersistentWorldSlot`, line 65-123), reusing Phase 6's
 /// already-built slot constructors per this step's own `What:` line.
-/// Returns the built [`WorldSlot`] plus the seed [`apply_world_identity`]
-/// should apply during the caller's own sync-identity step (`None` for
-/// both non-fresh sources, matching `normalizedInitialWorldSeed`'s own
-/// `guard case .fresh` — see this module's doc for why the outer
-/// function's `effective_world_seed`/`imported_metadata.seed` values are
-/// reused directly here rather than re-derived a second time).
+/// Returns the built [`WorldSlot`] plus the fresh-world seed retained for
+/// callers that still need to distinguish a generated slot from imported
+/// data. The actual runtime projection is applied through
+/// [`worlds::apply_world_profile`] after this dispatch completes.
 #[allow(clippy::too_many_arguments)]
 fn create_initial_world_slot(
     fs: &dyn FileSystem,
@@ -989,7 +987,7 @@ pub(crate) fn finish_server_creation(
         },
     );
 
-    let (slot, initial_slot_seed) = create_initial_world_slot(
+    let (slot, _) = create_initial_world_slot(
         fs,
         new_dir,
         initial_slot_name,
@@ -1001,28 +999,21 @@ pub(crate) fn finish_server_creation(
     )
     .map_err(|_| CreateServerError::InitialWorldSlotFailed)?;
 
-    if let Some(level_name) = slot
-        .world_level_name
-        .as_deref()
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-    {
-        worlds::apply_world_identity(
-            fs,
-            new_dir,
-            &WorldIdentity {
-                level_name: level_name.to_string(),
-                seed: initial_slot_seed.clone(),
-                apply_seed: initial_slot_seed.is_some(),
-            },
-        )?;
-    }
     if matches!(request.world_source, WorldSource::Fresh) {
         let profile =
             worlds::fresh_world_profile(&slot, Some(request.difficulty), Some(request.gamemode));
         world_store::save_profile(fs, new_dir, &slot, &profile)
             .map_err(|error| CreateServerError::Io(std::io::Error::other(error.to_string())))?;
     }
+    let profile = world_store::load_profile(fs, new_dir, &slot);
+    worlds::apply_world_profile(
+        fs,
+        new_dir,
+        ServerType::Java,
+        &profile,
+        worlds::WorldProfileApplyContext::Creation,
+        false,
+    )?;
     world_store::set_active_slot_id(fs, new_dir, Some(&slot.id))?;
 
     let should_record = provisioning::should_record_loader_version(
@@ -2059,6 +2050,15 @@ pub fn create_bedrock_server(
                 now,
             )?,
         };
+        let profile = world_store::load_profile(fs, &new_dir, &slot);
+        worlds::apply_world_profile(
+            fs,
+            &new_dir,
+            ServerType::Bedrock,
+            &profile,
+            worlds::WorldProfileApplyContext::Creation,
+            false,
+        )?;
         world_store::set_active_slot_id(fs, &new_dir, Some(&slot.id))?;
 
         let mut config = ConfigServer::new(

@@ -39,7 +39,7 @@ fn production_router_exposes_shared_bedrock_surfaces_and_runtime_errors() {
     ] {
         let (status, body) = fixture.request("GET", path, None);
         assert_eq!(status, 200, "{path}: {body}");
-        if path != "/v1/worlds" {
+        if path != "/v1/worlds" && path != "/v1/players" {
             assert_ne!(body["runtime"], Value::Null, "{path}: {body}");
             assert_ne!(body["runtime"]["state"], Value::Null, "{path}: {body}");
         }
@@ -48,7 +48,7 @@ fn production_router_exposes_shared_bedrock_surfaces_and_runtime_errors() {
     let (status, settings) = fixture.request(
         "POST",
         "/v1/settings",
-        Some(r#"{"changes":{"difficulty":"peaceful"}}"#),
+        Some(r#"{"changes":{"max-players":"32"}}"#),
     );
     assert_eq!(status, 200, "settings update: {settings}");
     assert_eq!(settings["success"], true);

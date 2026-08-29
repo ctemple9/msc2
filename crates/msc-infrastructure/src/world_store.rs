@@ -178,14 +178,12 @@ pub fn save_metadata(
 /// the on-disk JSON and are deliberately not represented by this older Rust
 /// type; `save_metadata` preserves them when it rewrites the slot.
 pub fn load_profile(fs: &dyn FileSystem, server_dir: &Path, slot: &WorldSlot) -> WorldProfile {
-    let value = fs
-        .read(&metadata_path(server_dir, &slot.id))
+    fs.read(&metadata_path(server_dir, &slot.id))
         .ok()
         .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
         .and_then(|value| value.get("profile").cloned())
         .and_then(|value| decode_profile(&value))
-        .unwrap_or_else(|| migrated_profile(slot));
-    value
+        .unwrap_or_else(|| migrated_profile(slot))
 }
 
 /// Persists the profile inside the slot's existing metadata document. The

@@ -45,6 +45,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 #[cfg(test)]
 use axum::body::Bytes;
+use axum::extract::rejection::JsonRejection;
 use axum::extract::{Extension, Path as AxumPath, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
@@ -54,10 +55,12 @@ use msc_api::dto::{
     PermissionCategoryDto, StagedUploadPurposeDto, WorldActivateRequestDto, WorldActivateResultDto,
     WorldConvertFormatsResponseDto, WorldConvertRequestDto, WorldConvertResultDto,
     WorldCreateRequestDto, WorldDeleteRequestDto, WorldDuplicateRequestDto, WorldExportRequestDto,
-    WorldExportResultDto, WorldImportRequestDto, WorldMutationResultDto,
+    WorldExportResultDto, WorldGameplayDto, WorldGenerationDto, WorldIdentityDto,
+    WorldImportRequestDto, WorldMutationResultDto, WorldProfileDto, WorldProfileFieldMetadataDto,
     WorldRenameActiveWorldRequestDto, WorldRenameRequestDto, WorldRepairRequestDto,
     WorldRepairResultDto, WorldReplaceActiveRequestDto, WorldReplaceActiveResultDto,
-    WorldReplaceRequestDto, WorldSlotDto, WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
+    WorldReplaceRequestDto, WorldSafetyDto, WorldSlotDto, WorldSlotWithProfileDto,
+    WorldSlotsResponseDto, WorldThumbnailUploadRequestDto,
 };
 #[cfg(test)]
 use msc_api::dto::{
@@ -72,9 +75,11 @@ use msc_application::worlds::{self, WorldError, WorldReplaceSource};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
 use msc_domain::world::WorldSlot;
+use msc_domain::world_profile::{WorldProfile, WorldProfileField};
 use msc_infrastructure::audit_log::Entry as AuditEntry;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::world_store;
+use serde::Serialize;
 #[cfg(test)]
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
@@ -114,6 +119,10 @@ pub fn router(state: WorldsRoutesState) -> Router {
         .route("/worlds/rename-active-world", post(rename_active_world))
         .route("/worlds/replace-active-world", post(replace_active))
         .route("/worlds/activate", post(activate))
+        .route(
+            "/worlds/:slot_id/profile",
+            get(get_profile).post(update_profile),
+        )
         .route("/worlds/convert/formats", get(convert_formats))
         .route("/worlds/convert", post(convert))
         .route(
@@ -357,6 +366,465 @@ fn to_slot_dto(slot: &WorldSlot, is_active: bool) -> WorldSlotDto {
         world_seed: slot.world_seed.clone(),
         has_thumbnail: slot.thumbnail_file_name.is_some(),
     }
+}
+
+fn profile_to_dto(profile: &WorldProfile, server_type: ServerType) -> WorldProfileDto {
+    let field_metadata = WorldProfileField::ALL
+        .into_iter()
+        .map(|field| {
+            let value_state = if !field.applies_to(server_type) {
+                "unsupported".to_string()
+            } else if field == WorldProfileField::SafetyState {
+                match profile.safety.state {
+                    msc_domain::world_profile::WorldSafetyState::Safe => "detected",
+                    msc_domain::world_profile::WorldSafetyState::AchievementDisabled => {
+                        "achievement_disabled"
+                    }
+                    msc_domain::world_profile::WorldSafetyState::Unknown => "unknown",
+                    msc_domain::world_profile::WorldSafetyState::Unsupported => "unsupported",
+                }
+                .to_string()
+            } else {
+                "detected".to_string()
+            };
+            (
+                field.key().to_string(),
+                WorldProfileFieldMetadataDto {
+                    capability: field.capability().to_string(),
+                    lifecycle: field.apply_policy().raw_value().to_string(),
+                    value_state,
+                    help_id: field.help_id().map(str::to_string),
+                },
+            )
+        })
+        .collect();
+    WorldProfileDto {
+        schema_version: profile.schema_version,
+        identity: WorldIdentityDto {
+            name: profile.identity.name.clone(),
+            level_name: profile.identity.level_name.clone(),
+            seed: profile.identity.seed.clone(),
+        },
+        generation: WorldGenerationDto {
+            world_type: profile.generation.world_type.clone(),
+            flat_preset: profile.generation.flat_preset.clone(),
+            structures: profile.generation.structures,
+            biome_source: profile.generation.biome_source.clone(),
+            generator_options: profile.generation.generator_options.clone(),
+            bonus_chest: profile.generation.bonus_chest,
+            data_packs: profile.generation.data_packs.clone(),
+        },
+        gameplay: WorldGameplayDto {
+            difficulty: profile.gameplay.difficulty.clone(),
+            default_game_mode: profile.gameplay.default_game_mode.clone(),
+            hardcore: profile.gameplay.hardcore,
+            commands: profile.gameplay.commands,
+            gamerules: profile.gameplay.gamerules.clone(),
+            cheats: profile.gameplay.cheats,
+            experiments: profile.gameplay.experiments.clone(),
+            coordinates: profile.gameplay.coordinates,
+            starting_map: profile.gameplay.starting_map,
+            supported_toggles: profile.gameplay.supported_toggles.clone(),
+        },
+        safety: WorldSafetyDto {
+            state: profile.safety.state.raw_value().to_string(),
+            reasons: profile.safety.reasons.clone(),
+        },
+        field_metadata,
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorldProfileChangeDto {
+    key: String,
+    status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WorldProfileUpdateResultDto {
+    success: bool,
+    message: String,
+    status: String,
+    slot: WorldSlotWithProfileDto,
+    changes: Vec<WorldProfileChangeDto>,
+}
+
+fn profile_key(key: &str) -> Option<&'static str> {
+    match key {
+        "identity.name" => Some("identity.name"),
+        "identity.level-name" | "identity.levelName" => Some("identity.level-name"),
+        "identity.seed" => Some("identity.seed"),
+        "generation.world-type" | "generation.worldType" => Some("generation.world-type"),
+        "generation.flat-preset" | "generation.flatPreset" => Some("generation.flat-preset"),
+        "generation.structures" => Some("generation.structures"),
+        "generation.biome-source" | "generation.biomeSource" => Some("generation.biome-source"),
+        "generation.generator-options" | "generation.generatorOptions" => {
+            Some("generation.generator-options")
+        }
+        "generation.bonus-chest" | "generation.bonusChest" => Some("generation.bonus-chest"),
+        "generation.data-packs" | "generation.dataPacks" => Some("generation.data-packs"),
+        "gameplay.difficulty" => Some("gameplay.difficulty"),
+        "gameplay.default-game-mode" | "gameplay.defaultGameMode" => {
+            Some("gameplay.default-game-mode")
+        }
+        "gameplay.hardcore" => Some("gameplay.hardcore"),
+        "gameplay.commands" => Some("gameplay.commands"),
+        "gameplay.gamerules" => Some("gameplay.gamerules"),
+        "gameplay.cheats" => Some("gameplay.cheats"),
+        "gameplay.experiments" => Some("gameplay.experiments"),
+        "gameplay.coordinates" => Some("gameplay.coordinates"),
+        "gameplay.starting-map" | "gameplay.startingMap" => Some("gameplay.starting-map"),
+        "gameplay.supported-toggles" | "gameplay.supportedToggles" => {
+            Some("gameplay.supported-toggles")
+        }
+        _ => None,
+    }
+}
+
+fn collect_profile_changes(
+    value: &serde_json::Value,
+) -> Result<BTreeMap<String, serde_json::Value>, String> {
+    let Some(object) = value.as_object() else {
+        return Err("request must be an object".to_string());
+    };
+    let source = object.get("changes").or_else(|| object.get("profile"));
+    let source = source.unwrap_or(value);
+    let Some(source) = source.as_object() else {
+        return Err("changes must be an object".to_string());
+    };
+    let mut changes = BTreeMap::new();
+    for (key, value) in source {
+        if object.get("profile").is_some()
+            && matches!(key.as_str(), "schemaVersion" | "safety" | "fieldMetadata")
+        {
+            continue;
+        }
+        if let Some(section) = ["identity", "generation", "gameplay"]
+            .into_iter()
+            .find(|section| *section == key)
+        {
+            let Some(fields) = value.as_object() else {
+                return Err(format!("{key} must be an object"));
+            };
+            for (field, value) in fields {
+                let dotted = format!("{section}.{field}");
+                let normalized = profile_key(&dotted)
+                    .ok_or_else(|| format!("unknown world profile field: {dotted}"))?;
+                changes.insert(normalized.to_string(), value.clone());
+            }
+        } else {
+            let normalized =
+                profile_key(key).ok_or_else(|| format!("unknown world profile field: {key}"))?;
+            changes.insert(normalized.to_string(), value.clone());
+        }
+    }
+    if changes.is_empty() {
+        return Err("changes must include at least one key".to_string());
+    }
+    Ok(changes)
+}
+
+fn optional_profile_string(value: &serde_json::Value) -> Result<Option<String>, String> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    value
+        .as_str()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .map(Some)
+        .ok_or_else(|| "value must be a non-empty string or null".to_string())
+}
+
+fn optional_profile_bool(value: &serde_json::Value) -> Result<Option<bool>, String> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    value
+        .as_bool()
+        .map(Some)
+        .ok_or_else(|| "value must be a boolean or null".to_string())
+}
+
+fn profile_map_strings(value: &serde_json::Value) -> Result<BTreeMap<String, String>, String> {
+    value
+        .as_object()
+        .ok_or_else(|| "value must be an object".to_string())?
+        .iter()
+        .map(|(key, value)| {
+            value
+                .as_str()
+                .map(|value| (key.clone(), value.to_string()))
+                .ok_or_else(|| format!("{key} must be a string"))
+        })
+        .collect()
+}
+
+fn profile_map_bools(value: &serde_json::Value) -> Result<BTreeMap<String, bool>, String> {
+    value
+        .as_object()
+        .ok_or_else(|| "value must be an object".to_string())?
+        .iter()
+        .map(|(key, value)| {
+            value
+                .as_bool()
+                .map(|value| (key.clone(), value))
+                .ok_or_else(|| format!("{key} must be a boolean"))
+        })
+        .collect()
+}
+
+fn apply_profile_change(
+    profile: &mut WorldProfile,
+    server_type: ServerType,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), String> {
+    let field = WorldProfileField::ALL
+        .into_iter()
+        .find(|field| field.key() == key)
+        .ok_or_else(|| format!("unknown world profile field: {key}"))?;
+    if !field.applies_to(server_type) {
+        return Err(format!("{key} is unsupported for this server type"));
+    }
+    match field {
+        WorldProfileField::IdentityName => profile.identity.name = optional_profile_string(value)?,
+        WorldProfileField::IdentityLevelName => {
+            profile.identity.level_name = optional_profile_string(value)?
+        }
+        WorldProfileField::IdentitySeed => profile.identity.seed = optional_profile_string(value)?,
+        WorldProfileField::GenerationWorldType => {
+            profile.generation.world_type = optional_profile_string(value)?
+        }
+        WorldProfileField::GenerationFlatPreset => {
+            profile.generation.flat_preset = optional_profile_string(value)?
+        }
+        WorldProfileField::GenerationStructures => {
+            profile.generation.structures = optional_profile_bool(value)?
+        }
+        WorldProfileField::GenerationBiomeSource => {
+            profile.generation.biome_source = optional_profile_string(value)?
+        }
+        WorldProfileField::GenerationGeneratorOptions => {
+            profile.generation.generator_options = optional_profile_string(value)?
+        }
+        WorldProfileField::GenerationBonusChest => {
+            profile.generation.bonus_chest = optional_profile_bool(value)?
+        }
+        WorldProfileField::GenerationDataPacks => {
+            if value.is_null() {
+                profile.generation.data_packs.clear();
+            } else {
+                profile.generation.data_packs = value
+                    .as_array()
+                    .ok_or_else(|| "value must be an array".to_string())?
+                    .iter()
+                    .map(|value| {
+                        value
+                            .as_str()
+                            .map(str::to_string)
+                            .ok_or_else(|| "data pack names must be strings".to_string())
+                    })
+                    .collect::<Result<_, _>>()?;
+            }
+        }
+        WorldProfileField::GameplayDifficulty => {
+            let value = optional_profile_string(value)?;
+            if value
+                .as_deref()
+                .is_some_and(|value| !["peaceful", "easy", "normal", "hard"].contains(&value))
+            {
+                return Err("difficulty is not a recognized value".to_string());
+            }
+            profile.gameplay.difficulty = value;
+        }
+        WorldProfileField::GameplayDefaultGameMode => {
+            let value = optional_profile_string(value)?;
+            if value.as_deref().is_some_and(|value| {
+                !["survival", "creative", "adventure", "spectator"].contains(&value)
+            }) {
+                return Err("default game mode is not a recognized value".to_string());
+            }
+            profile.gameplay.default_game_mode = value;
+        }
+        WorldProfileField::GameplayHardcore => {
+            profile.gameplay.hardcore = optional_profile_bool(value)?
+        }
+        WorldProfileField::GameplayCommands => {
+            profile.gameplay.commands = optional_profile_bool(value)?
+        }
+        WorldProfileField::GameplayGamerules => {
+            profile.gameplay.gamerules = profile_map_strings(value)?
+        }
+        WorldProfileField::GameplayCheats => {
+            profile.gameplay.cheats = optional_profile_bool(value)?
+        }
+        WorldProfileField::GameplayExperiments => {
+            profile.gameplay.experiments = profile_map_bools(value)?
+        }
+        WorldProfileField::GameplayCoordinates => {
+            profile.gameplay.coordinates = optional_profile_bool(value)?
+        }
+        WorldProfileField::GameplayStartingMap => {
+            profile.gameplay.starting_map = optional_profile_bool(value)?
+        }
+        WorldProfileField::GameplaySupportedToggles => {
+            profile.gameplay.supported_toggles = profile_map_bools(value)?
+        }
+        WorldProfileField::SafetyState => {
+            return Err("safety.state is read-only".to_string());
+        }
+    }
+    Ok(())
+}
+
+pub async fn get_profile(
+    State(state): State<WorldsRoutesState>,
+    AxumPath(slot_id): AxumPath<String>,
+) -> Response {
+    let Some(server) = state.lifecycle.active_config_server() else {
+        return no_active_server();
+    };
+    let server_dir = Path::new(&server.server_dir);
+    let Some(slot) = find_slot(server_dir, &slot_id) else {
+        return error_response(StatusCode::NOT_FOUND, "not_found", "World slot not found.");
+    };
+    let profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    Json(WorldSlotWithProfileDto {
+        slot: to_slot_dto(
+            &slot,
+            resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str()),
+        ),
+        profile: profile_to_dto(&profile, server.server_type),
+    })
+    .into_response()
+}
+
+pub async fn update_profile(
+    State(state): State<WorldsRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    AxumPath(slot_id): AxumPath<String>,
+    body: Result<Json<serde_json::Value>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Worlds) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let changes = match collect_profile_changes(&body) {
+        Ok(changes) => changes,
+        Err(message) => return invalid_body("invalid_body", &message),
+    };
+    let server = match active_server_or_response(&state.lifecycle) {
+        Ok(server) => server,
+        Err(response) => return response,
+    };
+    let server_dir = Path::new(&server.server_dir);
+    let Some(slot) = find_slot(server_dir, &slot_id) else {
+        return error_response(StatusCode::NOT_FOUND, "not_found", "World slot not found.");
+    };
+    let mut profile = world_store::load_profile(&StdFileSystem, server_dir, &slot);
+    for (key, value) in &changes {
+        if let Err(message) = apply_profile_change(&mut profile, server.server_type, key, value) {
+            return invalid_body("invalid_body", &message);
+        }
+    }
+
+    let active = resolved_active_slot_id(server_dir).as_deref() == Some(slot.id.as_str());
+    let running = state.lifecycle.status_snapshot().running;
+    let mut updated_slot = slot.clone();
+    if let Some(name) = profile.identity.name.as_deref() {
+        updated_slot.name = name.to_string();
+    }
+    if let Some(level_name) = profile.identity.level_name.as_deref() {
+        updated_slot.world_level_name = Some(level_name.to_string());
+    }
+    if let Err(error) =
+        world_store::save_profile(&StdFileSystem, server_dir, &updated_slot, &profile)
+    {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        );
+    }
+
+    let mut report = if active {
+        match worlds::apply_world_profile(
+            &StdFileSystem,
+            server_dir,
+            server.server_type,
+            &profile,
+            worlds::WorldProfileApplyContext::Activation,
+            running,
+        ) {
+            Ok(report) => report,
+            Err(error) => {
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    &error.to_string(),
+                );
+            }
+        }
+    } else {
+        worlds::WorldProfileApplicationReport::default()
+    };
+    let mut response_changes = Vec::new();
+    for (key, _) in changes {
+        if !active {
+            response_changes.push(WorldProfileChangeDto {
+                key,
+                status: "blocked".to_string(),
+                reason: Some("slot_not_active".to_string()),
+            });
+            continue;
+        }
+        if let Some(change) = report.changes.iter_mut().find(|change| change.key == key) {
+            response_changes.push(WorldProfileChangeDto {
+                key,
+                status: change.status.raw_value().to_string(),
+                reason: change.reason.clone(),
+            });
+        } else {
+            response_changes.push(WorldProfileChangeDto {
+                key,
+                status: "blocked".to_string(),
+                reason: Some("runtime_projection_unavailable".to_string()),
+            });
+        }
+    }
+    let status = if response_changes
+        .iter()
+        .any(|change| change.status == "blocked")
+    {
+        "blocked"
+    } else if response_changes
+        .iter()
+        .any(|change| change.status == "pending_restart")
+    {
+        "pending_restart"
+    } else {
+        "live"
+    };
+    let saved_profile = world_store::load_profile(&StdFileSystem, server_dir, &updated_slot);
+    Json(WorldProfileUpdateResultDto {
+        success: true,
+        message: "saved".to_string(),
+        status: status.to_string(),
+        slot: WorldSlotWithProfileDto {
+            slot: to_slot_dto(&updated_slot, active),
+            profile: profile_to_dto(&saved_profile, server.server_type),
+        },
+        changes: response_changes,
+    })
+    .into_response()
 }
 
 fn mutation_ok(state: &LifecycleRoutesState, server: &ConfigServer, message: &str) -> Response {
@@ -1494,6 +1962,9 @@ pub async fn activate(
         Ok(server) => server,
         Err(response) => return response,
     };
+    if lifecycle.status_snapshot().running {
+        return error_response(StatusCode::CONFLICT, "server_running", "Server is running.");
+    }
     let server_dir = Path::new(&server.server_dir).to_path_buf();
     let Some(slot) = find_slot(&server_dir, &body.slot_id) else {
         return error_response(

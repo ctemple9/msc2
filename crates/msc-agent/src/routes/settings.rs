@@ -29,8 +29,10 @@ use msc_api::dto::{
     PermissionCategoryDto, SettingFieldDto, SettingOptionDto, SettingRejectionDto,
     SettingsResponseDto, SettingsSectionDto, SettingsUpdateRequestDto, SettingsUpdateResultDto,
 };
-use msc_domain::properties::{LevelType, ServerDifficulty, ServerGamemode, ServerPropertiesModel};
-use msc_domain::settings_schema::{self, level_token};
+use msc_domain::identity::ServerType;
+use msc_domain::properties::ServerPropertiesModel;
+use msc_domain::settings_schema;
+use msc_domain::world_profile::SettingOwner;
 use msc_infrastructure::atomic_write::atomic_write;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 
@@ -140,58 +142,64 @@ fn apply_settings_update(
         );
     };
     let dir = Path::new(&directory);
-    if state
+    let server_type = state
         .active_config_server()
-        .is_some_and(|server| server.server_type == msc_domain::identity::ServerType::Bedrock)
-    {
-        let changes = changes
-            .iter()
-            .map(|(key, value)| (key.clone(), value.clone()))
+        .map(|server| server.server_type)
+        .unwrap_or(ServerType::Java);
+    if server_type == ServerType::Bedrock {
+        let (server_changes, mut ownership_rejections) =
+            filter_server_changes(server_type, changes);
+        let changes = server_changes
+            .into_iter()
             .collect::<std::collections::BTreeMap<_, _>>();
-        let restart_required = state.status_snapshot().running;
+        let restart_required = state.status_snapshot().running
+            && changes.keys().any(|key| {
+                settings_schema::server_setting_contract(server_type, key).is_some_and(|contract| {
+                    contract.apply_policy
+                        == msc_domain::world_profile::SettingApplyPolicy::RestartRequired
+                })
+            });
         return match msc_application::bedrock_settings::update(fs, dir, &changes) {
-            Ok(result) if result.applied_keys.is_empty() => Json(SettingsUpdateResultDto {
-                success: false,
-                message: "no_valid_changes".to_owned(),
-                restart_required,
-                applied_keys: Vec::new(),
-                rejected: Some(
-                    result
-                        .rejected
-                        .into_iter()
-                        .map(|rejection| SettingRejectionDto {
-                            key: rejection.key,
-                            reason: rejection.reason,
-                        })
-                        .collect(),
-                ),
-                sections: Some(bedrock_sections(&result.settings.model)),
-                runtime: runtime_for(state),
-            })
-            .into_response(),
-            Ok(result) => Json(SettingsUpdateResultDto {
-                success: true,
-                message: if result.rejected.is_empty() {
-                    "saved".to_owned()
-                } else {
-                    "saved_with_rejections".to_owned()
-                },
-                restart_required,
-                applied_keys: result.applied_keys,
-                rejected: (!result.rejected.is_empty()).then(|| {
-                    result
-                        .rejected
-                        .into_iter()
-                        .map(|rejection| SettingRejectionDto {
-                            key: rejection.key,
-                            reason: rejection.reason,
-                        })
-                        .collect()
-                }),
-                sections: Some(bedrock_sections(&result.settings.model)),
-                runtime: runtime_for(state),
-            })
-            .into_response(),
+            Ok(result) if result.applied_keys.is_empty() => {
+                ownership_rejections.extend(result.rejected.into_iter().map(|rejection| {
+                    SettingRejectionDto {
+                        key: rejection.key,
+                        reason: rejection.reason,
+                    }
+                }));
+                Json(SettingsUpdateResultDto {
+                    success: false,
+                    message: "no_valid_changes".to_owned(),
+                    restart_required,
+                    applied_keys: Vec::new(),
+                    rejected: (!ownership_rejections.is_empty()).then_some(ownership_rejections),
+                    sections: Some(bedrock_sections(&result.settings.model)),
+                    runtime: runtime_for(state),
+                })
+                .into_response()
+            }
+            Ok(result) => {
+                ownership_rejections.extend(result.rejected.into_iter().map(|rejection| {
+                    SettingRejectionDto {
+                        key: rejection.key,
+                        reason: rejection.reason,
+                    }
+                }));
+                Json(SettingsUpdateResultDto {
+                    success: true,
+                    message: if ownership_rejections.is_empty() {
+                        "saved".to_owned()
+                    } else {
+                        "saved_with_rejections".to_owned()
+                    },
+                    restart_required,
+                    applied_keys: result.applied_keys,
+                    rejected: (!ownership_rejections.is_empty()).then_some(ownership_rejections),
+                    sections: Some(bedrock_sections(&result.settings.model)),
+                    runtime: runtime_for(state),
+                })
+                .into_response()
+            }
             Err(error) => error_response(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "internal_error",
@@ -199,11 +207,19 @@ fn apply_settings_update(
             ),
         };
     }
-    let restart_required = state.status_snapshot().running;
+    let (server_changes, mut ownership_rejections) = filter_server_changes(server_type, changes);
+    let restart_required = state.status_snapshot().running
+        && server_changes.keys().any(|key| {
+            settings_schema::server_setting_contract(server_type, key).is_some_and(|contract| {
+                contract.apply_policy
+                    == msc_domain::world_profile::SettingApplyPolicy::RestartRequired
+            })
+        });
 
     let mut model = load_properties_model(fs, dir);
-    let result = settings_schema::apply_java(changes, &mut model);
-    let rejected = to_rejection_dtos(&result.rejected);
+    let result = settings_schema::apply_java(&server_changes, &mut model);
+    let rejected_from_schema = to_rejection_dtos(&result.rejected).unwrap_or_default();
+    ownership_rejections.extend(rejected_from_schema);
 
     if result.applied.is_empty() {
         let sections = java_sections(&load_properties_model(fs, dir));
@@ -212,7 +228,7 @@ fn apply_settings_update(
             message: "no_valid_changes".to_string(),
             restart_required,
             applied_keys: Vec::new(),
-            rejected,
+            rejected: (!ownership_rejections.is_empty()).then_some(ownership_rejections),
             sections: Some(sections),
             runtime: None,
         })
@@ -222,7 +238,7 @@ fn apply_settings_update(
     match save_properties_model(fs, dir, &model) {
         Ok(()) => {
             let sections = java_sections(&load_properties_model(fs, dir));
-            let message = if result.rejected.is_empty() {
+            let message = if ownership_rejections.is_empty() {
                 "saved"
             } else {
                 "saved_with_rejections"
@@ -232,7 +248,7 @@ fn apply_settings_update(
                 message: message.to_string(),
                 restart_required,
                 applied_keys: result.applied,
-                rejected,
+                rejected: (!ownership_rejections.is_empty()).then_some(ownership_rejections),
                 sections: Some(sections),
                 runtime: None,
             })
@@ -244,6 +260,29 @@ fn apply_settings_update(
             &error.to_string(),
         ),
     }
+}
+
+fn filter_server_changes(
+    server_type: ServerType,
+    changes: &HashMap<String, String>,
+) -> (HashMap<String, String>, Vec<SettingRejectionDto>) {
+    let mut accepted = HashMap::new();
+    let mut rejected = Vec::new();
+    for (key, value) in changes {
+        let contract = match server_type {
+            ServerType::Java => settings_schema::java_setting_contract(key),
+            ServerType::Bedrock => settings_schema::bedrock_setting_contract(key),
+        };
+        if contract.is_some_and(|contract| contract.owner == SettingOwner::WorldProfile) {
+            rejected.push(SettingRejectionDto {
+                key: key.clone(),
+                reason: "world_profile_key".to_string(),
+            });
+        } else {
+            accepted.insert(key.clone(), value.clone());
+        }
+    }
+    (accepted, rejected)
 }
 
 fn to_rejection_dtos(rejected: &[settings_schema::Rejection]) -> Option<Vec<SettingRejectionDto>> {
@@ -274,7 +313,7 @@ fn save_properties_model(
 ) -> Result<(), msc_infrastructure::atomic_write::AtomicWriteError> {
     let path = server_dir.join(PROPERTIES_FILE_NAME);
     let existing = read_properties(fs, &path);
-    let merged = model.merged_into(&existing);
+    let merged = model.merged_server_into(&existing);
     atomic_write(fs, &path, encode_properties(&merged).as_bytes())
 }
 
@@ -317,45 +356,6 @@ fn encode_properties(properties: &HashMap<String, String>) -> String {
 }
 
 fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
-    let difficulty_options = [
-        ServerDifficulty::Peaceful,
-        ServerDifficulty::Easy,
-        ServerDifficulty::Normal,
-        ServerDifficulty::Hard,
-    ]
-    .into_iter()
-    .map(|value| SettingOptionDto {
-        value: value.raw_value().to_string(),
-        label: capitalize(value.raw_value()),
-    })
-    .collect();
-
-    let gamemode_options = [
-        ServerGamemode::Survival,
-        ServerGamemode::Creative,
-        ServerGamemode::Adventure,
-        ServerGamemode::Spectator,
-    ]
-    .into_iter()
-    .map(|value| SettingOptionDto {
-        value: value.raw_value().to_string(),
-        label: capitalize(value.raw_value()),
-    })
-    .collect();
-
-    let level_options = [
-        LevelType::Normal,
-        LevelType::Flat,
-        LevelType::LargeBiomes,
-        LevelType::Amplified,
-    ]
-    .into_iter()
-    .map(|value| SettingOptionDto {
-        value: level_token(value).to_string(),
-        label: level_display_name(value).to_string(),
-    })
-    .collect();
-
     let op_level_options = vec![
         SettingOptionDto {
             value: "1".to_string(),
@@ -375,33 +375,11 @@ fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
         },
     ];
 
-    let world = SettingsSectionDto {
-        id: "world".to_string(),
-        title: "World".to_string(),
+    let runtime = SettingsSectionDto {
+        id: "runtime".to_string(),
+        title: "Runtime".to_string(),
         icon: "globe".to_string(),
         fields: vec![
-            enum_field(
-                "difficulty",
-                "Difficulty",
-                model.difficulty.raw_value(),
-                difficulty_options,
-                None,
-            ),
-            enum_field(
-                "gamemode",
-                "Gamemode",
-                model.gamemode.raw_value(),
-                gamemode_options,
-                None,
-            ),
-            enum_field(
-                "level-type",
-                "World Type",
-                level_token(model.level_type),
-                level_options,
-                None,
-            ),
-            bool_field("hardcore", "Hardcore", model.hardcore, None),
             bool_field("pvp", "PvP", model.pvp, None),
             bool_field(
                 "spawn-monsters",
@@ -415,9 +393,9 @@ fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
             bool_field("allow-flight", "Allow Flight", model.allow_flight, None),
             bool_field(
                 "force-gamemode",
-                "Force Gamemode",
+                "Force Gamemode (server-wide)",
                 model.force_gamemode,
-                None,
+                Some("concept.settings"),
             ),
             int_field(
                 "spawn-protection",
@@ -517,7 +495,7 @@ fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
         )],
     };
 
-    vec![world, server, network]
+    vec![runtime, server, network]
 }
 
 fn bedrock_sections(
@@ -542,12 +520,6 @@ fn bedrock_sections(
             icon: "cube".to_owned(),
             fields: vec![
                 field(
-                    "level-name",
-                    "Level Name",
-                    model.level_name.clone(),
-                    "string",
-                ),
-                field(
                     "max-players",
                     "Max Players",
                     model.max_players.to_string(),
@@ -558,24 +530,6 @@ fn bedrock_sections(
                     "Online Mode",
                     model.online_mode.to_string(),
                     "bool",
-                ),
-                field(
-                    "allow-cheats",
-                    "Allow Cheats",
-                    model.allow_cheats.to_string(),
-                    "bool",
-                ),
-                field(
-                    "difficulty",
-                    "Difficulty",
-                    model.difficulty.raw_value().to_owned(),
-                    "enum",
-                ),
-                field(
-                    "gamemode",
-                    "Gamemode",
-                    model.gamemode.raw_value().to_owned(),
-                    "enum",
                 ),
             ],
         },
@@ -682,23 +636,6 @@ fn enum_field(
     }
 }
 
-fn capitalize(raw: &str) -> String {
-    let mut chars = raw.chars();
-    match chars.next() {
-        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
-        None => String::new(),
-    }
-}
-
-fn level_display_name(level: LevelType) -> &'static str {
-    match level {
-        LevelType::Normal => "Normal",
-        LevelType::Flat => "Flat",
-        LevelType::LargeBiomes => "Large Biomes",
-        LevelType::Amplified => "Amplified",
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -780,15 +717,18 @@ mod tests {
 
         assert!(response.editable);
         assert_eq!(response.server_name, "Settings Route Paper");
-        let world = response
+        let runtime = response
             .sections
             .iter()
-            .find(|section| section.id == "world")
+            .find(|section| section.id == "runtime")
             .unwrap();
-        let difficulty = world.fields.iter().find(|f| f.key == "difficulty").unwrap();
-        assert_eq!(difficulty.value, "hard");
-        assert_eq!(difficulty.options.as_ref().unwrap().len(), 4);
-        let spawn_protection = world
+        assert!(runtime.fields.iter().all(|field| {
+            !matches!(
+                field.key.as_str(),
+                "difficulty" | "gamemode" | "level-type" | "hardcore"
+            )
+        }));
+        let spawn_protection = runtime
             .fields
             .iter()
             .find(|f| f.key == "spawn-protection")
@@ -798,12 +738,10 @@ mod tests {
             Some("settings.spawn-protection")
         );
         assert!(
-            world
+            runtime
                 .fields
                 .iter()
                 .find(|f| f.key == "hardcore")
-                .unwrap()
-                .help_id
                 .is_none()
         );
 
@@ -827,7 +765,11 @@ mod tests {
     #[tokio::test]
     async fn settings_route_post_applies_and_persists_changes() {
         let server_dir = temp_server_dir("post-apply");
-        std::fs::write(server_dir.join("server.properties"), "max-players=20\n").unwrap();
+        std::fs::write(
+            server_dir.join("server.properties"),
+            "difficulty=easy\nmax-players=20\n",
+        )
+        .unwrap();
         let state = state_with_active_server(server_dir.clone());
 
         let mut changes = HashMap::new();
@@ -842,14 +784,14 @@ mod tests {
         let result: SettingsUpdateResultDto = serde_json::from_slice(&body).unwrap();
         assert!(result.success);
         assert_eq!(result.message, "saved");
-        assert_eq!(result.applied_keys.len(), 2);
-        assert!(result.rejected.is_none());
+        assert_eq!(result.applied_keys, vec!["max-players"]);
+        assert_eq!(result.rejected.unwrap()[0].key, "difficulty");
 
         let persisted = read_properties(&StdFileSystem, &server_dir.join(PROPERTIES_FILE_NAME));
         assert_eq!(persisted.get("max-players").map(String::as_str), Some("77"));
         assert_eq!(
             persisted.get("difficulty").map(String::as_str),
-            Some("hard")
+            Some("easy")
         );
 
         std::fs::remove_dir_all(server_dir).unwrap();

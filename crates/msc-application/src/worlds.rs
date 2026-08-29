@@ -33,8 +33,9 @@ use msc_domain::identity::ServerType;
 use msc_domain::nbt;
 use msc_domain::world::{self, BackupAssociation, WorldSlot};
 use msc_domain::world_profile::{
-    WorldGameplay as ProfileGameplay, WorldGeneration as ProfileGeneration,
-    WorldIdentity as ProfileIdentity, WorldProfile, WorldSafety as ProfileSafety, WorldSafetyState,
+    SettingApplyPolicy, WorldGameplay as ProfileGameplay, WorldGeneration as ProfileGeneration,
+    WorldIdentity as ProfileIdentity, WorldProfile, WorldProfileField,
+    WorldSafety as ProfileSafety, WorldSafetyState,
 };
 use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::atomic_write::AtomicWriteError;
@@ -1278,6 +1279,231 @@ pub(crate) fn apply_world_identity(
     write_properties_map(fs, &path, &props)
 }
 
+/// The result of projecting a saved world profile onto the active runtime.
+/// The profile remains the source of truth; this report says what the
+/// runtime-facing files accepted now and what must wait for a later lifecycle
+/// boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldProfileApplyStatus {
+    Live,
+    PendingRestart,
+    Blocked,
+}
+
+impl WorldProfileApplyStatus {
+    pub const fn raw_value(self) -> &'static str {
+        match self {
+            Self::Live => "live",
+            Self::PendingRestart => "pending_restart",
+            Self::Blocked => "blocked",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorldProfileChange {
+    pub key: String,
+    pub status: WorldProfileApplyStatus,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct WorldProfileApplicationReport {
+    pub changes: Vec<WorldProfileChange>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorldProfileApplyContext {
+    Creation,
+    Activation,
+}
+
+fn profile_field_present(profile: &WorldProfile, field: WorldProfileField) -> bool {
+    match field {
+        WorldProfileField::IdentityName => profile.identity.name.is_some(),
+        WorldProfileField::IdentityLevelName => profile.identity.level_name.is_some(),
+        WorldProfileField::IdentitySeed => profile.identity.seed.is_some(),
+        WorldProfileField::GenerationWorldType => profile.generation.world_type.is_some(),
+        WorldProfileField::GenerationFlatPreset => profile.generation.flat_preset.is_some(),
+        WorldProfileField::GenerationStructures => profile.generation.structures.is_some(),
+        WorldProfileField::GenerationBiomeSource => profile.generation.biome_source.is_some(),
+        WorldProfileField::GenerationGeneratorOptions => {
+            profile.generation.generator_options.is_some()
+        }
+        WorldProfileField::GenerationBonusChest => profile.generation.bonus_chest.is_some(),
+        WorldProfileField::GenerationDataPacks => !profile.generation.data_packs.is_empty(),
+        WorldProfileField::GameplayDifficulty => profile.gameplay.difficulty.is_some(),
+        WorldProfileField::GameplayDefaultGameMode => profile.gameplay.default_game_mode.is_some(),
+        WorldProfileField::GameplayHardcore => profile.gameplay.hardcore.is_some(),
+        WorldProfileField::GameplayCommands => profile.gameplay.commands.is_some(),
+        WorldProfileField::GameplayGamerules => !profile.gameplay.gamerules.is_empty(),
+        WorldProfileField::GameplayCheats => profile.gameplay.cheats.is_some(),
+        WorldProfileField::GameplayExperiments => !profile.gameplay.experiments.is_empty(),
+        WorldProfileField::GameplayCoordinates => profile.gameplay.coordinates.is_some(),
+        WorldProfileField::GameplayStartingMap => profile.gameplay.starting_map.is_some(),
+        WorldProfileField::GameplaySupportedToggles => {
+            !profile.gameplay.supported_toggles.is_empty()
+        }
+        WorldProfileField::SafetyState => false,
+    }
+}
+
+fn profile_property_value(
+    profile: &WorldProfile,
+    server_type: ServerType,
+    context: WorldProfileApplyContext,
+    field: WorldProfileField,
+) -> Option<(&'static str, String)> {
+    match field {
+        WorldProfileField::IdentityLevelName => profile
+            .identity
+            .level_name
+            .clone()
+            .map(|value| ("level-name", value)),
+        WorldProfileField::IdentitySeed if context == WorldProfileApplyContext::Creation => profile
+            .identity
+            .seed
+            .clone()
+            .map(|value| ("level-seed", value)),
+        WorldProfileField::GenerationWorldType if context == WorldProfileApplyContext::Creation => {
+            profile
+                .generation
+                .world_type
+                .clone()
+                .map(|value| ("level-type", value))
+        }
+        WorldProfileField::GenerationBonusChest
+            if context == WorldProfileApplyContext::Creation =>
+        {
+            profile
+                .generation
+                .bonus_chest
+                .map(|value| ("bonus-chest", value.to_string()))
+        }
+        WorldProfileField::GameplayDifficulty => profile
+            .gameplay
+            .difficulty
+            .clone()
+            .map(|value| ("difficulty", value)),
+        WorldProfileField::GameplayDefaultGameMode => profile
+            .gameplay
+            .default_game_mode
+            .clone()
+            .map(|value| ("gamemode", value)),
+        WorldProfileField::GameplayHardcore if context == WorldProfileApplyContext::Creation => {
+            profile
+                .gameplay
+                .hardcore
+                .map(|value| ("hardcore", value.to_string()))
+        }
+        WorldProfileField::GameplayCheats if server_type == ServerType::Bedrock => profile
+            .gameplay
+            .cheats
+            .map(|value| ("allow-cheats", value.to_string())),
+        WorldProfileField::GameplayCoordinates if server_type == ServerType::Bedrock => profile
+            .gameplay
+            .coordinates
+            .map(|value| ("show-coordinates", value.to_string())),
+        WorldProfileField::GameplayStartingMap if server_type == ServerType::Bedrock => profile
+            .gameplay
+            .starting_map
+            .map(|value| ("starting-map", value.to_string())),
+        _ => None,
+    }
+}
+
+fn profile_change_status(
+    field: WorldProfileField,
+    context: WorldProfileApplyContext,
+    is_server_running: bool,
+) -> (WorldProfileApplyStatus, Option<String>) {
+    let policy = field.apply_policy();
+    if context == WorldProfileApplyContext::Activation && policy == SettingApplyPolicy::CreationOnly
+    {
+        return (
+            WorldProfileApplyStatus::Blocked,
+            Some("creation_only".to_string()),
+        );
+    }
+    if is_server_running {
+        return match policy {
+            SettingApplyPolicy::CreationOnly | SettingApplyPolicy::ApplyOnActivation => (
+                WorldProfileApplyStatus::Blocked,
+                Some("server_running".to_string()),
+            ),
+            SettingApplyPolicy::RestartRequired => (
+                WorldProfileApplyStatus::PendingRestart,
+                Some("restart_required".to_string()),
+            ),
+            SettingApplyPolicy::LiveSafe => (WorldProfileApplyStatus::Live, None),
+        };
+    }
+    (WorldProfileApplyStatus::Live, None)
+}
+
+/// Applies the shared world-profile projection used by initial creation,
+/// activation, and profile updates. Only keys represented by a world profile
+/// are changed; all other `server.properties` entries, including plugin and
+/// server-wide settings, remain untouched. The final read verifies the
+/// values the filesystem actually accepted.
+pub fn apply_world_profile(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    server_type: ServerType,
+    profile: &WorldProfile,
+    context: WorldProfileApplyContext,
+    is_server_running: bool,
+) -> io::Result<WorldProfileApplicationReport> {
+    let path = server_dir.join("server.properties");
+    let mut properties = read_properties_map(fs, &path);
+    let mut expected = BTreeMap::new();
+    let mut changes = Vec::new();
+
+    for field in WorldProfileField::ALL {
+        if !field.applies_to(server_type) || !profile_field_present(profile, field) {
+            continue;
+        }
+        let (mut status, mut reason) = profile_change_status(field, context, is_server_running);
+        if let Some((key, value)) = profile_property_value(profile, server_type, context, field) {
+            if status != WorldProfileApplyStatus::Blocked {
+                properties.insert(key.to_string(), value.clone());
+                expected.insert(key.to_string(), value);
+            }
+        } else {
+            status = WorldProfileApplyStatus::Blocked;
+            reason = Some("runtime_projection_unavailable".to_string());
+        }
+        changes.push(WorldProfileChange {
+            key: field.key().to_string(),
+            status,
+            reason,
+        });
+    }
+
+    if !expected.is_empty() {
+        write_properties_map(fs, &path, &properties)?;
+        let accepted = read_properties_map(fs, &path);
+        for change in &mut changes {
+            if change.status == WorldProfileApplyStatus::Blocked {
+                continue;
+            }
+            let field = WorldProfileField::ALL
+                .into_iter()
+                .find(|field| field.key() == change.key)
+                .expect("every profile change key comes from WorldProfileField::ALL");
+            if let Some((property, value)) =
+                profile_property_value(profile, server_type, context, field)
+                && accepted.get(property).map(String::as_str) != Some(value.as_str())
+            {
+                change.status = WorldProfileApplyStatus::Blocked;
+                change.reason = Some("runtime_readback_mismatch".to_string());
+            }
+        }
+    }
+
+    Ok(WorldProfileApplicationReport { changes })
+}
+
 fn activation_dir(server_dir: &Path) -> PathBuf {
     world_store::slots_directory(server_dir).join(".activation")
 }
@@ -1607,7 +1833,19 @@ pub fn activate_slot(
         let _ = fs.remove(&staged_dir);
     }
 
-    finish_activation_commit(fs, server_dir, slot, identity.as_ref(), now)
+    finish_activation_commit(
+        fs,
+        server_dir,
+        server_type,
+        slot,
+        identity.as_ref(),
+        if has_archive {
+            WorldProfileApplyContext::Activation
+        } else {
+            WorldProfileApplyContext::Creation
+        },
+        now,
+    )
 }
 
 /// The tail shared by a normal [`activate_slot`] call and
@@ -1621,19 +1859,34 @@ pub fn activate_slot(
 fn finish_activation_commit(
     fs: &dyn FileSystem,
     server_dir: &Path,
+    server_type: ServerType,
     slot: &WorldSlot,
     identity: Option<&WorldIdentity>,
+    profile_context: WorldProfileApplyContext,
     now: &str,
 ) -> Result<WorldSlot, ActivationError> {
+    let mut profile = world_store::load_profile(fs, server_dir, slot);
     if let Some(identity) = identity {
-        apply_world_identity(fs, server_dir, identity)?;
+        profile.identity.level_name = Some(identity.level_name.clone());
+        if identity.apply_seed {
+            profile.identity.seed = identity.seed.clone();
+        }
     }
+    apply_world_profile(
+        fs,
+        server_dir,
+        server_type,
+        &profile,
+        profile_context,
+        false,
+    )?;
 
     let mut updated = slot.clone();
     updated.last_played_at = Some(now.to_string());
     if let Some(identity) = identity {
         updated.world_level_name = Some(identity.level_name.clone());
     }
+    world_store::save_profile(fs, server_dir, &updated, &profile)?;
     world_store::save_metadata(fs, server_dir, &updated)?;
     world_store::set_active_slot_id(fs, server_dir, Some(&updated.id))?;
 
@@ -1706,7 +1959,26 @@ pub fn reconcile_interrupted_activation(
         .cloned()
         .ok_or(ActivationError::Manifest)?;
 
-    let updated = finish_activation_commit(fs, server_dir, &slot, identity.as_ref(), now)?;
+    let server_type = if read_properties_map(fs, &server_dir.join("server.properties"))
+        .contains_key("server-portv6")
+    {
+        ServerType::Bedrock
+    } else {
+        ServerType::Java
+    };
+    let updated = finish_activation_commit(
+        fs,
+        server_dir,
+        server_type,
+        &slot,
+        identity.as_ref(),
+        if has_archive(fs, server_dir, &slot.id) {
+            WorldProfileApplyContext::Activation
+        } else {
+            WorldProfileApplyContext::Creation
+        },
+        now,
+    )?;
     Ok(Some(ActivationRecovery::RecoveredToNewWorld {
         slot_id: updated.id,
     }))

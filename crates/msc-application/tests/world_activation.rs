@@ -13,6 +13,7 @@ use msc_application::worlds::{self, ActivationError, ActivationRecovery};
 use msc_domain::identity::ServerType;
 use msc_domain::world::WorldSlot;
 use msc_infrastructure::fs::StdFileSystem;
+use msc_infrastructure::world_store;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -99,6 +100,44 @@ fn fresh_slot(id: &str, level_name: &str, seed: &str) -> WorldSlot {
         world_seed: Some(seed.to_string()),
         zip_size_bytes: None,
     }
+}
+
+#[test]
+fn world_activation_applies_saved_profile_without_overwriting_server_settings() {
+    let tmp = TempDir::new("profile-application");
+    let server_dir = tmp.path();
+    write_file(
+        &server_dir.join("server.properties"),
+        b"level-name=world\nmotd=Keep this\nmax-players=12\n",
+    );
+    make_live_folder(server_dir, "world", b"old world");
+    let slot = slot_with_archive("slot-profile", "new-world");
+    write_slot_archive_folders(server_dir, &slot.id, &[("new-world", b"new world")]);
+
+    let mut profile = msc_domain::world_profile::WorldProfile::new();
+    profile.identity.name = Some(slot.name.clone());
+    profile.identity.level_name = slot.world_level_name.clone();
+    profile.gameplay.difficulty = Some("hard".to_string());
+    profile.gameplay.default_game_mode = Some("creative".to_string());
+    world_store::save_profile(&StdFileSystem, server_dir, &slot, &profile).unwrap();
+
+    worlds::activate_slot(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Java,
+        &slot,
+        false,
+        "2026-06-01T00:00:00Z",
+        || true,
+        || false,
+    )
+    .unwrap();
+
+    let properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
+    assert!(properties.lines().any(|line| line == "difficulty=hard"));
+    assert!(properties.lines().any(|line| line == "gamemode=creative"));
+    assert!(properties.lines().any(|line| line == "motd=Keep this"));
+    assert!(properties.lines().any(|line| line == "max-players=12"));
 }
 
 #[test]

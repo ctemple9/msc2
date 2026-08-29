@@ -124,7 +124,11 @@
   // there per Cameron's own visual review -- the oracle keeps it inside the
   // section's content, but this reads cleaner one row up, next to the
   // section title itself, with no "Show"/"Hide" text needed alongside it).
+  // Only rendered while the section is expanded, and always resets to
+  // hidden (masked) when the section collapses -- Cameron's own call: never
+  // remember a "shown" state across a closed disclosure.
   let showAddresses = false;
+  $: if (!expanded['How to connect']) showAddresses = false;
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
 
@@ -225,7 +229,7 @@
             <ShellIcon name={expanded[section] ? 'chevron-down' : 'chevron-right'} size={11} />
             <span class="overline">{section}</span>
           </button>
-          {#if section === 'How to connect'}
+          {#if section === 'How to connect' && expanded[section]}
             <button
               type="button"
               class="eye-toggle"

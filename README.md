@@ -1,4 +1,5 @@
 # MSC 2
+> Built by ctemple9
 
 I wanted running a Minecraft server to feel like running an app.
 

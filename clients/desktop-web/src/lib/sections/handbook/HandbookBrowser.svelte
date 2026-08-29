@@ -64,7 +64,14 @@
     {#if topic}
       {#if categoryLabel}<Badge>{categoryLabel}</Badge>{/if}
       <h3 class="msc2-type-page">{topic.title}</h3>
-      {#if topic.subtitle}<p class="subtitle msc2-type-body">{topic.subtitle}</p>{/if}
+      {#if topic.subtitle}
+        <p
+          class="subtitle msc2-type-body"
+          class:overview-subtitle={topic.helpId === 'handbook.overview'}
+        >
+          {topic.subtitle}
+        </p>
+      {/if}
       {#if topic.analogy}<p class="analogy msc2-type-body">{topic.analogy}</p>{/if}
       <div class="markdown msc2-type-body" data-safe-markdown="true">
         {@html renderMarkdown(topic.body)}
@@ -227,6 +234,9 @@
   .subtitle {
     color: var(--msc2-text-secondary);
     margin: 0;
+  }
+  .overview-subtitle {
+    font-style: italic;
   }
   .analogy {
     color: var(--msc2-text-secondary);

@@ -186,7 +186,15 @@ describe('shared help and onboarding screens', () => {
     expect(splashSource).toContain('onerror={handleVideoError}');
   });
 
-  it('rebuilds the Router Guide to the oracle\'s 3-screen depth against the real routes P12.16a wired', () => {
+  it('italicizes only the Overview subtitle', () => {
+    expect(handbookSource).toContain(
+      "class:overview-subtitle={topic.helpId === 'handbook.overview'}",
+    );
+    expect(handbookSource).toContain('.overview-subtitle');
+    expect(handbookSource).toContain('font-style: italic;');
+  });
+
+  it("rebuilds the Router Guide to the oracle's 3-screen depth against the real routes P12.16a wired", () => {
     expect(routerPanelSource).toContain('/v1/guides/router/search?q=');
     expect(routerPanelSource).toContain('Step 1 of 3 — Find your router');
     expect(routerPanelSource).toContain("I don't know my router");

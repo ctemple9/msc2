@@ -1022,6 +1022,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16g: fix raw buttons not inheriting text color`
 **Batch:** solo
 
+### P12.16h — Italicize the Handbook Overview subtitle
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/handbook/HandbookBrowser.svelte`, `clients/desktop-web/tests/screens/help.test.ts`
+**What:** Give the Overview topic's opening subtitle, “What this app is and what it can do for you.”, the same quiet italic treatment already used for the Handbook analogy. Scope the class to `handbook.overview` so other topic subtitles retain their existing presentation.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/handbook/HandbookBrowser.svelte tests/screens/help.test.ts && npx vitest run tests/screens/help.test.ts`
+**Commit:** `P12.16h: italicize the Handbook Overview subtitle`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

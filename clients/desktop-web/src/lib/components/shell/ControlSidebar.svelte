@@ -1,18 +1,37 @@
 <script lang="ts">
   // Server-control rail: host-aware picker, Start/Stop, Manage…, and MSC 1's
-  // four collapsible sections. How to Connect and Maintenance are real now
-  // (P12.21); Console Access and Quick Commands are still placeholders,
-  // rebuilt in P12.22. docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
+  // four collapsible sections, all real now (P12.21, P12.22).
+  // docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
   import Button from '../base/Button.svelte';
   import Menu from '../base/Menu.svelte';
   import Icon from '../base/Icon.svelte';
   import ShellIcon from './ShellIcon.svelte';
   import PlayerAvatar from './PlayerAvatar.svelte';
   import HowToConnectSection from './sidebar/HowToConnectSection.svelte';
+  import ConsoleAccessSection from './sidebar/ConsoleAccessSection.svelte';
+  import QuickCommandsSection from './sidebar/QuickCommandsSection.svelte';
   import { bannerColorAccent } from '../../styles/bannerColor';
   import { getPlatform } from '../../platform';
+  import { JAVA_FLAVOR_CATALOG, crossPlayUnavailable } from '../../sections/fleet/wizard/model';
+  import type { JavaCategory, JavaFlavor } from '../../sections/fleet/wizard/model';
   import type { HostId, HostRecord } from '../../hosts/types';
   import type { Schema, ScreenApi } from '../../sections/shared/types';
+
+  // JAVA_FLAVOR_CATALOG only covers the 6 flavors the creation wizard offers
+  // (isAvailableInCreateFlow) -- an imported or pre-existing server can carry
+  // a javaFlavor outside that set (pufferfish, spigot, quilt). The oracle's
+  // full JavaServerFlavor enum (JavaServerFlavor.swift) fixes every flavor's
+  // category regardless of Create-flow availability: pufferfish/spigot are
+  // standard (plugin) like Paper/Purpur; quilt is modded (loader) like
+  // Fabric/NeoForge/Forge. This fills that gap rather than mis-hiding
+  // Console Access for a flavor the wizard's own catalog doesn't list.
+  const MODDED_FLAVORS = new Set(['fabric', 'neoforge', 'forge', 'quilt']);
+
+  function javaFlavorCategory(flavor: string): JavaCategory {
+    const known = JAVA_FLAVOR_CATALOG.find((entry) => entry.id === flavor);
+    if (known) return known.category;
+    return MODDED_FLAVORS.has(flavor) ? 'modded' : 'standard';
+  }
 
   export let hostLabel: string;
   export let hosts: readonly HostRecord[] = [];
@@ -103,12 +122,26 @@
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
 
+  // MSC 1's SidebarView.swift's `showCrossPlatform`: always for Bedrock;
+  // for Java, only flavors that can host Geyser/Xbox Broadcast (not
+  // Vanilla, not a modded loader).
+  $: showConsoleAccess =
+    activeServer !== undefined &&
+    (activeServer.serverType === 'bedrock' ||
+      (!!activeServer.javaFlavor &&
+        !crossPlayUnavailable(
+          javaFlavorCategory(activeServer.javaFlavor),
+          activeServer.javaFlavor as JavaFlavor,
+        )));
+
   // MSC 1's SidebarView.swift hides How to Connect entirely with no server
   // selected (`if viewModel.selectedServer != nil`); Maintenance always
   // shows, its two buttons disabled instead.
-  $: visibleSections = DISCLOSURE_SECTIONS.filter(
-    (section) => section !== 'How to connect' || !!activeServer,
-  );
+  $: visibleSections = DISCLOSURE_SECTIONS.filter((section) => {
+    if (section === 'How to connect') return !!activeServer;
+    if (section === 'Console access') return showConsoleAccess;
+    return true;
+  });
 
   let maintenanceNotice = '';
 
@@ -187,7 +220,14 @@
         </button>
         {#if expanded[section]}
           <div class="disclosure-content">
-            {#if section === 'How to connect'}
+            {#if section === 'Console access'}
+              <ConsoleAccessSection
+                {api}
+                serverType={activeServer?.serverType}
+                {activeServerId}
+                {canControl}
+              />
+            {:else if section === 'How to connect'}
               <HowToConnectSection
                 {api}
                 serverType={activeServer?.serverType}
@@ -219,7 +259,13 @@
                 <p class="maintenance-notice">{maintenanceNotice}</p>
               {/if}
             {:else}
-              <p class="placeholder">Rebuilt in a later Phase 12 step.</p>
+              <QuickCommandsSection
+                {api}
+                {activeServerId}
+                {running}
+                isBedrock={activeServer?.serverType === 'bedrock'}
+                {canControl}
+              />
             {/if}
           </div>
         {/if}
@@ -329,12 +375,6 @@
   }
   .disclosure-content {
     margin: 0 0 10px 19px;
-  }
-  .placeholder {
-    margin: 0;
-    font-size: 11px;
-    color: rgba(255, 255, 255, 0.35);
-    line-height: 1.5;
   }
   .maintenance-row {
     display: flex;

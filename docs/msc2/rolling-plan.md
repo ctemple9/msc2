@@ -864,6 +864,14 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Commit:** `P12.15a: advance the onboarding tour through choose path`
 **Batch:** solo
 
+### P12.15b — Spotlight Choose Path's Continue action
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Correct the Choose Your Path card's visual target. The card still explains the Start Fresh choice, but its spotlight now highlights the wizard's real Continue button instead of the two path cards. The action event and guide data remain unchanged.
+**Verify:** `cd clients/desktop-web && npm run build && npx prettier --check src/lib/help/TourOverlay.svelte` — then open the onboarding tour, reach Choose Your Path, and confirm only Continue has the spotlight before clicking it.
+**Commit:** `P12.15b: spotlight choose path continue action`
+**Batch:** solo
+
 ### P12.16 — Guides / Handbook / How MSC Works
 **Status:** built, awaiting Cameron's verification
 **Files:** `src/lib/sections/handbook/`, `src/lib/help/`

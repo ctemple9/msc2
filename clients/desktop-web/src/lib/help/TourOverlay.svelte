@@ -86,8 +86,11 @@
   }
 
   $: step = steps[stepIndex];
-  $: hasAnchor = !!step && step.anchor !== null && step.anchor !== undefined;
-  $: anchorRect = hasAnchor && step ? $anchorFrames[step.anchor as string] : undefined;
+  // Choose Path describes the selection cards, but Continue is the actual
+  // action that advances this card, so spotlight that real control instead.
+  $: spotlightAnchor = step?.id === 'choose-path' ? 'ob_wizard_continue' : step?.anchor;
+  $: hasAnchor = spotlightAnchor !== null && spotlightAnchor !== undefined;
+  $: anchorRect = hasAnchor && spotlightAnchor ? $anchorFrames[spotlightAnchor] : undefined;
   $: resolved = hasAnchor && !!anchorRect;
   $: blocking = !hasAnchor || !resolved;
   $: totalSteps = steps.length;

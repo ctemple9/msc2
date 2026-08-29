@@ -32,6 +32,8 @@ export const serverEditorPaths = {
   broadcastStart: '/v1/broadcast/start',
   broadcastStop: '/v1/broadcast/stop',
   playit: '/v1/playit',
+  playitSetup: '/v1/playit/setup',
+  playitReset: '/v1/playit/reset',
   playitStart: '/v1/playit/start',
   playitStop: '/v1/playit/stop',
   duckdns: '/v1/duckdns',
@@ -41,6 +43,110 @@ export const serverEditorPaths = {
   javaRuntimes: '/v1/java-runtimes',
   javaRuntimeInstall: '/v1/java-runtimes/install',
 } as const;
+
+export type PlayitSetupContext = 'settings' | 'initiation';
+
+export type PlayitSetupProgressKey =
+  | 'signing_in'
+  | 'claiming_or_reusing_agent'
+  | 'waiting_for_agent'
+  | 'creating_or_reusing_java_tunnel'
+  | 'creating_or_reusing_bedrock_tunnel'
+  | 'creating_or_reusing_voice_tunnel'
+  | 'receiving_public_addresses';
+
+export type PlayitSetupStep = {
+  key: PlayitSetupProgressKey;
+  label: string;
+};
+
+/** The progress vocabulary is frozen in P12.20a. Keeping its display copy in
+ * one place means the settings sheet and first-start sheet will describe the
+ * same agent-owned operation when the latter is wired in by P12.20f. */
+export const PLAYIT_SETUP_STEPS: readonly PlayitSetupStep[] = [
+  { key: 'signing_in', label: 'Signing in to playit.gg' },
+  { key: 'claiming_or_reusing_agent', label: 'Claiming or reusing the Playit agent' },
+  { key: 'waiting_for_agent', label: 'Waiting for the agent to come online' },
+  { key: 'creating_or_reusing_java_tunnel', label: 'Creating or reusing the Java tunnel' },
+  { key: 'creating_or_reusing_bedrock_tunnel', label: 'Creating or reusing the Bedrock tunnel' },
+  { key: 'creating_or_reusing_voice_tunnel', label: 'Creating or reusing the voice tunnel' },
+  { key: 'receiving_public_addresses', label: 'Receiving public addresses' },
+];
+
+export function playitSetupStepsForMode(voiceOnly: boolean): readonly PlayitSetupStep[] {
+  if (!voiceOnly) return PLAYIT_SETUP_STEPS;
+  return PLAYIT_SETUP_STEPS.filter(
+    ({ key }) =>
+      key === 'signing_in' ||
+      key === 'claiming_or_reusing_agent' ||
+      key === 'waiting_for_agent' ||
+      key === 'creating_or_reusing_voice_tunnel' ||
+      key === 'receiving_public_addresses',
+  );
+}
+
+/** The agent sends human-readable status lines, while the contract also
+ * freezes the state vocabulary. This tolerant matcher lets older/newer agent
+ * wording update the right visible step without making the client a second
+ * Playit implementation. */
+export function playitSetupProgressForStatus(
+  statusLine: string | null | undefined,
+  fallback: PlayitSetupProgressKey = 'signing_in',
+): PlayitSetupProgressKey {
+  const text = (statusLine ?? '').toLowerCase().replace(/[-_]/g, ' ');
+  if (text.includes('sign') || text.includes('log in')) return 'signing_in';
+  if (text.includes('claim') || (text.includes('reus') && text.includes('agent')))
+    return 'claiming_or_reusing_agent';
+  if (text.includes('wait') && text.includes('agent')) return 'waiting_for_agent';
+  if (text.includes('java') && text.includes('tunnel')) return 'creating_or_reusing_java_tunnel';
+  if (text.includes('bedrock') && text.includes('tunnel'))
+    return 'creating_or_reusing_bedrock_tunnel';
+  if ((text.includes('voice') || text.includes('24454')) && text.includes('tunnel'))
+    return 'creating_or_reusing_voice_tunnel';
+  if (text.includes('address')) return 'receiving_public_addresses';
+  return fallback;
+}
+
+/** Stable provider codes are the useful part of an API error. Convert them to
+ * direct next steps while preserving an already-human agent message. */
+export function playitSetupError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const text = raw.toLowerCase().replace(/[-_]/g, ' ');
+  if (text.includes('two factor') || text.includes('2fa')) {
+    return "This Playit account requires two-factor authentication. MSC's native setup cannot complete 2FA yet; no changes were made. Try an account without 2FA or try again later.";
+  }
+  if (text.includes('incorrect credential') || text.includes('invalid credential')) {
+    return 'Playit did not accept that email or password. Check both fields and try again.';
+  }
+  if (text.includes('account banned') || text.includes('banned account')) {
+    return 'This Playit account is banned. Use a different account or contact Playit support.';
+  }
+  if (text.includes('rate limit') || text.includes('too many')) {
+    return 'Playit is temporarily rate-limiting sign-in. Wait a moment, then try again.';
+  }
+  if (text.includes('agent not found')) {
+    return 'The saved Playit agent was not found. Reset local Playit setup, then sign in again.';
+  }
+  if (text.includes('setup unavailable')) {
+    return 'Native Playit setup is not available on this agent yet. Update the agent and try again.';
+  }
+  if (text.includes('setup in progress')) {
+    return 'Another Playit setup is already running on this host. Wait for it to finish or cancel it.';
+  }
+  return raw || 'Playit setup did not complete. Check the agent and try again.';
+}
+
+export type PlayitSetupAccepted = {
+  result: string;
+  operationId: string;
+  message?: string | null;
+};
+
+export type PlayitResetResult = {
+  result: string;
+  message?: string | null;
+  operationId?: string | null;
+};
 
 export const operationPath = (id: string): string => `/v1/operations/${id}`;
 

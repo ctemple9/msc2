@@ -27,6 +27,7 @@
   import StatusDot from '../../components/base/StatusDot.svelte';
   import ListRow from '../../components/base/ListRow.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
+  import PlayitSetupSheet from './PlayitSetupSheet.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
   import { pollOperation, serverEditorPaths } from './model';
@@ -58,6 +59,8 @@
   let broadcastBusy = false;
   let jarBusy = false;
   let playitBusy = false;
+  let showPlayitSetup = false;
+  let playitSetupVoiceOnly = false;
 
   let notice = '';
   let loaded = false;
@@ -65,6 +68,9 @@
   $: broadcastRunning = isJava
     ? (status?.xboxBroadcastRunning ?? false)
     : (status?.bedrockBroadcastRunning ?? false);
+  $: playitNeedsVoiceSetup = Boolean(
+    playit?.hasSecretKey && playit.voiceChatEnabled && !playit.voiceAddress,
+  );
 
   $: if (isActive && !loaded) {
     loaded = true;
@@ -163,6 +169,17 @@
     } finally {
       playitBusy = false;
     }
+  }
+
+  function openPlayitSetup(): void {
+    playitSetupVoiceOnly = playitNeedsVoiceSetup;
+    showPlayitSetup = true;
+  }
+
+  function refreshPlayit(): void {
+    void (async () => {
+      playit = await call(api, playit, serverEditorPaths.playit);
+    })();
   }
 
   async function saveDuckDns(): Promise<void> {
@@ -339,19 +356,41 @@
       <p class="msc2-type-overline">Playit</p>
       <Card padding="0">
         <div class="row">
-          <StatusDot
-            tone={playit?.isRunning ? 'ok' : 'warn'}
-            label={playit?.isRunning ? 'Running' : 'Stopped'}
-          />
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={playitBusy || !playit?.playitEnabled || !canControl}
-            onclick={togglePlayit}>{playit?.isRunning ? 'Stop' : 'Start'}</Button
-          >
+          <div class="playit-status">
+            <StatusDot
+              tone={playit?.isRunning ? 'ok' : 'warn'}
+              label={playit?.isRunning ? 'Running' : 'Stopped'}
+            />
+            <span class="setup-state"
+              >{playit?.hasSecretKey ? 'Account configured' : 'Setup required'}</span
+            >
+          </div>
+          <div class="control">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!playit?.playitEnabled || !canControl}
+              onclick={openPlayitSetup}
+            >
+              {playit?.hasSecretKey
+                ? playitNeedsVoiceSetup
+                  ? 'Add voice tunnel…'
+                  : 'Manage setup…'
+                : 'Set up…'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={playitBusy || !playit?.playitEnabled || !canControl}
+              onclick={togglePlayit}>{playit?.isRunning ? 'Stop' : 'Start'}</Button
+            >
+          </div>
         </div>
       </Card>
-      <p class="hint">{playit?.note ?? 'Managed helper state is reported by the agent.'}</p>
+      <p class="hint">
+        {playit?.note ??
+          'MSC signs in through the agent, then creates or reuses the Playit agent and applicable tunnels.'}
+      </p>
     </section>
 
     <section class="zone">
@@ -406,6 +445,18 @@
     </section>
   {/if}
 </div>
+
+{#if showPlayitSetup}
+  <PlayitSetupSheet
+    {api}
+    {playit}
+    context="settings"
+    voiceOnly={playitSetupVoiceOnly}
+    onClose={() => (showPlayitSetup = false)}
+    onComplete={refreshPlayit}
+    onReset={refreshPlayit}
+  />
+{/if}
 
 <style>
   .tab {
@@ -463,6 +514,15 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .playit-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .setup-state {
+    font-size: 12px;
+    color: var(--msc2-text-tertiary);
   }
   .hint {
     margin: 0;

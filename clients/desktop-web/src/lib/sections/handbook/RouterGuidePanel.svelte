@@ -187,6 +187,7 @@
   }
   .panel :global(.msc2-type-meta) {
     font-size: 13px;
+    color: var(--msc2-text-primary);
   }
   .panel {
     display: flex;
@@ -194,7 +195,7 @@
     gap: 12px;
   }
   .muted {
-    color: var(--msc2-text-secondary);
+    color: var(--msc2-text-primary);
   }
   .generic-card {
     display: flex;

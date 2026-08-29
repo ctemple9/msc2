@@ -230,6 +230,7 @@
   }
   .troubleshooting :global(.msc2-type-meta) {
     font-size: 14px;
+    color: var(--msc2-text-primary);
   }
   .troubleshooting {
     display: flex;
@@ -290,7 +291,7 @@
     margin-left: 40px;
   }
   .muted {
-    color: var(--msc2-text-secondary);
+    color: var(--msc2-text-primary);
   }
   .error {
     color: var(--msc2-status-error);

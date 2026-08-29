@@ -230,7 +230,7 @@
                 <p class="msc2-type-mono breadcrumb">{item.path.join(' › ')}</p>
               {/if}
               {#if item.alternateMenuNames.length}
-                <p class="msc2-type-meta">
+                <p class="msc2-type-meta aside">
                   Similar labels may include: {item.alternateMenuNames.join(', ')}
                 </p>
               {/if}
@@ -267,7 +267,7 @@
                   <p class="msc2-type-card" class:muted={done}>{step.title}</p>
                   <p class="msc2-type-body step-desc muted">{step.body}</p>
                   {#if step.alternateTerms.length}
-                    <p class="msc2-type-meta">Also called: {step.alternateTerms.join(', ')}</p>
+                    <p class="msc2-type-meta aside">Also called: {step.alternateTerms.join(', ')}</p>
                   {/if}
                 </div>
               </div>
@@ -356,6 +356,7 @@
   }
   .reader :global(.msc2-type-meta) {
     font-size: 13px;
+    color: var(--msc2-text-primary);
   }
   .reader :global(.msc2-type-mono) {
     font-size: 13px;
@@ -375,7 +376,10 @@
     margin: 0;
   }
   .muted {
-    color: var(--msc2-text-secondary);
+    color: var(--msc2-text-primary);
+  }
+  .aside {
+    font-style: italic;
   }
   .section-toggle {
     display: flex;

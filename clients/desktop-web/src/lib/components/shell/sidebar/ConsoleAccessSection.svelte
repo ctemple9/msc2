@@ -169,7 +169,7 @@
   .service {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: 2px;
   }
   .service :global(.msc2-type-overline) {
     line-height: 1;

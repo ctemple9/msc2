@@ -18,21 +18,26 @@ use msc_api::dto::{
     BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
     BroadcastJarDownloadResultDto, BroadcastJarStatusDto, BroadcastSimpleResultDto,
     BroadcastStatusDto, PermissionCategoryDto, PlayitActionResultDto, PlayitResetResultDto,
-    PlayitSetupRequestDto, PlayitStatusDto, ResourcePackActivateRequestDto, ResourcePackItemDto,
-    ResourcePackMutationResultDto, ResourcePackRemoveRequestDto, ResourcePackSetUrlRequestDto,
-    ResourcePackToggleRequestDto, ResourcePacksResponseDto,
+    PlayitSetupAcceptedDto, PlayitSetupRequestDto, PlayitStatusDto, ResourcePackActivateRequestDto,
+    ResourcePackItemDto, ResourcePackMutationResultDto, ResourcePackRemoveRequestDto,
+    ResourcePackSetUrlRequestDto, ResourcePackToggleRequestDto, ResourcePacksResponseDto,
 };
 use msc_application::operations::LifecycleOperations;
-use msc_application::playit::{PlayitError, PlayitService};
+use msc_application::playit::{
+    PLAYIT_SETUP_OPERATION_TARGET, PLAYIT_SETUP_OPERATION_TYPE, PlayitAccountSetup, PlayitError,
+    PlayitService, PlayitSetupError, PlayitSetupStage,
+};
 use msc_application::resource_packs::ResourcePackService;
 use msc_application::xbox_broadcast::{XboxBroadcastError, XboxBroadcastService};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::helper::HelperStatus;
 use msc_domain::identity::ServerType;
+use msc_infrastructure::addon_provider::HttpTransport as ProviderHttpTransport;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::helper_acquisition::HelperAcquisitionError;
 use msc_infrastructure::jar_provider::HttpTransport;
 use msc_infrastructure::playit::PLAYIT_SECRET_KEY;
+use msc_infrastructure::playit_api::PlayitHttpTransport;
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::{config_repository, xbox_broadcast};
@@ -56,6 +61,7 @@ pub struct NetworkingState {
     secrets: &'static (dyn SecretStore + Send + Sync),
     operations_ref: &'static LifecycleOperations<'static>,
     transport: &'static HttpTransport,
+    playit_transport: &'static (dyn PlayitHttpTransport + Send + Sync),
     fs: &'static dyn FileSystem,
     helper_cache: &'static Path,
 }
@@ -72,6 +78,8 @@ impl NetworkingState {
         let secrets: &'static (dyn SecretStore + Send + Sync) = leaked_store.as_ref();
         let operations_ref = operations.application_operations();
         let transport = Box::leak(Box::new(HttpTransport::new()));
+        let playit_transport: &'static (dyn PlayitHttpTransport + Send + Sync) =
+            Box::leak(Box::new(ProviderHttpTransport::new()));
         let fs: &'static dyn FileSystem = Box::leak(Box::new(StdFileSystem));
         let helper_cache: &'static Path = Box::leak(Box::new(
             config_repository::default_app_data_dir().join("helpers"),
@@ -86,6 +94,7 @@ impl NetworkingState {
             secrets,
             operations_ref,
             transport,
+            playit_transport,
             fs,
             helper_cache,
         }
@@ -240,11 +249,11 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
 }
 
 /// `POST /v1/playit/setup` is the authenticated boundary for native account
-/// provisioning. The outbound Playit client and operation worker land in
-/// P12.20c; until then, validate the request shape without accepting or
-/// retaining credentials as if setup had succeeded.
+/// provisioning. The worker keeps credentials and the temporary Playit
+/// session inside the setup call while the shared operation journal reports
+/// progress, cancellation, and the final safe outcome.
 pub async fn playit_setup(
-    State(_state): State<NetworkingState>,
+    State(state): State<NetworkingState>,
     Extension(credential): Extension<AuthenticatedCredential>,
     body: Result<Json<PlayitSetupRequestDto>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
@@ -262,15 +271,112 @@ pub async fn playit_setup(
         return invalid_body("missing_password", "password is required.");
     }
 
-    // P12.20a freezes the wire and security boundary. Returning a structured
-    // unavailable response is truthful until P12.20c owns the provider calls
-    // and operation worker; it also guarantees this route never echoes the
-    // submitted credentials while the implementation is incomplete.
-    error_response(
-        StatusCode::CONFLICT,
-        "setup_unavailable",
-        "Native Playit setup is not available in this agent build.",
-    )
+    let operation_id = match state.operations.begin_lifecycle(
+        PLAYIT_SETUP_OPERATION_TYPE,
+        Some(PLAYIT_SETUP_OPERATION_TARGET.to_string()),
+        "Starting native Playit setup.",
+    ) {
+        Ok(id) => id,
+        Err(msc_application::operations::LifecycleOperationError::Conflict(_)) => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "setup_in_progress",
+                "A Playit setup is already in progress.",
+            );
+        }
+        Err(error) => return crate::routes::operations::operation_error_response(error),
+    };
+    let response = PlayitSetupAcceptedDto {
+        result: "setup_accepted".into(),
+        operation_id: operation_id.as_str().to_string(),
+        message: Some("Playit setup has started.".into()),
+    };
+    let operation_id_for_worker = operation_id.clone();
+    let operations = state.operations.clone();
+    let lifecycle = state.lifecycle.clone();
+    let transport = state.playit_transport;
+    let secrets = state.secrets;
+    let existing_agent_id = state.lifecycle.app_config_snapshot().playit_agent_id;
+    let email = request.email.trim().to_owned();
+    let password = request.password;
+
+    // The provider transport is synchronous like the rest of the infrastructure
+    // traits. Run it off the async executor, while the operation journal remains
+    // the single source of progress and cancellation truth.
+    tokio::task::spawn_blocking(move || {
+        let setup = PlayitAccountSetup::new(transport, secrets);
+        let should_cancel = operations.cancellation_check(&operation_id_for_worker);
+        let operation_for_progress = operation_id_for_worker.clone();
+        let operations_for_progress = operations.clone();
+        let report = move |stage: PlayitSetupStage| {
+            let (current, total) = stage.progress();
+            let _ = operations_for_progress.progress(
+                &operation_for_progress,
+                current,
+                total,
+                stage.status_line(),
+            );
+        };
+        let result = setup.run(
+            &email,
+            &password,
+            existing_agent_id.as_deref(),
+            should_cancel,
+            report,
+        );
+
+        match result {
+            Ok(result) => {
+                let reused_existing_agent = result.reused_existing_agent;
+                let config_saved = lifecycle
+                    .try_mutate_config(|config| {
+                        config.playit_agent_id = Some(result.agent_id);
+                        Ok::<_, std::convert::Infallible>(())
+                    })
+                    .is_ok();
+                if !config_saved {
+                    // A newly claimed key is useless without its matching
+                    // agent ID. Remove it so a later attempt cannot create a
+                    // second cloud agent because of a half-written local state.
+                    if !reused_existing_agent {
+                        let _ = secrets.delete(PLAYIT_SECRET_KEY);
+                    }
+                    let _ = operations.fail(
+                        &operation_id_for_worker,
+                        "credential_store_failed",
+                        "MSC could not save the Playit agent configuration on this host.".into(),
+                    );
+                } else {
+                    let _ = operations.succeed(
+                        &operation_id_for_worker,
+                        "Playit agent is configured.",
+                        BTreeMap::from([
+                            ("agentConfigured".to_string(), "true".to_string()),
+                            (
+                                "reusedExistingAgent".to_string(),
+                                reused_existing_agent.to_string(),
+                            ),
+                        ]),
+                    );
+                }
+            }
+            Err(PlayitSetupError::Cancelled) => {
+                let _ = operations.cancel(
+                    &operation_id_for_worker,
+                    "Playit setup cancelled before credentials were saved.",
+                );
+            }
+            Err(error) => {
+                let _ = operations.fail(
+                    &operation_id_for_worker,
+                    error.stable_code(),
+                    error.to_string(),
+                );
+            }
+        }
+    });
+
+    (StatusCode::ACCEPTED, Json(response)).into_response()
 }
 
 /// Clear host-local Playit state after requesting every currently managed

@@ -8,9 +8,14 @@ use msc_infrastructure::helper_acquisition::{
 };
 use msc_infrastructure::jar_provider::{JarProviderError, Transport};
 use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch};
+use msc_infrastructure::playit_api::{
+    PlayitHttpResponse, PlayitHttpTransport, PlayitTransportError,
+};
 use msc_infrastructure::process::FakeProcessSupervisor;
 use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
+use serde_json::Value;
 use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
@@ -89,6 +94,41 @@ fn acquisition<'a>(
         },
         HelperPlatform::LinuxX86_64,
     )
+}
+
+struct FakeAccountTransport {
+    responses: Mutex<VecDeque<PlayitHttpResponse>>,
+}
+
+impl FakeAccountTransport {
+    fn new(responses: impl IntoIterator<Item = (u16, Value)>) -> Self {
+        Self {
+            responses: Mutex::new(
+                responses
+                    .into_iter()
+                    .map(|(status, value)| PlayitHttpResponse {
+                        status,
+                        body: serde_json::to_vec(&value).unwrap(),
+                    })
+                    .collect(),
+            ),
+        }
+    }
+}
+
+impl PlayitHttpTransport for FakeAccountTransport {
+    fn post_json(
+        &self,
+        _path: &str,
+        _body: &Value,
+        _authorization: Option<&str>,
+    ) -> Result<PlayitHttpResponse, PlayitTransportError> {
+        self.responses
+            .lock()
+            .unwrap()
+            .pop_front()
+            .ok_or(PlayitTransportError::Network)
+    }
 }
 
 #[test]
@@ -317,4 +357,102 @@ fn acquisition_failure_is_journaled_and_never_arms_readiness_watchdog() {
         serde_json::from_slice(&fs.read(&operation_path).unwrap()).unwrap();
     assert_eq!(operation["state"], "failed");
     assert_eq!(operation["error"]["code"], "playit_acquisition_failed");
+}
+
+#[test]
+fn native_setup_claims_a_new_agent_and_persists_only_the_permanent_key() {
+    let transport = FakeAccountTransport::new([
+        (
+            200,
+            serde_json::json!({"status":"success","data":{"session_key":"session-secret"}}),
+        ),
+        (
+            200,
+            serde_json::json!({"status":"success","data":"WaitingForAgent"}),
+        ),
+        (200, serde_json::json!({"status":"success","data":"ok"})),
+        (
+            200,
+            serde_json::json!({"status":"success","data":{"agent_id":"agent-123"}}),
+        ),
+        (
+            200,
+            serde_json::json!({"status":"success","data":{"secret_key":"agent-secret"}}),
+        ),
+    ]);
+    let secrets = FakeSecretStore::new();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+    let stages = Mutex::new(Vec::new());
+    let result = setup
+        .run(
+            "owner@example.test",
+            "password",
+            None,
+            || false,
+            |stage| stages.lock().unwrap().push(stage),
+        )
+        .unwrap();
+
+    assert_eq!(result.agent_id, "agent-123");
+    assert!(!result.reused_existing_agent);
+    assert_eq!(
+        secrets.get(PLAYIT_SECRET_KEY).unwrap().as_deref(),
+        Some("agent-secret")
+    );
+    assert_eq!(
+        *stages.lock().unwrap(),
+        [
+            msc_application::playit::PlayitSetupStage::SigningIn,
+            msc_application::playit::PlayitSetupStage::ClaimingOrReusingAgent,
+            msc_application::playit::PlayitSetupStage::WaitingForAgent,
+        ]
+    );
+}
+
+#[test]
+fn native_setup_reuses_a_configured_host_agent_without_claiming_another() {
+    let transport = FakeAccountTransport::new([(
+        200,
+        serde_json::json!({"status":"success","data":{"session_key":"session-secret"}}),
+    )]);
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+
+    let result = setup
+        .run(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            || false,
+            |_| {},
+        )
+        .unwrap();
+
+    assert_eq!(result.agent_id, "agent-existing");
+    assert!(result.reused_existing_agent);
+    assert_eq!(
+        secrets.get(PLAYIT_SECRET_KEY).unwrap().as_deref(),
+        Some("existing-agent-secret")
+    );
+    assert!(transport.responses.lock().unwrap().is_empty());
+}
+
+#[test]
+fn native_setup_cancellation_drops_the_temporary_session_before_claiming() {
+    let transport = FakeAccountTransport::new([(
+        200,
+        serde_json::json!({"status":"success","data":{"session_key":"session-secret"}}),
+    )]);
+    let secrets = FakeSecretStore::new();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+    let result = setup.run("owner@example.test", "password", None, || true, |_| {});
+
+    assert_eq!(
+        result.unwrap_err(),
+        msc_application::playit::PlayitSetupError::Cancelled
+    );
+    assert_eq!(secrets.get(PLAYIT_SECRET_KEY).unwrap(), None);
 }

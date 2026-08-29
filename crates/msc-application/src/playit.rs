@@ -11,12 +11,19 @@ use msc_domain::helper::{
 use msc_domain::networking::parse_playit_address;
 use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperProcessManager};
 use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch};
+use msc_infrastructure::playit_api::{
+    PLAYIT_AGENT_NAME, PlayitApi, PlayitApiError, PlayitHttpTransport,
+};
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::time::Duration;
+use uuid::Uuid;
 
 pub const PLAYIT_OPERATION_TYPE: &str = "playit-tunnel";
+pub const PLAYIT_SETUP_OPERATION_TYPE: &str = "playit-setup";
+pub const PLAYIT_SETUP_OPERATION_TARGET: &str = "playit-account";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayitStartResult {
@@ -50,6 +57,221 @@ impl fmt::Display for PlayitError {
 }
 
 impl std::error::Error for PlayitError {}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PlayitSetupStage {
+    SigningIn,
+    ClaimingOrReusingAgent,
+    WaitingForAgent,
+}
+
+impl PlayitSetupStage {
+    pub fn status_line(self) -> &'static str {
+        match self {
+            Self::SigningIn => "Signing in to Playit.",
+            Self::ClaimingOrReusingAgent => "Claiming or reusing the Playit agent.",
+            Self::WaitingForAgent => "Waiting for Playit to finish setting up the agent.",
+        }
+    }
+
+    pub fn progress(self) -> (u64, u64) {
+        match self {
+            Self::SigningIn => (1, 3),
+            Self::ClaimingOrReusingAgent => (2, 3),
+            Self::WaitingForAgent => (3, 3),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayitSetupResult {
+    pub agent_id: String,
+    pub reused_existing_agent: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PlayitSetupError {
+    Cancelled,
+    Api(PlayitApiError),
+    CredentialStore,
+}
+
+impl PlayitSetupError {
+    pub fn stable_code(&self) -> &'static str {
+        match self {
+            Self::Cancelled => "cancelled",
+            Self::Api(error) => error.stable_code(),
+            Self::CredentialStore => "credential_store_failed",
+        }
+    }
+}
+
+impl fmt::Display for PlayitSetupError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Cancelled => write!(f, "Playit setup was cancelled."),
+            Self::Api(error) => error.fmt(f),
+            Self::CredentialStore => {
+                write!(f, "MSC could not save the Playit credentials on this host.")
+            }
+        }
+    }
+}
+
+impl std::error::Error for PlayitSetupError {}
+
+/// Owns the native account workflow.  It receives an injected provider
+/// transport and writes only the permanent key to `SecretStore`; the session
+/// and password never leave this call as a return value.
+pub struct PlayitAccountSetup<'a> {
+    api: PlayitApi<'a>,
+    secrets: &'a dyn SecretStore,
+}
+
+impl<'a> PlayitAccountSetup<'a> {
+    pub fn new(transport: &'a dyn PlayitHttpTransport, secrets: &'a dyn SecretStore) -> Self {
+        Self {
+            api: PlayitApi::new(transport),
+            secrets,
+        }
+    }
+
+    /// Signs in and either reuses the host's existing agent or performs the
+    /// claim/setup/exchange handshake for a new agent.  `should_cancel` is
+    /// checked between provider calls and while waiting for claim propagation.
+    pub fn run(
+        &self,
+        email: &str,
+        password: &str,
+        existing_agent_id: Option<&str>,
+        should_cancel: impl Fn() -> bool,
+        report: impl Fn(PlayitSetupStage),
+    ) -> Result<PlayitSetupResult, PlayitSetupError> {
+        report(PlayitSetupStage::SigningIn);
+        let session = self
+            .api
+            .sign_in(email, password)
+            .map_err(PlayitSetupError::Api)?;
+        if should_cancel() {
+            return Err(PlayitSetupError::Cancelled);
+        }
+
+        let existing_secret = self
+            .secrets
+            .get(PLAYIT_SECRET_KEY)
+            .map_err(|_| PlayitSetupError::CredentialStore)?;
+        if existing_agent_id.is_some_and(|agent_id| !agent_id.trim().is_empty())
+            && existing_secret.is_some_and(|secret| !secret.trim().is_empty())
+        {
+            report(PlayitSetupStage::ClaimingOrReusingAgent);
+            return Ok(PlayitSetupResult {
+                agent_id: existing_agent_id.expect("checked above").to_owned(),
+                reused_existing_agent: true,
+            });
+        }
+
+        report(PlayitSetupStage::ClaimingOrReusingAgent);
+        let claim_code = generate_claim_code();
+        self.api
+            .claim_setup(&claim_code)
+            .map_err(PlayitSetupError::Api)?;
+
+        let claimed_agent_id = self.accept_claim(&claim_code, &session, &should_cancel)?;
+        report(PlayitSetupStage::WaitingForAgent);
+        let secret = self.exchange_claim(&claim_code, &should_cancel)?;
+        self.secrets
+            .set(PLAYIT_SECRET_KEY, secret.as_str())
+            .map_err(|_| PlayitSetupError::CredentialStore)?;
+
+        Ok(PlayitSetupResult {
+            agent_id: claimed_agent_id,
+            reused_existing_agent: false,
+        })
+    }
+
+    fn accept_claim(
+        &self,
+        claim_code: &str,
+        session: &msc_infrastructure::playit_api::PlayitSession,
+        should_cancel: &impl Fn() -> bool,
+    ) -> Result<String, PlayitSetupError> {
+        const CLAIM_ATTEMPTS: usize = 15;
+        for attempt in 0..CLAIM_ATTEMPTS {
+            if should_cancel() {
+                return Err(PlayitSetupError::Cancelled);
+            }
+            if attempt > 0 && wait_for_claim_retry(should_cancel) {
+                return Err(PlayitSetupError::Cancelled);
+            }
+            if attempt > 0 {
+                self.api
+                    .claim_setup(claim_code)
+                    .map_err(PlayitSetupError::Api)?;
+            }
+            match self.api.claim_details(claim_code, session) {
+                Ok(()) => match self
+                    .api
+                    .claim_accept(claim_code, PLAYIT_AGENT_NAME, session)
+                {
+                    Ok(agent_id) => return Ok(agent_id),
+                    Err(error) if retryable_claim_error(error) => continue,
+                    Err(error) => return Err(PlayitSetupError::Api(error)),
+                },
+                Err(error) if retryable_claim_error(error) => continue,
+                Err(error) => return Err(PlayitSetupError::Api(error)),
+            }
+        }
+        Err(PlayitSetupError::Api(PlayitApiError::AgentNotFound))
+    }
+
+    fn exchange_claim(
+        &self,
+        claim_code: &str,
+        should_cancel: &impl Fn() -> bool,
+    ) -> Result<msc_infrastructure::playit_api::PlayitSecret, PlayitSetupError> {
+        const EXCHANGE_ATTEMPTS: usize = 20;
+        for attempt in 0..EXCHANGE_ATTEMPTS {
+            if should_cancel() {
+                return Err(PlayitSetupError::Cancelled);
+            }
+            if let Some(secret) = self
+                .api
+                .claim_exchange(claim_code)
+                .map_err(PlayitSetupError::Api)?
+            {
+                return Ok(secret);
+            }
+            self.api
+                .claim_setup(claim_code)
+                .map_err(PlayitSetupError::Api)?;
+            if attempt + 1 < EXCHANGE_ATTEMPTS && wait_for_claim_retry(should_cancel) {
+                return Err(PlayitSetupError::Cancelled);
+            }
+        }
+        Err(PlayitSetupError::Api(PlayitApiError::AgentNotFound))
+    }
+}
+
+fn generate_claim_code() -> String {
+    Uuid::new_v4().simple().to_string()[..10].to_owned()
+}
+
+fn retryable_claim_error(error: PlayitApiError) -> bool {
+    matches!(
+        error,
+        PlayitApiError::AgentNotFound | PlayitApiError::ApiFailure
+    )
+}
+
+fn wait_for_claim_retry(should_cancel: &impl Fn() -> bool) -> bool {
+    for _ in 0..6 {
+        if should_cancel() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    false
+}
 
 /// A small façade around P9.6's common process manager.  It owns no secret
 /// values: it asks `SecretStore` only whether the stable Playit key exists.

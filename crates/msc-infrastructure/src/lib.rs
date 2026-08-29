@@ -26,6 +26,7 @@ pub mod metrics;
 pub mod operation_journal;
 pub mod path_safety;
 pub mod playit;
+pub mod playit_api;
 pub mod port_diagnostics;
 pub mod power;
 pub mod process;

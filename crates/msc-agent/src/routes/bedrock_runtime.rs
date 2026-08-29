@@ -17,6 +17,7 @@ use msc_application::bedrock_runtime::{
     BedrockStartRequest,
 };
 use msc_domain::identity::ServerType;
+use msc_infrastructure::bedrock_distribution::BedrockPlatform;
 
 use super::lifecycle::AgentAppConfigStore;
 
@@ -136,11 +137,27 @@ impl BedrockRuntimeHandle {
             Self::Unavailable => None,
         }
     }
+
+    fn refresh_eligibility(&mut self, eligibility: BedrockRuntimeEligibility) {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux(runtime) => runtime.refresh_eligibility(eligibility),
+            #[cfg(target_os = "windows")]
+            Self::Windows(runtime) => runtime.refresh_eligibility(eligibility),
+            #[cfg(target_os = "macos")]
+            Self::Macos(runtime) => runtime.refresh_eligibility(eligibility),
+            Self::Unavailable => {}
+        }
+    }
+
+    fn is_selected(&self) -> bool {
+        !matches!(self, Self::Unavailable)
+    }
 }
 
 #[derive(Clone)]
 pub struct BedrockRuntimeSelection {
-    eligibility: BedrockRuntimeEligibility,
+    eligibility: Arc<Mutex<BedrockRuntimeEligibility>>,
     runtime: Arc<Mutex<BedrockRuntimeHandle>>,
 }
 
@@ -187,7 +204,12 @@ impl BedrockRuntimeSelection {
             }
             #[cfg(target_os = "macos")]
             BedrockHost::MacosIntel => {
-                if eligibility.state != BedrockRuntimeEligibilityState::Available {
+                if eligibility.state == BedrockRuntimeEligibilityState::Unavailable
+                    || eligibility
+                        .reason_code
+                        .as_deref()
+                        .is_some_and(|reason| reason.starts_with("sidecar_"))
+                {
                     return Self::new(eligibility, BedrockRuntimeHandle::Unavailable);
                 }
 
@@ -252,13 +274,14 @@ impl BedrockRuntimeSelection {
     }
 
     pub fn state_dto(&self) -> BedrockRuntimeStateDto {
+        let eligibility = self.eligibility.lock().unwrap().clone();
         let runtime_state = self.runtime.lock().unwrap().state();
-        let state = if self.eligibility.state == BedrockRuntimeEligibilityState::Available
+        let state = if eligibility.state == BedrockRuntimeEligibilityState::Available
             && runtime_state == BedrockRuntimeState::Unavailable
         {
             "unavailable"
         } else {
-            match self.eligibility.state {
+            match eligibility.state {
                 BedrockRuntimeEligibilityState::Available => "available",
                 BedrockRuntimeEligibilityState::ProvisioningRequired => "provisioning_required",
                 BedrockRuntimeEligibilityState::Unavailable => "unavailable",
@@ -267,15 +290,15 @@ impl BedrockRuntimeSelection {
         let unavailable = state == "unavailable";
         BedrockRuntimeStateDto {
             state: state.to_owned(),
-            backend: self.eligibility.backend.map(backend_dto),
-            host_os: match self.eligibility.host.host_os() {
+            backend: eligibility.backend.map(backend_dto),
+            host_os: match eligibility.host.host_os() {
                 "linux" => Some(HostOsDto::Linux),
                 "windows" => Some(HostOsDto::Windows),
                 "macos" => Some(HostOsDto::Macos),
                 _ => None,
             },
-            reason_code: self.eligibility.reason_code.clone(),
-            message: Some(self.eligibility.message.clone()),
+            reason_code: eligibility.reason_code,
+            message: Some(eligibility.message),
             help_id: unavailable.then(|| "bedrock.runtime-unavailable".to_owned()),
         }
     }
@@ -286,8 +309,50 @@ impl BedrockRuntimeSelection {
 
     /// The route layer owns the application operation, while this selection
     /// owns the one mutable backend instance chosen at agent startup.
-    pub fn provision(&self, request: BedrockProvisionRequest) -> Result<(), BedrockRuntimeError> {
-        self.runtime.lock().unwrap().provision(request)
+    pub fn provision(
+        &self,
+        request: BedrockProvisionRequest,
+        pre_downgrade_backup: impl FnOnce() -> bool,
+    ) -> Result<(), BedrockRuntimeError> {
+        let eligibility = self.eligibility.lock().unwrap().clone();
+        let platform = distribution_platform(&eligibility).ok_or_else(|| {
+            BedrockRuntimeError::Provisioning("no Bedrock distribution platform is selected".into())
+        })?;
+        let mut runtime = self.runtime.lock().unwrap();
+        if !runtime.is_selected() {
+            return Err(BedrockRuntimeError::Transport(
+                "Bedrock runtime is unavailable.".to_owned(),
+            ));
+        }
+
+        let server_dir = PathBuf::from(&request.server_dir);
+        let manifest_url = msc_application::bedrock_provisioning::production_manifest_url();
+        let provisioning_request = msc_application::bedrock_provisioning::ProvisionRequest {
+            server_dir: &server_dir,
+            version: Some(&request.version),
+            platform,
+            force: false,
+            manifest_url: &manifest_url,
+        };
+        msc_application::bedrock_provisioning::ensure_installed(
+            &msc_infrastructure::fs::StdFileSystem,
+            &msc_infrastructure::jar_provider::HttpTransport::new(),
+            &provisioning_request,
+            pre_downgrade_backup,
+        )
+        .map_err(|error| BedrockRuntimeError::Provisioning(error.to_string()))?;
+
+        let refreshed = BedrockRuntimeEligibility::for_host(
+            &msc_infrastructure::fs::StdFileSystem,
+            eligibility.host,
+            &runtime_paths(server_dir),
+        );
+        if refreshed.state != BedrockRuntimeEligibilityState::Available {
+            return Err(BedrockRuntimeError::Provisioning(refreshed.message));
+        }
+        runtime.refresh_eligibility(refreshed.clone());
+        *self.eligibility.lock().unwrap() = refreshed;
+        runtime.provision(request)
     }
 
     pub fn start(&self, request: BedrockStartRequest) -> Result<(), BedrockRuntimeError> {
@@ -312,9 +377,22 @@ impl BedrockRuntimeSelection {
 
     fn new(eligibility: BedrockRuntimeEligibility, runtime: BedrockRuntimeHandle) -> Self {
         Self {
-            eligibility,
+            eligibility: Arc::new(Mutex::new(eligibility)),
             runtime: Arc::new(Mutex::new(runtime)),
         }
+    }
+}
+
+fn distribution_platform(eligibility: &BedrockRuntimeEligibility) -> Option<BedrockPlatform> {
+    match (eligibility.host, eligibility.backend) {
+        (BedrockHost::Linux, Some(BedrockRuntimeBackend::Native)) => Some(BedrockPlatform::Linux),
+        (BedrockHost::Windows, Some(BedrockRuntimeBackend::Native)) => {
+            Some(BedrockPlatform::Windows)
+        }
+        (BedrockHost::MacosIntel, Some(BedrockRuntimeBackend::Sidecar)) => {
+            Some(BedrockPlatform::Linux)
+        }
+        _ => None,
     }
 }
 

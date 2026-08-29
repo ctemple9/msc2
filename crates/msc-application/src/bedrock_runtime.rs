@@ -171,19 +171,6 @@ impl BedrockRuntimeEligibility {
     }
 
     fn sidecar(fs: &dyn FileSystem, host: BedrockHost, paths: &BedrockRuntimePaths) -> Self {
-        let distribution = bedrock_distribution::inspect_installed_distribution(
-            fs,
-            &paths.server_dir,
-            BedrockPlatform::Macos,
-        );
-        let missing_distribution = match distribution {
-            InstalledBedrockDistribution::Missing => Some("bds_distribution_required"),
-            InstalledBedrockDistribution::Unverified => Some("bds_distribution_unverified"),
-            InstalledBedrockDistribution::Verified(_) => None,
-        };
-        if let Some(reason_code) = missing_distribution {
-            return Self::provisioning(host, BedrockRuntimeBackend::Sidecar, reason_code);
-        }
         let Some(resources) = paths.sidecar.as_ref() else {
             return Self::provisioning(
                 host,
@@ -205,13 +192,33 @@ impl BedrockRuntimeEligibility {
                 "sidecar_appliance_required",
             );
         }
-        Self {
-            host,
-            backend: Some(BedrockRuntimeBackend::Sidecar),
-            state: BedrockRuntimeEligibilityState::Available,
-            reason_code: None,
-            message: "Bedrock runtime is available.".to_owned(),
-        }
+
+        // The macOS VM runs the Linux BDS binary. Keep the Macos inspection as
+        // a read-only compatibility fallback for installations made before
+        // the sidecar's guest-package platform was made explicit.
+        let distribution = bedrock_distribution::inspect_installed_distribution(
+            fs,
+            &paths.server_dir,
+            BedrockPlatform::Linux,
+        );
+        let distribution = if matches!(&distribution, InstalledBedrockDistribution::Verified(_)) {
+            distribution
+        } else {
+            let legacy_distribution = bedrock_distribution::inspect_installed_distribution(
+                fs,
+                &paths.server_dir,
+                BedrockPlatform::Macos,
+            );
+            if matches!(
+                &legacy_distribution,
+                InstalledBedrockDistribution::Verified(_)
+            ) {
+                legacy_distribution
+            } else {
+                distribution
+            }
+        };
+        Self::from_distribution(host, BedrockRuntimeBackend::Sidecar, distribution)
     }
 
     fn native_or_sidecar_message(reason_code: &str) -> String {
@@ -396,6 +403,7 @@ pub enum BedrockRuntimeError {
     Protocol(String),
     Remote(String),
     Transport(String),
+    Provisioning(String),
     SidecarEof,
 }
 
@@ -408,6 +416,7 @@ impl fmt::Display for BedrockRuntimeError {
             Self::Protocol(message) => write!(f, "sidecar protocol error: {message}"),
             Self::Remote(message) => write!(f, "sidecar rejected request: {message}"),
             Self::Transport(message) => write!(f, "sidecar transport error: {message}"),
+            Self::Provisioning(message) => write!(f, "Bedrock provisioning failed: {message}"),
             Self::SidecarEof => f.write_str("sidecar ended unexpectedly"),
         }
     }

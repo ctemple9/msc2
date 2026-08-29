@@ -1450,6 +1450,14 @@ fn run_create_bedrock_server(
                                 crate::routes::lifecycle::ReconciliationStatus::Ready
                             )
                     });
+                    if let Err(error) = state.provision_bedrock_server(&created.config) {
+                        let _ = state.finish_operation_failure(
+                            &operation_id,
+                            "bedrock_provisioning_failed",
+                            error.to_string(),
+                        );
+                        return;
+                    }
                     if ready {
                         let _ = state.select_active_server(created.config.id.clone());
                     }

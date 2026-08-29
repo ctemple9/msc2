@@ -47,7 +47,7 @@ Bedrock cheats or experiments that require a stopped runtime are marked
 restart-required. An imported or older world is never given a made-up value:
 the profile can say detected, unknown, unsupported, or achievement-disabled.
 
-### The release boundary
+### Advanced Details
 
 The native profile covers the common settings that MSC can read, preserve, and
 apply for Minecraft 1.20 and newer: identity, generation, difficulty, default
@@ -61,7 +61,7 @@ They are outside MSC's native world-profile contract. Use that server or mod's
 own configuration path; MSC keeps unknown properties visible and preserved
 instead of inventing controls or silently dropping them.
 
-### Creative, cheats, and achievements
+### Advanced Details
 
 MSC asks for an explicit acknowledgement before a Creative or cheat change
 that carries a safety consequence. On Bedrock, Creative, cheats, and some

@@ -181,11 +181,31 @@ fn world_activation_switches_between_distinct_profiles_and_preserves_server_sett
     )
     .unwrap();
     let first_properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
-    assert!(first_properties.lines().any(|line| line == "difficulty=easy"));
-    assert!(first_properties.lines().any(|line| line == "gamemode=survival"));
-    assert!(first_properties.lines().any(|line| line == "motd=Shared server"));
-    assert!(first_properties.lines().any(|line| line == "max-players=12"));
-    assert!(first_properties.lines().any(|line| line == "force-gamemode=false"));
+    assert!(
+        first_properties
+            .lines()
+            .any(|line| line == "difficulty=easy")
+    );
+    assert!(
+        first_properties
+            .lines()
+            .any(|line| line == "gamemode=survival")
+    );
+    assert!(
+        first_properties
+            .lines()
+            .any(|line| line == "motd=Shared server")
+    );
+    assert!(
+        first_properties
+            .lines()
+            .any(|line| line == "max-players=12")
+    );
+    assert!(
+        first_properties
+            .lines()
+            .any(|line| line == "force-gamemode=false")
+    );
 
     worlds::activate_slot(
         &StdFileSystem,
@@ -199,11 +219,31 @@ fn world_activation_switches_between_distinct_profiles_and_preserves_server_sett
     )
     .unwrap();
     let second_properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
-    assert!(second_properties.lines().any(|line| line == "difficulty=hard"));
-    assert!(second_properties.lines().any(|line| line == "gamemode=creative"));
-    assert!(second_properties.lines().any(|line| line == "motd=Shared server"));
-    assert!(second_properties.lines().any(|line| line == "max-players=12"));
-    assert!(second_properties.lines().any(|line| line == "force-gamemode=false"));
+    assert!(
+        second_properties
+            .lines()
+            .any(|line| line == "difficulty=hard")
+    );
+    assert!(
+        second_properties
+            .lines()
+            .any(|line| line == "gamemode=creative")
+    );
+    assert!(
+        second_properties
+            .lines()
+            .any(|line| line == "motd=Shared server")
+    );
+    assert!(
+        second_properties
+            .lines()
+            .any(|line| line == "max-players=12")
+    );
+    assert!(
+        second_properties
+            .lines()
+            .any(|line| line == "force-gamemode=false")
+    );
 }
 
 #[test]

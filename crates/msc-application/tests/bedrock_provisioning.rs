@@ -57,11 +57,25 @@ impl Transport for FakeTransport {
 }
 
 fn archive(version: &str, executable_contents: &[u8], settings: &[u8]) -> Vec<u8> {
+    archive_for_platform(
+        version,
+        executable_contents,
+        settings,
+        BedrockPlatform::Linux,
+    )
+}
+
+fn archive_for_platform(
+    version: &str,
+    executable_contents: &[u8],
+    settings: &[u8],
+    platform: BedrockPlatform,
+) -> Vec<u8> {
     let mut bytes = Cursor::new(Vec::new());
     {
         let mut zip = zip::ZipWriter::new(&mut bytes);
         let executable_options = SimpleFileOptions::default().unix_permissions(0o755);
-        zip.start_file("bedrock_server", executable_options)
+        zip.start_file(platform.executable_name(), executable_options)
             .unwrap();
         zip.write_all(executable_contents).unwrap();
         zip.start_file("server.properties", SimpleFileOptions::default())
@@ -73,9 +87,101 @@ fn archive(version: &str, executable_contents: &[u8], settings: &[u8]) -> Vec<u8
         )
         .unwrap();
         zip.write_all(b"pack").unwrap();
+        zip.start_file("worlds/main/level.dat", SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"distribution-world").unwrap();
         zip.finish().unwrap();
     }
     bytes.into_inner()
+}
+
+#[test]
+fn fresh_install_preserves_existing_server_settings_and_worlds() {
+    let bytes = archive("1.26.32.2", b"new", b"distribution-settings");
+    let server = PathBuf::from("servers/new-world");
+    let fs = FakeFileSystem::new()
+        .with_file(
+            server.join("server.properties"),
+            b"user-settings".to_vec(),
+            false,
+        )
+        .with_file(
+            server.join("worlds/main/level.dat"),
+            b"world".to_vec(),
+            false,
+        );
+    let transport = FakeTransport::new()
+        .with_response(
+            BEDROCK_MANIFEST_URL,
+            manifest(&[(
+                "1.26.32",
+                "linux",
+                "https://cdn/bedrock-server-1.26.32.2.zip",
+                &bytes,
+            )]),
+        )
+        .with_response("https://cdn/bedrock-server-1.26.32.2.zip", bytes);
+
+    let outcome = ensure_installed(
+        &fs,
+        &transport,
+        &request(&server, Some("1.26.32.2"), BedrockPlatform::Linux, false),
+        || true,
+    )
+    .unwrap();
+
+    assert_eq!(
+        outcome,
+        ProvisionOutcome::Installed {
+            version: "1.26.32.2".into()
+        }
+    );
+    assert_eq!(fs.read(&server.join("bedrock_server")).unwrap(), b"new");
+    assert_eq!(
+        fs.read(&server.join("server.properties")).unwrap(),
+        b"user-settings"
+    );
+    assert_eq!(
+        fs.read(&server.join("worlds/main/level.dat")).unwrap(),
+        b"world"
+    );
+}
+
+#[test]
+fn windows_install_uses_the_windows_executable_name() {
+    let bytes = archive_for_platform(
+        "1.26.32.2",
+        b"new-windows",
+        b"settings",
+        BedrockPlatform::Windows,
+    );
+    let server = PathBuf::from("servers/windows");
+    let fs = FakeFileSystem::new();
+    let transport = FakeTransport::new()
+        .with_response(
+            BEDROCK_MANIFEST_URL,
+            manifest(&[(
+                "1.26.32",
+                "windows",
+                "https://cdn/bedrock-server-1.26.32.2.zip",
+                &bytes,
+            )]),
+        )
+        .with_response("https://cdn/bedrock-server-1.26.32.2.zip", bytes);
+
+    ensure_installed(
+        &fs,
+        &transport,
+        &request(&server, Some("1.26.32.2"), BedrockPlatform::Windows, false),
+        || true,
+    )
+    .unwrap();
+
+    assert_eq!(
+        fs.read(&server.join("bedrock_server.exe")).unwrap(),
+        b"new-windows"
+    );
+    assert!(fs.read(&server.join("bedrock_server")).is_err());
 }
 
 fn manifest(releases: &[(&str, &str, &str, &[u8])]) -> Vec<u8> {

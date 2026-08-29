@@ -3,16 +3,26 @@
 //! while other hosts prove the structured unavailable path.
 
 use std::fs;
+#[cfg(target_os = "linux")]
+use std::io::Cursor;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+#[cfg(target_os = "linux")]
+use std::sync::Arc;
+#[cfg(target_os = "linux")]
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::ServerType;
+#[cfg(target_os = "linux")]
+use msc_infrastructure::download_staging::sha256_hex;
 use serde_json::Value;
+#[cfg(target_os = "linux")]
+use zip::write::SimpleFileOptions;
 
 const TOKEN: &str = "msc2_bedrock-production-lifecycle_testsecret";
 
@@ -44,6 +54,49 @@ fn production_router_runs_fixture_backed_bedrock_lifecycle() {
     assert_eq!(stopped.0, 200, "stop failed: {stopped:?}");
     wait_until(&fixture, |value| value["running"] == false);
     fixture.stop(&mut agent);
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn production_router_provisions_bedrock_before_create_completes() {
+    let downloads = BedrockDownloadServer::new();
+    let fixture = TestFixture::new();
+    let mut agent = fixture.spawn_agent_with_manifest(Some(&downloads.manifest_url));
+    wait_for_health(fixture.port);
+
+    let created = fixture.post(
+        "/v1/servers/create",
+        r#"{"name":"Provisioned","serverType":"bedrock","bedrockVersion":"1.21.80.3","port":19134}"#,
+    );
+    assert_eq!(created.0, 200, "create failed: {created:?}");
+    let operation_id = created.1["operationId"]
+        .as_str()
+        .expect("create response carries operationId");
+    let operation = fixture.wait_for_operation(operation_id);
+    assert_eq!(
+        operation["state"], "succeeded",
+        "create operation: {operation}"
+    );
+    assert_eq!(downloads.archive_requests.load(Ordering::Relaxed), 1);
+
+    let server_dir = fixture.servers_root.join("bedrock").join("provisioned");
+    assert!(server_dir.join("bedrock_server").is_file());
+    let properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
+    assert!(properties.contains("server-port=19134"));
+    assert!(server_dir.join("worlds").is_dir());
+    let provenance: Value =
+        serde_json::from_slice(&fs::read(server_dir.join(".msc_bds_provenance.json")).unwrap())
+            .unwrap();
+    assert_eq!(provenance["version"], "1.21.80.3");
+    assert_eq!(provenance["platform"], "linux");
+
+    let capabilities = fixture.get("/v1/capabilities");
+    assert_eq!(
+        capabilities["serverTypes"]["bedrock"]["runtime"]["state"],
+        "available"
+    );
+    fixture.stop(&mut agent);
+    downloads.stop();
 }
 
 #[cfg(not(target_os = "linux"))]
@@ -104,6 +157,7 @@ impl TestFixture {
             r#"{"version":"1.21.80.3","platform":"linux","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#,
         )
         .unwrap();
+        fs::write(server_dir.join(".msc_bds_version"), "1.21.80.3").unwrap();
         fs::write(
             server_dir.join("server.properties"),
             "level-name=Fixture\nserver-port=19132\nserver-portv6=19133\n",
@@ -149,7 +203,12 @@ impl TestFixture {
     }
 
     fn spawn_agent(&self) -> Child {
-        Command::new(env!("CARGO_BIN_EXE_msc"))
+        self.spawn_agent_with_manifest(None)
+    }
+
+    fn spawn_agent_with_manifest(&self, manifest_url: Option<&str>) -> Child {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_msc"));
+        command
             .args(["serve", "--bind", &format!("127.0.0.1:{}", self.port)])
             .env("MSC2_APP_CONFIG_PATH", &self.config_path)
             .env("MSC2_AGENT_SERVERS_ROOT", &self.servers_root)
@@ -163,7 +222,11 @@ impl TestFixture {
                 self.data_dir.join("secrets"),
             )
             .env("MSC2_TEST_BOOTSTRAP_TOKEN", TOKEN)
-            .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service)
+            .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service);
+        if let Some(manifest_url) = manifest_url {
+            command.env("MSC2_BEDROCK_MANIFEST_URL", manifest_url);
+        }
+        command
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -176,6 +239,23 @@ impl TestFixture {
 
     fn post(&self, path: &str, body: &str) -> (u16, Value) {
         response_json(http_request(self.port, "POST", path, Some(body)))
+    }
+
+    #[cfg(target_os = "linux")]
+    fn wait_for_operation(&self, operation_id: &str) -> Value {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        loop {
+            let operation = self.get(&format!("/v1/operations/{operation_id}"));
+            match operation["state"].as_str() {
+                Some("queued") | Some("running") => {}
+                _ => return operation,
+            }
+            assert!(
+                Instant::now() < deadline,
+                "operation did not finish: {operation}"
+            );
+            thread::sleep(Duration::from_millis(100));
+        }
     }
 
     fn stop(&self, agent: &mut Child) {
@@ -193,6 +273,101 @@ impl TestFixture {
             ])
             .output();
     }
+}
+
+#[cfg(target_os = "linux")]
+struct BedrockDownloadServer {
+    manifest_url: String,
+    stop_requested: Arc<AtomicBool>,
+    archive_requests: Arc<AtomicUsize>,
+    thread: Option<thread::JoinHandle<()>>,
+}
+
+#[cfg(target_os = "linux")]
+impl BedrockDownloadServer {
+    fn new() -> Self {
+        let archive = bedrock_archive();
+        let archive_checksum = sha256_hex(&archive);
+        let listener = TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let address = listener.local_addr().unwrap();
+        let archive_url = format!("http://{address}/bedrock-server-1.21.80.3.zip");
+        let manifest = serde_json::to_vec(&serde_json::json!({
+            "release": {
+                "1.21.80": {
+                    "linux": {
+                        "url": archive_url,
+                        "sha256": archive_checksum
+                    }
+                }
+            }
+        }))
+        .unwrap();
+        let stop_requested = Arc::new(AtomicBool::new(false));
+        let archive_requests = Arc::new(AtomicUsize::new(0));
+        let stop_for_thread = Arc::clone(&stop_requested);
+        let requests_for_thread = Arc::clone(&archive_requests);
+        let thread = thread::spawn(move || {
+            while !stop_for_thread.load(Ordering::Relaxed) {
+                match listener.accept() {
+                    Ok((mut stream, _)) => {
+                        let mut request = [0_u8; 2048];
+                        let bytes_read = stream.read(&mut request).unwrap_or(0);
+                        let request = String::from_utf8_lossy(&request[..bytes_read]);
+                        let path = request.split_whitespace().nth(1).unwrap_or("/");
+                        let body = if path.ends_with(".zip") {
+                            requests_for_thread.fetch_add(1, Ordering::Relaxed);
+                            &archive
+                        } else {
+                            &manifest
+                        };
+                        let header = format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            body.len()
+                        );
+                        let _ = stream.write_all(header.as_bytes());
+                        let _ = stream.write_all(body);
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        Self {
+            manifest_url: format!("http://{address}/manifest.json"),
+            stop_requested,
+            archive_requests,
+            thread: Some(thread),
+        }
+    }
+
+    fn stop(mut self) {
+        self.stop_requested.store(true, Ordering::Relaxed);
+        if let Some(thread) = self.thread.take() {
+            thread.join().unwrap();
+        }
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn bedrock_archive() -> Vec<u8> {
+    let mut bytes = Cursor::new(Vec::new());
+    {
+        let mut zip = zip::ZipWriter::new(&mut bytes);
+        zip.start_file(
+            "bedrock_server",
+            SimpleFileOptions::default().unix_permissions(0o755),
+        )
+        .unwrap();
+        zip.write_all(b"#!/bin/sh\n").unwrap();
+        zip.start_file("server.properties", SimpleFileOptions::default())
+            .unwrap();
+        zip.write_all(b"archive-settings\n").unwrap();
+        zip.finish().unwrap();
+    }
+    bytes.into_inner()
 }
 
 fn server(directory: &Path, port: i64, _fixture: bool) -> ConfigServer {

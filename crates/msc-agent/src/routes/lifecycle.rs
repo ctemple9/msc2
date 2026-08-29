@@ -31,6 +31,7 @@ use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::JavaServerFlavor;
 use msc_domain::identity::ServerType;
 use msc_domain::operation::OperationId;
+use msc_domain::world::BackupAssociation;
 use msc_infrastructure::audit_log::AuditLog;
 use msc_infrastructure::config_repository::{
     AppConfigLoadError, ConfigSaveError, default_app_config_path, default_servers_root,
@@ -1095,6 +1096,24 @@ impl LifecycleRoutesState {
         }
     }
 
+    pub fn provision_bedrock_server(
+        &self,
+        server: &ConfigServer,
+    ) -> Result<(), BedrockRuntimeError> {
+        let version = server
+            .bedrock_version
+            .clone()
+            .unwrap_or_else(|| "LATEST".to_owned());
+        let server_dir = PathBuf::from(&server.server_dir);
+        self.inner.bedrock_runtime.provision(
+            BedrockProvisionRequest {
+                server_dir: server.server_dir.clone(),
+                version,
+            },
+            || bedrock_safety_backup(&server_dir),
+        )
+    }
+
     #[allow(clippy::result_large_err)]
     fn start_active_bedrock_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
         let active = self
@@ -1107,30 +1126,21 @@ impl LifecycleRoutesState {
             Some(active.id.clone()),
             "Starting Bedrock server.",
         )?;
-        let version = active
-            .bedrock_version
-            .clone()
-            .unwrap_or_else(|| "LATEST".to_owned());
         let memory_gb = active.max_ram_gb.max(1.0).ceil() as u32;
-        let result = self
-            .inner
-            .bedrock_runtime
-            .provision(BedrockProvisionRequest {
-                server_dir: active.server_dir.clone(),
-                version,
+        let result = self.provision_bedrock_server(&active).and_then(|()| {
+            self.inner.bedrock_runtime.start(BedrockStartRequest {
+                memory_gb,
+                bedrock_port: active
+                    .bedrock_port
+                    .unwrap_or(19132)
+                    .try_into()
+                    .unwrap_or(19132),
             })
-            .and_then(|()| {
-                self.inner.bedrock_runtime.start(BedrockStartRequest {
-                    memory_gb,
-                    bedrock_port: active
-                        .bedrock_port
-                        .unwrap_or(19132)
-                        .try_into()
-                        .unwrap_or(19132),
-                })
-            });
+        });
         if let Err(error) = result {
-            let code = if self.bedrock_runtime_state().state != "available" {
+            let code = if matches!(&error, BedrockRuntimeError::Provisioning(_)) {
+                "bedrock_provisioning_failed"
+            } else if self.bedrock_runtime_state().state != "available" {
                 "capability_unavailable"
             } else {
                 "bedrock_start_failed"
@@ -1350,6 +1360,32 @@ impl LifecycleRoutesState {
             .operations
             .cancel(&operation_id, "Bedrock operation cancelled.");
     }
+}
+
+fn bedrock_safety_backup(server_dir: &Path) -> bool {
+    let association = BackupAssociation {
+        slot_id: None,
+        slot_name: None,
+        world_seed: None,
+    };
+    msc_application::backups::create_backup(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        None,
+        &association,
+        None,
+        None,
+        false,
+        true,
+        Some("pre-downgrade"),
+        None,
+        &iso8601_now(),
+        None,
+        || false,
+        || false,
+    )
+    .is_ok()
 }
 
 #[derive(Debug)]

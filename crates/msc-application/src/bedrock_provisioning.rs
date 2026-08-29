@@ -23,6 +23,15 @@ const PRESERVED_FILES: [&str; 4] = [
     "whitelist.json",
 ];
 
+/// Returns the production manifest URL, with a host/test override that keeps
+/// the downloader itself unchanged while allowing an agent to use a mirror.
+pub fn production_manifest_url() -> String {
+    std::env::var("MSC2_BEDROCK_MANIFEST_URL")
+        .ok()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| BEDROCK_MANIFEST_URL.to_owned())
+}
+
 #[derive(Debug, Clone)]
 pub struct ProvisionRequest<'a> {
     pub server_dir: &'a Path,
@@ -79,12 +88,33 @@ pub fn ensure_installed(
     request: &ProvisionRequest<'_>,
     pre_downgrade_backup: impl FnOnce() -> bool,
 ) -> Result<ProvisionOutcome, BedrockProvisioningError> {
-    let executable = request.server_dir.join("bedrock_server");
+    let executable = request.server_dir.join(request.platform.executable_name());
     let already_installed = fs
         .stat(&executable)
-        .map(|metadata| metadata.is_file && metadata.executable)
+        .map(|metadata| {
+            metadata.is_file
+                && (metadata.executable || request.platform == BedrockPlatform::Windows)
+        })
+        .unwrap_or(false);
+    let existing_server_directory = fs
+        .stat(request.server_dir)
+        .map(|metadata| metadata.is_dir)
         .unwrap_or(false);
     let installed_version = read_marker(fs, request.server_dir);
+
+    // A pinned, verified installation has already answered the only question
+    // the manifest would answer. This also lets an existing server start while
+    // its configured archive mirror is temporarily offline.
+    if already_installed
+        && !request.force
+        && let Some(installed_version) = installed_version.as_deref()
+        && let BedrockVersionRequest::Pinned(target) = BedrockVersionRequest::parse(request.version)
+        && installed_version == target
+    {
+        return Ok(ProvisionOutcome::NoOp {
+            version: target.to_owned(),
+        });
+    }
 
     let manifest = match transport.get(
         request.manifest_url,
@@ -150,7 +180,7 @@ pub fn ensure_installed(
         &staged.root,
         &target.version,
         &target,
-        already_installed,
+        existing_server_directory,
     );
     let _ = fs.remove(&staging_root);
     result?;
@@ -192,7 +222,7 @@ fn promote(
     staged_root: &Path,
     version: &str,
     release: &bedrock_distribution::BedrockRelease,
-    already_installed: bool,
+    existing_server_directory: bool,
 ) -> Result<(), BedrockProvisioningError> {
     let parent = server_dir.parent().ok_or_else(|| {
         BedrockProvisioningError::Filesystem("server directory has no parent".into())
@@ -211,7 +241,7 @@ fn promote(
     fs.create_dir_all(&candidate)
         .map_err(|error| BedrockProvisioningError::Filesystem(error.to_string()))?;
 
-    if already_installed {
+    if existing_server_directory {
         copy_tree(fs, server_dir, &candidate, Path::new(""), false)?;
     }
     copy_tree(
@@ -219,12 +249,12 @@ fn promote(
         staged_root,
         &candidate,
         Path::new(""),
-        already_installed,
+        existing_server_directory,
     )?;
     write_marker(fs, &candidate, version)?;
     write_provenance(fs, &candidate, release)?;
 
-    if !already_installed {
+    if !existing_server_directory {
         fs.rename(&candidate, server_dir)
             .map_err(|error| BedrockProvisioningError::Filesystem(error.to_string()))?;
         return Ok(());
@@ -275,6 +305,9 @@ fn copy_tree(
             .ok_or_else(|| BedrockProvisioningError::Filesystem("entry has no name".into()))?;
         let child_relative = relative.join(name);
         if child_relative == Path::new(".msc_bds_staging") {
+            continue;
+        }
+        if preserve_user_files && child_relative == Path::new("worlds") {
             continue;
         }
         let child_destination = destination.join(&child_relative);

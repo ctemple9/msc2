@@ -117,6 +117,13 @@ impl<'supervisor, C: BedrockRuntimeClock> LinuxBedrockRuntime<'supervisor, C> {
         }
     }
 
+    pub fn refresh_eligibility(&mut self, eligibility: BedrockRuntimeEligibility) {
+        self.capabilities = eligibility.capabilities_for(BedrockRuntimeBackend::Native);
+        if self.capabilities.supported && self.state == BedrockRuntimeState::Unavailable {
+            self.state = BedrockRuntimeState::New;
+        }
+    }
+
     pub fn process_id(&self) -> Option<ProcessId> {
         self.process
     }

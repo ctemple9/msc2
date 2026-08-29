@@ -138,6 +138,10 @@ impl<T: SidecarTransport> MacosBedrockRuntime<T> {
         }
     }
 
+    pub fn refresh_eligibility(&mut self, eligibility: BedrockRuntimeEligibility) {
+        self.capabilities = eligibility.capabilities_for(BedrockRuntimeBackend::Sidecar);
+    }
+
     pub fn sidecar(&self) -> &SidecarRuntime<T> {
         &self.inner
     }

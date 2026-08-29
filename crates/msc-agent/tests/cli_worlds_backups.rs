@@ -130,6 +130,16 @@ fn cli_worlds_backups_world_activate_help_shows_no_wait_flag() {
 }
 
 #[test]
+fn cli_worlds_backups_world_profile_set_help_shows_changes_and_confirmation() {
+    let output = run_cli(&["world", "profile-set", "--help"], &[]);
+
+    assert!(output.status.success(), "stderr: {}", stderr(&output));
+    let stdout = stdout(&output);
+    assert!(stdout.contains("--change"));
+    assert!(stdout.contains("--confirm"));
+}
+
+#[test]
 fn cli_worlds_backups_backup_now_help_shows_no_wait_flag() {
     let output = run_cli(&["backup", "now", "--help"], &[]);
 

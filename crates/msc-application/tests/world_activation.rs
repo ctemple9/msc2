@@ -9,7 +9,9 @@
 //! plan's Verify command (a plain nextest substring filter on test
 //! name) selects them.
 
-use msc_application::worlds::{self, ActivationError, ActivationRecovery};
+use msc_application::worlds::{
+    self, ActivationError, ActivationRecovery, WorldProfileApplyContext, WorldProfileApplyStatus,
+};
 use msc_domain::identity::ServerType;
 use msc_domain::world::WorldSlot;
 use msc_infrastructure::fs::StdFileSystem;
@@ -138,6 +140,97 @@ fn world_activation_applies_saved_profile_without_overwriting_server_settings() 
     assert!(properties.lines().any(|line| line == "gamemode=creative"));
     assert!(properties.lines().any(|line| line == "motd=Keep this"));
     assert!(properties.lines().any(|line| line == "max-players=12"));
+}
+
+#[test]
+fn world_activation_switches_between_distinct_profiles_and_preserves_server_settings() {
+    let tmp = TempDir::new("distinct-profiles");
+    let server_dir = tmp.path();
+    write_file(
+        &server_dir.join("server.properties"),
+        b"level-name=world\nmotd=Shared server\nmax-players=12\nforce-gamemode=false\n",
+    );
+    make_live_folder(server_dir, "world", b"initial world");
+
+    let first = slot_with_archive("slot-first", "first-world");
+    let second = slot_with_archive("slot-second", "second-world");
+    write_slot_archive_folders(server_dir, &first.id, &[("first-world", b"first world")]);
+    write_slot_archive_folders(server_dir, &second.id, &[("second-world", b"second world")]);
+
+    let mut first_profile = msc_domain::world_profile::WorldProfile::new();
+    first_profile.identity.level_name = first.world_level_name.clone();
+    first_profile.gameplay.difficulty = Some("easy".to_string());
+    first_profile.gameplay.default_game_mode = Some("survival".to_string());
+    world_store::save_profile(&StdFileSystem, server_dir, &first, &first_profile).unwrap();
+
+    let mut second_profile = msc_domain::world_profile::WorldProfile::new();
+    second_profile.identity.level_name = second.world_level_name.clone();
+    second_profile.gameplay.difficulty = Some("hard".to_string());
+    second_profile.gameplay.default_game_mode = Some("creative".to_string());
+    world_store::save_profile(&StdFileSystem, server_dir, &second, &second_profile).unwrap();
+
+    worlds::activate_slot(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Java,
+        &first,
+        false,
+        "2026-06-01T00:00:00Z",
+        || true,
+        || false,
+    )
+    .unwrap();
+    let first_properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
+    assert!(first_properties.lines().any(|line| line == "difficulty=easy"));
+    assert!(first_properties.lines().any(|line| line == "gamemode=survival"));
+    assert!(first_properties.lines().any(|line| line == "motd=Shared server"));
+    assert!(first_properties.lines().any(|line| line == "max-players=12"));
+    assert!(first_properties.lines().any(|line| line == "force-gamemode=false"));
+
+    worlds::activate_slot(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Java,
+        &second,
+        false,
+        "2026-06-01T00:01:00Z",
+        || true,
+        || false,
+    )
+    .unwrap();
+    let second_properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
+    assert!(second_properties.lines().any(|line| line == "difficulty=hard"));
+    assert!(second_properties.lines().any(|line| line == "gamemode=creative"));
+    assert!(second_properties.lines().any(|line| line == "motd=Shared server"));
+    assert!(second_properties.lines().any(|line| line == "max-players=12"));
+    assert!(second_properties.lines().any(|line| line == "force-gamemode=false"));
+}
+
+#[test]
+fn world_activation_reports_restart_required_bedrock_profile_changes() {
+    let tmp = TempDir::new("restart-status");
+    let server_dir = tmp.path();
+    write_server_properties(server_dir, "world");
+
+    let mut profile = msc_domain::world_profile::WorldProfile::new();
+    profile.gameplay.cheats = Some(true);
+    let report = worlds::apply_world_profile(
+        &StdFileSystem,
+        server_dir,
+        ServerType::Bedrock,
+        &profile,
+        WorldProfileApplyContext::Activation,
+        true,
+    )
+    .unwrap();
+
+    let change = report
+        .changes
+        .iter()
+        .find(|change| change.key == "gameplay.cheats")
+        .expect("Bedrock cheats should be reported");
+    assert_eq!(change.status, WorldProfileApplyStatus::PendingRestart);
+    assert_eq!(change.reason.as_deref(), Some("restart_required"));
 }
 
 #[test]

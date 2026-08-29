@@ -15,3 +15,8 @@ The live world is therefore a projection, not a second source of truth. A
 difficulty or default game mode changed for this world belongs to this slot;
 the server's port, player limit, MOTD, access rules, process policy, and
 connection helpers remain common to every slot.
+
+Activation reports whether each saved value was applied live, awaits a server
+restart, or was unavailable for the selected runtime. If the runtime cannot
+verify an imported value, MSC says so instead of replacing it with a guessed
+default.

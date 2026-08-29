@@ -46,3 +46,22 @@ You can run both from this app simultaneously.
 MSC checks the selected Bedrock version and installed Bedrock runtime before presenting native controls. The common 1.20+ profile includes generation, difficulty, game mode, gamerules, coordinates, starting-map, cheats, and experiments where that runtime advertises them. Unavailable controls are explained and are never sent as though the runtime applied them; unknown properties remain visible and preserved.
 
 Settings supplied by a particular server build or add-on are **provided by this server/mod**, outside MSC's native Bedrock profile. Use that server or mod's own configuration path for them; MSC will not silently discard a setting it cannot understand.
+
+## World settings and achievements
+
+Bedrock world settings belong to the selected world slot. Difficulty, default
+game mode, coordinates, starting map, cheats, experiments, and other toggles
+are shown only when the selected BDS runtime advertises them. MSC shows the
+selected version and runtime context, preserves unknown properties, and marks
+an unsupported setting as unavailable instead of pretending it was applied.
+
+Creative, cheats, and some experiments can permanently disable Xbox
+achievements for that world. MSC therefore asks for a separate acknowledgement
+before applying the change. Turning the setting off later does not restore the
+achievement state. This confirmation is agent-enforced across Settings,
+Quick Commands, the in-app console, the CLI, and the API.
+
+Java has different semantics: Creative and command settings affect gameplay
+and advancements, but they do not carry the Bedrock Xbox-achievement warning.
+Also keep `force-gamemode` separate: it is a server-wide, default-off policy
+that can override every world's saved default game mode.

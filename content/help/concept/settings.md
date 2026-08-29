@@ -20,3 +20,9 @@ The old MSC 1 editor grouped some of these together because they were all
 written through one screen. MSC 2 follows Minecraft's actual runtime behavior:
 the active world projects its saved profile, while a server-wide policy such as
 `force-gamemode` stays separate and can be explained as an override.
+
+`force-gamemode` is off by default and has a server-wide confirmation because it
+can supersede every world's saved default. Creative and cheat changes use the
+world-scoped confirmation; on Bedrock, the explanation calls out the permanent
+Xbox-achievement consequence, while Java uses its different advancement and
+command semantics.

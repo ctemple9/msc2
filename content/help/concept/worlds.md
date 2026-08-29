@@ -17,3 +17,8 @@ copied from whichever world was active last.
 The active runtime is a projection of the selected slot's profile. Switching
 slots must not rewrite another slot's difficulty, default game mode, gamerules,
 or generation choices.
+
+MSC's native profile stops at settings it can verify for the selected Minecraft
+version, edition, and Java flavor. A server or mod may provide additional
+settings; those are handed off to that server or mod's own configuration path,
+not silently presented as MSC controls.

@@ -47,6 +47,36 @@ Bedrock cheats or experiments that require a stopped runtime are marked
 restart-required. An imported or older world is never given a made-up value:
 the profile can say detected, unknown, unsupported, or achievement-disabled.
 
+### The release boundary
+
+The native profile covers the common settings that MSC can read, preserve, and
+apply for Minecraft 1.20 and newer: identity, generation, difficulty, default
+game mode, gamerules, and the Bedrock choices advertised by the selected
+runtime. The form re-checks that capability when you change the Minecraft
+version, Java flavor, loader, or edition. A setting the runtime does not
+advertise is shown as unavailable and is not sent as though it applied.
+
+Settings supplied by a particular server build, plugin, or mod are **provided by this server/mod**.
+They are outside MSC's native world-profile contract. Use that server or mod's
+own configuration path; MSC keeps unknown properties visible and preserved
+instead of inventing controls or silently dropping them.
+
+### Creative, cheats, and achievements
+
+MSC asks for an explicit acknowledgement before a Creative or cheat change
+that carries a safety consequence. On Bedrock, Creative, cheats, and some
+experiments may permanently disable Xbox achievements for that world, even if
+you later turn the setting off. The same warning is enforced by the agent for
+the Worlds form, Quick Commands, the in-app console, the CLI, and the API, so a
+different control surface cannot bypass it.
+
+On Java, the warning explains the different consequence: Creative and command
+settings change the world's gameplay and advancement/command behavior, but do
+not claim the Bedrock Xbox-achievement consequence. The server-wide
+`force-gamemode` policy has its own confirmation because it applies to every
+world and can override each slot's saved default. It is off by default and is
+never enabled by choosing Creative for one world.
+
 **Always back up before:**
 - Installing or updating plugins
 - Changing major server settings

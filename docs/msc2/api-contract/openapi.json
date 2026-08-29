@@ -1982,7 +1982,26 @@
             }
           }
         },
-        "x-permission-category": "none"
+        "x-permission-category": "none",
+        "x-tunnel-inventory": {
+          "authoritative": "The persisted Java, Bedrock, and voice addresses come from the API inventory, even when playitd has not printed an address yet.",
+          "names": {
+            "java": "MSC Java",
+            "bedrock": "MSC Bedrock",
+            "voice": "MSC Voice"
+          },
+          "protocols": {
+            "java": "TCP",
+            "bedrock": "UDP",
+            "voice": "UDP"
+          },
+          "localPorts": {
+            "java": "server.properties server-port, default 25565",
+            "bedrock": "configured Bedrock/Geyser port, default 19132",
+            "voice": 24454
+          },
+          "udpAddressFallback": "static_ip4, then assigned_domain"
+        }
       }
     },
     "/v1/playit/setup": {
@@ -2034,7 +2053,7 @@
             "x-error-code": "forbidden"
           },
           "409": {
-            "description": "setup_in_progress / setup_unavailable / credential_store_failed",
+            "description": "setup_in_progress / setup_unavailable / credential_store_failed / tunnel_mismatch",
             "content": {
               "application/json": {
                 "schema": {
@@ -2077,6 +2096,7 @@
           "agent_not_found",
           "playit_api_error",
           "credential_store_failed",
+          "tunnel_mismatch",
           "setup_in_progress"
         ],
         "x-security-boundary": {
@@ -2086,7 +2106,7 @@
           "browserApiClient": "forbidden",
           "twoFactor": "explicit-two_factor_required-error"
         },
-        "x-notes": "P12.20a freezes the native flow before P12.20c implements the provider transport. The transitional implementation may return setup_unavailable; it must not accept credentials as a paste-key shortcut or expose upstream Playit response details."
+        "x-notes": "The agent lists tunnels with the read-only host key, creates missing tunnels with the short-lived web session, retries while the saved agent is offline, and reuses a named tunnel only when its saved agent, kind, origin, and local port match. A same-name mismatch returns tunnel_mismatch instead of retargeting the tunnel. Credentials and temporary session details remain memory-only; no browser-side Playit API client or paste-key shortcut is allowed."
       }
     },
     "/v1/playit/reset": {

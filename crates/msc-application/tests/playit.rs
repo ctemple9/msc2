@@ -1,6 +1,7 @@
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{PLAYIT_OPERATION_TYPE, PlayitError, PlayitService};
 use msc_domain::helper::HelperStatus;
+use msc_domain::networking::{PlayitTunnelKind, PlayitTunnelSpec};
 use msc_domain::operation::OperationState;
 use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
 use msc_infrastructure::helper_acquisition::{
@@ -98,6 +99,7 @@ fn acquisition<'a>(
 
 struct FakeAccountTransport {
     responses: Mutex<VecDeque<PlayitHttpResponse>>,
+    requests: Mutex<Vec<(String, Value, Option<String>)>>,
 }
 
 impl FakeAccountTransport {
@@ -112,6 +114,7 @@ impl FakeAccountTransport {
                     })
                     .collect(),
             ),
+            requests: Mutex::new(Vec::new()),
         }
     }
 }
@@ -119,10 +122,15 @@ impl FakeAccountTransport {
 impl PlayitHttpTransport for FakeAccountTransport {
     fn post_json(
         &self,
-        _path: &str,
-        _body: &Value,
-        _authorization: Option<&str>,
+        path: &str,
+        body: &Value,
+        authorization: Option<&str>,
     ) -> Result<PlayitHttpResponse, PlayitTransportError> {
+        self.requests.lock().unwrap().push((
+            path.to_owned(),
+            body.clone(),
+            authorization.map(str::to_owned),
+        ));
         self.responses
             .lock()
             .unwrap()
@@ -455,4 +463,292 @@ fn native_setup_cancellation_drops_the_temporary_session_before_claiming() {
         msc_application::playit::PlayitSetupError::Cancelled
     );
     assert_eq!(secrets.get(PLAYIT_SECRET_KEY).unwrap(), None);
+}
+
+fn tunnel_fixture(kind: PlayitTunnelKind, local_port: u16) -> Value {
+    let origin = match kind {
+        PlayitTunnelKind::Voice => serde_json::json!({
+            "type": "agent",
+            "data": {
+                "agent_id": "agent-existing",
+                "config": {
+                    "fields": [
+                        {"name": "local_ip", "value": "127.0.0.1"},
+                        {"name": "local_port", "value": local_port.to_string()}
+                    ]
+                }
+            }
+        }),
+        PlayitTunnelKind::Java | PlayitTunnelKind::Bedrock => serde_json::json!({
+            "type": "agent",
+            "data": {
+                "agent_id": "agent-existing",
+                "local_ip": "127.0.0.1",
+                "local_port": local_port
+            }
+        }),
+    };
+    let mut tunnel = serde_json::json!({
+        "name": kind.name(),
+        "active": true,
+        "origin": origin,
+        "alloc": {
+            "data": {
+                "assigned_domain": format!("{}.example.joinmc.link", kind.name().replace(' ', "-").to_ascii_lowercase()),
+                "port_start": match kind {
+                    PlayitTunnelKind::Java => 25565,
+                    PlayitTunnelKind::Bedrock => 19132,
+                    PlayitTunnelKind::Voice => 24454,
+                }
+            }
+        }
+    });
+    match kind {
+        PlayitTunnelKind::Java | PlayitTunnelKind::Bedrock => {
+            tunnel["tunnel_type"] = Value::String(kind.tunnel_type().unwrap().to_owned());
+            tunnel["port_type"] = Value::String(kind.port_type().to_owned());
+        }
+        PlayitTunnelKind::Voice => {
+            tunnel["protocol"] = serde_json::json!({
+                "type": "raw-ports",
+                "details": {"port_type": "udp"}
+            });
+            tunnel["alloc"]["data"]["static_ip4"] = Value::String("203.0.113.10".into());
+        }
+    }
+    if kind == PlayitTunnelKind::Bedrock {
+        tunnel["alloc"]["data"]["static_ip4"] = Value::String("198.51.100.10".into());
+    }
+    tunnel
+}
+
+fn tunnel_list_response(tunnels: Vec<Value>) -> (u16, Value) {
+    (
+        200,
+        serde_json::json!({"status": "success", "data": {"tunnels": tunnels}}),
+    )
+}
+
+fn setup_responses(specs: &[PlayitTunnelSpec], inventory: Vec<Value>) -> Vec<(u16, Value)> {
+    let mut responses = vec![
+        (
+            200,
+            serde_json::json!({"status": "success", "data": {"session_key": "session-secret"}}),
+        ),
+        tunnel_list_response(Vec::new()),
+    ];
+    responses.extend(specs.iter().map(|_| {
+        (
+            200,
+            serde_json::json!({"status": "success", "data": {"id": "tunnel"}}),
+        )
+    }));
+    responses.push(tunnel_list_response(inventory));
+    responses
+}
+
+#[test]
+fn native_setup_provisions_one_two_and_three_tunnel_accounts() {
+    for specs in [
+        vec![PlayitTunnelSpec {
+            kind: PlayitTunnelKind::Java,
+            local_port: 25565,
+        }],
+        vec![
+            PlayitTunnelSpec {
+                kind: PlayitTunnelKind::Java,
+                local_port: 25565,
+            },
+            PlayitTunnelSpec {
+                kind: PlayitTunnelKind::Bedrock,
+                local_port: 19132,
+            },
+        ],
+        vec![
+            PlayitTunnelSpec {
+                kind: PlayitTunnelKind::Java,
+                local_port: 25565,
+            },
+            PlayitTunnelSpec {
+                kind: PlayitTunnelKind::Bedrock,
+                local_port: 19132,
+            },
+            PlayitTunnelSpec {
+                kind: PlayitTunnelKind::Voice,
+                local_port: 24454,
+            },
+        ],
+    ] {
+        let inventory = specs
+            .iter()
+            .map(|spec| tunnel_fixture(spec.kind, spec.local_port))
+            .collect::<Vec<_>>();
+        let transport = FakeAccountTransport::new(setup_responses(&specs, inventory));
+        let secrets = FakeSecretStore::new();
+        secrets
+            .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+            .unwrap();
+        let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+        let result = setup
+            .run_with_tunnels(
+                "owner@example.test",
+                "password",
+                Some("agent-existing"),
+                &specs,
+                || false,
+                |_| {},
+            )
+            .unwrap();
+
+        assert!(result.tunnel_addresses.java.is_some());
+        assert_eq!(
+            result.tunnel_addresses.bedrock.is_some(),
+            specs
+                .iter()
+                .any(|spec| spec.kind == PlayitTunnelKind::Bedrock)
+        );
+        assert_eq!(
+            result.tunnel_addresses.voice.as_deref(),
+            specs
+                .iter()
+                .any(|spec| spec.kind == PlayitTunnelKind::Voice)
+                .then_some(Some("203.0.113.10:24454"))
+                .flatten()
+        );
+        let requests = transport.requests.lock().unwrap();
+        assert_eq!(requests[1].0, "/tunnels/list");
+        assert_eq!(requests[1].1["agent_id"], Value::Null);
+        assert_eq!(
+            requests[1].2.as_deref(),
+            Some("Agent-Key existing-agent-secret")
+        );
+        for (request, spec) in requests[2..2 + specs.len()].iter().zip(&specs) {
+            assert_eq!(request.2.as_deref(), Some("session session-secret"));
+            assert_eq!(request.1["name"], spec.kind.name());
+            assert_eq!(request.1["origin"]["data"]["agent_id"], "agent-existing");
+            match spec.kind {
+                PlayitTunnelKind::Java | PlayitTunnelKind::Bedrock => {
+                    assert_eq!(request.0, "/tunnels/create");
+                    assert_eq!(request.1["origin"]["data"]["local_port"], spec.local_port);
+                }
+                PlayitTunnelKind::Voice => {
+                    assert_eq!(request.0, "/v1/tunnels/create");
+                    assert_eq!(
+                        request.1["origin"]["data"]["config"]["fields"][1]["value"],
+                        spec.local_port.to_string()
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            requests
+                .iter()
+                .filter(|(path, _, _)| path.ends_with("/tunnels/create"))
+                .count(),
+            specs.len()
+        );
+    }
+}
+
+#[test]
+fn native_setup_reuses_existing_tunnels_without_duplicates_on_repeat() {
+    let specs = [PlayitTunnelSpec {
+        kind: PlayitTunnelKind::Java,
+        local_port: 25565,
+    }];
+    let inventory = vec![tunnel_fixture(PlayitTunnelKind::Java, 25565)];
+    let mut responses = setup_responses(&specs, inventory.clone());
+    responses.extend([
+        (
+            200,
+            serde_json::json!({"status": "success", "data": {"session_key": "session-secret"}}),
+        ),
+        tunnel_list_response(inventory.clone()),
+        tunnel_list_response(inventory),
+    ]);
+    let transport = FakeAccountTransport::new(responses);
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+
+    setup
+        .run_with_tunnels(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            &specs,
+            || false,
+            |_| {},
+        )
+        .unwrap();
+    setup
+        .run_with_tunnels(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            &specs,
+            || false,
+            |_| {},
+        )
+        .unwrap();
+
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(
+        requests
+            .iter()
+            .filter(|(path, _, _)| path.ends_with("/tunnels/create"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn native_setup_rejects_a_named_tunnel_that_targets_another_local_port() {
+    let transport = FakeAccountTransport::new([
+        (
+            200,
+            serde_json::json!({"status": "success", "data": {"session_key": "session-secret"}}),
+        ),
+        tunnel_list_response(vec![tunnel_fixture(PlayitTunnelKind::Java, 25566)]),
+    ]);
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+    let result = setup.run_with_tunnels(
+        "owner@example.test",
+        "password",
+        Some("agent-existing"),
+        &[PlayitTunnelSpec {
+            kind: PlayitTunnelKind::Java,
+            local_port: 25565,
+        }],
+        || false,
+        |_| {},
+    );
+
+    assert_eq!(
+        result.unwrap_err(),
+        msc_application::playit::PlayitSetupError::TunnelMismatch(PlayitTunnelKind::Java)
+    );
+    assert_eq!(
+        secrets.get(PLAYIT_SECRET_KEY).unwrap().as_deref(),
+        Some("existing-agent-secret")
+    );
+}
+
+#[test]
+fn simple_voice_chat_patch_preserves_unowned_properties() {
+    let patched = msc_domain::networking::patch_voice_chat_properties(
+        "# keep this\nvoice_host=old.example:24454\nport=19132\nmotd=hello\n",
+        "203.0.113.10:24454",
+    );
+    assert!(patched.contains("# keep this\n"));
+    assert!(patched.contains("voice_host=203.0.113.10:24454\n"));
+    assert!(patched.contains("bind_address=*\n"));
+    assert!(patched.contains("port=24454\n"));
+    assert!(patched.contains("motd=hello\n"));
 }

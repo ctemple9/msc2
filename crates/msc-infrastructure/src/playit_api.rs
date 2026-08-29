@@ -7,6 +7,7 @@
 //! contact playit.gg.
 
 use crate::addon_provider::{AddonTransport, TransportError};
+use msc_domain::networking::PlayitTunnelKind;
 use serde_json::{Value, json};
 use std::fmt;
 
@@ -138,6 +139,22 @@ impl fmt::Display for PlayitApiError {
 
 impl std::error::Error for PlayitApiError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayitTunnel {
+    pub name: String,
+    pub active: bool,
+    pub tunnel_type: Option<String>,
+    pub protocol_type: Option<String>,
+    pub port_type: Option<String>,
+    pub origin_type: Option<String>,
+    pub agent_id: Option<String>,
+    pub local_ip: Option<String>,
+    pub local_port: Option<u16>,
+    pub assigned_domain: Option<String>,
+    pub port_start: Option<u16>,
+    pub static_ip4: Option<String>,
+}
+
 /// A session key is intentionally opaque.  It has no `Debug`, `Display`, or
 /// serialization implementation, so an operation record cannot accidentally
 /// include it.  Clearing the owned string on drop makes the lifetime explicit;
@@ -177,9 +194,9 @@ impl Drop for PlayitSecret {
     }
 }
 
-/// Thin typed wrapper over the account and claim endpoints used by MSC 1's
-/// native `setupPlayitViaSignin` flow.  Tunnel inventory and creation are
-/// deliberately left to the following Playit step.
+/// Thin typed wrapper over the account, claim, and tunnel endpoints used by
+/// MSC 1's native setup flow. Provider-specific response details stay here so
+/// the application layer can make inventory decisions without handling JSON.
 pub struct PlayitApi<'transport> {
     transport: &'transport dyn PlayitHttpTransport,
 }
@@ -275,6 +292,96 @@ impl<'transport> PlayitApi<'transport> {
         Ok(Some(PlayitSecret(key.to_owned())))
     }
 
+    /// Lists all tunnels visible to the host's read-only agent key. The null
+    /// agent filter is intentional: the saved key is the authority, while the
+    /// application layer still verifies each named tunnel belongs to the
+    /// saved agent before reusing it.
+    pub fn list_tunnels(&self, secret: &str) -> Result<Vec<PlayitTunnel>, PlayitApiError> {
+        let authorization = format!("Agent-Key {secret}");
+        let response = self.request(
+            "/tunnels/list",
+            json!({"agent_id": Value::Null}),
+            Some(&authorization),
+        )?;
+        ensure_success(&response)?;
+        let tunnels = response
+            .value
+            .get("data")
+            .and_then(|data| data.get("tunnels"))
+            .and_then(Value::as_array)
+            .ok_or(PlayitApiError::InvalidResponse)?;
+        tunnels.iter().map(parse_tunnel).collect()
+    }
+
+    /// Creates one missing tunnel with the short-lived web session. Java and
+    /// Bedrock use the legacy Minecraft shape; voice uses Playit's raw UDP
+    /// shape, matching the provider payload MSC 1 sends.
+    pub fn create_tunnel(
+        &self,
+        agent_id: &str,
+        kind: PlayitTunnelKind,
+        local_port: u16,
+        session: &PlayitSession,
+    ) -> Result<(), PlayitApiError> {
+        let (path, body) = match kind {
+            PlayitTunnelKind::Java | PlayitTunnelKind::Bedrock => (
+                "/tunnels/create",
+                json!({
+                    "name": kind.name(),
+                    "tunnel_type": kind.tunnel_type(),
+                    "port_type": kind.port_type(),
+                    "port_count": 1,
+                    "enabled": true,
+                    "origin": {
+                        "type": "agent",
+                        "data": {
+                            "agent_id": agent_id,
+                            "local_ip": "127.0.0.1",
+                            "local_port": local_port,
+                        }
+                    },
+                    "alloc": {
+                        "type": "region",
+                        "details": {"region": "global"}
+                    }
+                }),
+            ),
+            PlayitTunnelKind::Voice => (
+                "/v1/tunnels/create",
+                json!({
+                    "name": kind.name(),
+                    "enabled": true,
+                    "protocol": {
+                        "type": "raw-ports",
+                        "details": {
+                            "port_type": "udp",
+                            "port_count": 1,
+                            "software_description": "simple voice chat"
+                        }
+                    },
+                    "endpoint": {
+                        "type": "region",
+                        "details": {"region": "global", "port": Value::Null}
+                    },
+                    "origin": {
+                        "type": "agent",
+                        "data": {
+                            "agent_id": agent_id,
+                            "config": {
+                                "fields": [
+                                    {"name": "local_ip", "value": "127.0.0.1"},
+                                    {"name": "local_port", "value": local_port.to_string()}
+                                ]
+                            }
+                        }
+                    }
+                }),
+            ),
+        };
+        let response = self.request_with_session(path, body, session)?;
+        ensure_success(&response)
+    }
+
     fn request(
         &self,
         path: &str,
@@ -357,7 +464,10 @@ fn classify_failure(status: u16, value: &Value) -> PlayitApiError {
         PlayitApiError::TwoFactorRequired
     } else if text.contains("ratelimit") || text.contains("toomanyrequests") {
         PlayitApiError::RateLimited
-    } else if text.contains("agentnotfound") {
+    } else if text.contains("agentnotfound")
+        || text.contains("agentversiontooold")
+        || text.contains("agentoffline")
+    {
         PlayitApiError::AgentNotFound
     } else {
         PlayitApiError::ApiFailure
@@ -405,4 +515,94 @@ fn is_pending_claim(value: &Value) -> bool {
         || text.contains("notready")
         || text.contains("waitingfor")
         || text.contains("notaccepted")
+}
+
+fn parse_tunnel(value: &Value) -> Result<PlayitTunnel, PlayitApiError> {
+    let name = value
+        .get("name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.is_empty())
+        .ok_or(PlayitApiError::InvalidResponse)?
+        .to_owned();
+    let origin = value.get("origin");
+    let origin_data = origin.and_then(|origin| origin.get("data"));
+    let protocol = value.get("protocol");
+    let protocol_details = protocol.and_then(|protocol| protocol.get("details"));
+    let alloc = value.get("alloc");
+    let alloc_data = alloc
+        .and_then(|alloc| alloc.get("data"))
+        .or_else(|| alloc.and_then(|alloc| alloc.get("details")))
+        .or(alloc);
+    let fields = origin_data
+        .and_then(|data| data.get("config"))
+        .and_then(|config| config.get("fields"))
+        .and_then(Value::as_array);
+
+    Ok(PlayitTunnel {
+        name,
+        active: value
+            .get("active")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        tunnel_type: value.get("tunnel_type").and_then(value_string),
+        protocol_type: value
+            .get("protocol_type")
+            .and_then(value_string)
+            .or_else(|| {
+                protocol
+                    .and_then(|protocol| protocol.get("type"))
+                    .and_then(value_string)
+            }),
+        port_type: value.get("port_type").and_then(value_string).or_else(|| {
+            protocol_details
+                .and_then(|details| details.get("port_type"))
+                .and_then(value_string)
+        }),
+        origin_type: origin
+            .and_then(|origin| origin.get("type"))
+            .and_then(value_string),
+        agent_id: origin_data
+            .and_then(|data| data.get("agent_id"))
+            .and_then(value_string),
+        local_ip: origin_data
+            .and_then(|data| data.get("local_ip"))
+            .and_then(value_string)
+            .or_else(|| field_value(fields, "local_ip")),
+        local_port: origin_data
+            .and_then(|data| data.get("local_port"))
+            .and_then(value_u16)
+            .or_else(|| field_value(fields, "local_port").and_then(|value| value.parse().ok())),
+        assigned_domain: alloc_data
+            .and_then(|alloc| alloc.get("assigned_domain"))
+            .and_then(value_string),
+        port_start: alloc_data
+            .and_then(|alloc| alloc.get("port_start"))
+            .and_then(value_u16),
+        static_ip4: alloc_data
+            .and_then(|alloc| alloc.get("static_ip4"))
+            .and_then(value_string),
+    })
+}
+
+fn value_string(value: &Value) -> Option<String> {
+    value
+        .as_str()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn value_u16(value: &Value) -> Option<u16> {
+    value
+        .as_u64()
+        .and_then(|value| u16::try_from(value).ok())
+        .or_else(|| value.as_str().and_then(|value| value.trim().parse().ok()))
+}
+
+fn field_value(fields: Option<&Vec<Value>>, name: &str) -> Option<String> {
+    fields?
+        .iter()
+        .find(|field| field.get("name").and_then(Value::as_str) == Some(name))
+        .and_then(|field| field.get("value"))
+        .and_then(value_string)
 }

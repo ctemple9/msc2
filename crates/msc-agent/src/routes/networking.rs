@@ -32,6 +32,7 @@ use msc_application::xbox_broadcast::{XboxBroadcastError, XboxBroadcastService};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::helper::HelperStatus;
 use msc_domain::identity::ServerType;
+use msc_domain::networking::{PlayitTunnelSpec, patch_voice_chat_properties, playit_tunnel_specs};
 use msc_infrastructure::addon_provider::HttpTransport as ProviderHttpTransport;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::helper_acquisition::HelperAcquisitionError;
@@ -297,6 +298,17 @@ pub async fn playit_setup(
     let transport = state.playit_transport;
     let secrets = state.secrets;
     let existing_agent_id = state.lifecycle.app_config_snapshot().playit_agent_id;
+    let active_server = state.lifecycle.active_config_server();
+    let tunnel_specs = active_server
+        .as_ref()
+        .filter(|server| server.playit_enabled)
+        .map(server_playit_tunnel_specs)
+        .unwrap_or_default();
+    let voice_server_dir = active_server
+        .as_ref()
+        .filter(|server| server.playit_enabled)
+        .map(|server| server.server_dir.clone());
+    let provisions_tunnels = !tunnel_specs.is_empty();
     let email = request.email.trim().to_owned();
     let password = request.password;
 
@@ -317,10 +329,11 @@ pub async fn playit_setup(
                 stage.status_line(),
             );
         };
-        let result = setup.run(
+        let result = setup.run_with_tunnels(
             &email,
             &password,
             existing_agent_id.as_deref(),
+            &tunnel_specs,
             should_cancel,
             report,
         );
@@ -328,9 +341,15 @@ pub async fn playit_setup(
         match result {
             Ok(result) => {
                 let reused_existing_agent = result.reused_existing_agent;
+                let tunnel_addresses = result.tunnel_addresses.clone();
                 let config_saved = lifecycle
                     .try_mutate_config(|config| {
                         config.playit_agent_id = Some(result.agent_id);
+                        if provisions_tunnels {
+                            config.playit_java_address = tunnel_addresses.java.clone();
+                            config.playit_bedrock_address = tunnel_addresses.bedrock.clone();
+                            config.playit_voice_address = tunnel_addresses.voice.clone();
+                        }
                         Ok::<_, std::convert::Infallible>(())
                     })
                     .is_ok();
@@ -347,9 +366,15 @@ pub async fn playit_setup(
                         "MSC could not save the Playit agent configuration on this host.".into(),
                     );
                 } else {
+                    if let (Some(server_dir), Some(voice_host)) = (
+                        voice_server_dir.as_deref(),
+                        tunnel_addresses.voice.as_deref(),
+                    ) {
+                        let _ = patch_voice_chat_config(server_dir, voice_host);
+                    }
                     let _ = operations.succeed(
                         &operation_id_for_worker,
-                        "Playit agent is configured.",
+                        "Playit agent and tunnels are configured.",
                         BTreeMap::from([
                             ("agentConfigured".to_string(), "true".to_string()),
                             (
@@ -1102,6 +1127,79 @@ fn read_properties(path: PathBuf) -> BTreeMap<String, String> {
             Some((key.trim().to_string(), value.trim().to_string()))
         })
         .collect()
+}
+
+fn server_playit_tunnel_specs(server: &ConfigServer) -> Vec<PlayitTunnelSpec> {
+    let java_port = (server.server_type == ServerType::Java)
+        .then(|| {
+            read_properties(Path::new(&server.server_dir).join("server.properties"))
+                .get("server-port")
+                .and_then(|value| value.parse::<u16>().ok())
+                .filter(|port| *port > 0)
+        })
+        .flatten();
+    let bedrock_port = server
+        .bedrock_port
+        .and_then(|port| u16::try_from(port).ok())
+        .filter(|port| *port > 0);
+    let voice_enabled =
+        server.playit_voice_chat_enabled && voice_chat_installed(Path::new(&server.server_dir));
+    playit_tunnel_specs(
+        server.server_type,
+        java_port,
+        server.bedrock_enabled,
+        bedrock_port,
+        voice_enabled,
+    )
+}
+
+fn voice_chat_installed(server_dir: &Path) -> bool {
+    ["plugins", "mods"].iter().any(|folder| {
+        std::fs::read_dir(server_dir.join(folder))
+            .ok()
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .any(|entry| {
+                let path = entry.path();
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or_default()
+                    .to_ascii_lowercase();
+                path.extension()
+                    .and_then(|extension| extension.to_str())
+                    .is_some_and(|extension| extension.eq_ignore_ascii_case("jar"))
+                    && (name.contains("voicechat") || name.contains("voice-chat"))
+            })
+    })
+}
+
+fn patch_voice_chat_config(server_dir: &str, voice_host: &str) -> Result<(), std::io::Error> {
+    let root = Path::new(server_dir);
+    if !voice_chat_installed(root) {
+        return Ok(());
+    }
+    let plugins_path = root.join("plugins/voicechat/voicechat-server.properties");
+    let config_path = root.join("config/voicechat/voicechat-server.properties");
+    let path = if plugins_path.exists() {
+        plugins_path
+    } else if config_path.exists() {
+        config_path
+    } else if root.join("plugins").exists() && !root.join("mods").exists() {
+        plugins_path
+    } else {
+        config_path
+    };
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let existing = if path.exists() {
+        std::fs::read_to_string(&path)?
+    } else {
+        String::new()
+    };
+    std::fs::write(path, patch_voice_chat_properties(&existing, voice_host))
 }
 
 fn helper_error_response(message: String, code: &str) -> Response {

@@ -8,11 +8,13 @@ use crate::operations::{LifecycleOperations, lifecycle_error};
 use msc_domain::helper::{
     FirstRunTransport, HelperSnapshot, HelperStatus, decide_playit_start, first_run_timeout,
 };
-use msc_domain::networking::parse_playit_address;
+use msc_domain::networking::{
+    PlayitTunnelAddresses, PlayitTunnelKind, PlayitTunnelSpec, parse_playit_address,
+};
 use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperProcessManager};
 use msc_infrastructure::playit::{PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch};
 use msc_infrastructure::playit_api::{
-    PLAYIT_AGENT_NAME, PlayitApi, PlayitApiError, PlayitHttpTransport,
+    PLAYIT_AGENT_NAME, PlayitApi, PlayitApiError, PlayitHttpTransport, PlayitTunnel,
 };
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
@@ -63,6 +65,10 @@ pub enum PlayitSetupStage {
     SigningIn,
     ClaimingOrReusingAgent,
     WaitingForAgent,
+    CreatingOrReusingJavaTunnel,
+    CreatingOrReusingBedrockTunnel,
+    CreatingOrReusingVoiceTunnel,
+    ReceivingPublicAddresses,
 }
 
 impl PlayitSetupStage {
@@ -71,6 +77,10 @@ impl PlayitSetupStage {
             Self::SigningIn => "Signing in to Playit.",
             Self::ClaimingOrReusingAgent => "Claiming or reusing the Playit agent.",
             Self::WaitingForAgent => "Waiting for Playit to finish setting up the agent.",
+            Self::CreatingOrReusingJavaTunnel => "Creating or reusing the MSC Java tunnel.",
+            Self::CreatingOrReusingBedrockTunnel => "Creating or reusing the MSC Bedrock tunnel.",
+            Self::CreatingOrReusingVoiceTunnel => "Creating or reusing the MSC Voice tunnel.",
+            Self::ReceivingPublicAddresses => "Receiving public Playit addresses.",
         }
     }
 
@@ -79,6 +89,10 @@ impl PlayitSetupStage {
             Self::SigningIn => (1, 3),
             Self::ClaimingOrReusingAgent => (2, 3),
             Self::WaitingForAgent => (3, 3),
+            Self::CreatingOrReusingJavaTunnel => (4, 7),
+            Self::CreatingOrReusingBedrockTunnel => (5, 7),
+            Self::CreatingOrReusingVoiceTunnel => (6, 7),
+            Self::ReceivingPublicAddresses => (7, 7),
         }
     }
 }
@@ -87,6 +101,7 @@ impl PlayitSetupStage {
 pub struct PlayitSetupResult {
     pub agent_id: String,
     pub reused_existing_agent: bool,
+    pub tunnel_addresses: PlayitTunnelAddresses,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,6 +109,7 @@ pub enum PlayitSetupError {
     Cancelled,
     Api(PlayitApiError),
     CredentialStore,
+    TunnelMismatch(PlayitTunnelKind),
 }
 
 impl PlayitSetupError {
@@ -102,6 +118,7 @@ impl PlayitSetupError {
             Self::Cancelled => "cancelled",
             Self::Api(error) => error.stable_code(),
             Self::CredentialStore => "credential_store_failed",
+            Self::TunnelMismatch(_) => "tunnel_mismatch",
         }
     }
 }
@@ -114,6 +131,11 @@ impl fmt::Display for PlayitSetupError {
             Self::CredentialStore => {
                 write!(f, "MSC could not save the Playit credentials on this host.")
             }
+            Self::TunnelMismatch(kind) => write!(
+                f,
+                "The existing {} Playit tunnel does not match this server's saved agent or local port; repair it on playit.gg before trying again.",
+                kind.name()
+            ),
         }
     }
 }
@@ -147,6 +169,28 @@ impl<'a> PlayitAccountSetup<'a> {
         should_cancel: impl Fn() -> bool,
         report: impl Fn(PlayitSetupStage),
     ) -> Result<PlayitSetupResult, PlayitSetupError> {
+        self.run_with_tunnels(
+            email,
+            password,
+            existing_agent_id,
+            &[],
+            should_cancel,
+            report,
+        )
+    }
+
+    /// Runs account setup and, when a server supplies tunnel specs, provisions
+    /// the exact named inventory for that server. The no-spec wrapper above
+    /// keeps account-only callers useful for hosts without an active server.
+    pub fn run_with_tunnels(
+        &self,
+        email: &str,
+        password: &str,
+        existing_agent_id: Option<&str>,
+        tunnel_specs: &[PlayitTunnelSpec],
+        should_cancel: impl Fn() -> bool,
+        report: impl Fn(PlayitSetupStage),
+    ) -> Result<PlayitSetupResult, PlayitSetupError> {
         report(PlayitSetupStage::SigningIn);
         let session = self
             .api
@@ -160,33 +204,167 @@ impl<'a> PlayitAccountSetup<'a> {
             .secrets
             .get(PLAYIT_SECRET_KEY)
             .map_err(|_| PlayitSetupError::CredentialStore)?;
-        if existing_agent_id.is_some_and(|agent_id| !agent_id.trim().is_empty())
-            && existing_secret.is_some_and(|secret| !secret.trim().is_empty())
-        {
-            report(PlayitSetupStage::ClaimingOrReusingAgent);
-            return Ok(PlayitSetupResult {
-                agent_id: existing_agent_id.expect("checked above").to_owned(),
-                reused_existing_agent: true,
-            });
-        }
-
         report(PlayitSetupStage::ClaimingOrReusingAgent);
-        let claim_code = generate_claim_code();
-        self.api
-            .claim_setup(&claim_code)
-            .map_err(PlayitSetupError::Api)?;
+        let (agent_id, reused_existing_agent, secret_key) = if existing_agent_id
+            .is_some_and(|agent_id| !agent_id.trim().is_empty())
+            && existing_secret
+                .as_deref()
+                .is_some_and(|secret| !secret.trim().is_empty())
+        {
+            (
+                existing_agent_id.expect("checked above").to_owned(),
+                true,
+                existing_secret.expect("checked above"),
+            )
+        } else {
+            let claim_code = generate_claim_code();
+            self.api
+                .claim_setup(&claim_code)
+                .map_err(PlayitSetupError::Api)?;
 
-        let claimed_agent_id = self.accept_claim(&claim_code, &session, &should_cancel)?;
-        report(PlayitSetupStage::WaitingForAgent);
-        let secret = self.exchange_claim(&claim_code, &should_cancel)?;
-        self.secrets
-            .set(PLAYIT_SECRET_KEY, secret.as_str())
-            .map_err(|_| PlayitSetupError::CredentialStore)?;
+            let claimed_agent_id = self.accept_claim(&claim_code, &session, &should_cancel)?;
+            report(PlayitSetupStage::WaitingForAgent);
+            let secret = self.exchange_claim(&claim_code, &should_cancel)?;
+            self.secrets
+                .set(PLAYIT_SECRET_KEY, secret.as_str())
+                .map_err(|_| PlayitSetupError::CredentialStore)?;
+            (claimed_agent_id, false, secret.as_str().to_owned())
+        };
+
+        let tunnel_addresses = if tunnel_specs.is_empty() {
+            PlayitTunnelAddresses::default()
+        } else {
+            match self.provision_tunnels(
+                &agent_id,
+                &secret_key,
+                &session,
+                tunnel_specs,
+                &should_cancel,
+                &report,
+            ) {
+                Ok(addresses) => addresses,
+                Err(error) => {
+                    if !reused_existing_agent {
+                        let _ = self.secrets.delete(PLAYIT_SECRET_KEY);
+                    }
+                    return Err(error);
+                }
+            }
+        };
 
         Ok(PlayitSetupResult {
-            agent_id: claimed_agent_id,
-            reused_existing_agent: false,
+            agent_id,
+            reused_existing_agent,
+            tunnel_addresses,
         })
+    }
+
+    fn provision_tunnels(
+        &self,
+        agent_id: &str,
+        secret_key: &str,
+        session: &msc_infrastructure::playit_api::PlayitSession,
+        tunnel_specs: &[PlayitTunnelSpec],
+        should_cancel: &impl Fn() -> bool,
+        report: &impl Fn(PlayitSetupStage),
+    ) -> Result<PlayitTunnelAddresses, PlayitSetupError> {
+        let mut inventory = self.list_tunnels(secret_key, should_cancel)?;
+        for spec in tunnel_specs {
+            report(stage_for_tunnel(spec.kind));
+            let matching: Vec<&PlayitTunnel> = inventory
+                .iter()
+                .filter(|tunnel| tunnel.name == spec.kind.name())
+                .collect();
+            match matching.as_slice() {
+                [tunnel] if tunnel_matches(tunnel, *spec, agent_id) => {}
+                [] => self.create_tunnel(agent_id, *spec, session, should_cancel)?,
+                _ => return Err(PlayitSetupError::TunnelMismatch(spec.kind)),
+            }
+            if should_cancel() {
+                return Err(PlayitSetupError::Cancelled);
+            }
+        }
+
+        report(PlayitSetupStage::ReceivingPublicAddresses);
+        inventory = self.list_tunnels(secret_key, should_cancel)?;
+        let mut addresses = PlayitTunnelAddresses::default();
+        for spec in tunnel_specs {
+            let matching: Vec<&PlayitTunnel> = inventory
+                .iter()
+                .filter(|tunnel| tunnel.name == spec.kind.name())
+                .collect();
+            let tunnel = match matching.as_slice() {
+                [] => return Err(PlayitSetupError::Api(PlayitApiError::AgentNotFound)),
+                [tunnel] if tunnel_matches(tunnel, *spec, agent_id) => tunnel,
+                _ => return Err(PlayitSetupError::TunnelMismatch(spec.kind)),
+            };
+            let address = tunnel.active.then(|| {
+                msc_domain::networking::playit_public_address(
+                    spec.kind,
+                    tunnel.assigned_domain.as_deref(),
+                    tunnel.static_ip4.as_deref(),
+                    tunnel.port_start,
+                )
+            });
+            let address = address.flatten();
+            match spec.kind {
+                PlayitTunnelKind::Java => addresses.java = address,
+                PlayitTunnelKind::Bedrock => addresses.bedrock = address,
+                PlayitTunnelKind::Voice => addresses.voice = address,
+            }
+        }
+        Ok(addresses)
+    }
+
+    fn list_tunnels(
+        &self,
+        secret_key: &str,
+        should_cancel: &impl Fn() -> bool,
+    ) -> Result<Vec<PlayitTunnel>, PlayitSetupError> {
+        const TUNNEL_ATTEMPTS: usize = 16;
+        for attempt in 0..TUNNEL_ATTEMPTS {
+            if should_cancel() {
+                return Err(PlayitSetupError::Cancelled);
+            }
+            match self.api.list_tunnels(secret_key) {
+                Ok(tunnels) => return Ok(tunnels),
+                Err(error) if retryable_tunnel_error(error) => {
+                    if attempt + 1 < TUNNEL_ATTEMPTS && wait_for_claim_retry(should_cancel) {
+                        return Err(PlayitSetupError::Cancelled);
+                    }
+                }
+                Err(error) => return Err(PlayitSetupError::Api(error)),
+            }
+        }
+        Err(PlayitSetupError::Api(PlayitApiError::AgentNotFound))
+    }
+
+    fn create_tunnel(
+        &self,
+        agent_id: &str,
+        spec: PlayitTunnelSpec,
+        session: &msc_infrastructure::playit_api::PlayitSession,
+        should_cancel: &impl Fn() -> bool,
+    ) -> Result<(), PlayitSetupError> {
+        const TUNNEL_ATTEMPTS: usize = 16;
+        for attempt in 0..TUNNEL_ATTEMPTS {
+            if should_cancel() {
+                return Err(PlayitSetupError::Cancelled);
+            }
+            match self
+                .api
+                .create_tunnel(agent_id, spec.kind, spec.local_port, session)
+            {
+                Ok(()) => return Ok(()),
+                Err(error) if retryable_tunnel_error(error) => {
+                    if attempt + 1 < TUNNEL_ATTEMPTS && wait_for_claim_retry(should_cancel) {
+                        return Err(PlayitSetupError::Cancelled);
+                    }
+                }
+                Err(error) => return Err(PlayitSetupError::Api(error)),
+            }
+        }
+        Err(PlayitSetupError::Api(PlayitApiError::AgentNotFound))
     }
 
     fn accept_claim(
@@ -252,8 +430,37 @@ impl<'a> PlayitAccountSetup<'a> {
     }
 }
 
+fn stage_for_tunnel(kind: PlayitTunnelKind) -> PlayitSetupStage {
+    match kind {
+        PlayitTunnelKind::Java => PlayitSetupStage::CreatingOrReusingJavaTunnel,
+        PlayitTunnelKind::Bedrock => PlayitSetupStage::CreatingOrReusingBedrockTunnel,
+        PlayitTunnelKind::Voice => PlayitSetupStage::CreatingOrReusingVoiceTunnel,
+    }
+}
+
+fn tunnel_matches(tunnel: &PlayitTunnel, spec: PlayitTunnelSpec, agent_id: &str) -> bool {
+    let common_origin = tunnel.origin_type.as_deref() == Some("agent")
+        && tunnel.agent_id.as_deref() == Some(agent_id)
+        && tunnel.local_ip.as_deref() == Some("127.0.0.1")
+        && tunnel.local_port == Some(spec.local_port)
+        && tunnel.port_type.as_deref() == Some(spec.kind.port_type());
+    if !common_origin {
+        return false;
+    }
+    match spec.kind {
+        PlayitTunnelKind::Java | PlayitTunnelKind::Bedrock => {
+            tunnel.tunnel_type.as_deref() == spec.kind.tunnel_type()
+        }
+        PlayitTunnelKind::Voice => tunnel.protocol_type.as_deref() == Some("raw-ports"),
+    }
+}
+
 fn generate_claim_code() -> String {
     Uuid::new_v4().simple().to_string()[..10].to_owned()
+}
+
+fn retryable_tunnel_error(error: PlayitApiError) -> bool {
+    matches!(error, PlayitApiError::AgentNotFound)
 }
 
 fn retryable_claim_error(error: PlayitApiError) -> bool {

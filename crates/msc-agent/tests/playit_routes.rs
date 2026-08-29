@@ -3,7 +3,10 @@
 //! contract without contacting playit.gg.
 
 use msc_api::dto::{PlayitResetResultDto, PlayitSetupAcceptedDto};
-use msc_domain::networking::safe_player_address;
+use msc_domain::identity::ServerType;
+use msc_domain::networking::{
+    PlayitTunnelKind, playit_public_address, playit_tunnel_specs, safe_player_address,
+};
 use serde_json::{Value, json};
 use std::path::Path;
 
@@ -25,6 +28,59 @@ fn playit_connection_details_cannot_be_a_management_address() {
 }
 
 #[test]
+fn tunnel_inventory_matches_java_bedrock_and_voice_rules() {
+    assert_eq!(
+        playit_tunnel_specs(ServerType::Java, None, false, None, false)
+            .iter()
+            .map(|spec| (spec.kind, spec.local_port))
+            .collect::<Vec<_>>(),
+        vec![(PlayitTunnelKind::Java, 25565)]
+    );
+    assert_eq!(
+        playit_tunnel_specs(ServerType::Java, Some(25570), true, Some(19133), true)
+            .iter()
+            .map(|spec| (spec.kind, spec.local_port))
+            .collect::<Vec<_>>(),
+        vec![
+            (PlayitTunnelKind::Java, 25570),
+            (PlayitTunnelKind::Bedrock, 19133),
+            (PlayitTunnelKind::Voice, 24454)
+        ]
+    );
+    assert_eq!(
+        playit_tunnel_specs(ServerType::Bedrock, None, false, Some(19134), false)
+            .iter()
+            .map(|spec| (spec.kind, spec.local_port))
+            .collect::<Vec<_>>(),
+        vec![(PlayitTunnelKind::Bedrock, 19134)]
+    );
+}
+
+#[test]
+fn udp_inventory_addresses_prefer_static_ipv4_and_keep_domain_fallback() {
+    assert_eq!(
+        playit_public_address(
+            PlayitTunnelKind::Bedrock,
+            Some("bedrock.example.joinmc.link"),
+            Some("198.51.100.20"),
+            Some(19132)
+        )
+        .as_deref(),
+        Some("198.51.100.20:19132")
+    );
+    assert_eq!(
+        playit_public_address(
+            PlayitTunnelKind::Voice,
+            Some("voice.example.joinmc.link"),
+            None,
+            Some(24454)
+        )
+        .as_deref(),
+        Some("voice.example.joinmc.link:24454")
+    );
+}
+
+#[test]
 fn native_setup_is_networking_scoped_and_uses_the_shared_operation_model() {
     let setup = &contract()["paths"]["/v1/playit/setup"]["post"];
     assert_eq!(setup["x-permission-category"], "networking");
@@ -42,6 +98,11 @@ fn native_setup_is_networking_scoped_and_uses_the_shared_operation_model() {
     assert_eq!(
         setup["x-security-boundary"]["browserApiClient"],
         "forbidden"
+    );
+    assert_eq!(setup["x-error-codes"].as_array().unwrap().len(), 9);
+    assert_eq!(
+        contract()["paths"]["/v1/playit"]["get"]["x-tunnel-inventory"]["names"]["voice"],
+        "MSC Voice"
     );
 }
 
@@ -98,6 +159,7 @@ fn native_setup_error_codes_are_stable_and_actionable_without_provider_details()
         "agent_not_found",
         "playit_api_error",
         "credential_store_failed",
+        "tunnel_mismatch",
         "setup_in_progress",
     ] {
         assert!(errors.contains(&json!(code)), "missing stable error {code}");

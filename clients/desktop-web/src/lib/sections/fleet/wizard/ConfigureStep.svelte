@@ -31,6 +31,7 @@
   import SegmentedControl from '../../../components/base/SegmentedControl.svelte';
   import Toggle from '../../../components/base/Toggle.svelte';
   import Badge from '../../../components/base/Badge.svelte';
+  import { tourServerContext } from '../../../help/onboarding';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
@@ -58,6 +59,17 @@
   let isLoadingVersions = false;
   let versionsError: string | undefined;
 
+  function publishTourContext(): void {
+    tourServerContext.set({
+      serverType: draft.serverType,
+      javaCategory: draft.javaCategory,
+      javaFlavor: draft.javaFlavor,
+      enableCrossPlay: draft.enableCrossPlay,
+    });
+  }
+
+  publishTourContext();
+
   $: unavailableForCrossPlay = crossPlayUnavailable(draft.javaCategory, draft.javaFlavor);
   // Xbox Broadcast is shared by both branches (`xboxBroadcastSection` in the
   // oracle) but gated differently: Java gates it behind crossplay being both
@@ -75,6 +87,7 @@
 
   function selectServerType(type: WizardDraft['serverType']): void {
     draft.serverType = type;
+    publishTourContext();
   }
 
   function selectCategory(category: JavaCategory): void {
@@ -85,6 +98,7 @@
       draft.enableXboxBroadcast = false;
     }
     resetVersionSelection();
+    publishTourContext();
   }
 
   function selectFlavor(flavor: JavaFlavor): void {
@@ -94,6 +108,7 @@
       draft.enableXboxBroadcast = false;
     }
     resetVersionSelection();
+    publishTourContext();
   }
 
   async function fetchVersions(): Promise<void> {
@@ -130,6 +145,7 @@
   function toggleCrossPlay(enabled: boolean): void {
     draft.enableCrossPlay = enabled;
     if (!enabled) draft.enableXboxBroadcast = false;
+    publishTourContext();
   }
 </script>
 

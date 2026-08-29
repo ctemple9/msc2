@@ -7,7 +7,7 @@ import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import splashSource from '../../src/lib/help/SplashGate.svelte?raw';
 import tourSource from '../../src/lib/help/TourOverlay.svelte?raw';
 import { renderMarkdown } from '../../src/lib/help/markdown';
-import { firstLaunchStage, nextTourStep } from '../../src/lib/help/onboarding';
+import { applicableTourSteps, firstLaunchStage, nextTourStep } from '../../src/lib/help/onboarding';
 
 describe('shared help and onboarding screens', () => {
   it('renders agent Markdown through a safe allow-list rather than forwarding HTML', () => {
@@ -46,6 +46,37 @@ describe('shared help and onboarding screens', () => {
         true,
       ),
     ).toBe(0);
+  });
+
+  it('only includes Xbox Broadcast when Java crossplay makes it applicable', () => {
+    const steps = [
+      {
+        order: 0,
+        id: 'xbox-broadcast',
+        title: '',
+        body: '',
+        anchor: 'ob_server_xbox_broadcast',
+        requiresUserAction: false,
+      },
+      { order: 1, id: 'next', title: '', body: '', anchor: null, requiresUserAction: false },
+    ];
+    const paperCrossplay = {
+      serverType: 'java' as const,
+      javaCategory: 'standard' as const,
+      javaFlavor: 'paper',
+      enableCrossPlay: true,
+    };
+    expect(applicableTourSteps(steps, paperCrossplay).map((step) => step.id)).toEqual([
+      'xbox-broadcast',
+      'next',
+    ]);
+    for (const context of [
+      { ...paperCrossplay, enableCrossPlay: false },
+      { ...paperCrossplay, serverType: 'bedrock' as const },
+      { ...paperCrossplay, javaCategory: 'modded' as const },
+    ]) {
+      expect(applicableTourSteps(steps, context).map((step) => step.id)).toEqual(['next']);
+    }
   });
 
   it('uses contract fixtures for every explanation and retains an additive unknown-topic boundary', () => {

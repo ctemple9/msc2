@@ -5,14 +5,38 @@ import { writable } from 'svelte/store';
 /** The current guided-tour card, shared with UI that needs tour-only limits. */
 export const activeTourStep = writable<string | null>(null);
 
+export type TourServerContext = {
+  serverType: 'java' | 'bedrock';
+  javaCategory: 'standard' | 'modded';
+  javaFlavor: string;
+  enableCrossPlay: boolean;
+};
+
+/** Current wizard choices used to omit tour cards that do not apply. */
+export const tourServerContext = writable<TourServerContext | null>(null);
+
 /**
  * MSC 2 doesn't yet cover every screen the oracle's tour walks through (no
  * AddServerWizardView port, no Packs tab -- see tourAnchors.ts). Keep only
  * steps that either need no anchor (welcome/done) or point at a real one in
  * this build, so the guided tour never spotlights UI that doesn't exist.
  */
-export function applicableTourSteps(steps: readonly OnboardingStep[]): OnboardingStep[] {
-  return steps.filter((step) => step.anchor === null || KNOWN_TOUR_ANCHOR_IDS.has(step.anchor));
+export function applicableTourSteps(
+  steps: readonly OnboardingStep[],
+  context: TourServerContext | null = null,
+): OnboardingStep[] {
+  return steps.filter((step) => {
+    if (step.anchor !== null && !KNOWN_TOUR_ANCHOR_IDS.has(step.anchor)) return false;
+    if (step.id === 'xbox-broadcast' && context) {
+      return (
+        context.serverType === 'java' &&
+        context.javaCategory === 'standard' &&
+        context.javaFlavor !== 'vanilla' &&
+        context.enableCrossPlay
+      );
+    }
+    return true;
+  });
 }
 
 export type FirstLaunchState = {

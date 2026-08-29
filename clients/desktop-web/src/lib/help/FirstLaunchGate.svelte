@@ -8,6 +8,7 @@
     applicableTourSteps,
     firstLaunchStage,
     nextTourStep,
+    tourServerContext,
     type FirstLaunchState,
   } from './onboarding';
   import type { ConceptGuide, OnboardingGuide } from './types';
@@ -29,7 +30,7 @@
   $: stage = firstLaunchStage(state);
   $: onboardingOpen =
     agentReady && ready && onboarding !== null && concept !== null && stage !== 'complete';
-  $: tourSteps = onboarding ? applicableTourSteps(onboarding.steps) : [];
+  $: tourSteps = onboarding ? applicableTourSteps(onboarding.steps, $tourServerContext) : [];
 
   function setPageScrollLocked(locked: boolean): void {
     if (typeof document === 'undefined' || !document.body) return;

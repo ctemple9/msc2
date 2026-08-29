@@ -32,9 +32,10 @@
   // worlds/WorldConversionWizard.svelte's identical `onClose={... ?
   // undefined : onClose}` precedent for a durable operation already
   // in flight.
+  import { onDestroy } from 'svelte';
   import Sheet from '../../../components/base/Sheet.svelte';
   import Button from '../../../components/base/Button.svelte';
-  import { activeTourStep } from '../../../help/onboarding';
+  import { activeTourStep, tourServerContext } from '../../../help/onboarding';
   import ConfigureStep from './ConfigureStep.svelte';
   import NetworkStep from './NetworkStep.svelte';
   import WorldStep from './WorldStep.svelte';
@@ -79,6 +80,14 @@
 
   $: tourPathLocked = $activeTourStep === 'choose-path';
   $: if (tourPathLocked && path !== 'fresh') selectPath('fresh');
+  $: tourServerContext.set({
+    serverType: draft.serverType,
+    javaCategory: draft.javaCategory,
+    javaFlavor: draft.javaFlavor,
+    enableCrossPlay: draft.enableCrossPlay,
+  });
+
+  onDestroy(() => tourServerContext.set(null));
 
   // `AddServerWizardView.swift`'s `hasAddOnsStep` -- inserts a sixth "Add-ons"
   // step at position 5 (Fresh path only) once the chosen Java flavor accepts

@@ -888,6 +888,14 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Commit:** `P12.15d: pause the tour while reviewing settings`
 **Batch:** solo
 
+### P12.15e — Filter Xbox Broadcast by server choices
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/onboarding.ts`, `clients/desktop-web/src/lib/help/FirstLaunchGate.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/ConfigureStep.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Make the Xbox Broadcast tour step conditional on the live wizard draft. It appears only for Java Standard non-Vanilla servers with Crossplay enabled; it is omitted for Crossplay-off, Bedrock, Vanilla, and every Modded choice. The wizard publishes its choices to the client-owned tour filter without changing the served guide data or normal server creation behavior.
+**Verify:** `cd clients/desktop-web && npx vitest run tests/screens/help.test.ts && npm run build` — then visually run the tour through Paper with Crossplay off (no Xbox step), repeat with Crossplay on (Xbox step appears), and confirm Bedrock and Modded paths skip it.
+**Commit:** `P12.15e: filter xbox broadcast by server choices`
+**Batch:** solo
+
 ### P12.16 — Guides / Handbook / How MSC Works
 **Status:** built, awaiting Cameron's verification
 **Files:** `src/lib/sections/handbook/`, `src/lib/help/`

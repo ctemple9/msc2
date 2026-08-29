@@ -5,6 +5,7 @@ import handbookSource from '../../src/lib/sections/handbook/HandbookBrowser.svel
 import helpSource from '../../src/lib/sections/handbook/HelpSection.svelte?raw';
 import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import splashSource from '../../src/lib/help/SplashGate.svelte?raw';
+import tourSource from '../../src/lib/help/TourOverlay.svelte?raw';
 import { renderMarkdown } from '../../src/lib/help/markdown';
 import { firstLaunchStage, nextTourStep } from '../../src/lib/help/onboarding';
 
@@ -89,6 +90,9 @@ describe('shared help and onboarding screens', () => {
     expect(helpSource).toContain("'/v1/guides/onboarding'");
     expect(handbookSource).toContain('That topic is not available on this agent');
     expect(helpSource).toContain('hideCard');
+    expect(tourSource).toContain("'server-settings': 'ob_wizard_continue'");
+    expect(tourSource).toContain('Click Continue once you have reviewed your settings.');
+    expect(tourSource).toContain('>Okay</Button>');
     expect(helpSource).toContain('<SetupIntro');
     expect(helpSource).toContain('{api}');
     expect(splashSource).toContain('prefers-reduced-motion');

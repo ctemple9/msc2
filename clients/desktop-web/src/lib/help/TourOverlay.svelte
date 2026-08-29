@@ -33,6 +33,7 @@
     'manage-servers': 'ob_manage_servers',
     'create-server': 'ob_create_server',
     'choose-path': 'ob_wizard_continue',
+    'server-settings': 'ob_wizard_continue',
   };
 
   let cardHidden = false;
@@ -88,7 +89,15 @@
   $: step = steps[stepIndex];
   // Choose Path describes the selection cards, but Continue is the actual
   // action that advances this card, so spotlight that real control instead.
-  $: spotlightAnchor = step?.id === 'choose-path' ? 'ob_wizard_continue' : step?.anchor;
+  // Review Your Settings is a deliberate pause rather than a spotlight: its
+  // oracle anchor has no one-to-one MSC 2 element, and the user needs the
+  // unobstructed sheet to inspect the accumulated choices.
+  $: spotlightAnchor =
+    step?.id === 'choose-path'
+      ? 'ob_wizard_continue'
+      : step?.id === 'server-settings'
+        ? null
+        : step?.anchor;
   $: hasAnchor = spotlightAnchor !== null && spotlightAnchor !== undefined;
   $: anchorRect = hasAnchor && spotlightAnchor ? $anchorFrames[spotlightAnchor] : undefined;
   $: resolved = hasAnchor && !!anchorRect;
@@ -122,7 +131,7 @@
 
 <svelte:window on:resize={onResize} />
 
-{#if step}
+{#if step && !(step.id === 'server-settings' && cardHidden)}
   <div class="tour-root" role="dialog" aria-modal="true" aria-live="polite">
     {#if !cardHidden}
       {#if blocking}
@@ -141,6 +150,16 @@
       <div class="hidden-pills">
         <Button variant="secondary" size="sm" onclick={() => (cardHidden = false)}>Show tip</Button>
         <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
+      </div>
+    {:else if step.id === 'server-settings'}
+      <div class="bookend-card">
+        <h2>{step.title}</h2>
+        <p>{step.body}</p>
+        <p class="hint review-hint">Click Continue once you have reviewed your settings.</p>
+        <div class="actions center">
+          <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
+          <Button variant="primary" onclick={() => (cardHidden = true)}>Okay</Button>
+        </div>
       </div>
     {:else if !hasAnchor}
       <div class="bookend-card">

@@ -880,6 +880,14 @@ Pre-existing, unrelated gaps noticed and left alone (out of scope for this step)
 **Commit:** `P12.15c: anchor xbox broadcast card`
 **Batch:** solo
 
+### P12.15d — Pause the tour while reviewing settings
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/help/TourOverlay.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Correct the Review Your Settings card's missing-anchor dead-end. Because `ob_server_settings` has no one-to-one element in the current wizard, this card now presents `Okay` and `Skip tour`; `Okay` removes the onboarding overlay completely so the current sheet is freely usable, and the real wizard Continue action resumes and advances the tour. The served guide text remains unchanged.
+**Verify:** `cd clients/desktop-web && npx vitest run tests/screens/help.test.ts && npm run build` — then reach Review Your Settings, confirm the card offers Okay and Skip tour, click Okay, review the unobstructed sheet, and click Continue to resume the tour.
+**Commit:** `P12.15d: pause the tour while reviewing settings`
+**Batch:** solo
+
 ### P12.16 — Guides / Handbook / How MSC Works
 **Status:** built, awaiting Cameron's verification
 **Files:** `src/lib/sections/handbook/`, `src/lib/help/`

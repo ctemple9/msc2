@@ -374,7 +374,7 @@
     outline: 2px solid rgba(255, 255, 255, 0.4);
   }
   .disclosure-content {
-    margin: 0 0 10px 19px;
+    margin: 0 0 10px;
   }
   .maintenance-row {
     display: flex;

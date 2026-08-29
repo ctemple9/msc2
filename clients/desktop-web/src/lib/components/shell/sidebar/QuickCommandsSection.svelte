@@ -126,9 +126,7 @@
 </script>
 
 <div class="quick-commands">
-  {#if !running}
-    <p class="hint">Start the server to use Quick Commands.</p>
-  {:else}
+  {#if running}
     <div class="stat-strip">
       <span class="stat">{onlineCount} online</span>
       {#if tps !== undefined}<span class="stat">{tps.toFixed(1)} TPS</span>{/if}
@@ -200,12 +198,6 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-  .hint {
-    margin: 0;
-    font-size: 11px;
-    color: var(--msc2-text-tertiary);
-    line-height: 1.5;
   }
   .stat-strip {
     display: flex;

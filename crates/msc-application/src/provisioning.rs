@@ -1017,6 +1017,12 @@ pub(crate) fn finish_server_creation(
             },
         )?;
     }
+    if matches!(request.world_source, WorldSource::Fresh) {
+        let profile =
+            worlds::fresh_world_profile(&slot, Some(request.difficulty), Some(request.gamemode));
+        world_store::save_profile(fs, new_dir, &slot, &profile)
+            .map_err(|error| CreateServerError::Io(std::io::Error::other(error.to_string())))?;
+    }
     world_store::set_active_slot_id(fs, new_dir, Some(&slot.id))?;
 
     let should_record = provisioning::should_record_loader_version(
@@ -2025,6 +2031,13 @@ pub fn create_bedrock_server(
                     now.to_owned(),
                 );
                 world_store::save_metadata(fs, &new_dir, &slot)?;
+                let profile = worlds::fresh_world_profile(
+                    &slot,
+                    Some(request.difficulty),
+                    Some(request.gamemode),
+                );
+                world_store::save_profile(fs, &new_dir, &slot, &profile)
+                    .map_err(BedrockCreateError::AtomicWrite)?;
                 slot
             }
             BedrockWorldSource::BackupZip(path) => worlds::import_zip_as_new_slot(

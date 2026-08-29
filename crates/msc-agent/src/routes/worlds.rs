@@ -1958,6 +1958,9 @@ pub async fn convert(
     let task_operation_id_progress = operation_id.clone();
     let should_cancel = lifecycle.operations().cancellation_check(&operation_id);
     let backup_should_cancel = should_cancel.clone();
+    let source_profile_dir = source_server_dir.clone();
+    let target_profile_dir = target_server_dir.clone();
+    let source_profile_slot = source_slot.clone();
     tokio::spawn(async move {
         let now = iso8601_now();
         let backup_lifecycle = task_lifecycle.clone();
@@ -1973,7 +1976,7 @@ pub async fn convert(
                     line,
                 );
             };
-            world_conversion::convert_world(
+            let converted = world_conversion::convert_world(
                 &StdFileSystem,
                 &converter,
                 &resolved_java_path,
@@ -1999,7 +2002,25 @@ pub async fn convert(
                 },
                 &mut progress,
                 should_cancel,
-            )
+            );
+            if let Ok(target_slot) = &converted {
+                // Conversion changes edition and therefore creates or
+                // replaces a slot on another server. Copy the source's raw
+                // profile after placement so explicitly saved values and
+                // newer unknown fields travel with the world too.
+                if let Err(error) = msc_infrastructure::world_store::copy_profile(
+                    &StdFileSystem,
+                    &source_profile_dir,
+                    &source_profile_slot,
+                    &target_profile_dir,
+                    target_slot,
+                ) {
+                    return Err(ConversionError::ConversionFailed(format!(
+                        "could not preserve converted world profile: {error}"
+                    )));
+                }
+            }
+            converted
         })
         .await;
         match result {

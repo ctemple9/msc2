@@ -32,6 +32,10 @@
 use msc_domain::identity::ServerType;
 use msc_domain::nbt;
 use msc_domain::world::{self, BackupAssociation, WorldSlot};
+use msc_domain::world_profile::{
+    WorldGameplay as ProfileGameplay, WorldGeneration as ProfileGeneration,
+    WorldIdentity as ProfileIdentity, WorldProfile, WorldSafety as ProfileSafety, WorldSafetyState,
+};
 use msc_infrastructure::archive::{self, ArchiveError};
 use msc_infrastructure::atomic_write::AtomicWriteError;
 use msc_infrastructure::download_staging::sha1_hex;
@@ -177,6 +181,130 @@ fn resolved_level_name(
     world::current_level_name(server_type, raw_level_name.or(configured.as_deref()))
 }
 
+/// Builds the profile for a newly-created world. These values are explicit
+/// user choices, so they are stored as configured rather than reported as
+/// detected from a world file that does not exist yet.
+pub fn fresh_world_profile(
+    slot: &WorldSlot,
+    difficulty: Option<&str>,
+    gamemode: Option<&str>,
+) -> WorldProfile {
+    let mut profile = WorldProfile::new();
+    profile.identity = ProfileIdentity {
+        name: Some(slot.name.clone()),
+        level_name: slot.world_level_name.clone(),
+        seed: slot.world_seed.clone(),
+    };
+    profile.gameplay = ProfileGameplay {
+        difficulty: normalized_profile_string(difficulty),
+        default_game_mode: normalized_profile_string(gamemode),
+        ..ProfileGameplay::default()
+    };
+    profile.safety = ProfileSafety {
+        state: WorldSafetyState::Safe,
+        reasons: Vec::new(),
+    };
+    profile
+}
+
+/// Builds a profile from values actually recovered from a Java or Bedrock
+/// level.dat. Missing values remain `None`; the safety state makes a failed
+/// read visible instead of allowing callers to mistake a default for fact.
+pub fn detected_profile(
+    slot: &WorldSlot,
+    server_type: ServerType,
+    metadata: &nbt::ImportedWorldMetadata,
+) -> WorldProfile {
+    let mut profile = WorldProfile::new();
+    profile.identity = ProfileIdentity {
+        name: Some(slot.name.clone()),
+        level_name: slot.world_level_name.clone(),
+        seed: metadata.seed.clone().or_else(|| slot.world_seed.clone()),
+    };
+    profile.generation = ProfileGeneration {
+        world_type: metadata.world_type.clone(),
+        flat_preset: metadata.flat_preset.clone(),
+        structures: metadata.structures,
+        biome_source: metadata.biome_source.clone(),
+        generator_options: metadata.generator_options.clone(),
+        bonus_chest: metadata.bonus_chest,
+        data_packs: metadata.data_packs.clone(),
+    };
+    profile.gameplay = ProfileGameplay {
+        difficulty: metadata.difficulty.clone(),
+        default_game_mode: metadata.gamemode.clone(),
+        hardcore: metadata.hardcore,
+        commands: metadata.commands,
+        gamerules: metadata.gamerules.clone(),
+        cheats: metadata.cheats,
+        experiments: metadata.experiments.clone(),
+        coordinates: metadata.coordinates,
+        starting_map: metadata.starting_map,
+        supported_toggles: metadata.supported_toggles.clone(),
+    };
+    let (state, reasons) = if !metadata.parsed {
+        (
+            WorldSafetyState::Unknown,
+            vec!["The world's level.dat could not be read.".to_string()],
+        )
+    } else if server_type == ServerType::Bedrock && metadata.cheats == Some(true) {
+        (
+            WorldSafetyState::AchievementDisabled,
+            vec!["Bedrock cheats are enabled; achievements are disabled.".to_string()],
+        )
+    } else {
+        (WorldSafetyState::Safe, Vec::new())
+    };
+    profile.safety = ProfileSafety { state, reasons };
+    profile
+}
+
+fn normalized_profile_string(value: Option<&str>) -> Option<String> {
+    value
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_owned)
+}
+
+fn metadata_from_live_world(
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+) -> nbt::ImportedWorldMetadata {
+    let level_name = resolved_level_name_from_disk(server_dir, server_type, raw_level_name);
+    let level_dat = match server_type {
+        ServerType::Java => server_dir.join(&level_name).join("level.dat"),
+        ServerType::Bedrock => server_dir
+            .join("worlds")
+            .join(&level_name)
+            .join("level.dat"),
+    };
+    std::fs::read(level_dat)
+        .ok()
+        .map(|bytes| nbt::imported_world_metadata_from_level_dat(&bytes, server_type))
+        .unwrap_or_default()
+}
+
+fn resolved_level_name_from_disk(
+    server_dir: &Path,
+    server_type: ServerType,
+    raw_level_name: Option<&str>,
+) -> String {
+    if let Some(raw) = raw_level_name {
+        return world::current_level_name(server_type, Some(raw));
+    }
+    let configured = std::fs::read(server_dir.join("server.properties"))
+        .ok()
+        .and_then(|bytes| {
+            String::from_utf8_lossy(&bytes).lines().find_map(|line| {
+                line.trim().split_once('=').and_then(|(key, value)| {
+                    (key.trim() == "level-name").then(|| value.trim().to_string())
+                })
+            })
+        });
+    world::current_level_name(server_type, configured.as_deref())
+}
+
 fn has_archive(fs: &dyn FileSystem, server_dir: &Path, slot_id: &str) -> bool {
     matches!(fs.stat(&world_store::zip_path(server_dir, slot_id)), Ok(meta) if meta.is_file)
 }
@@ -212,7 +340,10 @@ fn archive_live_folders_as_new_active_slot(
             .map_err(ReconciliationError::Archive)?;
     }
 
-    world_store::save_metadata(fs, server_dir, &slot).map_err(ReconciliationError::AtomicWrite)?;
+    let metadata = metadata_from_live_world(server_dir, server_type, raw_level_name);
+    let profile = detected_profile(&slot, server_type, &metadata);
+    world_store::save_profile(fs, server_dir, &slot, &profile)
+        .map_err(ReconciliationError::AtomicWrite)?;
     world_store::set_active_slot_id(fs, server_dir, Some(&slot.id))
         .map_err(ReconciliationError::Io)?;
     Ok(slot)
@@ -584,6 +715,8 @@ pub fn create_slot_from_current_world(
         return Err(WorldError::NoWorldFolders);
     }
 
+    let imported_metadata = metadata_from_live_world(server_dir, server_type, Some(&level_name));
+
     let id = Uuid::new_v4().to_string().to_uppercase();
     let mut slot = world::build_archived_slot(
         id.clone(),
@@ -603,7 +736,8 @@ pub fn create_slot_from_current_world(
     }
     slot.zip_size_bytes = zip_size_bytes(fs, &zip_path);
 
-    if let Err(e) = world_store::save_metadata(fs, server_dir, &slot) {
+    let profile = detected_profile(&slot, server_type, &imported_metadata);
+    if let Err(e) = world_store::save_profile(fs, server_dir, &slot, &profile) {
         let _ = fs.remove(&dir);
         return Err(e.into());
     }
@@ -636,6 +770,7 @@ pub fn update_active_slot_from_current_world(
     if folders.is_empty() {
         return Err(WorldError::NoWorldFolders);
     }
+    let imported_metadata = metadata_from_live_world(server_dir, server_type, Some(&level_name));
 
     let dir = world_store::slot_directory(server_dir, &slot.id);
     fs.create_dir_all(&dir)?;
@@ -655,7 +790,8 @@ pub fn update_active_slot_from_current_world(
     updated.world_level_name = Some(level_name);
     updated.zip_size_bytes = zip_size_bytes(fs, &zip_path);
 
-    world_store::save_metadata(fs, server_dir, &updated)?;
+    let profile = detected_profile(&updated, server_type, &imported_metadata);
+    world_store::save_profile(fs, server_dir, &updated, &profile)?;
     Ok(updated)
 }
 
@@ -678,7 +814,9 @@ pub fn rename_slot(
     }
     let mut updated = slot.clone();
     updated.name = trimmed.to_string();
-    world_store::save_metadata(fs, server_dir, &updated)?;
+    let mut profile = world_store::load_profile(fs, server_dir, slot);
+    profile.identity.name = Some(trimmed.to_string());
+    world_store::save_profile(fs, server_dir, &updated, &profile)?;
     Ok(updated)
 }
 
@@ -748,6 +886,10 @@ pub fn duplicate_slot(
         let _ = fs.remove(&new_dir);
         return Err(e.into());
     }
+    if let Err(e) = world_store::copy_profile(fs, server_dir, source, server_dir, &new_slot) {
+        let _ = fs.remove(&new_dir);
+        return Err(e.into());
+    }
     Ok(new_slot)
 }
 
@@ -793,6 +935,7 @@ pub fn copy_slot_into_existing(
     updated.zip_size_bytes = zip_size_bytes(fs, &dest_zip);
 
     let _ = world_store::save_metadata(fs, server_dir, &updated);
+    let _ = world_store::copy_profile(fs, server_dir, source, server_dir, &updated);
     Ok(updated)
 }
 
@@ -868,10 +1011,20 @@ pub(crate) fn read_sidecar_world_seed(zip_path: &Path) -> Option<String> {
     nbt::trimmed_sidecar_seed(value.get("worldSeed").and_then(|v| v.as_str()))
 }
 
-/// `importedWorldMetadata(fromZIP:serverType:)`'s seed half (source line
-/// 1260-1269): a non-blank sidecar seed always wins over a parsed
-/// `level.dat` seed, via [`nbt::merge_sidecar_metadata`].
-fn infer_imported_world_seed(zip_path: &Path, server_type: ServerType) -> Option<String> {
+fn read_sidecar_world_profile(zip_path: &Path) -> Option<serde_json::Value> {
+    let sidecar = zip_path.with_extension("meta.json");
+    let bytes = std::fs::read(sidecar).ok()?;
+    let value: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
+    value.get("worldProfile").cloned()
+}
+
+/// Reads world metadata from an archive without changing the archive. The
+/// sidecar seed retains MSC 1's precedence rule; all other values come from
+/// the first usable level.dat member.
+pub(crate) fn imported_world_metadata_from_zip(
+    zip_path: &Path,
+    server_type: ServerType,
+) -> nbt::ImportedWorldMetadata {
     let sidecar_seed = read_sidecar_world_seed(zip_path);
     let parsed = archive::list_entry_names(zip_path)
         .ok()
@@ -882,7 +1035,7 @@ fn infer_imported_world_seed(zip_path: &Path, server_type: ServerType) -> Option
         .and_then(|member| archive::read_entry_bytes(zip_path, &member).ok().flatten())
         .map(|bytes| nbt::imported_world_metadata_from_level_dat(&bytes, server_type))
         .unwrap_or_default();
-    nbt::merge_sidecar_metadata(sidecar_seed, parsed).seed
+    nbt::merge_sidecar_metadata(sidecar_seed, parsed)
 }
 
 /// `createSlotFromZIP(zipURL:name:for:logLine:)` (source line 1008-
@@ -921,6 +1074,7 @@ pub fn import_zip_as_new_slot(
         return Err(e.into());
     }
 
+    let parsed_metadata = imported_world_metadata_from_zip(&dest_zip, server_type);
     let slot = WorldSlot {
         id: new_id,
         name: trimmed.to_string(),
@@ -936,11 +1090,21 @@ pub fn import_zip_as_new_slot(
                 raw_level_name,
             )),
         },
-        world_seed: infer_imported_world_seed(source_zip_path, server_type),
+        world_seed: parsed_metadata.seed.clone(),
         zip_size_bytes: zip_size_bytes(fs, &dest_zip),
     };
 
     if let Err(e) = world_store::save_metadata(fs, server_dir, &slot) {
+        let _ = fs.remove(&dir);
+        return Err(e.into());
+    }
+    let profile = read_sidecar_world_profile(source_zip_path).unwrap_or_else(|| {
+        world_store::profile_value(&detected_profile(&slot, server_type, &parsed_metadata))
+    });
+    // The sidecar profile is copied as raw JSON when present, preserving
+    // fields from a newer agent. A normal world ZIP has no profile sidecar,
+    // so imported level.dat values receive explicit detected/unknown state.
+    if let Err(e) = world_store::save_profile_value(fs, server_dir, &slot, &profile) {
         let _ = fs.remove(&dir);
         return Err(e.into());
     }

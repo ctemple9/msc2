@@ -226,9 +226,28 @@ pub(crate) fn gunzip(bytes: &[u8]) -> Option<Vec<u8>> {
 /// `ImportedWorldMetadata` (source line 1120-1127).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ImportedWorldMetadata {
+    /// True only when the level.dat payload was successfully parsed. A false
+    /// value keeps callers from presenting an absent field as a verified
+    /// Minecraft default.
+    pub parsed: bool,
     pub seed: Option<String>,
     pub difficulty: Option<String>,
     pub gamemode: Option<String>,
+    pub world_type: Option<String>,
+    pub flat_preset: Option<String>,
+    pub structures: Option<bool>,
+    pub biome_source: Option<String>,
+    pub generator_options: Option<String>,
+    pub bonus_chest: Option<bool>,
+    pub data_packs: Vec<String>,
+    pub hardcore: Option<bool>,
+    pub commands: Option<bool>,
+    pub gamerules: BTreeMap<String, String>,
+    pub cheats: Option<bool>,
+    pub experiments: BTreeMap<String, bool>,
+    pub coordinates: Option<bool>,
+    pub starting_map: Option<bool>,
+    pub supported_toggles: BTreeMap<String, bool>,
     /// Cumulative world day-time in ticks.
     pub day_time: Option<i64>,
 }
@@ -267,11 +286,140 @@ pub fn imported_world_metadata_from_level_dat(
 
     let prefer_java_paths = server_type == ServerType::Java;
     ImportedWorldMetadata {
+        parsed: true,
         seed: extract_seed_string(&root, prefer_java_paths),
         difficulty: extract_difficulty_string(&root),
         gamemode: extract_gamemode_string(&root),
+        world_type: extract_string(
+            &root,
+            if prefer_java_paths {
+                &[
+                    &["Data", "generatorName"],
+                    &["Data", "WorldGenSettings", "type"],
+                ]
+            } else {
+                &[&["WorldType"], &["Data", "WorldType"]]
+            },
+        ),
+        flat_preset: extract_string(
+            &root,
+            &[
+                &["Data", "generator", "options"],
+                &["Data", "flat_world_generator_options"],
+            ],
+        ),
+        structures: extract_bool(
+            &root,
+            &[
+                &["Data", "MapFeatures"],
+                &["Data", "WorldGenSettings", "generate_features"],
+            ],
+        ),
+        biome_source: extract_string(&root, &[&["Data", "WorldGenSettings", "biome_source"]]),
+        generator_options: extract_string(&root, &[&["Data", "WorldGenSettings", "generator"]]),
+        bonus_chest: extract_bool(&root, &[&["Data", "bonusChest"], &["BonusChestEnabled"]]),
+        data_packs: extract_string_list(&root, &[&["Data", "DataPacks"]]),
+        hardcore: extract_bool(&root, &[&["Data", "hardcore"]]),
+        commands: extract_bool(&root, &[&["Data", "allowCommands"], &["commandsEnabled"]]),
+        gamerules: extract_string_map(&root, &[&["Data", "GameRules"], &["GameRules"]]),
+        cheats: extract_bool(&root, &[&["CheatsEnabled"], &["Data", "CheatsEnabled"]]),
+        experiments: extract_bool_map(&root, &[&["experiments"], &["Data", "experiments"]]),
+        coordinates: extract_bool(&root, &[&["showCoordinates"], &["Data", "showCoordinates"]]),
+        starting_map: extract_bool(&root, &[&["startingMap"], &["Data", "startingMap"]]),
+        supported_toggles: extract_bool_map(&root, &[&["GameRules"], &["Data", "GameRules"]]),
         day_time: extract_day_time(&root, prefer_java_paths),
     }
+}
+
+fn value_at_path<'a>(value: &'a NbtValue, path: &[&str]) -> Option<&'a NbtValue> {
+    path.iter().try_fold(value, |current, key| match current {
+        NbtValue::Compound(map) => map.get(*key),
+        _ => None,
+    })
+}
+
+fn value_string(value: &NbtValue) -> Option<String> {
+    match value {
+        NbtValue::String(value) => Some(value.clone()),
+        NbtValue::Byte(value) => Some(value.to_string()),
+        NbtValue::Short(value) => Some(value.to_string()),
+        NbtValue::Int(value) => Some(value.to_string()),
+        NbtValue::Long(value) => Some(value.to_string()),
+        NbtValue::Float(value) => Some(value.to_string()),
+        NbtValue::Double(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn value_bool(value: &NbtValue) -> Option<bool> {
+    match value {
+        NbtValue::Byte(value) => Some(*value != 0),
+        NbtValue::Short(value) => Some(*value != 0),
+        NbtValue::Int(value) => Some(*value != 0),
+        NbtValue::Long(value) => Some(*value != 0),
+        NbtValue::String(value) => match value.as_str() {
+            "true" => Some(true),
+            "false" => Some(false),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+fn extract_string(root: &NbtValue, paths: &[&[&str]]) -> Option<String> {
+    paths
+        .iter()
+        .find_map(|path| value_at_path(root, path).and_then(value_string))
+}
+
+fn extract_bool(root: &NbtValue, paths: &[&[&str]]) -> Option<bool> {
+    paths
+        .iter()
+        .find_map(|path| value_at_path(root, path).and_then(value_bool))
+}
+
+fn extract_string_list(root: &NbtValue, paths: &[&[&str]]) -> Vec<String> {
+    paths
+        .iter()
+        .find_map(|path| match value_at_path(root, path) {
+            Some(NbtValue::List(values)) => {
+                Some(values.iter().filter_map(value_string).collect::<Vec<_>>())
+            }
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+fn extract_string_map(root: &NbtValue, paths: &[&[&str]]) -> BTreeMap<String, String> {
+    paths
+        .iter()
+        .find_map(|path| match value_at_path(root, path) {
+            Some(NbtValue::Compound(values)) => Some(
+                values
+                    .iter()
+                    .filter_map(|(key, value)| {
+                        value_string(value).map(|value| (key.clone(), value))
+                    })
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default()
+}
+
+fn extract_bool_map(root: &NbtValue, paths: &[&[&str]]) -> BTreeMap<String, bool> {
+    paths
+        .iter()
+        .find_map(|path| match value_at_path(root, path) {
+            Some(NbtValue::Compound(values)) => Some(
+                values
+                    .iter()
+                    .filter_map(|(key, value)| value_bool(value).map(|value| (key.clone(), value)))
+                    .collect(),
+            ),
+            _ => None,
+        })
+        .unwrap_or_default()
 }
 
 /// `nbtInteger(atPath:in:)` (source line 1442-1460).
@@ -412,9 +560,25 @@ pub fn merge_sidecar_metadata(
     parsed: ImportedWorldMetadata,
 ) -> ImportedWorldMetadata {
     ImportedWorldMetadata {
+        parsed: parsed.parsed,
         seed: sidecar_seed.or(parsed.seed),
         difficulty: parsed.difficulty,
         gamemode: parsed.gamemode,
+        world_type: parsed.world_type,
+        flat_preset: parsed.flat_preset,
+        structures: parsed.structures,
+        biome_source: parsed.biome_source,
+        generator_options: parsed.generator_options,
+        bonus_chest: parsed.bonus_chest,
+        data_packs: parsed.data_packs,
+        hardcore: parsed.hardcore,
+        commands: parsed.commands,
+        gamerules: parsed.gamerules,
+        cheats: parsed.cheats,
+        experiments: parsed.experiments,
+        coordinates: parsed.coordinates,
+        starting_map: parsed.starting_map,
+        supported_toggles: parsed.supported_toggles,
         day_time: None,
     }
 }

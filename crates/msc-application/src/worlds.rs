@@ -31,6 +31,7 @@
 
 use msc_domain::identity::ServerType;
 use msc_domain::nbt;
+use msc_domain::properties::LevelType;
 use msc_domain::world::{self, BackupAssociation, WorldSlot};
 use msc_domain::world_profile::{
     SettingApplyPolicy, WorldGameplay as ProfileGameplay, WorldGeneration as ProfileGeneration,
@@ -1366,11 +1367,27 @@ fn profile_property_value(
             .clone()
             .map(|value| ("level-seed", value)),
         WorldProfileField::GenerationWorldType if context == WorldProfileApplyContext::Creation => {
+            profile.generation.world_type.clone().map(|value| {
+                (
+                    "level-type",
+                    LevelType::from_legacy_or_namespaced(&value)
+                        .raw_value()
+                        .to_string(),
+                )
+            })
+        }
+        WorldProfileField::GenerationStructures => profile
+            .generation
+            .structures
+            .map(|value| ("generate-structures", value.to_string())),
+        WorldProfileField::GenerationGeneratorOptions
+            if server_type == ServerType::Java && context == WorldProfileApplyContext::Creation =>
+        {
             profile
                 .generation
-                .world_type
+                .generator_options
                 .clone()
-                .map(|value| ("level-type", value))
+                .map(|value| ("generator-settings", value))
         }
         WorldProfileField::GenerationBonusChest
             if context == WorldProfileApplyContext::Creation =>
@@ -1395,6 +1412,14 @@ fn profile_property_value(
                 .gameplay
                 .hardcore
                 .map(|value| ("hardcore", value.to_string()))
+        }
+        WorldProfileField::GameplayCommands
+            if server_type == ServerType::Java && context == WorldProfileApplyContext::Creation =>
+        {
+            profile
+                .gameplay
+                .commands
+                .map(|value| ("enable-command-block", value.to_string()))
         }
         WorldProfileField::GameplayCheats if server_type == ServerType::Bedrock => profile
             .gameplay

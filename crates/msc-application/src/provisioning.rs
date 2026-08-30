@@ -49,6 +49,7 @@ use msc_domain::identity::{JavaServerFlavor, ServerType};
 use msc_domain::modpack_manifest;
 use msc_domain::provisioning::{self, ImportedWorldMetadata};
 use msc_domain::world::{self, WorldSlot};
+use msc_domain::world_profile::WorldProfile;
 use msc_domain::{nbt, server_versions};
 use msc_infrastructure::addon_provider::AddonTransport;
 use msc_infrastructure::archive::{self, ArchiveError};
@@ -320,6 +321,10 @@ pub struct NewServerRequest<'a> {
     pub difficulty: &'a str,
     pub gamemode: &'a str,
     pub world_seed: Option<&'a str>,
+    /// The complete first-world profile, when the caller came through the
+    /// create wizard. It is applied before the first server start so
+    /// creation-only values are not lost in a later profile update.
+    pub initial_world_profile: Option<&'a WorldProfile>,
     pub world_source: WorldSource<'a>,
     pub save_downloaded_jars: bool,
     pub default_banner_color_hex: &'a str,
@@ -362,6 +367,7 @@ pub struct BedrockCreateRequest<'a> {
     pub difficulty: &'a str,
     pub gamemode: &'a str,
     pub world_seed: Option<&'a str>,
+    pub initial_world_profile: Option<&'a WorldProfile>,
     pub world_source: BedrockWorldSource<'a>,
 }
 
@@ -822,6 +828,94 @@ fn create_initial_world_slot(
     }
 }
 
+/// Combines the compatibility fields with the complete profile supplied by
+/// the create wizard. The compatibility fields provide defaults for older
+/// clients; newer clients' profile values add the creation-only and
+/// edition-specific choices.
+fn creation_world_profile(
+    slot: &WorldSlot,
+    difficulty: &str,
+    gamemode: &str,
+    supplied: Option<&WorldProfile>,
+) -> WorldProfile {
+    let mut profile = worlds::fresh_world_profile(slot, Some(difficulty), Some(gamemode));
+    let Some(supplied) = supplied else {
+        return profile;
+    };
+
+    if supplied.identity.name.is_some() {
+        profile.identity.name = supplied.identity.name.clone();
+    }
+    if supplied.identity.level_name.is_some() {
+        profile.identity.level_name = supplied.identity.level_name.clone();
+    }
+    if supplied.identity.seed.is_some() {
+        profile.identity.seed = supplied.identity.seed.clone();
+    }
+    if supplied.generation.world_type.is_some() {
+        profile.generation.world_type = supplied.generation.world_type.clone();
+    }
+    if supplied.generation.flat_preset.is_some() {
+        profile.generation.flat_preset = supplied.generation.flat_preset.clone();
+    }
+    if supplied.generation.structures.is_some() {
+        profile.generation.structures = supplied.generation.structures;
+    }
+    if supplied.generation.biome_source.is_some() {
+        profile.generation.biome_source = supplied.generation.biome_source.clone();
+    }
+    if supplied.generation.generator_options.is_some() {
+        profile.generation.generator_options = supplied.generation.generator_options.clone();
+    }
+    if supplied.generation.bonus_chest.is_some() {
+        profile.generation.bonus_chest = supplied.generation.bonus_chest;
+    }
+    if !supplied.generation.data_packs.is_empty() {
+        profile.generation.data_packs = supplied.generation.data_packs.clone();
+    }
+    if supplied.gameplay.difficulty.is_some() {
+        profile.gameplay.difficulty = supplied.gameplay.difficulty.clone();
+    }
+    if supplied.gameplay.default_game_mode.is_some() {
+        profile.gameplay.default_game_mode = supplied.gameplay.default_game_mode.clone();
+    }
+    if supplied.gameplay.hardcore.is_some() {
+        profile.gameplay.hardcore = supplied.gameplay.hardcore;
+    }
+    if supplied.gameplay.commands.is_some() {
+        profile.gameplay.commands = supplied.gameplay.commands;
+    }
+    if !supplied.gameplay.gamerules.is_empty() {
+        profile.gameplay.gamerules = supplied.gameplay.gamerules.clone();
+    }
+    if supplied.gameplay.cheats.is_some() {
+        profile.gameplay.cheats = supplied.gameplay.cheats;
+    }
+    if !supplied.gameplay.experiments.is_empty() {
+        profile.gameplay.experiments = supplied.gameplay.experiments.clone();
+    }
+    if supplied.gameplay.coordinates.is_some() {
+        profile.gameplay.coordinates = supplied.gameplay.coordinates;
+    }
+    if supplied.gameplay.starting_map.is_some() {
+        profile.gameplay.starting_map = supplied.gameplay.starting_map;
+    }
+    if !supplied.gameplay.supported_toggles.is_empty() {
+        profile.gameplay.supported_toggles = supplied.gameplay.supported_toggles.clone();
+    }
+    profile
+}
+
+fn slot_with_creation_profile(mut slot: WorldSlot, profile: &WorldProfile) -> WorldSlot {
+    if let Some(level_name) = profile.identity.level_name.as_deref() {
+        slot.world_level_name = Some(level_name.to_owned());
+    }
+    if profile.identity.seed.is_some() {
+        slot.world_seed = profile.identity.seed.clone();
+    }
+    slot
+}
+
 /// Provisions a new Vanilla, Paper, Purpur, or Fabric server end to end.
 ///
 /// `unzip_world_backup`/`copy_existing_world_folder` are the fakeable
@@ -849,7 +943,12 @@ pub fn create_download_and_go_server(
     let safe_name =
         provisioning::trimmed_server_name(request.name).ok_or(CreateServerError::EmptyName)?;
 
-    let initial_slot_name = initial_world_slot_name(&safe_name, request.initial_world_name);
+    let initial_slot_name = request
+        .initial_world_profile
+        .and_then(|profile| profile.identity.name.as_deref())
+        .filter(|name| !name.trim().is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| initial_world_slot_name(&safe_name, request.initial_world_name));
     let normalized_world_seed =
         normalized_initial_world_seed(request.world_seed, &request.world_source);
     let imported_metadata = match &request.world_source {
@@ -865,7 +964,12 @@ pub fn create_download_and_go_server(
         normalized_world_seed.as_deref(),
         &imported_metadata,
     );
-    let initial_level_name = world::sanitized_world_level_name(&initial_slot_name, "world");
+    let initial_level_name = request
+        .initial_world_profile
+        .and_then(|profile| profile.identity.level_name.as_deref())
+        .filter(|name| !name.trim().is_empty())
+        .map(|name| world::sanitized_world_level_name(name, "world"))
+        .unwrap_or_else(|| world::sanitized_world_level_name(&initial_slot_name, "world"));
 
     let folder_name = provisioning::folder_name_from_safe_name(&safe_name);
     // `join_forward_slash` rather than `Path::join`: `servers_root` is
@@ -1020,7 +1124,7 @@ pub(crate) fn finish_server_creation(
         },
     );
 
-    let (slot, _) = create_initial_world_slot(
+    let (mut slot, _) = create_initial_world_slot(
         fs,
         new_dir,
         initial_slot_name,
@@ -1033,8 +1137,16 @@ pub(crate) fn finish_server_creation(
     .map_err(|_| CreateServerError::InitialWorldSlotFailed)?;
 
     if matches!(request.world_source, WorldSource::Fresh) {
-        let profile =
-            worlds::fresh_world_profile(&slot, Some(request.difficulty), Some(request.gamemode));
+        let mut profile = creation_world_profile(
+            &slot,
+            request.difficulty,
+            request.gamemode,
+            request.initial_world_profile,
+        );
+        profile.identity.level_name = Some(initial_level_name.to_owned());
+        slot = slot_with_creation_profile(slot, &profile);
+        world_store::save_metadata(fs, new_dir, &slot)
+            .map_err(|error| CreateServerError::Io(std::io::Error::other(error.to_string())))?;
         world_store::save_profile(fs, new_dir, &slot, &profile)
             .map_err(|error| CreateServerError::Io(std::io::Error::other(error.to_string())))?;
     }
@@ -1131,7 +1243,12 @@ pub fn create_install_step_server(
         return Err(CreateServerError::Cancelled);
     }
 
-    let initial_slot_name = initial_world_slot_name(&safe_name, request.initial_world_name);
+    let initial_slot_name = request
+        .initial_world_profile
+        .and_then(|profile| profile.identity.name.as_deref())
+        .filter(|name| !name.trim().is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| initial_world_slot_name(&safe_name, request.initial_world_name));
     let normalized_world_seed =
         normalized_initial_world_seed(request.world_seed, &request.world_source);
     let imported_metadata = match &request.world_source {
@@ -1147,7 +1264,12 @@ pub fn create_install_step_server(
         normalized_world_seed.as_deref(),
         &imported_metadata,
     );
-    let initial_level_name = world::sanitized_world_level_name(&initial_slot_name, "world");
+    let initial_level_name = request
+        .initial_world_profile
+        .and_then(|profile| profile.identity.level_name.as_deref())
+        .filter(|name| !name.trim().is_empty())
+        .map(|name| world::sanitized_world_level_name(name, "world"))
+        .unwrap_or_else(|| world::sanitized_world_level_name(&initial_slot_name, "world"));
 
     let folder_name = provisioning::folder_name_from_safe_name(&safe_name);
     // Same Windows mixed-separator gap as `create_download_and_go_server`'s
@@ -1376,6 +1498,7 @@ pub struct PackServerRequest<'a> {
     pub difficulty: &'a str,
     pub gamemode: &'a str,
     pub world_seed: Option<&'a str>,
+    pub initial_world_profile: Option<&'a WorldProfile>,
     pub world_source: WorldSource<'a>,
     pub default_banner_color_hex: &'a str,
 }
@@ -1491,7 +1614,12 @@ pub fn create_server_from_pack(
         return Err(CreateFromPackError::Cancelled);
     }
 
-    let initial_slot_name = initial_world_slot_name(&safe_name, request.initial_world_name);
+    let initial_slot_name = request
+        .initial_world_profile
+        .and_then(|profile| profile.identity.name.as_deref())
+        .filter(|name| !name.trim().is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| initial_world_slot_name(&safe_name, request.initial_world_name));
     let normalized_world_seed =
         normalized_initial_world_seed(request.world_seed, &request.world_source);
     let imported_metadata = match &request.world_source {
@@ -1507,7 +1635,12 @@ pub fn create_server_from_pack(
         normalized_world_seed.as_deref(),
         &imported_metadata,
     );
-    let initial_level_name = world::sanitized_world_level_name(&initial_slot_name, "world");
+    let initial_level_name = request
+        .initial_world_profile
+        .and_then(|profile| profile.identity.level_name.as_deref())
+        .filter(|name| !name.trim().is_empty())
+        .map(|name| world::sanitized_world_level_name(name, "world"))
+        .unwrap_or_else(|| world::sanitized_world_level_name(&initial_slot_name, "world"));
 
     let folder_name = provisioning::folder_name_from_safe_name(&safe_name);
     let new_dir = join_forward_slash(
@@ -1652,6 +1785,7 @@ pub fn create_server_from_pack(
                 difficulty: request.difficulty,
                 gamemode: request.gamemode,
                 world_seed: request.world_seed,
+                initial_world_profile: request.initial_world_profile,
                 world_source: request.world_source.clone(),
                 save_downloaded_jars: false,
                 default_banner_color_hex: request.default_banner_color_hex,
@@ -1951,7 +2085,12 @@ pub fn create_bedrock_server(
     }
 
     let result = (|| -> Result<CreatedBedrockServer, BedrockCreateError> {
-        let slot_name = initial_world_slot_name(safe_name, request.initial_world_name);
+        let slot_name = request
+            .initial_world_profile
+            .and_then(|profile| profile.identity.name.as_deref())
+            .filter(|name| !name.trim().is_empty())
+            .map(str::to_owned)
+            .unwrap_or_else(|| initial_world_slot_name(safe_name, request.initial_world_name));
         let imported_metadata = match &request.world_source {
             BedrockWorldSource::Fresh => ImportedWorldMetadata::default(),
             BedrockWorldSource::BackupZip(path) => {
@@ -2003,9 +2142,12 @@ pub fn create_bedrock_server(
                     &slot_name,
                 )
             }
-            BedrockWorldSource::Fresh | BedrockWorldSource::BackupZip(_) => {
-                sanitized_bedrock_level_name(&slot_name, "Bedrock level")
-            }
+            BedrockWorldSource::Fresh | BedrockWorldSource::BackupZip(_) => request
+                .initial_world_profile
+                .and_then(|profile| profile.identity.level_name.as_deref())
+                .filter(|name| !name.trim().is_empty())
+                .map(|name| sanitized_bedrock_level_name(name, &slot_name))
+                .unwrap_or_else(|| sanitized_bedrock_level_name(&slot_name, "Bedrock level")),
         };
         let mut properties = std::collections::BTreeMap::new();
         properties.insert("server-name".to_owned(), safe_name.to_owned());
@@ -2054,12 +2196,15 @@ pub fn create_bedrock_server(
                     ServerType::Bedrock,
                     now.to_owned(),
                 );
-                world_store::save_metadata(fs, &new_dir, &slot)?;
-                let profile = worlds::fresh_world_profile(
+                let mut profile = creation_world_profile(
                     &slot,
-                    Some(request.difficulty),
-                    Some(request.gamemode),
+                    request.difficulty,
+                    request.gamemode,
+                    request.initial_world_profile,
                 );
+                profile.identity.level_name = Some(initial_level_name.clone());
+                let slot = slot_with_creation_profile(slot, &profile);
+                world_store::save_metadata(fs, &new_dir, &slot)?;
                 world_store::save_profile(fs, &new_dir, &slot, &profile)
                     .map_err(BedrockCreateError::AtomicWrite)?;
                 slot

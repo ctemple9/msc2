@@ -13,6 +13,7 @@ import {
   javaAddOnKind,
   wizardStepLabels,
 } from '../../src/lib/sections/fleet/wizard/model';
+import { defaultWorldSettingsValues } from '../../src/lib/sections/worlds/model';
 
 describe('add server wizard step labels', () => {
   it('walks the Fresh path sequence without an Add-ons step', () => {
@@ -194,11 +195,37 @@ describe('add server wizard confirm step (P12.18g)', () => {
       'upload-42',
     );
   });
+
+  it('carries advanced first-world settings in the create request', () => {
+    const settings = {
+      ...defaultWorldSettingsValues('java'),
+      name: 'First World',
+      seed: 'different-seed',
+      worldType: 'flat',
+      structures: false,
+      gamerules: 'keepInventory=true',
+    };
+    const draft = {
+      ...defaultWizardDraft(),
+      worldName: settings.name,
+      worldSeed: settings.seed,
+      worldSettings: settings,
+    };
+    const request = buildServerCreateRequest(draft, 'Profiled Server');
+
+    expect(request.worldSeed).toBe('different-seed');
+    expect(request.worldSettings).toMatchObject({
+      identity: { name: 'First World', seed: 'different-seed' },
+      generation: { worldType: 'flat', structures: false },
+      gameplay: { gamerules: { keepInventory: 'true' } },
+    });
+  });
 });
 
 describe('shared world settings flow (P12.27)', () => {
   it('uses the shared world form for fresh creation and separates ownership in review', () => {
     expect(worldSource).toContain('WorldSettingsForm');
+    expect(worldSource).not.toContain('serverSettingsHref');
     expect(worldSettingsFormSource).toContain('Essentials');
     expect(worldSettingsFormSource).toContain('World Generation');
     expect(worldSettingsFormSource).toContain('Gameplay Rules');

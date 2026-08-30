@@ -508,6 +508,7 @@ fn create_download_and_go_server_still_resolves_version_after_option_widening() 
         difficulty: "normal",
         gamemode: "survival",
         world_seed: None,
+        initial_world_profile: None,
         world_source: WorldSource::Fresh,
         save_downloaded_jars: false,
         default_banner_color_hex: "#5865F2",

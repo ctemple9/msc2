@@ -79,6 +79,7 @@ fn base_pack_request() -> PackServerRequest<'static> {
         difficulty: "normal",
         gamemode: "survival",
         world_seed: None,
+        initial_world_profile: None,
         world_source: WorldSource::Fresh,
         default_banner_color_hex: "#3366FF",
     }

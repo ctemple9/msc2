@@ -255,13 +255,16 @@ pub fn world_setting_capabilities(context: &WorldCapabilityContext) -> Vec<World
                         ServerType::Bedrock => "This setting belongs to Java servers.",
                     }),
                 )
-            } else if field != WorldProfileField::SafetyState && context.minecraft_version.is_none()
+            } else if field != WorldProfileField::SafetyState
+                && context.minecraft_version.is_none()
+                && context.server_type == ServerType::Java
             {
                 (
                     WorldSettingCapabilityState::Unknown,
                     Some("Minecraft version has not been selected."),
                 )
             } else if field != WorldProfileField::SafetyState
+                && context.server_type == ServerType::Java
                 && !minecraft_version_at_least_1_20(
                     context.minecraft_version.as_deref().unwrap_or_default(),
                 )

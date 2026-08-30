@@ -14,8 +14,8 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
     ErrorDto, PermissionCategoryDto, ServerCreateRequestDto, ServerCreateResultDto,
-    ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto, ServerEulaRequestDto,
-    ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
+    ServerCreateWorldSettingsDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
+    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
     ServerImportScanResponseDto, ServerImportWorldDto, ServerRenameRequestDto,
     ServerRenameResultDto,
 };
@@ -37,6 +37,7 @@ use msc_application::world_safety::{self, SafetyConfirmation};
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
 use msc_domain::identity::{JavaServerFlavor, ServerProvisioningKind, ServerType};
 use msc_domain::operation::OperationId;
+use msc_domain::world_profile::{WorldGameplay, WorldGeneration, WorldIdentity, WorldProfile};
 use msc_infrastructure::addon_provider::HttpTransport as AddonHttpTransport;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::HttpTransport;
@@ -1170,6 +1171,39 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 // in this codebase uses.
 const INSTALLER_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 
+fn world_profile_from_create(dto: &ServerCreateWorldSettingsDto) -> WorldProfile {
+    WorldProfile {
+        schema_version: msc_domain::world_profile::WORLD_PROFILE_SCHEMA_VERSION,
+        identity: WorldIdentity {
+            name: dto.identity.name.clone(),
+            level_name: dto.identity.level_name.clone(),
+            seed: dto.identity.seed.clone(),
+        },
+        generation: WorldGeneration {
+            world_type: dto.generation.world_type.clone(),
+            flat_preset: dto.generation.flat_preset.clone(),
+            structures: dto.generation.structures,
+            biome_source: dto.generation.biome_source.clone(),
+            generator_options: dto.generation.generator_options.clone(),
+            bonus_chest: dto.generation.bonus_chest,
+            data_packs: dto.generation.data_packs.clone(),
+        },
+        gameplay: WorldGameplay {
+            difficulty: dto.gameplay.difficulty.clone(),
+            default_game_mode: dto.gameplay.default_game_mode.clone(),
+            hardcore: dto.gameplay.hardcore,
+            commands: dto.gameplay.commands,
+            gamerules: dto.gameplay.gamerules.clone(),
+            cheats: dto.gameplay.cheats,
+            experiments: dto.gameplay.experiments.clone(),
+            coordinates: dto.gameplay.coordinates,
+            starting_map: dto.gameplay.starting_map,
+            supported_toggles: dto.gameplay.supported_toggles.clone(),
+        },
+        safety: Default::default(),
+    }
+}
+
 /// The six create-flow flavors this route accepts — `families/
 /// phase7-scope.md`'s own boundary, already enforced upstream by
 /// `create_flow_choices`/`filter_to_create_flow_floor` for version
@@ -1219,12 +1253,18 @@ pub async fn create(
             }
         },
     };
+    let requested_gamemode = body
+        .world_settings
+        .as_ref()
+        .and_then(|settings| settings.gameplay.default_game_mode.as_deref())
+        .or(body.gamemode.as_deref());
     if let Some(required) =
-        world_safety::confirmation_for_server_creation(server_type, body.gamemode.as_deref())
+        world_safety::confirmation_for_server_creation(server_type, requested_gamemode)
         && !world_safety::is_confirmed(required, confirmation.as_deref())
     {
         return confirmation_required_response(required);
     }
+    let initial_world_profile = body.world_settings.as_ref().map(world_profile_from_create);
     if server_type == ServerType::Bedrock {
         let port = match body.port.unwrap_or(19132).try_into() {
             Ok(port) if port > 0 => port,
@@ -1259,6 +1299,7 @@ pub async fn create(
             .clone()
             .unwrap_or_else(|| "survival".to_string());
         let request_seed = body.world_seed.clone();
+        let request_world_profile = initial_world_profile;
         tokio::spawn(async move {
             let failure_state = worker_state.clone();
             let failure_operation_id = worker_operation_id.clone();
@@ -1276,6 +1317,7 @@ pub async fn create(
                     request_difficulty,
                     request_gamemode,
                     request_seed,
+                    request_world_profile,
                 )
             })
             .await;
@@ -1394,6 +1436,7 @@ pub async fn create(
                 gamemode,
                 world_seed,
                 initial_world_name,
+                initial_world_profile,
                 save_downloaded_jars,
                 default_banner_color_hex,
                 java_path,
@@ -1454,6 +1497,7 @@ fn run_create_bedrock_server(
     difficulty: String,
     gamemode: String,
     world_seed: Option<String>,
+    initial_world_profile: Option<WorldProfile>,
 ) {
     let should_cancel = state.operations().cancellation_check(&operation_id);
     if should_cancel() {
@@ -1474,6 +1518,7 @@ fn run_create_bedrock_server(
         difficulty: &difficulty,
         gamemode: &gamemode,
         world_seed: world_seed.as_deref(),
+        initial_world_profile: initial_world_profile.as_ref(),
         world_source: msc_application::provisioning::BedrockWorldSource::Fresh,
     };
     let created = msc_application::provisioning::create_bedrock_server(
@@ -1555,6 +1600,7 @@ fn run_create_server(
     gamemode: String,
     world_seed: Option<String>,
     initial_world_name: Option<String>,
+    initial_world_profile: Option<WorldProfile>,
     save_downloaded_jars: bool,
     default_banner_color_hex: String,
     java_path: String,
@@ -1586,6 +1632,7 @@ fn run_create_server(
         difficulty: &difficulty,
         gamemode: &gamemode,
         world_seed: world_seed.as_deref(),
+        initial_world_profile: initial_world_profile.as_ref(),
         world_source: WorldSource::Fresh,
         save_downloaded_jars,
         default_banner_color_hex: &default_banner_color_hex,
@@ -1635,6 +1682,7 @@ fn run_create_server(
             difficulty: &difficulty,
             gamemode: &gamemode,
             world_seed: world_seed.as_deref(),
+            initial_world_profile: initial_world_profile.as_ref(),
             world_source: WorldSource::Fresh,
             default_banner_color_hex: &default_banner_color_hex,
         };

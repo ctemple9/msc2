@@ -1,9 +1,8 @@
 <script lang="ts">
   // Real port of AddServerWizardView.swift's step4FreshWorld -- the source
   // picker stays here, while world-local settings use the same form as the
-  // Worlds tab. The create request still carries the Essentials projection,
-  // while the form asks the agent which native settings belong to the
-  // selected edition/version/flavor before it presents advanced context.
+  // Worlds tab. The complete profile is carried into the create request so
+  // creation-only choices reach the server before its first world starts.
   //
   // Real gap found and handled, not silently worked around: the oracle
   // offers a third World Source, an existing world *folder*, alongside New
@@ -31,7 +30,7 @@
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import { getPlatform } from '../../../platform';
   import type { PickedFile } from '../../../platform/types';
-  import type { ScreenApi } from '../../shared/types';
+  import type { Schema, ScreenApi } from '../../shared/types';
   import { errorMessage } from '../../shared/types';
   import WorldSettingsForm from '../../worlds/WorldSettingsForm.svelte';
   import {
@@ -39,7 +38,7 @@
     type WorldSettingsCapabilities,
     type WorldSettingsValues,
   } from '../../worlds/model';
-  import { type WizardDraft, type WorldSourceMode } from './model';
+  import { type WizardDraft, type WorldSourceMode, versionsForCreatePath } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
@@ -50,7 +49,7 @@
   let capabilities: WorldSettingsCapabilities | undefined;
   let capabilitiesError: string | undefined;
   let capabilityRequestKey = '';
-  let worldSettings: WorldSettingsValues = {
+  let worldSettings: WorldSettingsValues = draft.worldSettings ?? {
     ...defaultWorldSettingsValues(draft.serverType),
     name: draft.worldName,
     seed: draft.worldSeed,
@@ -58,22 +57,32 @@
     defaultGameMode: draft.worldGamemode,
   };
 
+  if (!draft.worldSettings) draft.worldSettings = worldSettings;
+
   $: {
-    const requestKey = [draft.serverType, draft.javaFlavor, draft.versionId ?? ''].join('|');
+    const requestKey = [draft.serverType, draft.javaFlavor, draft.versionId ?? 'latest'].join('|');
     if (requestKey !== capabilityRequestKey) {
       capabilityRequestKey = requestKey;
+      capabilities = undefined;
       if (api) void loadCapabilities(requestKey);
-      else capabilities = undefined;
     }
   }
 
   async function loadCapabilities(requestKey: string): Promise<void> {
     if (!api) return;
     capabilitiesError = undefined;
-    const params = new URLSearchParams({ serverType: draft.serverType });
-    if (draft.versionId) params.set('minecraftVersion', draft.versionId);
-    if (draft.serverType === 'java') params.set('javaFlavor', draft.javaFlavor);
     try {
+      let minecraftVersion = draft.versionId;
+      if (!minecraftVersion && draft.serverType === 'java') {
+        const versions = await api.get<Schema['VersionsResponseDTO']>(
+          versionsForCreatePath('java', draft.javaFlavor),
+        );
+        minecraftVersion =
+          versions.versions?.find((entry) => entry.isLatest)?.id ?? versions.versions?.[0]?.id;
+      }
+      const params = new URLSearchParams({ serverType: draft.serverType });
+      if (minecraftVersion) params.set('minecraftVersion', minecraftVersion);
+      if (draft.serverType === 'java') params.set('javaFlavor', draft.javaFlavor);
       const response = await api.get<{ worldSettings?: WorldSettingsCapabilities }>(
         `/v1/capabilities?${params.toString()}`,
       );
@@ -167,13 +176,12 @@
         serverType={draft.serverType}
         values={worldSettings}
         {capabilities}
-        serverSettingsHref="../settings"
         onChange={updateWorldSettings}
       />
       {#if capabilitiesError}
         <p class="hint warn" role="status">
-          Advanced settings could not be checked: {capabilitiesError} The available fields remain
-          conservative until the agent responds.
+          Advanced settings could not be checked: {capabilitiesError} Native fields remain available where
+          this edition supports them.
         </p>
       {/if}
     </div>

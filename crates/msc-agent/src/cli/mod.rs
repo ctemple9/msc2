@@ -1317,6 +1317,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 docker_image: None,
                 java_path: args.java_path,
                 staged_modpack_upload_id,
+                world_settings: None,
             };
             let mut request = serde_json::to_value(body).map_err(|error| {
                 CliError::internal(format!("failed to encode create request: {error}"))

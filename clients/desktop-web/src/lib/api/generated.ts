@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 4d8d11dc69521c4aef7d5a3457af1492a2dbc51790f3786eff227bc1af1173d8
+// Contract SHA-256: 3db2bb825a18bb1d7640af0e6ad72750a1b03d03d2ef52569029dfb01d2a600b
 
 export interface paths {
   '/v1/active-server': {
@@ -911,7 +911,16 @@ export interface paths {
     /** Report agent capabilities for this host and this token */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          javaFlavor?: string;
+          /** @description Optional executable to probe without changing the saved Java preference. */
+          javaRuntimePath?: string;
+          loaderVersion?: string;
+          /** @description Optional selected Minecraft version or version-entry id. */
+          minecraftVersion?: string;
+          /** @description Optional create-time server edition to evaluate instead of the active server. */
+          serverType?: 'java' | 'bedrock';
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -2171,6 +2180,150 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/guides/router/{guideId}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Compose and resolve one router guide */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          guideId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Composed guide with runtime token replacements. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ResolvedRouterGuideDTO'];
+          };
+        };
+        /** @description Unknown router guide. */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description No server is selected for runtime token resolution. */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/guides/router/search': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Search and match router guides */
+    get: {
+      parameters: {
+        query: {
+          /** @description Provider, router, model, or troubleshooting query. */
+          q: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Ranked router-guide matches and fallback resolution. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['RouterGuideSearchDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/guides/router/troubleshooting/analyze': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Analyze router troubleshooting symptoms */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['RouterTroubleshootingAnalyzeRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Prioritized causes and recommended actions. */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['RouterTroubleshootingAnalyzeResponseDTO'];
+          };
+        };
+        /** @description Invalid JSON or unknown symptom id. */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/health': {
     parameters: {
       query?: never;
@@ -2405,6 +2558,26 @@ export interface paths {
     };
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/host/reset': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Reset this host's MSC state
+     * @description Host-scoped, administrator-only reset. The request has no host selector: it always acts on the host serving it. The operation revokes all existing credentials, rotates the host identity, clears host setup/configuration, and either preserves the managed server tree (configuration) or removes it (everything). The route never installs or uninstalls an operating-system service; a local desktop owns that separate action.
+     */
+    post: operations['resetHost'];
     delete?: never;
     options?: never;
     head?: never;
@@ -3442,6 +3615,46 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/playit/reset': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Clear host-local Playit credentials and derived state
+     * @description Stops every MSC-managed Playit helper before clearing the host-scoped agent key, saved agent ID, public addresses, and setup prompt state. The operation is idempotent: an already-clear host returns success. It never deletes Playit cloud agents or tunnels.
+     */
+    post: operations['resetPlayit'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/playit/setup': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Start native Playit account and tunnel setup
+     * @description Accepts Playit email and password only through the authenticated MSC agent API. The agent signs in, claims or reuses the host's Playit agent, creates or reuses applicable tunnels, and reports progress through the shared operation routes. Credentials and temporary Playit session details are memory-only; the resulting agent key is stored in the host secret store and is never returned.
+     */
+    post: operations['setupPlayit'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/playit/start': {
     parameters: {
       query?: never;
@@ -3479,7 +3692,7 @@ export interface paths {
             'application/json': components['schemas']['PlayitActionResultDTO'];
           };
         };
-        /** @description not_enabled / no_secret_key / no_server */
+        /** @description not_enabled / no_secret_key / no_server / helper_unavailable */
         409: {
           headers: {
             [name: string]: unknown;
@@ -5098,6 +5311,24 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/worlds/{slotId}/profile': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one world slot's saved profile and runtime metadata */
+    get: operations['getWorldSlotProfile'];
+    put?: never;
+    /** Save a world slot profile and apply its accepted runtime projection */
+    post: operations['updateWorldSlotProfile'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/worlds/{slotId}/thumbnail': {
     parameters: {
       query?: never;
@@ -5827,7 +6058,7 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
-    /** @description P2.6 SS3 -- GET /v1/capabilities response. */
+    /** @description P2.6 SS3 -- GET /v1/capabilities response; P12.28 adds optional version-aware worldSettings. */
     CapabilitiesDTO: {
       agentVersion: string;
       apiMajor: number;
@@ -5875,6 +6106,8 @@ export interface components {
       } & {
         [key: string]: unknown;
       };
+      /** @description Optional active or create-time context for native world settings. Omitted when no server context was selected. */
+      worldSettings?: components['schemas']['WorldSettingsCapabilitiesDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -6016,6 +6249,8 @@ export interface components {
     };
     CommandRequest: {
       command: string;
+      /** @description Acknowledgement token returned in a confirmation_required error before sending a Creative-changing command. */
+      confirmation?: string;
     } & {
       [key: string]: unknown;
     };
@@ -6185,6 +6420,22 @@ export interface components {
         | ({
             backend?: string | null;
             capability?: string;
+            /** @description Structured confirmation required before the requested safety-sensitive change may be applied. */
+            confirmation?: {
+              acknowledgement: string;
+              /** @enum {string} */
+              kind:
+                | 'bedrock_achievements'
+                | 'java_creative'
+                | 'java_commands'
+                | 'server_force_gamemode';
+              message: string;
+              /** @enum {string} */
+              scope: 'world' | 'server';
+              title: string;
+            } & {
+              [key: string]: unknown;
+            };
             hostOs?: string;
             reasonCode?: string;
             serverType?: string;
@@ -6310,6 +6561,35 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @description The last reliable response may be returned under the old credential. Poll the operation when the agent remains reachable; otherwise follow the state-specific recovery path. */
+    HostResetAcceptedDTO: {
+      /**
+       * @description Truthful post-admission state: the agent will restart, remains installed but requires fresh pairing, or cannot be reached to report completion.
+       * @enum {string}
+       */
+      agentState: 'restarting' | 'needs_pairing' | 'unavailable';
+      /** @description The pre-reset agent host identity, for client-side correlation only. */
+      hostId: string;
+      message: string;
+      /** @enum {string} */
+      mode: 'configuration' | 'everything';
+      /** @description Journaled reset operation ID. */
+      operationId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description A destructive host reset request. The serving agent validates the administrator credential and the fixed confirmation phrase before starting the reset. */
+    HostResetRequestDTO: {
+      /** @description Must exactly equal RESET AGENT. */
+      confirmation: string;
+      /**
+       * @description configuration clears MSC host state but preserves the managed server tree; everything removes that tree too.
+       * @enum {string}
+       */
+      mode: 'configuration' | 'everything';
+    } & {
+      [key: string]: unknown;
+    };
     HostSetupStateDTO: {
       complete: boolean;
     } & {
@@ -6342,6 +6622,16 @@ export interface components {
     JavaConfigSetRequestDTO: {
       executablePath?: string;
       extraFlags?: string;
+    } & {
+      [key: string]: unknown;
+    };
+    JavaRuntimeCapabilityDTO: {
+      detectedMajor?: number;
+      executablePath?: string;
+      reason?: string;
+      requiredMajor?: number;
+      /** @description available, unavailable, or unknown; newer agents may add states. */
+      state: string;
     } & {
       [key: string]: unknown;
     };
@@ -6674,6 +6964,32 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @description Non-secret result of clearing host-local Playit state. Repeating reset is successful and returns already_clear once no local state remains. */
+    PlayitResetResultDTO: {
+      message?: string | null;
+      operationId?: string | null;
+      /** @enum {string} */
+      result: 'cleared' | 'already_clear';
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Admission response for a native Playit setup operation. It contains no submitted credential, agent key, or provider session detail. */
+    PlayitSetupAcceptedDTO: {
+      message?: string | null;
+      /** @description Opaque operation identifier for GET /v1/operations/{id} or the operation stream. */
+      operationId: string;
+      /** @enum {string} */
+      result: 'setup_accepted';
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Native Playit sign-in input. Both fields are write-only at the API boundary and are held in memory only while the setup operation is running. */
+    PlayitSetupRequestDTO: {
+      email: string;
+      password: string;
+    } & {
+      [key: string]: unknown;
+    };
     PlayitStatusResponseDTO: {
       bedrockAddress?: string;
       hasSecretKey: boolean;
@@ -6724,6 +7040,14 @@ export interface components {
       /** @description Optional runtime state for the active Bedrock server. */
       runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType?: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ResolvedRouterGuideDTO: {
+      guide: components['schemas']['RouterGuideDTO'];
+      runtime: components['schemas']['RouterRuntimeSummaryDTO'];
+      sections: components['schemas']['RouterResolvedSectionDTO'][];
+      unresolvedTokens: components['schemas']['RouterUnresolvedTokenDTO'][];
     } & {
       [key: string]: unknown;
     };
@@ -6782,9 +7106,184 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    RouterAnalysisCauseDTO: {
+      confidence: string;
+      id: string;
+      matchedSymptoms: string[];
+      score: number;
+      severity: string;
+      topic: components['schemas']['RouterTroubleshootingTopicDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    RouterFallbackResolutionDTO: {
+      availability: string;
+      desiredFamily?: string | null;
+      explanationBullets: string[];
+      fallbackGuideId?: string | null;
+      inferredFamilies: string[];
+      kind: string;
+      matchedGuideId?: string | null;
+      matchedQuery?: string | null;
+      recommendedNextNodeId?: string | null;
+      suggestedSearchTerms: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    RouterFallbackStateDTO: {
+      networkType?: string | null;
+      onlyKnowsIsp?: boolean;
+      onlyKnowsMeshSystem?: boolean;
+      searchQuery?: string | null;
+      unsureWhetherIspOrOwnRouter?: boolean;
+      wantsAdvancedTroubleshooting?: boolean;
+    } & {
+      [key: string]: unknown;
+    };
     RouterGuideCatalogDTO: {
-      guides: Record<string, never>[];
-      troubleshooting: Record<string, never>[];
+      guides: components['schemas']['RouterGuideDTO'][];
+      symptoms: components['schemas']['RouterSymptomDTO'][];
+      troubleshooting: components['schemas']['RouterTroubleshootingTopicDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideDTO: {
+      adminAddresses: string[];
+      adminSurface: string;
+      alternateMenuNames: string[];
+      category: string;
+      deviceDisplayName?: string | null;
+      displayName: string;
+      family: string;
+      id: string;
+      menuPath: string[];
+      notes: components['schemas']['RouterGuideNoteDTO'][];
+      providerDisplayName?: string | null;
+      review: components['schemas']['RouterGuideReviewMetadataDTO'];
+      searchKeywords: string[];
+      sharedSections: components['schemas']['RouterGuideSharedSectionsDTO'];
+      steps: components['schemas']['RouterGuideStepDTO'][];
+      troubleshooting: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideMatchCandidateDTO: {
+      guide: components['schemas']['RouterGuideSummaryDTO'];
+      reasons: string[];
+      score: number;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideNoteDTO: {
+      body: string;
+      id: string;
+      title?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideReviewMetadataDTO: {
+      lastReviewed?: string | null;
+      reviewNotes?: string | null;
+      sourceConfidence: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideSearchDTO: {
+      candidates: components['schemas']['RouterGuideMatchCandidateDTO'][];
+      fallbackResolution: components['schemas']['RouterFallbackResolutionDTO'];
+      inferredFamilies: string[];
+      isAmbiguous: boolean;
+      matchedDirectGuide: boolean;
+      normalizedQuery: string;
+      normalizedTokens: string[];
+      query: string;
+      suggestedFallbackGuide?: components['schemas']['RouterGuideSummaryDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideSharedSectionsDTO: {
+      includeSharedIntro: boolean;
+      includeSharedPrerequisites: boolean;
+      includeSharedTroubleshootingFooter: boolean;
+      includeSharedValueSummary: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideStepDTO: {
+      alternateTerms: string[];
+      body: string;
+      id: string;
+      kind: string;
+      referencedTokens: string[];
+      title: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterGuideSummaryDTO: {
+      category: string;
+      deviceDisplayName?: string | null;
+      displayName: string;
+      family: string;
+      id: string;
+      providerDisplayName?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterResolvedSectionDTO: {
+      id: string;
+      items: Record<string, never>[];
+      kind: string;
+      origin: string;
+      title: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterRuntimeSummaryDTO: {
+      bedrockEnabled: boolean | null;
+      bedrockPort: number | null;
+      detectedGatewayIpAddress: string | null;
+      detectedLocalIpAddress: string | null;
+      javaPort: number | null;
+      recommendedProtocol: string | null;
+      selectedServerId: string | null;
+      selectedServerName: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterSymptomDTO: {
+      description: string;
+      id: string;
+      title: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterTroubleshootingAnalyzeRequestDTO: {
+      fallbackState?: components['schemas']['RouterFallbackStateDTO'];
+      symptoms: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    RouterTroubleshootingAnalyzeResponseDTO: {
+      escalationBullets: string[];
+      fallbackResolution?: components['schemas']['RouterFallbackResolutionDTO'];
+      likelyCauses: components['schemas']['RouterAnalysisCauseDTO'][];
+      recommendedActions: string[];
+      summary: string;
+      symptoms: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    RouterTroubleshootingTopicDTO: {
+      id: string;
+      suggestedNextActions: string[];
+      summary: string;
+      title: string;
+    } & {
+      [key: string]: unknown;
+    };
+    RouterUnresolvedTokenDTO: {
+      sectionId: string;
+      token: string;
     } & {
       [key: string]: unknown;
     };
@@ -6792,11 +7291,14 @@ export interface components {
       acceptEula?: boolean;
       /** @description Requested BDS release for serverType=bedrock. The agent resolves and verifies the platform-appropriate distribution entry. */
       bedrockVersion?: string;
+      /** @description Acknowledgement token returned in a confirmation_required error for a Creative or other safety-sensitive world choice. */
+      confirmation?: string;
       crossPlayBedrockPort?: number;
       difficulty?: string;
       dockerImage?: string;
       enableCrossPlay?: boolean;
       enablePlayit?: boolean;
+      /** @description Creation-time intent from a staged Simple Voice Chat add-on. The agent creates the voice tunnel only after an active SVC plugin or mod is present in plugins/ or mods/. */
       enableVoiceChat?: boolean;
       enableXboxBroadcast?: boolean;
       gamemode?: string;
@@ -6813,6 +7315,8 @@ export interface components {
       versionId?: string;
       worldName?: string;
       worldSeed?: string;
+      /** @description Optional complete profile for the first fresh world. The agent applies it before the server's first start. */
+      worldSettings?: components['schemas']['ServerCreateWorldSettingsDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -6826,6 +7330,14 @@ export interface components {
       serverName?: string;
       success: boolean;
       warnings?: string[];
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Creation-time world profile. Safety and readback metadata are produced by the agent after the world slot exists. */
+    ServerCreateWorldSettingsDTO: {
+      gameplay?: components['schemas']['WorldGameplayDTO'];
+      generation?: components['schemas']['WorldGenerationDTO'];
+      identity?: components['schemas']['WorldIdentityDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -7052,6 +7564,8 @@ export interface components {
       changes: {
         [key: string]: string;
       };
+      /** @description Acknowledgement token returned in a confirmation_required error before applying the server-wide gamemode override. */
+      confirmation?: string;
     } & {
       [key: string]: unknown;
     };
@@ -7178,6 +7692,16 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ThirdPartyWorldConfigBoundaryDTO: {
+      available: boolean;
+      /** @enum {string} */
+      handoff: 'server_settings';
+      helpId?: string;
+      label: string;
+      message: string;
+    } & {
+      [key: string]: unknown;
+    };
     UserCreateRequestDTO: {
       expiresInDays?: number;
       label: string;
@@ -7294,6 +7818,8 @@ export interface components {
       [key: string]: unknown;
     };
     WorldActivateRequestDTO: {
+      /** @description Acknowledgement token returned in a confirmation_required error before activating a safety-sensitive world. */
+      confirmation?: string;
       slotId: string;
     } & {
       [key: string]: unknown;
@@ -7329,6 +7855,8 @@ export interface components {
       [key: string]: unknown;
     };
     WorldCreateRequestDTO: {
+      /** @description Acknowledgement token returned in a confirmation_required error before applying a safety-sensitive world choice. */
+      confirmation?: string;
       name: string;
       seed?: string;
     } & {
@@ -7356,6 +7884,54 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @description Persistent gameplay choices for the selected world. Gamerules, experiments, and supported toggles are open maps so newer keys are not silently discarded. */
+    WorldGameplayDTO: {
+      /** @description Bedrock cheat state. */
+      cheats?: boolean | null;
+      /** @description Java allow-commands state for the world. */
+      commands?: boolean | null;
+      coordinates?: boolean | null;
+      defaultGameMode?: string | null;
+      difficulty?: string | null;
+      experiments: {
+        [key: string]: boolean;
+      };
+      gamerules: {
+        [key: string]: string;
+      };
+      hardcore?: boolean | null;
+      startingMap?: boolean | null;
+      /** @description Edition-specific gameplay toggles advertised by the agent. */
+      supportedToggles: {
+        [key: string]: boolean;
+      };
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description World generation choices. Creation-only values are retained even when the generated world can no longer safely change them. */
+    WorldGenerationDTO: {
+      biomeSource?: string | null;
+      bonusChest?: boolean | null;
+      dataPacks: string[];
+      flatPreset?: string | null;
+      /** @description Opaque generator-options payload retained for round-trip safety. */
+      generatorOptions?: string | null;
+      structures?: boolean | null;
+      worldType?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Identity that belongs to one slot, not to every server world. */
+    WorldIdentityDTO: {
+      /** @description Minecraft level/folder name used when the slot is active. */
+      levelName?: string | null;
+      /** @description MSC display name for the slot. */
+      name?: string | null;
+      /** @description Seed used for generation when this world is first created. */
+      seed?: string | null;
+    } & {
+      [key: string]: unknown;
+    };
     WorldImportRequestDTO: {
       backupId?: string;
       name: string;
@@ -7367,6 +7943,66 @@ export interface components {
       message: string;
       success: boolean;
       updated?: components['schemas']['WorldSlotsResponseDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    WorldProfileChangeDTO: {
+      key: string;
+      reason?: string | null;
+      /** @enum {string} */
+      status: 'live' | 'pending_restart' | 'blocked';
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description The world-local source of truth for one WorldSlot. This object is versioned independently from the server profile so a client can degrade when a runtime adds a field it does not know. */
+    WorldProfileDTO: {
+      /** @description Metadata keyed by stable profile field key. It tells clients which capability gates the field, when a change takes effect, how confidently the value was read, and where to find the explanation. */
+      fieldMetadata: {
+        [key: string]: components['schemas']['WorldProfileFieldMetadataDTO'];
+      };
+      gameplay: components['schemas']['WorldGameplayDTO'];
+      generation: components['schemas']['WorldGenerationDTO'];
+      identity: components['schemas']['WorldIdentityDTO'];
+      safety: components['schemas']['WorldSafetyDTO'];
+      /** @description World profile schema version. Version 1 is the initial MSC 2 shape. */
+      schemaVersion: number;
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Capability and teaching metadata for one world-profile field. */
+    WorldProfileFieldMetadataDTO: {
+      /** @description Capability key supplied by the agent for this field. */
+      capability: string;
+      /** @description Agent-served explanation resolved through GET /v1/help/{helpId}. */
+      helpId?: string | null;
+      /** @enum {string} */
+      lifecycle: 'creation_only' | 'apply_on_activation' | 'live_safe' | 'restart_required';
+      /** @enum {string} */
+      valueState: 'configured' | 'detected' | 'unknown' | 'unsupported' | 'achievement_disabled';
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Sparse updates to one slot-local world profile. Keys use the stable dotted profile names; a nested profile section is also accepted for client convenience. */
+    WorldProfileUpdateRequestDTO: ({
+      /** @description Stable dotted world profile field keys and JSON values. */
+      changes?: {
+        [key: string]: unknown;
+      };
+      /** @description Acknowledgement token returned in a confirmation_required error before applying a safety-sensitive profile change. */
+      confirmation?: string;
+      profile?: components['schemas']['WorldProfileDTO'];
+    } & {
+      [key: string]: unknown;
+    }) &
+      (unknown | unknown);
+    /** @description The saved slot profile plus the status of each requested projection change. */
+    WorldProfileUpdateResultDTO: {
+      changes: components['schemas']['WorldProfileChangeDTO'][];
+      message: string;
+      slot: components['schemas']['WorldSlotWithProfileDTO'];
+      /** @enum {string} */
+      status: 'live' | 'pending_restart' | 'blocked';
+      success: boolean;
     } & {
       [key: string]: unknown;
     };
@@ -7416,6 +8052,43 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    /** @description Detected safety state for the world. Known state values are safe, achievement_disabled, unknown, and unsupported. */
+    WorldSafetyDTO: {
+      reasons: string[];
+      state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldSettingCapabilityDTO: {
+      available: boolean;
+      capability: string;
+      helpId?: string;
+      reason?: string;
+      state: string;
+    } & {
+      [key: string]: unknown;
+    };
+    WorldSettingsCapabilitiesDTO: {
+      context: components['schemas']['WorldSettingsContextDTO'];
+      fields: {
+        [key: string]: components['schemas']['WorldSettingCapabilityDTO'];
+      };
+      thirdParty: components['schemas']['ThirdPartyWorldConfigBoundaryDTO'];
+    } & {
+      [key: string]: unknown;
+    };
+    WorldSettingsContextDTO: {
+      javaFlavor?: string;
+      javaRuntime?: components['schemas']['JavaRuntimeCapabilityDTO'];
+      loaderVersion?: string;
+      minecraftVersion?: string;
+      nativeCapabilities: string[];
+      /** @enum {string} */
+      serverType: 'java' | 'bedrock';
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description Legacy slot summary. A detailed slot response pairs this summary with WorldProfileDTO; P12.24 begins emitting the profile after safe metadata migration. */
     WorldSlotDTO: {
       createdAt: string;
       hasThumbnail: boolean;
@@ -7432,6 +8105,13 @@ export interface components {
       isRepairing?: boolean;
       serverRunning: boolean;
       slots: components['schemas']['WorldSlotDTO'][];
+    } & {
+      [key: string]: unknown;
+    };
+    /** @description A world slot together with the versioned profile that travels with it. The profile is slot-owned; it is not duplicated in SettingsResponseDTO. */
+    WorldSlotWithProfileDTO: {
+      profile: components['schemas']['WorldProfileDTO'];
+      slot: components['schemas']['WorldSlotDTO'];
     } & {
       [key: string]: unknown;
     };
@@ -7898,6 +8578,66 @@ export interface operations {
       };
     };
   };
+  resetHost: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['HostResetRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Reset accepted as a journaled operation. The old credential may stop working while the agent restarts or changes to a needs-pairing/unavailable state. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HostResetAcceptedDTO'];
+        };
+      };
+      /** @description invalid_body, missing_mode, invalid_mode, missing_confirmation, or confirmation_mismatch */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description forbidden (administrator credential required) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description server_running or reset_in_progress */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description internal_error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
   installJavaRuntime: {
     parameters: {
       query?: never;
@@ -8117,6 +8857,104 @@ export interface operations {
       };
     };
   };
+  resetPlayit: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Host-local state cleared or already clear */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PlayitResetResultDTO'];
+        };
+      };
+      /** @description forbidden (networking permission required) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description playit_reset_failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description playit_reset_failed while persisting cleared state */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  setupPlayit: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['PlayitSetupRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Native setup accepted; operationId is populated and progress is available from GET /v1/operations/{id} or its stream. */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['PlayitSetupAcceptedDTO'];
+        };
+      };
+      /** @description invalid_json / missing_email / missing_password */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description forbidden (networking permission required) */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description setup_in_progress / setup_unavailable / credential_store_failed / tunnel_mismatch */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
   createServer: {
     parameters: {
       query?: never;
@@ -8262,6 +9100,90 @@ export interface operations {
         };
       };
       /** @description staged_upload_expired / max_bytes_exceeded */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  getWorldSlotProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slotId: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description World slot and its profile */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldSlotWithProfileDTO'];
+        };
+      };
+      /** @description no_active_server / slot_not_found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  updateWorldSlotProfile: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        slotId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['WorldProfileUpdateRequestDTO'];
+      };
+    };
+    responses: {
+      /** @description Profile saved with per-field application status */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['WorldProfileUpdateResultDTO'];
+        };
+      };
+      /** @description invalid_body / invalid_json */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description slot_not_found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description no_active_server / world_reconciliation_degraded */
       409: {
         headers: {
           [name: string]: unknown;

@@ -478,6 +478,7 @@ pub fn create_server_from_template(
             difficulty: request.difficulty,
             gamemode: request.gamemode,
             world_seed: request.world_seed,
+            initial_world_profile: None,
             world_source: WorldSource::Fresh,
             // `save_downloaded_jars` only gates [`provisioning::acquire_jar`]'s
             // own archive step, which this jar-source (a local template

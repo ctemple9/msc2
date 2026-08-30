@@ -232,3 +232,19 @@ fn capability_world_settings_keep_bedrock_fields_separate_from_java() {
         ["world.bedrock"]
     );
 }
+
+#[test]
+fn capability_world_settings_treat_bedrock_create_runtime_as_verified_without_version() {
+    let context = WorldCapabilityContext {
+        server_type: ServerType::Bedrock,
+        minecraft_version: None,
+        java_flavor: None,
+        loader_version: None,
+    };
+    let capabilities = msc_domain::capability::world_setting_capabilities(&context);
+    let coordinates = capabilities
+        .iter()
+        .find(|capability| capability.field == WorldProfileField::GameplayCoordinates)
+        .unwrap();
+    assert_eq!(coordinates.state, WorldSettingCapabilityState::Available);
+}

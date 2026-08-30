@@ -21,9 +21,9 @@
 
   export let values: WorldSettingsValues;
   export let serverType: WorldServerType;
-  /** `wizard` keeps the first create request honest: its current API only
-   * carries Essentials. `create` is the post-slot form, where the complete
-   * profile can be saved; `edit` additionally locks creation-only values. */
+  /** `wizard` is the first-world form; `create` is the post-slot form, where
+   * the complete profile can be saved; `edit` additionally locks
+   * creation-only values. */
   export let mode: 'wizard' | 'create' | 'edit' = 'edit';
   export let metadata: Record<string, WorldProfileFieldMetadata> = {};
   export let capabilities: WorldSettingsCapabilities | undefined = undefined;
@@ -137,7 +137,10 @@
       <p class="context-label">Advanced settings context</p>
       <p class="context-value">
         {capabilities.context.serverType === 'bedrock' ? 'Bedrock' : 'Java'}
-        · {capabilities.context.minecraftVersion ?? 'Minecraft version not selected'}
+        · {capabilities.context.minecraftVersion ??
+          (capabilities.context.serverType === 'bedrock'
+            ? 'verified runtime'
+            : 'Minecraft version not selected')}
         {#if capabilities.context.javaFlavor}
           · {capabilities.context.javaFlavor}
         {/if}
@@ -164,7 +167,7 @@
     {/if}
   </p>
 
-  {#if capabilities?.thirdParty}
+  {#if mode !== 'wizard' && capabilities?.thirdParty}
     <p class="boundary" role="note">
       <span class="boundary-label">{capabilities.thirdParty.label}</span>
       {capabilities.thirdParty.message}

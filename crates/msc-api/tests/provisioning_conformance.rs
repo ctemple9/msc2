@@ -148,6 +148,7 @@ fn provisioning_conformance_server_create_request() {
             docker_image: None,
             java_path: None,
             staged_modpack_upload_id: None,
+            world_settings: None,
         },
     );
 }

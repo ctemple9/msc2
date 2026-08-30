@@ -127,6 +127,7 @@ fn base_request<'a>(
         difficulty: "normal",
         gamemode: "survival",
         world_seed: None,
+        initial_world_profile: None,
         world_source,
         save_downloaded_jars: false,
         default_banner_color_hex: "#3366FF",

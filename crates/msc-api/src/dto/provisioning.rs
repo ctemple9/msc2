@@ -7,6 +7,21 @@
 use serde::{Deserialize, Serialize};
 
 use super::BedrockRuntimeStateDto;
+use super::worlds::{WorldGameplayDto, WorldGenerationDto, WorldIdentityDto};
+
+/// The first world profile supplied alongside a fresh server create. It
+/// intentionally omits readback-only safety and field metadata; the agent
+/// owns those values after it has created the slot.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerCreateWorldSettingsDto {
+    #[serde(default)]
+    pub identity: WorldIdentityDto,
+    #[serde(default)]
+    pub generation: WorldGenerationDto,
+    #[serde(default)]
+    pub gameplay: WorldGameplayDto,
+}
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,6 +69,8 @@ pub struct ServerCreateRequestDto {
     pub java_path: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub staged_modpack_upload_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub world_settings: Option<ServerCreateWorldSettingsDto>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

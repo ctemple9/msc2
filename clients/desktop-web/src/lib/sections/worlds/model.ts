@@ -205,27 +205,10 @@ const BEDROCK_ONLY_PROFILE_FIELDS = new Set([
   'gameplay.supported-toggles',
 ]);
 
-/** Creation-time server requests currently carry only the Essentials
- * projection. Keeping this list here makes the limitation visible in the
- * shared UI until the capability-aware create path lands. */
-export const WIZARD_UNAVAILABLE_PROFILE_FIELDS = new Set([
-  'identity.level-name',
-  'generation.world-type',
-  'generation.flat-preset',
-  'generation.structures',
-  'generation.biome-source',
-  'generation.generator-options',
-  'generation.bonus-chest',
-  'generation.data-packs',
-  'gameplay.hardcore',
-  'gameplay.commands',
-  'gameplay.gamerules',
-  'gameplay.cheats',
-  'gameplay.experiments',
-  'gameplay.coordinates',
-  'gameplay.starting-map',
-  'gameplay.supported-toggles',
-]);
+/** The create request carries the same profile shape as the Worlds tab.
+ * Capability results, rather than a blanket wizard rule, decide which
+ * fields are meaningful for the selected edition and runtime. */
+export const WIZARD_UNAVAILABLE_PROFILE_FIELDS = new Set<string>();
 
 export const CREATION_ONLY_PROFILE_FIELDS = new Set([
   'identity.seed',
@@ -380,6 +363,43 @@ export function worldSettingsChanges(
   return changes;
 }
 
+/** Converts the form's dotted profile update into the nested profile carried
+ * by the server-creation request. Keeping this conversion next to the
+ * existing profile-route conversion makes both entry points use the same
+ * edition and capability filtering rules. */
+export function worldSettingsProfile(
+  values: WorldSettingsValues,
+  serverType?: WorldServerType,
+  capabilities?: WorldSettingsCapabilities,
+): {
+  identity: Record<string, unknown>;
+  generation: Record<string, unknown>;
+  gameplay: Record<string, unknown>;
+} {
+  const profile = {
+    identity: {} as Record<string, unknown>,
+    generation: { dataPacks: [] as string[] } as Record<string, unknown>,
+    gameplay: {
+      gamerules: {} as Record<string, string>,
+      experiments: {} as Record<string, boolean>,
+      supportedToggles: {} as Record<string, boolean>,
+    } as Record<string, unknown>,
+  };
+
+  for (const [key, value] of Object.entries(
+    worldSettingsChanges(values, serverType, capabilities),
+  )) {
+    const separator = key.indexOf('.');
+    if (separator < 0) continue;
+    const section = key.slice(0, separator) as 'identity' | 'generation' | 'gameplay';
+    const field = key.slice(separator + 1);
+    profile[section][
+      field.replace(/-([a-z])/g, (_match: string, character: string) => character.toUpperCase())
+    ] = value;
+  }
+  return profile;
+}
+
 export function diffWorldSettings(
   before: WorldSettingsValues,
   after: WorldSettingsValues,
@@ -421,7 +441,9 @@ export function profileFieldUnavailableReason(
     return 'Available after the server is created.';
   }
   if (capabilities && !capabilities.fields[key]?.available) {
-    return capabilities.fields[key]?.reason ?? 'This setting was not advertised by the selected runtime.';
+    return (
+      capabilities.fields[key]?.reason ?? 'This setting was not advertised by the selected runtime.'
+    );
   }
   if (metadata[key]?.valueState === 'unsupported') return 'Unavailable for this server type.';
   if (serverType === 'java' && BEDROCK_ONLY_PROFILE_FIELDS.has(key)) {

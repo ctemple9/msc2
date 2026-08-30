@@ -6468,6 +6468,10 @@
           "worldSeed": {
             "type": "string"
           },
+          "worldSettings": {
+            "$ref": "#/components/schemas/ServerCreateWorldSettingsDTO",
+            "description": "Optional complete profile for the first fresh world. The agent applies it before the server's first start."
+          },
           "versionId": {
             "type": "string"
           },
@@ -6502,6 +6506,22 @@
         "required": [
           "name"
         ]
+      },
+      "ServerCreateWorldSettingsDTO": {
+        "type": "object",
+        "description": "Creation-time world profile. Safety and readback metadata are produced by the agent after the world slot exists.",
+        "properties": {
+          "identity": {
+            "$ref": "#/components/schemas/WorldIdentityDTO"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/WorldGenerationDTO"
+          },
+          "gameplay": {
+            "$ref": "#/components/schemas/WorldGameplayDTO"
+          }
+        },
+        "required": []
       },
       "ServerCreateResultDTO": {
         "type": "object",

@@ -12,6 +12,7 @@ use msc_application::provisioning::{
     real_unzip_world_backup,
 };
 use msc_domain::identity::JavaServerFlavor;
+use msc_domain::world_profile::WorldProfile;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::{JarProviderError, Transport};
 use std::collections::HashMap;
@@ -164,6 +165,7 @@ fn base_request<'a>(
         difficulty: "normal",
         gamemode: "survival",
         world_seed: None,
+        initial_world_profile: None,
         world_source,
         save_downloaded_jars: false,
         default_banner_color_hex: "#3366FF",
@@ -1105,6 +1107,69 @@ fn provisioning_imported_metadata_overrides_wizard_values() {
     assert_eq!(props["difficulty"], "hard");
     assert_eq!(props["gamemode"], "survival");
     assert_eq!(props["level-seed"], "1234567890");
+}
+
+#[test]
+fn provisioning_applies_the_first_world_profile_before_first_start() {
+    let tmp = TempDir::new("world-profile");
+    let transport = vanilla_transport();
+    let mut profile = WorldProfile::new();
+    profile.identity.name = Some("Profile World".to_string());
+    profile.identity.level_name = Some("profile_level".to_string());
+    profile.identity.seed = Some("profile-seed".to_string());
+    profile.generation.world_type = Some("flat".to_string());
+    profile.generation.structures = Some(false);
+    profile.generation.bonus_chest = Some(true);
+    profile.generation.generator_options = Some("{}".to_string());
+    profile.gameplay.difficulty = Some("hard".to_string());
+    profile.gameplay.default_game_mode = Some("creative".to_string());
+    profile.gameplay.hardcore = Some(true);
+    profile.gameplay.commands = Some(true);
+    profile
+        .gameplay
+        .gamerules
+        .insert("keepInventory".to_string(), "true".to_string());
+
+    let mut request = base_request(JavaServerFlavor::Vanilla, WorldSource::Fresh);
+    request.initial_world_profile = Some(&profile);
+
+    let created = provisioning::create_download_and_go_server(
+        &StdFileSystem,
+        &transport,
+        tmp.path(),
+        tmp.path(),
+        &tmp.path().join("templates/paper"),
+        &tmp.path().join("templates/plugin"),
+        &request,
+        "2026-08-18T00:00:00Z",
+        always_ok2,
+        always_ok3,
+    )
+    .unwrap();
+
+    let props = read_properties(&PathBuf::from(&created.config.server_dir));
+    assert_eq!(created.world_slot.name, "Profile World");
+    assert_eq!(
+        created.world_slot.world_level_name.as_deref(),
+        Some("profile_level")
+    );
+    assert_eq!(props["level-name"], "profile_level");
+    assert_eq!(props["level-seed"], "profile-seed");
+    assert_eq!(props["level-type"], "minecraft\\:flat");
+    assert_eq!(props["generate-structures"], "false");
+    assert_eq!(props["bonus-chest"], "true");
+    assert_eq!(props["generator-settings"], "{}");
+    assert_eq!(props["difficulty"], "hard");
+    assert_eq!(props["gamemode"], "creative");
+    assert_eq!(props["hardcore"], "true");
+    assert_eq!(props["enable-command-block"], "true");
+
+    let saved = msc_infrastructure::world_store::load_profile(
+        &StdFileSystem,
+        &PathBuf::from(&created.config.server_dir),
+        &created.world_slot,
+    );
+    assert_eq!(saved.gameplay.gamerules["keepInventory"], "true");
 }
 
 // ---------------------------------------------------------------------

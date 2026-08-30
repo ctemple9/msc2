@@ -1,7 +1,7 @@
 import type { Schema, ScreenApi } from '../../shared/types';
 import { errorMessage, mutate } from '../../shared/types';
 import { fleetMutationPaths } from '../model';
-import { worldPaths } from '../../worlds/model';
+import { worldPaths, worldSettingsProfile, type WorldSettingsValues } from '../../worlds/model';
 import { addonPaths } from '../../addons/model';
 
 /** The two entry points `AddServerWizardView.swift`'s step 1 offers. */
@@ -253,6 +253,10 @@ export interface WizardDraft {
   worldGamemode: WorldGamemode;
   /** `AddServerWizardView.swift`'s `initialWorldSeed`. */
   worldSeed: string;
+  /** Complete first-world profile collected by the shared World Settings
+   *  form. The legacy fields above remain for compatibility with the
+   *  existing create request and confirmation copy. */
+  worldSettings?: WorldSettingsValues;
   /** Set once "From backup (.zip)" has staged a file via
    *  `api.upload('world-import', ...)` -- the same staged-upload primitive
    *  `worlds/ImportWorldZipSheet.svelte` already uses. Held client-side
@@ -361,7 +365,9 @@ export function isSimpleVoiceChatName(value: string | undefined): boolean {
 
 export function hasStagedSimpleVoiceChat(draft: WizardDraft): boolean {
   return draft.pendingAddOns.some((addOn) =>
-    isSimpleVoiceChatName(addOn.kind === 'catalog' ? `${addOn.title} ${addOn.slug ?? ''}` : addOn.fileName),
+    isSimpleVoiceChatName(
+      addOn.kind === 'catalog' ? `${addOn.title} ${addOn.slug ?? ''}` : addOn.fileName,
+    ),
   );
 }
 
@@ -465,8 +471,9 @@ export function versionEntryLabel(entry: Schema['VersionEntryDTO']): string {
 
 // ---------------------------------------------------------------------------
 // Confirm step (P12.18g) -- the real POST /v1/servers/create call and the
-// draft-only fields no create request can carry, redeemed once the server
-// (and its default world slot) is real. `pollOperation`/`operationPath`
+// staged fields that can only be redeemed once the server (and its default
+// world slot) is real. The first-world profile is sent in the create request
+// itself. `pollOperation`/`operationPath`
 // duplicate worlds/model.ts's and components/model.ts's own copies -- this
 // codebase's established per-domain convention, not shared to avoid
 // cross-domain coupling (see either file's own doc comment).
@@ -536,6 +543,13 @@ export function buildServerCreateRequest(
   if (worldName) body.worldName = worldName;
   const worldSeed = draft.worldSeed.trim();
   if (worldSeed) body.worldSeed = worldSeed;
+  if (draft.worldSettings) {
+    body.worldSettings = worldSettingsProfile(
+      draft.worldSettings,
+      draft.serverType,
+      draft.worldSettings.capabilities,
+    );
+  }
   if (draft.serverType === 'java') {
     body.javaFlavor = draft.javaFlavor;
     if (draft.versionId) body.versionId = draft.versionId;

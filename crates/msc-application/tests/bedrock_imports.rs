@@ -5,6 +5,7 @@ use msc_application::provisioning::{
 };
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
+use msc_domain::world_profile::WorldProfile;
 use msc_infrastructure::fs::StdFileSystem;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -115,6 +116,7 @@ fn fresh_bedrock_creation_writes_native_config_and_active_slot_transactionally()
         difficulty: "easy",
         gamemode: "survival",
         world_seed: Some(" 12345 "),
+        initial_world_profile: None,
         world_source: BedrockWorldSource::Fresh,
     };
 
@@ -132,7 +134,7 @@ fn fresh_bedrock_creation_writes_native_config_and_active_slot_transactionally()
     assert_eq!(created.world_slot.name, "New Realm");
     assert_eq!(
         fs::read_to_string(server_dir.join("server.properties")).unwrap(),
-        "# Modified via MinecraftServerController\nallow-cheats=false\ndifficulty=easy\ngamemode=survival\nlevel-name=New Realm\nlevel-seed=12345\nmax-players=20\nonline-mode=true\nserver-name=Survival Realm\nserver-port=19132\nserver-portv6=19133\n"
+        "# Modified via MSC 2\nallow-cheats=false\ndifficulty=easy\ngamemode=survival\nlevel-name=New Realm\nlevel-seed=12345\nmax-players=20\nonline-mode=true\nserver-name=Survival Realm\nserver-port=19132\nserver-portv6=19133\n"
     );
     assert_eq!(
         fs::read_to_string(server_dir.join("allowlist.json")).unwrap(),
@@ -141,6 +143,58 @@ fn fresh_bedrock_creation_writes_native_config_and_active_slot_transactionally()
     assert_eq!(
         fs::read_to_string(server_dir.join("world_slots/active_slot_id.txt")).unwrap(),
         format!("{}\n", created.world_slot.id)
+    );
+}
+
+#[test]
+fn fresh_bedrock_creation_applies_the_first_world_profile() {
+    let temp = TempDir::new("fresh-profile");
+    let mut profile = WorldProfile::new();
+    profile.identity.name = Some("Configured Realm".to_string());
+    profile.identity.level_name = Some("configured_level".to_string());
+    profile.identity.seed = Some("bedrock-seed".to_string());
+    profile.generation.structures = Some(false);
+    profile.gameplay.difficulty = Some("hard".to_string());
+    profile.gameplay.default_game_mode = Some("creative".to_string());
+    profile.gameplay.cheats = Some(true);
+    profile.gameplay.coordinates = Some(false);
+    profile.gameplay.starting_map = Some(true);
+
+    let request = BedrockCreateRequest {
+        name: "Survival Realm",
+        initial_world_name: None,
+        bedrock_version: Some("1.21.80.3"),
+        port: 19132,
+        max_players: 20,
+        enable_playit: false,
+        enable_xbox_broadcast: false,
+        difficulty: "normal",
+        gamemode: "survival",
+        world_seed: None,
+        initial_world_profile: Some(&profile),
+        world_source: BedrockWorldSource::Fresh,
+    };
+
+    let created = create_bedrock_server(
+        &StdFileSystem,
+        temp.path(),
+        &request,
+        "2026-08-23T12:00:00Z",
+    )
+    .unwrap();
+    let server_dir = PathBuf::from(&created.config.server_dir);
+    let properties = fs::read_to_string(server_dir.join("server.properties")).unwrap();
+    assert!(properties.contains("level-name=configured_level\n"));
+    assert!(properties.contains("level-seed=bedrock-seed\n"));
+    assert!(properties.contains("difficulty=hard\n"));
+    assert!(properties.contains("gamemode=creative\n"));
+    assert!(properties.contains("allow-cheats=true\n"));
+    assert!(properties.contains("show-coordinates=false\n"));
+    assert!(properties.contains("starting-map=true\n"));
+    assert_eq!(created.world_slot.name, "Configured Realm");
+    assert_eq!(
+        created.world_slot.world_seed.as_deref(),
+        Some("bedrock-seed")
     );
 }
 
@@ -164,6 +218,7 @@ fn existing_bedrock_world_wrapper_is_unwrapped_and_archived() {
         difficulty: "easy",
         gamemode: "survival",
         world_seed: Some("ignored for imports"),
+        initial_world_profile: None,
         world_source: BedrockWorldSource::ExistingFolder(&source),
     };
     let created = create_bedrock_server(
@@ -209,6 +264,7 @@ fn failed_bedrock_creation_removes_candidate_directory() {
         difficulty: "easy",
         gamemode: "survival",
         world_seed: None,
+        initial_world_profile: None,
         world_source: BedrockWorldSource::ExistingFolder(&source),
     };
     assert!(

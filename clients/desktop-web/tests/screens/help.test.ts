@@ -186,6 +186,11 @@ describe('shared help and onboarding screens', () => {
     expect(splashSource).toContain('onerror={handleVideoError}');
   });
 
+  it('opens the Handbook on Overview instead of relying on catalog ordering', () => {
+    expect(helpSource).toContain("?? 'handbook.overview';");
+    expect(helpSource).not.toContain('catalog.topics[0]?.helpId');
+  });
+
   it('italicizes only the Overview subtitle', () => {
     expect(handbookSource).toContain(
       "class:overview-subtitle={topic.helpId === 'handbook.overview'}",

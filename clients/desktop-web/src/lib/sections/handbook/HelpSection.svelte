@@ -11,7 +11,12 @@
   import Card from '../../components/base/Card.svelte';
   import Icon from '../../components/base/Icon.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
-  import { applicableTourSteps, firstLaunchStage, nextTourStep, type FirstLaunchState } from '../../help/onboarding';
+  import {
+    applicableTourSteps,
+    firstLaunchStage,
+    nextTourStep,
+    type FirstLaunchState,
+  } from '../../help/onboarding';
   import SetupIntro from '../../help/SetupIntro.svelte';
   import type {
     ConceptGuide,
@@ -84,7 +89,7 @@
     const hostSetup = await call(api, { complete: false }, '/v1/config/host-setup');
     launchState = readLaunchState(hostSetup.complete);
     const requestedTopic =
-      new URLSearchParams(window.location.search).get('topic') ?? catalog.topics[0]?.helpId ?? '';
+      new URLSearchParams(window.location.search).get('topic') ?? 'handbook.overview';
     await selectTopic(requestedTopic);
     loaded = true;
   });
@@ -161,11 +166,18 @@
             <Icon name="seal-check" size={13} />
             <span class="msc2-type-overline">Onboarding</span>
           </div>
-          <Button size="sm" variant="secondary" onclick={restartTour}>{onboarding.reopen.label}</Button>
+          <Button size="sm" variant="secondary" onclick={restartTour}
+            >{onboarding.reopen.label}</Button
+          >
         </div>
         <Card padding="18px" as="section">
           {#if launchStage === 'setup'}
-            <SetupIntro compact headingId="handbook-first-launch-title" {api} onComplete={completeSetup} />
+            <SetupIntro
+              compact
+              headingId="handbook-first-launch-title"
+              {api}
+              onComplete={completeSetup}
+            />
           {:else if launchStage === 'concept-guide'}
             <p class="msc2-type-body muted">
               Open How MSC Works above and read through it, then continue.
@@ -185,15 +197,27 @@
                 <div class="tour-card msc2-type-meta">{step.actionLabel ?? 'Continue'}</div>
               {/if}
               <div class="onboarding-actions">
-                <Button size="sm" variant="secondary" onclick={skipTour}>{onboarding.skip.label}</Button>
-                <Button size="sm" variant="primary" onclick={() => advanceTour(step.requiresUserAction)}>
+                <Button size="sm" variant="secondary" onclick={skipTour}
+                  >{onboarding.skip.label}</Button
+                >
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onclick={() => advanceTour(step.requiresUserAction)}
+                >
                   {step.requiresUserAction ? 'I did that' : (step.actionLabel ?? 'Continue')}
                 </Button>
               </div>
             {/if}
           {:else}
-            <p class="msc2-type-body muted">The Server Handbook stays available whenever you need it.</p>
-            <Button size="sm" variant="secondary" onclick={() => void selectTopic('handbook.overview')}>
+            <p class="msc2-type-body muted">
+              The Server Handbook stays available whenever you need it.
+            </p>
+            <Button
+              size="sm"
+              variant="secondary"
+              onclick={() => void selectTopic('handbook.overview')}
+            >
               Open Handbook
             </Button>
           {/if}

@@ -1030,6 +1030,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16h: italicize the Handbook Overview subtitle`
 **Batch:** solo
 
+### P12.16i — Default the Handbook to Overview
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/handbook/HelpSection.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Make the Handbook's initial topic deterministic. The agent catalog is sorted by help ID, so using its first entry could open the contextual `bedrock.runtime-unavailable` topic when the user only opened Guides. Preserve explicit `?topic=` links while defaulting an unqualified Handbook visit to `handbook.overview`.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/handbook/HelpSection.svelte tests/screens/help.test.ts && npx vitest run tests/screens/help.test.ts`
+**Commit:** `P12.16i: default the Handbook to Overview`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

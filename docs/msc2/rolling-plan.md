@@ -1421,7 +1421,15 @@ The inventory explicitly covers the Java create-world choices (world type/flat p
 **Verify:** `python3 tools/phase12/bedrock-package-check.py --selftest`
 **Commit:** `P12.31: package Bedrock runtimes for all hosts`
 **Batch:** solo
-**Notes:** Added one `agent/` Tauri resource payload and aligned the macOS, Windows, and Linux service paths with the desktop runtime lookup. Linux and Windows stage the native agent and keep their native BDS archives as verified first-run downloads; macOS requires `MSC2_BEDROCK_APPLIANCE_DIR`, validates the recorded MSC1 Intel appliance checksums, builds `BedrockSidecar` as x86_64, and stages the sidecar plus kernel/initramfs pair for GUI and headless layouts. The macOS installer passes the sibling sidecar directory to launchd. Apple Silicon remains intentionally unsupported. The exact package self-test passed; appliance binaries and live cross-platform package builds remain Cameron's verification work.
+**Notes:** Added one `agent/` Tauri resource payload and aligned the macOS, Windows, and Linux service paths with the desktop runtime lookup. Linux and Windows stage the native agent and keep their native BDS archives as verified first-run downloads; macOS validates the recorded Intel appliance checksums, builds `BedrockSidecar` as x86_64, and stages the sidecar plus kernel/initramfs pair for GUI and headless layouts. The macOS installer passes the sibling sidecar directory to launchd. Apple Silicon remains intentionally unsupported. The exact package self-test passed; appliance binaries and live cross-platform package builds remain Cameron's verification work. P12.31a makes the checked-in pair the default development input while retaining the environment variable as an override.
+
+### P12.31a — Make the macOS Bedrock appliance self-contained
+**Status:** built, awaiting verification
+**Files:** `sidecar/bedrock/Resources/vmlinuz-kata` (new), `sidecar/bedrock/Resources/appliance-initramfs.gz` (new), `clients/desktop-web/tools/prepare-agent-dev.mjs`, `sidecar/bedrock/Resources/README.md`, `docs/msc2/rolling-plan.md`
+**What:** Copy the verified Intel Bedrock kernel/initramfs pair into MSC 2's own sidecar resource directory and make that directory the default input for macOS development staging. Keep `MSC2_BEDROCK_APPLIANCE_DIR` as an explicit override for a deliberate replacement/release input. The macOS-only staging branch validates the same recorded checksums and copies the pair beside `BedrockSidecar`; Linux and Windows never read this directory, package this VM appliance, or change their native BDS paths. This removes the build-time dependency on the MSC 1 checkout. Before public distribution, confirm the pair's redistribution/license terms separately from the code port.
+**Verify:** `cd clients/desktop-web && env -u MSC2_BEDROCK_APPLIANCE_DIR npm run prepare:agent && cd ../.. && python3 tools/phase12/bedrock-package-check.py --selftest`
+**Commit:** `P12.31a: bundle the macOS Bedrock appliance`
+**Batch:** solo
 
 ### P12.32 — Make Bedrock creation and capability state honest after provisioning
 **Status:** awaiting verification

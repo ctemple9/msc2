@@ -39,12 +39,12 @@ if (process.platform === 'darwin') {
 }
 
 function stageMacosSidecar() {
-  const applianceDirectory = process.env.MSC2_BEDROCK_APPLIANCE_DIR;
-  if (!applianceDirectory) {
-    fail(
-      'MSC2_BEDROCK_APPLIANCE_DIR is required on macOS; point it at the supplied Intel appliance directory containing vmlinuz-kata and appliance-initramfs.gz.',
-    );
-  }
+  // The verified Intel pair is part of the MSC 2 repository so a macOS
+  // developer build does not depend on an external MSC 1 checkout. Keep the
+  // environment variable as an explicit override for release or replacement
+  // appliance inputs.
+  const applianceDirectory =
+    process.env.MSC2_BEDROCK_APPLIANCE_DIR || join(workspaceRoot, 'sidecar', 'bedrock', 'Resources');
 
   for (const [name, checksum] of Object.entries(applianceChecksums)) {
     const path = join(applianceDirectory, name);

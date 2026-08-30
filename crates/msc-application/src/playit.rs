@@ -155,6 +155,7 @@ pub enum PlayitSetupError {
     Cancelled,
     Api(PlayitApiError),
     CredentialStore,
+    AgentStart(String),
     TunnelMismatch(PlayitTunnelKind),
 }
 
@@ -164,6 +165,7 @@ impl PlayitSetupError {
             Self::Cancelled => "cancelled",
             Self::Api(error) => error.stable_code(),
             Self::CredentialStore => "credential_store_failed",
+            Self::AgentStart(_) => "playit_helper_start_failed",
             Self::TunnelMismatch(_) => "tunnel_mismatch",
         }
     }
@@ -176,6 +178,9 @@ impl fmt::Display for PlayitSetupError {
             Self::Api(error) => error.fmt(f),
             Self::CredentialStore => {
                 write!(f, "MSC could not save the Playit credentials on this host.")
+            }
+            Self::AgentStart(message) => {
+                write!(f, "MSC could not start the Playit agent: {message}")
             }
             Self::TunnelMismatch(kind) => write!(
                 f,
@@ -194,6 +199,7 @@ impl std::error::Error for PlayitSetupError {}
 pub struct PlayitAccountSetup<'a> {
     api: PlayitApi<'a>,
     secrets: &'a dyn SecretStore,
+    agent_starter: Option<&'a dyn Fn() -> Result<(), String>>,
 }
 
 impl<'a> PlayitAccountSetup<'a> {
@@ -201,6 +207,22 @@ impl<'a> PlayitAccountSetup<'a> {
         Self {
             api: PlayitApi::new(transport),
             secrets,
+            agent_starter: None,
+        }
+    }
+
+    /// Builds account setup with a temporary hook for launching the local
+    /// agent before tunnel provisioning. The hook is borrowed only for the
+    /// synchronous setup call and is never persisted with account state.
+    pub fn with_agent_starter(
+        transport: &'a dyn PlayitHttpTransport,
+        secrets: &'a dyn SecretStore,
+        agent_starter: &'a dyn Fn() -> Result<(), String>,
+    ) -> Self {
+        Self {
+            api: PlayitApi::new(transport),
+            secrets,
+            agent_starter: Some(agent_starter),
         }
     }
 
@@ -276,6 +298,29 @@ impl<'a> PlayitAccountSetup<'a> {
                 .map_err(|_| PlayitSetupError::CredentialStore)?;
             (claimed_agent_id, false, secret.as_str().to_owned())
         };
+
+        if !tunnel_specs.is_empty() {
+            // MSC1 starts playitd before asking the provider to list or create
+            // tunnels. The API reports AgentNotFound until that local agent
+            // has connected, so provisioning must not run ahead of it.
+            if should_cancel() {
+                if !reused_existing_agent {
+                    let _ = self.secrets.delete(PLAYIT_SECRET_KEY);
+                }
+                return Err(PlayitSetupError::Cancelled);
+            }
+            if reused_existing_agent {
+                report(PlayitSetupStage::WaitingForAgent);
+            }
+            if let Some(agent_starter) = self.agent_starter
+                && let Err(error) = agent_starter()
+            {
+                if !reused_existing_agent {
+                    let _ = self.secrets.delete(PLAYIT_SECRET_KEY);
+                }
+                return Err(PlayitSetupError::AgentStart(error));
+            }
+        }
 
         let tunnel_addresses = if tunnel_specs.is_empty() {
             PlayitTunnelAddresses::default()
@@ -375,7 +420,7 @@ impl<'a> PlayitAccountSetup<'a> {
             match self.api.list_tunnels(secret_key) {
                 Ok(tunnels) => return Ok(tunnels),
                 Err(error) if retryable_tunnel_error(error) => {
-                    if attempt + 1 < TUNNEL_ATTEMPTS && wait_for_claim_retry(should_cancel) {
+                    if attempt + 1 < TUNNEL_ATTEMPTS && wait_for_tunnel_retry(should_cancel) {
                         return Err(PlayitSetupError::Cancelled);
                     }
                 }
@@ -403,7 +448,7 @@ impl<'a> PlayitAccountSetup<'a> {
             {
                 Ok(()) => return Ok(()),
                 Err(error) if retryable_tunnel_error(error) => {
-                    if attempt + 1 < TUNNEL_ATTEMPTS && wait_for_claim_retry(should_cancel) {
+                    if attempt + 1 < TUNNEL_ATTEMPTS && wait_for_tunnel_retry(should_cancel) {
                         return Err(PlayitSetupError::Cancelled);
                     }
                 }
@@ -518,6 +563,19 @@ fn retryable_claim_error(error: PlayitApiError) -> bool {
 
 fn wait_for_claim_retry(should_cancel: &impl Fn() -> bool) -> bool {
     for _ in 0..6 {
+        if should_cancel() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    false
+}
+
+fn wait_for_tunnel_retry(should_cancel: &impl Fn() -> bool) -> bool {
+    // MSC1 allowed roughly 24 seconds for a newly started agent to register
+    // before giving up. Keep cancellation responsive while preserving that
+    // provider propagation window between the sixteen API attempts.
+    for _ in 0..15 {
         if should_cancel() {
             return true;
         }

@@ -2135,6 +2135,7 @@
           "agent_not_found",
           "playit_api_error",
           "credential_store_failed",
+          "playit_helper_start_failed",
           "tunnel_mismatch",
           "setup_in_progress"
         ],
@@ -2145,7 +2146,7 @@
           "browserApiClient": "forbidden",
           "twoFactor": "explicit-two_factor_required-error"
         },
-        "x-notes": "The agent lists tunnels with the read-only host key, creates missing tunnels with the short-lived web session, retries while the saved agent is offline, and reuses a named tunnel only when its saved agent, kind, origin, and local port match. A same-name mismatch returns tunnel_mismatch instead of retargeting the tunnel. Credentials and temporary session details remain memory-only; no browser-side Playit API client or paste-key shortcut is allowed."
+        "x-notes": "The agent starts the managed playitd process after the permanent host key is available and before listing or creating tunnels. It lists tunnels with the read-only host key, creates missing tunnels with the short-lived web session, retries while the saved agent is offline, and reuses a named tunnel only when its saved agent, kind, origin, and local port match. A same-name mismatch returns tunnel_mismatch instead of retargeting the tunnel. Credentials and temporary session details remain memory-only; no browser-side Playit API client or paste-key shortcut is allowed."
       }
     },
     "/v1/playit/reset": {

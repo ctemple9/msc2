@@ -963,6 +963,48 @@ fn native_setup_provisions_one_two_and_three_tunnel_accounts() {
 }
 
 #[test]
+fn native_setup_starts_agent_before_first_tunnel_request() {
+    let specs = [PlayitTunnelSpec {
+        kind: PlayitTunnelKind::Java,
+        local_port: 25565,
+    }];
+    let transport = FakeAccountTransport::new(setup_responses(
+        &specs,
+        vec![tunnel_fixture(PlayitTunnelKind::Java, 25565)],
+    ));
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let agent_starts = Mutex::new(0);
+    let ensure_agent = || {
+        *agent_starts.lock().unwrap() += 1;
+        let requests = transport.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1, "only sign-in may precede agent start");
+        Ok(())
+    };
+    let setup = msc_application::playit::PlayitAccountSetup::with_agent_starter(
+        &transport,
+        &secrets,
+        &ensure_agent,
+    );
+
+    setup
+        .run_with_tunnels(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            &specs,
+            || false,
+            |_| {},
+        )
+        .unwrap();
+
+    assert_eq!(*agent_starts.lock().unwrap(), 1);
+    assert_eq!(transport.requests.lock().unwrap()[1].0, "/tunnels/list");
+}
+
+#[test]
 fn native_setup_reuses_existing_tunnels_without_duplicates_on_repeat() {
     let specs = [PlayitTunnelSpec {
         kind: PlayitTunnelKind::Java,

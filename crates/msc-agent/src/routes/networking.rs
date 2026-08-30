@@ -8,6 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -295,6 +296,53 @@ impl NetworkingState {
         services
     }
 
+    /// Start the managed agent during native account setup, before the
+    /// application service asks Playit to inventory or create tunnels.
+    /// Returns true only when this setup call started a new helper, so a
+    /// failed setup can clean up its own process without stopping a helper
+    /// that was already serving the server.
+    fn start_playit_for_setup(&self, server: &ConfigServer) -> Result<bool, String> {
+        if !server.playit_enabled {
+            return Ok(false);
+        }
+
+        let mut services = self.playit_service(server);
+        let service = services.get_mut(&server.id).expect("service was inserted");
+        if service.lifecycle_status() == PlayitLifecycleStatus::Stopping {
+            return Err("The existing Playit helper is still stopping.".into());
+        }
+        if service.is_active() {
+            return Ok(false);
+        }
+
+        let acquisition =
+            msc_infrastructure::playit::PlayitBinaryAcquisition::for_current_platform(
+                self.transport,
+                self.fs,
+                self.helper_cache,
+            )
+            .map_err(|error| format!("Playit helper acquisition failed: {error}"))?;
+        let working_directory = PathBuf::from(&server.server_dir).join(".msc2-playit");
+        std::fs::create_dir_all(&working_directory).map_err(|error| {
+            format!("Playit helper working directory could not be created: {error}")
+        })?;
+        let launch = msc_infrastructure::playit::PlayitLaunch {
+            working_directory: working_directory.clone(),
+            secret_path: working_directory.join("secret-bridge"),
+        };
+        service
+            .start(launch, &acquisition)
+            .map(|_| true)
+            .map_err(|error| error.to_string())
+    }
+
+    fn stop_playit_after_setup_failure(&self, server_id: &str) {
+        let mut services = self.playit.lock().expect("Playit service lock poisoned");
+        if let Some(service) = services.get_mut(server_id) {
+            let _ = service.reset();
+        }
+    }
+
     fn broadcast_service(
         &self,
         server: &ConfigServer,
@@ -538,6 +586,7 @@ pub async fn playit_setup(
     let operation_id_for_worker = operation_id.clone();
     let operations = state.operations.clone();
     let lifecycle = state.lifecycle.clone();
+    let networking = state.clone();
     let transport = state.playit_transport;
     let secrets = state.secrets;
     let existing_agent_id = state.lifecycle.app_config_snapshot().playit_agent_id;
@@ -552,6 +601,9 @@ pub async fn playit_setup(
         .filter(|server| server.playit_enabled)
         .map(|server| server.server_dir.clone());
     let voice_server_id = active_server.as_ref().map(|server| server.id.clone());
+    let setup_server = active_server.clone();
+    let setup_started = Arc::new(AtomicBool::new(false));
+    let setup_started_for_worker = Arc::clone(&setup_started);
     let provisions_voice_tunnel = tunnel_specs
         .iter()
         .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Voice);
@@ -567,7 +619,6 @@ pub async fn playit_setup(
         // config/key write. Reset acquires the same permit before clearing
         // local state, so the two operations cannot overwrite one another.
         let _playit_mutation_permit = playit_mutation_permit;
-        let setup = PlayitAccountSetup::new(transport, secrets);
         let should_cancel = operations.cancellation_check(&operation_id_for_worker);
         let operation_for_progress = operation_id_for_worker.clone();
         let operations_for_progress = operations.clone();
@@ -580,6 +631,17 @@ pub async fn playit_setup(
                 stage.status_line(),
             );
         };
+        let ensure_agent = || {
+            let server = setup_server
+                .as_ref()
+                .ok_or_else(|| "No active server is selected for Playit tunnels.".to_string())?;
+            let started = networking.start_playit_for_setup(server)?;
+            if started {
+                setup_started_for_worker.store(true, Ordering::Release);
+            }
+            Ok(())
+        };
+        let setup = PlayitAccountSetup::with_agent_starter(transport, secrets, &ensure_agent);
         let result = setup.run_with_tunnels(
             &email,
             &password,
@@ -615,6 +677,11 @@ pub async fn playit_setup(
                     })
                     .is_ok();
                 if !config_saved {
+                    if setup_started.load(Ordering::Acquire)
+                        && let Some(server) = setup_server.as_ref()
+                    {
+                        networking.stop_playit_after_setup_failure(&server.id);
+                    }
                     // A newly claimed key is useless without its matching
                     // agent ID. Remove it so a later attempt cannot create a
                     // second cloud agent because of a half-written local state.
@@ -647,12 +714,22 @@ pub async fn playit_setup(
                 }
             }
             Err(PlayitSetupError::Cancelled) => {
+                if setup_started.load(Ordering::Acquire)
+                    && let Some(server) = setup_server.as_ref()
+                {
+                    networking.stop_playit_after_setup_failure(&server.id);
+                }
                 let _ = operations.cancel(
                     &operation_id_for_worker,
                     "Playit setup cancelled before credentials were saved.",
                 );
             }
             Err(error) => {
+                if setup_started.load(Ordering::Acquire)
+                    && let Some(server) = setup_server.as_ref()
+                {
+                    networking.stop_playit_after_setup_failure(&server.id);
+                }
                 let _ = operations.fail(
                     &operation_id_for_worker,
                     error.stable_code(),

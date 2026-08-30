@@ -1399,6 +1399,14 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Batch:** stop-after
 **Notes:** Added exact pinned Playit release mappings for MSC's universal macOS helper, upstream Linux x86_64/arm64 assets, and the signed upstream Windows x86_64 asset, with SHA-256 checksums enforced by the existing acquisition boundary. Windows arm64 is explicit and fails before download or launch because no pinned upstream asset exists; the API contract documents the matrix and makes clear that `playitEnabled` is a saved preference rather than helper readiness. Added focused platform-pin tests and the live evidence worksheet covering sign-in/claim, agent reuse, Java/Bedrock/voice combinations, later SVC setup, lifecycle recovery, reset preservation, and P12.21/P12.22 address display. The exact Verify command passed formatting and Clippy, then nextest stopped after 31 of 1,210 tests because unchanged Bedrock production tests reported unavailable-sidecar provisioning failures (`bedrock_production_smoke` and `bedrock_production_cli`); no in-scope failure was reported, and the API summary was not reached because nextest failed fast. Cameron's live supported-platform walkthrough remains pending.
 
+### P12.20k — Start the managed Playit agent before tunnel provisioning
+**Status:** built, awaiting verification
+**Files:** `crates/msc-application/src/playit.rs`, `crates/msc-application/tests/playit.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/tests/playit_routes.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+**What:** Restore MSC1's required ordering for native setup: after the account key is available, start the managed `playitd` helper before the first tunnel inventory or create request. Keep setup's existing-agent path and first-use claim path covered, clean up a helper started by a setup that later fails, and give the provider the same roughly 24-second registration window MSC1 used for `AgentNotFound` tunnel retries. The existing server-specific tunnel rules remain the source of truth, so MSC2 creates one, two, or three tunnels only when the server configuration calls for them.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-application --test playit && cargo nextest run -p msc-agent --test playit_routes`
+**Commit:** `P12.20k: start Playit before tunnel provisioning`
+**Batch:** solo
+
 ### P12.21 — Sidebar: How to Connect + Maintenance
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte` (new), `clients/desktop-web/tests/visual/shell.test.ts`

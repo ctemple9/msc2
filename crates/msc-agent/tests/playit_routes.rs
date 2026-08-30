@@ -101,7 +101,7 @@ fn native_setup_is_networking_scoped_and_uses_the_shared_operation_model() {
         setup["x-security-boundary"]["browserApiClient"],
         "forbidden"
     );
-    assert_eq!(setup["x-error-codes"].as_array().unwrap().len(), 9);
+    assert_eq!(setup["x-error-codes"].as_array().unwrap().len(), 10);
     assert_eq!(
         contract()["paths"]["/v1/playit"]["get"]["x-tunnel-inventory"]["names"]["voice"],
         "MSC Voice"
@@ -189,6 +189,7 @@ fn native_setup_error_codes_are_stable_and_actionable_without_provider_details()
         "agent_not_found",
         "playit_api_error",
         "credential_store_failed",
+        "playit_helper_start_failed",
         "tunnel_mismatch",
         "setup_in_progress",
     ] {

@@ -25,12 +25,15 @@ use msc_infrastructure::secret_store::SecretStore;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 pub const PLAYIT_OPERATION_TYPE: &str = "playit-tunnel";
 pub const PLAYIT_SETUP_OPERATION_TYPE: &str = "playit-setup";
 pub const PLAYIT_SETUP_OPERATION_TARGET: &str = "playit-account";
+
+const PLAYIT_RESET_STOP_TIMEOUT: Duration = Duration::from_secs(5);
+const PLAYIT_RESET_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayitStartResult {
@@ -903,18 +906,59 @@ impl<'a> PlayitService<'a> {
         Ok(Some(operation_id.as_str().to_owned()))
     }
 
-    /// Reset removes only this host's bridge and key. The helper receives a
-    /// graceful stop request first; the pump finishes its stop operation when
-    /// the process actually exits.
+    /// Reset removes this service's host-local bridge. The route removes the
+    /// shared host key after every service has stopped. The helper is stopped
+    /// synchronously because clearing its bridge while it is still alive would
+    /// let a later setup race the old process. A short grace request is
+    /// followed by force termination and bounded event reconciliation.
     pub fn reset(&mut self) -> Result<(), PlayitError> {
-        let _ = self.stop()?;
+        let key = self.key();
+        self.poll()?;
+
+        if self.helper_is_live(&key) {
+            let _ = self.helpers.request_graceful_stop(&key);
+            if self.helper_is_live(&key) {
+                match self.helpers.force_terminate(&key) {
+                    Ok(()) | Err(HelperProcessError::NotRunning(_)) => {}
+                    Err(error) => return Err(map_process_error(error)),
+                }
+            }
+
+            let deadline = Instant::now() + PLAYIT_RESET_STOP_TIMEOUT;
+            loop {
+                self.poll()?;
+                if !self.helper_is_live(&key) {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    return Err(PlayitError::Process(
+                        "Playit helper did not stop during reset.".into(),
+                    ));
+                }
+                std::thread::sleep(PLAYIT_RESET_POLL_INTERVAL);
+            }
+        }
+
         self.cleanup_secret_bridge()?;
+        self.expecting_address = false;
+        self.snapshot = HelperSnapshot::stopped();
         self.lifecycle_status = if self.enabled {
             PlayitLifecycleStatus::SetupRequired
         } else {
             PlayitLifecycleStatus::Stopped
         };
         Ok(())
+    }
+
+    fn helper_is_live(&self, key: &HelperKey) -> bool {
+        matches!(
+            self.helpers.snapshot(key).map(|snapshot| snapshot.status),
+            Some(
+                ManagedHelperStatus::Starting
+                    | ManagedHelperStatus::Running
+                    | ManagedHelperStatus::Stopping
+            )
+        )
     }
 
     /// Recovery never trusts a former PID.  The caller must reconcile with

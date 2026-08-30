@@ -62,6 +62,9 @@ describe('native Playit setup sheet', () => {
     expect(broadcastSource).toContain('!playit?.playitEnabled');
     expect(broadcastSource).toContain('Add voice tunnel…');
     expect(broadcastSource).toContain('<PlayitSetupSheet');
+    expect(broadcastSource).toContain('if (!isActive || playitBusy || !playit) return;');
+    expect(broadcastSource).toContain('if (!isActive) return;');
+    expect(broadcastSource).toContain('loadVersion !== playitLoadVersion');
     expect(broadcastSource).not.toContain('gradient');
     expect(broadcastSource).not.toContain('backdrop-filter');
   });

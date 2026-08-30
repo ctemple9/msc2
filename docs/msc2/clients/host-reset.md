@@ -83,6 +83,45 @@ ID cannot authorize the client through this path.
 For either reset mode, first-time setup may hand off to the Add Server wizard.
 It must not create a Minecraft server as a side effect of reset or recovery.
 
+## Playit local reset and re-authentication
+
+`POST /v1/playit/reset` is the Playit-specific local reset. It requires the
+networking permission and acts on the serving host's active Playit state; it
+has no host or server selector. The agent stops and reconciles every managed
+`playitd` helper before it removes the secret bridge, then clears the stored
+Playit agent key, agent ID, Java/Bedrock/voice public addresses, and each
+server's Simple Voice Chat tunnel prompt state. The Playit dashboard is not
+called, so cloud agents and tunnels remain intact. Repeating the request is
+safe and returns `already_clear` when no local key remains.
+
+The desktop server editor only loads or mutates Playit for the currently
+active server. It invalidates an in-flight status response when the active
+host/server boundary changes, so a delayed response from the former selection
+cannot repaint the new server's Playit panel.
+
+After local reset, setup signs in again through the agent. The email,
+password, and temporary Playit session exist only during that setup operation;
+only the resulting host-scoped agent key is persisted. Setup then reuses a
+matching local agent when one exists, or claims an agent and creates/reuses
+only the tunnels applicable to the active server. A later voice setup follows
+the same memory-only credential boundary and does not return a reusable
+session to the client.
+
+### Manual Playit reset walkthrough
+
+1. Select the server that is active on the serving host, open **Broadcast →
+   Playit**, and choose **Manage setup…**. Confirm the local-reset warning.
+2. Confirm the agent reports the local key and public addresses as cleared,
+   the `playitd` helper is stopped, and the server's
+   `.msc2-playit/secret-bridge` file is gone. The Simple Voice Chat setup
+   prompt should be available again when voice is installed.
+3. Open the Playit dashboard separately and confirm the existing cloud agent
+   and tunnels are still present.
+4. Run the reset again to confirm the idempotent `already_clear` result, then
+   sign in through **Set up…** and confirm setup can reuse or claim the agent
+   and rebuild the applicable tunnel set without showing a password or
+   reusable session in status or operation results.
+
 ## Wire contract
 
 The public route and DTOs live in `docs/msc2/api-contract/openapi.json`:

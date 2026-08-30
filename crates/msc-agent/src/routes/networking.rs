@@ -147,7 +147,13 @@ impl PlayitLifecycleController {
             .clear();
         let mut services = self.services.lock().expect("Playit service lock poisoned");
         for service in services.values_mut() {
-            let _ = service.stop();
+            // Host reset is destructive to approved local paths, so it must
+            // use the same bounded reset as the explicit Playit reset route.
+            // A graceful request alone could leave playitd alive while its
+            // bridge and working directory are being removed.
+            if let Err(error) = service.reset() {
+                service.record_start_failure(error.to_string());
+            }
         }
     }
 
@@ -192,6 +198,7 @@ pub struct NetworkingState {
     pub(crate) lifecycle: LifecycleRoutesState,
     operations: OperationsState,
     playit: Arc<Mutex<BTreeMap<String, SharedPlayitService>>>,
+    playit_mutation: Arc<tokio::sync::Semaphore>,
     broadcast: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>,
     process: &'static (dyn ProcessSupervisor + Send + Sync),
     secrets: &'static (dyn SecretStore + Send + Sync),
@@ -222,6 +229,7 @@ impl NetworkingState {
         ));
         let _ = std::fs::create_dir_all(helper_cache);
         let playit = Arc::new(Mutex::new(BTreeMap::new()));
+        let playit_mutation = Arc::new(tokio::sync::Semaphore::new(1));
         for server in lifecycle.app_config_snapshot().servers {
             let bridge = Path::new(&server.server_dir)
                 .join(".msc2-playit")
@@ -232,6 +240,7 @@ impl NetworkingState {
             lifecycle,
             operations,
             playit: playit.clone(),
+            playit_mutation,
             broadcast: Arc::new(Mutex::new(BTreeMap::new())),
             process,
             secrets,
@@ -492,6 +501,20 @@ pub async fn playit_setup(
         return invalid_body("missing_password", "password is required.");
     }
 
+    // Reserve the single Playit mutation slot before admitting the operation.
+    // A worker that has been accepted but not scheduled yet must still be
+    // ordered before a reset that arrives immediately afterward.
+    let playit_mutation_permit = match Arc::clone(&state.playit_mutation).try_acquire_owned() {
+        Ok(permit) => permit,
+        Err(_) => {
+            return error_response(
+                StatusCode::CONFLICT,
+                "setup_in_progress",
+                "A Playit setup or reset is already in progress.",
+            );
+        }
+    };
+
     let operation_id = match state.operations.begin_lifecycle(
         PLAYIT_SETUP_OPERATION_TYPE,
         Some(PLAYIT_SETUP_OPERATION_TARGET.to_string()),
@@ -540,6 +563,10 @@ pub async fn playit_setup(
     // traits. Run it off the async executor, while the operation journal remains
     // the single source of progress and cancellation truth.
     tokio::task::spawn_blocking(move || {
+        // Hold the admission permit through the setup worker's final
+        // config/key write. Reset acquires the same permit before clearing
+        // local state, so the two operations cannot overwrite one another.
+        let _playit_mutation_permit = playit_mutation_permit;
         let setup = PlayitAccountSetup::new(transport, secrets);
         let should_cancel = operations.cancellation_check(&operation_id_for_worker);
         let operation_for_progress = operation_id_for_worker.clone();
@@ -638,9 +665,10 @@ pub async fn playit_setup(
     (StatusCode::ACCEPTED, Json(response)).into_response()
 }
 
-/// Clear host-local Playit state after requesting every currently managed
-/// helper to stop. The secret store delete is idempotent, and the cloud-side
-/// Playit agent and tunnels are deliberately untouched.
+/// Clear host-local Playit state after every currently managed helper has
+/// stopped. The mutation runs off the async executor because reset waits for
+/// process reconciliation, and it shares a lock with setup so the worker
+/// cannot write credentials or configuration over a reset that is in flight.
 pub async fn playit_reset(
     State(state): State<NetworkingState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -649,10 +677,33 @@ pub async fn playit_reset(
         return response;
     }
 
+    let result = tokio::task::spawn_blocking(move || reset_playit_local_state(&state)).await;
+    match result {
+        Ok(Ok(result)) => Json(result).into_response(),
+        Ok(Err((status, code, message))) => error_response(status, &code, &message),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "playit_reset_failed",
+            &format!("Playit reset worker failed: {error}"),
+        ),
+    }
+}
+
+fn reset_playit_local_state(
+    state: &NetworkingState,
+) -> Result<PlayitResetResultDto, (StatusCode, String, String)> {
+    let _playit_mutation_permit = state.playit_mutation.clone().acquire_owned();
+    let _playit_mutation_permit = tokio::runtime::Handle::current()
+        .block_on(_playit_mutation_permit)
+        .expect("Playit mutation semaphore closed");
     let mut services = state.playit.lock().expect("Playit service lock poisoned");
     for service in services.values_mut() {
         if let Err(error) = service.reset() {
-            return helper_error_response(error.to_string(), "playit_reset_failed");
+            return Err((
+                StatusCode::CONFLICT,
+                "playit_reset_failed".into(),
+                error.to_string(),
+            ));
         }
     }
     drop(services);
@@ -662,16 +713,30 @@ pub async fn playit_reset(
             .join(".msc2-playit")
             .join("secret-bridge");
         if let Err(error) = PlayitSecretBridge::remove_path(&bridge) {
-            return helper_error_response(error.to_string(), "playit_reset_failed");
+            return Err((
+                StatusCode::CONFLICT,
+                "playit_reset_failed".into(),
+                error.to_string(),
+            ));
         }
     }
 
     let had_secret = match state.secrets.get(PLAYIT_SECRET_KEY) {
         Ok(value) => value.is_some_and(|secret| !secret.trim().is_empty()),
-        Err(error) => return helper_error_response(error.to_string(), "playit_reset_failed"),
+        Err(error) => {
+            return Err((
+                StatusCode::CONFLICT,
+                "playit_reset_failed".into(),
+                error.to_string(),
+            ));
+        }
     };
     if let Err(error) = state.secrets.delete(PLAYIT_SECRET_KEY) {
-        return helper_error_response(error.to_string(), "playit_reset_failed");
+        return Err((
+            StatusCode::CONFLICT,
+            "playit_reset_failed".into(),
+            error.to_string(),
+        ));
     }
     if state
         .lifecycle
@@ -687,14 +752,14 @@ pub async fn playit_reset(
         })
         .is_err()
     {
-        return error_response(
+        return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
-            "playit_reset_failed",
-            "Could not clear the saved Playit state.",
-        );
+            "playit_reset_failed".into(),
+            "Could not clear the saved Playit state.".into(),
+        ));
     }
 
-    Json(PlayitResetResultDto {
+    Ok(PlayitResetResultDto {
         result: if had_secret {
             "cleared"
         } else {
@@ -704,7 +769,6 @@ pub async fn playit_reset(
         message: Some("Host-local Playit credentials and addresses were cleared.".into()),
         operation_id: None,
     })
-    .into_response()
 }
 
 pub async fn playit_start(

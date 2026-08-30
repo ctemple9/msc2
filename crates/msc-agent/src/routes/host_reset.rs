@@ -194,15 +194,27 @@ async fn run_reset(
 ) -> Result<(), (String, String)> {
     state
         .operations
-        .progress(&operation_id, 1, 4, "Removing approved host files.")
+        .progress(
+            &operation_id,
+            1,
+            4,
+            "Stopping managed helpers and clearing in-memory host state.",
+        )
+        .map_err(operation_failure)?;
+    // Playit owns a host-local secret bridge inside a server directory. Stop
+    // and reconcile it while those approved paths still exist, before the
+    // destructive part of the host reset removes them.
+    state.lifecycle.reset_after_host_reset();
+    state
+        .operations
+        .progress(&operation_id, 2, 4, "Removing approved host files.")
         .map_err(operation_failure)?;
     workflow
         .apply_files(mode)
         .map_err(|error| ("reset_files_failed".to_string(), error.to_string()))?;
-    state.lifecycle.reset_after_host_reset();
     state
         .operations
-        .progress(&operation_id, 2, 4, "Cleared in-memory host state.")
+        .progress(&operation_id, 3, 4, "Cleared approved host files.")
         .map_err(operation_failure)?;
     state
         .auth
@@ -212,7 +224,7 @@ async fn run_reset(
         .operations
         .progress(
             &operation_id,
-            3,
+            4,
             4,
             "Revoked credentials and rotated host identity.",
         )

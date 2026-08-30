@@ -65,6 +65,7 @@
 
   let notice = '';
   let loaded = false;
+  let playitLoadVersion = 0;
 
   $: broadcastRunning = isJava
     ? (status?.xboxBroadcastRunning ?? false)
@@ -77,10 +78,16 @@
     loaded = true;
     void loadAll();
   }
-  $: if (!isActive) loaded = false;
+  $: if (!isActive) {
+    loaded = false;
+    // Invalidate requests started for the former host/server boundary. The
+    // shared API client can change targets while an awaited request is out.
+    playitLoadVersion += 1;
+  }
 
   async function loadAll(): Promise<void> {
-    [status, autostart, jarStatus, playit, duckdns, resourcePacks, serverStatus] = await Promise.all([
+    const loadVersion = ++playitLoadVersion;
+    const nextValues = await Promise.all([
       call(api, status, serverEditorPaths.broadcastStatus),
       call(api, autostart, serverEditorPaths.broadcastAutostart),
       call(api, jarStatus, serverEditorPaths.broadcastJarStatus),
@@ -89,6 +96,8 @@
       call(api, resourcePacks, serverEditorPaths.resourcePacks),
       call(api, serverStatus, serverEditorPaths.status),
     ]);
+    if (!isActive || loadVersion !== playitLoadVersion) return;
+    [status, autostart, jarStatus, playit, duckdns, resourcePacks, serverStatus] = nextValues;
     duckHost = duckdns?.hostname ?? '';
   }
 
@@ -160,7 +169,7 @@
   }
 
   async function togglePlayit(): Promise<void> {
-    if (playitBusy || !playit) return;
+    if (!isActive || playitBusy || !playit) return;
     playitBusy = true;
     try {
       const path = playit.isRunning ? serverEditorPaths.playitStop : serverEditorPaths.playitStart;
@@ -174,13 +183,18 @@
   }
 
   function openPlayitSetup(): void {
+    if (!isActive) return;
     playitSetupVoiceOnly = playitNeedsVoiceSetup;
     showPlayitSetup = true;
   }
 
   function refreshPlayit(): void {
+    if (!isActive) return;
+    const loadVersion = ++playitLoadVersion;
     void (async () => {
-      playit = await call(api, playit, serverEditorPaths.playit);
+      const nextPlayit = await call(api, playit, serverEditorPaths.playit);
+      if (!isActive || loadVersion !== playitLoadVersion) return;
+      playit = nextPlayit;
     })();
   }
 

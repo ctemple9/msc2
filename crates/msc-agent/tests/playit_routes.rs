@@ -242,3 +242,42 @@ fn networking_registers_and_polls_playit_with_the_lifecycle_owner() {
         );
     }
 }
+
+#[test]
+fn reset_waits_for_helper_exit_and_serializes_account_mutation() {
+    let networking = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/routes/networking.rs"),
+    )
+    .expect("read networking routes");
+    for marker in [
+        "playit_mutation",
+        "spawn_blocking(move || reset_playit_local_state(&state))",
+        "service.reset()",
+        "state.secrets.delete(PLAYIT_SECRET_KEY)",
+        "config.playit_agent_id = None",
+        "server.svc_tunnel_prompt_dismissed = false",
+    ] {
+        assert!(
+            networking.contains(marker),
+            "missing reset boundary {marker}"
+        );
+    }
+}
+
+#[test]
+fn playit_routes_resolve_mutations_through_the_active_server() {
+    let networking = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/routes/networking.rs"),
+    )
+    .expect("read networking routes");
+    for marker in [
+        "fn active_server(&self) -> Result<ConfigServer, Response>",
+        "let server = match state.active_server()",
+        "services.get_mut(&server.id)",
+    ] {
+        assert!(
+            networking.contains(marker),
+            "missing active-server boundary {marker}"
+        );
+    }
+}

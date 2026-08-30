@@ -357,6 +357,39 @@ fn playit_stop_is_journaled_until_graceful_exit() {
 }
 
 #[test]
+fn playit_reset_reconciles_helper_before_removing_bridge() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    let first_launch = launch();
+    let bridge_path = first_launch.secret_path.clone();
+
+    service.start(first_launch, &binary).unwrap();
+    let pid = supervisor.spawned_requests().pop().unwrap().0;
+    service.reset().unwrap();
+
+    assert_eq!(supervisor.graceful_stops(), vec![pid]);
+    assert_eq!(supervisor.force_terminations(), vec![pid]);
+    assert!(!bridge_path.exists());
+    assert_eq!(
+        service.lifecycle_status(),
+        PlayitLifecycleStatus::SetupRequired
+    );
+
+    // The manager has observed the exit, so a fresh setup/start can create a
+    // new supervised helper instead of colliding with the old one.
+    service.start(launch(), &binary).unwrap();
+    assert_eq!(supervisor.spawned_requests().len(), 2);
+}
+
+#[test]
 fn playit_can_start_again_after_a_clean_stop() {
     let fs = FakeFileSystem::new()
         .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)

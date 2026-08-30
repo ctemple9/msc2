@@ -11,12 +11,6 @@
   // AddOnsStep already established -- Create/Done replace Continue on
   // AddServerWizard's own footer rather than this component growing its own.
   //
-  // Not ported: the oracle's live `installerLogView` (raw installer stdout
-  // lines streamed from a local subprocess). MSC 2's client/agent split has
-  // no such stream -- OperationDTO.statusLine is the one human-readable
-  // progress line the agent exposes for this operation, shown directly
-  // instead, matching worlds/WorldConversionWizard.svelte's own precedent.
-  //
   // Success state reuses StatusDot (docs/msc2/antiAIslop.md tell #12's own
   // "correct usage" example -- a defined state, always labeled) instead of
   // the oracle's large accent-colored checkmark circle, which is exactly
@@ -28,9 +22,7 @@
   // oracle's own `confirmFormView`/`postCreateHint`, which branch on
   // `wizardPath` the same way).
   import StatusDot from '../../../components/base/StatusDot.svelte';
-  import Button from '../../../components/base/Button.svelte';
   import Field from '../../../components/base/Field.svelte';
-  import FirstStartSheet from '../../server-editor/FirstStartSheet.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import {
     JAVA_CATEGORY_INFO,
@@ -52,8 +44,6 @@
   export let statusMessage: string;
   export let createSucceeded: boolean;
   export let createWarnings: readonly string[] = [];
-
-  let showFirstStart = false;
 
   $: importScan = draft.importScan;
   $: importActiveWorldName = draft.importActiveWorldName ?? importScan?.defaultWorldName;
@@ -104,6 +94,9 @@
         {#if path === 'importExisting'}
           Open Server Settings to review defaults.{#if !draft.importEulaAccepted}
             The EULA still needs to be accepted before this server can start.{/if}
+        {:else if draft.worldSourceMode === 'fresh'}
+          Open Server Settings to review defaults, then choose Initiate in the server controls for
+          the one-time file, world, and connection setup.
         {:else if draft.javaCategory === 'modded'}
           Add mods in the Components tab before starting — world-gen mods must be present on first
           boot.
@@ -116,20 +109,6 @@
       {#each createWarnings as warning (warning)}
         <p class="hint warn">{warning}</p>
       {/each}
-      {#if path === 'fresh' && draft.worldSourceMode === 'fresh'}
-        <div class="first-start-action">
-          <div>
-            <p class="action-title">Run first-start setup</p>
-            <p class="hint">
-              MSC will create the real world files, set up selected connections, then stop the
-              server. Future starts are manual.
-            </p>
-          </div>
-          <Button variant="primary" size="sm" onclick={() => (showFirstStart = true)}
-            >Start first run</Button
-          >
-        </div>
-      {/if}
     </div>
   {:else}
     <div class="intro">
@@ -331,21 +310,6 @@
   {/if}
 </div>
 
-{#if showFirstStart}
-  <FirstStartSheet
-    {api}
-    serverName={displayName || draft.serverName}
-    serverType={draft.serverType}
-    localPort={draft.serverType === 'java' ? draft.javaPort : draft.bedrockPort}
-    localBedrockPort={draft.serverType === 'java' && draft.enableCrossPlay
-      ? draft.crossPlayBedrockPort
-      : undefined}
-    playitEnabled={draft.enablePlayit}
-    broadcastEnabled={draft.enableXboxBroadcast}
-    onClose={() => (showFirstStart = false)}
-  />
-{/if}
-
 <style>
   .confirm {
     display: flex;
@@ -447,20 +411,5 @@
     flex-direction: column;
     gap: 8px;
     padding: 8px 0;
-  }
-
-  .first-start-action {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 12px 0 2px;
-    border-top: 1px solid var(--msc2-hairline-subtle);
-  }
-  .action-title {
-    margin: 0 0 3px;
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--msc2-text-primary);
   }
 </style>

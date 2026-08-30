@@ -1407,6 +1407,14 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Commit:** `P12.20k: start Playit before tunnel provisioning`
 **Batch:** solo
 
+### P12.20l — Put first-start initiation on the main server control
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/sections/fleet/ManageSheet.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/ConfirmStep.svelte`, `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `clients/desktop-web/tests/screens/first-start.test.ts`, `clients/desktop-web/tests/visual/shell.test.ts`, `crates/msc-api/src/dto/lifecycle.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/servers.rs`, `docs/msc2/api-contract/openapi.json`, `docs/msc2/rolling-plan.md`
+**What:** Match MSC1's two-phase server control: expose the agent-owned first-start state and saved transport settings in the server list, label the main control `Initiate` until that state clears, and open the existing first-start coordinator from that control. Remove the post-create `Start first run` action so the Add Server wizard ends at confirmation. Put Java EULA acceptance in the coordinator before Pass 1, show the live console tail while initiation is running, preserve Bedrock's no-EULA path, and keep the one-to-three tunnel decisions inside the existing Playit setup flow. Creating a server refreshes the active selection so the new server immediately exposes `Initiate`.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/api/generated.ts src/lib/components/ApplicationShell.svelte src/lib/components/shell/ControlSidebar.svelte src/lib/sections/fleet/ManageSheet.svelte src/lib/sections/fleet/wizard/ConfirmStep.svelte src/lib/sections/server-editor/FirstStartSheet.svelte tests/screens/first-start.test.ts tests/visual/shell.test.ts && npx vitest run tests/screens/first-start.test.ts tests/visual/shell.test.ts tests/screens/add-server-wizard.test.ts && npm run build && npm run api:generate -- --check && cd ../.. && cargo fmt --all -- --check && cargo clippy -p msc-api -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-agent --test lifecycle_routes`
+**Commit:** `P12.20l: put first-start initiation on the main server control`
+**Batch:** solo
+
 ### P12.21 — Sidebar: How to Connect + Maintenance
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte` (new), `clients/desktop-web/tests/visual/shell.test.ts`

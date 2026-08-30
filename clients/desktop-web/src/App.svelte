@@ -7,6 +7,7 @@
   import SplashGate from './lib/help/SplashGate.svelte';
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
+  import FirstStartSheet from './lib/sections/server-editor/FirstStartSheet.svelte';
   import { buildSectionPath } from './lib/navigation/route';
   import {
     AgentHealthTimeoutError,
@@ -275,6 +276,9 @@
   let shellMessage = 'Connecting to the selected host…';
   let servers: readonly Schema['ServerDTO'][] = [];
   let status: Schema['RemoteAPIStatus'] = defaultStatus;
+  let initiationServer: Schema['ServerDTO'] | undefined;
+
+  $: activeServer = servers.find((server) => server.id === selectedServerId);
 
   type HostResetResult = {
     operationId: string;
@@ -497,6 +501,27 @@
     }
   }
 
+  function openInitiation(): void {
+    if (!activeServer || status.running) return;
+    initiationServer = activeServer;
+  }
+
+  async function refreshServerSnapshot(): Promise<void> {
+    if (!clientReady) return;
+    try {
+      servers = await screenApi.get<Schema['ServerDTO'][]>('/v1/servers');
+      status = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+    } catch {
+      // The sheet already presents the operation's result; a later shell poll
+      // can reconcile the list if the host drops during the final stop.
+    }
+  }
+
+  function closeInitiation(): void {
+    initiationServer = undefined;
+    void refreshServerSnapshot();
+  }
+
   async function initializeClient(): Promise<void> {
     clientReady = false;
     capabilities = null;
@@ -623,6 +648,7 @@
   onSelectServer={(id) => void selectServer(id)}
   onSwitchHost={(id) => void switchHost(id)}
   onLifecycle={(action) => void lifecycle(action)}
+  onInitiate={openInitiation}
   onOpenAgentSetup={openAgentSetup}
   onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}
   onManage={() => (manageOpen = true)}
@@ -656,6 +682,23 @@
     </div>
   {/if}
 </ApplicationShell>
+
+{#if initiationServer}
+  <FirstStartSheet
+    api={screenApi}
+    serverName={initiationServer.name}
+    serverType={initiationServer.serverType === 'bedrock' ? 'bedrock' : 'java'}
+    localPort={initiationServer.gamePort ??
+      (initiationServer.serverType === 'bedrock' ? 19132 : 25565)}
+    localBedrockPort={initiationServer.serverType !== 'bedrock'
+      ? initiationServer.bedrockPort
+      : undefined}
+    playitEnabled={initiationServer.playitEnabled ?? false}
+    broadcastEnabled={initiationServer.xboxBroadcastEnabled ?? false}
+    onClose={closeInitiation}
+    onComplete={() => void refreshServerSnapshot()}
+  />
+{/if}
 
 {#if manageOpen}
   <ManageSheet

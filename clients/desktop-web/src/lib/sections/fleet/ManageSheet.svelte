@@ -97,6 +97,8 @@
   async function refreshServers(): Promise<void> {
     if (!api) return;
     onServersChanged(await api.get<Schema['ServerDTO'][]>('/v1/servers'));
+    const currentStatus = await api.get<Schema['RemoteAPIStatus']>('/v1/status');
+    if (currentStatus.activeServerId) onActivated(currentStatus.activeServerId);
   }
 
   function openMenu(serverId: string, event: MouseEvent): void {

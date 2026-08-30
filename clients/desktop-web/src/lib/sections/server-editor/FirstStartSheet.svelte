@@ -2,6 +2,7 @@
   // First-start is an agent-owned two-pass operation. This sheet only drives
   // the existing routes and renders their truth; credentials stay inside
   // PlayitSetupSheet and never enter this coordinator's state.
+  import { onDestroy, onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
@@ -10,6 +11,7 @@
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation, serverEditorPaths } from './model';
   import { fleetMutationPaths } from '../fleet/model';
+  import { livePaths, type ConsoleLine } from '../console/model';
 
   export let api: ScreenApi | undefined = undefined;
   export let serverName: string;
@@ -33,7 +35,7 @@
   type TransportState = 'waiting' | 'ready' | 'skipped' | 'failed' | 'not-applicable';
   type TransportKey = 'playit' | 'broadcast';
 
-  let phase: Phase = serverType === 'java' ? 'eula' : 'eula';
+  let phase: Phase = 'eula';
   let operationId = '';
   let statusLine = '';
   let error = '';
@@ -51,17 +53,37 @@
   };
   let passTwoStartedAt = 0;
   let stopRequested = false;
+  let eulaAccepted = false;
+  let consoleLines: ConsoleLine[] = [];
+  let consoleTimer: ReturnType<typeof setInterval> | undefined;
 
   $: busy =
     phase === 'starting-pass-one' ||
     phase === 'starting-pass-two' ||
     phase === 'waiting' ||
     phase === 'stopping';
-  $: title = phase === 'complete' ? 'First Start' : `Start ${serverName || 'server'}`;
-  $: allTransportsResolved = Object.values(transport).every(
-    (state) => state !== 'waiting',
-  );
+  $: title = phase === 'complete' ? 'First Start' : `Initiate ${serverName || 'server'}`;
+  $: allTransportsResolved = Object.values(transport).every((state) => state !== 'waiting');
   $: serverReady = /ready/i.test(statusLine);
+
+  async function refreshConsole(): Promise<void> {
+    if (!api) return;
+    try {
+      consoleLines = await api.get<ConsoleLine[]>(livePaths.tail);
+    } catch {
+      // The operation remains authoritative if the agent is briefly
+      // unreachable; keep the last visible console tail in place.
+    }
+  }
+
+  onMount(() => {
+    consoleTimer = setInterval(() => void refreshConsole(), 1000);
+    void refreshConsole();
+  });
+
+  onDestroy(() => {
+    if (consoleTimer) clearInterval(consoleTimer);
+  });
 
   function setTransport(key: TransportKey, state: TransportState): void {
     transport = { ...transport, [key]: state };
@@ -92,6 +114,10 @@
 
   async function acceptEula(): Promise<void> {
     if (!api || busy) return;
+    if (serverType === 'java' && !eulaAccepted) {
+      error = 'Accept the Minecraft EULA before continuing.';
+      return;
+    }
     error = '';
     statusLine = 'Preparing the first start…';
     try {
@@ -121,7 +147,11 @@
     if (operation?.state !== 'succeeded') {
       throw new Error(operation?.error?.message ?? 'The first server start did not complete.');
     }
-    if (operation.result && typeof operation.result === 'object' && 'firstStartComplete' in operation.result) {
+    if (
+      operation.result &&
+      typeof operation.result === 'object' &&
+      'firstStartComplete' in operation.result
+    ) {
       await finishComplete();
       return;
     }
@@ -134,7 +164,9 @@
     broadcastChoiceRequired = broadcastEnabled;
     statusLine = 'The first run is ready. Choose which connections to finish setting up.';
     if (broadcastEnabled) {
-      const jar = await api?.get<Schema['BroadcastJarStatusDTO']>(serverEditorPaths.broadcastJarStatus);
+      const jar = await api?.get<Schema['BroadcastJarStatusDTO']>(
+        serverEditorPaths.broadcastJarStatus,
+      );
       if (!jar?.installed) {
         statusLine = 'Downloading the Xbox Broadcast helper…';
         const downloaded = await mutate<Schema['BroadcastJarDownloadResultDTO']>(
@@ -187,7 +219,12 @@
   }
 
   function maybeBeginPassTwo(): void {
-    if (phase !== 'transport-setup' || showPlayitSetup || playitChoiceRequired || broadcastChoiceRequired)
+    if (
+      phase !== 'transport-setup' ||
+      showPlayitSetup ||
+      playitChoiceRequired ||
+      broadcastChoiceRequired
+    )
       return;
     void startPassTwo();
   }
@@ -200,7 +237,10 @@
     stopRequested = false;
     try {
       if (transport.playit === 'waiting') {
-        const result = await mutate<Schema['PlayitActionResultDTO']>(api, serverEditorPaths.playitStart);
+        const result = await mutate<Schema['PlayitActionResultDTO']>(
+          api,
+          serverEditorPaths.playitStart,
+        );
         if (result.operationId) void pollOperation(api, result.operationId);
       }
       if (transport.broadcast === 'waiting') {
@@ -262,7 +302,9 @@
   async function monitorPassTwo(): Promise<void> {
     if (!api) return;
     for (;;) {
-      const operation = await api.get<Schema['OperationDTO']>(`/v1/operations/${encodeURIComponent(operationId)}`);
+      const operation = await api.get<Schema['OperationDTO']>(
+        `/v1/operations/${encodeURIComponent(operationId)}`,
+      );
       statusLine = operation.statusLine ?? statusLine;
       await Promise.all([refreshPlayit(), refreshBroadcast()]);
       if (operation.state === 'failed' || operation.state === 'cancelled') {
@@ -279,7 +321,10 @@
       }
       if (!stopRequested && Date.now() - passTwoStartedAt >= 600_000) {
         setTransport('playit', transport.playit === 'waiting' ? 'failed' : transport.playit);
-        setTransport('broadcast', transport.broadcast === 'waiting' ? 'failed' : transport.broadcast);
+        setTransport(
+          'broadcast',
+          transport.broadcast === 'waiting' ? 'failed' : transport.broadcast,
+        );
         statusLine = 'The first-start safety limit was reached; stopping the server.';
         await requestStop();
       }
@@ -310,34 +355,46 @@
         <p class="msc2-type-overline">One-time setup</p>
         <h2>Prepare {serverName || 'your server'}</h2>
         <p class="copy">
-          MSC will start the server once to create its real configuration and world files, then
-          stop it while you choose optional connections.
+          MSC will start the server once to create its real configuration and world files, then stop
+          it while you choose optional connections.
         </p>
       </div>
       {#if serverType === 'java'}
         <p class="notice">
-          Starting confirms that you accept Mojang's Minecraft server EULA. You can review it in
-          Server Settings afterward.
+          Accept Mojang's Minecraft server EULA here before MSC creates the server files. You can
+          review it in Server Settings afterward.
         </p>
+        <label class="eula-check">
+          <input type="checkbox" bind:checked={eulaAccepted} />
+          <span>I accept the Minecraft server EULA.</span>
+        </label>
       {/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
       <div class="actions">
         <span class="action-spacer"></span>
         <Button variant="secondary" onclick={onClose}>Later</Button>
-        <Button variant="primary" onclick={() => void acceptEula()}>Start first run</Button>
+        <Button
+          variant="primary"
+          disabled={serverType === 'java' && !eulaAccepted}
+          onclick={() => void acceptEula()}>Continue</Button
+        >
       </div>
     </div>
   {:else if phase === 'starting-pass-one'}
     <div class="stack">
       <p class="msc2-type-overline">Pass 1 of 2</p>
       <h2>Creating the server files</h2>
-      <p class="copy">The agent is waiting for the server-ready signal before it stops the first run.</p>
+      <p class="copy">
+        The agent is waiting for the server-ready signal before it stops the first run.
+      </p>
       <p class="status-line" role="status" aria-live="polite">{statusLine}</p>
     </div>
   {:else if phase === 'transport-setup' || phase === 'starting-pass-two' || phase === 'waiting' || phase === 'stopping'}
     <div class="stack">
       <div>
-        <p class="msc2-type-overline">{phase === 'transport-setup' ? 'Pass 1 complete' : 'Pass 2 of 2'}</p>
+        <p class="msc2-type-overline">
+          {phase === 'transport-setup' ? 'Pass 1 complete' : 'Pass 2 of 2'}
+        </p>
         <h2>{phase === 'transport-setup' ? 'Choose connections' : 'Checking connections'}</h2>
         <p class="copy">
           MSC waits for the server and every enabled connection, then stops the server. Setup time
@@ -347,16 +404,33 @@
 
       <div class="transport-list" aria-label="First-start connections">
         <div class="transport-row">
-          <div><strong>Playit</strong><span>Public connection for {serverType === 'bedrock' ? 'Bedrock' : 'Java'} players</span></div>
-          <StatusDot tone={transportTone(transport.playit)} label={transportLabel(transport.playit)} />
+          <div>
+            <strong>Playit</strong><span
+              >Public connection for {serverType === 'bedrock' ? 'Bedrock' : 'Java'} players</span
+            >
+          </div>
+          <StatusDot
+            tone={transportTone(transport.playit)}
+            label={transportLabel(transport.playit)}
+          />
           {#if phase === 'transport-setup' && transport.playit === 'waiting'}
-            <Button variant="secondary" size="sm" onclick={() => (showPlayitSetup = true)}>Set up</Button>
-            <Button variant="ghost-icon" size="sm" label="Skip Playit" onclick={() => skip('playit')}>×</Button>
+            <Button variant="secondary" size="sm" onclick={() => (showPlayitSetup = true)}
+              >Set up</Button
+            >
+            <Button
+              variant="ghost-icon"
+              size="sm"
+              label="Skip Playit"
+              onclick={() => skip('playit')}>×</Button
+            >
           {/if}
         </div>
         <div class="transport-row">
           <div><strong>Xbox Broadcast</strong><span>Xbox discovery helper</span></div>
-          <StatusDot tone={transportTone(transport.broadcast)} label={transportLabel(transport.broadcast)} />
+          <StatusDot
+            tone={transportTone(transport.broadcast)}
+            label={transportLabel(transport.broadcast)}
+          />
           {#if phase === 'transport-setup' && transport.broadcast === 'waiting'}
             <Button variant="secondary" size="sm" onclick={() => skip('broadcast')}>Skip</Button>
           {/if}
@@ -383,39 +457,57 @@
       <div>
         <p class="msc2-type-overline">First Start</p>
         <h2>{serverName || 'Server'} is ready</h2>
-        <p class="copy">MSC created the server files and recorded the connections that actually resolved.</p>
+        <p class="copy">
+          MSC created the server files and recorded the connections that actually resolved.
+        </p>
       </div>
       <StatusDot tone="ok" label="One-time setup complete" />
 
       <section class="section">
         <p class="section-label">How people connect</p>
         <div class="connection-list">
-          <div><span>{serverType === 'bedrock' ? 'Bedrock — same Wi-Fi' : 'Java — same Wi-Fi'}</span><code>local address:{localPort}</code></div>
+          <div>
+            <span>{serverType === 'bedrock' ? 'Bedrock — same Wi-Fi' : 'Java — same Wi-Fi'}</span
+            ><code>local address:{localPort}</code>
+          </div>
           {#if serverType === 'java' && localBedrockPort}
-            <div><span>Bedrock — same Wi-Fi</span><code>local address:{localBedrockPort}</code></div>
+            <div>
+              <span>Bedrock — same Wi-Fi</span><code>local address:{localBedrockPort}</code>
+            </div>
           {/if}
           {#if playit?.javaAddress && serverType === 'java'}
             <div><span>Java — anywhere (playit.gg)</span><code>{playit.javaAddress}</code></div>
           {/if}
           {#if playit?.bedrockAddress && serverType === 'bedrock'}
-            <div><span>Bedrock — anywhere (playit.gg)</span><code>{playit.bedrockAddress}</code></div>
+            <div>
+              <span>Bedrock — anywhere (playit.gg)</span><code>{playit.bedrockAddress}</code>
+            </div>
           {/if}
           {#if playit?.voiceAddress && playit.voiceChatEnabled}
             <div><span>Voice — Simple Voice Chat</span><code>{playit.voiceAddress}</code></div>
           {/if}
           {#if broadcastEnabled}
-            <div><span>Xbox</span><span class="muted">Use Xbox discovery when Broadcast is Ready.</span></div>
+            <div>
+              <span>Xbox</span><span class="muted">Use Xbox discovery when Broadcast is Ready.</span
+              >
+            </div>
           {/if}
         </div>
       </section>
 
       <section class="section">
         <p class="section-label">What MSC created</p>
-        <p class="copy">The server configuration, first world, enabled helper setup, and any resolved public addresses.</p>
+        <p class="copy">
+          The server configuration, first world, enabled helper setup, and any resolved public
+          addresses.
+        </p>
       </section>
       <section class="section">
         <p class="section-label">Next</p>
-        <p class="copy">Open Server Settings to review the EULA, ports, world settings, and optional helpers. Future starts are manual.</p>
+        <p class="copy">
+          Open Server Settings to review the EULA, ports, world settings, and optional helpers.
+          Future starts are manual.
+        </p>
       </section>
       <div class="actions">
         <Button variant="secondary" onclick={onClose}>Open settings later</Button>
@@ -428,13 +520,45 @@
       <p class="msc2-type-overline">First Start</p>
       <h2>Setup needs another try</h2>
       <StatusDot tone="error" label="Not completed" />
-      <p class="copy">{error || 'The first run stopped before it finished. Your next Start will try initiation again.'}</p>
+      <p class="copy">
+        {error || 'The first run stopped before it finished. Choose Initiate to try it again.'}
+      </p>
       <div class="actions">
         <span class="action-spacer"></span>
         <Button variant="secondary" onclick={onClose}>Close</Button>
-        <Button variant="primary" onclick={() => { phase = 'eula'; error = ''; }}>Try again</Button>
+        <Button
+          variant="primary"
+          onclick={() => {
+            phase = 'eula';
+            eulaAccepted = false;
+            error = '';
+          }}>Try again</Button
+        >
       </div>
     </div>
+  {/if}
+  {#if phase !== 'eula'}
+    <section class="console-panel" aria-label="First-start console">
+      <div class="console-header">
+        <span>Console</span>
+        <span class="console-live">Live</span>
+      </div>
+      <div class="console-body" aria-live="polite">
+        {#if consoleLines.length}
+          {#each consoleLines.slice(-80) as line, index (line.ts + '-' + index)}
+            <p
+              class="console-line"
+              class:error={line.level === 'error'}
+              class:warn={line.level === 'warn'}
+            >
+              {line.text}
+            </p>
+          {/each}
+        {:else}
+          <p class="console-empty">Waiting for console output…</p>
+        {/if}
+      </div>
+    </section>
   {/if}
 </Sheet>
 
@@ -450,22 +574,165 @@
 {/if}
 
 <style>
-  .stack { display: flex; flex-direction: column; gap: 14px; }
-  h2 { margin: 0; font-size: 15px; font-weight: 600; color: var(--msc2-text-primary); }
-  .copy, .notice, .status-line { margin: 0; font-size: 12px; line-height: 1.55; color: var(--msc2-text-tertiary); }
-  .notice { padding: 10px 12px; background: var(--msc2-tier-chrome); border-left: 2px solid var(--msc2-status-warn); }
-  .status-line { color: var(--msc2-text-secondary); }
-  .error { margin: 0; color: var(--msc2-status-error); font-size: 12px; line-height: 1.5; }
-  .actions { display: flex; align-items: center; gap: 8px; padding-top: 10px; border-top: 1px solid var(--msc2-hairline-subtle); }
-  .action-spacer { flex: 1; }
-  .transport-list, .connection-list { display: flex; flex-direction: column; background: var(--msc2-tier-chrome); border-radius: 10px; overflow: hidden; }
-  .transport-row, .connection-list > div { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--msc2-hairline-subtle); }
-  .transport-row:first-child, .connection-list > div:first-child { border-top: none; }
-  .transport-row > div:first-child { display: flex; flex: 1; flex-direction: column; gap: 2px; }
-  strong, .connection-list span { color: var(--msc2-text-primary); font-size: 12px; font-weight: 500; }
-  .transport-row span, .muted { color: var(--msc2-text-tertiary); font-size: 11px; }
-  .section { display: flex; flex-direction: column; gap: 6px; }
-  .section-label { margin: 0; color: var(--msc2-text-secondary); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-  code { margin-left: auto; color: var(--msc2-text-primary); font-size: 11px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-  .muted { margin-left: auto; }
+  .stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--msc2-text-primary);
+  }
+  .copy,
+  .notice,
+  .status-line {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--msc2-text-tertiary);
+  }
+  .notice {
+    padding: 10px 12px;
+    background: var(--msc2-tier-chrome);
+    border-left: 2px solid var(--msc2-status-warn);
+  }
+  .eula-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .eula-check input {
+    margin: 2px 0 0;
+    accent-color: var(--msc2-status-ok);
+  }
+  .status-line {
+    color: var(--msc2-text-secondary);
+  }
+  .error {
+    margin: 0;
+    color: var(--msc2-status-error);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-top: 10px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .action-spacer {
+    flex: 1;
+  }
+  .transport-list,
+  .connection-list {
+    display: flex;
+    flex-direction: column;
+    background: var(--msc2-tier-chrome);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .transport-row,
+  .connection-list > div {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .transport-row:first-child,
+  .connection-list > div:first-child {
+    border-top: none;
+  }
+  .transport-row > div:first-child {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 2px;
+  }
+  strong,
+  .connection-list span {
+    color: var(--msc2-text-primary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .transport-row span,
+  .muted {
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .section-label {
+    margin: 0;
+    color: var(--msc2-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  code {
+    margin-left: auto;
+    color: var(--msc2-text-primary);
+    font-size: 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .muted {
+    margin-left: auto;
+  }
+  .console-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+  }
+  .console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: var(--msc2-text-secondary);
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .console-live {
+    color: var(--msc2-status-ok);
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .console-body {
+    max-height: 180px;
+    min-height: 72px;
+    overflow-y: auto;
+    padding: 8px 10px;
+    background: var(--msc2-tier-terminal);
+    border: 1px solid var(--msc2-hairline-subtle);
+    border-radius: 8px;
+    font-family: var(--msc2-font-mono);
+    font-size: 10px;
+    line-height: 1.45;
+  }
+  .console-line {
+    margin: 0;
+    color: var(--msc2-text-secondary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .console-line.error {
+    color: var(--msc2-status-error);
+  }
+  .console-line.warn {
+    color: var(--msc2-status-warn);
+  }
+  .console-empty {
+    margin: 0;
+    color: var(--msc2-text-tertiary);
+  }
 </style>

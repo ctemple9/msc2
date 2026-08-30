@@ -1846,6 +1846,10 @@ pub struct RegisteredServerDtoParts {
     pub server_type: String,
     pub java_flavor: Option<String>,
     pub game_port: Option<i64>,
+    pub bedrock_port: Option<i64>,
+    pub first_start_required: bool,
+    pub playit_enabled: bool,
+    pub xbox_broadcast_enabled: bool,
 }
 
 pub async fn start(
@@ -2249,6 +2253,12 @@ impl AgentServerRegistry {
                 } else {
                     server.bedrock_port
                 },
+                bedrock_port: (server.server_type == ServerType::Java)
+                    .then_some(server.bedrock_port)
+                    .flatten(),
+                first_start_required: msc_application::provisioning::first_start_required(&server),
+                playit_enabled: server.playit_enabled,
+                xbox_broadcast_enabled: server.xbox_broadcast_enabled,
             })
             .collect()
     }

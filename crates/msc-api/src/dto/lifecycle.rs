@@ -122,6 +122,15 @@ pub struct ServerDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub game_port: Option<i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bedrock_port: Option<i64>,
+    /// Whether the next start enters MSC 1's two-pass initiation flow.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub first_start_required: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub playit_enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub xbox_broadcast_enabled: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub host_address: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub runtime: Option<BedrockRuntimeStateDto>,

@@ -9382,6 +9382,22 @@
           "gamePort": {
             "type": "integer"
           },
+          "bedrockPort": {
+            "type": "integer",
+            "description": "Configured Java cross-play Bedrock port, when present."
+          },
+          "firstStartRequired": {
+            "type": "boolean",
+            "description": "True when the next server start must run the two-pass first-start initiation flow."
+          },
+          "playitEnabled": {
+            "type": "boolean",
+            "description": "Whether Playit is enabled for this server."
+          },
+          "xboxBroadcastEnabled": {
+            "type": "boolean",
+            "description": "Whether Xbox Broadcast is enabled for this server."
+          },
           "hostAddress": {
             "type": "string"
           },

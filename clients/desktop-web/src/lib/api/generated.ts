@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 3db2bb825a18bb1d7640af0e6ad72750a1b03d03d2ef52569029dfb01d2a600b
+// Contract SHA-256: f8eced9ade558382e2be95e88b5f6bd363c86dd51d9a593f3c4726c703ae4db8
 
 export interface paths {
   '/v1/active-server': {
@@ -7354,15 +7354,23 @@ export interface components {
       [key: string]: unknown;
     };
     ServerDTO: {
+      /** @description Configured Java cross-play Bedrock port, when present. */
+      bedrockPort?: number;
       directory: string;
+      /** @description True when the next server start must run the two-pass first-start initiation flow. */
+      firstStartRequired?: boolean;
       gamePort?: number;
       hostAddress?: string;
       id: string;
       javaFlavor?: string;
       name: string;
+      /** @description Whether Playit is enabled for this server. */
+      playitEnabled?: boolean;
       /** @description Optional current Bedrock runtime state for an imported or created server. */
       runtime?: components['schemas']['BedrockRuntimeStateDTO'];
       serverType: string;
+      /** @description Whether Xbox Broadcast is enabled for this server. */
+      xboxBroadcastEnabled?: boolean;
     } & {
       [key: string]: unknown;
     };

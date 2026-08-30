@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Server-control rail: host-aware picker, Start/Stop, Manage…, and MSC 1's
+  // Server-control rail: host-aware picker, Initiate/Start/Stop, Manage…, and MSC 1's
   // four collapsible sections, all real now (P12.21, P12.22).
   // docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
   import Button from '../base/Button.svelte';
@@ -50,6 +50,7 @@
   export let onSelectServer: (id: string) => void;
   export let onSwitchHost: (id: HostId) => void = () => undefined;
   export let onLifecycle: (action: 'start' | 'stop') => void;
+  export let onInitiate: () => void = () => undefined;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
 
@@ -131,6 +132,7 @@
   $: if (!expanded['How to connect']) showAddresses = false;
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
+  $: startLabel = activeServer?.firstStartRequired ? 'Initiate' : 'Start';
 
   // Services is MSC2's own external-services panel (playit.gg + Xbox
   // Broadcast, not an oracle 1:1 port; MSC 1 calls its Xbox-Broadcast-only
@@ -178,6 +180,16 @@
     if (!activeServer) return;
     void revealFolder(`${activeServer.directory}/logs`);
   }
+
+  function startOrInitiate(): void {
+    if (running) {
+      onLifecycle('stop');
+    } else if (activeServer?.firstStartRequired) {
+      onInitiate();
+    } else {
+      onLifecycle('start');
+    }
+  }
 </script>
 
 <aside class="sidebar" aria-label="Server controls">
@@ -210,11 +222,11 @@
           variant={running ? 'stop' : 'start'}
           size="sm"
           disabled={!canControl || !activeServer}
-          onclick={() => onLifecycle(running ? 'stop' : 'start')}
+          onclick={startOrInitiate}
           anchorId="ob_start_button"
         >
           <ShellIcon name="play" size={13} />
-          {running ? 'Stop' : 'Start'}
+          {running ? 'Stop' : startLabel}
         </Button>
         <Button variant="secondary" size="sm" onclick={onManage} anchorId="ob_manage_servers"
           >Manage…</Button

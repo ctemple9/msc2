@@ -26,6 +26,8 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).toContain('hostLabel');
     expect(controlSidebarSource).toContain('onSelectServer');
     expect(controlSidebarSource).toContain('onLifecycle');
+    expect(controlSidebarSource).toContain('onInitiate');
+    expect(controlSidebarSource).toContain('firstStartRequired');
     expect(controlSidebarSource).toContain('onOpenAgentSetup');
     expect(applicationShellSource).toContain('{onOpenBrowser}');
     expect(controlSidebarSource).toContain('onManage');

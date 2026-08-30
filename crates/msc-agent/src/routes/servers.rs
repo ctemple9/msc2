@@ -69,6 +69,10 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
                 server_type: server.server_type,
                 java_flavor: server.java_flavor,
                 game_port: server.game_port,
+                bedrock_port: server.bedrock_port,
+                first_start_required: Some(server.first_start_required),
+                playit_enabled: Some(server.playit_enabled),
+                xbox_broadcast_enabled: Some(server.xbox_broadcast_enabled),
                 host_address: host_address.clone(),
                 runtime,
             }

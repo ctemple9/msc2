@@ -3,13 +3,18 @@ import confirmSource from '../../src/lib/sections/fleet/wizard/ConfirmStep.svelt
 import sheetSource from '../../src/lib/sections/server-editor/FirstStartSheet.svelte?raw';
 
 describe('first-start initiation flow', () => {
-  it('connects the wizard to the two-pass first-start sheet', () => {
-    expect(confirmSource).toContain('FirstStartSheet');
-    expect(confirmSource).toContain('Start first run');
+  it('leaves initiation on the main server control', () => {
+    expect(confirmSource).not.toContain('FirstStartSheet');
+    expect(confirmSource).not.toContain('Start first run');
     expect(confirmSource).toContain("draft.worldSourceMode === 'fresh'");
   });
 
-  it('keeps server readiness and transport completion in the sheet flow', () => {
+  it('keeps server readiness, EULA, console, and transport completion in the sheet flow', () => {
+    expect(sheetSource).toContain("Initiate ${serverName || 'server'}");
+    expect(sheetSource).toContain('I accept the Minecraft server EULA.');
+    expect(sheetSource).toContain("disabled={serverType === 'java' && !eulaAccepted}");
+    expect(sheetSource).toContain('livePaths.tail');
+    expect(sheetSource).toContain('First-start console');
     expect(sheetSource).toContain('Pass 1 of 2');
     expect(sheetSource).toContain('Pass 2 of 2');
     expect(sheetSource).toContain('serverEditorPaths.playitStart');

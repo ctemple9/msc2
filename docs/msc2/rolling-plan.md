@@ -1086,6 +1086,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16o: replace splash video with app icon`
 **Batch:** solo
 
+### P12.16p — Convert bundled app icons to RGBA
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/src-tauri/icons/`, `clients/desktop-web/static/msc-icon.png`, `clients/desktop-web/src/lib/help/SplashGate.svelte`, `crates/msc-agent/web-ui/msc-icon.png`, `docs/msc2/rolling-plan.md`
+**What:** Convert the supplied RGB PNGs to RGBA PNGs without changing their visible artwork. Tauri's `generate_context!()` validates every configured bundle icon at compile time and rejects RGB-only PNGs; the splash image is converted alongside them so the same app artwork has one consistent encoding. Keep the three-second splash stage black to match the icon artwork while leaving the app's normal grey surface unchanged. Rebuild the embedded web bundle and compile the Tauri target to confirm the icon validator accepts the configured set.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/SplashGate.svelte && npm run bundle:package-agent && file src-tauri/icons/*.png | rg -q 'color RGBA, ' && CARGO_TARGET_DIR=/private/tmp/msc2-icon-target cargo check --manifest-path src-tauri/Cargo.toml`
+**Commit:** `P12.16p: convert app icons to rgba`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

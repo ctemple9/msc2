@@ -48,7 +48,7 @@
     display: grid;
     place-items: center;
     color: white;
-    background: rgb(26 24 22);
+    background: rgb(0 0 0);
   }
 
   .splash-icon {

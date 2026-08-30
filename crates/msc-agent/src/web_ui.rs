@@ -107,7 +107,6 @@ fn mime_type(path: &str) -> HeaderValue {
         Some("css") => "text/css; charset=utf-8",
         Some("js") => "text/javascript; charset=utf-8",
         Some("json") => "application/json; charset=utf-8",
-        Some("mp4") => "video/mp4",
         Some("svg") => "image/svg+xml",
         Some("png") => "image/png",
         Some("woff2") => "font/woff2",

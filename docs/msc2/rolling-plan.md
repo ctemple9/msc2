@@ -1078,6 +1078,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16n: make the splash asset stream-safe`
 **Batch:** solo
 
+### P12.16o — Replace the splash video with the app icon
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/static/msc-icon.png`, `clients/desktop-web/src/lib/help/SplashGate.svelte`, `clients/desktop-web/src-tauri/icons/`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/tests/screens/help.test.ts`, `crates/msc-agent/src/web_ui.rs`, `crates/msc-agent/tests/web_ui.rs`, `docs/msc2/rolling-plan.md`, `crates/msc-agent/web-ui/`, `clients/desktop-web/static/splash_intro.mp4` (removed)
+**What:** Remove the unreliable splash video completely. Show the supplied MSC icon as a still splash for exactly three seconds, skip it immediately for reduced motion, preserve the completion signal that gates first launch, and use the supplied 16–512px icon set for the Tauri application bundle. Remove the now-unused MP4 MIME mapping and test.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/SplashGate.svelte src-tauri/tauri.conf.json tests/screens/help.test.ts && npx vitest run tests/screens/help.test.ts && npm run bundle:package-agent && cd ../.. && rustfmt --check --edition 2024 crates/msc-agent/src/web_ui.rs crates/msc-agent/tests/web_ui.rs && CARGO_TARGET_DIR=/private/tmp/msc2-splash-target cargo nextest run -p msc-agent --test web_ui && test ! -e clients/desktop-web/static/splash_intro.mp4 && test ! -e crates/msc-agent/web-ui/splash_intro.mp4`
+**Commit:** `P12.16o: replace splash video with app icon`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

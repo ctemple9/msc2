@@ -175,13 +175,11 @@ describe('shared help and onboarding screens', () => {
     expect(helpSource).toContain('<SetupIntro');
     expect(helpSource).toContain('{api}');
     expect(splashSource).toContain('prefers-reduced-motion');
-    expect(splashSource).toContain('fallbackMs');
-    expect(splashSource).toContain('/splash_intro.mp4');
-    expect(splashSource).toContain('autoplay');
+    expect(splashSource).toContain('SPLASH_DURATION_MS = 3_000');
+    expect(splashSource).toContain('/msc-icon.png');
+    expect(splashSource).not.toContain('splash_intro.mp4');
     expect(splashSource).toContain('export let onComplete');
     expect(splashSource).toContain('onComplete();');
-    expect(splashSource).toContain('onended={finish}');
-    expect(splashSource).toContain('onerror={handleVideoError}');
   });
 
   it('opens the Handbook on Overview instead of relying on catalog ordering', () => {

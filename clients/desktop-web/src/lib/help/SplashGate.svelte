@@ -1,26 +1,19 @@
 <script lang="ts">
   import { onMount } from 'svelte';
 
-  export let fallbackMs = 900;
+  const SPLASH_DURATION_MS = 3_000;
   export let onComplete: () => void = () => {};
   let visible = true;
   let completed = false;
   let reducedMotion = false;
-  let videoFailed = false;
-  let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+  let splashTimer: ReturnType<typeof setTimeout> | undefined;
 
   function finish(): void {
     if (completed) return;
     completed = true;
     visible = false;
-    if (fallbackTimer) clearTimeout(fallbackTimer);
+    if (splashTimer) clearTimeout(splashTimer);
     onComplete();
-  }
-
-  function handleVideoError(): void {
-    if (videoFailed || completed) return;
-    videoFailed = true;
-    fallbackTimer = setTimeout(finish, fallbackMs);
   }
 
   onMount(() => {
@@ -29,10 +22,9 @@
       finish();
       return;
     }
-    const timer = window.setTimeout(finish, 12_000);
+    splashTimer = window.setTimeout(finish, SPLASH_DURATION_MS);
     return () => {
-      window.clearTimeout(timer);
-      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+      if (splashTimer) window.clearTimeout(splashTimer);
     };
   });
 </script>
@@ -44,22 +36,7 @@
     role="status"
     aria-label="Opening Minecraft Server Controller"
   >
-    {#if !videoFailed}
-      <video
-        class="splash-video"
-        autoplay
-        muted
-        playsinline
-        preload="auto"
-        aria-hidden="true"
-        onended={finish}
-        onerror={handleVideoError}
-      >
-        <source src="/splash_intro.mp4" type="video/mp4" />
-      </video>
-    {:else}
-      <span class="splash-fallback" aria-hidden="true">◆ ◆ ◆</span>
-    {/if}
+    <img class="splash-icon" src="/msc-icon.png" alt="" aria-hidden="true" />
   </div>
 {/if}
 
@@ -74,19 +51,11 @@
     background: rgb(26 24 22);
   }
 
-  .splash-video {
+  .splash-icon {
     display: block;
-    width: min(25vw, 25vh);
+    width: min(14rem, 45vw, 45vh);
     height: auto;
-    max-width: 25rem;
-    max-height: 90vh;
-    object-fit: contain;
-  }
-
-  .splash-fallback {
-    color: var(--msc-accent);
-    font-size: 2rem;
-    letter-spacing: 0.5rem;
+    image-rendering: pixelated;
   }
 
   .splash.reduced {

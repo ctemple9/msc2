@@ -4,37 +4,101 @@
   // the eye toggle moved up into the disclosure header, see ControlSidebar)
   // of one pill-shaped value row per connection method, every method with
   // data shown at once (no Local/Public switch). Keeps ConnectionCard's
-  // exact data and derivation (/v1/connectivity, /v1/config/geyser, the
-  // same honest "not reported yet" fallback for Java's LAN address -- the
-  // agent still doesn't report one, ConnectionCard.svelte's own finding
-  // still holds).
+  // exact data and derivation (/v1/connectivity, /v1/config/geyser, and the
+  // host address reported by /v1/servers). If address discovery is unavailable,
+  // the same honest "not reported yet" fallback remains in place.
   //
   // Not ported: the oracle's fourth row, "Xbox · add friend" (the broadcast
   // alt account's gamertag) -- P12.12 found /v1/broadcast/credentials is
   // POST-only in the frozen contract, so there is no real value to show.
+  import { onMount } from 'svelte';
   import type { Schema, ScreenApi } from '../../../sections/shared/types';
   import { call } from '../../../sections/shared/types';
 
   export let api: ScreenApi | undefined = undefined;
   export let serverType: string | undefined = undefined;
   export let activeServerId: string | undefined = undefined;
+  export let gamePort: number | undefined = undefined;
+  export let hostAddress: string | undefined = undefined;
   // Owned by ControlSidebar -- shared with the eye toggle it renders in the
   // disclosure header row, above this component's own content.
   export let showAddresses = false;
 
   let connectivity: Schema['ConnectivityResponseDTO'] | undefined;
   let geyser: Schema['GeyserConfigResponseDTO'] | undefined;
+  let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let copiedRow = '';
   let loadedForServerId: string | undefined;
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
 
   $: isBedrockServer = serverType === 'bedrock';
   $: hasGeyser = !isBedrockServer && geyser?.isGeyserInstalled && geyser?.port !== undefined;
 
-  // /v1/connectivity's joinAddress already carries "host:port" combined
-  // (crates/msc-application/src/network_diagnostics.rs), so it's used as a
-  // full value directly, with no separate port field the way the LAN row
-  // would need one if the agent ever starts reporting a LAN address.
-  $: publicSuffix = connectivity?.joinAddressSource === 'playit' ? 'anywhere' : 'public';
+  // /v1/connectivity's joinAddress and Playit's protocol-specific addresses
+  // carry "host:port" combined. Local endpoints use the detected host from
+  // /v1/servers plus the relevant local port.
+  type Endpoint = { host: string; port?: number };
+
+  function splitEndpoint(value: string | undefined): Endpoint | undefined {
+    const trimmed = value?.trim();
+    if (!trimmed) return undefined;
+    if (trimmed.startsWith('[')) {
+      const close = trimmed.indexOf(']');
+      if (close > 0) {
+        const portText = trimmed.slice(close + 1).replace(/^:/, '');
+        return {
+          host: trimmed.slice(1, close),
+          port: /^\d+$/.test(portText) ? Number(portText) : undefined,
+        };
+      }
+    }
+    if ((trimmed.match(/:/g) ?? []).length !== 1) return { host: trimmed };
+    const separator = trimmed.lastIndexOf(':');
+    const portText = separator > 0 ? trimmed.slice(separator + 1) : '';
+    return separator > 0 && /^\d+$/.test(portText)
+      ? { host: trimmed.slice(0, separator), port: Number(portText) }
+      : { host: trimmed };
+  }
+
+  function endpointText(
+    value: string | undefined,
+    fallbackPort: number | undefined,
+  ): string | undefined {
+    const endpoint = splitEndpoint(value);
+    if (!endpoint) return undefined;
+    const port = fallbackPort ?? endpoint.port;
+    const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host;
+    return port !== undefined ? `${host}:${port}` : host;
+  }
+
+  $: playitSelected = playit?.playitEnabled === true;
+  $: playitJavaAddress = playitSelected ? playit?.javaAddress : undefined;
+  $: playitBedrockAddress = playitSelected ? playit?.bedrockAddress : undefined;
+
+  function publicSuffix(playitSelected: boolean, addressSource: string | undefined): string {
+    return playitSelected || addressSource === 'playit' ? 'anywhere' : 'public';
+  }
+
+  $: publicJavaAddress = endpointText(
+    playit === undefined
+      ? undefined
+      : playitSelected
+        ? playitJavaAddress
+        : connectivity?.joinAddress,
+    playit === undefined || playitSelected ? undefined : gamePort,
+  );
+  $: publicBedrockAddress = endpointText(
+    playit === undefined
+      ? undefined
+      : playitSelected
+        ? playitBedrockAddress
+        : connectivity?.joinAddress,
+    playit === undefined || playitSelected ? undefined : isBedrockServer ? gamePort : geyser?.port,
+  );
+  $: localJavaAddress = hostAddress ? endpointText(hostAddress, gamePort) : undefined;
+  $: localBedrockAddress = hostAddress
+    ? endpointText(hostAddress, isBedrockServer ? gamePort : geyser?.port)
+    : undefined;
 
   interface ConnectRow {
     key: string;
@@ -50,14 +114,14 @@
         key: 'java-lan',
         label: 'Java · same Wi-Fi',
         tone: 'warn',
-        value: undefined,
+        value: localJavaAddress,
         fallback: 'Not reported by this host yet',
       },
       {
         key: 'java-public',
-        label: `Java · ${publicSuffix}`,
+        label: `Java · ${publicSuffix(playitSelected, connectivity?.joinAddressSource)}`,
         tone: 'ok',
-        value: connectivity?.joinAddress,
+        value: publicJavaAddress,
         fallback: 'Not available yet',
       },
     ];
@@ -67,14 +131,14 @@
           key: 'bedrock-lan',
           label: 'Bedrock · same Wi-Fi',
           tone: 'bedrock',
-          value: geyser?.address ? `${geyser.address}:${geyser.port}` : undefined,
-          fallback: '0.0.0.0',
+          value: localBedrockAddress,
+          fallback: 'Not reported by this host yet',
         },
         {
           key: 'bedrock-public',
-          label: `Bedrock · ${publicSuffix}`,
+          label: `Bedrock · ${publicSuffix(playitSelected, connectivity?.joinAddressSource)}`,
           tone: 'ok',
-          value: connectivity?.joinAddress,
+          value: publicBedrockAddress,
           fallback: 'Not available yet',
         },
       );
@@ -90,7 +154,18 @@
   async function load(): Promise<void> {
     connectivity = await call(api, connectivity, '/v1/connectivity');
     geyser = await call(api, geyser, '/v1/config/geyser');
+    playit = await call(api, playit, '/v1/playit');
   }
+
+  // Playit can save its public endpoint after this sidebar has already been
+  // mounted, so refresh the read-only connection facts while the section is
+  // visible instead of waiting for another server selection.
+  onMount(() => {
+    refreshTimer = setInterval(() => void load(), 8000);
+    return () => {
+      if (refreshTimer) clearInterval(refreshTimer);
+    };
+  });
 
   function mask(value: string): string {
     return showAddresses ? value : '•'.repeat(Math.min(value.length, 15));

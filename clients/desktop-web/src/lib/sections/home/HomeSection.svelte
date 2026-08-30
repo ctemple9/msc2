@@ -34,6 +34,7 @@
   let performance: Schema['PerformanceSnapshotDTO'] | undefined;
   let servers: Schema['ServerDTO'][] = [];
   let geyser: Schema['GeyserConfigResponseDTO'] | undefined;
+  let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let players: Schema['PlayersResponseDTO'] = { count: 0, players: [] };
   let worlds: Schema['WorldSlotsResponseDTO'] = { serverRunning: false, slots: [] };
   let settings: Schema['SettingsResponseDTO'] | undefined;
@@ -52,6 +53,7 @@
     performance = await call(api, performance, '/v1/performance');
     servers = await call(api, servers, '/v1/servers');
     geyser = await call(api, geyser, '/v1/config/geyser');
+    playit = await call(api, playit, '/v1/playit');
     players = await call(api, players, '/v1/players');
     worlds = await call(api, worlds, '/v1/worlds');
     settings = await call(api, settings, '/v1/settings');
@@ -94,8 +96,10 @@
       <ConnectionCard
         serverType={activeServer?.serverType}
         gamePort={activeServer?.gamePort}
+        hostAddress={activeServer?.hostAddress}
         {geyser}
         {connectivity}
+        {playit}
       />
       <LiveStatsCard snapshot={performance} />
     </div>

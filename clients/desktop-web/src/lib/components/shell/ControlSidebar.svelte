@@ -278,6 +278,8 @@
                 {api}
                 serverType={activeServer?.serverType}
                 {activeServerId}
+                gamePort={activeServer?.gamePort}
+                hostAddress={activeServer?.hostAddress}
                 {showAddresses}
               />
             {:else if section === 'Maintenance'}

@@ -1,9 +1,9 @@
 <script lang="ts">
   // MSC 1 OverviewConnectionCardView, ported to the S0 disciplined card —
-  // no gradient rails, status carried by dot + label only. The agent does
-  // not yet report a local LAN IP (ServerDTO.hostAddress is always null —
-  // crates/msc-api/src/dto/lifecycle.rs), so the Local column shows the
-  // real port and states the address honestly rather than fabricating one.
+  // no gradient rails, status carried by dot + label only. The agent reports
+  // the host's best-effort LAN address through
+  // ServerDTO.hostAddress. If discovery is unavailable, the Local column
+  // keeps the honest fallback rather than fabricating an address.
   import Card from '../../components/base/Card.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import Button from '../../components/base/Button.svelte';
@@ -12,8 +12,10 @@
 
   export let serverType: string | undefined = undefined;
   export let gamePort: number | undefined = undefined;
+  export let hostAddress: string | undefined = undefined;
   export let geyser: Schema['GeyserConfigResponseDTO'] | undefined = undefined;
   export let connectivity: Schema['ConnectivityResponseDTO'] | undefined = undefined;
+  export let playit: Schema['PlayitStatusResponseDTO'] | undefined = undefined;
 
   let showPublic = false;
   let showAddresses = true;
@@ -22,25 +24,120 @@
   $: isBedrockServer = serverType === 'bedrock';
   $: hasGeyser = !isBedrockServer && geyser?.isGeyserInstalled && geyser?.port !== undefined;
 
-  $: sourceTag = !showPublic
-    ? 'LAN'
-    : connectivity?.joinAddressSource === 'playit'
-      ? 'playit.gg'
-      : connectivity?.joinAddressSource === 'duckdns'
-        ? 'DuckDNS'
-        : connectivity?.joinAddressSource === 'public_ip'
-          ? 'Public IP'
-          : 'Unavailable';
+  type Endpoint = { host: string; port?: number };
 
-  // Local shows the real port and states the address honestly (the agent
-  // doesn't report a LAN IP yet). Public swaps in the resolved join
-  // address but keeps the same port field — a tunnel/DNS name generally
-  // still forwards to the same numeric port, and the contract has no
-  // separate "public port" concept for the plain case.
-  $: javaIp = showPublic ? (connectivity?.joinAddress ?? null) : null;
+  function splitEndpoint(value: string | undefined): Endpoint | undefined {
+    const trimmed = value?.trim();
+    if (!trimmed) return undefined;
+    if (trimmed.startsWith('[')) {
+      const close = trimmed.indexOf(']');
+      if (close > 0) {
+        const portText = trimmed.slice(close + 1).replace(/^:/, '');
+        return {
+          host: trimmed.slice(1, close),
+          port: /^\d+$/.test(portText) ? Number(portText) : undefined,
+        };
+      }
+    }
+    if ((trimmed.match(/:/g) ?? []).length !== 1) return { host: trimmed };
+    const separator = trimmed.lastIndexOf(':');
+    const portText = separator > 0 ? trimmed.slice(separator + 1) : '';
+    return separator > 0 && /^\d+$/.test(portText)
+      ? { host: trimmed.slice(0, separator), port: Number(portText) }
+      : { host: trimmed };
+  }
+
+  function publicEndpoint(
+    value: string | undefined,
+    fallbackPort: number | undefined,
+  ): Endpoint | undefined {
+    const endpoint = splitEndpoint(value);
+    return endpoint ? { ...endpoint, port: fallbackPort ?? endpoint.port } : undefined;
+  }
+
+  function endpointText(endpoint: Endpoint | undefined): string | undefined {
+    if (!endpoint) return undefined;
+    const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host;
+    return endpoint.port !== undefined ? `${host}:${endpoint.port}` : host;
+  }
+
+  $: playitSelected = playit?.playitEnabled === true;
+  $: playitJavaAddress = playitSelected ? playit?.javaAddress : undefined;
+  $: playitBedrockAddress = playitSelected ? playit?.bedrockAddress : undefined;
+  // Once Playit is selected, do not briefly display a forwarding/DuckDNS
+  // endpoint while Playit is still starting or has not saved its address.
+  $: publicJavaValue =
+    playit === undefined
+      ? undefined
+      : playitSelected
+        ? playitJavaAddress
+        : connectivity?.joinAddress;
+  $: publicBedrockValue =
+    playit === undefined
+      ? undefined
+      : playitSelected
+        ? playitBedrockAddress
+        : connectivity?.joinAddress;
+  // A plain public hostname (DuckDNS/public IP) forwards to the local port;
+  // Playit supplies its own endpoint and therefore its own public port.
+  $: publicJavaEndpoint = publicEndpoint(publicJavaValue, playitSelected ? undefined : gamePort);
+  $: publicBedrockEndpoint = publicEndpoint(
+    publicBedrockValue,
+    playitSelected ? undefined : isBedrockServer ? gamePort : geyser?.port,
+  );
+
+  function sourceTag(
+    isPublic: boolean,
+    isPlayit: boolean,
+    addressSource: string | undefined,
+  ): string {
+    if (!isPublic) return 'LAN';
+    if (isPlayit) return 'playit.gg';
+    if (addressSource === 'duckdns') return 'DuckDNS';
+    if (addressSource === 'public_ip') return 'Public IP';
+    return 'Unavailable';
+  }
+
+  $: javaSourceTag = sourceTag(
+    showPublic,
+    playitSelected,
+    playit === undefined ? undefined : connectivity?.joinAddressSource,
+  );
+  $: bedrockSourceTag = sourceTag(
+    showPublic,
+    playitSelected,
+    playit === undefined ? undefined : connectivity?.joinAddressSource,
+  );
+
+  // Local uses the detected host address. Public uses the endpoint belonging
+  // to that protocol, including a different tunnel port when one exists.
+  $: javaIp = showPublic ? (publicJavaEndpoint?.host ?? null) : (hostAddress ?? null);
   $: javaIpFallback = showPublic ? 'Not available yet' : 'Not reported by this host yet';
-  $: geyserIp = showPublic ? (connectivity?.joinAddress ?? null) : (geyser?.address ?? null);
-  $: geyserIpFallback = showPublic ? 'Not available yet' : '0.0.0.0';
+  $: javaDisplayPort = showPublic
+    ? (publicJavaEndpoint?.port ?? (playit === undefined || playitSelected ? undefined : gamePort))
+    : gamePort;
+  $: geyserIp = showPublic ? (publicBedrockEndpoint?.host ?? null) : (hostAddress ?? null);
+  $: geyserIpFallback = showPublic ? 'Not available yet' : 'Not reported by this host yet';
+  $: geyserDisplayPort = showPublic
+    ? (publicBedrockEndpoint?.port ??
+      (playit === undefined || playitSelected
+        ? undefined
+        : isBedrockServer
+          ? gamePort
+          : geyser?.port))
+    : geyser?.port;
+  $: javaCopyValue = showPublic
+    ? endpointText(publicJavaEndpoint)
+    : gamePort !== undefined
+      ? String(gamePort)
+      : undefined;
+  $: bedrockCopyValue = endpointText(
+    showPublic
+      ? publicBedrockEndpoint
+      : hostAddress && geyserDisplayPort !== undefined
+        ? { host: hostAddress, port: geyserDisplayPort }
+        : undefined,
+  );
 
   function mask(value: string): string {
     return showAddresses ? value : '•'.repeat(Math.min(value.length, 15));
@@ -92,7 +189,7 @@
         <span class="platform-label"
           >{isBedrockServer ? 'Bedrock · Dedicated' : 'Java · PC / Mac'}</span
         >
-        <span class="source-tag">{sourceTag}</span>
+        <span class="source-tag">{javaSourceTag}</span>
       </div>
       <span class="label">IP</span>
       {#if javaIp}
@@ -101,14 +198,16 @@
         <p class="value mono muted-value">{javaIpFallback}</p>
       {/if}
       <span class="label">Port</span>
-      <p class="value mono">{gamePort !== undefined ? mask(String(gamePort)) : '—'}</p>
+      <p class="value mono">
+        {javaDisplayPort !== undefined ? mask(String(javaDisplayPort)) : '—'}
+      </p>
       <Button
         variant="secondary"
         size="sm"
-        disabled={gamePort === undefined}
-        onclick={() => gamePort !== undefined && copy('Java', String(gamePort))}
+        disabled={!javaCopyValue}
+        onclick={() => javaCopyValue && copy('Java', javaCopyValue)}
       >
-        {copiedLabel === 'Java' ? 'Copied' : 'Copy port'}
+        {copiedLabel === 'Java' ? 'Copied' : showPublic ? 'Copy address' : 'Copy port'}
       </Button>
     </div>
 
@@ -118,7 +217,7 @@
           <div class="cell-header">
             <span class="dot" class:online={!showPublic || !!geyserIp}></span>
             <span class="platform-label">Bedrock (Geyser)</span>
-            <span class="source-tag">{sourceTag}</span>
+            <span class="source-tag">{bedrockSourceTag}</span>
           </div>
           <span class="label">IP</span>
           {#if geyserIp}
@@ -127,12 +226,14 @@
             <p class="value mono muted-value">{geyserIpFallback}</p>
           {/if}
           <span class="label">Port</span>
-          <p class="value mono">{mask(String(geyser?.port))}</p>
+          <p class="value mono">
+            {geyserDisplayPort !== undefined ? mask(String(geyserDisplayPort)) : '—'}
+          </p>
           <Button
             variant="secondary"
             size="sm"
-            disabled={!geyserIp}
-            onclick={() => geyserIp && copy('Bedrock', `${geyserIp}:${geyser?.port}`)}
+            disabled={!bedrockCopyValue}
+            onclick={() => bedrockCopyValue && copy('Bedrock', bedrockCopyValue)}
           >
             {copiedLabel === 'Bedrock' ? 'Copied' : 'Copy address'}
           </Button>

@@ -44,6 +44,7 @@ use msc_infrastructure::java_runtime_detection;
 use msc_infrastructure::process::ProcessSupervisor;
 
 use crate::auth::{AuthenticatedCredential, production_secret_store};
+use crate::help::detect_local_ip;
 use crate::routes::lifecycle::{
     LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
@@ -52,6 +53,7 @@ use crate::routes::worlds::{StagedUpload, StagingStore, now_unix, staging_root};
 
 pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerDto>> {
     let active_server_id = state.active_server_id();
+    let host_address = detect_local_ip();
     let servers: Vec<ServerDto> = state
         .servers()
         .into_iter()
@@ -66,7 +68,7 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
                 server_type: server.server_type,
                 java_flavor: server.java_flavor,
                 game_port: server.game_port,
-                host_address: None,
+                host_address: host_address.clone(),
                 runtime,
             }
         })

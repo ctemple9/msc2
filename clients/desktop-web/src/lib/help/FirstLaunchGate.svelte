@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
   import type { ScreenApi } from '../sections/shared/types';
-  import ActionButton from '../components/ActionButton.svelte';
   import SetupIntro from './SetupIntro.svelte';
   import TourOverlay from './TourOverlay.svelte';
   import {
@@ -11,25 +10,21 @@
     tourServerContext,
     type FirstLaunchState,
   } from './onboarding';
-  import type { ConceptGuide, OnboardingGuide } from './types';
+  import type { OnboardingGuide } from './types';
 
   export let api: ScreenApi;
   export let agentReady = false;
 
-  let concept: ConceptGuide | null = null;
   let onboarding: OnboardingGuide | null = null;
   let ready = false;
-  let conceptPage = 0;
   let tourIndex = 0;
   let state: FirstLaunchState = {
     setupComplete: false,
-    conceptGuideSeen: false,
     tourComplete: false,
   };
 
   $: stage = firstLaunchStage(state);
-  $: onboardingOpen =
-    agentReady && ready && onboarding !== null && concept !== null && stage !== 'complete';
+  $: onboardingOpen = agentReady && ready && onboarding !== null && stage !== 'complete';
   $: tourSteps = onboarding ? applicableTourSteps(onboarding.steps, $tourServerContext) : [];
 
   function setPageScrollLocked(locked: boolean): void {
@@ -42,18 +37,15 @@
 
   function readState(setupComplete: boolean): FirstLaunchState {
     if (!onboarding) return state;
-    const conceptGuideSeen = localStorage.getItem('msc.concept-guide-seen') === 'true';
     const tourComplete = localStorage.getItem(onboarding.reopen.persistenceKey) === 'true';
     return {
       setupComplete,
-      conceptGuideSeen,
       tourComplete,
     };
   }
   function writeState(next: FirstLaunchState): void {
     state = next;
     if (!onboarding) return;
-    localStorage.setItem('msc.concept-guide-seen', String(next.conceptGuideSeen));
     localStorage.setItem(onboarding.reopen.persistenceKey, String(next.tourComplete));
   }
   function restart(): void {
@@ -78,12 +70,10 @@
     if (!agentReady) return;
     const load = async () => {
       try {
-        const [loadedConcept, loadedOnboarding, hostSetup] = await Promise.all([
-          api.get<ConceptGuide>('/v1/guides/concept-guide'),
+        const [loadedOnboarding, hostSetup] = await Promise.all([
           api.get<OnboardingGuide>('/v1/guides/onboarding'),
           api.get<{ complete: boolean }>('/v1/config/host-setup'),
         ]);
-        concept = loadedConcept;
         onboarding = loadedOnboarding;
         state = readState(hostSetup.complete);
       } catch {
@@ -102,8 +92,8 @@
   onDestroy(() => setPageScrollLocked(false));
 </script>
 
-{#if agentReady && ready && onboarding && concept}
-  {#if stage === 'setup' || stage === 'concept-guide'}
+{#if agentReady && ready && onboarding}
+  {#if stage === 'setup'}
     <div class="gate-backdrop" role="presentation">
       <section
         class="gate"
@@ -111,31 +101,7 @@
         aria-labelledby="first-launch-title"
         data-onboarding-stage={stage}
       >
-        {#if stage === 'setup'}
-          <SetupIntro {api} onComplete={() => writeState({ ...state, setupComplete: true })} />
-        {:else}
-          {@const page = concept.pages[conceptPage]}
-          <p class="eyebrow">{page.eyebrow}</p>
-          <h2 id="first-launch-title">{page.title}</h2>
-          <p>{page.body}</p>
-          <div class="actions">
-            <ActionButton
-              kind="quiet"
-              label="Previous Concept Guide page"
-              disabled={conceptPage === 0}
-              onclick={() => (conceptPage -= 1)}>Previous</ActionButton
-            ><ActionButton
-              label={conceptPage === concept.pages.length - 1
-                ? 'Continue to tour'
-                : 'Next Concept Guide page'}
-              onclick={() =>
-                conceptPage === concept!.pages.length - 1
-                  ? writeState({ ...state, conceptGuideSeen: true })
-                  : (conceptPage += 1)}
-              >{conceptPage === concept.pages.length - 1 ? 'Continue' : 'Next'}</ActionButton
-            >
-          </div>
-        {/if}
+        <SetupIntro {api} onComplete={() => writeState({ ...state, setupComplete: true })} />
       </section>
     </div>
   {:else if stage === 'tour'}
@@ -178,25 +144,5 @@
   :global(html.msc-onboarding-open),
   :global(body.msc-onboarding-open) {
     overflow: hidden;
-  }
-  .gate h2 {
-    margin: 0;
-  }
-  .gate p {
-    color: var(--msc-muted);
-    line-height: 1.6;
-  }
-  .eyebrow {
-    color: var(--msc-accent) !important;
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-  }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 1rem;
   }
 </style>

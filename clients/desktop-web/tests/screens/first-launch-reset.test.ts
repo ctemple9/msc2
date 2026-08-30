@@ -28,8 +28,9 @@ describe('first-launch reset recovery', () => {
   it('keeps first launch agent-owned and never creates a server during recovery', () => {
     expect(gateSource).toContain("'/v1/config/host-setup'");
     expect(introSource).toContain("'/v1/config/host-setup/complete'");
-    expect(gateSource).toContain("'/v1/guides/concept-guide'");
     expect(gateSource).toContain("'/v1/guides/onboarding'");
+    expect(gateSource).not.toContain("'/v1/guides/concept-guide'");
+    expect(gateSource).not.toContain('concept-guide');
     expect(gateSource).not.toContain("'/v1/servers/create'");
     expect(setupSource).not.toContain("'/v1/servers/create'");
   });

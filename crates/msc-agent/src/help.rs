@@ -11,7 +11,7 @@ use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::identity::ServerType;
 use msc_domain::router::runtime_resolver::RuntimeContext;
 use msc_domain::router_guides::{RouterGuide, RouterSymptom, RouterTroubleshootingTopic};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 static CONTENT: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/../../content");
 
@@ -97,12 +97,6 @@ pub struct HelpContent {
     router_runtime_provider: Option<RouterRuntimeProvider>,
 }
 
-#[derive(Deserialize)]
-struct ConceptGuide {
-    id: String,
-    pages: serde_json::Value,
-}
-
 impl HelpContent {
     pub fn embedded() -> Result<Self, String> {
         let mut topics = BTreeMap::new();
@@ -146,15 +140,6 @@ impl HelpContent {
                 })
                 .collect(),
         }
-    }
-
-    pub fn concept_guide(&self) -> Result<serde_json::Value, String> {
-        let text = file_text("guides/concept-guide.json")?;
-        let guide: ConceptGuide = serde_json::from_str(text).map_err(|error| error.to_string())?;
-        if guide.id != "concept-guide" {
-            return Err("concept guide has the wrong id".to_string());
-        }
-        Ok(serde_json::json!({ "id": guide.id, "pages": guide.pages }))
     }
 
     pub fn onboarding(&self) -> Result<serde_json::Value, String> {
@@ -227,8 +212,11 @@ fn read_server_port(path: std::path::PathBuf, default: i32) -> i32 {
         .unwrap_or(default)
 }
 
-#[allow(dead_code)]
-fn detect_local_ip() -> Option<String> {
+/// Resolve the LAN address the host would use for an outbound connection.
+///
+/// UDP connect does not send application data here; it asks the operating
+/// system which local interface and address would route to the destination.
+pub(crate) fn detect_local_ip() -> Option<String> {
     let socket = UdpSocket::bind("0.0.0.0:0").ok()?;
     socket.connect("8.8.8.8:80").ok()?;
     let ip = socket.local_addr().ok()?.ip();

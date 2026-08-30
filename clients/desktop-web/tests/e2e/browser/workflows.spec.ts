@@ -2,7 +2,6 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function skipFirstLaunch(page: Page): Promise<void> {
   await page.addInitScript(() => {
-    localStorage.setItem('msc.concept-guide-seen', 'true');
     localStorage.setItem('msc_onboarding_tour_complete', 'true');
   });
 }
@@ -20,9 +19,7 @@ test('renders the production bundle at wide and narrow widths with keyboard navi
   await expect(page.getByRole('navigation', { name: 'Mobile navigation' })).toBeVisible();
 });
 
-test('walks a fresh profile through setup, Concept Guide, tour pauses, handoff, and reopen', async ({
-  page,
-}) => {
+test('walks a fresh profile through setup, tour pauses, handoff, and reopen', async ({ page }) => {
   await page.request.post('/__test/host-setup');
   await page.goto('/hosts/local-agent/servers/survival/handbook');
   const gate = page.locator('.gate');
@@ -41,8 +38,6 @@ test('walks a fresh profile through setup, Concept Guide, tour pauses, handoff, 
   await gate.getByRole('button', { name: 'Skip' }).click();
   await expect(gate.getByRole('heading', { name: 'You’re All Set', level: 2 })).toBeVisible();
   await gate.getByRole('button', { name: 'Get Started' }).click();
-  await expect(gate.getByRole('heading', { name: 'One server. Your worlds.' })).toBeVisible();
-  await gate.getByRole('button', { name: 'Continue to tour' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
   await page.getByRole('button', { name: "Let's go →" }).click();
   await expect(page.getByRole('button', { name: 'Manage…', exact: true })).toBeVisible();

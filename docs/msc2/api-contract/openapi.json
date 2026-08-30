@@ -5257,24 +5257,6 @@
         "x-notes": "P11.24. The agent owns the catalog; clients own its presentation."
       }
     },
-    "/v1/guides/concept-guide": {
-      "get": {
-        "summary": "Read the structured Concept Guide",
-        "x-permission-category": "none",
-        "responses": {
-          "200": {
-            "description": "ConceptGuideDTO.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConceptGuideDTO"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/guides/onboarding": {
       "get": {
         "summary": "Read the structured first-launch guide",
@@ -11516,14 +11498,6 @@
           }
         },
         "required": ["topics"]
-      },
-      "ConceptGuideDTO": {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string" },
-          "pages": { "type": "array", "items": { "type": "object" } }
-        },
-        "required": ["id", "pages"]
       },
       "OnboardingGuideDTO": {
         "type": "object",

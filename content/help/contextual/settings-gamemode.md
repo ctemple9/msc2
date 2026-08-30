@@ -4,7 +4,7 @@ kind: contextual
 title: Default game mode
 category: settings
 analogy: A world's default game mode is the house rule new players start with.
-relatedIds: [settings.difficulty, concept.settings, handbook.bedrock]
+relatedIds: [settings.difficulty, handbook.worlds-backups, handbook.bedrock]
 source: {path: "MSCmacOS/MSCmacOS Swift/RemoteAPIModels.swift", symbol: SettingFieldDTO.help}
 ---
 Default game mode is saved with the selected world slot and used when that

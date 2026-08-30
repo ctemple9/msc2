@@ -2099,42 +2099,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  '/v1/guides/concept-guide': {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    /** Read the structured Concept Guide */
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description ConceptGuideDTO. */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            'application/json': components['schemas']['ConceptGuideDTO'];
-          };
-        };
-      };
-    };
-    put?: never;
-    post?: never;
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   '/v1/guides/onboarding': {
     parameters: {
       query?: never;
@@ -6104,12 +6068,6 @@ export interface components {
       newBuild?: number;
       newVersion?: string;
       success: boolean;
-    } & {
-      [key: string]: unknown;
-    };
-    ConceptGuideDTO: {
-      id: string;
-      pages: Record<string, never>[];
     } & {
       [key: string]: unknown;
     };

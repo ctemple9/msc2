@@ -20,7 +20,6 @@ pub fn router(content: HelpContent) -> Router {
     Router::new()
         .route("/help/catalog", get(catalog))
         .route("/help/:help_id", get(topic))
-        .route("/guides/concept-guide", get(concept_guide))
         .route("/guides/onboarding", get(onboarding))
         .route("/guides/router-catalog", get(router_catalog))
         .route("/guides/router/search", get(router_search))
@@ -41,10 +40,6 @@ pub async fn topic(State(content): State<HelpContent>, Path(help_id): Path<Strin
         Some(topic) => Json(topic).into_response(),
         None => not_found(&help_id),
     }
-}
-
-pub async fn concept_guide(State(content): State<HelpContent>) -> Response {
-    json_or_error(content.concept_guide())
 }
 
 pub async fn onboarding(State(content): State<HelpContent>) -> Response {

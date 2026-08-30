@@ -2,8 +2,8 @@
 
 This directory is the agent-owned, reviewable source for structured guide data.
 `content/help/` holds one Markdown topic per `id`; this directory holds the
-ordered records that do not belong to a screen: the Concept Guide, the
-first-launch tour, and router-guide data.
+ordered records that do not belong to a screen: the first-launch tour and
+router-guide data.
 
 The router catalog is data only. Matching a router name, selecting a fallback,
 substituting runtime values, and evaluating troubleshooting rules remain

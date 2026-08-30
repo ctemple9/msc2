@@ -75,9 +75,7 @@ describe('Linux WebKitGTK native Tauri renderer', () => {
     await (
       await $('//*[contains(@class, "gate")]//button[normalize-space() = "Get Started"]')
     ).click();
-    await waitForText('.gate', 'One server. Your worlds.');
     await browser.execute(() => {
-      localStorage.setItem('msc.concept-guide-seen', 'true');
       localStorage.setItem('msc_onboarding_tour_complete', 'true');
     });
     await browser.refresh();

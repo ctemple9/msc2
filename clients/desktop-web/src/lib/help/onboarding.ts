@@ -62,16 +62,14 @@ export function applicableTourSteps(
 
 export type FirstLaunchState = {
   setupComplete: boolean;
-  conceptGuideSeen: boolean;
   tourComplete: boolean;
 };
 
-export type FirstLaunchStage = 'setup' | 'concept-guide' | 'tour' | 'complete';
+export type FirstLaunchStage = 'setup' | 'tour' | 'complete';
 
 /** The presentation sequence is client-owned; the step text and ordering are agent data. */
 export function firstLaunchStage(state: FirstLaunchState): FirstLaunchStage {
   if (!state.setupComplete) return 'setup';
-  if (!state.conceptGuideSeen) return 'concept-guide';
   return state.tourComplete ? 'complete' : 'tour';
 }
 

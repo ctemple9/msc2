@@ -26,9 +26,6 @@ test('client reset reopens first launch without touching the host or creating a 
   await page.goto('/hosts/local-agent/servers/survival/handbook');
   await finishHostSetup(page);
 
-  const gate = page.locator('.gate');
-  await expect(gate.getByRole('heading', { name: 'One server. Your worlds.' })).toBeVisible();
-  await gate.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByText('Begin the guided tour.')).toBeVisible();
   await page.getByRole('button', { name: 'Skip tour' }).click();
 
@@ -41,9 +38,7 @@ test('client reset reopens first launch without touching the host or creating a 
   const confirmation = page.getByRole('alertdialog', { name: 'Reset this client?' });
   await confirmation.getByRole('button', { name: 'Reset this client' }).click();
 
-  await expect(
-    page.locator('.gate').getByRole('heading', { name: 'One server. Your worlds.' }),
-  ).toBeVisible();
+  await expect(page.getByText('Begin the guided tour.')).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Help and guides' })).toBeVisible();
   const countResponse = await page.request.get('/__test/server-create-count');
   expect(countResponse.ok()).toBe(true);

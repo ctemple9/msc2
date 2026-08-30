@@ -100,7 +100,7 @@ pub fn java_setting_contract(key: &str) -> Option<SettingContract> {
         "gamemode" => world_contract(
             SettingApplyPolicy::LiveSafe,
             "world.common",
-            Some("concept.settings"),
+            Some("settings.gamemode"),
         ),
         "level-type" => world_contract(
             SettingApplyPolicy::CreationOnly,
@@ -110,7 +110,7 @@ pub fn java_setting_contract(key: &str) -> Option<SettingContract> {
         "hardcore" => world_contract(
             SettingApplyPolicy::CreationOnly,
             "world.java",
-            Some("concept.settings"),
+            Some("handbook.worlds-backups"),
         ),
         "motd" => server_contract(
             SettingApplyPolicy::LiveSafe,
@@ -173,7 +173,7 @@ pub fn bedrock_setting_contract(key: &str) -> Option<SettingContract> {
         "allow-cheats" => world_contract(
             SettingApplyPolicy::RestartRequired,
             "world.bedrock",
-            Some("concept.settings"),
+            Some("handbook.bedrock"),
         ),
         "level-name" => world_contract(
             SettingApplyPolicy::ApplyOnActivation,
@@ -188,12 +188,12 @@ pub fn bedrock_setting_contract(key: &str) -> Option<SettingContract> {
         "experiments" => world_contract(
             SettingApplyPolicy::RestartRequired,
             "world.bedrock",
-            Some("concept.settings"),
+            Some("handbook.bedrock"),
         ),
         "show-coordinates" => world_contract(
             SettingApplyPolicy::LiveSafe,
             "world.bedrock",
-            Some("concept.settings"),
+            Some("handbook.bedrock"),
         ),
         "max-players" => server_contract(SettingApplyPolicy::LiveSafe, "server.capacity", None),
         "online-mode" => server_contract(

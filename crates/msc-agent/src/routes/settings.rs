@@ -426,7 +426,7 @@ fn java_sections(model: &ServerPropertiesModel) -> Vec<SettingsSectionDto> {
                 "force-gamemode",
                 "Force Gamemode (server-wide)",
                 model.force_gamemode,
-                Some("concept.settings"),
+                Some("handbook.worlds-backups"),
             ),
             int_field(
                 "spawn-protection",

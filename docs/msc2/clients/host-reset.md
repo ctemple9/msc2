@@ -16,7 +16,7 @@ change anything on a host. It clears only the current device's:
 - remembered host records and selected-host state;
 - host-scoped credentials;
 - preferences, including per-host presentation preferences; and
-- first-launch, Concept Guide, and guided-tour state.
+- first-launch and guided-tour state.
 
 It does not delete server files, host configuration, host credentials, or the
 agent service. A remote host remains installed and unchanged. The client

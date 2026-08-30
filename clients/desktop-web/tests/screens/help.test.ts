@@ -23,19 +23,10 @@ describe('shared help and onboarding screens', () => {
     expect(rendered).not.toContain('<script>');
   });
 
-  it('preserves setup, Concept Guide, tour, skip, and reopen ordering', () => {
-    expect(
-      firstLaunchStage({ setupComplete: false, conceptGuideSeen: false, tourComplete: false }),
-    ).toBe('setup');
-    expect(
-      firstLaunchStage({ setupComplete: true, conceptGuideSeen: false, tourComplete: false }),
-    ).toBe('concept-guide');
-    expect(
-      firstLaunchStage({ setupComplete: true, conceptGuideSeen: true, tourComplete: false }),
-    ).toBe('tour');
-    expect(
-      firstLaunchStage({ setupComplete: true, conceptGuideSeen: true, tourComplete: true }),
-    ).toBe('complete');
+  it('opens the guided tour immediately after setup and supports skip/reopen ordering', () => {
+    expect(firstLaunchStage({ setupComplete: false, tourComplete: false })).toBe('setup');
+    expect(firstLaunchStage({ setupComplete: true, tourComplete: false })).toBe('tour');
+    expect(firstLaunchStage({ setupComplete: true, tourComplete: true })).toBe('complete');
     expect(
       nextTourStep(
         [{ order: 0, id: 'pause', title: '', body: '', anchor: 'x', requiresUserAction: true }],
@@ -166,6 +157,8 @@ describe('shared help and onboarding screens', () => {
     expect(appSource).toContain("agentReady={agentReadiness === 'ready'}");
     expect(helpSource).toContain("'/v1/config/host-setup'");
     expect(helpSource).toContain("'/v1/guides/onboarding'");
+    expect(helpSource).not.toContain('How MSC Works');
+    expect(helpSource).not.toContain('ConceptGuidePanel');
     expect(handbookSource).toContain('That topic is not available on this agent');
     expect(helpSource).toContain('hideCard');
     expect(tourSource).toContain("'server-settings': 'ob_wizard_continue'");

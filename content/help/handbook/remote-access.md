@@ -5,7 +5,7 @@ title: MSC Remote (iOS)
 category: connection-access
 subtitle: "Monitor and control your servers from your iPhone."
 analogy: "MSC Remote is like a remote control for your Mac's server. You can check if the server is running, see the console, and send commands — all from your iPhone, even when you're away from your Mac."
-relatedIds: [handbook.tailscale, concept.connections]
+relatedIds: [handbook.tailscale, handbook.networking-basics]
 source: {path: "MSCmacOS/MSCmacOS Swift/ServerHandbookTopics.swift", symbol: remoteAccessContent}
 ---
 

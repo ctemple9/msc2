@@ -78,22 +78,10 @@ def check_topics() -> dict[str, str]:
         kinds[kind] = kinds.get(kind, 0) + 1
     if kinds.get("handbook") != EXPECTED["handbookTopics"]:
         fail(f"expected {EXPECTED['handbookTopics']} handbook topics, got {kinds.get('handbook', 0)}")
-    if kinds.get("concept") != EXPECTED["conceptPages"]:
-        fail(f"expected {EXPECTED['conceptPages']} concept topics, got {kinds.get('concept', 0)}")
     return topics
 
 
 def check_structured_guides(topics: dict[str, str]) -> None:
-    concept = load_json("content/guides/concept-guide.json")
-    pages = concept["pages"]
-    if [page["order"] for page in pages] != list(range(1, EXPECTED["conceptPages"] + 1)):
-        fail("Concept Guide page order is not 1 through 7")
-    for page in pages:
-        if page["helpId"] not in topics:
-            fail(f"Concept Guide page lacks Markdown topic: {page['helpId']}")
-        if not page["assetStatus"].startswith("unresolved:"):
-            fail(f"Concept Guide asset status must honestly name unresolved assets: {page['helpId']}")
-
     onboarding = load_json("content/guides/onboarding.json")
     steps = onboarding["steps"]
     if [step["order"] for step in steps] != list(range(EXPECTED["onboardingSteps"])):

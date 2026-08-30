@@ -1,5 +1,5 @@
 <script lang="ts">
-  // MSC 1 ServerHandbookView.swift / ConceptGuideView.swift /
+  // MSC 1 ServerHandbookView.swift /
   // RouterPortForwardGuideSheet.swift, rebuilt to the S0 disciplined system
   // (docs/msc2/antiAIslop.md) as one screen with a segmented switcher, since
   // MSC 2 has a single "Handbook" tab rather than three separate windows.
@@ -19,7 +19,6 @@
   } from '../../help/onboarding';
   import SetupIntro from '../../help/SetupIntro.svelte';
   import type {
-    ConceptGuide,
     HelpCatalog,
     HelpTopic,
     OnboardingGuide,
@@ -27,18 +26,13 @@
   } from '../../help/types';
   import type { ScreenProps } from '../shared/types';
   import { call } from '../shared/types';
-  import ConceptGuidePanel from './ConceptGuidePanel.svelte';
   import HandbookBrowser from './HandbookBrowser.svelte';
   import RouterGuidePanel from './RouterGuidePanel.svelte';
 
   export let api: ScreenProps['api'] = undefined;
-  export let hostId = 'local-agent';
-  export let serverId = 'survival';
-
-  type View = 'handbook' | 'concept' | 'router';
+  type View = 'handbook' | 'router';
   const viewOptions: { value: View; label: string }[] = [
     { value: 'handbook', label: 'Handbook' },
-    { value: 'concept', label: 'How MSC Works' },
     { value: 'router', label: 'Router Guide' },
   ];
 
@@ -46,8 +40,6 @@
   let catalog: HelpCatalog = { topics: [] };
   let topic: HelpTopic | null = null;
   let topicId = '';
-  let concept: ConceptGuide | null = null;
-  let conceptPage = 0;
   let routerGuides: RouterGuideCatalog = { guides: [], troubleshooting: [], symptoms: [] };
   let onboarding: OnboardingGuide | null = null;
   let tourIndex = 0;
@@ -55,7 +47,6 @@
 
   const defaultState: FirstLaunchState = {
     setupComplete: false,
-    conceptGuideSeen: false,
     tourComplete: false,
   };
   let launchState = defaultState;
@@ -63,27 +54,21 @@
   $: tourSteps = onboarding ? applicableTourSteps(onboarding.steps) : [];
   $: launchStage = firstLaunchStage(launchState);
 
-  function storageKey(name: string): string {
-    return `msc.${name}`;
-  }
   function readLaunchState(setupComplete: boolean): FirstLaunchState {
     if (typeof localStorage === 'undefined') return defaultState;
-    const conceptGuideSeen = localStorage.getItem(storageKey('concept-guide-seen')) === 'true';
     const tourComplete = onboarding
       ? localStorage.getItem(onboarding.reopen.persistenceKey) === 'true'
       : false;
-    return { setupComplete, conceptGuideSeen, tourComplete };
+    return { setupComplete, tourComplete };
   }
   function saveLaunchState(next: FirstLaunchState): void {
     launchState = next;
     if (typeof localStorage === 'undefined' || !onboarding) return;
-    localStorage.setItem(storageKey('concept-guide-seen'), String(next.conceptGuideSeen));
     localStorage.setItem(onboarding.reopen.persistenceKey, String(next.tourComplete));
   }
 
   onMount(async () => {
     catalog = await call(api, catalog, '/v1/help/catalog');
-    concept = await call(api, concept, '/v1/guides/concept-guide');
     routerGuides = await call(api, routerGuides, '/v1/guides/router-catalog');
     onboarding = await call(api, onboarding, '/v1/guides/onboarding');
     const hostSetup = await call(api, { complete: false }, '/v1/config/host-setup');
@@ -101,9 +86,6 @@
   }
   function completeSetup(): void {
     saveLaunchState({ ...launchState, setupComplete: true });
-  }
-  function finishConcept(): void {
-    saveLaunchState({ ...launchState, conceptGuideSeen: true });
   }
   function restartTour(): void {
     window.dispatchEvent(new CustomEvent('msc:restart-tour'));
@@ -144,15 +126,6 @@
       <Card padding="18px">
         {#if activeView === 'handbook'}
           <HandbookBrowser {catalog} {topic} {topicId} onSelect={(id) => void selectTopic(id)} />
-        {:else if activeView === 'concept'}
-          <ConceptGuidePanel
-            {concept}
-            bind:page={conceptPage}
-            {hostId}
-            {serverId}
-            onFinish={finishConcept}
-            onOpenHandbook={() => void selectTopic('handbook.overview')}
-          />
         {:else}
           <RouterGuidePanel {api} catalog={routerGuides} />
         {/if}
@@ -178,16 +151,6 @@
               {api}
               onComplete={completeSetup}
             />
-          {:else if launchStage === 'concept-guide'}
-            <p class="msc2-type-body muted">
-              Open How MSC Works above and read through it, then continue.
-            </p>
-            <div class="onboarding-actions">
-              <Button size="sm" variant="secondary" onclick={() => (activeView = 'concept')}>
-                Open How MSC Works
-              </Button>
-              <Button size="sm" variant="primary" onclick={finishConcept}>Continue</Button>
-            </div>
           {:else if launchStage === 'tour'}
             {@const step = tourSteps[tourIndex]}
             {#if step}

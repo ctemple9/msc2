@@ -247,7 +247,12 @@ impl WorldProfileField {
             | Self::GenerationGeneratorOptions
             | Self::GenerationBonusChest
             | Self::GenerationDataPacks => Some("handbook.worlds-backups"),
-            _ => Some("concept.settings"),
+            Self::GameplayDefaultGameMode => Some("settings.gamemode"),
+            Self::GameplayCheats
+            | Self::GameplayExperiments
+            | Self::GameplayCoordinates
+            | Self::GameplaySupportedToggles => Some("handbook.bedrock"),
+            _ => Some("handbook.worlds-backups"),
         }
     }
 

@@ -33,22 +33,6 @@ HELP_REQUIREMENTS = {
         "Java has different semantics",
         "force-gamemode",
     ],
-    "content/help/concept/worlds.md": [
-        "versioned profile",
-        "saved with the world",
-        "not silently presented as MSC controls",
-    ],
-    "content/help/concept/active-world.md": [
-        "saved with the world",
-        "applied live",
-        "awaits a server restart",
-    ],
-    "content/help/concept/settings.md": [
-        "two homes",
-        "force-gamemode",
-        "world-scoped confirmation",
-        "server-wide confirmation",
-    ],
     "content/help/contextual/settings-difficulty.md": [
         "saved with that world slot",
         "not a server-wide setting",

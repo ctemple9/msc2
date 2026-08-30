@@ -50,8 +50,8 @@ areas separately:
 | MSC 1 source | Behavior that must survive | MSC 2 owner |
 |---|---|---|
 | `SetupWizardView.swift` | Fresh-install setup sheet, page order, required Java/server-root checks, optional helper pages, back/next behavior, and completion persistence. | Shared client presentation; agent setup/probes |
-| `AppViewModel+ServerSettings.swift` | Setup dismissal → Concept Guide handoff → onboarding-tour handoff, one-time flags, skip behavior, reopen-from-preferences behavior, and presentation timing needed to avoid overlapping sheets. | Shared client |
-| `ConceptGuideView.swift`, `ServerHandbookView.swift`, `ServerHandbookTopics.swift` | Concept Guide page order and explanations, Handbook entry point, 31 handbook topics, and the relationship between the guide and the Handbook. | Agent-served content; shared client rendering |
+| `AppViewModel+ServerSettings.swift` | Setup dismissal → onboarding-tour handoff, one-time flags, skip behavior, reopen-from-preferences behavior, and presentation timing needed to avoid overlapping sheets. | Shared client |
+| `ServerHandbookView.swift`, `ServerHandbookTopics.swift` | Handbook entry point, 31 handbook topics, and the relationship between the Handbook and the rest of the help system. | Agent-served content; shared client rendering |
 | `OnboardingManager.swift`, `OnboardingOverlayView.swift`, and onboarding anchors in the wizard/details views | The guided tour's step order, titles, instructions, user-action pauses, form-card hiding/resume behavior, spotlight anchors, completion state, and restart behavior. | Shared client |
 | `SplashGateView.swift`, bundled `splash_intro` asset | Cold-launch splash behavior, playback completion/fallback, safety timeout, and reduced-motion/accessibility degradation. | Shared client/platform adapter |
 | `AppViewModel+ServerControls.swift` | First-server initiation, readiness-driven sequencing, automatic stop/start behavior, and first-start completion state. | Agent; client displays progress and completion |
@@ -69,11 +69,9 @@ P11.15 extracts the data that must not be rewritten in a Svelte component:
   one of the 31 `HandbookTopic` cases. Its front matter cites the exact MSC 1
   content symbol, preserving both the topic order/category and the source of
   its explanation.
-- `content/help/concept/` and `content/guides/concept-guide.json` preserve the
-  seven Concept Guide pages and their order. `ConceptGuideDiagrams.swift`
-  remains cited but its drawings are honestly recorded as unresolved assets:
-  P11.16 owns a reviewed client rendering or replacement. It also owns visual
-  anchoring and any animation/reduced-motion fallback.
+- The retired Concept Guide is not part of the client surface. The Handbook,
+  first-launch tour, and router guide remain agent-served content with
+  client-owned presentation and anchoring.
 - `content/guides/onboarding.json` preserves first-launch content, ordering,
   branching, form-card hide/resume behavior, skip wording, and the
   `msc_onboarding_tour_complete` persistence key. Its complete per-step source
@@ -184,7 +182,7 @@ registered in the production registry, and no matrix cell changes to
 | Worlds, backups, transfers | Java-capable slot/world/backup workflows, staged upload/download, conversion, thumbnails when advertised, risk-aware confirmation and recovery. | Bedrock-specific rows remain capability explanations until the later Bedrock client group; Bedrock backup restore keeps the agent's slot-based boundary. |
 | Add-ons and components | Installed add-ons, catalog, install/update/toggle/remove/source, component state, client export, modpack inspect/import/manual-file completion. | No fake provider success and no client-owned copy of agent dependency/provenance rules. |
 | Administration | Schema-driven settings, RAM/Java/Geyser helper settings, health/problems/repairs, connectivity, Playit, DuckDNS, Xbox Broadcast, resource packs, named-token access. | Agent-Planned watchdog/files/profile operations remain future or unavailable explanations, not pretend controls. |
-| Help and onboarding | Render agent-served Markdown/structured guides, contextual `helpId`, related topics, unknown-topic degradation, the fresh-install setup → Concept Guide → tour sequence, tour anchors and pauses, Handbook reopening, and client-owned splash/animation fallbacks. | No screen-local handbook or router-guide prose; no silent replacement of the first-launch experience with a generic welcome screen. |
+| Help and onboarding | Render agent-served Markdown/structured guides, contextual `helpId`, related topics, unknown-topic degradation, the fresh-install setup → guided tour sequence, tour anchors and pauses, Handbook reopening, and client-owned splash/animation fallbacks. | No screen-local handbook or router-guide prose; no silent replacement of the first-launch experience with a generic welcome screen. |
 | Shared infrastructure | Generated DTOs, host-keyed stores, auth adapters, capability/permission filtering, operation/reconnect state, staged-transfer transport, WebSocket framing, error/help routing, and the exact bundle identity between browser and Tauri. | P11.1 does not implement any frontend, Tauri crate, browser session, or agent route. |
 
 ## Route and matrix appendix

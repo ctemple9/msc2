@@ -19,8 +19,8 @@ Expected coverage:
 - an incompatible agent offers **Repair service**;
 - remote recovery accepts a fresh one-use pairing code and replaces the old
   host identity;
-- first launch loads host setup, Concept Guide, and onboarding data from the
-  agent, with no `/v1/servers/create` call during recovery;
+- first launch loads host setup and onboarding data from the agent, with no
+  `/v1/servers/create` call during recovery;
 - a browser client reset returns to first launch while the host remains
   unchanged.
 
@@ -31,7 +31,7 @@ result for each row. Do not paste bearer credentials or pairing codes here.
 
 | Walkthrough | Procedure | Evidence to record | Result |
 |---|---|---|---|
-| Client-only reset | Complete first launch on a client with a configured host. Open Preferences → Reset this client, confirm, then reconnect. | Host configuration and server files unchanged; local host records and onboarding flags cleared; Concept Guide reopens; no server is created. | Pending |
+| Client-only reset | Complete first launch on a client with a configured host. Open Preferences → Reset this client, confirm, then reconnect. | Host configuration and server files unchanged; local host records and onboarding flags cleared; setup and the guided tour reopen; no server is created. | Pending |
 | Remote configuration reset | Pair a second desktop to a remote host. Stop every Minecraft server. Reset the remote host with **Configuration only**. | Existing server folder/worlds/jars/logs remain; old credential is rejected; agent service remains installed; a fresh `msc pairing create` code completes **Pair Again** and reopens host setup. | Pending |
 | Remote full reset | On the same remote host with all servers stopped, reset with **Everything**. | Managed server folder is removed; agent service remains installed; old credential is rejected; fresh pairing is required and succeeds; no server is created. | Pending |
 | Local full reset | On the desktop host with all servers stopped, reset with **Everything**. | Host state, managed server folder, and downloaded helper cache are removed; the desktop uninstalls its local service; the agent screen shows **Install and Continue**; install bootstraps a new credential, reacquires helpers when selected, and opens host setup. | Pending |
@@ -39,7 +39,6 @@ result for each row. Do not paste bearer credentials or pairing codes here.
 | Confirmation boundary | Try an incorrect phrase and the exact `RESET AGENT` value. | The incorrect phrase is rejected; only the exact phrase is accepted. | Pending |
 
 The first-server handoff is verified separately after recovery: walk SetupIntro
-→ Concept Guide → guided tour, use the highlighted Add Server action, complete
-the wizard, and confirm that the server appears only after the explicit Create
-action. Capture one screenshot of the first-launch sequence and one of the
-post-create handoff.
+→ guided tour, use the highlighted Add Server action, complete the wizard, and
+confirm that the server appears only after the explicit Create action. Capture
+one screenshot of the first-launch sequence and one of the post-create handoff.

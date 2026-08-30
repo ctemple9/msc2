@@ -18,29 +18,8 @@ const topics = {
     category: 'concepts',
     analogy: 'A server is a separate Minecraft room.',
     body: 'MSC manages servers and worlds.\n\n- Start a server\n- Choose a world',
-    relatedIds: ['concept.server'],
+    relatedIds: [],
   },
-  'concept.server': {
-    helpId: 'concept.server',
-    title: 'One server. Your worlds.',
-    category: 'concept-guide',
-    body: 'A server holds worlds.',
-    relatedIds: ['handbook.overview'],
-  },
-};
-const concept = {
-  id: 'concept-guide',
-  pages: [
-    {
-      order: 1,
-      helpId: 'concept.server',
-      eyebrow: 'The Big Picture',
-      title: 'One server. Your worlds.',
-      body: 'A server contains worlds.',
-      diagram: 'server-worlds',
-      assetStatus: 'reviewed CSS replacement',
-    },
-  ],
 };
 const onboarding = {
   id: 'first-launch-tour',
@@ -470,7 +449,6 @@ createServer(async (request, response) => {
       },
       topics[decodeURIComponent(url.pathname.slice('/v1/help/'.length))] ? 200 : 404,
     );
-  if (url.pathname === '/v1/guides/concept-guide') return json(response, concept);
   if (url.pathname === '/v1/guides/onboarding') return json(response, onboarding);
   if (url.pathname === '/v1/guides/router-catalog')
     return json(response, {
@@ -503,7 +481,11 @@ createServer(async (request, response) => {
       isAmbiguous: candidates.length > 1,
       matchedDirectGuide,
       fallbackResolution: {
-        kind: matchedDirectGuide ? 'exactGuide' : candidates.length > 1 ? 'familyGuide' : 'genericRouterGuide',
+        kind: matchedDirectGuide
+          ? 'exactGuide'
+          : candidates.length > 1
+            ? 'familyGuide'
+            : 'genericRouterGuide',
         availability: candidates.length > 0 ? 'exactMatch' : 'fallbackUsed',
         matchedGuideId: matchedDirectGuide ? candidates[0].guide.id : null,
         fallbackGuideId: candidates.length === 0 ? (fallback?.id ?? null) : null,

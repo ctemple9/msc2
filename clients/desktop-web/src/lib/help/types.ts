@@ -26,19 +26,6 @@ export type HelpCatalog = {
   topics: readonly Pick<HelpTopic, 'helpId' | 'title' | 'category'>[];
 };
 
-export type ConceptGuide = {
-  id: string;
-  pages: readonly {
-    order: number;
-    helpId: string;
-    eyebrow: string;
-    title: string;
-    body: string;
-    diagram: string;
-    assetStatus: string;
-  }[];
-};
-
 /** Mirrors `RouterGuideStepDTO` (crates/msc-agent/src/routes/help.rs). */
 export type RouterGuideStep = {
   id: string;
@@ -179,7 +166,14 @@ export type RouterResolvedItem =
       path: readonly string[];
       alternateMenuNames: readonly string[];
     }
-  | { type: 'step'; id: string; kind: string; title: string; body: string; alternateTerms: readonly string[] }
+  | {
+      type: 'step';
+      id: string;
+      kind: string;
+      title: string;
+      body: string;
+      alternateTerms: readonly string[];
+    }
   | { type: 'note'; id: string; title?: string | null; body: string }
   | {
       type: 'troubleshootingTopic';

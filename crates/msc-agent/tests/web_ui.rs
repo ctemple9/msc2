@@ -62,6 +62,30 @@ async fn serves_packaged_hashed_assets_with_browser_safe_headers() {
 }
 
 #[tokio::test]
+async fn serves_the_splash_video_with_a_video_content_type() {
+    let response = app()
+        .oneshot(
+            Request::get("/splash_intro.mp4")
+                .body(Body::empty())
+                .expect("valid request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.headers()[header::CONTENT_TYPE], "video/mp4");
+    assert!(
+        response
+            .into_body()
+            .collect()
+            .await
+            .expect("body")
+            .to_bytes()
+            .len()
+            > 0
+    );
+}
+
+#[tokio::test]
 async fn deep_links_use_the_app_but_v1_and_missing_assets_do_not() {
     let response = app()
         .oneshot(

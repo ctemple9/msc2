@@ -1482,6 +1482,8 @@ fn run_create_bedrock_server(
         Ok(created) => {
             match state.register_imported_config_servers(vec![created.config.clone()], false) {
                 Ok(statuses) => {
+                    let first_start_required =
+                        msc_application::provisioning::first_start_required(&created.config);
                     let reconciled = statuses.iter().any(|(id, status)| {
                         id == &created.config.id
                             && matches!(
@@ -1507,6 +1509,10 @@ fn run_create_bedrock_server(
                     result.insert("serverId".to_string(), created.config.id);
                     result.insert("serverName".to_string(), created.config.display_name);
                     result.insert("ready".to_string(), ready.to_string());
+                    result.insert(
+                        "firstStartRequired".to_string(),
+                        first_start_required.to_string(),
+                    );
                     let _ = state.finish_operation_success(
                         &operation_id,
                         "Bedrock server created.",
@@ -1784,6 +1790,7 @@ fn finish_created_server(
 ) {
     let server_id = created.config.id.clone();
     let server_name = created.config.display_name.clone();
+    let first_start_required = provisioning::first_start_required(&created.config);
     match state.register_imported_config_servers(vec![created.config], false) {
         Ok(statuses) => {
             let ready = statuses.iter().any(|(id, status)| {
@@ -1804,6 +1811,10 @@ fn finish_created_server(
             result_map.insert("serverId".to_string(), server_id);
             result_map.insert("serverName".to_string(), server_name.clone());
             result_map.insert("ready".to_string(), ready.to_string());
+            result_map.insert(
+                "firstStartRequired".to_string(),
+                first_start_required.to_string(),
+            );
             if let Some(warning) = java_compatibility_warning {
                 result_map.insert("javaCompatibilityWarning".to_string(), warning);
             }

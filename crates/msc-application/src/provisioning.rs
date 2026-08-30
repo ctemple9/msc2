@@ -436,6 +436,39 @@ pub struct CreatedBedrockServer {
     pub world_slot: WorldSlot,
 }
 
+/// Mirrors MSC 1's `hasGeneratedWorldOnDisk`: configuration files, logs, and
+/// libraries do not prove that the first real game start completed. A Java
+/// world is generated when an immediate child of the server directory owns a
+/// `level.dat`; Bedrock stores the equivalent world database under
+/// `worlds/<level>/db`.
+pub fn has_generated_world_on_disk(server_type: ServerType, server_dir: &Path) -> bool {
+    match server_type {
+        ServerType::Java => std::fs::read_dir(server_dir)
+            .ok()
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .any(|path| path.is_dir() && path.join("level.dat").is_file()),
+        ServerType::Bedrock => std::fs::read_dir(server_dir.join("worlds"))
+            .ok()
+            .into_iter()
+            .flatten()
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .any(|path| path.is_dir() && path.join("db").is_dir()),
+    }
+}
+
+/// Returns whether the next start must run MSC 1's two-pass first-start
+/// initiation. The popup flag is authoritative once completion is shown; the
+/// disk check is the recovery path for imported/legacy servers and for a
+/// first run that crashed after writing partial files.
+pub fn first_start_required(server: &ConfigServer) -> bool {
+    !server.has_shown_first_start_popup
+        && !has_generated_world_on_disk(server.server_type, Path::new(&server.server_dir))
+}
+
 /// What a jar acquisition resolved to — mirrors `ServerJarDownloadResult`
 /// (`ServerJarProviders.swift:42-46`). `pub(crate)`: [`download_flavor_jar`]
 /// is now a same-crate `pub(crate)` boundary too (P7.19's `server_versions`

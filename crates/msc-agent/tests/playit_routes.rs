@@ -195,3 +195,31 @@ fn native_setup_error_codes_are_stable_and_actionable_without_provider_details()
         assert!(errors.contains(&json!(code)), "missing stable error {code}");
     }
 }
+
+#[test]
+fn first_start_uses_the_agent_owned_two_pass_lifecycle() {
+    let lifecycle = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/routes/lifecycle.rs"),
+    )
+    .expect("read lifecycle routes");
+    let provisioning = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../msc-application/src/provisioning.rs"),
+    )
+    .expect("read provisioning application");
+
+    for marker in [
+        "FirstStartCoordinator",
+        "prepare_first_start",
+        "handle_server_ready",
+        "enforce_first_start_safety_cap",
+        "firstStartPass1Complete",
+        "firstStartComplete",
+    ] {
+        assert!(
+            lifecycle.contains(marker),
+            "missing lifecycle marker {marker}"
+        );
+    }
+    assert!(provisioning.contains("has_generated_world_on_disk"));
+    assert!(provisioning.contains("first_start_required"));
+}

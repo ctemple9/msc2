@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
@@ -28,6 +28,10 @@ use msc_application::lifecycle::{
 use msc_application::status::{LifecycleStatusSnapshot, PerformanceSnapshot};
 use msc_application::transfer::TransferExportServerInput;
 use msc_domain::app_config_schema::{AppConfig, ConfigServer};
+use msc_domain::helper::{
+    FirstRunTransport, FirstStartCoordinator, FirstStartPhase, FirstStartTransportState,
+    first_run_safety_cap_reached,
+};
 use msc_domain::identity::JavaServerFlavor;
 use msc_domain::identity::ServerType;
 use msc_domain::operation::OperationId;
@@ -220,6 +224,8 @@ struct LifecycleRoutesInner {
     audit_log: &'static AuditLog<'static>,
     reconciliation: Mutex<BTreeMap<String, ReconciliationStatus>>,
     bedrock_runtime: BedrockRuntimeSelection,
+    first_start: Mutex<Option<FirstStartCoordinator>>,
+    first_start_pass_two_started_at: Mutex<Option<Instant>>,
 }
 
 pub struct AgentServerRegistry {
@@ -373,6 +379,8 @@ impl LifecycleRoutesState {
                 audit_log,
                 reconciliation: Mutex::new(reconciliation),
                 bedrock_runtime,
+                first_start: Mutex::new(None),
+                first_start_pass_two_started_at: Mutex::new(None),
             }),
         }
     }
@@ -912,22 +920,17 @@ impl LifecycleRoutesState {
             .active_server()
             .cloned()
             .ok_or(LifecycleError::NoActiveServer)?;
+        let registered = self
+            .inner
+            .registry
+            .get(&active)
+            .ok_or_else(|| LifecycleError::ServerNotFound(active.clone()))?;
+        self.prepare_first_start(&registered)?;
         let operation_id = self.inner.operations.begin_lifecycle(
             "java-start",
             Some(active.as_str().to_string()),
             "Starting Java server.",
         )?;
-        let registered = self
-            .inner
-            .registry
-            .get(&active)
-            .ok_or_else(|| LifecycleError::ServerNotFound(active.clone()))
-            .inspect_err(|error| {
-                let _ =
-                    self.inner
-                        .operations
-                        .fail(&operation_id, "lifecycle_error", error.to_string());
-            })?;
         // P7.31: resolve the effective Java executable and run the
         // required-major guard before spawning it, the start-time
         // counterpart to `create_install_step_server`'s own create-time
@@ -986,6 +989,145 @@ impl LifecycleRoutesState {
             active_server_id: Some(active.as_str().to_string()),
             operation_id: Some(operation_id.as_str().to_string()),
         })
+    }
+
+    /// Arm or advance MSC 1's first-start state before a process is spawned.
+    /// A fresh/legacy server enters pass one; the next explicit Start after
+    /// pass one enters pass two. The persisted popup flag is deliberately not
+    /// used to suppress an in-flight run, so a crash can be retried safely.
+    fn prepare_first_start(&self, server: &ConfigServer) -> Result<(), LifecycleError> {
+        let mut first_start = self.inner.first_start.lock().unwrap();
+        match first_start.as_mut() {
+            Some(run) if run.server_id == server.id => {
+                if run.phase == FirstStartPhase::WaitingForSetup {
+                    run.begin_second_pass();
+                    *self.inner.first_start_pass_two_started_at.lock().unwrap() =
+                        Some(Instant::now());
+                }
+            }
+            Some(_) => {
+                *first_start = None;
+            }
+            None => {}
+        }
+
+        if first_start.is_none() && msc_application::provisioning::first_start_required(server) {
+            *first_start = Some(FirstStartCoordinator::new(
+                server.id.clone(),
+                server.playit_enabled,
+                server.xbox_broadcast_enabled,
+            ));
+            *self.inner.first_start_pass_two_started_at.lock().unwrap() = None;
+            self.mark_first_start_started(&server.id)?;
+        }
+        Ok(())
+    }
+
+    fn mark_first_start_started(&self, server_id: &str) -> Result<(), LifecycleError> {
+        self.try_mutate_config(|config| {
+            let Some(server) = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == server_id)
+            else {
+                return Err("server disappeared while starting".to_string());
+            };
+            server.has_ever_started = true;
+            Ok::<_, String>(())
+        })
+        .map_err(|error| match error {
+            TryMutateError::Domain(message) => LifecycleError::Repository(message),
+            TryMutateError::Save(error) => LifecycleError::Repository(error.to_string()),
+        })
+    }
+
+    fn mark_first_start_complete(&self, server_id: &str) -> Result<(), String> {
+        self.try_mutate_config(|config| {
+            let Some(server) = config
+                .servers
+                .iter_mut()
+                .find(|server| server.id == server_id)
+            else {
+                return Err("server disappeared before first-start completion".to_string());
+            };
+            server.has_ever_started = true;
+            server.has_shown_first_start_popup = true;
+            Ok::<_, String>(())
+        })
+        .map_err(|error| match error {
+            TryMutateError::Domain(message) => message,
+            TryMutateError::Save(error) => error.to_string(),
+        })
+    }
+
+    /// Called by transport integrations when their first-start work resolves.
+    /// It is public so the networking route can feed the same agent-owned
+    /// state machine when the normal helper lifecycle is connected later.
+    #[allow(dead_code)]
+    pub fn mark_first_start_transport(
+        &self,
+        transport: FirstRunTransport,
+        state: FirstStartTransportState,
+    ) -> bool {
+        let should_stop = {
+            let mut first_start = self.inner.first_start.lock().unwrap();
+            let Some(run) = first_start.as_mut() else {
+                return false;
+            };
+            run.mark_transport(transport, state);
+            run.ready_to_stop() && run.issue_auto_stop()
+        };
+        if should_stop {
+            let _ = self.inner.lifecycle.lock().unwrap().request_stop();
+        }
+        true
+    }
+
+    fn handle_server_ready(&self, status_line: &str) {
+        let (should_stop, pass_one) = {
+            let mut first_start = self.inner.first_start.lock().unwrap();
+            let Some(run) = first_start.as_mut() else {
+                self.finish_active_lifecycle_operation_success(status_line);
+                return;
+            };
+            let changed = run.mark_server_ready();
+            if !changed {
+                return;
+            }
+            let should_stop = if run.phase == FirstStartPhase::PassTwo {
+                run.ready_to_stop() && run.issue_auto_stop()
+            } else {
+                run.issue_auto_stop()
+            };
+            (should_stop, run.phase != FirstStartPhase::PassTwo)
+        };
+
+        if should_stop {
+            let _ = self.inner.lifecycle.lock().unwrap().request_stop();
+            if pass_one {
+                self.progress_first_start("First-start pass one is ready; stopping the server.");
+            } else {
+                self.progress_first_start("First-start transports are ready; stopping the server.");
+            }
+        } else {
+            self.progress_first_start(status_line);
+        }
+    }
+
+    fn progress_first_start(&self, status_line: &str) {
+        let Some(operation_id) = self
+            .inner
+            .active_lifecycle_operation
+            .lock()
+            .unwrap()
+            .clone()
+        else {
+            return;
+        };
+        let _ = self
+            .inner
+            .operations
+            .progress(&operation_id, 2, 3, status_line);
     }
 
     pub fn stop_active_server(&self) -> Result<Option<String>, LifecycleError> {
@@ -1182,6 +1324,7 @@ impl LifecycleRoutesState {
             .ok_or(LifecycleRouteError::Lifecycle(
                 LifecycleError::NoActiveServer,
             ))?;
+        self.prepare_first_start(&active)?;
         let operation_id = self.inner.operations.begin_lifecycle(
             "bedrock-start",
             Some(active.id.clone()),
@@ -1271,7 +1414,7 @@ impl LifecycleRoutesState {
                     if self.bedrock_operation_cancel_requested() {
                         let _ = self.inner.bedrock_runtime.stop();
                     } else {
-                        self.finish_active_lifecycle_operation_success("Bedrock server is ready.");
+                        self.handle_server_ready("Bedrock server is ready.");
                     }
                 }
                 BedrockRuntimeEvent::Metrics(_) => {}
@@ -1280,13 +1423,12 @@ impl LifecycleRoutesState {
                         if self.bedrock_operation_cancel_requested() {
                             self.finish_active_lifecycle_operation_cancelled();
                         } else {
-                            self.finish_active_lifecycle_operation_success(
-                                "Bedrock server stopped.",
-                            );
+                            self.handle_process_termination(true);
                         }
                     }
                     BedrockTerminationReason::GuestError(message)
                     | BedrockTerminationReason::StartFailed(message) => {
+                        self.abort_first_start();
                         self.finish_active_lifecycle_operation_failure(&message);
                     }
                 },
@@ -1300,6 +1442,7 @@ impl LifecycleRoutesState {
             let mut framer = OutputLineFramer::new();
             loop {
                 state.drain_process_events(pid, &mut framer);
+                state.enforce_first_start_safety_cap();
                 if state
                     .inner
                     .lifecycle
@@ -1314,6 +1457,32 @@ impl LifecycleRoutesState {
             }
         });
         self.inner.pump_tasks.lock().unwrap().push(handle);
+    }
+
+    fn enforce_first_start_safety_cap(&self) {
+        let should_stop = {
+            let mut first_start = self.inner.first_start.lock().unwrap();
+            let Some(run) = first_start.as_mut() else {
+                return;
+            };
+            let Some(started_at) = *self.inner.first_start_pass_two_started_at.lock().unwrap()
+            else {
+                return;
+            };
+            if run.phase != FirstStartPhase::PassTwo
+                || !first_run_safety_cap_reached(started_at.elapsed().as_secs())
+            {
+                return;
+            }
+            run.mark_safety_cap_failures();
+            run.issue_auto_stop()
+        };
+        if should_stop {
+            let _ = self.inner.lifecycle.lock().unwrap().request_stop();
+            self.progress_first_start(
+                "First-start safety limit reached; stopping the server and keeping the resolved state.",
+            );
+        }
     }
 
     fn drain_active_process_events(&self) {
@@ -1342,7 +1511,7 @@ impl LifecycleRoutesState {
                 if output_events.iter().any(|event| {
                     matches!(event, msc_application::output_reducer::OutputEvent::Ready)
                 }) {
-                    self.finish_active_lifecycle_operation_success("Java server is ready.");
+                    self.handle_server_ready("Java server is ready.");
                 }
             }
             let exited = matches!(event, ProcessEvent::Exited(_));
@@ -1352,9 +1521,7 @@ impl LifecycleRoutesState {
                 &iso8601_now(),
             );
             if exited {
-                self.finish_active_lifecycle_operation_failure(
-                    "Java process exited before readiness.",
-                );
+                self.handle_process_termination(false);
             }
         }
     }
@@ -1372,7 +1539,95 @@ impl LifecycleRoutesState {
             .push(ConsoleLine::new(source, None, text.to_string()));
     }
 
+    fn handle_process_termination(&self, clean_stop_success: bool) {
+        let outcome = {
+            let mut first_start = self.inner.first_start.lock().unwrap();
+            let Some(run) = first_start.as_mut() else {
+                if clean_stop_success {
+                    self.finish_active_lifecycle_operation_success("Bedrock server stopped.");
+                } else {
+                    self.finish_active_lifecycle_operation_failure(
+                        "Java process exited before readiness.",
+                    );
+                }
+                return;
+            };
+            let server_id = run.server_id.clone();
+            match run.phase {
+                FirstStartPhase::WaitingForSetup if run.server_ready => {
+                    let needs_second_pass = run.needs_second_pass();
+                    run.finish_first_pass();
+                    Some((server_id, needs_second_pass, false, false))
+                }
+                FirstStartPhase::Complete | FirstStartPhase::PassTwo
+                    if run.server_ready || run.safety_cap_reached() =>
+                {
+                    run.complete();
+                    Some((server_id, false, true, run.safety_cap_reached()))
+                }
+                _ => {
+                    *first_start = None;
+                    None
+                }
+            }
+        };
+
+        match outcome {
+            Some((server_id, true, false, _)) => {
+                self.progress_first_start(
+                    "Pass one is complete. Waiting for the first-start transport choices.",
+                );
+                self.finish_active_lifecycle_operation_success_with_result(
+                    "First-start pass one complete.",
+                    BTreeMap::from([
+                        ("firstStartPass1Complete".into(), "true".into()),
+                        ("firstStartNeedsPass2".into(), "true".into()),
+                        ("firstStartServerId".into(), server_id),
+                    ]),
+                );
+            }
+            Some((server_id, false, true, safety_cap)) => {
+                let completion_saved = self.mark_first_start_complete(&server_id).is_ok();
+                self.finish_active_lifecycle_operation_success_with_result(
+                    if safety_cap {
+                        "First-start safety limit reached; server stopped."
+                    } else {
+                        "First-start setup complete; server stopped."
+                    },
+                    BTreeMap::from([
+                        ("firstStartComplete".into(), completion_saved.to_string()),
+                        ("firstStartServerId".into(), server_id),
+                        ("firstStartSafetyCap".into(), safety_cap.to_string()),
+                    ]),
+                );
+                *self.inner.first_start.lock().unwrap() = None;
+                *self.inner.first_start_pass_two_started_at.lock().unwrap() = None;
+            }
+            None => {
+                self.finish_active_lifecycle_operation_failure(
+                    "The first-start server process exited before completion; initiation remains available on the next Start.",
+                );
+            }
+            Some((_, false, false, _)) | Some((_, true, true, _)) => {
+                unreachable!("first-start outcome invariant")
+            }
+        }
+    }
+
+    fn abort_first_start(&self) {
+        *self.inner.first_start.lock().unwrap() = None;
+        *self.inner.first_start_pass_two_started_at.lock().unwrap() = None;
+    }
+
     fn finish_active_lifecycle_operation_success(&self, status_line: &str) {
+        self.finish_active_lifecycle_operation_success_with_result(status_line, BTreeMap::new());
+    }
+
+    fn finish_active_lifecycle_operation_success_with_result(
+        &self,
+        status_line: &str,
+        additional_result: BTreeMap<String, String>,
+    ) {
         let Some(operation_id) = self.inner.active_lifecycle_operation.lock().unwrap().take()
         else {
             return;
@@ -1381,6 +1636,7 @@ impl LifecycleRoutesState {
         if let Some(active) = self.active_server_id() {
             result.insert("activeServerId".to_string(), active);
         }
+        result.extend(additional_result);
         let _ = self
             .inner
             .operations

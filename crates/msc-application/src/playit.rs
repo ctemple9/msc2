@@ -582,6 +582,15 @@ impl<'a> PlayitService<'a> {
         self.lifecycle_status().is_active()
     }
 
+    /// The first-start coordinator needs a provider-neutral answer rather
+    /// than the helper's lower-level `Starting`/`Running` label. A Playit
+    /// transport is ready only after the managed process has emitted a safe
+    /// player address; process spawn alone is not enough.
+    pub fn first_start_ready(&self) -> bool {
+        self.lifecycle_status() == PlayitLifecycleStatus::Running
+            && self.snapshot.player_address.is_some()
+    }
+
     pub fn diagnostics(&self) -> Vec<msc_infrastructure::helper_process::HelperDiagnostic> {
         self.helpers
             .snapshot(&self.key())
@@ -927,6 +936,16 @@ impl<'a> PlayitService<'a> {
                 .map_err(|error| PlayitError::Operation(error.to_string()))?;
         }
         Ok(true)
+    }
+
+    /// First-start naming for the existing 75-second technical watchdog.
+    /// Keeping this as a façade lets the coordinator use the same timeout
+    /// rule without creating a second timer or changing normal helper runs.
+    pub fn first_start_timeout_elapsed(
+        &mut self,
+        seconds_waiting: u64,
+    ) -> Result<bool, PlayitError> {
+        self.ready_timeout_elapsed(seconds_waiting)
     }
 
     fn key(&self) -> HelperKey {

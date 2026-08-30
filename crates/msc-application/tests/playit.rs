@@ -415,6 +415,7 @@ fn playit_readiness_is_a_player_address_not_a_management_address() {
         service.status().player_address.as_deref(),
         Some("join.example.joinmc.link")
     );
+    assert!(service.first_start_ready());
     assert_eq!(
         operations
             .snapshot(&msc_domain::operation::OperationId::new(operation_id))
@@ -481,7 +482,7 @@ fn playit_ready_signal_times_out_at_the_msc1_watchdog_boundary() {
     );
 
     assert!(!service.ready_timeout_elapsed(74).unwrap());
-    assert!(service.ready_timeout_elapsed(75).unwrap());
+    assert!(service.first_start_timeout_elapsed(75).unwrap());
     assert_eq!(service.status().status, HelperStatus::TimedOut);
     let operation = operations.snapshot(&operation_id).unwrap().unwrap();
     assert_eq!(operation.state, OperationState::Failed);

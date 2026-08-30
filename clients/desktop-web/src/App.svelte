@@ -284,7 +284,6 @@
     message: string;
   };
 
-
   async function resetClientState(): Promise<void> {
     const rememberedHostIds = hosts.map((host) => host.id);
     if (isDesktopShell) {
@@ -298,13 +297,21 @@
     window.location.reload();
   }
 
-  async function completeHostReset(result: HostResetResult): Promise<void> {
+  async function completeHostReset(
+    result: HostResetResult,
+    resetClientAfterHost = false,
+  ): Promise<void> {
     let cleanupError = '';
+    let credentialCleanupFailed = false;
     if (isDesktopShell) {
       try {
         const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
-        await auth.forgetCredentials([result.hostId], hostId === localAgentHostId);
+        await auth.forgetCredentials(
+          resetClientAfterHost ? hosts.map((host) => host.id) : [result.hostId],
+          resetClientAfterHost || hostId === localAgentHostId,
+        );
       } catch (error) {
+        credentialCleanupFailed = true;
         cleanupError = `The host reset completed, but this desktop could not forget its old credential: ${String(error)}`;
       }
     }
@@ -320,13 +327,21 @@
     status = defaultStatus;
 
     if (isLocalHostForReset() && isDesktopShell && result.mode === 'everything') {
+      let localServiceRemoved = true;
       try {
         await (await getPlatform()).manageAgentService('uninstall');
         agentReadiness = 'missing';
         shellMessage = cleanupError || 'The local host was reset. Install the agent to continue.';
       } catch (error) {
+        localServiceRemoved = false;
         agentReadiness = 'unavailable';
         shellMessage = `The host was reset, but the local agent service could not be removed: ${String(error)}`;
+      }
+      if (resetClientAfterHost && localServiceRemoved && !credentialCleanupFailed) {
+        hostStore.reset();
+        clearClientPreferences();
+        window.location.reload();
+        return;
       }
       hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
@@ -336,12 +351,14 @@
     hostStore.updateConnection(hostId, 'error');
     if (isLocalHostForReset() && isDesktopShell) {
       agentReadiness = 'starting';
-      shellMessage = cleanupError || 'The local host was reset. Reconnecting with its new identity…';
+      shellMessage =
+        cleanupError || 'The local host was reset. Reconnecting with its new identity…';
       await selectSection('agent-setup');
       void initializeClient();
     } else {
       agentReadiness = 'unavailable';
-      shellMessage = cleanupError || `Host reset complete. Pair ${hostLabelForCurrentHost()} again.`;
+      shellMessage =
+        cleanupError || `Host reset complete. Pair ${hostLabelForCurrentHost()} again.`;
       await selectSection('agent-setup');
     }
   }

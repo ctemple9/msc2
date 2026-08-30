@@ -32,7 +32,10 @@
   export let isLocalHost = false;
   export let onClose: () => void;
   export let onClientReset: () => Promise<void>;
-  export let onHostResetComplete: (result: HostResetAccepted) => Promise<void>;
+  export let onHostResetComplete: (
+    result: HostResetAccepted,
+    resetClientAfterHost?: boolean,
+  ) => Promise<void>;
 
   let serversRootPath = '';
   let rootError = '';
@@ -46,6 +49,7 @@
   let showHostConfirmation = false;
   let showClientConfirmation = false;
   let clientBusy = false;
+  let resetClientAfterHost = false;
 
   const isAdmin = permissions.includes('admin');
   const expectedConfirmation = 'RESET AGENT';
@@ -71,6 +75,13 @@
     if (phase !== 'ready') return;
     mode = next;
     confirmation = '';
+    resetClientAfterHost = false;
+  }
+
+  function openHostConfirmation(resetClient = false): void {
+    if (!hostConfirmationReady) return;
+    resetClientAfterHost = resetClient;
+    showHostConfirmation = true;
   }
 
   async function resetClient(): Promise<void> {
@@ -101,7 +112,7 @@
       statusLine = 'Reset accepted. Waiting for the agent to finish…';
       await followOperation(accepted.operationId);
       phase = 'finished';
-      await onHostResetComplete(accepted);
+      await onHostResetComplete(accepted, resetClientAfterHost);
     } catch (caught) {
       phase = 'ready';
       error = errorMessage(caught);
@@ -238,9 +249,24 @@
             <Button
               variant="destructive"
               disabled={!hostConfirmationReady}
-              onclick={() => (showHostConfirmation = true)}>Reset {modeTitle}…</Button
+              onclick={() => openHostConfirmation()}>Reset {modeTitle}…</Button
             >
           </div>
+          {#if isDesktopShell && isLocalHost && mode === 'everything'}
+            <div class="fresh-install-reset">
+              <p class="msc2-type-overline">Fresh install</p>
+              <p class="copy">
+                Reset this host and this client together. This removes the managed server data,
+                uninstalls the local agent service, and clears this device's credentials and
+                onboarding state before returning to Install and Continue.
+              </p>
+              <Button
+                variant="destructive"
+                disabled={!hostConfirmationReady}
+                onclick={() => openHostConfirmation(true)}>Reset host and client…</Button
+              >
+            </div>
+          {/if}
         </section>
       {:else}
         <p class="copy">Administrator access is required to reset a host.</p>
@@ -268,14 +294,21 @@
 
 <ConfirmDialog
   open={showHostConfirmation}
-  title={`Reset ${hostLabel}?`}
-  message={mode === 'configuration'
-    ? 'MSC configuration, sessions, and credentials will be cleared. Minecraft worlds, jars, logs, backups, and the server folder will remain.'
-    : 'MSC configuration and the complete managed server folder will be removed. This cannot be undone.'}
-  context={`Host: ${hostLabel} · ${modeTitle}`}
-  confirmLabel={`Reset ${modeTitle}`}
+  title={resetClientAfterHost ? 'Reset host and client?' : `Reset ${hostLabel}?`}
+  message={resetClientAfterHost
+    ? 'MSC configuration and the complete managed server folder will be removed. This device will also forget every host, credential, preference, and onboarding state. This cannot be undone.'
+    : mode === 'configuration'
+      ? 'MSC configuration, sessions, and credentials will be cleared. Minecraft worlds, jars, logs, backups, and the server folder will remain.'
+      : 'MSC configuration and the complete managed server folder will be removed. This cannot be undone.'}
+  context={resetClientAfterHost
+    ? `Host: ${hostLabel} · Everything + this device`
+    : `Host: ${hostLabel} · ${modeTitle}`}
+  confirmLabel={resetClientAfterHost ? 'Reset host and client' : `Reset ${modeTitle}`}
   onConfirm={() => void resetHost()}
-  onClose={() => (showHostConfirmation = false)}
+  onClose={() => {
+    showHostConfirmation = false;
+    resetClientAfterHost = false;
+  }}
 />
 
 <style>
@@ -380,6 +413,12 @@
   .actions {
     display: flex;
     justify-content: flex-end;
+  }
+  .fresh-install-reset {
+    display: grid;
+    gap: 10px;
+    padding-top: 12px;
+    border-top: 1px solid var(--msc2-hairline-faint);
   }
   .progress {
     display: grid;

@@ -43,4 +43,14 @@ describe('settings reset flows', () => {
     expect(appSource).toContain('clearClientPreferences()');
     expect(appSource).toContain('hostId === localAgentHostId');
   });
+
+  it('offers a local fresh-install path that combines the existing resets', () => {
+    expect(resetSource).toContain('Reset host and client');
+    expect(resetSource).toContain("isDesktopShell && isLocalHost && mode === 'everything'");
+    expect(resetSource).toContain('onHostResetComplete(accepted, resetClientAfterHost)');
+    expect(appSource).toContain('resetClientAfterHost = false');
+    expect(appSource).toContain('hostStore.reset()');
+    expect(appSource).toContain('clearClientPreferences()');
+    expect(appSource).toContain('window.location.reload()');
+  });
 });

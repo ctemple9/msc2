@@ -1277,6 +1277,14 @@ The Settings surface must look like the rest of MSC: keep the existing `MSC Sett
 **Commit:** `P12.19g: reset helper artifacts and repair onboarding replay`
 **Batch:** stop-after
 
+### P12.19h — Add the local fresh-install reset path
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/ResetSheet.svelte`, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/tests/screens/settings-reset.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Add a local-desktop-only **Reset host and client** action when the host mode is **Everything**. Reuse the existing operation-backed `POST /v1/host/reset` and the existing local service uninstall, then clear every client host record, credential, preference, and onboarding key and reload through **Install and Continue**. Keep the approved client/host reset boundaries intact: this is a convenience orchestration in the client, not a combined backend reset endpoint, and remote hosts retain their separate reset and fresh-pairing path.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/sections/app-settings/ResetSheet.svelte tests/screens/settings-reset.test.ts && npx vitest run tests/screens/settings-reset.test.ts && npm run build`; then run `npx tauri dev`, select the local host, choose **Everything**, use **Reset host and client…**, and confirm the app returns to **Install and Continue**, then proceeds through fresh setup, the Concept Guide, and the guided tour.
+**Commit:** `P12.19h: add the local fresh-install reset path`
+**Batch:** solo
+
 ### P12.20 — Playit.gg native provisioning and managed tunnel lifecycle
 **Status:** planned 2026-08-29, not yet built
 **Context:** Surfaced by P12.18h's own finding: `enablePlayit` reaches a server's config (Fresh create, and now Import via P12.18j), but no server anywhere can actually start a tunnel. Phase 9 (P9.7/P9.7a, already complete) built the pinned `playitd` acquisition and the tested helper/secret abstractions; Phase 12 must now connect them to the real Playit account and server lifecycle.

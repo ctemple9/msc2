@@ -1094,6 +1094,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16p: convert app icons to rgba`
 **Batch:** solo
 
+### P12.16q — Match the native startup surface to the splash
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/index.html`, `clients/desktop-web/src/main.ts`, `clients/desktop-web/src-tauri/tauri.conf.json`, `clients/desktop-web/tests/tauri/platform-boundary.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Remove the white startup flash before the webview can mount the three-second icon splash. Set the native Tauri window background to black and make the initial HTML document render the same centered MSC icon on black before JavaScript loads; `main.ts` removes that temporary loader as Svelte mounts, and the existing `SplashGate` then continues the same icon screen for its three seconds. The existing app stylesheet still takes over with the normal MSC surface after it loads. Keep this boundary-only change separate from the app's regular grey/blue surfaces.
+**Verify:** `cd clients/desktop-web && npx prettier --check index.html src/main.ts src-tauri/tauri.conf.json tests/tauri/platform-boundary.test.ts && npx vitest run tests/tauri/platform-boundary.test.ts && npm run build && CARGO_TARGET_DIR=/private/tmp/msc2-startup-target cargo check --manifest-path src-tauri/Cargo.toml`
+**Commit:** `P12.16q: remove the native startup white flash`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

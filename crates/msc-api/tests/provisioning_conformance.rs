@@ -134,6 +134,7 @@ fn provisioning_conformance_server_create_request() {
             enable_cross_play: Some(false),
             cross_play_bedrock_port: None,
             enable_playit: Some(false),
+            enable_voice_chat: None,
             enable_xbox_broadcast: Some(false),
             difficulty: Some("normal".to_string()),
             gamemode: Some("survival".to_string()),

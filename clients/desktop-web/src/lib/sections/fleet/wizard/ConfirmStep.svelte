@@ -36,6 +36,7 @@
     JAVA_CATEGORY_INFO,
     JAVA_FLAVOR_CATALOG,
     javaAddOnKind,
+    hasStagedSimpleVoiceChat,
     versionEntryLabel,
     versionsForCreatePath,
     type WizardDraft,
@@ -68,6 +69,7 @@
   $: addOnKind = javaAddOnKind(draft.javaFlavor);
   $: addOnNoun = addOnKind === 'plugin' ? 'Plugins' : 'Mods';
   $: totalStagedAddOns = draft.pendingAddOns.length;
+  $: hasStagedVoiceChat = hasStagedSimpleVoiceChat(draft);
 
   // The oracle keeps one shared `selectedVersionEntry` state var visible to
   // every step; this port only knows the picked `versionId` by the time it
@@ -225,6 +227,12 @@
               >{draft.enablePlayit ? 'Tunnel (playit.gg)' : 'Port Forwarding'}</span
             >
           </div>
+          {#if hasStagedVoiceChat}
+            <div class="row">
+              <span class="label">Voice chat</span>
+              <span class="value">Simple Voice Chat staged</span>
+            </div>
+          {/if}
           {#if draft.stagedModpack}
             <div class="row">
               <span class="label">Modpack</span>

@@ -6839,6 +6839,7 @@ export interface components {
       dockerImage?: string;
       enableCrossPlay?: boolean;
       enablePlayit?: boolean;
+      enableVoiceChat?: boolean;
       enableXboxBroadcast?: boolean;
       gamemode?: string;
       javaFlavor?: string;

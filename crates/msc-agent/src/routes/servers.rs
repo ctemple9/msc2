@@ -1356,6 +1356,7 @@ pub async fn create(
     let initial_world_name = body.world_name.clone();
     let enable_cross_play = body.enable_cross_play.unwrap_or(false);
     let enable_playit = body.enable_playit.unwrap_or(false);
+    let enable_voice_chat = body.enable_voice_chat.unwrap_or(false);
     let enable_xbox_broadcast = body.enable_xbox_broadcast.unwrap_or(false);
     let java_path = body
         .java_path
@@ -1385,6 +1386,7 @@ pub async fn create(
                 enable_cross_play,
                 cross_play_bedrock_port,
                 enable_playit,
+                enable_voice_chat,
                 enable_xbox_broadcast,
                 difficulty,
                 gamemode,
@@ -1545,6 +1547,7 @@ fn run_create_server(
     enable_cross_play: bool,
     cross_play_bedrock_port: Option<u16>,
     enable_playit: bool,
+    enable_voice_chat: bool,
     enable_xbox_broadcast: bool,
     difficulty: String,
     gamemode: String,
@@ -1657,7 +1660,15 @@ fn run_create_server(
             Ok(created) => {
                 let created = created.created;
                 let flavor = created.config.java_flavor;
-                finish_created_server(&state, &operation_id, created, flavor, accept_eula, None);
+                finish_created_server(
+                    &state,
+                    &operation_id,
+                    created,
+                    flavor,
+                    accept_eula,
+                    None,
+                    enable_voice_chat,
+                );
             }
             Err(error) => {
                 let code = if matches!(error, CreateFromPackError::Cancelled) {
@@ -1738,6 +1749,7 @@ fn run_create_server(
                 flavor,
                 accept_eula,
                 java_compatibility_warning,
+                enable_voice_chat,
             );
         }
         Err(error) => {
@@ -1787,7 +1799,10 @@ fn finish_created_server(
     flavor: JavaServerFlavor,
     accept_eula: bool,
     java_compatibility_warning: Option<String>,
+    enable_voice_chat: bool,
 ) {
+    let mut created = created;
+    created.config.playit_voice_chat_enabled = enable_voice_chat && created.config.playit_enabled;
     let server_id = created.config.id.clone();
     let server_name = created.config.display_name.clone();
     let first_start_required = provisioning::first_start_required(&created.config);

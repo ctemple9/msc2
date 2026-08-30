@@ -7,7 +7,9 @@ import {
   buildServerCreateRequest,
   canCreateServer,
   defaultWizardDraft,
+  hasStagedSimpleVoiceChat,
   hasAddOnsStep,
+  isSimpleVoiceChatName,
   javaAddOnKind,
   wizardStepLabels,
 } from '../../src/lib/sections/fleet/wizard/model';
@@ -147,6 +149,29 @@ describe('add server wizard confirm step (P12.18g)', () => {
       port: 19140,
     });
     expect(body).not.toHaveProperty('javaFlavor');
+  });
+
+  it('carries staged Simple Voice Chat intent into Java creation only', () => {
+    expect(isSimpleVoiceChatName('voicechat-fabric-2.5.0.jar')).toBe(true);
+    expect(isSimpleVoiceChatName('map-atlas.jar')).toBe(false);
+    const draft = {
+      ...defaultWizardDraft(),
+      pendingAddOns: [
+        {
+          id: 'svc',
+          kind: 'localFile' as const,
+          fileName: 'voicechat-fabric-2.5.0.jar',
+          stagedUploadId: 'upload-svc',
+        },
+      ],
+    };
+    expect(hasStagedSimpleVoiceChat(draft)).toBe(true);
+    expect(buildServerCreateRequest(draft, 'Voice Realm')).toMatchObject({
+      enableVoiceChat: true,
+    });
+    expect(
+      buildServerCreateRequest({ ...draft, serverType: 'bedrock' }, 'Bedrock Realm'),
+    ).not.toHaveProperty('enableVoiceChat');
   });
 
   it('redeems a staged modpack as stagedModpackUploadId only for the Java branch', () => {

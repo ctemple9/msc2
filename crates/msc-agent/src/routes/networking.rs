@@ -443,6 +443,17 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         }
         PlayitLifecycleStatus::Failed { message } => Some(message.clone()),
     };
+    let voice_address = state.lifecycle.app_config_snapshot().playit_voice_address;
+    if let Some(voice_host) = voice_address.as_deref() {
+        // Reading status after a later SVC install is the lightweight sync
+        // path: an existing tunnel needs no re-authentication, only the
+        // provider address written into the loader-specific config file.
+        let _ = patch_voice_chat_config(&server.server_dir, voice_host);
+    }
+    let svc_installed = voice_chat_installed(Path::new(&server.server_dir));
+    let voice_chat_enabled = server.playit_enabled
+        && svc_installed
+        && (server.playit_voice_chat_enabled || voice_address.is_some());
     Json(PlayitStatusDto {
         server_name: server.display_name,
         server_type: server.server_type.raw_value().into(),
@@ -451,8 +462,8 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         has_secret_key: has_secret,
         java_address: state.lifecycle.app_config_snapshot().playit_java_address,
         bedrock_address: state.lifecycle.app_config_snapshot().playit_bedrock_address,
-        voice_address: state.lifecycle.app_config_snapshot().playit_voice_address,
-        voice_chat_enabled: server.playit_voice_chat_enabled,
+        voice_address,
+        voice_chat_enabled,
         note: status_note,
     })
     .into_response()
@@ -517,6 +528,10 @@ pub async fn playit_setup(
         .as_ref()
         .filter(|server| server.playit_enabled)
         .map(|server| server.server_dir.clone());
+    let voice_server_id = active_server.as_ref().map(|server| server.id.clone());
+    let provisions_voice_tunnel = tunnel_specs
+        .iter()
+        .any(|spec| spec.kind == msc_domain::networking::PlayitTunnelKind::Voice);
     let provisions_tunnels = !tunnel_specs.is_empty();
     let email = request.email.trim().to_owned();
     let password = request.password;
@@ -558,6 +573,16 @@ pub async fn playit_setup(
                             config.playit_java_address = tunnel_addresses.java.clone();
                             config.playit_bedrock_address = tunnel_addresses.bedrock.clone();
                             config.playit_voice_address = tunnel_addresses.voice.clone();
+                        }
+                        if provisions_voice_tunnel
+                            && let Some(server_id) = voice_server_id.as_deref()
+                            && let Some(server) = config
+                                .servers
+                                .iter_mut()
+                                .find(|server| server.id == server_id)
+                        {
+                            server.playit_voice_chat_enabled = tunnel_addresses.voice.is_some();
+                            server.svc_tunnel_prompt_dismissed = false;
                         }
                         Ok::<_, std::convert::Infallible>(())
                     })
@@ -1357,8 +1382,10 @@ fn server_playit_tunnel_specs(server: &ConfigServer) -> Vec<PlayitTunnelSpec> {
         .bedrock_port
         .and_then(|port| u16::try_from(port).ok())
         .filter(|port| *port > 0);
-    let voice_enabled =
-        server.playit_voice_chat_enabled && voice_chat_installed(Path::new(&server.server_dir));
+    // Setup is also the re-authentication path after a user installs SVC on
+    // an already configured Playit server. The filesystem check remains the
+    // guard that prevents a voice tunnel for a server without SVC.
+    let voice_enabled = voice_chat_installed(Path::new(&server.server_dir));
     playit_tunnel_specs(
         server.server_type,
         java_port,

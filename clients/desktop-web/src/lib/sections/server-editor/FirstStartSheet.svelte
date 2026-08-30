@@ -38,6 +38,7 @@
   let statusLine = '';
   let error = '';
   let showPlayitSetup = false;
+  let playitSetupVoiceOnly = false;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let broadcast: Schema['BroadcastStatusDTO'] | undefined;
   let broadcastAuth: Schema['BroadcastAuthPromptDTO'] | undefined;
@@ -151,7 +152,10 @@
     }
     if (playitEnabled) {
       playit = await api?.get<Schema['PlayitStatusResponseDTO']>(serverEditorPaths.playit);
-      if (!playit?.hasSecretKey) {
+      playitSetupVoiceOnly = Boolean(
+        playit?.hasSecretKey && playit.voiceChatEnabled && !playit.voiceAddress,
+      );
+      if (!playit?.hasSecretKey || playitSetupVoiceOnly) {
         playitChoiceRequired = true;
         showPlayitSetup = true;
       }
@@ -396,6 +400,9 @@
           {#if playit?.bedrockAddress && serverType === 'bedrock'}
             <div><span>Bedrock — anywhere (playit.gg)</span><code>{playit.bedrockAddress}</code></div>
           {/if}
+          {#if playit?.voiceAddress && playit.voiceChatEnabled}
+            <div><span>Voice — Simple Voice Chat</span><code>{playit.voiceAddress}</code></div>
+          {/if}
           {#if broadcastEnabled}
             <div><span>Xbox</span><span class="muted">Use Xbox discovery when Broadcast is Ready.</span></div>
           {/if}
@@ -436,6 +443,7 @@
     {api}
     {playit}
     context="initiation"
+    voiceOnly={playitSetupVoiceOnly}
     onClose={() => (showPlayitSetup = false)}
     onComplete={playitSetupComplete}
   />

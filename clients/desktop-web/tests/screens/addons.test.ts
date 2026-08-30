@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import componentsSource from '../../src/lib/sections/components/ComponentsSection.svelte?raw';
 import { addonPaths, addonStatusLabel, demoAddons } from '../../src/lib/sections/addons/model';
 import {
   addOnKind,
@@ -41,6 +42,14 @@ function makeVersion(
 }
 
 describe('add-on and modpack screens', () => {
+  it('offers the MSC 1 voice-tunnel choices after an SVC add-on change', () => {
+    expect(componentsSource).toContain('Simple Voice Chat needs a tunnel');
+    expect(componentsSource).toContain('Set up voice tunnel');
+    expect(componentsSource).toContain('Disable Voice Chat');
+    expect(componentsSource).toContain("Don't Ask Again");
+    expect(componentsSource).toContain('msc2.svc-tunnel-prompt');
+    expect(componentsSource).toContain('serverRunning');
+  });
   it('keeps catalog install and local-file staging as separate paths', () => {
     expect(addonPaths.install).toBe('/v1/components/install');
     expect(addonPaths.inspectPack).toBe('/v1/modpacks/inspect');

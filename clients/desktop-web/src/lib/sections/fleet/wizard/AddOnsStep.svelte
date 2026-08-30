@@ -55,7 +55,12 @@
   import { errorMessage, mutate } from '../../shared/types';
   import { addonPaths } from '../../addons/model';
   import PluginBrowserSheet from '../../components/PluginBrowserSheet.svelte';
-  import { javaAddOnKind, versionsForCreatePath, type WizardDraft } from './model';
+  import {
+    hasStagedSimpleVoiceChat,
+    javaAddOnKind,
+    versionsForCreatePath,
+    type WizardDraft,
+  } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
@@ -102,6 +107,7 @@
   $: itemNoun = addOnKind === 'plugin' ? 'plugin' : 'mod';
   $: totalStaged = draft.pendingAddOns.length + (draft.stagedModpack ? 1 : 0);
   $: hasAny = totalStaged > 0;
+  $: hasStagedVoiceChat = hasStagedSimpleVoiceChat(draft);
 
   function browseBrowserFile(input: HTMLInputElement): Promise<PickedFile | null> {
     return new Promise((resolve) => {
@@ -352,6 +358,12 @@
             </div>
           {/each}
         </div>
+      {/if}
+      {#if hasStagedVoiceChat}
+        <p class="hint voice-hint">
+          Simple Voice Chat is staged. When Playit is selected, MSC will add its voice tunnel after
+          this add-on is installed.
+        </p>
       {/if}
     {/if}
   {/if}

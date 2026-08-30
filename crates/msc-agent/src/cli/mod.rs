@@ -1303,6 +1303,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 enable_cross_play: args.enable_cross_play.then_some(true),
                 cross_play_bedrock_port: args.cross_play_bedrock_port.map(i64::from),
                 enable_playit: args.playit.then_some(true),
+                enable_voice_chat: None,
                 enable_xbox_broadcast: args.xbox_broadcast.then_some(true),
                 difficulty: args.difficulty,
                 gamemode: args.gamemode,

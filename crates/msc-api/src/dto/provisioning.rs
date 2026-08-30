@@ -27,6 +27,8 @@ pub struct ServerCreateRequestDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enable_playit: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub enable_voice_chat: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enable_xbox_broadcast: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub difficulty: Option<String>,

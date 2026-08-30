@@ -33,6 +33,7 @@
   // step's own line ("list, Add Plugin, Reveal folder, empty state").
   import { onDestroy, onMount } from 'svelte';
   import Icon from '../../components/base/Icon.svelte';
+  import Sheet from '../../components/base/Sheet.svelte';
   import Button from '../../components/base/Button.svelte';
   import Card from '../../components/base/Card.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
@@ -42,6 +43,7 @@
   import Menu from '../../components/base/Menu.svelte';
   import VersionPickerSheet from './VersionPickerSheet.svelte';
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
+  import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
   import ImportModpackSheet from './ImportModpackSheet.svelte';
   import CurseForgeManualDownloadSheet from './CurseForgeManualDownloadSheet.svelte';
@@ -66,13 +68,14 @@
     pollOperation,
     serversPath,
     supportsCrossplay,
+    isSimpleVoiceChatAddon,
     type ProjectDetailItem,
   } from './model';
 
   export let api: ScreenProps['api'] = undefined;
-  // Nothing here needs host-scoped local storage -- kept only so the section
-  // registry can pass it uniformly (WorldsSection precedent).
-  export const hostId = 'local-agent';
+  // The voice prompt is keyed by serverId below; keep the host prop shape
+  // uniform with the other section-registry components.
+  export let hostId = 'local-agent';
   export let serverId = 'survival';
 
   let components: Schema['ComponentsStatusDTO'] = demoComponentsStatus;
@@ -88,6 +91,7 @@
   let broadcastStatus: Schema['BroadcastStatusDTO'] = demoBroadcastStatus;
   let broadcastAutostart: Schema['BroadcastAutoStartDTO'] = demoBroadcastAutostart;
   let jarStatus: Schema['BroadcastJarStatusDTO'] = demoJarStatus;
+  let playit: Schema['PlayitStatusResponseDTO'] | undefined;
 
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
@@ -100,6 +104,7 @@
   );
   $: addonFolderName = isModded ? 'mods' : 'plugins';
   $: anyAddonUpdatable = addons.some((addon) => addon.bucket === 'updateAvailable');
+  $: svcAddon = addons.find(isSimpleVoiceChatAddon);
 
   let notice = '';
   let downloadingBroadcastJar = false;
@@ -109,6 +114,9 @@
   let confirmingRemove: string | undefined;
   let addonMenu: { addon: Schema['AddonItemDTO']; x: number; y: number } | undefined;
   let detailAddon: Schema['AddonItemDTO'] | undefined;
+  let showVoicePrompt = false;
+  let showPlayitSetup = false;
+  let playitSetupVoiceOnly = false;
 
   let showVersionPicker = false;
   let showBrowser = false;
@@ -132,6 +140,12 @@
       addonPaths.list,
     );
     addons = response.addons;
+    checkVoiceTunnelPrompt(playit, response.addons);
+  }
+  async function loadPlayit(): Promise<void> {
+    const next = await call(api, playit, '/v1/playit');
+    playit = next;
+    checkVoiceTunnelPrompt(next, addons);
   }
   async function loadServers(): Promise<void> {
     servers = await call(api, servers, serversPath);
@@ -158,16 +172,70 @@
       loadServers(),
       loadHealth(),
       loadBroadcast(),
+      loadPlayit(),
     ]);
+    checkVoiceTunnelPrompt();
+  }
+
+  function voicePromptKey(): string {
+    return `msc2.svc-tunnel-prompt.${hostId}.${serverId}`;
+  }
+
+  function voicePromptWasDismissed(): boolean {
+    return (
+      typeof localStorage !== 'undefined' && localStorage.getItem(voicePromptKey()) === 'dismissed'
+    );
+  }
+
+  function clearVoicePromptState(): void {
+    if (typeof localStorage !== 'undefined') localStorage.removeItem(voicePromptKey());
+  }
+
+  function checkVoiceTunnelPrompt(
+    currentPlayit = playit,
+    currentAddons = addons,
+  ): void {
+    const currentSvcAddon = currentAddons.find(isSimpleVoiceChatAddon);
+    if (!currentSvcAddon || !currentPlayit?.playitEnabled) {
+      showVoicePrompt = false;
+      clearVoicePromptState();
+      return;
+    }
+    // An address means the agent already provisioned the named voice tunnel.
+    // GET /v1/playit also synchronizes its host into voicechat-server.properties.
+    if (currentPlayit.voiceAddress || voicePromptWasDismissed()) {
+      showVoicePrompt = false;
+      return;
+    }
+    showVoicePrompt = true;
+  }
+
+  function dismissVoicePrompt(): void {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(voicePromptKey(), 'dismissed');
+    showVoicePrompt = false;
+  }
+
+  function openVoiceSetup(): void {
+    showVoicePrompt = false;
+    playitSetupVoiceOnly = Boolean(playit?.hasSecretKey);
+    showPlayitSetup = true;
+  }
+
+  function disableVoiceChat(): void {
+    showVoicePrompt = false;
+    if (svcAddon) void toggleAddon(svcAddon);
+  }
+
+  async function refreshPlayit(): Promise<void> {
+    await loadPlayit();
+    checkVoiceTunnelPrompt();
   }
 
   async function toggleAddon(addon: Schema['AddonItemDTO']): Promise<void> {
     togglingStems = new Set(togglingStems).add(addon.jarStem);
     try {
       await mutate(api, addonPaths.update, { jarStem: addon.jarStem, enabled: !addon.isEnabled });
-      addons = addons.map((item) =>
-        item.jarStem === addon.jarStem ? { ...item, isEnabled: !item.isEnabled } : item,
-      );
+      await loadAddons();
     } catch (error) {
       flash(error instanceof Error ? error.message : `Failed to toggle ${addon.displayName}.`);
     } finally {
@@ -219,6 +287,7 @@
       });
       flash(result.message);
       addons = addons.filter((item) => item.jarStem !== addon.jarStem);
+      checkVoiceTunnelPrompt();
     } catch (error) {
       flash(error instanceof Error ? error.message : `Failed to remove ${addon.displayName}.`);
     }
@@ -647,6 +716,40 @@
   />
 {/if}
 
+{#if showVoicePrompt && svcAddon}
+  <Sheet title="Simple Voice Chat needs a tunnel" size="sm" onClose={() => (showVoicePrompt = false)}>
+    <div class="voice-prompt">
+      <p>
+        Simple Voice Chat is enabled, but this server has no MSC Voice Playit tunnel. Voice chat
+        will not work for players connecting through Playit.
+      </p>
+      {#if serverRunning}
+        <p class="hint">
+          The server is running. Simple Voice Chat reads <code>voice_host</code> when it starts, so
+          restart the server after the tunnel is configured.
+        </p>
+      {/if}
+      <div class="prompt-actions">
+        <Button variant="primary" onclick={openVoiceSetup}>Set up voice tunnel</Button>
+        <Button variant="secondary" onclick={disableVoiceChat}>Disable Voice Chat</Button>
+        <Button variant="secondary" onclick={dismissVoicePrompt}>Don't Ask Again</Button>
+      </div>
+    </div>
+  </Sheet>
+{/if}
+
+{#if showPlayitSetup}
+  <PlayitSetupSheet
+    {api}
+    {playit}
+    context="settings"
+    voiceOnly={playitSetupVoiceOnly}
+    onClose={() => (showPlayitSetup = false)}
+    onComplete={() => void refreshPlayit()}
+    onReset={() => void refreshPlayit()}
+  />
+{/if}
+
 <style>
   .components {
     display: flex;
@@ -760,5 +863,30 @@
     height: 1px;
     opacity: 0;
     overflow: hidden;
+  }
+  .voice-prompt {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .voice-prompt p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--msc2-text-secondary);
+  }
+  .voice-prompt .hint {
+    color: var(--msc2-text-tertiary);
+  }
+  .voice-prompt code {
+    font-family: var(--msc2-font-mono);
+    font-size: 11px;
+  }
+  .prompt-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-top: 4px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
   }
 </style>

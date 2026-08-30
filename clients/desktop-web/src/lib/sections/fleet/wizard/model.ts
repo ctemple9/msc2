@@ -346,6 +346,25 @@ export type PendingAddOn =
       readonly stagedUploadId: string;
     };
 
+/** Simple Voice Chat's published files and Modrinth listing all carry one of
+ * these stable name fragments. This is only a creation hint; the agent still
+ * checks the real plugins/ and mods/ directories before provisioning voice. */
+export function isSimpleVoiceChatName(value: string | undefined): boolean {
+  const name = value?.toLowerCase() ?? '';
+  return (
+    name.includes('simple voice chat') ||
+    name.includes('simple-voice-chat') ||
+    name.includes('voicechat') ||
+    name.includes('voice-chat')
+  );
+}
+
+export function hasStagedSimpleVoiceChat(draft: WizardDraft): boolean {
+  return draft.pendingAddOns.some((addOn) =>
+    isSimpleVoiceChatName(addOn.kind === 'catalog' ? `${addOn.title} ${addOn.slug ?? ''}` : addOn.fileName),
+  );
+}
+
 export function defaultWizardDraft(): WizardDraft {
   return {
     serverName: '',
@@ -510,6 +529,9 @@ export function buildServerCreateRequest(
     difficulty: draft.worldDifficulty,
     gamemode: draft.worldGamemode,
   };
+  if (draft.serverType === 'java' && hasStagedSimpleVoiceChat(draft)) {
+    body.enableVoiceChat = true;
+  }
   const worldName = draft.worldName.trim();
   if (worldName) body.worldName = worldName;
   const worldSeed = draft.worldSeed.trim();

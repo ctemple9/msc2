@@ -6428,6 +6428,10 @@
           "enablePlayit": {
             "type": "boolean"
           },
+          "enableVoiceChat": {
+            "type": "boolean",
+            "description": "Creation-time intent from a staged Simple Voice Chat add-on. The agent creates the voice tunnel only after an active SVC plugin or mod is present in plugins/ or mods/."
+          },
           "enableXboxBroadcast": {
             "type": "boolean"
           },

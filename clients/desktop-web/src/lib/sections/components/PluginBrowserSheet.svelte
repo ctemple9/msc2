@@ -34,6 +34,8 @@
   export let javaFlavor: string | undefined = undefined;
   export let serverMinecraftVersion: string | undefined = undefined;
   export let onClose: () => void;
+  /** Called after an install so the owning screen can re-run its SVC/Playit
+   * detection against the refreshed add-on inventory. */
   export let onInstalled: () => void;
   /**
    * 'install' (default): every caller today -- ComponentsSection's real

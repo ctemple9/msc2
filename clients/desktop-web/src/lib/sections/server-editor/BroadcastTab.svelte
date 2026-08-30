@@ -46,6 +46,7 @@
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let duckdns: Schema['DuckDNSStatusResponseDTO'] | undefined;
   let resourcePacks: Schema['ResourcePacksResponseDTO'] | undefined;
+  let serverStatus: Schema['RemoteAPIStatus'] = { running: false };
 
   let credEmail = '';
   let credGamertag = '';
@@ -79,13 +80,14 @@
   $: if (!isActive) loaded = false;
 
   async function loadAll(): Promise<void> {
-    [status, autostart, jarStatus, playit, duckdns, resourcePacks] = await Promise.all([
+    [status, autostart, jarStatus, playit, duckdns, resourcePacks, serverStatus] = await Promise.all([
       call(api, status, serverEditorPaths.broadcastStatus),
       call(api, autostart, serverEditorPaths.broadcastAutostart),
       call(api, jarStatus, serverEditorPaths.broadcastJarStatus),
       call(api, playit, serverEditorPaths.playit),
       call(api, duckdns, serverEditorPaths.duckdns),
       call(api, resourcePacks, serverEditorPaths.resourcePacks),
+      call(api, serverStatus, serverEditorPaths.status),
     ]);
     duckHost = duckdns?.hostname ?? '';
   }
@@ -391,6 +393,12 @@
         {playit?.note ??
           'MSC signs in through the agent, then creates or reuses the Playit agent and applicable tunnels.'}
       </p>
+      {#if playit?.voiceAddress}
+        <p class="hint">
+          Voice tunnel: <code>{playit.voiceAddress}</code>.{#if serverStatus.running} The server is
+            running; Simple Voice Chat reads this address when the server restarts.{/if}
+        </p>
+      {/if}
     </section>
 
     <section class="zone">

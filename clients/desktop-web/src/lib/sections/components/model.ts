@@ -78,6 +78,21 @@ export function flavorDisplayName(javaFlavor: string | undefined): string {
   return FLAVOR_DISPLAY_NAMES[javaFlavor] ?? javaFlavor;
 }
 
+/** MSC 1 treats both the published `voicechat` jar name and the
+ * `simple-voice-chat` project name as Simple Voice Chat. The agent remains
+ * authoritative for the on-disk plugins/ and mods/ check; this client helper
+ * only decides when an add-on action should re-check the Playit status. */
+export function isSimpleVoiceChatAddon(addon: Schema['AddonItemDTO']): boolean {
+  const name = `${addon.jarStem} ${addon.displayName}`.toLowerCase();
+  return (
+    addon.isEnabled &&
+    (name.includes('simple voice chat') ||
+      name.includes('simple-voice-chat') ||
+      name.includes('voicechat') ||
+      name.includes('voice-chat'))
+  );
+}
+
 // JavaServerFlavor.modrinth_loader_facets (identity.rs:216-227) -- the same
 // facets the backend already applies to GET /v1/catalog/search, needed again
 // client-side here because the project detail page fetches every version

@@ -6,7 +6,7 @@
 //! process supervisor as the rest of the agent; a second in-memory operation
 //! map here would make polling and cancellation lie.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -31,7 +31,7 @@ use msc_application::playit::{
 use msc_application::resource_packs::ResourcePackService;
 use msc_application::xbox_broadcast::{XboxBroadcastError, XboxBroadcastService};
 use msc_domain::app_config_schema::ConfigServer;
-use msc_domain::helper::HelperStatus;
+use msc_domain::helper::{FirstRunTransport, FirstStartTransportState, HelperStatus};
 use msc_domain::identity::ServerType;
 use msc_domain::networking::{PlayitTunnelSpec, patch_voice_chat_properties, playit_tunnel_specs};
 use msc_infrastructure::addon_provider::HttpTransport as ProviderHttpTransport;
@@ -46,12 +46,146 @@ use msc_infrastructure::{config_repository, xbox_broadcast};
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
-    LifecycleRoutesState, error_response, invalid_body, require_permission,
+    LifecycleRoutesState, PlayitLifecycleIntegration, error_response, invalid_body,
+    require_permission,
 };
 use crate::routes::operations::OperationsState;
 
 type SharedPlayitService = PlayitService<'static>;
 type SharedBroadcastService = XboxBroadcastService<'static>;
+
+struct PlayitLifecycleController {
+    services: Arc<Mutex<BTreeMap<String, SharedPlayitService>>>,
+    process: &'static (dyn ProcessSupervisor + Send + Sync),
+    secrets: &'static (dyn SecretStore + Send + Sync),
+    operations: &'static LifecycleOperations<'static>,
+    transport: &'static HttpTransport,
+    fs: &'static dyn FileSystem,
+    helper_cache: &'static Path,
+    pending_starts: Mutex<BTreeSet<String>>,
+}
+
+impl PlayitLifecycleController {
+    fn start_for_server(&self, server: &ConfigServer) {
+        if !server.playit_enabled {
+            return;
+        }
+        let mut services = self.services.lock().expect("Playit service lock poisoned");
+        let service = services.entry(server.id.clone()).or_insert_with(|| {
+            PlayitService::new(
+                server.id.clone(),
+                server.playit_enabled,
+                self.process,
+                self.secrets,
+                self.operations,
+            )
+        });
+        if service.is_active() {
+            if service.lifecycle_status() == PlayitLifecycleStatus::Stopping {
+                self.pending_starts
+                    .lock()
+                    .expect("Playit pending-start lock poisoned")
+                    .insert(server.id.clone());
+            }
+            return;
+        }
+        self.pending_starts
+            .lock()
+            .expect("Playit pending-start lock poisoned")
+            .remove(&server.id);
+        match service.has_secret() {
+            Ok(true) => {}
+            Ok(false) => return,
+            Err(error) => {
+                service.record_start_failure(error.to_string());
+                return;
+            }
+        }
+        let acquisition =
+            match msc_infrastructure::playit::PlayitBinaryAcquisition::for_current_platform(
+                self.transport,
+                self.fs,
+                self.helper_cache,
+            ) {
+                Ok(acquisition) => acquisition,
+                Err(error) => {
+                    service
+                        .record_start_failure(format!("Playit helper acquisition failed: {error}"));
+                    return;
+                }
+            };
+        let working_directory = PathBuf::from(&server.server_dir).join(".msc2-playit");
+        if let Err(error) = std::fs::create_dir_all(&working_directory) {
+            service.record_start_failure(format!(
+                "Playit helper working directory could not be created: {error}"
+            ));
+            return;
+        }
+        let launch = msc_infrastructure::playit::PlayitLaunch {
+            working_directory: working_directory.clone(),
+            secret_path: working_directory.join("secret-bridge"),
+        };
+        let _ = service.start(launch, &acquisition);
+    }
+
+    fn stop_for_server(&self, server_id: &str) {
+        self.pending_starts
+            .lock()
+            .expect("Playit pending-start lock poisoned")
+            .remove(server_id);
+        let mut services = self.services.lock().expect("Playit service lock poisoned");
+        let Some(service) = services.get_mut(server_id) else {
+            return;
+        };
+        let _ = service.stop();
+    }
+
+    fn stop_all(&self) {
+        self.pending_starts
+            .lock()
+            .expect("Playit pending-start lock poisoned")
+            .clear();
+        let mut services = self.services.lock().expect("Playit service lock poisoned");
+        for service in services.values_mut() {
+            let _ = service.stop();
+        }
+    }
+
+    fn start_pending(&self, lifecycle: &LifecycleRoutesState) {
+        let Some(server) = lifecycle.active_config_server() else {
+            self.pending_starts
+                .lock()
+                .expect("Playit pending-start lock poisoned")
+                .clear();
+            return;
+        };
+        if !lifecycle.status_snapshot().running {
+            return;
+        }
+        let should_start = self
+            .pending_starts
+            .lock()
+            .expect("Playit pending-start lock poisoned")
+            .remove(&server.id);
+        if should_start {
+            self.start_for_server(&server);
+        }
+    }
+}
+
+impl PlayitLifecycleIntegration for PlayitLifecycleController {
+    fn start_for_server(&self, server: &ConfigServer) {
+        Self::start_for_server(self, server);
+    }
+
+    fn stop_for_server(&self, server_id: &str) {
+        Self::stop_for_server(self, server_id);
+    }
+
+    fn stop_all(&self) {
+        Self::stop_all(self);
+    }
+}
 
 #[derive(Clone)]
 pub struct NetworkingState {
@@ -107,7 +241,20 @@ impl NetworkingState {
             fs,
             helper_cache,
         };
-        spawn_playit_output_pump(playit);
+        let controller = Arc::new(PlayitLifecycleController {
+            services: playit.clone(),
+            process,
+            secrets,
+            operations: operations_ref,
+            transport,
+            fs,
+            helper_cache,
+            pending_starts: Mutex::new(BTreeSet::new()),
+        });
+        state
+            .lifecycle
+            .register_playit_lifecycle(controller.clone());
+        spawn_playit_output_pump(playit, state.lifecycle.clone(), Arc::clone(&controller));
         state
     }
 
@@ -221,7 +368,11 @@ pub fn router(state: NetworkingState) -> Router {
         .with_state(state)
 }
 
-fn spawn_playit_output_pump(services: Arc<Mutex<BTreeMap<String, SharedPlayitService>>>) {
+fn spawn_playit_output_pump(
+    services: Arc<Mutex<BTreeMap<String, SharedPlayitService>>>,
+    lifecycle: LifecycleRoutesState,
+    controller: Arc<PlayitLifecycleController>,
+) {
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
         return;
     };
@@ -229,12 +380,33 @@ fn spawn_playit_output_pump(services: Arc<Mutex<BTreeMap<String, SharedPlayitSer
         let mut interval = tokio::time::interval(Duration::from_millis(100));
         loop {
             interval.tick().await;
-            let Ok(mut services) = services.lock() else {
-                continue;
-            };
-            for service in services.values_mut() {
-                let _ = service.poll();
+            let mut transport_updates = Vec::new();
+            {
+                let Ok(mut services) = services.lock() else {
+                    continue;
+                };
+                for (server_id, service) in services.iter_mut() {
+                    if let Err(error) = service.poll() {
+                        service.record_start_failure(error.to_string());
+                    }
+                    let status = service.lifecycle_status();
+                    if service.first_start_ready() {
+                        transport_updates
+                            .push((server_id.clone(), FirstStartTransportState::Ready));
+                    } else if matches!(status, PlayitLifecycleStatus::Failed { .. }) {
+                        transport_updates
+                            .push((server_id.clone(), FirstStartTransportState::Failed));
+                    }
+                }
             }
+            for (server_id, status) in transport_updates {
+                let _ = lifecycle.mark_first_start_transport_for_server(
+                    &server_id,
+                    FirstRunTransport::Playit,
+                    status,
+                );
+            }
+            controller.start_pending(&lifecycle);
         }
     });
 }

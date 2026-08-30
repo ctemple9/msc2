@@ -12,7 +12,7 @@ use msc_domain::networking::{
     PlayitTunnelAddresses, PlayitTunnelKind, PlayitTunnelSpec, parse_playit_address,
 };
 use msc_infrastructure::helper_process::{
-    HelperKey, HelperProcessError, HelperProcessManager, ManagedHelperEvent,
+    HelperKey, HelperProcessError, HelperProcessManager, ManagedHelperEvent, ManagedHelperStatus,
 };
 use msc_infrastructure::playit::{
     PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch, PlayitSecretBridge,
@@ -528,6 +528,7 @@ fn wait_for_claim_retry(should_cancel: &impl Fn() -> bool) -> bool {
 pub struct PlayitService<'a> {
     server_id: String,
     enabled: bool,
+    supervisor: &'a dyn ProcessSupervisor,
     helpers: HelperProcessManager<'a>,
     secrets: &'a dyn SecretStore,
     operations: &'a LifecycleOperations<'a>,
@@ -551,6 +552,7 @@ impl<'a> PlayitService<'a> {
         Self {
             server_id: server_id.into(),
             enabled,
+            supervisor,
             helpers: HelperProcessManager::new(supervisor),
             secrets,
             operations,
@@ -603,6 +605,18 @@ impl<'a> PlayitService<'a> {
             .get(PLAYIT_SECRET_KEY)
             .map(|secret| secret.is_some_and(|value| !value.trim().is_empty()))
             .map_err(|error| PlayitError::SecretStore(error.to_string()))
+    }
+
+    /// Leaves a failed start visible to status readers and clears any local
+    /// readiness state.  The lifecycle route uses this for failures that
+    /// happen before `start` can create its operation, such as an unsupported
+    /// helper platform.
+    pub fn record_start_failure(&mut self, message: impl Into<String>) {
+        self.expecting_address = false;
+        self.snapshot.status = HelperStatus::Stopped;
+        self.lifecycle_status = PlayitLifecycleStatus::Failed {
+            message: message.into(),
+        };
     }
 
     /// Stores the key only in the platform-backed secret store.  The caller
@@ -660,6 +674,7 @@ impl<'a> PlayitService<'a> {
                     &operation_id,
                     lifecycle_error("playit_acquisition_failed", message.clone()),
                 );
+                self.record_start_failure(message.clone());
                 return Err(PlayitError::Acquisition(message));
             }
         };
@@ -672,9 +687,11 @@ impl<'a> PlayitService<'a> {
                         &operation_id,
                         lifecycle_error("playit_secret_bridge_failed", message.clone()),
                     );
+                    self.record_start_failure(message.clone());
                     return Err(PlayitError::SecretBridge(message));
                 }
             };
+        self.reset_stopped_helper_manager();
         match self
             .helpers
             .start(key, launch.process_request(&acquired.artifact.path))
@@ -692,10 +709,13 @@ impl<'a> PlayitService<'a> {
                 })
             }
             Err(error) => {
+                let _ = secret_bridge.remove();
+                let message = error.to_string();
                 let _ = self.operations.fail(
                     &operation_id,
-                    lifecycle_error("playit_start_failed", error.to_string()),
+                    lifecycle_error("playit_start_failed", message.clone()),
                 );
+                self.record_start_failure(message);
                 Err(map_process_error(error))
             }
         }
@@ -826,11 +846,25 @@ impl<'a> PlayitService<'a> {
         if !self.lifecycle_status().is_active() {
             return Ok(None);
         }
+        if self.lifecycle_status() == PlayitLifecycleStatus::Stopping {
+            return Ok(self
+                .active_stop_operation
+                .as_ref()
+                .map(|operation_id| operation_id.as_str().to_owned()));
+        }
         let key = self.key();
         if let Some(operation_id) = self.active_operation.clone() {
-            self.helpers
-                .request_graceful_stop(&key)
-                .map_err(map_process_error)?;
+            if let Err(error) = self.helpers.request_graceful_stop(&key) {
+                let message = error.to_string();
+                let _ = self.helpers.force_terminate(&key);
+                let _ = self.operations.fail(
+                    &operation_id,
+                    lifecycle_error("playit_stop_failed", message.clone()),
+                );
+                self.active_operation = None;
+                self.record_start_failure(message);
+                return Err(map_process_error(error));
+            }
             self.operations
                 .cancel(&operation_id, "Playit tunnel start stopped.")
                 .map_err(|error| PlayitError::Operation(error.to_string()))?;
@@ -854,10 +888,12 @@ impl<'a> PlayitService<'a> {
             ) && let Err(error) = self.helpers.request_graceful_stop(&key)
             {
                 let message = error.to_string();
+                let _ = self.helpers.force_terminate(&key);
                 let _ = self.operations.fail(
                     &operation_id,
                     lifecycle_error("playit_stop_failed", message.clone()),
                 );
+                self.record_start_failure(message);
                 return Err(map_process_error(error));
             }
         }
@@ -950,6 +986,21 @@ impl<'a> PlayitService<'a> {
 
     fn key(&self) -> HelperKey {
         HelperKey::new(&self.server_id, "playit")
+    }
+
+    fn reset_stopped_helper_manager(&mut self) {
+        let status = self
+            .helpers
+            .snapshot(&self.key())
+            .map(|snapshot| snapshot.status);
+        if status.is_none_or(|status| {
+            matches!(
+                status,
+                ManagedHelperStatus::Stopped | ManagedHelperStatus::Failed { .. }
+            )
+        }) {
+            self.helpers = HelperProcessManager::new(self.supervisor);
+        }
     }
 
     fn stopped_lifecycle_status(&self) -> PlayitLifecycleStatus {

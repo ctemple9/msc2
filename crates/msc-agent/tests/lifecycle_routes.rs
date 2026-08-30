@@ -14,6 +14,10 @@ fn source(path: &str) -> String {
 fn lifecycle_has_a_crash_safe_first_start_coordinator() {
     let lifecycle = source("src/routes/lifecycle.rs");
     for marker in [
+        "PlayitLifecycleIntegration",
+        "start_playit_if_allowed",
+        "stop_playit_for_server",
+        "mark_first_start_transport_for_server",
         "prepare_first_start",
         "handle_process_termination",
         "abort_first_start",

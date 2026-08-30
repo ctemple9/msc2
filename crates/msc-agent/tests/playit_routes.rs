@@ -223,3 +223,22 @@ fn first_start_uses_the_agent_owned_two_pass_lifecycle() {
     assert!(provisioning.contains("has_generated_world_on_disk"));
     assert!(provisioning.contains("first_start_required"));
 }
+
+#[test]
+fn networking_registers_and_polls_playit_with_the_lifecycle_owner() {
+    let networking = std::fs::read_to_string(
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/routes/networking.rs"),
+    )
+    .expect("read networking routes");
+    for marker in [
+        "register_playit_lifecycle",
+        "spawn_playit_output_pump(",
+        "mark_first_start_transport_for_server",
+        "record_start_failure",
+    ] {
+        assert!(
+            networking.contains(marker),
+            "missing networking marker {marker}"
+        );
+    }
+}

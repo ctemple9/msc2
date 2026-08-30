@@ -209,6 +209,16 @@ pub struct LifecycleRoutesState {
     inner: Arc<LifecycleRoutesInner>,
 }
 
+/// The lifecycle route owns the Minecraft process, while networking owns the
+/// long-lived Playit service instances.  This small callback seam lets the
+/// process owner start and stop the helper without duplicating that state in
+/// the route layer.
+pub trait PlayitLifecycleIntegration: Send + Sync {
+    fn start_for_server(&self, server: &ConfigServer);
+    fn stop_for_server(&self, server_id: &str);
+    fn stop_all(&self);
+}
+
 struct LifecycleRoutesInner {
     registry: &'static AgentServerRegistry,
     app_config: &'static AgentAppConfigStore,
@@ -226,6 +236,7 @@ struct LifecycleRoutesInner {
     bedrock_runtime: BedrockRuntimeSelection,
     first_start: Mutex<Option<FirstStartCoordinator>>,
     first_start_pass_two_started_at: Mutex<Option<Instant>>,
+    playit: Mutex<Option<Arc<dyn PlayitLifecycleIntegration>>>,
 }
 
 pub struct AgentServerRegistry {
@@ -381,6 +392,7 @@ impl LifecycleRoutesState {
                 bedrock_runtime,
                 first_start: Mutex::new(None),
                 first_start_pass_two_started_at: Mutex::new(None),
+                playit: Mutex::new(None),
             }),
         }
     }
@@ -543,6 +555,7 @@ impl LifecycleRoutesState {
     }
 
     pub fn reset_after_host_reset(&self) {
+        self.stop_all_playit_helpers();
         self.inner.app_config.reset_in_memory();
         self.inner.lifecycle.lock().unwrap().clear_selection();
         *self.inner.bedrock_active_server_id.lock().unwrap() = None;
@@ -667,6 +680,44 @@ impl LifecycleRoutesState {
     /// already runs against.
     pub fn process_supervisor(&self) -> &'static (dyn ProcessSupervisor + Send + Sync) {
         self.inner.process
+    }
+
+    /// Connects the networking-owned Playit services after both route states
+    /// have been constructed.  Keeping the registration late avoids a cycle
+    /// in the application state while still giving lifecycle the only place
+    /// that knows when a Minecraft process has started or ended.
+    pub fn register_playit_lifecycle(&self, integration: Arc<dyn PlayitLifecycleIntegration>) {
+        *self.inner.playit.lock().unwrap() = Some(integration);
+    }
+
+    fn playit_lifecycle(&self) -> Option<Arc<dyn PlayitLifecycleIntegration>> {
+        self.inner.playit.lock().unwrap().clone()
+    }
+
+    fn start_playit_if_allowed(&self, server: &ConfigServer) {
+        let allowed = {
+            let first_start = self.inner.first_start.lock().unwrap();
+            match first_start.as_ref() {
+                Some(run) if run.server_id == server.id => run.phase == FirstStartPhase::PassTwo,
+                Some(_) => false,
+                None => true,
+            }
+        };
+        if allowed && let Some(integration) = self.playit_lifecycle() {
+            integration.start_for_server(server);
+        }
+    }
+
+    fn stop_playit_for_server(&self, server_id: &str) {
+        if let Some(integration) = self.playit_lifecycle() {
+            integration.stop_for_server(server_id);
+        }
+    }
+
+    fn stop_all_playit_helpers(&self) {
+        if let Some(integration) = self.playit_lifecycle() {
+            integration.stop_all();
+        }
     }
 
     /// The full application config, cloned — Phase 7's provisioning/
@@ -862,7 +913,9 @@ impl LifecycleRoutesState {
                     ServerId::new(server_id.clone()),
                 ))
             })?;
-        if self.active_server_id().as_deref() != Some(server_id.as_str())
+        let previous_server_id = self.active_server_id();
+        let changing_active_server = previous_server_id.as_deref() != Some(server_id.as_str());
+        if changing_active_server
             && (self.status_snapshot().running
                 || self
                     .inner
@@ -872,6 +925,9 @@ impl LifecycleRoutesState {
             return Err(ActiveServerSelectionError::Lifecycle(
                 LifecycleError::AlreadyInState(LifecycleState::Running),
             ));
+        }
+        if changing_active_server && let Some(previous_server_id) = previous_server_id.as_deref() {
+            self.stop_playit_for_server(previous_server_id);
         }
         if server.server_type == ServerType::Bedrock {
             self.inner
@@ -985,6 +1041,7 @@ impl LifecycleRoutesState {
             .progress(&operation_id, 1, 2, "Java process spawned.");
         *self.inner.active_lifecycle_operation.lock().unwrap() = Some(operation_id.clone());
         self.spawn_process_pump(pid);
+        self.start_playit_if_allowed(&registered);
         Ok(LifecycleActionResult {
             active_server_id: Some(active.as_str().to_string()),
             operation_id: Some(operation_id.as_str().to_string()),
@@ -1069,15 +1126,42 @@ impl LifecycleRoutesState {
         transport: FirstRunTransport,
         state: FirstStartTransportState,
     ) -> bool {
+        self.mark_first_start_transport_for_server_inner(None, transport, state)
+    }
+
+    /// Records a helper result only when it belongs to the first-start run
+    /// currently being coordinated.  The server id matters because a stale
+    /// helper from another server must not complete this server's setup.
+    pub fn mark_first_start_transport_for_server(
+        &self,
+        server_id: &str,
+        transport: FirstRunTransport,
+        state: FirstStartTransportState,
+    ) -> bool {
+        self.mark_first_start_transport_for_server_inner(Some(server_id), transport, state)
+    }
+
+    fn mark_first_start_transport_for_server_inner(
+        &self,
+        server_id: Option<&str>,
+        transport: FirstRunTransport,
+        state: FirstStartTransportState,
+    ) -> bool {
         let should_stop = {
             let mut first_start = self.inner.first_start.lock().unwrap();
             let Some(run) = first_start.as_mut() else {
                 return false;
             };
+            if server_id.is_some_and(|server_id| run.server_id != server_id) {
+                return false;
+            }
+            let run_server_id = run.server_id.clone();
             run.mark_transport(transport, state);
-            run.ready_to_stop() && run.issue_auto_stop()
+            let should_stop = run.ready_to_stop() && run.issue_auto_stop();
+            (run_server_id, should_stop)
         };
-        if should_stop {
+        if should_stop.1 {
+            self.stop_playit_for_server(&should_stop.0);
             let _ = self.inner.lifecycle.lock().unwrap().request_stop();
         }
         true
@@ -1103,6 +1187,9 @@ impl LifecycleRoutesState {
         };
 
         if should_stop {
+            if let Some(server_id) = self.active_server_id() {
+                self.stop_playit_for_server(&server_id);
+            }
             let _ = self.inner.lifecycle.lock().unwrap().request_stop();
             if pass_one {
                 self.progress_first_start("First-start pass one is ready; stopping the server.");
@@ -1132,8 +1219,12 @@ impl LifecycleRoutesState {
 
     pub fn stop_active_server(&self) -> Result<Option<String>, LifecycleError> {
         self.drain_active_process_events();
+        let active_server_id = self.active_server_id();
+        if let Some(server_id) = active_server_id.as_deref() {
+            self.stop_playit_for_server(server_id);
+        }
         self.inner.lifecycle.lock().unwrap().request_stop()?;
-        Ok(self.active_server_id())
+        Ok(active_server_id)
     }
 
     #[allow(clippy::result_large_err)]
@@ -1149,6 +1240,7 @@ impl LifecycleRoutesState {
             Some(active.id.clone()),
             "Stopping Bedrock server.",
         )?;
+        self.stop_playit_for_server(&active.id);
         if let Err(error) = self.inner.bedrock_runtime.stop() {
             let _ =
                 self.inner
@@ -1361,6 +1453,7 @@ impl LifecycleRoutesState {
             .progress(&operation_id, 1, 2, "Bedrock process spawned.");
         *self.inner.active_lifecycle_operation.lock().unwrap() = Some(operation_id.clone());
         self.spawn_bedrock_pump();
+        self.start_playit_if_allowed(&active);
         Ok(LifecycleActionResult {
             active_server_id: Some(active.id),
             operation_id: Some(operation_id.as_str().to_string()),
@@ -1428,6 +1521,9 @@ impl LifecycleRoutesState {
                     }
                     BedrockTerminationReason::GuestError(message)
                     | BedrockTerminationReason::StartFailed(message) => {
+                        if let Some(server_id) = self.active_server_id() {
+                            self.stop_playit_for_server(&server_id);
+                        }
                         self.abort_first_start();
                         self.finish_active_lifecycle_operation_failure(&message);
                     }
@@ -1478,6 +1574,9 @@ impl LifecycleRoutesState {
             run.issue_auto_stop()
         };
         if should_stop {
+            if let Some(server_id) = self.active_server_id() {
+                self.stop_playit_for_server(&server_id);
+            }
             let _ = self.inner.lifecycle.lock().unwrap().request_stop();
             self.progress_first_start(
                 "First-start safety limit reached; stopping the server and keeping the resolved state.",
@@ -1540,6 +1639,9 @@ impl LifecycleRoutesState {
     }
 
     fn handle_process_termination(&self, clean_stop_success: bool) {
+        if let Some(server_id) = self.active_server_id() {
+            self.stop_playit_for_server(&server_id);
+        }
         let outcome = {
             let mut first_start = self.inner.first_start.lock().unwrap();
             let Some(run) = first_start.as_mut() else {

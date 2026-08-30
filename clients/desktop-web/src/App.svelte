@@ -329,9 +329,24 @@
     if (isLocalHostForReset() && isDesktopShell && result.mode === 'everything') {
       let localServiceRemoved = true;
       try {
-        await (await getPlatform()).manageAgentService('uninstall');
-        agentReadiness = 'missing';
+        const platform = await getPlatform();
+        const serviceStatus = await platform.agentServiceStatus();
+        if (serviceStatus.state === 'running') {
+          await platform.manageAgentService('stop');
+        }
+        const uninstallStatus = await platform.manageAgentService('uninstall');
+        agentReadiness = uninstallStatus.state === 'not-installed' ? 'missing' : 'unavailable';
+        if (agentReadiness === 'unavailable') {
+          throw new Error(uninstallStatus.detail);
+        }
         shellMessage = cleanupError || 'The local host was reset. Install the agent to continue.';
+
+        if (resetClientAfterHost && !credentialCleanupFailed) {
+          hostStore.reset();
+          clearClientPreferences();
+          await platform.quitApplication();
+          return;
+        }
       } catch (error) {
         localServiceRemoved = false;
         agentReadiness = 'unavailable';

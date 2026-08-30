@@ -49,6 +49,7 @@ export function createTauriPlatform(dependencies: TauriPlatformDependencies): Pl
         await browserFallback();
       }
     },
+    quitApplication: dependencies.quitApplication,
     openExternal: (url: string) => dependencies.openExternal(url),
     openLocalAgentBrowser: () => dependencies.openLocalAgentBrowser(),
     revealInFileManager: async (path: string, browserFallback: () => Promise<void>) => {
@@ -143,6 +144,7 @@ export async function loadTauriPlatform(): Promise<PlatformAdapter> {
       await menu.popup();
     },
     closeWindow: () => getCurrentWindow().close(),
+    quitApplication: () => invoke('quit_app'),
     openExternal: (url: string) => invoke('open_external_url', { url }),
     openLocalAgentBrowser: () => invoke('open_local_agent_browser'),
     revealInFileManager: (path: string) => invoke('reveal_in_file_manager', { path }),

@@ -38,7 +38,9 @@ describe('settings reset flows', () => {
 
   it('keeps local service and credential cleanup in the desktop app boundary', () => {
     expect(appSource).toContain('forgetCredentials');
+    expect(appSource).toContain("manageAgentService('stop')");
     expect(appSource).toContain("manageAgentService('uninstall')");
+    expect(appSource).toContain('quitApplication()');
     expect(appSource).toContain('hostStore.reset()');
     expect(appSource).toContain('clearClientPreferences()');
     expect(appSource).toContain('hostId === localAgentHostId');
@@ -51,6 +53,7 @@ describe('settings reset flows', () => {
     expect(appSource).toContain('resetClientAfterHost = false');
     expect(appSource).toContain('hostStore.reset()');
     expect(appSource).toContain('clearClientPreferences()');
-    expect(appSource).toContain('window.location.reload()');
+    expect(appSource).toContain("serviceStatus.state === 'running'");
+    expect(appSource).toContain("uninstallStatus.state === 'not-installed'");
   });
 });

@@ -1285,6 +1285,14 @@ The Settings surface must look like the rest of MSC: keep the existing `MSC Sett
 **Commit:** `P12.19h: add the local fresh-install reset path`
 **Batch:** solo
 
+### P12.19i — Stop the agent and quit after a fresh-install reset
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/platform/types.ts`, `clients/desktop-web/src/lib/platform/browser.ts`, `clients/desktop-web/src/lib/platform/tauri.ts`, `clients/desktop-web/src-tauri/src/lib.rs`, `clients/desktop-web/tests/screens/settings-reset.test.ts`, `clients/desktop-web/tests/tauri/platform-boundary.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Make the local **Reset host and client** path explicitly stop a running agent before uninstalling its service, then clear client state and quit the desktop process through a native Tauri command. Keep the existing recovery fallback for service or credential cleanup failures; the next manual launch therefore starts from the missing-agent **Install and Continue** state instead of a half-reset shell with the old service still running.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/platform/types.ts src/lib/platform/browser.ts src/lib/platform/tauri.ts tests/screens/settings-reset.test.ts tests/tauri/platform-boundary.test.ts && npx vitest run tests/screens/settings-reset.test.ts tests/tauri/platform-boundary.test.ts && npm run build && cd ../.. && cargo fmt --manifest-path clients/desktop-web/src-tauri/Cargo.toml -- --check && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`; then run `npx tauri dev`, choose local host → **Everything** → **Reset host and client…**, confirm the service stops and the app quits, relaunch, and confirm **Install and Continue** appears before first-time setup.
+**Commit:** `P12.19i: stop the agent and quit after a fresh-install reset`
+**Batch:** solo
+
 ### P12.20 — Playit.gg native provisioning and managed tunnel lifecycle
 **Status:** planned 2026-08-29, not yet built
 **Context:** Surfaced by P12.18h's own finding: `enablePlayit` reaches a server's config (Fresh create, and now Import via P12.18j), but no server anywhere can actually start a tunnel. Phase 9 (P9.7/P9.7a, already complete) built the pinned `playitd` acquisition and the tested helper/secret abstractions; Phase 12 must now connect them to the real Playit account and server lifecycle.

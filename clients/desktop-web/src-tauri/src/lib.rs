@@ -564,6 +564,13 @@ async fn agent_health_check() -> bool {
         .is_ok_and(|response| response.status().is_success())
 }
 
+/// Ends the desktop process after a reset has removed all local state. The
+/// agent is a separate service and is stopped before this command is called.
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
+}
+
 /// The shared setup screen has this narrow native seam for an explicit local
 /// service action. Platform registration may trigger the OS elevation flow;
 /// routine agent operation remains under the installing user's account.
@@ -694,7 +701,10 @@ fn agent_install_request() -> Result<ServiceInstallRequest, String> {
     );
     #[cfg(target_os = "macos")]
     let request = request
-        .env(BEDROCK_SIDECAR_DIRECTORY_ENV, sidecar_directory.display().to_string())
+        .env(
+            BEDROCK_SIDECAR_DIRECTORY_ENV,
+            sidecar_directory.display().to_string(),
+        )
         .env("MSC2_MACOS_DESKTOP_REQUIREMENT", desktop_requirement);
     Ok(request.run_user(installing_user()?))
 }
@@ -1161,6 +1171,7 @@ pub fn run() {
             reveal_in_file_manager,
             agent_service_status,
             agent_health_check,
+            quit_app,
             manage_agent_service,
             stage_coordinated_update
         ])

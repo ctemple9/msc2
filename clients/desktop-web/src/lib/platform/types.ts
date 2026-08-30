@@ -53,6 +53,7 @@ export interface PlatformAdapter {
   notify(notification: DesktopNotification, browserFallback: () => Promise<void>): Promise<void>;
   showMenu(entries: readonly MenuEntry[], browserFallback: () => Promise<void>): Promise<void>;
   closeWindow(browserFallback: () => Promise<void>): Promise<void>;
+  quitApplication(): Promise<void>;
   openExternal(url: string): Promise<void>;
   /** Opens the local agent UI in a browser with a one-use browser session. */
   openLocalAgentBrowser(): Promise<void>;
@@ -85,6 +86,7 @@ export interface TauriPlatformDependencies {
   notify(notification: DesktopNotification): Promise<void>;
   showMenu(entries: readonly MenuEntry[]): Promise<void>;
   closeWindow(): Promise<void>;
+  quitApplication(): Promise<void>;
   openExternal(url: string): Promise<void>;
   openLocalAgentBrowser(): Promise<void>;
   revealInFileManager(path: string): Promise<void>;

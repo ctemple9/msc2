@@ -1070,6 +1070,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16m: stabilize splash playback on reload`
 **Batch:** solo
 
+### P12.16n — Make the splash asset stream-safe
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/static/splash_intro.mp4`, `clients/desktop-web/src/lib/help/SplashGate.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `crates/msc-agent/src/web_ui.rs`, `crates/msc-agent/tests/web_ui.rs`, `docs/msc2/rolling-plan.md`, `crates/msc-agent/web-ui/`
+**What:** Restore the browser's native muted autoplay path after the explicit `canplay` start proved less stable in the reset flow. Relocate the MP4 index to the front of the reviewed splash asset so WebKit can begin decoding without waiting for the entire file, while retaining the embedded agent's `video/mp4` response type and the splash-to-onboarding completion boundary.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/SplashGate.svelte tests/screens/help.test.ts && npx vitest run tests/screens/help.test.ts && npm run bundle:package-agent && cd ../.. && cargo fmt --all -- --check && cargo nextest run -p msc-agent --test web_ui`
+**Commit:** `P12.16n: make the splash asset stream-safe`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

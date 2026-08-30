@@ -177,9 +177,7 @@ describe('shared help and onboarding screens', () => {
     expect(splashSource).toContain('prefers-reduced-motion');
     expect(splashSource).toContain('fallbackMs');
     expect(splashSource).toContain('/splash_intro.mp4');
-    expect(splashSource).toContain('bind:this={videoElement}');
-    expect(splashSource).toContain('oncanplay={startPlayback}');
-    expect(splashSource).toContain('video.play()');
+    expect(splashSource).toContain('autoplay');
     expect(splashSource).toContain('export let onComplete');
     expect(splashSource).toContain('onComplete();');
     expect(splashSource).toContain('onended={finish}');

@@ -7,8 +7,6 @@
   let completed = false;
   let reducedMotion = false;
   let videoFailed = false;
-  let videoElement: HTMLVideoElement | undefined;
-  let playbackStarted = false;
   let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
 
   function finish(): void {
@@ -23,16 +21,6 @@
     if (videoFailed || completed) return;
     videoFailed = true;
     fallbackTimer = setTimeout(finish, fallbackMs);
-  }
-
-  function startPlayback(): void {
-    const video = videoElement;
-    if (playbackStarted || completed || !video) return;
-    playbackStarted = true;
-    void video.play().catch(() => {
-      playbackStarted = false;
-      handleVideoError();
-    });
   }
 
   onMount(() => {
@@ -59,12 +47,11 @@
     {#if !videoFailed}
       <video
         class="splash-video"
-        bind:this={videoElement}
+        autoplay
         muted
         playsinline
         preload="auto"
         aria-hidden="true"
-        oncanplay={startPlayback}
         onended={finish}
         onerror={handleVideoError}
       >

@@ -32,7 +32,7 @@ test('client reset reopens first launch without touching the host or creating a 
   await page.getByRole('button', { name: 'Preferences' }).click();
   const settings = page.getByRole('dialog', { name: 'MSC Settings' });
   await expect(settings).toBeVisible();
-  await settings.getByRole('button', { name: 'Reset…' }).first().click();
+  await settings.getByRole('button', { name: 'Reset…' }).click();
   const resetSheet = page.getByRole('dialog', { name: 'Reset' });
   await resetSheet.getByRole('button', { name: 'Reset this client…' }).click();
   const confirmation = page.getByRole('alertdialog', { name: 'Reset this client?' });

@@ -1046,6 +1046,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16j: remove the retired How MSC Works flow`
 **Batch:** solo
 
+### P12.16k — Condense the Settings reset entry point
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `clients/desktop-web/tests/screens/settings-reset.test.ts`, `clients/desktop-web/tests/e2e/browser/reset-recovery.spec.ts`, `crates/msc-agent/web-ui/`
+**What:** Replace the duplicate client and host reset buttons in MSC Settings with one `Reset…` entry point. Keep the existing Reset sheet responsible for choosing client versus host, host reset mode, and the exact `RESET AGENT` confirmation phrase.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/app-settings/AppSettingsSheet.svelte tests/screens/settings-reset.test.ts tests/e2e/browser/reset-recovery.spec.ts && npx vitest run tests/screens/settings-reset.test.ts && npm run build && cd ../.. && ! rg -n 'canResetHost' crates/msc-agent/web-ui`
+**Commit:** `P12.16k: condense the Settings reset entry point`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

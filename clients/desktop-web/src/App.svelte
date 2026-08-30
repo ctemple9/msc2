@@ -651,7 +651,6 @@
     onClose={() => (settingsOpen = false)}
     onAccentColorSaved={() => (bannerColorAccentVersion += 1)}
     onOpenReset={openReset}
-    canResetHost={permissions.includes('admin')}
   />
 {/if}
 

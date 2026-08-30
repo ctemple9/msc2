@@ -5,11 +5,12 @@ import confirmDialogSource from '../../src/lib/components/ConfirmDialog.svelte?r
 import appSource from '../../src/App.svelte?raw';
 
 describe('settings reset flows', () => {
-  it('keeps the MSC Settings sheet language and adds both reset entry points', () => {
+  it('keeps one reset entry point before the client-or-host choice', () => {
     expect(appSettingsSource).toContain('<Sheet title="MSC Settings" size="md"');
-    expect(appSettingsSource).toContain('Reset this client');
-    expect(appSettingsSource).toContain('Reset this host');
-    expect(appSettingsSource).toContain('canResetHost');
+    expect(appSettingsSource).toContain('Choose whether to reset this device or the selected host');
+    expect(appSettingsSource.match(/onclick={onOpenReset}/g)).toHaveLength(1);
+    expect(appSettingsSource).not.toContain('Reset this client');
+    expect(appSettingsSource).not.toContain('Reset this host');
     expect(appSettingsSource).not.toContain('gradient');
     expect(appSettingsSource).not.toContain('backdrop-filter');
   });

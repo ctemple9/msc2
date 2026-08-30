@@ -39,7 +39,6 @@
   export let onClose: () => void;
   export let onAccentColorSaved: () => void = () => {};
   export let onOpenReset: () => void = () => {};
-  export let canResetHost = false;
 
   let colorDraft = serverId ? bannerColorFor(hostId, serverId) : clampBannerColor('');
   let colorNotice = '';
@@ -142,26 +141,14 @@
       <Card padding="0">
         <div class="row">
           <div class="row-text">
-            <span class="name">Reset this client</span>
-            <span class="hint">Forget this device's hosts, credentials, preferences, and onboarding.</span>
+            <span class="name">Reset MSC</span>
+            <span class="hint"
+              >Choose whether to reset this device or the selected host, then confirm.</span
+            >
           </div>
           <Button variant="destructive" size="sm" onclick={onOpenReset}>Reset…</Button>
         </div>
-        <div class="row">
-          <div class="row-text">
-            <span class="name">Reset this host</span>
-            <span class="hint">Clear MSC host state, with an option to remove the managed server folder.</span>
-          </div>
-          <Button
-            variant="destructive"
-            size="sm"
-            disabled={!canResetHost}
-            title={canResetHost ? undefined : 'Administrator access is required'}
-            onclick={onOpenReset}>Reset…</Button
-          >
-        </div>
       </Card>
-      {#if !canResetHost}<p class="hint">Reset this host is available to administrators only.</p>{/if}
     </section>
   </div>
 </Sheet>

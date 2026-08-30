@@ -542,7 +542,13 @@ fn tunnel_matches(tunnel: &PlayitTunnel, spec: PlayitTunnelSpec, agent_id: &str)
         PlayitTunnelKind::Java | PlayitTunnelKind::Bedrock => {
             tunnel.tunnel_type.as_deref() == spec.kind.tunnel_type()
         }
-        PlayitTunnelKind::Voice => tunnel.protocol_type.as_deref() == Some("raw-ports"),
+        PlayitTunnelKind::Voice => {
+            // The legacy `/tunnels/list` account model identifies custom UDP
+            // tunnels with no tunnel type and does not include the
+            // raw-ports protocol marker. The common checks above still bind
+            // this named tunnel to this agent, loopback, UDP, and port.
+            tunnel.tunnel_type.is_none()
+        }
     }
 }
 

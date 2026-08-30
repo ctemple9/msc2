@@ -1415,6 +1415,14 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Commit:** `P12.20l: put first-start initiation on the main server control`
 **Batch:** solo
 
+### P12.20m — Accept the legacy Playit voice inventory shape
+**Status:** built, awaiting verification
+**Files:** `crates/msc-application/src/playit.rs`, `crates/msc-application/tests/playit.rs`, `docs/msc2/rolling-plan.md`
+**What:** Fix the final three-tunnel validation failure exposed by live verification. Playit's legacy `/tunnels/list` account response does not reliably include the `raw-ports` protocol marker for a custom UDP voice tunnel, while MSC2 currently requires that marker after it has already created the tunnel. Keep the strict saved-agent, loopback, UDP, and local-port checks, and identify the named voice tunnel from its custom-tunnel shape (`tunnel_type` absent) instead of rejecting a valid legacy response. Add a regression test using the provider shape that caused the live failure; Java, Bedrock, and mismatched-tunnel safety remain unchanged.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application --test playit`
+**Commit:** `P12.20m: accept the legacy Playit voice inventory shape`
+**Batch:** solo
+
 ### P12.21 — Sidebar: How to Connect + Maintenance
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte` (new), `clients/desktop-web/tests/visual/shell.test.ts`

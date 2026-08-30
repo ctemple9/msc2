@@ -834,6 +834,21 @@ fn tunnel_fixture(kind: PlayitTunnelKind, local_port: u16) -> Value {
     tunnel
 }
 
+fn legacy_voice_tunnel_fixture(local_port: u16) -> Value {
+    let mut tunnel = tunnel_fixture(PlayitTunnelKind::Voice, local_port);
+    tunnel["origin"] = serde_json::json!({
+        "type": "agent",
+        "data": {
+            "agent_id": "agent-existing",
+            "local_ip": "127.0.0.1",
+            "local_port": local_port
+        }
+    });
+    tunnel["port_type"] = Value::String("udp".into());
+    tunnel.as_object_mut().unwrap().remove("protocol");
+    tunnel
+}
+
 fn tunnel_list_response(tunnels: Vec<Value>) -> (u16, Value) {
     (
         200,
@@ -1055,6 +1070,54 @@ fn native_setup_reuses_existing_tunnels_without_duplicates_on_repeat() {
             .filter(|(path, _, _)| path.ends_with("/tunnels/create"))
             .count(),
         1
+    );
+}
+
+#[test]
+fn native_setup_reuses_legacy_voice_inventory_without_protocol_marker() {
+    let specs = [PlayitTunnelSpec {
+        kind: PlayitTunnelKind::Voice,
+        local_port: 24454,
+    }];
+    let inventory = vec![legacy_voice_tunnel_fixture(24454)];
+    let transport = FakeAccountTransport::new([
+        (
+            200,
+            serde_json::json!({"status": "success", "data": {"session_key": "session-secret"}}),
+        ),
+        tunnel_list_response(inventory.clone()),
+        tunnel_list_response(inventory),
+    ]);
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+
+    let result = setup
+        .run_with_tunnels(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            &specs,
+            || false,
+            |_| {},
+        )
+        .unwrap();
+
+    assert_eq!(
+        result.tunnel_addresses.voice.as_deref(),
+        Some("203.0.113.10:24454")
+    );
+    assert_eq!(
+        transport
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(path, _, _)| path.ends_with("/tunnels/create"))
+            .count(),
+        0
     );
 }
 

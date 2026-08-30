@@ -155,6 +155,9 @@ describe('shared help and onboarding screens', () => {
     expect(appSource).toContain("agentReadiness = 'ready'");
     expect(appSource).toContain('readiness={agentReadiness}');
     expect(appSource).toContain("agentReady={agentReadiness === 'ready'}");
+    expect(appSource).toContain('let splashComplete = false');
+    expect(appSource).toContain('<SplashGate onComplete={completeSplash} />');
+    expect(appSource).toContain('{#if splashComplete && clientReady}');
     expect(helpSource).toContain("'/v1/config/host-setup'");
     expect(helpSource).toContain("'/v1/guides/onboarding'");
     expect(helpSource).not.toContain('How MSC Works');
@@ -175,6 +178,8 @@ describe('shared help and onboarding screens', () => {
     expect(splashSource).toContain('fallbackMs');
     expect(splashSource).toContain('/splash_intro.mp4');
     expect(splashSource).toContain('autoplay');
+    expect(splashSource).toContain('export let onComplete');
+    expect(splashSource).toContain('onComplete();');
     expect(splashSource).toContain('onended={finish}');
     expect(splashSource).toContain('onerror={handleVideoError}');
   });

@@ -243,6 +243,11 @@
   let client: ApiClient | undefined;
   let clientReady = false;
   let agentReadiness: AgentReadiness = 'starting';
+  let splashComplete = false;
+
+  function completeSplash(): void {
+    splashComplete = true;
+  }
 
   function requireClient(): ApiClient {
     if (!client) throw new Error('The selected host client is still initializing.');
@@ -667,8 +672,10 @@
   />
 {/if}
 
-<SplashGate />
-{#if clientReady}<FirstLaunchGate api={screenApi} agentReady={agentReadiness === 'ready'} />{/if}
+<SplashGate onComplete={completeSplash} />
+{#if splashComplete && clientReady}
+  <FirstLaunchGate api={screenApi} agentReady={agentReadiness === 'ready'} />
+{/if}
 
 <style>
   .dashboard {

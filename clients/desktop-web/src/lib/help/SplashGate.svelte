@@ -2,14 +2,19 @@
   import { onMount } from 'svelte';
 
   export let fallbackMs = 900;
+  export let onComplete: () => void = () => {};
   let visible = true;
+  let completed = false;
   let reducedMotion = false;
   let videoFailed = false;
   let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
 
   function finish(): void {
+    if (completed) return;
+    completed = true;
     visible = false;
     if (fallbackTimer) clearTimeout(fallbackTimer);
+    onComplete();
   }
 
   function handleVideoError(): void {
@@ -20,7 +25,7 @@
   onMount(() => {
     reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     if (reducedMotion) {
-      visible = false;
+      finish();
       return;
     }
     const timer = window.setTimeout(finish, 12_000);

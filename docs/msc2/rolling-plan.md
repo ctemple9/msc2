@@ -1054,6 +1054,14 @@ Verified: `cargo nextest run -p msc-domain --test router_guides` and `cargo next
 **Commit:** `P12.16k: condense the Settings reset entry point`
 **Batch:** solo
 
+### P12.16l — Keep first launch behind the splash
+**Status:** built, awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/help/SplashGate.svelte`, `clients/desktop-web/tests/screens/help.test.ts`, `docs/msc2/rolling-plan.md`, `crates/msc-agent/web-ui/`
+**What:** Make the splash the explicit first-launch boundary. `SplashGate` reports completion exactly once when the video ends, the bounded fallback finishes, or reduced motion skips playback; `App.svelte` mounts `FirstLaunchGate` only after that signal and the client is ready. This prevents the setup sheet or guided tour from appearing over active splash playback without changing their content or reset behavior.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/help/SplashGate.svelte tests/screens/help.test.ts && npx vitest run tests/screens/help.test.ts && npm run bundle:package-agent`
+**Commit:** `P12.16l: gate first launch behind the splash`
+**Batch:** solo
+
 ### P12.18 — Server creation wizard (real port of `AddServerWizardView`)
 
 **Status (decided 2026-08-27, planned not built):** P11.9/P12.11 deliberately shipped "Add Server…" as a placeholder — a name field and a version dropdown inside `ManageSheet.svelte` — and said so in that file's own comment: "not a port of MSC 1's multi-step `AddServerWizardView` — that wizard is its own scope, not attempted in this step." Cameron compared MSC 1's real wizard against that placeholder directly (screenshots) and confirmed it reads as genuinely incomplete, not a style gap. This block plans that real port. **Two scope calls Cameron made directly, asked as questions rather than decided silently:**

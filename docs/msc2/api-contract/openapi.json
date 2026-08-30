@@ -2001,6 +2001,45 @@
             "voice": 24454
           },
           "udpAddressFallback": "static_ip4, then assigned_domain"
+        },
+        "x-platform-acquisition": {
+          "helper": "playitd",
+          "releasePins": {
+            "macos-x86_64": {
+              "metadataUrl": "https://api.github.com/repos/ctemple9/minecraft-server-controller/releases/tags/playitd-v1.0.10",
+              "version": "playitd-v1.0.10",
+              "asset": "playitd",
+              "sha256": "91ae745a35aad7a058a9bfb3320d7dc27a54f66a8bb81831360966dd69acc791"
+            },
+            "macos-aarch64": {
+              "metadataUrl": "https://api.github.com/repos/ctemple9/minecraft-server-controller/releases/tags/playitd-v1.0.10",
+              "version": "playitd-v1.0.10",
+              "asset": "playitd",
+              "sha256": "91ae745a35aad7a058a9bfb3320d7dc27a54f66a8bb81831360966dd69acc791"
+            },
+            "linux-x86_64": {
+              "metadataUrl": "https://api.github.com/repos/playit-cloud/playit-agent/releases/tags/v1.0.10",
+              "version": "v1.0.10",
+              "asset": "playit-linux-amd64",
+              "sha256": "2df7d9f10227ab312b1ad341853db4e8a8243df5cfcdbae58713a4271711c339"
+            },
+            "linux-aarch64": {
+              "metadataUrl": "https://api.github.com/repos/playit-cloud/playit-agent/releases/tags/v1.0.10",
+              "version": "v1.0.10",
+              "asset": "playit-linux-aarch64",
+              "sha256": "4c0db3e7b3a8158e249441c2f0b73f54e83429395890c7b1ca45fd7a6303d763"
+            },
+            "windows-x86_64": {
+              "metadataUrl": "https://api.github.com/repos/playit-cloud/playit-agent/releases/tags/v1.0.10",
+              "version": "v1.0.10",
+              "asset": "playit-windows-x86_64-signed.exe",
+              "sha256": "2dbdaad119844cbbc062cc9774b8b462afa5f1b4b7832a9fc5ef4676cae887cf"
+            }
+          },
+          "unsupportedPlatforms": {
+            "windows-aarch64": "No pinned upstream Playit asset is published for this target. Acquisition fails with helper_unavailable before download or process launch."
+          },
+          "enabledState": "playitEnabled is the saved server preference, not proof that a helper is available or running. isRunning and the public address fields describe active helper state; an unsupported host fails before a download or launch."
         }
       }
     },
@@ -2203,7 +2242,7 @@
             }
           },
           "409": {
-            "description": "not_enabled / no_secret_key / no_server",
+            "description": "not_enabled / no_secret_key / no_server / helper_unavailable",
             "content": {
               "application/json": {
                 "schema": {

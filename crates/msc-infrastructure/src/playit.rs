@@ -26,6 +26,16 @@ pub const PLAYIT_RELEASE_METADATA_URL: &str = "https://api.github.com/repos/ctem
 pub const PLAYIT_HELPER_SHA256: &str =
     "91ae745a35aad7a058a9bfb3320d7dc27a54f66a8bb81831360966dd69acc791";
 
+const PLAYIT_UPSTREAM_VERSION: &str = "v1.0.10";
+const PLAYIT_UPSTREAM_RELEASE_METADATA_URL: &str =
+    "https://api.github.com/repos/playit-cloud/playit-agent/releases/tags/v1.0.10";
+const PLAYIT_LINUX_X86_64_SHA256: &str =
+    "2df7d9f10227ab312b1ad341853db4e8a8243df5cfcdbae58713a4271711c339";
+const PLAYIT_LINUX_AARCH64_SHA256: &str =
+    "4c0db3e7b3a8158e249441c2f0b73f54e83429395890c7b1ca45fd7a6303d763";
+const PLAYIT_WINDOWS_X86_64_SHA256: &str =
+    "2dbdaad119844cbbc062cc9774b8b462afa5f1b4b7832a9fc5ef4676cae887cf";
+
 static NEXT_SECRET_BRIDGE_TEMP: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -195,9 +205,13 @@ fn remove_bridge_file(path: &Path) -> io::Result<()> {
     }
 }
 
-/// The release pin used by Playit. The one published MSC 1 asset is a
-/// universal macOS binary; unsupported platforms fail explicitly until their
-/// own repository-owned artifact and checksum are published.
+/// The release pin used by Playit.
+///
+/// MSC's signed universal macOS helper remains the pin for both macOS
+/// architectures. Linux uses the matching upstream release assets, and
+/// Windows uses the signed x86_64 upstream asset. Windows ARM64 is explicit:
+/// the upstream release has no asset for that target, so acquisition fails
+/// before it can download or launch a misleading substitute.
 pub fn pinned_playit_release(
     platform: HelperPlatform,
 ) -> Result<PinnedHelperRelease, HelperAcquisitionError> {
@@ -212,9 +226,41 @@ pub fn pinned_playit_release(
                 sha256: PLAYIT_HELPER_SHA256.into(),
             }],
         }),
-        _ => Err(HelperAcquisitionError::ReleaseResolution(format!(
-            "no pinned {PLAYIT_HELPER_NAME} artifact is published for {platform}"
-        ))),
+        HelperPlatform::LinuxX86_64 => Ok(upstream_playit_release(
+            platform,
+            "playit-linux-amd64",
+            PLAYIT_LINUX_X86_64_SHA256,
+        )),
+        HelperPlatform::LinuxAarch64 => Ok(upstream_playit_release(
+            platform,
+            "playit-linux-aarch64",
+            PLAYIT_LINUX_AARCH64_SHA256,
+        )),
+        HelperPlatform::WindowsX86_64 => Ok(upstream_playit_release(
+            platform,
+            "playit-windows-x86_64-signed.exe",
+            PLAYIT_WINDOWS_X86_64_SHA256,
+        )),
+        HelperPlatform::WindowsAarch64 => Err(HelperAcquisitionError::ReleaseResolution(
+            "no pinned playitd artifact is published for windows-aarch64".into(),
+        )),
+    }
+}
+
+fn upstream_playit_release(
+    platform: HelperPlatform,
+    asset_name: &str,
+    sha256: &str,
+) -> PinnedHelperRelease {
+    PinnedHelperRelease {
+        helper: PLAYIT_HELPER_NAME.into(),
+        version: PLAYIT_UPSTREAM_VERSION.into(),
+        release_metadata_url: PLAYIT_UPSTREAM_RELEASE_METADATA_URL.into(),
+        assets: vec![PinnedHelperAsset {
+            platform,
+            asset_name: asset_name.into(),
+            sha256: sha256.into(),
+        }],
     }
 }
 

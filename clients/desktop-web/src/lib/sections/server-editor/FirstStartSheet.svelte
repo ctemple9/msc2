@@ -178,7 +178,11 @@
           if (operation?.state !== 'succeeded') {
             setTransport('broadcast', 'failed');
             statusLine = 'Xbox Broadcast helper download failed.';
+          } else {
+            statusLine = 'Xbox Broadcast helper is ready. Continue to start it with your server.';
           }
+        } else {
+          statusLine = 'Xbox Broadcast helper is ready. Continue to start it with your server.';
         }
       }
     }

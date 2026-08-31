@@ -491,10 +491,14 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         })
         .into_response();
     };
-    let mut services = state.playit_service(&server);
-    let service = services.get_mut(&server.id).expect("service was inserted");
-    let has_secret = service.has_secret().unwrap_or(false);
-    let lifecycle_status = service.lifecycle_status();
+    let (has_secret, lifecycle_status) = {
+        let mut services = state.playit_service(&server);
+        let service = services.get_mut(&server.id).expect("service was inserted");
+        (
+            service.has_secret().unwrap_or(false),
+            service.lifecycle_status(),
+        )
+    };
     let status_note = match &lifecycle_status {
         PlayitLifecycleStatus::SetupRequired => Some("Playit setup is required.".into()),
         PlayitLifecycleStatus::Starting => Some("Playit is starting.".into()),
@@ -507,7 +511,62 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         }
         PlayitLifecycleStatus::Failed { message } => Some(message.clone()),
     };
-    let voice_address = state.lifecycle.app_config_snapshot().playit_voice_address;
+    let mut config = state.lifecycle.app_config_snapshot();
+    let tunnel_specs = server_playit_tunnel_specs(&server);
+    let configured_agent_id = config.playit_agent_id.clone();
+    let has_missing_address = tunnel_specs.iter().any(|spec| match spec.kind {
+        msc_domain::networking::PlayitTunnelKind::Java => config.playit_java_address.is_none(),
+        msc_domain::networking::PlayitTunnelKind::Bedrock => {
+            config.playit_bedrock_address.is_none()
+        }
+        msc_domain::networking::PlayitTunnelKind::Voice => config.playit_voice_address.is_none(),
+    });
+    if server.playit_enabled
+        && has_secret
+        && has_missing_address
+        && !tunnel_specs.is_empty()
+        && let Some(agent_id) = configured_agent_id.filter(|agent_id| !agent_id.trim().is_empty())
+    {
+        let transport = state.playit_transport;
+        let secrets = state.secrets;
+        let agent_id_for_refresh = agent_id.clone();
+        let refresh = tokio::task::spawn_blocking(move || {
+            PlayitAccountSetup::new(transport, secrets)
+                .refresh_tunnel_addresses(&agent_id_for_refresh, &tunnel_specs)
+        })
+        .await;
+        if let Ok(Ok(addresses)) = refresh {
+            let server_id = server.id.clone();
+            let refreshed_agent_id = agent_id;
+            let _ = state.lifecycle.try_mutate_config(|saved| {
+                // A reset or a new setup may have happened while the one
+                // read-only inventory request was in flight. Never restore
+                // addresses for an agent that is no longer the saved one.
+                if saved.playit_agent_id.as_deref() != Some(refreshed_agent_id.as_str()) {
+                    return Ok::<_, std::convert::Infallible>(());
+                }
+                if addresses.java.is_some() {
+                    saved.playit_java_address = addresses.java;
+                }
+                if addresses.bedrock.is_some() {
+                    saved.playit_bedrock_address = addresses.bedrock;
+                }
+                if addresses.voice.is_some() {
+                    saved.playit_voice_address = addresses.voice;
+                    if let Some(saved_server) = saved
+                        .servers
+                        .iter_mut()
+                        .find(|saved_server| saved_server.id == server_id)
+                    {
+                        saved_server.playit_voice_chat_enabled = true;
+                    }
+                }
+                Ok::<_, std::convert::Infallible>(())
+            });
+            config = state.lifecycle.app_config_snapshot();
+        }
+    }
+    let voice_address = config.playit_voice_address;
     if let Some(voice_host) = voice_address.as_deref() {
         // Reading status after a later SVC install is the lightweight sync
         // path: an existing tunnel needs no re-authentication, only the
@@ -524,8 +583,8 @@ pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
         playit_enabled: server.playit_enabled,
         is_running: lifecycle_status.is_active(),
         has_secret_key: has_secret,
-        java_address: state.lifecycle.app_config_snapshot().playit_java_address,
-        bedrock_address: state.lifecycle.app_config_snapshot().playit_bedrock_address,
+        java_address: config.playit_java_address,
+        bedrock_address: config.playit_bedrock_address,
         voice_address,
         voice_chat_enabled,
         note: status_note,

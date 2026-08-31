@@ -36,6 +36,7 @@ const PLAYIT_RESET_STOP_TIMEOUT: Duration = Duration::from_secs(5);
 const PLAYIT_RESET_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const PLAYIT_AGENT_CONNECTION_TIMEOUT: Duration = Duration::from_secs(75);
 const PLAYIT_AGENT_CONNECTION_POLL_INTERVAL: Duration = Duration::from_millis(100);
+const PLAYIT_PUBLIC_ADDRESS_ATTEMPTS: usize = 16;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayitStartResult {
@@ -159,6 +160,7 @@ pub enum PlayitSetupError {
     CredentialStore,
     AgentStart(String),
     TunnelMismatch(PlayitTunnelKind),
+    PublicAddressesUnavailable,
 }
 
 impl PlayitSetupError {
@@ -169,6 +171,7 @@ impl PlayitSetupError {
             Self::CredentialStore => "credential_store_failed",
             Self::AgentStart(_) => "playit_helper_start_failed",
             Self::TunnelMismatch(_) => "tunnel_mismatch",
+            Self::PublicAddressesUnavailable => "public_addresses_unavailable",
         }
     }
 }
@@ -188,6 +191,10 @@ impl fmt::Display for PlayitSetupError {
                 f,
                 "The existing {} Playit tunnel does not match this server's saved agent or local port; repair it on playit.gg before trying again.",
                 kind.name()
+            ),
+            Self::PublicAddressesUnavailable => write!(
+                f,
+                "Playit created the tunnels, but their public addresses did not become ready within 75 seconds. Your agent and tunnels were kept; try again shortly."
             ),
         }
     }
@@ -369,6 +376,28 @@ impl<'a> PlayitAccountSetup<'a> {
         })
     }
 
+    /// Reconciles the public addresses for the already-saved agent without
+    /// signing in, creating a tunnel, or changing anything in Playit. This
+    /// lets a later status read recover if Playit accepted a new allocation
+    /// just before it assigned the public address.
+    pub fn refresh_tunnel_addresses(
+        &self,
+        agent_id: &str,
+        tunnel_specs: &[PlayitTunnelSpec],
+    ) -> Result<PlayitTunnelAddresses, PlayitSetupError> {
+        let secret_key = self
+            .secrets
+            .get(PLAYIT_SECRET_KEY)
+            .map_err(|_| PlayitSetupError::CredentialStore)?
+            .filter(|secret| !secret.trim().is_empty())
+            .ok_or(PlayitSetupError::Api(PlayitApiError::AgentNotFound))?;
+        let inventory = self
+            .api
+            .list_tunnels(&secret_key)
+            .map_err(PlayitSetupError::Api)?;
+        Self::tunnel_addresses_from_inventory(&inventory, tunnel_specs, agent_id)
+    }
+
     fn provision_tunnels(
         &self,
         agent_id: &str,
@@ -395,8 +424,28 @@ impl<'a> PlayitAccountSetup<'a> {
             }
         }
 
-        report(PlayitSetupStage::ReceivingPublicAddresses);
-        inventory = self.list_tunnels(secret_key, should_cancel)?;
+        for attempt in 0..PLAYIT_PUBLIC_ADDRESS_ATTEMPTS {
+            report(PlayitSetupStage::ReceivingPublicAddresses);
+            inventory = self.list_tunnels(secret_key, should_cancel)?;
+            let addresses =
+                Self::tunnel_addresses_from_inventory(&inventory, tunnel_specs, agent_id)?;
+            if tunnel_addresses_resolved(&addresses, tunnel_specs) {
+                return Ok(addresses);
+            }
+            if attempt + 1 < PLAYIT_PUBLIC_ADDRESS_ATTEMPTS
+                && wait_for_public_address_retry(should_cancel)
+            {
+                return Err(PlayitSetupError::Cancelled);
+            }
+        }
+        Err(PlayitSetupError::PublicAddressesUnavailable)
+    }
+
+    fn tunnel_addresses_from_inventory(
+        inventory: &[PlayitTunnel],
+        tunnel_specs: &[PlayitTunnelSpec],
+        agent_id: &str,
+    ) -> Result<PlayitTunnelAddresses, PlayitSetupError> {
         let mut addresses = PlayitTunnelAddresses::default();
         for spec in tunnel_specs {
             let matching: Vec<&PlayitTunnel> = inventory
@@ -624,6 +673,29 @@ fn wait_for_tunnel_retry(should_cancel: &impl Fn() -> bool) -> bool {
         std::thread::sleep(Duration::from_millis(100));
     }
     false
+}
+
+fn wait_for_public_address_retry(should_cancel: &impl Fn() -> bool) -> bool {
+    // MSC1 asks Playit again every five seconds while the daemon finishes
+    // registering new allocations, for roughly 75 seconds in total.
+    for _ in 0..50 {
+        if should_cancel() {
+            return true;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    false
+}
+
+fn tunnel_addresses_resolved(
+    addresses: &PlayitTunnelAddresses,
+    tunnel_specs: &[PlayitTunnelSpec],
+) -> bool {
+    tunnel_specs.iter().all(|spec| match spec.kind {
+        PlayitTunnelKind::Java => addresses.java.is_some(),
+        PlayitTunnelKind::Bedrock => addresses.bedrock.is_some(),
+        PlayitTunnelKind::Voice => addresses.voice.is_some(),
+    })
 }
 
 /// A small façade around P9.6's common process manager.  It owns no secret

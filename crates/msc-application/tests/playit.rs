@@ -1114,6 +1114,100 @@ fn native_setup_provisions_one_two_and_three_tunnel_accounts() {
 }
 
 #[test]
+fn native_setup_waits_for_public_addresses_before_succeeding() {
+    let specs = [PlayitTunnelSpec {
+        kind: PlayitTunnelKind::Java,
+        local_port: 25565,
+    }];
+    let mut not_ready = tunnel_fixture(PlayitTunnelKind::Java, 25565);
+    not_ready["active"] = Value::Bool(false);
+    let mut responses = setup_responses(&specs, vec![not_ready]);
+    responses.push(tunnel_list_response(vec![tunnel_fixture(
+        PlayitTunnelKind::Java,
+        25565,
+    )]));
+    let transport = FakeAccountTransport::new(responses);
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+
+    let result = setup
+        .run_with_tunnels(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            &specs,
+            || false,
+            |_| {},
+        )
+        .unwrap();
+
+    assert_eq!(
+        result.tunnel_addresses.java.as_deref(),
+        Some("msc-java.example.joinmc.link:25565")
+    );
+    assert_eq!(
+        transport
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|request| request.0 == "/tunnels/list")
+            .count(),
+        3
+    );
+}
+
+#[test]
+fn saved_agent_address_refresh_reuses_the_key_without_signing_in_or_mutating_tunnels() {
+    let specs = [
+        PlayitTunnelSpec {
+            kind: PlayitTunnelKind::Java,
+            local_port: 25565,
+        },
+        PlayitTunnelSpec {
+            kind: PlayitTunnelKind::Bedrock,
+            local_port: 19132,
+        },
+        PlayitTunnelSpec {
+            kind: PlayitTunnelKind::Voice,
+            local_port: 24454,
+        },
+    ];
+    let transport = FakeAccountTransport::new([tunnel_list_response(
+        specs
+            .iter()
+            .map(|spec| tunnel_fixture(spec.kind, spec.local_port))
+            .collect(),
+    )]);
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+
+    let addresses = setup
+        .refresh_tunnel_addresses("agent-existing", &specs)
+        .unwrap();
+
+    assert_eq!(
+        addresses.java.as_deref(),
+        Some("msc-java.example.joinmc.link:25565")
+    );
+    assert_eq!(addresses.bedrock.as_deref(), Some("198.51.100.10:19132"));
+    assert_eq!(addresses.voice.as_deref(), Some("203.0.113.10:24454"));
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].0, "/tunnels/list");
+    assert_eq!(
+        requests[0].2.as_deref(),
+        Some("Agent-Key existing-agent-secret")
+    );
+}
+
+#[test]
 fn native_setup_starts_agent_before_first_tunnel_request() {
     let specs = [PlayitTunnelSpec {
         kind: PlayitTunnelKind::Java,

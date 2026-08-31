@@ -101,7 +101,7 @@ fn native_setup_is_networking_scoped_and_uses_the_shared_operation_model() {
         setup["x-security-boundary"]["browserApiClient"],
         "forbidden"
     );
-    assert_eq!(setup["x-error-codes"].as_array().unwrap().len(), 10);
+    assert_eq!(setup["x-error-codes"].as_array().unwrap().len(), 11);
     assert_eq!(
         contract()["paths"]["/v1/playit"]["get"]["x-tunnel-inventory"]["names"]["voice"],
         "MSC Voice"
@@ -191,6 +191,7 @@ fn native_setup_error_codes_are_stable_and_actionable_without_provider_details()
         "credential_store_failed",
         "playit_helper_start_failed",
         "tunnel_mismatch",
+        "public_addresses_unavailable",
         "setup_in_progress",
     ] {
         assert!(errors.contains(&json!(code)), "missing stable error {code}");
@@ -237,6 +238,7 @@ fn networking_registers_and_polls_playit_with_the_lifecycle_owner() {
         "mark_first_start_transport_for_server",
         "record_start_failure",
         "wait_for_agent_connection",
+        "refresh_tunnel_addresses",
     ] {
         assert!(
             networking.contains(marker),

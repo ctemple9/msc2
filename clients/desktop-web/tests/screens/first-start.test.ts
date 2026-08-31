@@ -19,6 +19,9 @@ describe('first-start initiation flow', () => {
     expect(sheetSource).toContain('Pass 2 of 2');
     expect(sheetSource).toContain('serverEditorPaths.playitStart');
     expect(sheetSource).toContain('serverEditorPaths.broadcastStart');
+    expect(sheetSource).toContain(
+      'Xbox Broadcast helper is ready. Continue to start it with your server.',
+    );
     expect(sheetSource).toContain('600_000');
     expect(sheetSource).toContain('Future starts are manual');
     expect(sheetSource).toContain('context="initiation"');

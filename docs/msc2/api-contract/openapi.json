@@ -1984,7 +1984,7 @@
         },
         "x-permission-category": "none",
         "x-tunnel-inventory": {
-          "authoritative": "The persisted Java, Bedrock, and voice addresses come from the API inventory, even when playitd has not printed an address yet.",
+          "authoritative": "The persisted Java, Bedrock, and voice addresses come from the API inventory, even when playitd has not printed an address yet. When any applicable persisted address is absent, this status read reconciles that named tunnel inventory with the saved agent key; it never returns the key or changes cloud agents or tunnels.",
           "names": {
             "java": "MSC Java",
             "bedrock": "MSC Bedrock",
@@ -2092,7 +2092,7 @@
             "x-error-code": "forbidden"
           },
           "409": {
-            "description": "setup_in_progress / setup_unavailable / credential_store_failed / tunnel_mismatch",
+            "description": "setup_in_progress / setup_unavailable / credential_store_failed / tunnel_mismatch / public_addresses_unavailable",
             "content": {
               "application/json": {
                 "schema": {
@@ -2137,6 +2137,7 @@
           "credential_store_failed",
           "playit_helper_start_failed",
           "tunnel_mismatch",
+          "public_addresses_unavailable",
           "setup_in_progress"
         ],
         "x-security-boundary": {
@@ -2146,7 +2147,7 @@
           "browserApiClient": "forbidden",
           "twoFactor": "explicit-two_factor_required-error"
         },
-        "x-notes": "The agent starts the managed playitd process after the permanent host key is available and before listing or creating tunnels. It lists tunnels with the read-only host key, creates missing tunnels with the short-lived web session, retries while the saved agent is offline, and reuses a named tunnel only when its saved agent, kind, origin, and local port match. A same-name mismatch returns tunnel_mismatch instead of retargeting the tunnel. Credentials and temporary session details remain memory-only; no browser-side Playit API client or paste-key shortcut is allowed."
+        "x-notes": "The agent starts the managed playitd process after the permanent host key is available and before listing or creating tunnels. It lists tunnels with the read-only host key, creates missing tunnels with the short-lived web session, retries while the saved agent is offline, and reuses a named tunnel only when its saved agent, kind, origin, and local port match. After creation it waits up to 75 seconds for every applicable public address before reporting success; a timeout keeps the cloud agent and tunnels intact. A same-name mismatch returns tunnel_mismatch instead of retargeting the tunnel. Credentials and temporary session details remain memory-only; no browser-side Playit API client or paste-key shortcut is allowed."
       }
     },
     "/v1/playit/reset": {

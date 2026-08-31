@@ -15,6 +15,14 @@ describe('settings reset flows', () => {
     expect(appSettingsSource).not.toContain('backdrop-filter');
   });
 
+  it('keeps tab preloading as a client-local MSC setting', () => {
+    expect(appSettingsSource).toContain('Preload tabs');
+    expect(appSettingsSource).toContain('onPreloadTabsChanged');
+    expect(appSource).toContain('readTabPreloadPreference');
+    expect(appSource).toContain('scheduleAvailableTabPreload');
+    expect(appSource).toContain('setTabPreloadPreference');
+  });
+
   it('requires the exact reset phrase and keeps native controls out of the reset sheet', () => {
     expect(resetSource).toContain('/v1/host/reset');
     expect(resetSource).toContain("'RESET AGENT'");

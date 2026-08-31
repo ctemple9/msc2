@@ -30,6 +30,11 @@
   import { bannerColorFor } from './lib/styles/bannerColor';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
   import { selectAvailableServerId } from './lib/navigation/serverSelection';
+  import {
+    readTabPreloadPreference,
+    scheduleTabPreload,
+    setTabPreloadPreference,
+  } from './lib/navigation/tabPreloading';
   import type { Capabilities, NavigationContext, SectionDescriptor } from './lib/navigation/types';
   import type { Schema, ScreenApi } from './lib/sections/shared/types';
   import './lib/sections/shared/screen.css';
@@ -279,6 +284,8 @@
   let initiationServer: Schema['ServerDTO'] | undefined;
   let initiationVisible = false;
   let initiationComplete = false;
+  let preloadTabs = readTabPreloadPreference();
+  let cancelTabPreload: (() => void) | undefined;
 
   $: activeServer = servers.find((server) => server.id === selectedServerId);
 
@@ -543,6 +550,8 @@
   }
 
   async function initializeClient(): Promise<void> {
+    cancelTabPreload?.();
+    cancelTabPreload = undefined;
     clientReady = false;
     capabilities = null;
     permissions = [];
@@ -563,11 +572,36 @@
       }
       client = await createClient(hostId);
       clientReady = await restoreHostContext();
+      if (clientReady) scheduleAvailableTabPreload();
     } catch (error) {
       agentReadiness = readinessForError(error);
       shellMessage = `Unable to prepare the local agent connection: ${String(error)}`;
       hostStore.updateConnection(hostId, 'error');
       await selectSection('agent-setup');
+    }
+  }
+
+  function scheduleAvailableTabPreload(): void {
+    cancelTabPreload?.();
+    cancelTabPreload = undefined;
+    if (!preloadTabs) return;
+
+    const context = currentNavigationContext();
+    if (!context) return;
+    const visibleIds = new Set(router.visibleSections(context).map((section) => section.id));
+    const tabSections = PRIMARY_TABS.map((tab) => router.get(tab.id)).filter(
+      (section): section is SectionDescriptor => !!section && visibleIds.has(section.id),
+    );
+    cancelTabPreload = scheduleTabPreload(tabSections);
+  }
+
+  function setPreloadTabs(enabled: boolean): void {
+    preloadTabs = enabled;
+    setTabPreloadPreference(enabled);
+    if (enabled && clientReady) scheduleAvailableTabPreload();
+    else if (!enabled) {
+      cancelTabPreload?.();
+      cancelTabPreload = undefined;
     }
   }
 
@@ -759,6 +793,8 @@
     serverLabel={servers.find((server) => server.id === selectedServerId)?.name}
     onClose={() => (settingsOpen = false)}
     onAccentColorSaved={() => (bannerColorAccentVersion += 1)}
+    {preloadTabs}
+    onPreloadTabsChanged={setPreloadTabs}
     onOpenReset={openReset}
   />
 {/if}

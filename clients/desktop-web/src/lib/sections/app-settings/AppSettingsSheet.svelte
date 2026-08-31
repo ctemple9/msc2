@@ -27,6 +27,7 @@
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
+  import Toggle from '../../components/base/Toggle.svelte';
   import { getPlatform } from '../../platform';
   import { bannerColorFor, setBannerColorFor, clampBannerColor } from '../../styles/bannerColor';
   import type { Schema, ScreenApi } from '../shared/types';
@@ -38,6 +39,8 @@
   export let serverLabel: string | undefined = undefined;
   export let onClose: () => void;
   export let onAccentColorSaved: () => void = () => {};
+  export let preloadTabs = true;
+  export let onPreloadTabsChanged: (enabled: boolean) => void = () => {};
   export let onOpenReset: () => void = () => {};
 
   let colorDraft = serverId ? bannerColorFor(hostId, serverId) : clampBannerColor('');
@@ -68,6 +71,11 @@
     colorDraft = bannerColorFor(hostId, serverId);
     colorNotice = 'Accent color saved on this device.';
     onAccentColorSaved();
+  }
+
+  function updatePreloadTabs(enabled: boolean): void {
+    preloadTabs = enabled;
+    onPreloadTabsChanged(enabled);
   }
 
   async function openServersFolder(): Promise<void> {
@@ -115,6 +123,19 @@
       </Card>
       {#if colorNotice}<p class="hint">{colorNotice}</p>{/if}
       {#if !serverId}<p class="hint">Select a server to set its accent color.</p>{/if}
+    </section>
+
+    <section class="zone">
+      <p class="msc2-type-overline">Performance</p>
+      <Card padding="0">
+        <div class="row">
+          <div class="row-text">
+            <span class="name">Preload tabs</span>
+            <span class="hint">Load available tab code in the background after MSC opens.</span>
+          </div>
+          <Toggle checked={preloadTabs} label="Preload tabs" onchange={updatePreloadTabs} />
+        </div>
+      </Card>
     </section>
 
     <section class="zone">

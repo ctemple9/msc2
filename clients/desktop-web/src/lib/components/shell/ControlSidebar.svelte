@@ -121,18 +121,9 @@
   };
 
   function toggle(section: (typeof DISCLOSURE_SECTIONS)[number]): void {
-    expanded = { ...expanded, [section]: !expanded[section] };
+    const nextExpanded = !expanded[section];
+    expanded = { ...expanded, [section]: nextExpanded };
   }
-
-  // Owns the eye toggle rendered in How to Connect's own header row (moved
-  // there per Cameron's own visual review -- the oracle keeps it inside the
-  // section's content, but this reads cleaner one row up, next to the
-  // section title itself, with no "Show"/"Hide" text needed alongside it).
-  // Only rendered while the section is expanded, and always resets to
-  // hidden (masked) when the section collapses -- Cameron's own call: never
-  // remember a "shown" state across a closed disclosure.
-  let showAddresses = false;
-  $: if (!expanded['How to connect']) showAddresses = false;
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
   $: startLabel = activeServer?.firstStartRequired ? 'Initiate' : 'Start';
@@ -256,34 +247,6 @@
             <ShellIcon name={expanded[section] ? 'chevron-down' : 'chevron-right'} size={11} />
             <span class="overline">{section}</span>
           </button>
-          {#if section === 'How to connect' && expanded[section]}
-            <button
-              type="button"
-              class="eye-toggle"
-              aria-label={showAddresses ? 'Hide addresses' : 'Show addresses'}
-              onclick={() => (showAddresses = !showAddresses)}
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                {#if showAddresses}
-                  <path
-                    d="M3 3l18 18M10.6 10.6a3 3 0 0 0 4.2 4.2M6.6 6.6C4.3 8.1 2.7 10 2 12c1.5 3.8 5.5 7 10 7 1.6 0 3.1-.4 4.5-1.1M17.4 17.4C19.5 15.9 21.1 14 22 12c-1.1-2.8-3.4-5.2-6.3-6.5"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  />
-                {:else}
-                  <path
-                    d="M2 12c1.5-3.8 5.5-7 10-7s8.5 3.2 10 7c-1.5 3.8-5.5 7-10 7s-8.5-3.2-10-7z"
-                    stroke="currentColor"
-                    stroke-width="1.8"
-                    stroke-linejoin="round"
-                  />
-                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8" />
-                {/if}
-              </svg>
-            </button>
-          {/if}
         </div>
         {#if expanded[section]}
           <div class="disclosure-content">
@@ -301,8 +264,10 @@
                 serverType={activeServer?.serverType}
                 {activeServerId}
                 gamePort={activeServer?.gamePort}
+                bedrockPort={activeServer?.bedrockPort}
                 hostAddress={activeServer?.hostAddress}
-                {showAddresses}
+                {showXboxBroadcast}
+                xboxBroadcastEnabled={activeServer?.xboxBroadcastEnabled === true}
               />
             {:else if section === 'Maintenance'}
               <div class="maintenance-row">
@@ -366,7 +331,12 @@
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     padding: 14px 12px 8px;
+  }
+  .scroll::-webkit-scrollbar {
+    display: none;
   }
   .overline {
     margin: 0;
@@ -461,23 +431,6 @@
     color: rgba(255, 255, 255, 0.8);
   }
   .disclosure-toggle:focus-visible {
-    outline: 2px solid rgba(255, 255, 255, 0.4);
-  }
-  .eye-toggle {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.4);
-    cursor: pointer;
-  }
-  .eye-toggle:hover {
-    color: rgba(255, 255, 255, 0.75);
-  }
-  .eye-toggle:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.4);
   }
   .disclosure-content {

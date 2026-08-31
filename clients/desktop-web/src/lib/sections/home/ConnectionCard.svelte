@@ -18,7 +18,6 @@
   export let playit: Schema['PlayitStatusResponseDTO'] | undefined = undefined;
 
   let showPublic = false;
-  let showAddresses = true;
   let copiedLabel = '';
 
   $: isBedrockServer = serverType === 'bedrock';
@@ -139,10 +138,6 @@
         : undefined,
   );
 
-  function mask(value: string): string {
-    return showAddresses ? value : '•'.repeat(Math.min(value.length, 15));
-  }
-
   async function copy(label: string, value: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(value);
@@ -163,14 +158,6 @@
       <span class="msc2-type-overline">Connection Info</span>
     </div>
     <div class="header-actions">
-      <button
-        type="button"
-        class="eye"
-        onclick={() => (showAddresses = !showAddresses)}
-        aria-label={showAddresses ? 'Hide addresses' : 'Show addresses'}
-      >
-        {showAddresses ? 'Hide' : 'Show'}
-      </button>
       <SegmentedControl
         options={[
           { value: 'local', label: 'Local' },
@@ -193,13 +180,13 @@
       </div>
       <span class="label">IP</span>
       {#if javaIp}
-        <p class="value mono">{mask(javaIp)}</p>
+        <p class="value mono">{javaIp}</p>
       {:else}
         <p class="value mono muted-value">{javaIpFallback}</p>
       {/if}
       <span class="label">Port</span>
       <p class="value mono">
-        {javaDisplayPort !== undefined ? mask(String(javaDisplayPort)) : '—'}
+        {javaDisplayPort !== undefined ? javaDisplayPort : '—'}
       </p>
       <Button
         variant="secondary"
@@ -221,13 +208,13 @@
           </div>
           <span class="label">IP</span>
           {#if geyserIp}
-            <p class="value mono">{mask(geyserIp)}</p>
+            <p class="value mono">{geyserIp}</p>
           {:else}
             <p class="value mono muted-value">{geyserIpFallback}</p>
           {/if}
           <span class="label">Port</span>
           <p class="value mono">
-            {geyserDisplayPort !== undefined ? mask(String(geyserDisplayPort)) : '—'}
+            {geyserDisplayPort !== undefined ? geyserDisplayPort : '—'}
           </p>
           <Button
             variant="secondary"
@@ -270,17 +257,6 @@
     display: flex;
     align-items: center;
     gap: 10px;
-  }
-  .eye {
-    font-size: 11px;
-    color: var(--msc2-text-tertiary);
-    background: transparent;
-    border: none;
-    cursor: pointer;
-    padding: 0;
-  }
-  .eye:hover {
-    color: var(--msc2-text-secondary);
   }
   .columns {
     display: grid;

@@ -1,16 +1,16 @@
 <script lang="ts">
   // Ports MSC 1 SidebarView.swift's HowToConnectSidebarSection -- a plain
   // list (icon+label was tried and dropped per Cameron's own visual review;
-  // the eye toggle moved up into the disclosure header, see ControlSidebar)
+  // addresses are always shown here so connection values are immediately usable)
   // of one pill-shaped value row per connection method, every method with
   // data shown at once (no Local/Public switch). Keeps ConnectionCard's
   // exact data and derivation (/v1/connectivity, /v1/config/geyser, and the
   // host address reported by /v1/servers). If address discovery is unavailable,
   // the same honest "not reported yet" fallback remains in place.
   //
-  // Not ported: the oracle's fourth row, "Xbox · add friend" (the broadcast
-  // alt account's gamertag) -- P12.12 found /v1/broadcast/credentials is
-  // POST-only in the frozen contract, so there is no real value to show.
+  // Xbox's fourth row uses the authenticated gamertag from the existing
+  // /v1/broadcast/status route. Credentials remain write-only; the gamertag is
+  // the safe, displayable value the agent already exposes.
   import { onMount } from 'svelte';
   import type { Schema, ScreenApi } from '../../../sections/shared/types';
   import { call } from '../../../sections/shared/types';
@@ -19,20 +19,25 @@
   export let serverType: string | undefined = undefined;
   export let activeServerId: string | undefined = undefined;
   export let gamePort: number | undefined = undefined;
+  export let bedrockPort: number | undefined = undefined;
   export let hostAddress: string | undefined = undefined;
-  // Owned by ControlSidebar -- shared with the eye toggle it renders in the
-  // disclosure header row, above this component's own content.
-  export let showAddresses = false;
+  export let showXboxBroadcast = false;
+  export let xboxBroadcastEnabled = false;
 
   let connectivity: Schema['ConnectivityResponseDTO'] | undefined;
   let geyser: Schema['GeyserConfigResponseDTO'] | undefined;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
+  let broadcast: Schema['BroadcastStatusDTO'] = {
+    xboxBroadcastRunning: false,
+    bedrockBroadcastRunning: false,
+  };
   let copiedRow = '';
   let loadedForServerId: string | undefined;
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
 
   $: isBedrockServer = serverType === 'bedrock';
-  $: hasGeyser = !isBedrockServer && geyser?.isGeyserInstalled && geyser?.port !== undefined;
+  $: bedrockEndpointPort = isBedrockServer ? gamePort : (bedrockPort ?? geyser?.port);
+  $: hasBedrockEndpoint = isBedrockServer || bedrockEndpointPort !== undefined;
 
   // /v1/connectivity's joinAddress and Playit's protocol-specific addresses
   // carry "host:port" combined. Local endpoints use the detected host from
@@ -93,17 +98,14 @@
       : playitSelected
         ? playitBedrockAddress
         : connectivity?.joinAddress,
-    playit === undefined || playitSelected ? undefined : isBedrockServer ? gamePort : geyser?.port,
+    playit === undefined || playitSelected ? undefined : bedrockEndpointPort,
   );
   $: localJavaAddress = hostAddress ? endpointText(hostAddress, gamePort) : undefined;
-  $: localBedrockAddress = hostAddress
-    ? endpointText(hostAddress, isBedrockServer ? gamePort : geyser?.port)
-    : undefined;
+  $: localBedrockAddress = hostAddress ? endpointText(hostAddress, bedrockEndpointPort) : undefined;
 
   interface ConnectRow {
     key: string;
     label: string;
-    tone: 'warn' | 'ok' | 'bedrock';
     value: string | undefined;
     fallback: string;
   }
@@ -113,35 +115,39 @@
       {
         key: 'java-lan',
         label: 'Java · same Wi-Fi',
-        tone: 'warn',
         value: localJavaAddress,
         fallback: 'Not reported by this host yet',
       },
       {
         key: 'java-public',
         label: `Java · ${publicSuffix(playitSelected, connectivity?.joinAddressSource)}`,
-        tone: 'ok',
         value: publicJavaAddress,
         fallback: 'Not available yet',
       },
     ];
-    if (isBedrockServer || hasGeyser) {
+    if (hasBedrockEndpoint || (showXboxBroadcast && xboxBroadcastEnabled)) {
       out.push(
         {
           key: 'bedrock-lan',
           label: 'Bedrock · same Wi-Fi',
-          tone: 'bedrock',
           value: localBedrockAddress,
           fallback: 'Not reported by this host yet',
         },
         {
           key: 'bedrock-public',
           label: `Bedrock · ${publicSuffix(playitSelected, connectivity?.joinAddressSource)}`,
-          tone: 'ok',
           value: publicBedrockAddress,
           fallback: 'Not available yet',
         },
       );
+    }
+    if (showXboxBroadcast && xboxBroadcastEnabled) {
+      out.push({
+        key: 'xbox-friend',
+        label: 'Console · add friend',
+        value: broadcast.gamertag,
+        fallback: 'Not signed in yet',
+      });
     }
     return out;
   })();
@@ -152,9 +158,16 @@
   }
 
   async function load(): Promise<void> {
-    connectivity = await call(api, connectivity, '/v1/connectivity');
-    geyser = await call(api, geyser, '/v1/config/geyser');
-    playit = await call(api, playit, '/v1/playit');
+    [connectivity, geyser, playit, broadcast] = await Promise.all([
+      call(api, connectivity, '/v1/connectivity'),
+      call(api, geyser, '/v1/config/geyser'),
+      call(api, playit, '/v1/playit'),
+      call<Schema['BroadcastStatusDTO']>(
+        api,
+        { xboxBroadcastRunning: false, bedrockBroadcastRunning: false },
+        '/v1/broadcast/status',
+      ),
+    ]);
   }
 
   // Playit can save its public endpoint after this sidebar has already been
@@ -166,10 +179,6 @@
       if (refreshTimer) clearInterval(refreshTimer);
     };
   });
-
-  function mask(value: string): string {
-    return showAddresses ? value : '•'.repeat(Math.min(value.length, 15));
-  }
 
   async function copy(key: string, value: string): Promise<void> {
     try {
@@ -189,12 +198,12 @@
     <div class="row">
       <span class="row-label">{row.label}</span>
       {#if row.value}
-        <button
-          type="button"
-          class="pill tone-{row.tone}"
-          onclick={() => copy(row.key, row.value ?? '')}
-        >
-          <span class="pill-value mono">{mask(row.value)}</span>
+        <button type="button" class="pill" onclick={() => copy(row.key, row.value ?? '')}>
+          <span
+            class="pill-value mono"
+            class:scrollable={playitSelected &&
+              (row.key === 'java-public' || row.key === 'bedrock-public')}>{row.value}</span
+          >
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path
               d="M4 4h12v12H4z"
@@ -247,19 +256,11 @@
     padding: 8px 10px;
     font: inherit;
     text-align: left;
-    border: none;
     border-radius: 8px;
     color: var(--msc2-text-primary);
+    background: var(--msc2-tier-surface);
+    border: 1px solid var(--msc2-hairline-subtle);
     cursor: pointer;
-  }
-  .pill.tone-warn {
-    background: var(--msc2-status-warn-tint);
-  }
-  .pill.tone-ok {
-    background: var(--msc2-status-ok-tint);
-  }
-  .pill.tone-bedrock {
-    background: var(--msc2-status-bedrock-tint);
   }
   .pill svg {
     flex-shrink: 0;
@@ -271,6 +272,18 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 10px;
+    line-height: 1.2;
+  }
+  .pill-value.scrollable {
+    overflow-x: auto;
+    overflow-y: hidden;
+    text-overflow: clip;
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .pill-value.scrollable::-webkit-scrollbar {
+    display: none;
   }
   .mono {
     font-family: var(--msc2-font-mono);

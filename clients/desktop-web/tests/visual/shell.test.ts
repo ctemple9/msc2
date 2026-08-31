@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import applicationShellSource from '../../src/lib/components/ApplicationShell.svelte?raw';
 import topBarSource from '../../src/lib/components/shell/TopBar.svelte?raw';
 import controlSidebarSource from '../../src/lib/components/shell/ControlSidebar.svelte?raw';
+import howToConnectSource from '../../src/lib/components/shell/sidebar/HowToConnectSection.svelte?raw';
 import detailsHeaderSource from '../../src/lib/components/shell/DetailsHeader.svelte?raw';
 import tabStripSource from '../../src/lib/components/shell/TabStrip.svelte?raw';
 import consoleDockSource from '../../src/lib/components/shell/ConsoleDock.svelte?raw';
@@ -68,6 +69,30 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
   it('keeps the docked console collapsible and console-tier surfaced', () => {
     expect(consoleDockSource).toContain('onToggle');
     expect(consoleDockSource).toContain('var(--msc2-tier-terminal)');
+  });
+
+  it('keeps the sidebar scrollable without displaying scrollbar chrome', () => {
+    expect(controlSidebarSource).toContain('scrollbar-width: none');
+    expect(controlSidebarSource).toContain('.scroll::-webkit-scrollbar');
+    expect(howToConnectSource).not.toContain('toggleAddressVisibility');
+    expect(howToConnectSource).not.toContain('showAddresses');
+    expect(howToConnectSource).toContain('class="pill-value mono"');
+    expect(howToConnectSource).toContain('class:scrollable={playitSelected');
+    expect(howToConnectSource).toContain('overflow-x: auto');
+    expect(howToConnectSource).toContain('.pill-value.scrollable::-webkit-scrollbar');
+  });
+
+  it('shows the real crossplay address and authenticated Xbox identity', () => {
+    expect(controlSidebarSource).toContain('bedrockPort={activeServer?.bedrockPort}');
+    expect(controlSidebarSource).toContain(
+      'xboxBroadcastEnabled={activeServer?.xboxBroadcastEnabled === true}',
+    );
+    expect(howToConnectSource).toContain("'/v1/broadcast/status'");
+    expect(howToConnectSource).toContain("label: 'Console · add friend'");
+    expect(howToConnectSource).not.toContain('status-warn-tint');
+    expect(howToConnectSource).not.toContain('status-ok-tint');
+    expect(howToConnectSource).not.toContain('status-bedrock-tint');
+    expect(howToConnectSource).toContain('font-size: 10px');
   });
 
   it('defines accessible states, focus treatment, and reduced motion tokens', () => {

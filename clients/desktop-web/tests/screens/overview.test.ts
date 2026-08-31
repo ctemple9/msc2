@@ -5,6 +5,13 @@ import controlSidebarSource from '../../src/lib/components/shell/ControlSidebar.
 import howToConnectSource from '../../src/lib/components/shell/sidebar/HowToConnectSection.svelte?raw';
 
 describe('overview connection information', () => {
+  it('always shows connection values without a visibility control', () => {
+    expect(connectionSource).not.toContain('showAddresses');
+    expect(connectionSource).not.toContain('mask(');
+    expect(connectionSource).not.toContain('class="eye"');
+    expect(connectionSource).not.toContain('Addresses hidden');
+  });
+
   it('threads the agent-reported host address into Overview and the sidebar', () => {
     expect(connectionSource).toContain('export let hostAddress: string | undefined = undefined;');
     expect(connectionSource).toContain(

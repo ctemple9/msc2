@@ -186,10 +186,10 @@
             setTransport('broadcast', 'failed');
             statusLine = 'Xbox Broadcast helper download failed.';
           } else {
-            statusLine = 'Xbox Broadcast helper is ready. Continue to start it with your server.';
+            statusLine = 'Xbox Broadcast helper is ready. Use Set up to start it with your server.';
           }
         } else {
-          statusLine = 'Xbox Broadcast helper is ready. Continue to start it with your server.';
+          statusLine = 'Xbox Broadcast helper is ready. Use Set up to start it with your server.';
         }
       }
     }
@@ -244,20 +244,9 @@
     playitAttemptedThisRound = false;
   }
 
-  function skipBroadcast(): void {
-    const key: TransportKey = 'broadcast';
-    if (busy || transport[key] === 'not-applicable') return;
-    setTransport(key, 'skipped');
-    broadcastChoiceRequired = false;
-    maybeBeginPassTwo();
-  }
-
-  function continueTransportSetup(): void {
+  function setupBroadcast(): void {
     if (phase !== 'transport-setup') return;
-    if (playitEnabled && !playitAttempted) {
-      error = 'Try Playit setup before continuing to Xbox Broadcast.';
-      return;
-    }
+    if (!broadcastUnlocked || transport.broadcast !== 'waiting') return;
     error = '';
     broadcastChoiceRequired = false;
     maybeBeginPassTwo();
@@ -478,11 +467,12 @@
             label={transportLabel(transport.broadcast)}
           />
           {#if phase === 'transport-setup' && transport.broadcast === 'waiting'}
-            {#if broadcastUnlocked}
-              <Button variant="secondary" size="sm" onclick={skipBroadcast}>Skip</Button>
-            {:else}
-              <span class="locked-transport">Set up Playit first</span>
-            {/if}
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!broadcastUnlocked}
+              onclick={setupBroadcast}>Set up</Button
+            >
           {/if}
         </div>
       </div>
@@ -495,12 +485,6 @@
       {/if}
       <p class="status-line" role="status" aria-live="polite">{statusLine}</p>
       {#if error}<p class="error" role="alert">{error}</p>{/if}
-      {#if phase === 'transport-setup'}
-        <div class="actions">
-          <span class="action-spacer"></span>
-          <Button variant="primary" onclick={continueTransportSetup}>Continue</Button>
-        </div>
-      {/if}
     </div>
   {:else if phase === 'complete'}
     <div class="stack">
@@ -715,11 +699,6 @@
     flex: 1;
     flex-direction: column;
     gap: 2px;
-  }
-  .locked-transport {
-    color: var(--msc2-text-tertiary);
-    font-size: 11px;
-    font-style: italic;
   }
   strong,
   .connection-list span {

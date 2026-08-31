@@ -1464,6 +1464,14 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Commit:** `P12.20r: surface Xbox Broadcast diagnostics during first-start`
 **Batch:** solo
 
+### P12.20s — Route Xbox Broadcast output through the shared console
+**Status:** built, awaiting Cameron's verification
+**Files:** `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/tests/xbox_broadcast_routes.rs`, `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Replace the temporary Broadcast-only diagnostics surface with the MSC2 console architecture: every complete MCXboxBroadcast stdout/stderr line drained by the managed helper pump is appended to the existing bounded `ConsoleState`. The Initiate sheet and the main Console view both read that same stream, so Broadcast authentication prompts and failures appear in the single console in both places. Keep the established auth-prompt sheet and readiness parsing unchanged.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-application -p msc-agent && cd clients/desktop-web && npm run api:generate -- --check && npx prettier --check src/lib/sections/server-editor/FirstStartSheet.svelte && npm run build`
+**Commit:** `P12.20s: route Xbox Broadcast output through the shared console`
+**Batch:** solo
+
 ### P12.21 — Sidebar: How to Connect + Maintenance
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte` (new), `clients/desktop-web/tests/visual/shell.test.ts`

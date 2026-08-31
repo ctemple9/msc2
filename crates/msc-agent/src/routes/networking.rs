@@ -30,7 +30,9 @@ use msc_application::playit::{
     PlayitLifecycleStatus, PlayitService, PlayitSetupError, PlayitSetupStage,
 };
 use msc_application::resource_packs::ResourcePackService;
-use msc_application::xbox_broadcast::{XboxBroadcastError, XboxBroadcastService};
+use msc_application::xbox_broadcast::{
+    BroadcastOutputLine, XboxBroadcastError, XboxBroadcastService,
+};
 use msc_domain::app_config_schema::ConfigServer;
 use msc_domain::helper::{FirstRunTransport, FirstStartTransportState, HelperStatus};
 use msc_domain::identity::ServerType;
@@ -262,7 +264,7 @@ impl NetworkingState {
             .lifecycle
             .register_playit_lifecycle(controller.clone());
         spawn_playit_output_pump(playit, state.lifecycle.clone(), Arc::clone(&controller));
-        spawn_broadcast_output_pump(Arc::clone(&state.broadcast));
+        spawn_broadcast_output_pump(Arc::clone(&state.broadcast), state.lifecycle.clone());
         state
     }
 
@@ -479,7 +481,10 @@ fn spawn_playit_output_pump(
 /// Keeps the managed Xbox Broadcast process moving independently of status
 /// requests. Its output contains both the Microsoft device-code prompt and
 /// the readiness line that completes the first-start operation.
-fn spawn_broadcast_output_pump(services: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>) {
+fn spawn_broadcast_output_pump(
+    services: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>,
+    lifecycle: LifecycleRoutesState,
+) {
     let Ok(handle) = tokio::runtime::Handle::try_current() else {
         return;
     };
@@ -491,10 +496,29 @@ fn spawn_broadcast_output_pump(services: Arc<Mutex<BTreeMap<String, SharedBroadc
                 continue;
             };
             for service in services.values_mut() {
-                let _ = service.poll();
+                match service.poll() {
+                    Ok(lines) => {
+                        for line in lines {
+                            append_broadcast_console_line(&lifecycle, line);
+                        }
+                    }
+                    Err(error) => {
+                        lifecycle.append_console_line("xbox-broadcast", &error.to_string());
+                    }
+                }
             }
         }
     });
+}
+
+fn append_broadcast_console_line(lifecycle: &LifecycleRoutesState, line: BroadcastOutputLine) {
+    let text = match line.stream {
+        msc_infrastructure::process::OutputStream::Stdout => line.line,
+        msc_infrastructure::process::OutputStream::Stderr => {
+            format!("[Xbox Broadcast stderr] {}", line.line)
+        }
+    };
+    lifecycle.append_console_line("xbox-broadcast", &text);
 }
 
 pub async fn playit_status(State(state): State<NetworkingState>) -> Response {
@@ -1044,7 +1068,6 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             xbox_broadcast_running: false,
             bedrock_broadcast_running: false,
             gamertag: None,
-            diagnostics: Vec::new(),
         })
         .into_response();
     };
@@ -1058,7 +1081,6 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             ),
             bedrock_broadcast_running: false,
             gamertag: status.gamertag,
-            diagnostics: status.diagnostics.into_iter().collect(),
         })
         .into_response(),
         Err(error) => helper_error_response(error.to_string(), "broadcast_status_failed"),

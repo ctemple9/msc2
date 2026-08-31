@@ -6,7 +6,7 @@ use msc_domain::networking::{
     broadcast_is_ready, parse_broadcast_auth_prompt, parse_broadcast_gamertag,
 };
 use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperProcessManager};
-use msc_infrastructure::process::ProcessSupervisor;
+use msc_infrastructure::process::{OutputStream, ProcessSupervisor};
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::xbox_broadcast::{
     XboxBroadcastJarAcquisition, XboxBroadcastLaunch, alt_password_secret_key,
@@ -28,9 +28,14 @@ pub struct BroadcastStatus {
     pub snapshot: HelperSnapshot,
     pub auth_prompt: Option<BroadcastAuthPrompt>,
     pub gamertag: Option<String>,
-    pub diagnostics: Vec<String>,
     pub has_password: bool,
     pub has_auth_token: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BroadcastOutputLine {
+    pub stream: OutputStream,
+    pub line: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -96,22 +101,10 @@ impl<'a> XboxBroadcastService<'a> {
     }
 
     pub fn status(&self) -> Result<BroadcastStatus, XboxBroadcastError> {
-        let diagnostics = self
-            .helpers
-            .snapshot(&self.key())
-            .map(|snapshot| {
-                snapshot
-                    .diagnostics
-                    .into_iter()
-                    .map(|diagnostic| diagnostic.line)
-                    .collect()
-            })
-            .unwrap_or_default();
         Ok(BroadcastStatus {
             snapshot: self.snapshot.clone(),
             auth_prompt: self.auth_prompt.clone(),
             gamertag: self.authenticated_gamertag.clone(),
-            diagnostics,
             has_password: self.has_secret(&alt_password_secret_key(&self.server_id))?,
             has_auth_token: self.has_secret(&auth_token_secret_key(&self.server_id))?,
         })
@@ -232,7 +225,7 @@ impl<'a> XboxBroadcastService<'a> {
     /// Broadcast parser. The route layer calls this from its agent-lifetime
     /// pump so authentication prompts and readiness do not depend on a
     /// browser request arriving at exactly the right time.
-    pub fn poll(&mut self) -> Result<(), XboxBroadcastError> {
+    pub fn poll(&mut self) -> Result<Vec<BroadcastOutputLine>, XboxBroadcastError> {
         let events = match self.helpers.poll() {
             Ok(events) => events,
             Err(error) => {
@@ -241,9 +234,14 @@ impl<'a> XboxBroadcastService<'a> {
                 return Err(mapped);
             }
         };
+        let mut output = Vec::new();
         for event in events {
             match event {
-                msc_infrastructure::helper_process::ManagedHelperEvent::Output { line, .. } => {
+                msc_infrastructure::helper_process::ManagedHelperEvent::Output { stream, line } => {
+                    output.push(BroadcastOutputLine {
+                        stream,
+                        line: line.clone(),
+                    });
                     self.observe_output(&line)?;
                 }
                 msc_infrastructure::helper_process::ManagedHelperEvent::Exited(exit) => {
@@ -251,7 +249,7 @@ impl<'a> XboxBroadcastService<'a> {
                 }
             }
         }
-        Ok(())
+        Ok(output)
     }
 
     fn fail_active_operation(

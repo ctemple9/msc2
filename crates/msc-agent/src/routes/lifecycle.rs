@@ -815,6 +815,15 @@ impl LifecycleRoutesState {
         self.inner.console.console.recent_lines(count)
     }
 
+    /// Appends output from a managed helper to the same bounded stream used
+    /// by the server console. This keeps helper diagnostics visible in both
+    /// the main Console view and any first-start surface reading its tail.
+    pub fn append_console_line(&self, source: &str, line: &str) {
+        self.inner
+            .console
+            .push(ConsoleLine::new(source, None, line.to_string()));
+    }
+
     /// The shared Phase 6 mutation audit log — one `AuditLog` instance,
     /// scoped to world/backup mutation routes only (see
     /// `routes/worlds.rs`/`routes/backups.rs`'s own doc comments for why

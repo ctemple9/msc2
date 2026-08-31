@@ -290,7 +290,7 @@ impl<'a> XboxBroadcastService<'a> {
 
     pub fn stop(&mut self) -> Result<(), XboxBroadcastError> {
         self.helpers
-            .request_graceful_stop(&self.key())
+            .force_terminate(&self.key())
             .map_err(map_process_error)?;
         self.snapshot = HelperSnapshot::stopped();
         Ok(())

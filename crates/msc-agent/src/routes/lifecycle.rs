@@ -216,6 +216,7 @@ pub struct LifecycleRoutesState {
 pub trait PlayitLifecycleIntegration: Send + Sync {
     fn start_for_server(&self, server: &ConfigServer);
     fn stop_for_server(&self, server_id: &str);
+    fn stop_broadcast_for_server(&self, server_id: &str);
     fn stop_all(&self);
 }
 
@@ -708,9 +709,10 @@ impl LifecycleRoutesState {
         }
     }
 
-    fn stop_playit_for_server(&self, server_id: &str) {
+    fn stop_helpers_for_server(&self, server_id: &str) {
         if let Some(integration) = self.playit_lifecycle() {
             integration.stop_for_server(server_id);
+            integration.stop_broadcast_for_server(server_id);
         }
     }
 
@@ -936,7 +938,7 @@ impl LifecycleRoutesState {
             ));
         }
         if changing_active_server && let Some(previous_server_id) = previous_server_id.as_deref() {
-            self.stop_playit_for_server(previous_server_id);
+            self.stop_helpers_for_server(previous_server_id);
         }
         if server.server_type == ServerType::Bedrock {
             self.inner
@@ -1170,7 +1172,7 @@ impl LifecycleRoutesState {
             (run_server_id, should_stop)
         };
         if should_stop.1 {
-            self.stop_playit_for_server(&should_stop.0);
+            self.stop_helpers_for_server(&should_stop.0);
             let _ = self.inner.lifecycle.lock().unwrap().request_stop();
         }
         true
@@ -1197,7 +1199,7 @@ impl LifecycleRoutesState {
 
         if should_stop {
             if let Some(server_id) = self.active_server_id() {
-                self.stop_playit_for_server(&server_id);
+                self.stop_helpers_for_server(&server_id);
             }
             let _ = self.inner.lifecycle.lock().unwrap().request_stop();
             if pass_one {
@@ -1230,7 +1232,7 @@ impl LifecycleRoutesState {
         self.drain_active_process_events();
         let active_server_id = self.active_server_id();
         if let Some(server_id) = active_server_id.as_deref() {
-            self.stop_playit_for_server(server_id);
+            self.stop_helpers_for_server(server_id);
         }
         self.inner.lifecycle.lock().unwrap().request_stop()?;
         Ok(active_server_id)
@@ -1249,7 +1251,7 @@ impl LifecycleRoutesState {
             Some(active.id.clone()),
             "Stopping Bedrock server.",
         )?;
-        self.stop_playit_for_server(&active.id);
+        self.stop_helpers_for_server(&active.id);
         if let Err(error) = self.inner.bedrock_runtime.stop() {
             let _ =
                 self.inner
@@ -1531,7 +1533,7 @@ impl LifecycleRoutesState {
                     BedrockTerminationReason::GuestError(message)
                     | BedrockTerminationReason::StartFailed(message) => {
                         if let Some(server_id) = self.active_server_id() {
-                            self.stop_playit_for_server(&server_id);
+                            self.stop_helpers_for_server(&server_id);
                         }
                         self.abort_first_start();
                         self.finish_active_lifecycle_operation_failure(&message);
@@ -1584,7 +1586,7 @@ impl LifecycleRoutesState {
         };
         if should_stop {
             if let Some(server_id) = self.active_server_id() {
-                self.stop_playit_for_server(&server_id);
+                self.stop_helpers_for_server(&server_id);
             }
             let _ = self.inner.lifecycle.lock().unwrap().request_stop();
             self.progress_first_start(
@@ -1649,7 +1651,7 @@ impl LifecycleRoutesState {
 
     fn handle_process_termination(&self, clean_stop_success: bool) {
         if let Some(server_id) = self.active_server_id() {
-            self.stop_playit_for_server(&server_id);
+            self.stop_helpers_for_server(&server_id);
         }
         let outcome = {
             let mut first_start = self.inner.first_start.lock().unwrap();

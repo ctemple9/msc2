@@ -59,6 +59,7 @@ type SharedBroadcastService = XboxBroadcastService<'static>;
 
 struct PlayitLifecycleController {
     services: Arc<Mutex<BTreeMap<String, SharedPlayitService>>>,
+    broadcast: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>,
     process: &'static (dyn ProcessSupervisor + Send + Sync),
     secrets: &'static (dyn SecretStore + Send + Sync),
     operations: &'static LifecycleOperations<'static>,
@@ -140,6 +141,16 @@ impl PlayitLifecycleController {
         let _ = service.stop();
     }
 
+    fn stop_broadcast_for_server(&self, server_id: &str) {
+        let mut services = self
+            .broadcast
+            .lock()
+            .expect("Broadcast service lock poisoned");
+        if let Some(service) = services.get_mut(server_id) {
+            let _ = service.stop();
+        }
+    }
+
     fn stop_all(&self) {
         self.pending_starts
             .lock()
@@ -154,6 +165,13 @@ impl PlayitLifecycleController {
             if let Err(error) = service.reset() {
                 service.record_start_failure(error.to_string());
             }
+        }
+        let mut broadcast = self
+            .broadcast
+            .lock()
+            .expect("Broadcast service lock poisoned");
+        for service in broadcast.values_mut() {
+            let _ = service.stop();
         }
     }
 
@@ -186,6 +204,10 @@ impl PlayitLifecycleIntegration for PlayitLifecycleController {
 
     fn stop_for_server(&self, server_id: &str) {
         Self::stop_for_server(self, server_id);
+    }
+
+    fn stop_broadcast_for_server(&self, server_id: &str) {
+        Self::stop_broadcast_for_server(self, server_id);
     }
 
     fn stop_all(&self) {
@@ -229,6 +251,7 @@ impl NetworkingState {
         ));
         let _ = std::fs::create_dir_all(helper_cache);
         let playit = Arc::new(Mutex::new(BTreeMap::new()));
+        let broadcast = Arc::new(Mutex::new(BTreeMap::new()));
         let playit_mutation = Arc::new(tokio::sync::Semaphore::new(1));
         for server in lifecycle.app_config_snapshot().servers {
             let bridge = Path::new(&server.server_dir)
@@ -241,7 +264,7 @@ impl NetworkingState {
             operations,
             playit: playit.clone(),
             playit_mutation,
-            broadcast: Arc::new(Mutex::new(BTreeMap::new())),
+            broadcast: broadcast.clone(),
             process,
             secrets,
             operations_ref,
@@ -252,6 +275,7 @@ impl NetworkingState {
         };
         let controller = Arc::new(PlayitLifecycleController {
             services: playit.clone(),
+            broadcast,
             process,
             secrets,
             operations: operations_ref,

@@ -538,13 +538,11 @@
               <span>Xbox Broadcast</span>
               {#if broadcast?.gamertag}
                 <span class="connection-note"
-                  >Authenticated as <strong>{broadcast.gamertag}</strong>. Have friends add this
-                  account, then join from their Friends list while the server is online.</span
+                  >Friend name to add: <strong>{broadcast.gamertag}</strong></span
                 >
               {:else}
                 <span class="connection-note"
-                  >Use Xbox discovery when Broadcast is ready. The authenticated gamertag will
-                  appear here.</span
+                  >Friend name to add: unavailable until Broadcast authenticates.</span
                 >
               {/if}
             </div>

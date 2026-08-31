@@ -8350,6 +8350,13 @@
           "gamertag": {
             "type": "string",
             "description": "The Xbox gamertag reported by MCXboxBroadcast after authentication, when available."
+          },
+          "diagnostics": {
+            "type": "array",
+            "description": "Recent non-secret output from the managed Xbox Broadcast helper.",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [

@@ -1044,6 +1044,7 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             xbox_broadcast_running: false,
             bedrock_broadcast_running: false,
             gamertag: None,
+            diagnostics: Vec::new(),
         })
         .into_response();
     };
@@ -1057,6 +1058,7 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
             ),
             bedrock_broadcast_running: false,
             gamertag: status.gamertag,
+            diagnostics: status.diagnostics.into_iter().collect(),
         })
         .into_response(),
         Err(error) => helper_error_response(error.to_string(), "broadcast_status_failed"),

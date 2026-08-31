@@ -28,6 +28,7 @@ pub struct BroadcastStatus {
     pub snapshot: HelperSnapshot,
     pub auth_prompt: Option<BroadcastAuthPrompt>,
     pub gamertag: Option<String>,
+    pub diagnostics: Vec<String>,
     pub has_password: bool,
     pub has_auth_token: bool,
 }
@@ -95,10 +96,22 @@ impl<'a> XboxBroadcastService<'a> {
     }
 
     pub fn status(&self) -> Result<BroadcastStatus, XboxBroadcastError> {
+        let diagnostics = self
+            .helpers
+            .snapshot(&self.key())
+            .map(|snapshot| {
+                snapshot
+                    .diagnostics
+                    .into_iter()
+                    .map(|diagnostic| diagnostic.line)
+                    .collect()
+            })
+            .unwrap_or_default();
         Ok(BroadcastStatus {
             snapshot: self.snapshot.clone(),
             auth_prompt: self.auth_prompt.clone(),
             gamertag: self.authenticated_gamertag.clone(),
+            diagnostics,
             has_password: self.has_secret(&alt_password_secret_key(&self.server_id))?,
             has_auth_token: self.has_secret(&auth_token_secret_key(&self.server_id))?,
         })

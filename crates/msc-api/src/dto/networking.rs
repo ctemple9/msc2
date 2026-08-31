@@ -201,6 +201,9 @@ pub struct BroadcastStatusDto {
     pub bedrock_broadcast_running: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gamertag: Option<String>,
+    /// Recent non-secret helper output retained for first-start diagnostics.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub diagnostics: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

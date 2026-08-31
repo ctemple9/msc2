@@ -1456,6 +1456,14 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Commit:** `P12.20q: finish resumable first-start transport experience`
 **Batch:** solo
 
+### P12.20r — Surface Xbox Broadcast diagnostics during first-start
+**Status:** built, awaiting Cameron's verification
+**Files:** `crates/msc-api/src/dto/networking.rs`, `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/tests/xbox_broadcast_routes.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `docs/msc2/rolling-plan.md`
+**What:** Expose the managed MCXboxBroadcast helper's bounded recent output through the existing Broadcast status response and render it in a dedicated Xbox Broadcast console inside the first-start sheet. Keep the Minecraft server console separate, so device-code prompts, authentication messages, startup failures, and helper exits are visible while the Broadcast row is waiting. Empty diagnostics remain omitted from the wire response, and the helper output remains bounded rather than becoming a second unbounded log.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-agent && cd clients/desktop-web && npm run api:generate -- --check && npx prettier --check src/lib/sections/server-editor/FirstStartSheet.svelte src/lib/api/generated.ts && npm run build`
+**Commit:** `P12.20r: surface Xbox Broadcast diagnostics during first-start`
+**Batch:** solo
+
 ### P12.21 — Sidebar: How to Connect + Maintenance
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte` (new), `clients/desktop-web/tests/visual/shell.test.ts`

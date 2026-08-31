@@ -10,6 +10,7 @@ fn broadcast_route_dtos_match_the_frozen_wire_names_and_redact_nothing_by_accide
         xbox_broadcast_running: true,
         bedrock_broadcast_running: false,
         gamertag: None,
+        diagnostics: Vec::new(),
     })
     .unwrap();
     assert_eq!(

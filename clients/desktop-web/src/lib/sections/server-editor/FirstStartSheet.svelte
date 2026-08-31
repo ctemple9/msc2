@@ -616,6 +616,23 @@
         {/if}
       </div>
     </section>
+    {#if broadcastEnabled}
+      <section class="console-panel" aria-label="Xbox Broadcast console">
+        <div class="console-header">
+          <span>Xbox Broadcast</span>
+          <span class="console-live">Live</span>
+        </div>
+        <div class="console-body" aria-live="polite">
+          {#if broadcast?.diagnostics?.length}
+            {#each broadcast.diagnostics.slice(-80) as line, index (line + '-' + index)}
+              <p class="console-line">{line}</p>
+            {/each}
+          {:else}
+            <p class="console-empty">Waiting for Xbox Broadcast output…</p>
+          {/if}
+        </div>
+      </section>
+    {/if}
   {/if}
 </Sheet>
 

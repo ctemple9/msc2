@@ -262,6 +262,7 @@ impl NetworkingState {
             .lifecycle
             .register_playit_lifecycle(controller.clone());
         spawn_playit_output_pump(playit, state.lifecycle.clone(), Arc::clone(&controller));
+        spawn_broadcast_output_pump(Arc::clone(&state.broadcast));
         state
     }
 
@@ -471,6 +472,27 @@ fn spawn_playit_output_pump(
                 );
             }
             controller.start_pending(&lifecycle);
+        }
+    });
+}
+
+/// Keeps the managed Xbox Broadcast process moving independently of status
+/// requests. Its output contains both the Microsoft device-code prompt and
+/// the readiness line that completes the first-start operation.
+fn spawn_broadcast_output_pump(services: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>) {
+    let Ok(handle) = tokio::runtime::Handle::try_current() else {
+        return;
+    };
+    handle.spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_millis(100));
+        loop {
+            interval.tick().await;
+            let Ok(mut services) = services.lock() else {
+                continue;
+            };
+            for service in services.values_mut() {
+                let _ = service.poll();
+            }
         }
     });
 }

@@ -1439,6 +1439,15 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Commit:** `P12.20o: wait for Playit public addresses before first-start continues`
 **Batch:** solo
 
+### P12.20p — Pump Xbox Broadcast output during first-start
+**Status:** built, awaiting verification
+**Files:** `crates/msc-application/src/xbox_broadcast.rs`, `crates/msc-application/tests/xbox_broadcast.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/tests/playit_routes.rs`, `clients/desktop-web/src/lib/sections/server-editor/BroadcastAuthSheet.svelte` (new), `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/model.ts`, `clients/desktop-web/tests/screens/first-start.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Close the production gap found during live first-start verification: Xbox Broadcast was launched, but no agent-lifetime pump drained its output, so MSC2 never saw the Microsoft device-code prompt or the successful Xbox LIVE session line. Add the same managed-helper polling pattern already used by Playit, including helper-exit reconciliation and safe restart after a stopped helper. Feed the prompt into a focused initiation sign-in sheet with an external Microsoft sign-in action and an explicit dismiss route; clear the prompt when authentication succeeds. The existing Playit agent and tunnels remain untouched.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --all-targets -- -D warnings && cargo nextest run -p msc-application --test xbox_broadcast && cargo nextest run -p msc-agent --test playit_routes && cd clients/desktop-web && npx prettier --check src/lib/sections/server-editor/BroadcastAuthSheet.svelte src/lib/sections/server-editor/FirstStartSheet.svelte src/lib/sections/server-editor/model.ts tests/screens/first-start.test.ts && npx vitest run tests/screens/first-start.test.ts && npm run build`
+**Commit:** `P12.20p: pump Xbox Broadcast output during first-start`
+**Batch:** solo
+**Notes:** The focused application test now drives the real helper-event polling path: a device-code line becomes an auth prompt, and the Xbox LIVE success line completes the operation. The agent starts the Broadcast pump alongside the existing Playit pump; the new initiation sheet opens the Microsoft link and dismisses the prompt through the existing authenticated route. Focused Rust checks, route markers, Prettier, four first-start tests, and the production frontend build pass.
+
 ### P12.21 — Sidebar: How to Connect + Maintenance
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte` (new), `clients/desktop-web/tests/visual/shell.test.ts`

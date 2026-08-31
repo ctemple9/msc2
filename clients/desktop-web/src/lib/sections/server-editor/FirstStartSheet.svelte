@@ -7,6 +7,7 @@
   import Button from '../../components/base/Button.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import PlayitSetupSheet from './PlayitSetupSheet.svelte';
+  import BroadcastAuthSheet from './BroadcastAuthSheet.svelte';
   import { errorMessage, mutate } from '../shared/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation, serverEditorPaths } from './model';
@@ -40,6 +41,7 @@
   let statusLine = '';
   let error = '';
   let showPlayitSetup = false;
+  let showBroadcastAuth = false;
   let playitSetupVoiceOnly = false;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let broadcast: Schema['BroadcastStatusDTO'] | undefined;
@@ -288,9 +290,15 @@
     try {
       broadcast = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/status');
       broadcastAuth = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/auth-prompt');
+      showBroadcastAuth = Boolean(broadcastAuth.isPresent);
     } catch (caught) {
       statusLine = errorMessage(caught);
     }
+  }
+
+  function closeBroadcastAuth(): void {
+    showBroadcastAuth = false;
+    broadcastAuth = undefined;
   }
 
   async function monitorBroadcastOperation(id: string): Promise<void> {
@@ -575,6 +583,10 @@
     onClose={() => (showPlayitSetup = false)}
     onComplete={playitSetupComplete}
   />
+{/if}
+
+{#if showBroadcastAuth && broadcastAuth?.isPresent}
+  <BroadcastAuthSheet {api} prompt={broadcastAuth} onClose={closeBroadcastAuth} />
 {/if}
 
 <style>

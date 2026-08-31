@@ -59,6 +59,7 @@ impl std::error::Error for XboxBroadcastError {}
 pub struct XboxBroadcastService<'a> {
     server_id: String,
     enabled: bool,
+    supervisor: &'a dyn ProcessSupervisor,
     helpers: HelperProcessManager<'a>,
     secrets: &'a dyn SecretStore,
     operations: &'a LifecycleOperations<'a>,
@@ -78,6 +79,7 @@ impl<'a> XboxBroadcastService<'a> {
         Self {
             server_id: server_id.into(),
             enabled,
+            supervisor,
             helpers: HelperProcessManager::new(supervisor),
             secrets,
             operations,
@@ -156,6 +158,7 @@ impl<'a> XboxBroadcastService<'a> {
                 return Err(XboxBroadcastError::Acquisition(message));
             }
         };
+        self.reset_stopped_helper_manager();
         match self
             .helpers
             .start(key, launch.process_request(&acquired.artifact.path))
@@ -189,6 +192,7 @@ impl<'a> XboxBroadcastService<'a> {
             self.helpers
                 .record_ready(&self.key())
                 .map_err(map_process_error)?;
+            self.auth_prompt = None;
             self.snapshot = HelperSnapshot {
                 status: HelperStatus::Running,
                 player_address: None,
@@ -200,6 +204,64 @@ impl<'a> XboxBroadcastService<'a> {
             }
         }
         Ok(())
+    }
+
+    /// Drain the managed helper and feed each complete line through the
+    /// Broadcast parser. The route layer calls this from its agent-lifetime
+    /// pump so authentication prompts and readiness do not depend on a
+    /// browser request arriving at exactly the right time.
+    pub fn poll(&mut self) -> Result<(), XboxBroadcastError> {
+        let events = match self.helpers.poll() {
+            Ok(events) => events,
+            Err(error) => {
+                let mapped = map_process_error(error);
+                self.fail_active_operation("broadcast_process_poll_failed", mapped.to_string())?;
+                return Err(mapped);
+            }
+        };
+        for event in events {
+            match event {
+                msc_infrastructure::helper_process::ManagedHelperEvent::Output { line, .. } => {
+                    self.observe_output(&line)?;
+                }
+                msc_infrastructure::helper_process::ManagedHelperEvent::Exited(exit) => {
+                    self.reconcile_exit(exit)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn fail_active_operation(
+        &mut self,
+        code: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Result<(), XboxBroadcastError> {
+        self.snapshot = HelperSnapshot::stopped();
+        if let Some(operation_id) = self.active_operation.take() {
+            self.operations
+                .fail(&operation_id, lifecycle_error(code, message))
+                .map_err(|error| XboxBroadcastError::Operation(error.to_string()))?;
+        }
+        Ok(())
+    }
+
+    fn reconcile_exit(
+        &mut self,
+        exit: msc_infrastructure::process::ProcessExitStatus,
+    ) -> Result<(), XboxBroadcastError> {
+        let (code, message) = if exit.success() {
+            (
+                "broadcast_exited_before_ready",
+                "Xbox Broadcast stopped before it became ready.",
+            )
+        } else {
+            (
+                "broadcast_helper_failed",
+                "Xbox Broadcast stopped unexpectedly before it became ready.",
+            )
+        };
+        self.fail_active_operation(code, message)
     }
 
     pub fn dismiss_auth_prompt(&mut self) {
@@ -268,6 +330,22 @@ impl<'a> XboxBroadcastService<'a> {
 
     fn key(&self) -> HelperKey {
         HelperKey::new(&self.server_id, "xbox-broadcast")
+    }
+
+    fn reset_stopped_helper_manager(&mut self) {
+        let status = self
+            .helpers
+            .snapshot(&self.key())
+            .map(|snapshot| snapshot.status);
+        if status.is_none_or(|status| {
+            matches!(
+                status,
+                msc_infrastructure::helper_process::ManagedHelperStatus::Stopped
+                    | msc_infrastructure::helper_process::ManagedHelperStatus::Failed { .. }
+            )
+        }) {
+            self.helpers = HelperProcessManager::new(self.supervisor);
+        }
     }
 }
 

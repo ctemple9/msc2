@@ -104,6 +104,42 @@ fn broadcast_launch_and_readiness_are_journaled_without_secret_arguments() {
 }
 
 #[test]
+fn broadcast_poll_surfaces_auth_prompt_and_marks_readiness() {
+    let (operations, supervisor, secrets, fs) = service_setup();
+    let mut service = XboxBroadcastService::new("paper-1", true, supervisor, secrets, operations);
+    let operation_id = OperationId::new(service.start(launch(), &acquisition(fs)).unwrap());
+    let (pid, _) = supervisor
+        .spawned_requests()
+        .into_iter()
+        .last()
+        .expect("broadcast helper was spawned");
+
+    supervisor
+        .emit_stdout(
+            pid,
+            b"To sign in, open https://www.microsoft.com/link and enter the code ABCD-1234\n",
+        )
+        .unwrap();
+    service.poll().unwrap();
+    let status = service.status().unwrap();
+    assert_eq!(status.auth_prompt.unwrap().code, "ABCD-1234");
+    assert_eq!(status.snapshot.status, HelperStatus::Starting);
+
+    supervisor
+        .emit_stdout(pid, b"Creation of Xbox LIVE session was successful\n")
+        .unwrap();
+    service.poll().unwrap();
+    assert_eq!(
+        service.status().unwrap().snapshot.status,
+        HelperStatus::Running
+    );
+    assert_eq!(
+        operations.snapshot(&operation_id).unwrap().unwrap().state,
+        OperationState::Succeeded
+    );
+}
+
+#[test]
 fn broadcast_cancel_and_watchdog_leave_truthful_terminal_operations() {
     let (operations, supervisor, secrets, fs) = service_setup();
     let mut service = XboxBroadcastService::new("paper-1", true, supervisor, secrets, operations);

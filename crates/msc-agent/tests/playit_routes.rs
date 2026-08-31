@@ -235,6 +235,8 @@ fn networking_registers_and_polls_playit_with_the_lifecycle_owner() {
     for marker in [
         "register_playit_lifecycle",
         "spawn_playit_output_pump(",
+        "spawn_broadcast_output_pump(",
+        "service.poll()",
         "mark_first_start_transport_for_server",
         "record_start_failure",
         "wait_for_agent_connection",

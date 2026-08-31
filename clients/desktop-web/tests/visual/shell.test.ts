@@ -8,6 +8,7 @@ import howToConnectSource from '../../src/lib/components/shell/sidebar/HowToConn
 import detailsHeaderSource from '../../src/lib/components/shell/DetailsHeader.svelte?raw';
 import tabStripSource from '../../src/lib/components/shell/TabStrip.svelte?raw';
 import consoleDockSource from '../../src/lib/components/shell/ConsoleDock.svelte?raw';
+import playerAvatarSource from '../../src/lib/components/shell/PlayerAvatar.svelte?raw';
 import primaryTabsSource from '../../src/lib/navigation/primaryTabs.ts?raw';
 import confirmDialogSource from '../../src/lib/components/ConfirmDialog.svelte?raw';
 import appSource from '../../src/App.svelte?raw';
@@ -69,6 +70,15 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
   it('keeps the docked console collapsible and console-tier surfaced', () => {
     expect(consoleDockSource).toContain('onToggle');
     expect(consoleDockSource).toContain('var(--msc2-tier-terminal)');
+  });
+
+  it('keeps the avatar switcher centered and submits identity with Enter', () => {
+    expect(controlSidebarSource).not.toContain('<p class="overline">Actions</p>');
+    expect(playerAvatarSource).toContain('class="edition-switcher"');
+    expect(playerAvatarSource).toContain('justify-content: center');
+    expect(playerAvatarSource).not.toContain('meta.addLabel');
+    expect(playerAvatarSource).not.toContain('type="submit"');
+    expect(playerAvatarSource).toContain('event.preventDefault();');
   });
 
   it('keeps the sidebar scrollable without displaying scrollbar chrome', () => {

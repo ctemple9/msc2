@@ -25,23 +25,19 @@
     { value: 'bedrock', label: 'Bedrock' },
   ];
 
-  const META: Record<
-    AvatarEdition,
-    { placeholder: string; helper: string; addLabel: string; changeLabel: string }
-  > = {
-    java: {
-      placeholder: 'Java username',
-      helper: 'Enter your Minecraft Java Edition username to show your skin here.',
-      addLabel: 'Add Username',
-      changeLabel: 'Change Username',
-    },
-    bedrock: {
-      placeholder: 'Bedrock gamertag',
-      helper: 'Enter your Minecraft Bedrock gamertag to show your skin here.',
-      addLabel: 'Add Gamertag',
-      changeLabel: 'Change Gamertag',
-    },
-  };
+  const META: Record<AvatarEdition, { placeholder: string; helper: string; changeLabel: string }> =
+    {
+      java: {
+        placeholder: 'Java username',
+        helper: 'Enter your Minecraft Java Edition username to show your skin here.',
+        changeLabel: 'Change Username',
+      },
+      bedrock: {
+        placeholder: 'Bedrock gamertag',
+        helper: 'Enter your Minecraft Bedrock gamertag to show your skin here.',
+        changeLabel: 'Change Gamertag',
+      },
+    };
 
   let edition: AvatarEdition = 'java';
   let javaUsername = '';
@@ -127,11 +123,8 @@
 </script>
 
 <div class="avatar">
-  <div class="header-row">
+  <div class="edition-switcher">
     <SegmentedControl options={EDITIONS} value={edition} onchange={selectEdition} />
-    <button type="button" class="link" onclick={startEdit}>
-      {currentIdentity ? 'Change' : meta.addLabel}
-    </button>
   </div>
 
   {#if status === 'prompt'}
@@ -147,9 +140,6 @@
         }}
       >
         <Field bind:value={inputValue} placeholder={meta.placeholder} />
-        <Button variant="primary" size="sm" type="submit" disabled={!inputValue.trim()}>
-          {isEditing ? 'Save' : meta.addLabel}
-        </Button>
       </form>
     </div>
   {:else if status === 'loading'}
@@ -165,8 +155,8 @@
   {:else if status === 'unavailable'}
     <div class="unavailable">
       <p class="message">
-        Bedrock skin lookup isn't available yet — it needs the Xbox identity resolver from a
-        later phase.
+        Bedrock skin lookup isn't available yet — it needs the Xbox identity resolver from a later
+        phase.
       </p>
       <p class="name">{displayName}</p>
     </div>
@@ -189,11 +179,10 @@
     flex-direction: column;
     gap: 8px;
   }
-  .header-row {
+  .edition-switcher {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
+    justify-content: center;
   }
   .link {
     flex-shrink: 0;

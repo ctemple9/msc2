@@ -308,7 +308,6 @@
     {/each}
 
     <div class="block actions-block">
-      <p class="overline">Actions</p>
       <p class="avatar-title">Your Avatar</p>
       <PlayerAvatar />
     </div>

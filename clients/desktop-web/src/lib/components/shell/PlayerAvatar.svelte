@@ -47,6 +47,7 @@
   let errorMessage = '';
   let imageUrl = '';
   let displayName = '';
+  let showEdit = false;
   let avatarRequest = 0;
 
   $: currentIdentity = edition === 'java' ? javaUsername : bedrockGamertag;
@@ -65,6 +66,7 @@
 
   function loadForEdition(): void {
     avatarRequest += 1;
+    showEdit = false;
     const identity = currentIdentity.trim();
     if (!identity) {
       status = 'prompt';
@@ -120,6 +122,7 @@
   }
 
   function selectEdition(next: string): void {
+    showEdit = false;
     edition = next as AvatarEdition;
     setStoredEdition(edition);
     loadForEdition();
@@ -127,6 +130,7 @@
 
   function startEdit(): void {
     avatarRequest += 1;
+    showEdit = false;
     status = 'prompt';
     isEditing = true;
     inputValue = currentIdentity;
@@ -173,8 +177,18 @@
     </div>
   {:else if status === 'loaded'}
     <div class="rendered">
-      <img class="skin" src={imageUrl} alt="{displayName}'s Minecraft skin" />
+      <button
+        type="button"
+        class="avatar-trigger"
+        aria-label="Edit avatar for {displayName}"
+        onclick={() => (showEdit = true)}
+      >
+        <img class="skin" src={imageUrl} alt="{displayName}'s Minecraft skin" />
+      </button>
       <p class="name">{displayName}</p>
+      {#if showEdit}
+        <button type="button" class="link edit-avatar" onclick={startEdit}>Edit</button>
+      {/if}
     </div>
   {:else if status === 'error'}
     <div class="error-state">
@@ -268,6 +282,23 @@
     flex-direction: column;
     align-items: center;
     gap: 6px;
+  }
+  .avatar-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    cursor: pointer;
+  }
+  .avatar-trigger:focus-visible {
+    outline: 2px solid var(--msc2-hairline-field-focus);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+  .edit-avatar {
+    align-self: center;
   }
   .skin {
     width: auto;

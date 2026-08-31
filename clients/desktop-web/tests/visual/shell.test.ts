@@ -76,6 +76,11 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).not.toContain('<p class="overline">Actions</p>');
     expect(playerAvatarSource).toContain('class="edition-switcher"');
     expect(playerAvatarSource).toContain('justify-content: center');
+    expect(playerAvatarSource).not.toContain('edit-link');
+    expect(playerAvatarSource).toContain('class="avatar-trigger"');
+    expect(playerAvatarSource).toContain('showEdit = true');
+    expect(playerAvatarSource).toContain('class="link edit-avatar"');
+    expect(playerAvatarSource).toContain('onclick={startEdit}>Edit</button>');
     expect(playerAvatarSource).not.toContain('meta.addLabel');
     expect(playerAvatarSource).not.toContain('type="submit"');
     expect(playerAvatarSource).toContain('event.preventDefault();');

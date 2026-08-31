@@ -34,6 +34,8 @@ pub const PLAYIT_SETUP_OPERATION_TARGET: &str = "playit-account";
 
 const PLAYIT_RESET_STOP_TIMEOUT: Duration = Duration::from_secs(5);
 const PLAYIT_RESET_POLL_INTERVAL: Duration = Duration::from_millis(25);
+const PLAYIT_AGENT_CONNECTION_TIMEOUT: Duration = Duration::from_secs(75);
+const PLAYIT_AGENT_CONNECTION_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayitStartResult {
@@ -196,10 +198,13 @@ impl std::error::Error for PlayitSetupError {}
 /// Owns the native account workflow.  It receives an injected provider
 /// transport and writes only the permanent key to `SecretStore`; the session
 /// and password never leave this call as a return value.
+type AgentLifecycleCallback<'a> = &'a dyn Fn(&str) -> Result<(), String>;
+
 pub struct PlayitAccountSetup<'a> {
     api: PlayitApi<'a>,
     secrets: &'a dyn SecretStore,
-    agent_starter: Option<&'a dyn Fn() -> Result<(), String>>,
+    agent_starter: Option<AgentLifecycleCallback<'a>>,
+    agent_configuration_saver: Option<AgentLifecycleCallback<'a>>,
 }
 
 impl<'a> PlayitAccountSetup<'a> {
@@ -208,6 +213,7 @@ impl<'a> PlayitAccountSetup<'a> {
             api: PlayitApi::new(transport),
             secrets,
             agent_starter: None,
+            agent_configuration_saver: None,
         }
     }
 
@@ -217,12 +223,30 @@ impl<'a> PlayitAccountSetup<'a> {
     pub fn with_agent_starter(
         transport: &'a dyn PlayitHttpTransport,
         secrets: &'a dyn SecretStore,
-        agent_starter: &'a dyn Fn() -> Result<(), String>,
+        agent_starter: &'a dyn Fn(&str) -> Result<(), String>,
     ) -> Self {
         Self {
             api: PlayitApi::new(transport),
             secrets,
             agent_starter: Some(agent_starter),
+            agent_configuration_saver: None,
+        }
+    }
+
+    /// Adds the host-config write that makes a just-claimed agent recoverable
+    /// before its first tunnel exists. A failed tunnel request must not make
+    /// MSC forget a real cloud agent and create another one on retry.
+    pub fn with_agent_lifecycle(
+        transport: &'a dyn PlayitHttpTransport,
+        secrets: &'a dyn SecretStore,
+        agent_configuration_saver: &'a dyn Fn(&str) -> Result<(), String>,
+        agent_starter: &'a dyn Fn(&str) -> Result<(), String>,
+    ) -> Self {
+        Self {
+            api: PlayitApi::new(transport),
+            secrets,
+            agent_starter: Some(agent_starter),
+            agent_configuration_saver: Some(agent_configuration_saver),
         }
     }
 
@@ -299,25 +323,28 @@ impl<'a> PlayitAccountSetup<'a> {
             (claimed_agent_id, false, secret.as_str().to_owned())
         };
 
+        if let Some(agent_configuration_saver) = self.agent_configuration_saver
+            && agent_configuration_saver(&agent_id).is_err()
+        {
+            if !reused_existing_agent {
+                let _ = self.secrets.delete(PLAYIT_SECRET_KEY);
+            }
+            return Err(PlayitSetupError::CredentialStore);
+        }
+
         if !tunnel_specs.is_empty() {
             // MSC1 starts playitd before asking the provider to list or create
             // tunnels. The API reports AgentNotFound until that local agent
             // has connected, so provisioning must not run ahead of it.
             if should_cancel() {
-                if !reused_existing_agent {
-                    let _ = self.secrets.delete(PLAYIT_SECRET_KEY);
-                }
                 return Err(PlayitSetupError::Cancelled);
             }
             if reused_existing_agent {
                 report(PlayitSetupStage::WaitingForAgent);
             }
             if let Some(agent_starter) = self.agent_starter
-                && let Err(error) = agent_starter()
+                && let Err(error) = agent_starter(&agent_id)
             {
-                if !reused_existing_agent {
-                    let _ = self.secrets.delete(PLAYIT_SECRET_KEY);
-                }
                 return Err(PlayitSetupError::AgentStart(error));
             }
         }
@@ -325,22 +352,14 @@ impl<'a> PlayitAccountSetup<'a> {
         let tunnel_addresses = if tunnel_specs.is_empty() {
             PlayitTunnelAddresses::default()
         } else {
-            match self.provision_tunnels(
+            self.provision_tunnels(
                 &agent_id,
                 &secret_key,
                 &session,
                 tunnel_specs,
                 &should_cancel,
                 &report,
-            ) {
-                Ok(addresses) => addresses,
-                Err(error) => {
-                    if !reused_existing_agent {
-                        let _ = self.secrets.delete(PLAYIT_SECRET_KEY);
-                    }
-                    return Err(error);
-                }
-            }
+            )?
         };
 
         Ok(PlayitSetupResult {
@@ -556,6 +575,23 @@ fn generate_claim_code() -> String {
     Uuid::new_v4().simple().to_string()[..10].to_owned()
 }
 
+/// `playitd` reports the cloud-side agent only after it has connected, for
+/// example: `playit connected; tunnels loaded agent_id=<uuid>`. This is the
+/// one readiness signal that exists before a first tunnel has an address.
+fn parse_connected_agent_id(line: &str) -> Option<String> {
+    if !line.to_ascii_lowercase().contains("playit connected") {
+        return None;
+    }
+    let (_, after_marker) = line.split_once("agent_id=")?;
+    let candidate = after_marker
+        .chars()
+        .take_while(|character| character.is_ascii_hexdigit() || *character == '-')
+        .collect::<String>();
+    Uuid::parse_str(&candidate)
+        .ok()
+        .map(|agent_id| agent_id.hyphenated().to_string())
+}
+
 fn retryable_tunnel_error(error: PlayitApiError) -> bool {
     matches!(error, PlayitApiError::AgentNotFound)
 }
@@ -603,9 +639,11 @@ pub struct PlayitService<'a> {
     expecting_address: bool,
     active_operation: Option<msc_domain::operation::OperationId>,
     active_stop_operation: Option<msc_domain::operation::OperationId>,
+    stop_requested_forcefully: bool,
     lifecycle_status: PlayitLifecycleStatus,
     secret_bridge: Option<PlayitSecretBridge>,
     secret_bridge_path: Option<PathBuf>,
+    connected_agent_id: Option<String>,
 }
 
 impl<'a> PlayitService<'a> {
@@ -627,9 +665,11 @@ impl<'a> PlayitService<'a> {
             expecting_address: false,
             active_operation: None,
             active_stop_operation: None,
+            stop_requested_forcefully: false,
             lifecycle_status: PlayitLifecycleStatus::Stopped,
             secret_bridge: None,
             secret_bridge_path: None,
+            connected_agent_id: None,
         }
     }
 
@@ -660,6 +700,51 @@ impl<'a> PlayitService<'a> {
             && self.snapshot.player_address.is_some()
     }
 
+    /// Playit emits this only after the local daemon has authenticated with
+    /// its claimed cloud agent. Unlike the player-address signal, this can be
+    /// observed before the first tunnel is created.
+    pub fn agent_connection_matches(&self, expected_agent_id: &str) -> bool {
+        self.connected_agent_id.as_deref() == Some(expected_agent_id)
+    }
+
+    /// Wait for the daemon's own connection line before provisioning the
+    /// first tunnel. The old address-based readiness signal cannot help here:
+    /// there is no address until the provider has accepted a tunnel.
+    pub fn wait_for_agent_connection(
+        &mut self,
+        expected_agent_id: &str,
+        should_cancel: &impl Fn() -> bool,
+    ) -> Result<(), PlayitError> {
+        let deadline = Instant::now() + PLAYIT_AGENT_CONNECTION_TIMEOUT;
+        loop {
+            if should_cancel() {
+                return Err(PlayitError::Process(
+                    "Playit setup was cancelled before the tunnel agent connected.".into(),
+                ));
+            }
+            self.poll()?;
+            if self.agent_connection_matches(expected_agent_id) {
+                return Ok(());
+            }
+            if let Some(connected_agent_id) = self.connected_agent_id.as_deref() {
+                return Err(PlayitError::Process(format!(
+                    "Playit connected a different tunnel agent ({connected_agent_id}) than the one MSC just claimed."
+                )));
+            }
+            if let PlayitLifecycleStatus::Failed { message } = self.lifecycle_status() {
+                return Err(PlayitError::Process(format!(
+                    "Playit stopped before the tunnel agent connected: {message}"
+                )));
+            }
+            if Instant::now() >= deadline {
+                return Err(PlayitError::Process(
+                    "Playit did not confirm the tunnel agent connection within 75 seconds.".into(),
+                ));
+            }
+            std::thread::sleep(PLAYIT_AGENT_CONNECTION_POLL_INTERVAL);
+        }
+    }
+
     pub fn diagnostics(&self) -> Vec<msc_infrastructure::helper_process::HelperDiagnostic> {
         self.helpers
             .snapshot(&self.key())
@@ -680,6 +765,7 @@ impl<'a> PlayitService<'a> {
     /// helper platform.
     pub fn record_start_failure(&mut self, message: impl Into<String>) {
         self.expecting_address = false;
+        self.connected_agent_id = None;
         self.snapshot.status = HelperStatus::Stopped;
         self.lifecycle_status = PlayitLifecycleStatus::Failed {
             message: message.into(),
@@ -745,6 +831,15 @@ impl<'a> PlayitService<'a> {
                 return Err(PlayitError::Acquisition(message));
             }
         };
+        if let Err(error) = launch.remove_stale_socket() {
+            let message = format!("Playit socket preparation failed: {error}");
+            let _ = self.operations.fail(
+                &operation_id,
+                lifecycle_error("playit_socket_cleanup_failed", message.clone()),
+            );
+            self.record_start_failure(message.clone());
+            return Err(PlayitError::Process(message));
+        }
         let secret_bridge =
             match launch.write_secret_bridge(secret.as_deref().expect("checked above")) {
                 Ok(bridge) => bridge,
@@ -759,6 +854,7 @@ impl<'a> PlayitService<'a> {
                 }
             };
         self.reset_stopped_helper_manager();
+        self.connected_agent_id = None;
         match self
             .helpers
             .start(key, launch.process_request(&acquired.artifact.path))
@@ -768,6 +864,7 @@ impl<'a> PlayitService<'a> {
                 self.lifecycle_status = PlayitLifecycleStatus::Starting;
                 self.active_operation = Some(operation_id.clone());
                 self.active_stop_operation = None;
+                self.stop_requested_forcefully = false;
                 self.secret_bridge_path = Some(secret_bridge.path().to_owned());
                 self.secret_bridge = Some(secret_bridge);
                 Ok(PlayitStartResult {
@@ -799,6 +896,9 @@ impl<'a> PlayitService<'a> {
         line: &str,
         record_helper_ready: bool,
     ) -> Result<(), PlayitError> {
+        if let Some(agent_id) = parse_connected_agent_id(line) {
+            self.connected_agent_id = Some(agent_id);
+        }
         if line.to_ascii_lowercase().contains("tunnel setup") {
             self.expecting_address = true;
             if self.lifecycle_status == PlayitLifecycleStatus::Starting {
@@ -867,9 +967,11 @@ impl<'a> PlayitService<'a> {
         exit: msc_infrastructure::process::ProcessExitStatus,
     ) -> Result<(), PlayitError> {
         self.cleanup_secret_bridge()?;
+        self.connected_agent_id = None;
         let stop_operation = self.active_stop_operation.take();
         if let Some(operation_id) = stop_operation {
-            if exit.success() {
+            let stop_was_forced = std::mem::take(&mut self.stop_requested_forcefully);
+            if exit.success() || stop_was_forced {
                 self.operations
                     .succeed(&operation_id, "Playit tunnel stopped.", BTreeMap::new())
                     .map_err(|error| PlayitError::Operation(error.to_string()))?;
@@ -921,17 +1023,11 @@ impl<'a> PlayitService<'a> {
         }
         let key = self.key();
         if let Some(operation_id) = self.active_operation.clone() {
-            if let Err(error) = self.helpers.request_graceful_stop(&key) {
-                let message = error.to_string();
-                let _ = self.helpers.force_terminate(&key);
-                let _ = self.operations.fail(
-                    &operation_id,
-                    lifecycle_error("playit_stop_failed", message.clone()),
-                );
-                self.active_operation = None;
-                self.record_start_failure(message);
-                return Err(map_process_error(error));
-            }
+            // playitd is a daemon, not a Minecraft console: it does not own
+            // the conventional `stop` stdin command. Closing it immediately
+            // after recording cancellation avoids leaving it behind to claim
+            // Playit's user-wide default socket on a later run.
+            let _ = self.helpers.request_graceful_stop(&key);
             self.operations
                 .cancel(&operation_id, "Playit tunnel start stopped.")
                 .map_err(|error| PlayitError::Operation(error.to_string()))?;
@@ -945,17 +1041,14 @@ impl<'a> PlayitService<'a> {
                 "Stopping Playit tunnel.",
             )
             .map_err(|error| PlayitError::Operation(error.to_string()))?;
-        if self.active_operation.is_none() {
-            // A start operation already requested graceful shutdown above.
-            // Running helpers still need the stop request here.
-            let helper_status = self.helpers.snapshot(&key).map(|snapshot| snapshot.status);
-            if !matches!(
-                helper_status,
-                Some(msc_infrastructure::helper_process::ManagedHelperStatus::Stopping)
-            ) && let Err(error) = self.helpers.request_graceful_stop(&key)
-            {
+        // `force_terminate` is the process supervisor's hard-stop boundary.
+        // On Unix it kills the helper's private process group; Windows uses
+        // its Job Object. The daemon keeps no world data, so this is the
+        // truthful automatic-stop behavior when a Minecraft server stops.
+        match self.helpers.force_terminate(&key) {
+            Ok(()) | Err(HelperProcessError::NotRunning(_)) => {}
+            Err(error) => {
                 let message = error.to_string();
-                let _ = self.helpers.force_terminate(&key);
                 let _ = self.operations.fail(
                     &operation_id,
                     lifecycle_error("playit_stop_failed", message.clone()),
@@ -967,6 +1060,7 @@ impl<'a> PlayitService<'a> {
         self.lifecycle_status = PlayitLifecycleStatus::Stopping;
         self.snapshot.status = HelperStatus::Starting;
         self.active_stop_operation = Some(operation_id.clone());
+        self.stop_requested_forcefully = true;
         Ok(Some(operation_id.as_str().to_owned()))
     }
 
@@ -1005,6 +1099,8 @@ impl<'a> PlayitService<'a> {
 
         self.cleanup_secret_bridge()?;
         self.expecting_address = false;
+        self.connected_agent_id = None;
+        self.stop_requested_forcefully = false;
         self.snapshot = HelperSnapshot::stopped();
         self.lifecycle_status = if self.enabled {
             PlayitLifecycleStatus::SetupRequired
@@ -1032,8 +1128,10 @@ impl<'a> PlayitService<'a> {
         self.helpers.discard_live_processes_after_restart();
         self.snapshot = HelperSnapshot::after_agent_restart();
         self.lifecycle_status = PlayitLifecycleStatus::Stopped;
+        self.connected_agent_id = None;
         self.active_operation = None;
         self.active_stop_operation = None;
+        self.stop_requested_forcefully = false;
     }
 
     pub fn cancel_start_if_requested(&mut self) -> Result<bool, PlayitError> {

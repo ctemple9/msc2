@@ -109,8 +109,10 @@ impl ProcessSupervisor for LinuxJavaProcessSupervisor {
         }
         let pgid = -(pid.raw() as libc::pid_t);
         // SAFETY: `kill` is called with a process-group id created by `setpgid`
-        // in `spawn`; no Rust references cross the FFI boundary.
-        let result = unsafe { libc::kill(pgid, libc::SIGTERM) };
+        // in `spawn`; no Rust references cross the FFI boundary. This is the
+        // hard cleanup path; callers choose it only when their process can be
+        // safely stopped without a graceful console command.
+        let result = unsafe { libc::kill(pgid, libc::SIGKILL) };
         if result == 0 {
             Ok(())
         } else {
@@ -282,7 +284,7 @@ mod tests {
 
         assert!(events.iter().any(|event| matches!(
             event,
-            ProcessEvent::Exited(status) if status.signal == Some(libc::SIGTERM)
+            ProcessEvent::Exited(status) if status.signal == Some(libc::SIGKILL)
         )));
     }
 }

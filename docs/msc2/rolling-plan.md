@@ -1423,6 +1423,14 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Commit:** `P12.20m: accept the legacy Playit voice inventory shape`
 **Batch:** solo
 
+### P12.20n — Confirm the claimed Playit daemon before creating tunnels
+**Status:** built, awaiting verification
+**Files:** `crates/msc-application/src/playit.rs`, `crates/msc-application/tests/playit.rs`, `crates/msc-infrastructure/src/playit.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-agent/tests/playit_routes.rs`, `crates/msc-platform-macos/src/process.rs`, `crates/msc-platform-linux/src/process.rs`, `docs/msc2/rolling-plan.md`
+**What:** Correct the repeated fresh-account failure discovered in live setup. `playitd` now receives an MSC-owned Unix socket path instead of Playit's user-wide default, which isolates MSC2 from MSC1 and removes stale MSC-owned sockets before a replacement starts. During first setup MSC2 persists the claimed agent ID and permanent key before provisioning, waits up to 75 seconds for `playitd` to report `playit connected` with that exact agent ID, and only then lists or creates tunnels. A tunnel, or helper-start, failure retains that recoverable local identity for retry instead of creating another cloud agent. Because `playitd` does not read Minecraft console input, normal server stop now uses the managed force-termination path; Unix uses `SIGKILL` and Windows retains its existing Job Object termination, so a failed setup cannot leave a stale daemon holding the next setup hostage. Tests cover the connection signal, early persistence, server-scoped socket arguments/cleanup, and the hard-stop behavior; Windows does not receive a Unix socket argument.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent -p msc-infrastructure -p msc-platform-macos -p msc-platform-linux --all-targets -- -D warnings && cargo nextest run -p msc-application --test playit && cargo nextest run -p msc-agent --test playit_routes && cargo nextest run -p msc-platform-macos --lib && cargo check -p msc-platform-linux`
+**Commit:** `P12.20n: confirm the claimed Playit daemon before creating tunnels`
+**Batch:** solo
+
 ### P12.21 — Sidebar: How to Connect + Maintenance
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/ApplicationShell.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte` (new), `clients/desktop-web/tests/visual/shell.test.ts`

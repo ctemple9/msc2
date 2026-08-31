@@ -42,18 +42,68 @@ static NEXT_SECRET_BRIDGE_TEMP: AtomicU64 = AtomicU64::new(1);
 pub struct PlayitLaunch {
     pub working_directory: PathBuf,
     pub secret_path: PathBuf,
+    /// MSC gives Unix helpers a server-scoped control socket so they never
+    /// compete with another MSC install (or a stale daemon) for Playit's
+    /// user-wide default socket. Windows has no Unix socket path.
+    pub socket_path: Option<PathBuf>,
 }
 
 impl PlayitLaunch {
+    pub fn managed(working_directory: PathBuf) -> Self {
+        let socket_path = (!cfg!(windows)).then(|| working_directory.join("playitd.sock"));
+        Self {
+            secret_path: working_directory.join("secret-bridge"),
+            socket_path,
+            working_directory,
+        }
+    }
+
     pub fn process_request(&self, executable_path: &Path) -> ProcessSpawnRequest {
-        ProcessSpawnRequest::new(executable_path, &self.working_directory).args([
+        let mut arguments = vec![
             "--secret-path".to_string(),
             self.secret_path.to_string_lossy().into_owned(),
-        ])
+        ];
+        if let Some(socket_path) = &self.socket_path {
+            arguments.extend([
+                "--socket-path".to_string(),
+                socket_path.to_string_lossy().into_owned(),
+            ]);
+        }
+        ProcessSpawnRequest::new(executable_path, &self.working_directory).args(arguments)
     }
 
     pub fn write_secret_bridge(&self, secret: &str) -> io::Result<PlayitSecretBridge> {
         PlayitSecretBridge::create(&self.secret_path, secret)
+    }
+
+    /// A hard-killed Unix helper leaves its socket name behind. The path is
+    /// inside MSC's own per-server working directory, so it is safe to remove
+    /// only a stale socket before a replacement helper starts.
+    pub fn remove_stale_socket(&self) -> io::Result<()> {
+        let Some(socket_path) = self.socket_path.as_deref() else {
+            return Ok(());
+        };
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::FileTypeExt;
+
+            match std::fs::symlink_metadata(socket_path) {
+                Ok(metadata) if metadata.file_type().is_socket() => {
+                    std::fs::remove_file(socket_path)
+                }
+                Ok(_) => Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Playit socket path is not a socket",
+                )),
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(error) => Err(error),
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            let _ = socket_path;
+            Ok(())
+        }
     }
 }
 

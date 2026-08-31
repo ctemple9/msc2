@@ -27,10 +27,7 @@ const OPERATIONS_DIR: &str = "/agent/operations";
 fn launch() -> PlayitLaunch {
     let working_directory =
         std::env::temp_dir().join(format!("msc2-playit-test-{}", uuid::Uuid::new_v4()));
-    PlayitLaunch {
-        secret_path: working_directory.join("secret-bridge/playit"),
-        working_directory,
-    }
+    PlayitLaunch::managed(working_directory)
 }
 
 const RELEASE_URL: &str =
@@ -160,6 +157,7 @@ fn playit_start_is_journaled_and_secret_never_reaches_process_arguments() {
 
     let launch = launch();
     let bridge_path = launch.secret_path.clone();
+    let socket_path = launch.socket_path.clone();
     let started = service.start(launch, &binary).unwrap();
     let operation_id = started.operation_id.unwrap();
     assert_eq!(started.status, HelperStatus::Starting);
@@ -189,13 +187,17 @@ fn playit_start_is_journaled_and_secret_never_reaches_process_arguments() {
     );
 
     let (_, request) = supervisor.spawned_requests().pop().unwrap();
-    assert_eq!(
-        request.arguments,
-        [
-            "--secret-path".to_owned(),
-            bridge_path.to_string_lossy().into_owned()
-        ]
-    );
+    let mut expected_arguments = vec![
+        "--secret-path".to_owned(),
+        bridge_path.to_string_lossy().into_owned(),
+    ];
+    if let Some(socket_path) = socket_path {
+        expected_arguments.extend([
+            "--socket-path".to_owned(),
+            socket_path.to_string_lossy().into_owned(),
+        ]);
+    }
+    assert_eq!(request.arguments, expected_arguments);
     assert_eq!(
         request.executable_path,
         PathBuf::from("/cache/playitd/playitd-v1.0.10/playitd-linux-x86_64")
@@ -211,6 +213,44 @@ fn playit_start_is_journaled_and_secret_never_reaches_process_arguments() {
         !String::from_utf8_lossy(&fs.read(&operation_path).unwrap())
             .contains("playit-secret-must-not-leak")
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn playit_start_removes_a_stale_server_scoped_socket() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    // macOS Unix-domain sockets have a 104-byte pathname limit. The normal
+    // test temp directory can exceed it, so keep this real-socket fixture
+    // directly below /tmp while preserving the production path shape.
+    let launch = PlayitLaunch::managed(
+        PathBuf::from("/tmp").join(format!("msc2-playit-test-{}", uuid::Uuid::new_v4())),
+    );
+    let socket_path = launch.socket_path.clone().expect("Unix socket path");
+    std::fs::create_dir_all(&launch.working_directory).unwrap();
+    let listener = match std::os::unix::net::UnixListener::bind(&socket_path) {
+        Ok(listener) => listener,
+        // The macOS application sandbox used by the focused test runner can
+        // prohibit Unix sockets altogether. Production and ordinary CI both
+        // exercise the assertion below; the restricted runner cannot create
+        // the fixture it needs.
+        Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => return,
+        Err(error) => panic!("create stale Playit socket fixture: {error}"),
+    };
+    drop(listener);
+    assert!(socket_path.exists());
+
+    service.start(launch, &binary).unwrap();
+
+    assert!(!socket_path.exists());
 }
 
 #[test]
@@ -300,7 +340,35 @@ fn playit_output_pump_redacts_diagnostics_and_reconciles_exit() {
 }
 
 #[test]
-fn playit_stop_is_journaled_until_graceful_exit() {
+fn playit_recognizes_its_connected_agent_before_any_tunnel_address_exists() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+
+    service.start(launch(), &binary).unwrap();
+    let pid = supervisor.spawned_requests().pop().unwrap().0;
+    supervisor
+        .emit_stdout(
+            pid,
+            b"INFO playitd::daemon: playit connected; tunnels loaded agent_id=6af10e70-44cc-4b60-b8f7-f6949ee4f999 tunnel_count=0\n",
+        )
+        .unwrap();
+    service.poll().unwrap();
+
+    assert!(service.agent_connection_matches("6af10e70-44cc-4b60-b8f7-f6949ee4f999"));
+    assert!(!service.agent_connection_matches("6af10e70-44cc-4b60-b8f7-f6949ee4f998"));
+    assert!(service.status().player_address.is_none());
+}
+
+#[test]
+fn playit_stop_hard_stops_the_daemon_and_journals_completion() {
     let fs = FakeFileSystem::new()
         .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
         .with_dir("/cache");
@@ -331,7 +399,8 @@ fn playit_stop_is_journaled_until_graceful_exit() {
     );
     let stop_operation_id = msc_domain::operation::OperationId::new(stop_operation);
     assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Stopping);
-    assert_eq!(supervisor.graceful_stops(), vec![pid]);
+    assert!(supervisor.graceful_stops().is_empty());
+    assert_eq!(supervisor.force_terminations(), vec![pid]);
     assert_eq!(
         operations
             .snapshot(&stop_operation_id)
@@ -342,7 +411,6 @@ fn playit_stop_is_journaled_until_graceful_exit() {
     );
     assert!(bridge_path.exists());
 
-    supervisor.exit_normally(pid).unwrap();
     service.poll().unwrap();
     assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Stopped);
     assert_eq!(
@@ -412,7 +480,6 @@ fn playit_can_start_again_after_a_clean_stop() {
         .unwrap();
     service.poll().unwrap();
     service.stop().unwrap();
-    supervisor.exit_normally(first_pid).unwrap();
     service.poll().unwrap();
     assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Stopped);
 
@@ -730,6 +797,75 @@ fn native_setup_claims_a_new_agent_and_persists_only_the_permanent_key() {
 }
 
 #[test]
+fn native_setup_keeps_a_newly_claimed_agent_when_first_tunnel_creation_fails() {
+    let transport = FakeAccountTransport::new([
+        (
+            200,
+            serde_json::json!({"status":"success","data":{"session_key":"session-secret"}}),
+        ),
+        (
+            200,
+            serde_json::json!({"status":"success","data":"WaitingForAgent"}),
+        ),
+        (200, serde_json::json!({"status":"success","data":"ok"})),
+        (
+            200,
+            serde_json::json!({"status":"success","data":{"agent_id":"agent-123"}}),
+        ),
+        (
+            200,
+            serde_json::json!({"status":"success","data":{"secret_key":"agent-secret"}}),
+        ),
+        tunnel_list_response(Vec::new()),
+        (
+            400,
+            serde_json::json!({"status":"fail","data":"NoFreeTunnels"}),
+        ),
+    ]);
+    let secrets = FakeSecretStore::new();
+    let saved_agent_id = Mutex::new(None);
+    let save_agent_configuration = |agent_id: &str| {
+        *saved_agent_id.lock().unwrap() = Some(agent_id.to_owned());
+        Ok(())
+    };
+    let start_agent = |agent_id: &str| {
+        assert_eq!(agent_id, "agent-123");
+        Ok(())
+    };
+    let setup = msc_application::playit::PlayitAccountSetup::with_agent_lifecycle(
+        &transport,
+        &secrets,
+        &save_agent_configuration,
+        &start_agent,
+    );
+    let specs = [PlayitTunnelSpec {
+        kind: PlayitTunnelKind::Java,
+        local_port: 25565,
+    }];
+
+    assert_eq!(
+        setup
+            .run_with_tunnels(
+                "owner@example.test",
+                "password",
+                None,
+                &specs,
+                || false,
+                |_| {},
+            )
+            .unwrap_err(),
+        msc_application::playit::PlayitSetupError::Api(
+            msc_infrastructure::playit_api::PlayitApiError::ApiFailure
+        )
+    );
+    assert_eq!(
+        secrets.get(PLAYIT_SECRET_KEY).unwrap().as_deref(),
+        Some("agent-secret")
+    );
+    assert_eq!(saved_agent_id.lock().unwrap().as_deref(), Some("agent-123"));
+}
+
+#[test]
 fn native_setup_reuses_a_configured_host_agent_without_claiming_another() {
     let transport = FakeAccountTransport::new([(
         200,
@@ -992,10 +1128,11 @@ fn native_setup_starts_agent_before_first_tunnel_request() {
         .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
         .unwrap();
     let agent_starts = Mutex::new(0);
-    let ensure_agent = || {
+    let ensure_agent = |agent_id: &str| {
         *agent_starts.lock().unwrap() += 1;
         let requests = transport.requests.lock().unwrap();
         assert_eq!(requests.len(), 1, "only sign-in may precede agent start");
+        assert_eq!(agent_id, "agent-existing");
         Ok(())
     };
     let setup = msc_application::playit::PlayitAccountSetup::with_agent_starter(

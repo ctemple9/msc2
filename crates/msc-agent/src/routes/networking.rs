@@ -122,10 +122,7 @@ impl PlayitLifecycleController {
             ));
             return;
         }
-        let launch = msc_infrastructure::playit::PlayitLaunch {
-            working_directory: working_directory.clone(),
-            secret_path: working_directory.join("secret-bridge"),
-        };
+        let launch = msc_infrastructure::playit::PlayitLaunch::managed(working_directory);
         let _ = service.start(launch, &acquisition);
     }
 
@@ -301,7 +298,12 @@ impl NetworkingState {
     /// Returns true only when this setup call started a new helper, so a
     /// failed setup can clean up its own process without stopping a helper
     /// that was already serving the server.
-    fn start_playit_for_setup(&self, server: &ConfigServer) -> Result<bool, String> {
+    fn start_playit_for_setup(
+        &self,
+        server: &ConfigServer,
+        expected_agent_id: &str,
+        should_cancel: &impl Fn() -> bool,
+    ) -> Result<bool, String> {
         if !server.playit_enabled {
             return Ok(false);
         }
@@ -311,29 +313,34 @@ impl NetworkingState {
         if service.lifecycle_status() == PlayitLifecycleStatus::Stopping {
             return Err("The existing Playit helper is still stopping.".into());
         }
-        if service.is_active() {
-            return Ok(false);
+        let mut started = false;
+        if !service.is_active() {
+            let acquisition =
+                msc_infrastructure::playit::PlayitBinaryAcquisition::for_current_platform(
+                    self.transport,
+                    self.fs,
+                    self.helper_cache,
+                )
+                .map_err(|error| format!("Playit helper acquisition failed: {error}"))?;
+            let working_directory = PathBuf::from(&server.server_dir).join(".msc2-playit");
+            std::fs::create_dir_all(&working_directory).map_err(|error| {
+                format!("Playit helper working directory could not be created: {error}")
+            })?;
+            let launch = msc_infrastructure::playit::PlayitLaunch::managed(working_directory);
+            service
+                .start(launch, &acquisition)
+                .map_err(|error| error.to_string())?;
+            started = true;
         }
 
-        let acquisition =
-            msc_infrastructure::playit::PlayitBinaryAcquisition::for_current_platform(
-                self.transport,
-                self.fs,
-                self.helper_cache,
-            )
-            .map_err(|error| format!("Playit helper acquisition failed: {error}"))?;
-        let working_directory = PathBuf::from(&server.server_dir).join(".msc2-playit");
-        std::fs::create_dir_all(&working_directory).map_err(|error| {
-            format!("Playit helper working directory could not be created: {error}")
-        })?;
-        let launch = msc_infrastructure::playit::PlayitLaunch {
-            working_directory: working_directory.clone(),
-            secret_path: working_directory.join("secret-bridge"),
-        };
+        // The provider cannot create a tunnel for a claimed-but-offline agent.
+        // Wait for playitd's own matching connection line instead of treating a
+        // later player address as the first readiness signal (there is no such
+        // address until after a tunnel exists).
         service
-            .start(launch, &acquisition)
-            .map(|_| true)
-            .map_err(|error| error.to_string())
+            .wait_for_agent_connection(expected_agent_id, should_cancel)
+            .map_err(|error| error.to_string())?;
+        Ok(started)
     }
 
     fn stop_playit_after_setup_failure(&self, server_id: &str) {
@@ -631,17 +638,38 @@ pub async fn playit_setup(
                 stage.status_line(),
             );
         };
-        let ensure_agent = || {
+        let should_cancel_for_agent_start = should_cancel.clone();
+        let ensure_agent = |agent_id: &str| {
             let server = setup_server
                 .as_ref()
                 .ok_or_else(|| "No active server is selected for Playit tunnels.".to_string())?;
-            let started = networking.start_playit_for_setup(server)?;
+            let started = networking.start_playit_for_setup(
+                server,
+                agent_id,
+                &should_cancel_for_agent_start,
+            )?;
             if started {
                 setup_started_for_worker.store(true, Ordering::Release);
             }
             Ok(())
         };
-        let setup = PlayitAccountSetup::with_agent_starter(transport, secrets, &ensure_agent);
+        let lifecycle_for_agent_configuration = lifecycle.clone();
+        let save_agent_configuration = |agent_id: &str| {
+            lifecycle_for_agent_configuration
+                .try_mutate_config(|config| {
+                    config.playit_agent_id = Some(agent_id.to_owned());
+                    Ok::<_, std::convert::Infallible>(())
+                })
+                .map_err(|_| {
+                    "MSC could not save the Playit agent configuration on this host.".to_owned()
+                })
+        };
+        let setup = PlayitAccountSetup::with_agent_lifecycle(
+            transport,
+            secrets,
+            &save_agent_configuration,
+            &ensure_agent,
+        );
         let result = setup.run_with_tunnels(
             &email,
             &password,
@@ -875,10 +903,7 @@ pub async fn playit_start(
     }
     let working_directory = PathBuf::from(&server.server_dir).join(".msc2-playit");
     let _ = std::fs::create_dir_all(&working_directory);
-    let launch = msc_infrastructure::playit::PlayitLaunch {
-        working_directory: working_directory.clone(),
-        secret_path: working_directory.join("secret-bridge"),
-    };
+    let launch = msc_infrastructure::playit::PlayitLaunch::managed(working_directory);
     match service.start(launch, &acquisition) {
         Ok(result) => (
             StatusCode::ACCEPTED,

@@ -236,6 +236,7 @@ fn networking_registers_and_polls_playit_with_the_lifecycle_owner() {
         "spawn_playit_output_pump(",
         "mark_first_start_transport_for_server",
         "record_start_failure",
+        "wait_for_agent_connection",
     ] {
         assert!(
             networking.contains(marker),

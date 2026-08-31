@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: f8eced9ade558382e2be95e88b5f6bd363c86dd51d9a593f3c4726c703ae4db8
+// Contract SHA-256: 8075f7d31ef643f444383b6e6623f1fffbaeb99eeab68fb0937afa628c0eabe6
 
 export interface paths {
   '/v1/active-server': {
@@ -6049,6 +6049,8 @@ export interface components {
     };
     BroadcastStatusDTO: {
       bedrockBroadcastRunning: boolean;
+      /** @description The Xbox gamertag reported by MCXboxBroadcast after authentication, when available. */
+      gamertag?: string;
       xboxBroadcastRunning: boolean;
     } & {
       [key: string]: unknown;
@@ -8952,7 +8954,7 @@ export interface operations {
           'application/json': components['schemas']['ErrorDTO'];
         };
       };
-      /** @description setup_in_progress / setup_unavailable / credential_store_failed / tunnel_mismatch */
+      /** @description setup_in_progress / setup_unavailable / credential_store_failed / tunnel_mismatch / public_addresses_unavailable */
       409: {
         headers: {
           [name: string]: unknown;

@@ -277,6 +277,8 @@
   let servers: readonly Schema['ServerDTO'][] = [];
   let status: Schema['RemoteAPIStatus'] = defaultStatus;
   let initiationServer: Schema['ServerDTO'] | undefined;
+  let initiationVisible = false;
+  let initiationComplete = false;
 
   $: activeServer = servers.find((server) => server.id === selectedServerId);
 
@@ -503,7 +505,21 @@
 
   function openInitiation(): void {
     if (!activeServer || status.running) return;
+    if (initiationServer?.id === activeServer.id) {
+      initiationVisible = true;
+      return;
+    }
     initiationServer = activeServer;
+    initiationVisible = true;
+    initiationComplete = false;
+  }
+
+  function resumeInitiation(): void {
+    if (initiationServer) {
+      initiationVisible = true;
+    } else {
+      openInitiation();
+    }
   }
 
   async function refreshServerSnapshot(): Promise<void> {
@@ -518,7 +534,11 @@
   }
 
   function closeInitiation(): void {
-    initiationServer = undefined;
+    initiationVisible = false;
+    if (initiationComplete) {
+      initiationServer = undefined;
+      initiationComplete = false;
+    }
     void refreshServerSnapshot();
   }
 
@@ -649,6 +669,11 @@
   onSwitchHost={(id) => void switchHost(id)}
   onLifecycle={(action) => void lifecycle(action)}
   onInitiate={openInitiation}
+  initiationHidden={Boolean(
+    initiationServer && !initiationVisible && initiationServer.id === selectedServerId,
+  )}
+  initiationServerId={initiationServer?.id}
+  onResumeInitiation={resumeInitiation}
   onOpenAgentSetup={openAgentSetup}
   onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}
   onManage={() => (manageOpen = true)}
@@ -696,7 +721,11 @@
     playitEnabled={initiationServer.playitEnabled ?? false}
     broadcastEnabled={initiationServer.xboxBroadcastEnabled ?? false}
     onClose={closeInitiation}
-    onComplete={() => void refreshServerSnapshot()}
+    hidden={!initiationVisible}
+    onComplete={() => {
+      initiationComplete = true;
+      void refreshServerSnapshot();
+    }}
   />
 {/if}
 

@@ -2,7 +2,9 @@
 
 use crate::operations::{LifecycleOperations, lifecycle_error};
 use msc_domain::helper::{HelperSnapshot, HelperStatus};
-use msc_domain::networking::{broadcast_is_ready, parse_broadcast_auth_prompt};
+use msc_domain::networking::{
+    broadcast_is_ready, parse_broadcast_auth_prompt, parse_broadcast_gamertag,
+};
 use msc_infrastructure::helper_process::{HelperKey, HelperProcessError, HelperProcessManager};
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
@@ -25,6 +27,7 @@ pub struct BroadcastAuthPrompt {
 pub struct BroadcastStatus {
     pub snapshot: HelperSnapshot,
     pub auth_prompt: Option<BroadcastAuthPrompt>,
+    pub gamertag: Option<String>,
     pub has_password: bool,
     pub has_auth_token: bool,
 }
@@ -65,6 +68,7 @@ pub struct XboxBroadcastService<'a> {
     operations: &'a LifecycleOperations<'a>,
     snapshot: HelperSnapshot,
     auth_prompt: Option<BroadcastAuthPrompt>,
+    authenticated_gamertag: Option<String>,
     active_operation: Option<msc_domain::operation::OperationId>,
 }
 
@@ -85,6 +89,7 @@ impl<'a> XboxBroadcastService<'a> {
             operations,
             snapshot: HelperSnapshot::stopped(),
             auth_prompt: None,
+            authenticated_gamertag: None,
             active_operation: None,
         }
     }
@@ -93,6 +98,7 @@ impl<'a> XboxBroadcastService<'a> {
         Ok(BroadcastStatus {
             snapshot: self.snapshot.clone(),
             auth_prompt: self.auth_prompt.clone(),
+            gamertag: self.authenticated_gamertag.clone(),
             has_password: self.has_secret(&alt_password_secret_key(&self.server_id))?,
             has_auth_token: self.has_secret(&auth_token_secret_key(&self.server_id))?,
         })
@@ -182,6 +188,9 @@ impl<'a> XboxBroadcastService<'a> {
     }
 
     pub fn observe_output(&mut self, line: &str) -> Result<(), XboxBroadcastError> {
+        if let Some(gamertag) = parse_broadcast_gamertag(line) {
+            self.authenticated_gamertag = Some(gamertag);
+        }
         if let Some(prompt) = parse_broadcast_auth_prompt(line) {
             self.auth_prompt = Some(BroadcastAuthPrompt {
                 code: prompt.code,

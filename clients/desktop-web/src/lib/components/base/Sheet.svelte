@@ -8,6 +8,8 @@
   export let title: string;
   export let size: 'sm' | 'md' | 'lg' = 'md';
   export let onClose: (() => void) | undefined = undefined;
+  /** Keep the sheet mounted while a parent-owned operation continues behind it. */
+  export let visible = true;
   /** Reports the close button's rect to the guided tour under this id, when
    *  set. Additive -- most sheets leave it unset. See tourAnchors.ts. */
   export let closeAnchorId: string | undefined = undefined;
@@ -25,7 +27,7 @@
 
 <svelte:window onkeydown={onClose ? dismissOnEscape : undefined} />
 
-<div class="scrim" role="presentation" onclick={dismissOnBackdrop}>
+<div class:hidden={!visible} class="scrim" role="presentation" onclick={dismissOnBackdrop}>
   <div
     class="sheet"
     style="width: {widths[size]};"
@@ -71,6 +73,9 @@
     align-items: center;
     justify-content: center;
     z-index: 100;
+  }
+  .scrim.hidden {
+    display: none;
   }
 
   .sheet {

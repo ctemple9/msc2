@@ -199,6 +199,8 @@ pub struct GeyserConfigUpdateResultDto {
 pub struct BroadcastStatusDto {
     pub xbox_broadcast_running: bool,
     pub bedrock_broadcast_running: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gamertag: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

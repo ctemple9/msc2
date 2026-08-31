@@ -8346,6 +8346,10 @@
           },
           "bedrockBroadcastRunning": {
             "type": "boolean"
+          },
+          "gamertag": {
+            "type": "string",
+            "description": "The Xbox gamertag reported by MCXboxBroadcast after authentication, when available."
           }
         },
         "required": [

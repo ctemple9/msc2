@@ -28,7 +28,10 @@
   export let playit: Schema['PlayitStatusResponseDTO'] | undefined = undefined;
   export let context: PlayitSetupContext = 'settings';
   export let voiceOnly = false;
+  export let visible = true;
   export let onClose: () => void;
+  /** Records that the user submitted the native Playit attempt, even if it later fails. */
+  export let onAttempted: () => void = () => {};
   /** Called as soon as the agent reports success. In initiation mode the
    * parent uses this to resume its waiting transport row, after which this
    * sheet closes so the row is immediately visible again. */
@@ -98,6 +101,7 @@
     statusLine = 'Signing in…';
     progressKey = 'signing_in';
     cancelRequested = false;
+    onAttempted();
     phase = 'submitting';
 
     try {
@@ -195,7 +199,7 @@
   }
 </script>
 
-<Sheet {title} size="md" onClose={busy ? undefined : onClose}>
+<Sheet {title} size="md" {visible} onClose={busy ? undefined : onClose}>
   {#if phase === 'form' || phase === 'failed'}
     <div class="stack">
       <div>

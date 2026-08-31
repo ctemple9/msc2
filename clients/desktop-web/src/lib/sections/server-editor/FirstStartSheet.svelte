@@ -21,6 +21,7 @@
   export let localBedrockPort: number | undefined = undefined;
   export let playitEnabled = false;
   export let broadcastEnabled = false;
+  export let hidden = false;
   export let onClose: () => void;
   export let onComplete: () => void = () => {};
 
@@ -49,6 +50,9 @@
   let activeServerId = '';
   let playitChoiceRequired = false;
   let broadcastChoiceRequired = broadcastEnabled;
+  let playitAttempted = !playitEnabled;
+  let playitAttemptedThisRound = false;
+  let playitSetupSucceeded = false;
   let transport: Record<TransportKey, TransportState> = {
     playit: playitEnabled ? 'waiting' : 'not-applicable',
     broadcast: broadcastEnabled ? 'waiting' : 'not-applicable',
@@ -67,6 +71,7 @@
   $: title = phase === 'complete' ? 'First Start' : `Initiate ${serverName || 'server'}`;
   $: allTransportsResolved = Object.values(transport).every((state) => state !== 'waiting');
   $: serverReady = /ready/i.test(statusLine);
+  $: broadcastUnlocked = !playitEnabled || playitAttempted;
 
   async function refreshConsole(): Promise<void> {
     if (!api) return;
@@ -190,6 +195,7 @@
     }
     if (playitEnabled) {
       playit = await api?.get<Schema['PlayitStatusResponseDTO']>(serverEditorPaths.playit);
+      playitAttempted = Boolean(playit?.hasSecretKey);
       playitSetupVoiceOnly = Boolean(
         playit?.hasSecretKey && playit.voiceChatEnabled && !playit.voiceAddress,
       );
@@ -201,7 +207,21 @@
     maybeBeginPassTwo();
   }
 
+  function openPlayitSetup(): void {
+    playitSetupSucceeded = false;
+    showPlayitSetup = true;
+    playitChoiceRequired = true;
+  }
+
+  function playitAttemptedNow(): void {
+    playitAttempted = true;
+    playitAttemptedThisRound = true;
+    playitSetupSucceeded = false;
+  }
+
   function playitSetupComplete(): void {
+    playitAttempted = true;
+    playitSetupSucceeded = true;
     showPlayitSetup = false;
     playitChoiceRequired = false;
     setTransport('playit', 'waiting');
@@ -209,17 +229,36 @@
     maybeBeginPassTwo();
   }
 
-  function skip(key: TransportKey): void {
+  function closePlayitSetup(): void {
+    showPlayitSetup = false;
+    if (playitAttemptedThisRound && !playitSetupSucceeded) {
+      setTransport('playit', 'failed');
+      playitChoiceRequired = false;
+      maybeBeginPassTwo();
+    } else if (playitAttempted) {
+      // Opening an already configured setup sheet is not itself a new
+      // attempt; closing it must restore the prior ability to continue.
+      playitChoiceRequired = false;
+      maybeBeginPassTwo();
+    }
+    playitAttemptedThisRound = false;
+  }
+
+  function skipBroadcast(): void {
+    const key: TransportKey = 'broadcast';
     if (busy || transport[key] === 'not-applicable') return;
     setTransport(key, 'skipped');
-    if (key === 'playit') showPlayitSetup = false;
-    if (key === 'playit') playitChoiceRequired = false;
-    if (key === 'broadcast') broadcastChoiceRequired = false;
+    broadcastChoiceRequired = false;
     maybeBeginPassTwo();
   }
 
   function continueTransportSetup(): void {
     if (phase !== 'transport-setup') return;
+    if (playitEnabled && !playitAttempted) {
+      error = 'Try Playit setup before continuing to Xbox Broadcast.';
+      return;
+    }
+    error = '';
     broadcastChoiceRequired = false;
     maybeBeginPassTwo();
   }
@@ -354,13 +393,14 @@
 
   async function finishComplete(): Promise<void> {
     if (api && playitEnabled) await refreshPlayit();
+    if (api && broadcastEnabled) await refreshBroadcast();
     phase = 'complete';
     statusLine = 'First-start setup is complete.';
     onComplete();
   }
 </script>
 
-<Sheet {title} size="md" onClose={busy ? undefined : onClose}>
+<Sheet {title} size="md" visible={!hidden} {onClose}>
   {#if phase === 'eula'}
     <div class="stack">
       <div>
@@ -425,15 +465,9 @@
             tone={transportTone(transport.playit)}
             label={transportLabel(transport.playit)}
           />
-          {#if phase === 'transport-setup' && transport.playit === 'waiting'}
-            <Button variant="secondary" size="sm" onclick={() => (showPlayitSetup = true)}
-              >Set up</Button
-            >
-            <Button
-              variant="ghost-icon"
-              size="sm"
-              label="Skip Playit"
-              onclick={() => skip('playit')}>×</Button
+          {#if phase === 'transport-setup' && (transport.playit === 'waiting' || transport.playit === 'failed')}
+            <Button variant="secondary" size="sm" onclick={openPlayitSetup}
+              >{transport.playit === 'failed' ? 'Try again' : 'Set up'}</Button
             >
           {/if}
         </div>
@@ -444,7 +478,11 @@
             label={transportLabel(transport.broadcast)}
           />
           {#if phase === 'transport-setup' && transport.broadcast === 'waiting'}
-            <Button variant="secondary" size="sm" onclick={() => skip('broadcast')}>Skip</Button>
+            {#if broadcastUnlocked}
+              <Button variant="secondary" size="sm" onclick={skipBroadcast}>Skip</Button>
+            {:else}
+              <span class="locked-transport">Set up Playit first</span>
+            {/if}
           {/if}
         </div>
       </div>
@@ -495,13 +533,20 @@
               <span>Bedrock — anywhere (playit.gg)</span><code>{playit.bedrockAddress}</code>
             </div>
           {/if}
-          {#if playit?.voiceAddress && playit.voiceChatEnabled}
-            <div><span>Voice — Simple Voice Chat</span><code>{playit.voiceAddress}</code></div>
-          {/if}
           {#if broadcastEnabled}
             <div>
-              <span>Xbox</span><span class="muted">Use Xbox discovery when Broadcast is Ready.</span
-              >
+              <span>Xbox Broadcast</span>
+              {#if broadcast?.gamertag}
+                <span class="connection-note"
+                  >Authenticated as <strong>{broadcast.gamertag}</strong>. Have friends add this
+                  account, then join from their Friends list while the server is online.</span
+                >
+              {:else}
+                <span class="connection-note"
+                  >Use Xbox discovery when Broadcast is ready. The authenticated gamertag will
+                  appear here.</span
+                >
+              {/if}
             </div>
           {/if}
         </div>
@@ -580,13 +625,15 @@
     {playit}
     context="initiation"
     voiceOnly={playitSetupVoiceOnly}
-    onClose={() => (showPlayitSetup = false)}
+    visible={!hidden}
+    onClose={closePlayitSetup}
+    onAttempted={playitAttemptedNow}
     onComplete={playitSetupComplete}
   />
 {/if}
 
 {#if showBroadcastAuth && broadcastAuth?.isPresent}
-  <BroadcastAuthSheet {api} prompt={broadcastAuth} onClose={closeBroadcastAuth} />
+  <BroadcastAuthSheet {api} prompt={broadcastAuth} visible={!hidden} onClose={closeBroadcastAuth} />
 {/if}
 
 <style>
@@ -671,14 +718,18 @@
     flex-direction: column;
     gap: 2px;
   }
+  .locked-transport {
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+    font-style: italic;
+  }
   strong,
   .connection-list span {
     color: var(--msc2-text-primary);
     font-size: 12px;
     font-weight: 500;
   }
-  .transport-row span,
-  .muted {
+  .transport-row span {
     color: var(--msc2-text-tertiary);
     font-size: 11px;
   }
@@ -701,8 +752,15 @@
     font-size: 11px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
-  .muted {
-    margin-left: auto;
+  .connection-note {
+    flex: 1;
+    color: var(--msc2-text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+    text-align: right;
+  }
+  .connection-note strong {
+    font-size: inherit;
   }
   .console-panel {
     display: flex;

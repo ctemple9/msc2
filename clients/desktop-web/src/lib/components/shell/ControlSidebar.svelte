@@ -51,6 +51,9 @@
   export let onSwitchHost: (id: HostId) => void = () => undefined;
   export let onLifecycle: (action: 'start' | 'stop') => void;
   export let onInitiate: () => void = () => undefined;
+  export let initiationHidden = false;
+  export let initiationServerId: string | undefined = undefined;
+  export let onResumeInitiation: () => void = () => undefined;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
 
@@ -133,6 +136,7 @@
 
   $: activeServer = servers.find((server) => server.id === activeServerId);
   $: startLabel = activeServer?.firstStartRequired ? 'Initiate' : 'Start';
+  $: canResumeInitiation = initiationHidden && initiationServerId === activeServerId;
 
   // Services is MSC2's own external-services panel (playit.gg + Xbox
   // Broadcast, not an oracle 1:1 port; MSC 1 calls its Xbox-Broadcast-only
@@ -232,6 +236,12 @@
           >Manage…</Button
         >
       </div>
+      {#if canResumeInitiation}
+        <div class="initiation-notice" role="status">
+          <span>First-start setup is hidden. Resume it when you’re ready.</span>
+          <Button variant="secondary" size="sm" onclick={onResumeInitiation}>Resume setup</Button>
+        </div>
+      {/if}
     </div>
 
     {#each visibleSections as section (section)}
@@ -411,6 +421,18 @@
   }
   .control-row :global(.btn.secondary) {
     flex-shrink: 0;
+  }
+  .initiation-notice {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 9px;
+    color: var(--msc2-text-secondary);
+    background: var(--msc2-tier-surface);
+    border-left: 2px solid var(--msc2-status-warn);
+    font-size: 11px;
+    line-height: 1.4;
   }
   .disclosure {
     border-top: 1px solid var(--msc2-hairline-subtle);

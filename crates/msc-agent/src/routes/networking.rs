@@ -1043,6 +1043,7 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
         return Json(BroadcastStatusDto {
             xbox_broadcast_running: false,
             bedrock_broadcast_running: false,
+            gamertag: None,
         })
         .into_response();
     };
@@ -1055,6 +1056,7 @@ pub async fn broadcast_status(State(state): State<NetworkingState>) -> Response 
                 HelperStatus::Running | HelperStatus::Starting
             ),
             bedrock_broadcast_running: false,
+            gamertag: status.gamertag,
         })
         .into_response(),
         Err(error) => helper_error_response(error.to_string(), "broadcast_status_failed"),

@@ -333,6 +333,20 @@ pub fn parse_broadcast_auth_prompt(line: &str) -> Option<BroadcastAuthPrompt> {
     })
 }
 
+/// MCXboxBroadcast reports the account it authenticated immediately before
+/// creating the Xbox LIVE session. Keep only the display name; the XUID and
+/// all credential material stay out of the client-facing status.
+pub fn parse_broadcast_gamertag(line: &str) -> Option<String> {
+    let lower = line.to_ascii_lowercase();
+    let marker = "successfully authenticated as ";
+    let start = lower.find(marker)? + marker.len();
+    let gamertag = line[start..]
+        .split_whitespace()
+        .next()?
+        .trim_matches(['[', ']', '(', ')', ',']);
+    (!gamertag.is_empty()).then(|| gamertag.to_owned())
+}
+
 pub fn broadcast_is_ready(line: &str) -> bool {
     line.to_ascii_lowercase()
         .contains("creation of xbox live session was successful")

@@ -36,6 +36,9 @@
   export let onSelectServer: (id: string) => void;
   export let onLifecycle: (action: 'start' | 'stop') => void;
   export let onInitiate: () => void = () => undefined;
+  export let initiationHidden = false;
+  export let initiationServerId: string | undefined = undefined;
+  export let onResumeInitiation: () => void = () => undefined;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
   export let onHelp: (() => void) | undefined = undefined;
@@ -139,6 +142,9 @@
         {onSwitchHost}
         {onLifecycle}
         {onInitiate}
+        {initiationHidden}
+        {initiationServerId}
+        {onResumeInitiation}
         {onOpenAgentSetup}
         {onManage}
       />

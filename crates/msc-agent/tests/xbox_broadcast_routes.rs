@@ -9,6 +9,7 @@ fn broadcast_route_dtos_match_the_frozen_wire_names_and_redact_nothing_by_accide
     let status = serde_json::to_value(BroadcastStatusDto {
         xbox_broadcast_running: true,
         bedrock_broadcast_running: false,
+        gamertag: None,
     })
     .unwrap();
     assert_eq!(

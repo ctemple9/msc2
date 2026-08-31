@@ -8,6 +8,7 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let prompt: Schema['BroadcastAuthPromptDTO'];
+  export let visible = true;
   export let onClose: () => void;
 
   let busy = false;
@@ -38,7 +39,7 @@
   }
 </script>
 
-<Sheet title="Sign in to Xbox Broadcast" size="sm" onClose={busy ? undefined : done}>
+<Sheet title="Sign in to Xbox Broadcast" size="sm" {visible} onClose={busy ? undefined : done}>
   <div class="stack">
     <div>
       <p class="msc2-type-overline">Microsoft sign-in</p>

@@ -47,6 +47,8 @@
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let broadcast: Schema['BroadcastStatusDTO'] | undefined;
   let broadcastAuth: Schema['BroadcastAuthPromptDTO'] | undefined;
+  let broadcastAuthPromptKey = '';
+  let broadcastAuthHidden = false;
   let activeServerId = '';
   let playitChoiceRequired = false;
   let broadcastChoiceRequired = broadcastEnabled;
@@ -318,7 +320,19 @@
     try {
       broadcast = await api.get<Schema['BroadcastStatusDTO']>('/v1/broadcast/status');
       broadcastAuth = await api.get<Schema['BroadcastAuthPromptDTO']>('/v1/broadcast/auth-prompt');
-      showBroadcastAuth = Boolean(broadcastAuth.isPresent);
+      if (!broadcastAuth.isPresent) {
+        broadcastAuthPromptKey = '';
+        broadcastAuthHidden = false;
+        showBroadcastAuth = false;
+        return;
+      }
+
+      const promptKey = `${broadcastAuth.code ?? ''}|${broadcastAuth.linkURL ?? ''}`;
+      if (promptKey !== broadcastAuthPromptKey) {
+        broadcastAuthPromptKey = promptKey;
+        broadcastAuthHidden = false;
+      }
+      if (!broadcastAuthHidden) showBroadcastAuth = true;
     } catch (caught) {
       statusLine = errorMessage(caught);
     }
@@ -326,7 +340,13 @@
 
   function closeBroadcastAuth(): void {
     showBroadcastAuth = false;
-    broadcastAuth = undefined;
+    broadcastAuthHidden = true;
+  }
+
+  function reopenBroadcastAuth(): void {
+    if (!broadcastAuth?.isPresent) return;
+    broadcastAuthHidden = false;
+    showBroadcastAuth = true;
   }
 
   async function monitorBroadcastOperation(id: string): Promise<void> {
@@ -478,10 +498,17 @@
       </div>
 
       {#if broadcastAuth?.isPresent}
-        <p class="notice" role="status">
-          Xbox Broadcast needs sign-in: enter code {broadcastAuth.code ?? 'shown by the helper'} at
-          {broadcastAuth.linkURL ?? 'the Microsoft device sign-in page'}.
-        </p>
+        <div class="notice broadcast-auth-notice" role="status">
+          <span>
+            Xbox Broadcast needs sign-in: enter code {broadcastAuth.code ?? 'shown by the helper'} at
+            {broadcastAuth.linkURL ?? 'the Microsoft device sign-in page'}.
+          </span>
+          {#if !showBroadcastAuth}
+            <Button variant="secondary" size="sm" onclick={reopenBroadcastAuth}
+              >Show code again</Button
+            >
+          {/if}
+        </div>
       {/if}
       <p class="status-line" role="status" aria-live="polite">{statusLine}</p>
       {#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -642,6 +669,14 @@
     padding: 10px 12px;
     background: var(--msc2-tier-chrome);
     border-left: 2px solid var(--msc2-status-warn);
+  }
+  .broadcast-auth-notice {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .broadcast-auth-notice > span {
+    flex: 1;
   }
   .eula-check {
     display: flex;

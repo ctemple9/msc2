@@ -37,9 +37,18 @@
       busy = false;
     }
   }
+
+  function closeWithoutDismissing(): void {
+    if (!busy) onClose();
+  }
 </script>
 
-<Sheet title="Sign in to Xbox Broadcast" size="sm" {visible} onClose={busy ? undefined : done}>
+<Sheet
+  title="Sign in to Xbox Broadcast"
+  size="sm"
+  {visible}
+  onClose={busy ? undefined : closeWithoutDismissing}
+>
   <div class="stack">
     <div>
       <p class="msc2-type-overline">Microsoft sign-in</p>

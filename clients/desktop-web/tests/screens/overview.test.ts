@@ -14,6 +14,7 @@ describe('overview connection information', () => {
 
   it('threads the agent-reported host address into Overview and the sidebar', () => {
     expect(connectionSource).toContain('export let hostAddress: string | undefined = undefined;');
+    expect(connectionSource).toContain('export let bedrockPort: number | undefined = undefined;');
     expect(connectionSource).toContain(
       "export let playit: Schema['PlayitStatusResponseDTO'] | undefined = undefined;",
     );
@@ -25,6 +26,13 @@ describe('overview connection information', () => {
     );
     expect(connectionSource).toContain('playitSelected ? undefined : gamePort');
     expect(homeSource).toContain('hostAddress={activeServer?.hostAddress}');
+    expect(homeSource).toContain('bedrockPort={activeServer?.bedrockPort}');
+    expect(connectionSource).toContain('configuredBedrockPort = bedrockPort ?? geyser?.port');
+    expect(connectionSource).toContain('configuredBedrockPort !== undefined');
+    expect(connectionSource).toContain(
+      'playitSelected ? undefined : isBedrockServer ? gamePort : configuredBedrockPort',
+    );
+    expect(connectionSource).toContain(': configuredBedrockPort;');
     expect(homeSource).toContain('{playit}');
     expect(controlSidebarSource).toContain('hostAddress={activeServer?.hostAddress}');
     expect(controlSidebarSource).toContain('gamePort={activeServer?.gamePort}');

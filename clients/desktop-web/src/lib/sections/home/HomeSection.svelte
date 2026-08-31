@@ -96,6 +96,7 @@
       <ConnectionCard
         serverType={activeServer?.serverType}
         gamePort={activeServer?.gamePort}
+        bedrockPort={activeServer?.bedrockPort}
         hostAddress={activeServer?.hostAddress}
         {geyser}
         {connectivity}

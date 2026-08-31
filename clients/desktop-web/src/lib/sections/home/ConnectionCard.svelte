@@ -12,6 +12,7 @@
 
   export let serverType: string | undefined = undefined;
   export let gamePort: number | undefined = undefined;
+  export let bedrockPort: number | undefined = undefined;
   export let hostAddress: string | undefined = undefined;
   export let geyser: Schema['GeyserConfigResponseDTO'] | undefined = undefined;
   export let connectivity: Schema['ConnectivityResponseDTO'] | undefined = undefined;
@@ -21,7 +22,9 @@
   let copiedLabel = '';
 
   $: isBedrockServer = serverType === 'bedrock';
-  $: hasGeyser = !isBedrockServer && geyser?.isGeyserInstalled && geyser?.port !== undefined;
+  $: configuredBedrockPort = bedrockPort ?? geyser?.port;
+  $: hasGeyser =
+    !isBedrockServer && (geyser?.isGeyserInstalled === true || configuredBedrockPort !== undefined);
 
   type Endpoint = { host: string; port?: number };
 
@@ -82,7 +85,7 @@
   $: publicJavaEndpoint = publicEndpoint(publicJavaValue, playitSelected ? undefined : gamePort);
   $: publicBedrockEndpoint = publicEndpoint(
     publicBedrockValue,
-    playitSelected ? undefined : isBedrockServer ? gamePort : geyser?.port,
+    playitSelected ? undefined : isBedrockServer ? gamePort : configuredBedrockPort,
   );
 
   function sourceTag(
@@ -123,8 +126,8 @@
         ? undefined
         : isBedrockServer
           ? gamePort
-          : geyser?.port))
-    : geyser?.port;
+          : configuredBedrockPort))
+    : configuredBedrockPort;
   $: javaCopyValue = showPublic
     ? endpointText(publicJavaEndpoint)
     : gamePort !== undefined

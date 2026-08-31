@@ -4,11 +4,35 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#101820" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #000;
+      }
+      #startup-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: grid;
+        place-items: center;
+        background: #000;
+      }
+      #startup-splash img {
+        display: block;
+        width: min(14rem, 45vw, 45vh);
+        height: auto;
+        image-rendering: pixelated;
+      }
+    </style>
     <title>MSC 2</title>
-    <script type="module" crossorigin src="/assets/index-BHYWDcZB.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-BSwkGbYJ.css">
+    <script type="module" crossorigin src="/assets/index-qcVZKNH_.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Fax8Eqsu.css">
   </head>
   <body>
+    <div id="startup-splash" role="status" aria-label="Opening Minecraft Server Controller">
+      <img src="/msc-icon.png" alt="" aria-hidden="true" />
+    </div>
     <div id="app"></div>
   </body>
 </html>

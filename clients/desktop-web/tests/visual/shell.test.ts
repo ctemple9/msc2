@@ -79,6 +79,8 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(playerAvatarSource).not.toContain('meta.addLabel');
     expect(playerAvatarSource).not.toContain('type="submit"');
     expect(playerAvatarSource).toContain('event.preventDefault();');
+    expect(playerAvatarSource).toContain('fetchBedrockBodyUrl');
+    expect(playerAvatarSource).not.toContain("lookup isn't available yet");
   });
 
   it('keeps the sidebar scrollable without displaying scrollbar chrome', () => {

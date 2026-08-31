@@ -29,7 +29,11 @@ async fn serves_packaged_hashed_assets_with_browser_safe_headers() {
         "no-cache",
         "the HTML entry point must pick up a newly packaged asset manifest"
     );
-    assert!(response.headers().contains_key("content-security-policy"));
+    let policy = response.headers()["content-security-policy"]
+        .to_str()
+        .expect("valid content security policy");
+    assert!(policy.contains("https://api.geysermc.org"));
+    assert!(policy.contains("https://mc-heads.net"));
     let index = response
         .into_body()
         .collect()

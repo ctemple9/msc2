@@ -1,12 +1,10 @@
 <script lang="ts">
   // MSC 1's PlayerAvatarView: Java/Bedrock edition toggle, one saved identity
   // per edition, and the rendered full-body skin. Java is a real minotar.net
-  // fetch. Bedrock's real lookup (BedrockSkinFetcher: join-cache -> live Xbox
-  // lookup -> dotted-gamertag fallback) depends on the player-profile/Xbox
-  // work Phase 11 explicitly deferred, so Bedrock degrades honestly here
-  // instead of faking a working lookup. No idle-sway: antiAIslop's design law
+  // fetch. Bedrock uses the same GeyserMC join-cache/Xbox lookup and dotted
+  // gamertag fallback as MSC 1's BedrockSkinFetcher. No idle-sway: antiAIslop's design law
   // #8 reserves the app's one deliberate flourish for the terrain banner.
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import SegmentedControl from '../base/SegmentedControl.svelte';
   import Field from '../base/Field.svelte';
   import Button from '../base/Button.svelte';
@@ -17,8 +15,9 @@
     setStoredEdition,
     type AvatarEdition,
   } from '../../player/avatarIdentity';
+  import { fetchBedrockBodyUrl } from '../../player/bedrockSkin';
 
-  type Status = 'prompt' | 'loading' | 'loaded' | 'error' | 'unavailable';
+  type Status = 'prompt' | 'loading' | 'loaded' | 'error';
 
   const EDITIONS: { value: AvatarEdition; label: string }[] = [
     { value: 'java', label: 'Java' },
@@ -48,6 +47,7 @@
   let errorMessage = '';
   let imageUrl = '';
   let displayName = '';
+  let avatarRequest = 0;
 
   $: currentIdentity = edition === 'java' ? javaUsername : bedrockGamertag;
   $: meta = META[edition];
@@ -59,7 +59,12 @@
     loadForEdition();
   });
 
+  onDestroy(() => {
+    avatarRequest += 1;
+  });
+
   function loadForEdition(): void {
+    avatarRequest += 1;
     const identity = currentIdentity.trim();
     if (!identity) {
       status = 'prompt';
@@ -70,30 +75,48 @@
     inputValue = identity;
     isEditing = false;
     if (edition === 'bedrock') {
-      status = 'unavailable';
-      displayName = identity;
+      void fetchBedrockSkin(identity);
       return;
     }
     fetchJavaSkin(identity);
   }
 
   function fetchJavaSkin(username: string): void {
+    const request = ++avatarRequest;
     status = 'loading';
     const encoded = encodeURIComponent(username);
     const url = `https://minotar.net/body/${encoded}/160`;
     const probe = new Image();
     probe.onload = () => {
-      if (edition !== 'java' || currentIdentity.trim() !== username) return;
+      if (request !== avatarRequest || edition !== 'java' || currentIdentity.trim() !== username)
+        return;
       imageUrl = url;
       displayName = username;
       status = 'loaded';
     };
     probe.onerror = () => {
-      if (edition !== 'java' || currentIdentity.trim() !== username) return;
+      if (request !== avatarRequest || edition !== 'java' || currentIdentity.trim() !== username)
+        return;
       errorMessage = `Username "${username}" wasn't found. Check the spelling — this must be a Java Edition username.`;
       status = 'error';
     };
     probe.src = url;
+  }
+
+  async function fetchBedrockSkin(gamertag: string): Promise<void> {
+    const request = ++avatarRequest;
+    status = 'loading';
+    const url = await fetchBedrockBodyUrl(gamertag);
+    if (request !== avatarRequest || edition !== 'bedrock' || currentIdentity.trim() !== gamertag)
+      return;
+    if (!url) {
+      errorMessage = `Gamertag "${gamertag}" wasn't found. Check the spelling and use the player's Bedrock gamertag.`;
+      status = 'error';
+      return;
+    }
+    imageUrl = url;
+    displayName = gamertag;
+    status = 'loaded';
   }
 
   function selectEdition(next: string): void {
@@ -103,6 +126,7 @@
   }
 
   function startEdit(): void {
+    avatarRequest += 1;
     status = 'prompt';
     isEditing = true;
     inputValue = currentIdentity;
@@ -152,19 +176,18 @@
       <img class="skin" src={imageUrl} alt="{displayName}'s Minecraft skin" />
       <p class="name">{displayName}</p>
     </div>
-  {:else if status === 'unavailable'}
-    <div class="unavailable">
-      <p class="message">
-        Bedrock skin lookup isn't available yet — it needs the Xbox identity resolver from a later
-        phase.
-      </p>
-      <p class="name">{displayName}</p>
-    </div>
   {:else if status === 'error'}
     <div class="error-state">
       <p class="message">{errorMessage}</p>
       <div class="actions">
-        <Button variant="primary" size="sm" onclick={() => fetchJavaSkin(currentIdentity)}>
+        <Button
+          variant="primary"
+          size="sm"
+          onclick={() =>
+            edition === 'bedrock'
+              ? void fetchBedrockSkin(currentIdentity)
+              : fetchJavaSkin(currentIdentity)}
+        >
           Retry
         </Button>
         <button type="button" class="link" onclick={startEdit}>{meta.changeLabel}</button>
@@ -255,21 +278,6 @@
     margin: 0;
     font-size: 11px;
     color: var(--msc2-text-tertiary);
-  }
-  .unavailable {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 4px 0;
-  }
-  .unavailable .message {
-    margin: 0;
-    font-size: 11px;
-    line-height: 1.5;
-    color: var(--msc2-text-tertiary);
-  }
-  .unavailable .name {
-    text-align: center;
   }
   .error-state {
     display: flex;

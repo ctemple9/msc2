@@ -393,7 +393,7 @@ async fn security_headers(
     headers.insert(
         "Content-Security-Policy",
         axum::http::HeaderValue::from_static(
-            "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self' blob:",
+            "default-src 'self'; base-uri 'none'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob: https://mc-heads.net https://api.mcheads.org https://minotar.net; connect-src 'self' https://api.geysermc.org; worker-src 'self' blob:",
         ),
     );
     headers.insert(

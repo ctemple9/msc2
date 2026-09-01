@@ -28,6 +28,7 @@
   import ResetSheet from './lib/sections/app-settings/ResetSheet.svelte';
   import { restoreAccent } from './lib/styles/accent';
   import { bannerColorFor } from './lib/styles/bannerColor';
+  import { waitForRunningState } from './lib/lifecycle/serverLifecycle';
   import { PRIMARY_TABS } from './lib/navigation/primaryTabs';
   import { selectAvailableServerId } from './lib/navigation/serverSelection';
   import {
@@ -511,7 +512,10 @@
   async function lifecycle(action: 'start' | 'stop'): Promise<void> {
     try {
       await screenApi.post(action === 'start' ? '/v1/start' : '/v1/stop');
-      status = await screenApi.get<Schema['RemoteAPIStatus']>('/v1/status');
+      status = await waitForRunningState(
+        () => screenApi.get<Schema['RemoteAPIStatus']>('/v1/status'),
+        action === 'start',
+      );
     } catch (error) {
       shellMessage = `Unable to ${action} the server: ${String(error)}`;
     }

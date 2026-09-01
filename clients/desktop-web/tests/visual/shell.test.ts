@@ -71,6 +71,11 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).toContain('bannerColorAccent');
   });
 
+  it('keeps the running banner character eyes on its face', () => {
+    expect(runningBannerGameSource).toContain('x="-3" y="15"');
+    expect(runningBannerGameSource).toContain('x="1" y="15"');
+  });
+
   it('keeps the running banner interactive and client-local', () => {
     expect(runningBannerGameSource).toContain('requestAnimationFrame');
     expect(runningBannerGameSource).toContain('onpointerdown={handleJumpInput}');

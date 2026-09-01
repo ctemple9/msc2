@@ -395,13 +395,10 @@
     >
       <rect x="-4" y="17" width="9" height="3" fill="#140d08" />
       <rect x="-4" y="13" width="9" height="4" fill="#332114" />
-      <rect x="-4" y="15" width="9" height="2" fill="#332114" />
+      <rect x="-3" y="15" width="2" height="2" fill="#d9bf99" />
+      <rect x="1" y="15" width="2" height="2" fill="#d9bf99" />
       <rect x="-5" y="4" width="10" height="7" fill="#2659b8" />
       <rect x="-1" y="4" width="2" height="7" fill="#1a4299" />
-      <rect x="-4" y="8" width="9" height="4" fill="#332114" />
-      <rect x="-4" y="6" width="9" height="2" fill="#140d08" />
-      <rect x="-3" y="8" width="2" height="2" fill="#d9bf99" />
-      <rect x="1" y="8" width="2" height="2" fill="#d9bf99" />
       <rect x="-4" y="11" width="9" height="2" fill="#332114" />
       <rect x="-4" y="0" width="4" height="4" fill="#472f78" />
       <rect x="1" y="0" width="4" height="4" fill="#472f78" />

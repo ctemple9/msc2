@@ -30,7 +30,6 @@
   export let showXboxBroadcast = false;
 
   let status: Schema['BroadcastStatusDTO'] | undefined;
-  let autostart: Schema['BroadcastAutoStartDTO'] | undefined;
   let jarStatus: Schema['BroadcastJarStatusDTO'] | undefined;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
   let broadcastBusy = false;
@@ -54,9 +53,8 @@
   }
 
   async function load(): Promise<void> {
-    [status, autostart, jarStatus, playit] = await Promise.all([
+    [status, jarStatus, playit] = await Promise.all([
       call(api, status, serverEditorPaths.broadcastStatus),
-      call(api, autostart, serverEditorPaths.broadcastAutostart),
       call(api, jarStatus, serverEditorPaths.broadcastJarStatus),
       call(api, playit, serverEditorPaths.playit),
     ]);
@@ -78,18 +76,6 @@
     }
   }
 
-  async function toggleAutostart(enabled: boolean): Promise<void> {
-    try {
-      autostart = await mutate<Schema['BroadcastAutoStartDTO']>(
-        api,
-        serverEditorPaths.broadcastAutostart,
-        { enabled },
-      );
-    } catch (error) {
-      notice = errorMessage(error);
-    }
-  }
-
   async function togglePlayit(): Promise<void> {
     if (playitBusy || !playit) return;
     playitBusy = true;
@@ -107,10 +93,8 @@
 
 <div class="console-access">
   <div class="service">
-    <p class="msc2-type-overline">playit.gg</p>
-    <div class="row">
-      <span class="dot" class:online={playit?.isRunning}></span>
-      <span class="status-label">{playit?.isRunning ? 'Running' : 'Stopped'}</span>
+    <div class="service-header">
+      <p class="msc2-type-overline">playit.gg</p>
       <Button
         variant="secondary"
         size="sm"
@@ -127,21 +111,9 @@
 
   {#if showXboxBroadcast}
     <div class="service">
-      <p class="msc2-type-overline">Xbox Broadcast</p>
-      {#if showBroadcastControls}
-        <div class="row">
-          <span class="dot" class:online={broadcastRunning}></span>
-          <span class="status-label">{broadcastRunning ? 'Running' : 'Stopped'}</span>
-          <label class="auto-check" title="Start Xbox broadcast automatically">
-            <input
-              type="checkbox"
-              checked={autostart?.enabled ?? false}
-              disabled={!canControl}
-              onchange={(event) =>
-                toggleAutostart((event.currentTarget as HTMLInputElement).checked)}
-            />
-            Auto-start
-          </label>
+      <div class="service-header">
+        <p class="msc2-type-overline">Xbox Broadcast</p>
+        {#if showBroadcastControls}
           <Button
             variant="secondary"
             size="sm"
@@ -150,8 +122,9 @@
           >
             {broadcastRunning ? 'Stop' : 'Start'}
           </Button>
-        </div>
-      {:else}
+        {/if}
+      </div>
+      {#if !showBroadcastControls}
         <p class="hint">Set up in Edit Server → Broadcast</p>
       {/if}
     </div>
@@ -173,43 +146,13 @@
   }
   .service :global(.msc2-type-overline) {
     line-height: 1;
-  }
-  .row {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--msc2-neutral-muted);
-    flex-shrink: 0;
-  }
-  .dot.online {
-    background: var(--msc2-status-ok);
-  }
-  .status-label {
-    flex: 1;
-    font-size: 11px;
-    color: var(--msc2-text-secondary);
-  }
-  .auto-check {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    color: var(--msc2-text-secondary);
-    white-space: nowrap;
-    cursor: pointer;
-  }
-  .auto-check input {
-    width: 12px;
-    height: 12px;
     margin: 0;
-    accent-color: var(--msc2-status-ok);
-    cursor: pointer;
+  }
+  .service-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
   }
   .hint {
     margin: 0;

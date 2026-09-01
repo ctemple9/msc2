@@ -1353,12 +1353,13 @@ fn native_setup_reuses_legacy_voice_inventory_without_protocol_marker() {
 }
 
 #[test]
-fn native_setup_rejects_a_named_tunnel_that_targets_another_local_port() {
+fn native_setup_reuses_a_named_tunnel_that_targets_another_local_port_in_shared_mode() {
     let transport = FakeAccountTransport::new([
         (
             200,
             serde_json::json!({"status": "success", "data": {"session_key": "session-secret"}}),
         ),
+        tunnel_list_response(vec![tunnel_fixture(PlayitTunnelKind::Java, 25566)]),
         tunnel_list_response(vec![tunnel_fixture(PlayitTunnelKind::Java, 25566)]),
     ]);
     let secrets = FakeSecretStore::new();
@@ -1378,13 +1379,20 @@ fn native_setup_rejects_a_named_tunnel_that_targets_another_local_port() {
         |_| {},
     );
 
-    assert_eq!(
-        result.unwrap_err(),
-        msc_application::playit::PlayitSetupError::TunnelMismatch(PlayitTunnelKind::Java)
-    );
+    assert!(result.is_ok());
     assert_eq!(
         secrets.get(PLAYIT_SECRET_KEY).unwrap().as_deref(),
         Some("existing-agent-secret")
+    );
+    assert_eq!(
+        transport
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(path, _, _)| path.ends_with("/tunnels/create"))
+            .count(),
+        0
     );
 }
 

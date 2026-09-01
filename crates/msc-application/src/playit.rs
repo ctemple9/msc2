@@ -415,7 +415,13 @@ impl<'a> PlayitAccountSetup<'a> {
                 .filter(|tunnel| tunnel.name == spec.kind.name())
                 .collect();
             match matching.as_slice() {
-                [tunnel] if tunnel_matches(tunnel, *spec, agent_id) => {}
+                // Shared mode intentionally matches MSC 1: the stable tunnel
+                // name is the ownership key. A second server may have a
+                // different local port in its saved files, but it must not
+                // cause MSC to create another free-plan tunnel.
+                [tunnel]
+                    if tunnel_matches(tunnel, *spec, agent_id)
+                        || tunnel.name == spec.kind.name() => {}
                 [] => self.create_tunnel(agent_id, *spec, session, should_cancel)?,
                 _ => return Err(PlayitSetupError::TunnelMismatch(spec.kind)),
             }
@@ -454,7 +460,12 @@ impl<'a> PlayitAccountSetup<'a> {
                 .collect();
             let tunnel = match matching.as_slice() {
                 [] => return Err(PlayitSetupError::Api(PlayitApiError::AgentNotFound)),
-                [tunnel] if tunnel_matches(tunnel, *spec, agent_id) => tunnel,
+                [tunnel]
+                    if tunnel_matches(tunnel, *spec, agent_id)
+                        || tunnel.name == spec.kind.name() =>
+                {
+                    tunnel
+                }
                 _ => return Err(PlayitSetupError::TunnelMismatch(spec.kind)),
             };
             let address = tunnel.active.then(|| {

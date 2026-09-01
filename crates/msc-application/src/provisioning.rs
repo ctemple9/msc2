@@ -69,6 +69,7 @@ use std::fmt;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
+use crate::geyser;
 use crate::modpacks::{self, ModpackInspection};
 use crate::worlds::{self, WorldError};
 
@@ -93,6 +94,11 @@ pub enum CreateServerError {
     /// This module only provisions the four download-and-go families.
     UnsupportedFlavor(JavaServerFlavor),
     Download(JarProviderError),
+    CrossPlayUnsupported {
+        flavor: JavaServerFlavor,
+        version: String,
+    },
+    CrossPlayInstall(String),
     TemplateStore(TemplateStoreError),
     PathSafety(PathSafetyError),
     Io(std::io::Error),
@@ -142,6 +148,15 @@ impl fmt::Display for CreateServerError {
                 )
             }
             CreateServerError::Download(e) => write!(f, "{e}"),
+            CreateServerError::CrossPlayUnsupported { flavor, version } => write!(
+                f,
+                "Geyser cross-play is not supported for {} on Minecraft {}. Geyser requires Paper/Spigot 1.20.5 or newer.",
+                flavor.raw_value(),
+                version
+            ),
+            CreateServerError::CrossPlayInstall(message) => {
+                write!(f, "Geyser/Floodgate installation failed: {message}")
+            }
             CreateServerError::TemplateStore(e) => write!(f, "{e}"),
             CreateServerError::PathSafety(e) => write!(f, "{e}"),
             CreateServerError::Io(e) => write!(f, "{e}"),
@@ -165,6 +180,12 @@ impl std::error::Error for CreateServerError {}
 impl From<JarProviderError> for CreateServerError {
     fn from(e: JarProviderError) -> Self {
         CreateServerError::Download(e)
+    }
+}
+
+impl From<geyser::InstallError> for CreateServerError {
+    fn from(error: geyser::InstallError) -> Self {
+        Self::CrossPlayInstall(error.to_string())
     }
 }
 
@@ -1003,6 +1024,19 @@ pub fn create_download_and_go_server(
         )?;
         let primary_jar_path = jar_dest.to_string_lossy().into_owned();
 
+        if request.enable_cross_play {
+            install_cross_play_plugins(
+                fs,
+                transport,
+                servers_root,
+                &new_dir,
+                request.flavor,
+                &resolved.version,
+                request.port,
+                request.cross_play_bedrock_port.unwrap_or(19132),
+            )?;
+        }
+
         finish_server_creation(
             fs,
             home_dir,
@@ -1051,8 +1085,8 @@ pub fn create_download_and_go_server(
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn finish_server_creation(
     fs: &dyn FileSystem,
-    home_dir: &Path,
-    plugin_template_dir: &Path,
+    _home_dir: &Path,
+    _plugin_template_dir: &Path,
     new_dir: &Path,
     request: &NewServerRequest,
     safe_name: &str,
@@ -1084,8 +1118,11 @@ pub(crate) fn finish_server_creation(
     if let Some(add_on) = provisioning::add_on_folder_name(request.flavor) {
         let add_on_dir = new_dir.join(add_on);
         fs.create_dir_all(&add_on_dir)?;
-        if request.enable_cross_play && add_on == "plugins" {
-            apply_cross_play_templates_if_available(fs, home_dir, plugin_template_dir, &add_on_dir);
+        if request.enable_cross_play && add_on != "plugins" {
+            return Err(CreateServerError::CrossPlayUnsupported {
+                flavor: request.flavor,
+                version: resolved_version.unwrap_or("unknown").to_string(),
+            });
         }
     }
 
@@ -1118,7 +1155,7 @@ pub(crate) fn finish_server_creation(
         request.enable_playit,
         request.enable_xbox_broadcast,
         if request.enable_cross_play {
-            request.cross_play_bedrock_port
+            Some(request.cross_play_bedrock_port.unwrap_or(19132))
         } else {
             None
         },
@@ -1900,44 +1937,45 @@ fn apply_fields(fields: provisioning::NewServerConfigFields) -> ConfigServer {
     config
 }
 
-/// `applyCrossPlayTemplatesIfAvailable(to:)`
-/// (`AppViewModel+ServerCreation.swift:547-580`): copies the newest
-/// Geyser and Floodgate jars found in the plugin template directory into
-/// the new server's `plugins/` — silently does nothing if either is
-/// missing, matching source's own log-and-return (no error propagates
-/// to the caller either way).
-fn apply_cross_play_templates_if_available(
+/// GeyserMC's compatibility contract is a supported Minecraft/platform range,
+/// not a matching Paper build number. The official resolver is therefore run
+/// only after Paper has supplied the concrete Minecraft version, and the
+/// published 1.20.5 floor is enforced before either plugin is installed.
+#[allow(clippy::too_many_arguments)]
+fn install_cross_play_plugins(
     fs: &dyn FileSystem,
-    home_dir: &Path,
-    plugin_template_dir: &Path,
-    plugins_dir: &Path,
-) {
-    let Ok(entries) = template_store::list_templates(fs, plugin_template_dir, home_dir) else {
-        return;
-    };
-    let geyser = entries
-        .iter()
-        .find(|e| e.filename.to_lowercase().contains("geyser"));
-    let floodgate = entries
-        .iter()
-        .find(|e| e.filename.to_lowercase().contains("floodgate"));
-    let (Some(geyser), Some(floodgate)) = (geyser, floodgate) else {
-        return;
-    };
-    let _ = template_store::copy_into_server_dir(
+    transport: &dyn Transport,
+    servers_root: &Path,
+    server_dir: &Path,
+    flavor: JavaServerFlavor,
+    minecraft_version: &str,
+    java_port: u16,
+    bedrock_port: u16,
+) -> Result<(), CreateServerError> {
+    if !matches!(
+        flavor,
+        JavaServerFlavor::Paper | JavaServerFlavor::Purpur | JavaServerFlavor::Pufferfish
+    ) || msc_domain::server_versions::compare_mc_versions(minecraft_version, "1.20.5")
+        == std::cmp::Ordering::Less
+    {
+        return Err(CreateServerError::CrossPlayUnsupported {
+            flavor,
+            version: minecraft_version.to_string(),
+        });
+    }
+
+    fs.create_dir_all(&server_dir.join("plugins"))?;
+    let platform = msc_infrastructure::helper_acquisition::HelperPlatform::current()
+        .map_err(|error| CreateServerError::CrossPlayInstall(error.to_string()))?;
+    geyser::install_latest_pair(
         fs,
-        &geyser.path,
-        plugins_dir,
-        home_dir,
-        &geyser.filename,
-    );
-    let _ = template_store::copy_into_server_dir(
-        fs,
-        &floodgate.path,
-        plugins_dir,
-        home_dir,
-        &floodgate.filename,
-    );
+        transport,
+        &servers_root.join("_addon_cache"),
+        server_dir,
+        platform,
+    )?;
+    geyser::configure_for_floodgate(fs, server_dir, java_port, bedrock_port)?;
+    Ok(())
 }
 
 /// Resolve MSC 1's two accepted Bedrock import shapes: the selected folder

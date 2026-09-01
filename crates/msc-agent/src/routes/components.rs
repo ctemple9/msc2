@@ -296,19 +296,37 @@ fn component_rows(server: &msc_domain::app_config_schema::ConfigServer) -> Vec<C
         // catalog add-ons.  Their builds have no provider-backed update check
         // yet, so expose the installed fact and say that honestly.
         let installation = geyser::installation(&StdFileSystem, Path::new(&server.server_dir));
-        for (name, installed) in [
-            ("Geyser", installation.geyser_installed),
-            ("Floodgate", installation.floodgate_installed),
+        for (name, installed, plugin_path) in [
+            (
+                "Geyser",
+                installation.geyser_installed,
+                installation.geyser_path.as_deref(),
+            ),
+            (
+                "Floodgate",
+                installation.floodgate_installed,
+                installation.floodgate_path.as_deref(),
+            ),
         ] {
             if installed {
+                let installed_metadata = plugin_path
+                    .and_then(|path| geyser::installed_plugin_version(&StdFileSystem, path));
+                let installed_label = installed_metadata.as_ref().map(|metadata| {
+                    metadata
+                        .build
+                        .map(|build| build.to_string())
+                        .unwrap_or_else(|| metadata.version.clone())
+                });
                 rows.push(ComponentStatusDto {
                     name: name.to_string(),
-                    installed_build: None,
+                    installed_build: installed_metadata
+                        .as_ref()
+                        .and_then(|metadata| metadata.build),
                     latest_build: None,
-                    installed_version: None,
+                    installed_version: installed_metadata.map(|metadata| metadata.version),
                     latest_version: None,
                     is_up_to_date: false,
-                    installed_label: Some("installed".to_string()),
+                    installed_label: installed_label.or_else(|| Some("installed".to_string())),
                     updatable: Some(false),
                     note: Some("update_information_unavailable".to_string()),
                 });
@@ -1347,6 +1365,19 @@ pub async fn update_component(
             format!("{jar_stem}.jar")
         };
         let path = add_on_dir.join(current_name);
+        let target = if enabled {
+            add_on_dir.join(format!("{jar_stem}.jar"))
+        } else {
+            add_on_dir.join(format!("{jar_stem}.jar.disabled"))
+        };
+        if !server.pack_managed && !path.is_file() && target.is_file() {
+            return update_result(
+                if enabled { "enabled" } else { "disabled" },
+                Some(jar_stem.to_string()),
+                1,
+                None,
+            );
+        }
         return match addons::toggle(&StdFileSystem, &path, server.pack_managed) {
             Ok(_) => update_result(
                 if enabled { "enabled" } else { "disabled" },

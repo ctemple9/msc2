@@ -13,7 +13,9 @@ use msc_application::provisioning::{
 };
 use msc_domain::identity::JavaServerFlavor;
 use msc_domain::world_profile::WorldProfile;
+use msc_infrastructure::download_staging::sha256_hex;
 use msc_infrastructure::fs::{FileSystem, StdFileSystem};
+use msc_infrastructure::geyser::{GeyserProject, latest_build_url};
 use msc_infrastructure::jar_provider::{JarProviderError, Transport};
 use std::collections::HashMap;
 use std::fs;
@@ -105,6 +107,46 @@ fn paper_transport() -> FakeTransport {
             br#"[{"id":231,"channel":"STABLE","downloads":{"server:default":{"url":"https://dl/paper-1.21.4-231.jar","checksums":{"sha256":"b90451bf06476ab0348852d0af747a6962e6b648e9a20ba261501e12e0d7b321"}}}}]"#.to_vec(),
         )
         .with("https://dl/paper-1.21.4-231.jar", b"FAKE-PAPER-JAR".to_vec())
+}
+
+fn cross_play_paper_transport() -> FakeTransport {
+    let geyser_bytes = b"FAKE-GEYSER-JAR";
+    let floodgate_bytes = b"FAKE-FLOODGATE-JAR";
+    let geyser_version = "2.11.2";
+    let geyser_build = 42;
+    let floodgate_version = "2.2.5";
+    let floodgate_build = 9;
+    paper_transport()
+        .with(
+            &latest_build_url(GeyserProject::Geyser),
+            serde_json::to_vec(&serde_json::json!({
+                "version": geyser_version,
+                "build": geyser_build,
+                "downloads": { "spigot": { "sha256": sha256_hex(geyser_bytes) } }
+            }))
+            .unwrap(),
+        )
+        .with(
+            &format!(
+                "https://download.geysermc.org/v2/projects/geyser/versions/{geyser_version}/builds/{geyser_build}/downloads/spigot"
+            ),
+            geyser_bytes.to_vec(),
+        )
+        .with(
+            &latest_build_url(GeyserProject::Floodgate),
+            serde_json::to_vec(&serde_json::json!({
+                "version": floodgate_version,
+                "build": floodgate_build,
+                "downloads": { "spigot": { "sha256": sha256_hex(floodgate_bytes) } }
+            }))
+            .unwrap(),
+        )
+        .with(
+            &format!(
+                "https://download.geysermc.org/v2/projects/floodgate/versions/{floodgate_version}/builds/{floodgate_build}/downloads/spigot"
+            ),
+            floodgate_bytes.to_vec(),
+        )
 }
 
 fn purpur_transport() -> FakeTransport {
@@ -741,14 +783,10 @@ fn provisioning_ram_default_plugin_2_4gb_vs_modded_3_6gb() {
 // ---------------------------------------------------------------------
 
 #[test]
-fn provisioning_cross_play_template_copy_applied_for_plugin_addon() {
+fn provisioning_cross_play_downloads_official_plugins_for_plugin_addon() {
     let tmp = TempDir::new("crossplay-applied");
-    let template_dir = tmp.path().join("templates/plugin");
-    fs::create_dir_all(&template_dir).unwrap();
-    fs::write(template_dir.join("Geyser-Spigot.jar"), b"GEYSER").unwrap();
-    fs::write(template_dir.join("floodgate-spigot.jar"), b"FLOODGATE").unwrap();
 
-    let transport = paper_transport();
+    let transport = cross_play_paper_transport();
     let mut request = base_request(JavaServerFlavor::Paper, WorldSource::Fresh);
     request.enable_cross_play = true;
     request.cross_play_bedrock_port = Some(19132);
@@ -759,7 +797,7 @@ fn provisioning_cross_play_template_copy_applied_for_plugin_addon() {
         tmp.path(),
         tmp.path(),
         &tmp.path().join("templates/paper"),
-        &template_dir,
+        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
@@ -768,43 +806,47 @@ fn provisioning_cross_play_template_copy_applied_for_plugin_addon() {
     .unwrap();
 
     let plugins_dir = PathBuf::from(&created.config.server_dir).join("plugins");
-    assert!(plugins_dir.join("Geyser-Spigot.jar").is_file());
-    assert!(plugins_dir.join("floodgate-spigot.jar").is_file());
+    assert_eq!(
+        fs::read(plugins_dir.join("Geyser-Spigot.jar")).unwrap(),
+        b"FAKE-GEYSER-JAR"
+    );
+    assert_eq!(
+        fs::read(plugins_dir.join("floodgate-spigot.jar")).unwrap(),
+        b"FAKE-FLOODGATE-JAR"
+    );
+    let geyser_config = fs::read_to_string(plugins_dir.join("Geyser-Spigot/config.yml")).unwrap();
+    assert!(geyser_config.contains("port: 19132"));
+    assert!(geyser_config.contains("auth-type: floodgate"));
     assert_eq!(created.config.bedrock_port, Some(19132));
 }
 
 #[test]
-fn provisioning_cross_play_template_copy_skipped_for_non_plugin_addon() {
+fn provisioning_cross_play_refuses_non_plugin_addon() {
     let tmp = TempDir::new("crossplay-skipped");
-    let template_dir = tmp.path().join("templates/plugin");
-    fs::create_dir_all(&template_dir).unwrap();
-    fs::write(template_dir.join("Geyser-Fabric.jar"), b"GEYSER").unwrap();
-    fs::write(template_dir.join("floodgate-fabric.jar"), b"FLOODGATE").unwrap();
 
     let transport = fabric_transport();
     let mut request = base_request(JavaServerFlavor::Fabric, WorldSource::Fresh);
     request.enable_cross_play = true;
     request.cross_play_bedrock_port = Some(19132);
 
-    let created = provisioning::create_download_and_go_server(
+    let err = provisioning::create_download_and_go_server(
         &StdFileSystem,
         &transport,
         tmp.path(),
         tmp.path(),
         &tmp.path().join("templates/paper"),
-        &template_dir,
+        &tmp.path().join("templates/plugin"),
         &request,
         "2026-08-18T00:00:00Z",
         always_ok2,
         always_ok3,
     )
-    .unwrap();
+    .unwrap_err();
 
-    let mods_dir = PathBuf::from(&created.config.server_dir).join("mods");
-    assert!(!mods_dir.join("Geyser-Fabric.jar").exists());
-    // The cross-play port fields are still set even though the jar copy
-    // is skipped (source line 352-354).
-    assert_eq!(created.config.bedrock_port, Some(19132));
+    assert!(matches!(
+        err,
+        CreateServerError::CrossPlayUnsupported { .. }
+    ));
 }
 
 // ---------------------------------------------------------------------

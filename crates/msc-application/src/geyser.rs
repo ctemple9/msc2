@@ -5,15 +5,18 @@
 //! preserves comments and unfamiliar Geyser settings rather than rebuilding
 //! the file from a partial model.
 
+use std::io::{Cursor, Read};
 use std::path::{Path, PathBuf};
 
 use msc_infrastructure::{
     atomic_write::atomic_write,
+    download_staging::sha256_hex,
     fs::FileSystem,
     geyser::{self as geyser_provider, GeyserAcquisitionError, GeyserBuild, GeyserProject},
-    helper_acquisition::{AcquiredHelper, HelperPlatform},
+    helper_acquisition::{AcquiredHelper, HelperArtifactMetadata, HelperPlatform},
     jar_provider::Transport,
 };
+use zip::ZipArchive;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GeyserConfig {
@@ -34,6 +37,16 @@ pub struct ManagedPluginInstallation {
     pub build: GeyserBuild,
     pub plugin_path: PathBuf,
     pub acquired: AcquiredHelper,
+}
+
+/// Version information read from a plugin's own descriptor inside its JAR.
+/// This is intentionally independent from the download resolver: users can
+/// also place a plugin JAR in `plugins/` manually, and Components should show
+/// the version that is actually installed in that case too.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InstalledPluginVersion {
+    pub version: String,
+    pub build: Option<i64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -139,6 +152,78 @@ pub fn install_latest(
     })
 }
 
+/// Installs the complete Paper-family cross-play pair. GeyserMC publishes
+/// separate release streams for the two plugins, so each artifact is resolved
+/// and checksum-verified independently before creation reports success.
+pub fn install_latest_pair(
+    fs: &dyn FileSystem,
+    transport: &dyn Transport,
+    cache_directory: &Path,
+    server_dir: &Path,
+    platform: HelperPlatform,
+) -> Result<(ManagedPluginInstallation, ManagedPluginInstallation), InstallError> {
+    let geyser = install_latest(
+        fs,
+        transport,
+        cache_directory,
+        server_dir,
+        GeyserProject::Geyser,
+        platform,
+    )?;
+    let floodgate = install_latest(
+        fs,
+        transport,
+        cache_directory,
+        server_dir,
+        GeyserProject::Floodgate,
+        platform,
+    )?;
+    Ok((geyser, floodgate))
+}
+
+/// Creates or updates the small part of Geyser's configuration that must be
+/// ready before the first server start. Geyser fills in the rest of its
+/// defaults on startup; MSC owns the Bedrock listener and Floodgate auth mode.
+pub fn configure_for_floodgate(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    java_port: u16,
+    bedrock_port: u16,
+) -> Result<GeyserConfig, InstallError> {
+    let path = config_path(server_dir);
+    if fs
+        .stat(&path)
+        .map(|metadata| metadata.is_file)
+        .unwrap_or(false)
+    {
+        update_config(fs, server_dir, None, Some(i64::from(bedrock_port)))
+            .map_err(InstallError::InvalidConfiguration)?;
+        let original = String::from_utf8(
+            fs.read(&path)
+                .map_err(|error| InstallError::Filesystem(error.to_string()))?,
+        )
+        .map_err(|_| InstallError::InvalidConfiguration("config.yml is not UTF-8".into()))?;
+        let patched = patch_floodgate_auth_type(&original)?;
+        if patched != original {
+            atomic_write(fs, &path, patched.as_bytes())
+                .map_err(|error| InstallError::Filesystem(error.to_string()))?;
+        }
+    } else {
+        let parent = path
+            .parent()
+            .ok_or_else(|| InstallError::Filesystem("Geyser config has no parent".into()))?;
+        fs.create_dir_all(parent)
+            .map_err(|error| InstallError::Filesystem(error.to_string()))?;
+        let contents = format!(
+            "bedrock:\n  address: 0.0.0.0\n  port: {bedrock_port}\nremote:\n  address: 127.0.0.1\n  port: {java_port}\n  auth-type: floodgate\n"
+        );
+        atomic_write(fs, &path, contents.as_bytes())
+            .map_err(|error| InstallError::Filesystem(error.to_string()))?;
+    }
+    read_config(fs, server_dir)
+        .ok_or_else(|| InstallError::InvalidConfiguration("no Bedrock listener block".into()))
+}
+
 fn map_acquisition_error(error: GeyserAcquisitionError) -> InstallError {
     InstallError::Acquisition(error.to_string())
 }
@@ -186,6 +271,99 @@ pub fn installation(fs: &dyn FileSystem, server_dir: &Path) -> CrossPlayInstalla
         }
     }
     result
+}
+
+/// Reads the installed version from the standard Paper/Bukkit plugin
+/// descriptor inside a plugin JAR. Malformed or non-JAR files return `None`,
+/// allowing callers to keep their existing "installed" fallback.
+pub fn installed_plugin_version(
+    fs: &dyn FileSystem,
+    plugin_path: &Path,
+) -> Option<InstalledPluginVersion> {
+    let bytes = fs.read(plugin_path).ok()?;
+    let installed_hash = sha256_hex(&bytes);
+    let mut archive = ZipArchive::new(Cursor::new(bytes)).ok()?;
+    for descriptor_name in ["plugin.yml", "paper-plugin.yml"] {
+        let Ok(mut descriptor) = archive.by_name(descriptor_name) else {
+            continue;
+        };
+        let mut contents = String::new();
+        descriptor.read_to_string(&mut contents).ok()?;
+        if let Some(version) = descriptor_version(&contents) {
+            return Some(InstalledPluginVersion {
+                build: descriptor_build(&version)
+                    .or_else(|| cached_build(fs, plugin_path, &installed_hash)),
+                version,
+            });
+        }
+    }
+    None
+}
+
+fn cached_build(fs: &dyn FileSystem, plugin_path: &Path, installed_hash: &str) -> Option<i64> {
+    let filename = plugin_path.file_name()?.to_str()?;
+    let lower = filename.to_ascii_lowercase();
+    let helper = if lower.contains("floodgate") {
+        "floodgate"
+    } else if lower.contains("geyser") {
+        "geyser"
+    } else {
+        return None;
+    };
+    let cache_dir = plugin_path.ancestors().find_map(|ancestor| {
+        let candidate = ancestor.join("_addon_cache").join(helper);
+        fs.stat(&candidate)
+            .ok()
+            .filter(|metadata| metadata.is_dir)
+            .map(|_| candidate)
+    })?;
+    for release_dir in fs.list(&cache_dir).ok()? {
+        if !fs
+            .stat(&release_dir)
+            .map(|metadata| metadata.is_dir)
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let metadata_path = release_dir.join(format!("{filename}.metadata.json"));
+        let Ok(metadata_bytes) = fs.read(&metadata_path) else {
+            continue;
+        };
+        let Ok(metadata) = serde_json::from_slice::<HelperArtifactMetadata>(&metadata_bytes) else {
+            continue;
+        };
+        if metadata.sha256 != installed_hash {
+            continue;
+        }
+        let (_, build) = metadata.version.rsplit_once("-build-")?;
+        return build.parse().ok();
+    }
+    None
+}
+
+fn descriptor_version(contents: &str) -> Option<String> {
+    contents.lines().find_map(|line| {
+        if line.starts_with([' ', '\t']) {
+            return None;
+        }
+        let value = line.strip_prefix("version:")?;
+        let value = bare_value(value);
+        (!value.is_empty()).then(|| value.to_string())
+    })
+}
+
+fn descriptor_build(version: &str) -> Option<i64> {
+    version.match_indices('b').rev().find_map(|(index, _)| {
+        let preceding = version[..index].chars().next_back()?;
+        if !matches!(preceding, '-' | '(' | ' ') {
+            return None;
+        }
+        let digits = version[index + 1..]
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect::<String>();
+        (!digits.is_empty()).then(|| digits.parse().ok()).flatten()
+    })
 }
 
 pub fn config_path(server_dir: &Path) -> PathBuf {
@@ -291,6 +469,32 @@ fn patch_bedrock_block(
             *line = format!("{indent}port: {value}{comment}");
         }
     }
+    Ok(lines.join("\n") + if text.ends_with('\n') { "\n" } else { "" })
+}
+
+fn patch_floodgate_auth_type(text: &str) -> Result<String, InstallError> {
+    let mut lines: Vec<String> = text.lines().map(str::to_string).collect();
+    let remote_start = lines
+        .iter()
+        .position(|line| !line.starts_with([' ', '\t']) && line.trim_start() == "remote:")
+        .ok_or_else(|| InstallError::InvalidConfiguration("no top-level remote block".into()))?;
+    let remote_end = lines[remote_start + 1..]
+        .iter()
+        .position(|line| {
+            let trimmed = line.trim();
+            !trimmed.is_empty() && !trimmed.starts_with('#') && !line.starts_with([' ', '\t'])
+        })
+        .map(|offset| remote_start + 1 + offset)
+        .unwrap_or(lines.len());
+    for line in &mut lines[remote_start + 1..remote_end] {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("auth-type:") {
+            let indent = &line[..line.len() - trimmed.len()];
+            *line = format!("{indent}auth-type: floodgate");
+            return Ok(lines.join("\n") + if text.ends_with('\n') { "\n" } else { "" });
+        }
+    }
+    lines.insert(remote_start + 1, "  auth-type: floodgate".into());
     Ok(lines.join("\n") + if text.ends_with('\n') { "\n" } else { "" })
 }
 

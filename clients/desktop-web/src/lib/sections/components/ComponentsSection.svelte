@@ -58,10 +58,8 @@
     componentPaths,
     componentStatusLabel,
     componentTone,
-    demoAddons,
     demoBroadcastAutostart,
     demoBroadcastStatus,
-    demoComponentsStatus,
     demoJarStatus,
     flavorDisplayName,
     healthPath,
@@ -78,8 +76,11 @@
   export let hostId = 'local-agent';
   export let serverId = 'survival';
 
-  let components: Schema['ComponentsStatusDTO'] = demoComponentsStatus;
-  let addons: Schema['AddonItemDTO'][] = demoAddons;
+  let components: Schema['ComponentsStatusDTO'] = {
+    components: [],
+    restartRequiredToApply: false,
+  };
+  let addons: Schema['AddonItemDTO'][] = [];
   let servers: Schema['ServerDTO'][] = [];
   let health: Schema['HealthResponseDTO'] = {
     cards: [],
@@ -92,6 +93,9 @@
   let broadcastAutostart: Schema['BroadcastAutoStartDTO'] = demoBroadcastAutostart;
   let jarStatus: Schema['BroadcastJarStatusDTO'] = demoJarStatus;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
+  let coreLoaded = false;
+  let addonsLoaded = false;
+  let loadedForServerId: string | undefined;
 
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
@@ -140,6 +144,7 @@
       addonPaths.list,
     );
     addons = response.addons;
+    addonsLoaded = true;
     checkVoiceTunnelPrompt(playit, response.addons);
   }
   async function loadPlayit(): Promise<void> {
@@ -168,13 +173,14 @@
   async function loadAll(): Promise<void> {
     await Promise.all([
       loadComponents(),
-      loadAddons(),
       loadServers(),
       loadHealth(),
       loadBroadcast(),
-      loadPlayit(),
     ]);
     checkVoiceTunnelPrompt();
+    coreLoaded = true;
+    void loadPlayit();
+    await loadAddons();
   }
 
   function voicePromptKey(): string {
@@ -235,6 +241,9 @@
     togglingStems = new Set(togglingStems).add(addon.jarStem);
     try {
       await mutate(api, addonPaths.update, { jarStem: addon.jarStem, enabled: !addon.isEnabled });
+      addons = addons.map((item) =>
+        item.jarStem === addon.jarStem ? { ...item, isEnabled: !addon.isEnabled } : item,
+      );
       await loadAddons();
     } catch (error) {
       flash(error instanceof Error ? error.message : `Failed to toggle ${addon.displayName}.`);
@@ -386,8 +395,14 @@
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
-  onMount(() => {
+  $: if (serverId && serverId !== loadedForServerId) {
+    loadedForServerId = serverId;
+    coreLoaded = false;
+    addonsLoaded = false;
     void loadAll();
+  }
+  onMount(() => {
+    if (!serverId) void loadAll();
     refreshTimer = setInterval(() => void loadAll(), 10000);
   });
   onDestroy(() => {
@@ -418,163 +433,198 @@
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
 
-  {#if isBedrock}
-    <section class="zone">
-      <p class="msc2-type-overline">Bedrock Server</p>
-      <Card padding="0">
-        <div class="row">
-          <div class="info">
-            <span class="name">Bedrock Dedicated Server</span>
-            <span class="subtitle">{primaryComponent?.installedLabel ?? 'Not installed'}</span>
-          </div>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={serverRunning}
-            title={serverRunning ? 'Stop the server before changing its version' : undefined}
-            onclick={() => (showVersionPicker = true)}
-          >
-            Change Version
-          </Button>
-        </div>
-      </Card>
-    </section>
+  {#if !coreLoaded}
+    <p class="loading-state" role="status">Loading component information…</p>
   {:else}
-    <section class="zone">
-      <p class="msc2-type-overline">Server</p>
-      <Card padding="0">
-        <div class="row">
-          <div class="info">
-            <div class="title-row">
-              <span class="name">{flavorDisplayName(activeServer?.javaFlavor)}</span>
-              <Badge variant="category">{isModded ? 'Loader' : 'Server JAR'}</Badge>
-            </div>
-            <span class="subtitle" class:error={!primaryComponent}>
-              {primaryComponent?.installedLabel ?? 'Not installed'}
-            </span>
-          </div>
-          {#if primaryComponent && !isModded}
-            <StatusDot
-              tone={componentTone(primaryComponent)}
-              label={componentStatusLabel(primaryComponent)}
-            />
-          {/if}
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={serverRunning}
-            title={serverRunning ? 'Stop the server before changing its version' : undefined}
-            onclick={() => (showVersionPicker = true)}
-          >
-            Change Version
-          </Button>
-        </div>
-      </Card>
-    </section>
-
-    {#if kind}
+    {#if isBedrock}
       <section class="zone">
-        <div class="section-header">
-          <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
-          {#if anyAddonUpdatable}
+        <p class="msc2-type-overline">Bedrock Server</p>
+        <Card padding="0">
+          <div class="row">
+            <div class="info">
+              <span class="name">Bedrock Dedicated Server</span>
+              <span class="subtitle">{primaryComponent?.installedLabel ?? 'Not installed'}</span>
+            </div>
             <Button
               size="sm"
               variant="secondary"
-              disabled={updatingAll}
-              onclick={() => void updateAllAddons()}
+              disabled={serverRunning}
+              title={serverRunning ? 'Stop the server before changing its version' : undefined}
+              onclick={() => (showVersionPicker = true)}
             >
-              {updatingAll ? 'Updating…' : 'Update All'}
+              Change Version
             </Button>
-          {/if}
-        </div>
-        {#if addons.length === 0}
-          <EmptyState title={`No ${isModded ? 'mods' : 'plugins'} installed`}>
-            <Icon name="box" size={26} slot="icon" />
-          </EmptyState>
-        {:else}
-          <Card padding="0">
-            {#each addons as addon, index (addon.jarStem)}
-              <div
-                class="addon-row"
-                class:bordered={index > 0}
-                class:disabled={!addon.isEnabled}
-                class:selected={addonMenu?.addon.jarStem === addon.jarStem}
+          </div>
+        </Card>
+      </section>
+    {:else}
+      <section class="zone">
+        <p class="msc2-type-overline">Server</p>
+        <Card padding="0">
+          <div class="row">
+            <div class="info">
+              <div class="title-row">
+                <span class="name">{flavorDisplayName(activeServer?.javaFlavor)}</span>
+                <Badge variant="category">{isModded ? 'Loader' : 'Server JAR'}</Badge>
+              </div>
+              <span class="subtitle" class:error={!primaryComponent}>
+                {primaryComponent?.installedLabel ?? 'Not installed'}
+              </span>
+            </div>
+            {#if primaryComponent && !isModded}
+              <StatusDot
+                tone={componentTone(primaryComponent)}
+                label={componentStatusLabel(primaryComponent)}
+              />
+            {/if}
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={serverRunning}
+              title={serverRunning ? 'Stop the server before changing its version' : undefined}
+              onclick={() => (showVersionPicker = true)}
+            >
+              Change Version
+            </Button>
+          </div>
+        </Card>
+      </section>
+
+      {#if kind}
+        <section class="zone">
+          <div class="section-header">
+            <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
+            {#if anyAddonUpdatable}
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={updatingAll}
+                onclick={() => void updateAllAddons()}
               >
-                {#if confirmingRemove === addon.jarStem}
-                  <div class="info">
-                    <span class="name">{addon.displayName}</span>
-                  </div>
-                  <span class="confirm">Uninstall?</span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onclick={() => (confirmingRemove = undefined)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button size="sm" variant="destructive" onclick={() => void removeAddon(addon)}>
-                    Uninstall
-                  </Button>
-                {:else}
-                  <button
-                    type="button"
-                    class="addon-row-link"
-                    onclick={(event) => openAddonMenu(event, addon)}
-                  >
+                {updatingAll ? 'Updating…' : 'Update All'}
+              </Button>
+            {/if}
+          </div>
+        {#if !addonsLoaded}
+          <p class="loading-state" role="status">Loading installed plugins…</p>
+        {:else if addons.length === 0}
+            <EmptyState title={`No ${isModded ? 'mods' : 'plugins'} installed`}>
+              <Icon name="box" size={26} slot="icon" />
+            </EmptyState>
+          {:else}
+            <Card padding="0">
+              {#each addons as addon, index (addon.jarStem)}
+                <div
+                  class="addon-row"
+                  class:bordered={index > 0}
+                  class:disabled={!addon.isEnabled}
+                  class:selected={addonMenu?.addon.jarStem === addon.jarStem}
+                >
+                  {#if confirmingRemove === addon.jarStem}
                     <div class="info">
-                      <span class="title-row">
-                        <span class="name">{addon.displayName}</span>
-                        <span class="row-affordance"><Icon name="chevron" size={10} /></span>
-                      </span>
-                      <span class="subtitle">
-                        {addon.currentVersion ?? 'Unknown version'}
-                        {#if addon.bucket === 'updateAvailable' && addon.availableVersion}
-                          → {addon.availableVersion}
-                        {/if}
-                      </span>
+                      <span class="name">{addon.displayName}</span>
                     </div>
-                    {#if addonStatusLabel(addon)}
-                      <StatusDot tone="warn" label={addonStatusLabel(addon) ?? ''} />
-                    {/if}
-                  </button>
-                  {#if addon.bucket === 'updateAvailable'}
+                    <span class="confirm">Uninstall?</span>
                     <Button
                       size="sm"
                       variant="secondary"
-                      disabled={updatingStems.has(addon.jarStem)}
-                      onclick={() => void updateAddon(addon)}
+                      onclick={() => (confirmingRemove = undefined)}
                     >
-                      {updatingStems.has(addon.jarStem) ? 'Updating…' : 'Update'}
+                      Cancel
                     </Button>
+                    <Button size="sm" variant="destructive" onclick={() => void removeAddon(addon)}>
+                      Uninstall
+                    </Button>
+                  {:else}
+                    <button
+                      type="button"
+                      class="addon-row-link"
+                      onclick={(event) => openAddonMenu(event, addon)}
+                    >
+                      <div class="info">
+                        <span class="title-row">
+                          <span class="name">{addon.displayName}</span>
+                          <span class="row-affordance"><Icon name="chevron" size={10} /></span>
+                        </span>
+                        <span class="subtitle">
+                          {addon.currentVersion ?? 'Unknown version'}
+                          {#if addon.bucket === 'updateAvailable' && addon.availableVersion}
+                            → {addon.availableVersion}
+                          {/if}
+                        </span>
+                      </div>
+                      {#if addonStatusLabel(addon)}
+                        <StatusDot tone="warn" label={addonStatusLabel(addon) ?? ''} />
+                      {/if}
+                    </button>
+                    {#if addon.bucket === 'updateAvailable'}
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={updatingStems.has(addon.jarStem)}
+                        onclick={() => void updateAddon(addon)}
+                      >
+                        {updatingStems.has(addon.jarStem) ? 'Updating…' : 'Update'}
+                      </Button>
+                    {/if}
                   {/if}
-                {/if}
-              </div>
-            {/each}
-          </Card>
-        {/if}
-        <div class="footer-actions">
-          <span title="File access lands with the Files tab (P12.9) — not available yet">
-            <Button size="sm" variant="secondary" disabled>
-              Reveal {addonFolderName} folder
+                </div>
+              {/each}
+            </Card>
+          {/if}
+          <div class="footer-actions">
+            <span title="File access lands with the Files tab (P12.9) — not available yet">
+              <Button size="sm" variant="secondary" disabled>
+                Reveal {addonFolderName} folder
+              </Button>
+            </span>
+            <Button size="sm" variant="primary" onclick={() => void addLocalAddon()}>
+              Add {isModded ? 'Mod' : 'Plugin'}
             </Button>
-          </span>
-          <Button size="sm" variant="primary" onclick={() => void addLocalAddon()}>
-            Add {isModded ? 'Mod' : 'Plugin'}
-          </Button>
-        </div>
-      </section>
+          </div>
+        </section>
+      {/if}
+
+      {#if crossplayEligible}
+        <section class="zone">
+          <p class="msc2-type-overline">Crossplay</p>
+          <Card padding="0">
+            <div class="row">
+              <Toggle
+                checked={broadcastAutostart.enabled}
+                label="Enable MCXboxBroadcast"
+                onchange={() => void toggleAutostart()}
+              />
+              <div class="info">
+                <div class="title-row">
+                  <span class="name">MCXboxBroadcast</span>
+                  <Badge variant="category">Broadcast</Badge>
+                </div>
+                <span class="subtitle">{jarStatus.filename ?? 'Not downloaded'}</span>
+              </div>
+              <StatusDot
+                tone={jarStatus.installed ? 'ok' : 'error'}
+                label={jarStatus.installed ? 'Installed' : 'Missing'}
+              />
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={downloadingBroadcastJar || jarStatus.downloading}
+                onclick={() => void downloadBroadcastJar()}
+              >
+                {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download'}
+              </Button>
+            </div>
+          </Card>
+        </section>
+      {/if}
     {/if}
 
-    {#if crossplayEligible}
+    {#if isBedrock}
       <section class="zone">
         <p class="msc2-type-overline">Crossplay</p>
         <Card padding="0">
           <div class="row">
-            <Toggle
-              checked={broadcastAutostart.enabled}
-              label="Enable MCXboxBroadcast"
-              onchange={() => void toggleAutostart()}
-            />
             <div class="info">
               <div class="title-row">
                 <span class="name">MCXboxBroadcast</span>
@@ -583,8 +633,8 @@
               <span class="subtitle">{jarStatus.filename ?? 'Not downloaded'}</span>
             </div>
             <StatusDot
-              tone={jarStatus.installed ? 'ok' : 'error'}
-              label={jarStatus.installed ? 'Installed' : 'Missing'}
+              tone={broadcastStatus.bedrockBroadcastRunning ? 'ok' : 'error'}
+              label={broadcastStatus.bedrockBroadcastRunning ? 'Running' : 'Stopped'}
             />
             <Button
               size="sm"
@@ -592,41 +642,12 @@
               disabled={downloadingBroadcastJar || jarStatus.downloading}
               onclick={() => void downloadBroadcastJar()}
             >
-              {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download'}
+              {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download JAR'}
             </Button>
           </div>
         </Card>
       </section>
     {/if}
-  {/if}
-
-  {#if isBedrock}
-    <section class="zone">
-      <p class="msc2-type-overline">Crossplay</p>
-      <Card padding="0">
-        <div class="row">
-          <div class="info">
-            <div class="title-row">
-              <span class="name">MCXboxBroadcast</span>
-              <Badge variant="category">Broadcast</Badge>
-            </div>
-            <span class="subtitle">{jarStatus.filename ?? 'Not downloaded'}</span>
-          </div>
-          <StatusDot
-            tone={broadcastStatus.bedrockBroadcastRunning ? 'ok' : 'error'}
-            label={broadcastStatus.bedrockBroadcastRunning ? 'Running' : 'Stopped'}
-          />
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={downloadingBroadcastJar || jarStatus.downloading}
-            onclick={() => void downloadBroadcastJar()}
-          >
-            {downloadingBroadcastJar || jarStatus.downloading ? 'Downloading…' : 'Download JAR'}
-          </Button>
-        </div>
-      </Card>
-    </section>
   {/if}
 
   <input bind:this={fileInput} type="file" accept=".jar" class="hidden-input" />
@@ -717,7 +738,11 @@
 {/if}
 
 {#if showVoicePrompt && svcAddon}
-  <Sheet title="Simple Voice Chat needs a tunnel" size="sm" onClose={() => (showVoicePrompt = false)}>
+  <Sheet
+    title="Simple Voice Chat needs a tunnel"
+    size="sm"
+    onClose={() => (showVoicePrompt = false)}
+  >
     <div class="voice-prompt">
       <p>
         Simple Voice Chat is enabled, but this server has no MSC Voice Playit tunnel. Voice chat
@@ -725,8 +750,8 @@
       </p>
       {#if serverRunning}
         <p class="hint">
-          The server is running. Simple Voice Chat reads <code>voice_host</code> when it starts, so
-          restart the server after the tunnel is configured.
+          The server is running. Simple Voice Chat reads <code>voice_host</code> when it starts, so restart
+          the server after the tunnel is configured.
         </p>
       {/if}
       <div class="prompt-actions">
@@ -780,6 +805,11 @@
     font-size: 12px;
     color: var(--msc2-text-secondary);
   }
+  .loading-state {
+    margin: 0;
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
+  }
   .zone {
     display: flex;
     flex-direction: column;
@@ -797,6 +827,10 @@
   }
   .addon-row.disabled .name {
     color: var(--msc2-text-secondary);
+    text-decoration: line-through;
+  }
+  .addon-row.disabled .subtitle {
+    text-decoration: line-through;
   }
   .addon-row.selected {
     border-radius: var(--msc2-radius-2);

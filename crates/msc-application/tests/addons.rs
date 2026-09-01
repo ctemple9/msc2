@@ -500,6 +500,17 @@ fn toggle_flips_enabled_to_disabled() {
 }
 
 #[test]
+fn toggle_flips_disabled_addon_back_to_enabled() {
+    let fs = FakeFileSystem::new();
+    let disabled = Path::new("/server/mods/x.jar.disabled");
+    write_jar(&fs, Path::new("/server/mods"), "x.jar.disabled", b"bytes");
+    let new_path = addons::toggle(&fs, disabled, false).unwrap();
+    assert_eq!(new_path, Path::new("/server/mods/x.jar"));
+    assert!(fs.stat(disabled).is_err());
+    assert!(fs.stat(&new_path).is_ok());
+}
+
+#[test]
 fn toggle_refused_on_pack_managed_server() {
     let fs = FakeFileSystem::new();
     write_jar(&fs, Path::new("/server/mods"), "x.jar", b"bytes");

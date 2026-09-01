@@ -1610,6 +1610,15 @@ The inventory explicitly covers the Java create-world choices (world type/flat p
 **Batch:** stop-after
 **Notes:** Added a readiness mode to the existing package checker and recorded the implementation boundary. The checker validates native Linux/Windows selection, the Intel-macOS Swift sidecar and guest-package mapping, verified archive/provenance promotion with user-state preservation, the shared public lifecycle routes, and GUI/headless service layouts. It explicitly verifies that the compatibility matrix remains unavailable and leaves the live handoff — one disposable server per available host, UDP reachability, lifecycle recovery, and matching-cell promotion — for Cameron; no real server, VM boot, Windows run, or macOS run is claimed here.
 
+### P12.34 — Install compatible Geyser and Floodgate during server creation
+**Status:** built, awaiting Cameron's verification
+**Files:** `crates/msc-application/src/geyser.rs`, `crates/msc-application/src/provisioning.rs`, `crates/msc-application/tests/provisioning.rs`, `docs/msc2/rolling-plan.md`
+**What:** Remove the cross-play creation path's stored plugin-template fallback. Once Paper resolves the concrete Minecraft version, enforce GeyserMC's published Paper/Spigot 1.20.5 floor, download the official Spigot Geyser and Floodgate artifacts through their exact release metadata, verify each upstream SHA-256, and install both into the new server's `plugins/` directory. Create the initial Geyser listener configuration with the selected Java port, Bedrock port, and `auth-type: floodgate`. Unsupported plugin flavors and failed compatibility/download/configuration checks abort creation and roll back the new server directory. The internal `_addon_cache` stores only provider-verified artifacts; it is not a user-managed template collection.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application --all-targets -- -D warnings && cargo check -p msc-agent && cargo nextest run -p msc-application --test geyser && cargo nextest run -p msc-application --test provisioning -E 'test(provisioning_cross_play)'`
+**Commit:** `P12.34: install compatible Geyser and Floodgate during server creation`
+**Batch:** solo
+**Notes:** The upstream API provides exact Geyser/Floodgate version, build, artifact, and checksum data but no Paper-build compatibility matrix. MSC2 therefore uses the official supported-version floor rather than inventing a Paper-build match. The new provisioning test proves the plugin template directory is irrelevant, both verified JARs are installed, the default Bedrock port is persisted, and Floodgate authentication is configured. Cameron's live check should create a disposable Paper server with cross-play enabled, confirm both plugins in Components, and start it once to confirm Geyser accepts the generated configuration.
+
 ### P12.LAST — Consistency sweep + parity gate
 **Status:** not started
 **Files:** `docs/msc2/clients/`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/renderings/`

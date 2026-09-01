@@ -8,6 +8,7 @@
 //! bounded per-server plan cache — which no fixture there describes.
 
 use std::collections::HashMap;
+use std::io::{Cursor, Write};
 use std::path::Path;
 
 use msc_application::addon_updates::{self, AddonUpdatePlan};
@@ -19,6 +20,8 @@ use msc_domain::identity::JavaServerFlavor;
 use msc_infrastructure::addon_provider::{AddonTransport, RawResponse, TransportError};
 use msc_infrastructure::download_staging::sha512_hex;
 use msc_infrastructure::fs::{FakeFileSystem, FileSystem};
+use zip::ZipWriter;
+use zip::write::SimpleFileOptions;
 
 struct FakeTransport {
     identify: Option<serde_json::Value>,
@@ -279,6 +282,40 @@ fn addon_updates_geyser_excluded_on_plugin_server_kept_on_mod_server() {
     // but via a real (empty) lookup rather than a skip -- proven by the
     // `with_identify`/`with_latest` defaults being `{}`, not a panic.
     assert_eq!(plan2.items[0].bucket, AddonUpdateBucket::Unlinked);
+}
+
+#[test]
+fn addon_updates_reads_managed_plugin_version_from_jar() {
+    let fs = FakeFileSystem::new();
+    let plugins_dir = Path::new("/server/plugins");
+    let mut bytes = Cursor::new(Vec::new());
+    {
+        let mut archive = ZipWriter::new(&mut bytes);
+        archive
+            .start_file("plugin.yml", SimpleFileOptions::default())
+            .unwrap();
+        archive
+            .write_all(b"name: Geyser-Spigot\nversion: 2.11.2-SNAPSHOT\n")
+            .unwrap();
+        archive.finish().unwrap();
+    }
+    write_jar(&fs, plugins_dir, "Geyser-Spigot.jar", &bytes.into_inner());
+
+    let plan = addon_updates::resolve_addon_updates(
+        &FakeTransport::new(),
+        &fs,
+        plugins_dir,
+        JavaServerFlavor::Paper,
+        None,
+        &HashMap::new(),
+        &HashMap::new(),
+    );
+
+    assert_eq!(
+        plan.items[0].current_version.as_deref(),
+        Some("2.11.2-SNAPSHOT")
+    );
+    assert_eq!(plan.items[0].bucket, AddonUpdateBucket::Unlinked);
 }
 
 #[test]

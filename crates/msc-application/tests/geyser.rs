@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::io::{Cursor, Write};
 use std::sync::Mutex;
 
 use msc_application::geyser;
@@ -10,6 +11,8 @@ use msc_infrastructure::helper_acquisition::HelperPlatform;
 use msc_infrastructure::jar_provider::{JarProviderError, Transport};
 use serde_json::json;
 use uuid::Uuid;
+use zip::ZipWriter;
+use zip::write::SimpleFileOptions;
 
 fn server_dir() -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("msc-geyser-{}", Uuid::new_v4()));
@@ -121,4 +124,98 @@ fn installs_latest_geyser_after_upstream_checksum_verification() {
         msc_infrastructure::helper_acquisition::ChecksumSource::UpstreamPublished
     );
     let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn reads_installed_plugin_version_from_plugin_descriptor() {
+    let dir = server_dir();
+    let plugin_path = dir.join("plugins/Geyser-Spigot.jar");
+    let mut bytes = Cursor::new(Vec::new());
+    {
+        let mut archive = ZipWriter::new(&mut bytes);
+        archive
+            .start_file("plugin.yml", SimpleFileOptions::default())
+            .unwrap();
+        archive
+            .write_all(b"name: Geyser-Spigot\nversion: 2.11.2-SNAPSHOT\nmain: example.Main\n")
+            .unwrap();
+        archive.finish().unwrap();
+    }
+    fs::write(&plugin_path, bytes.into_inner()).unwrap();
+
+    let installed = geyser::installed_plugin_version(&StdFileSystem, &plugin_path).unwrap();
+    assert_eq!(installed.version, "2.11.2-SNAPSHOT");
+    assert_eq!(installed.build, None);
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn reads_floodgate_build_from_plugin_descriptor_version() {
+    let dir = server_dir();
+    let plugin_path = dir.join("plugins/floodgate-spigot.jar");
+    let mut bytes = Cursor::new(Vec::new());
+    {
+        let mut archive = ZipWriter::new(&mut bytes);
+        archive
+            .start_file("plugin.yml", SimpleFileOptions::default())
+            .unwrap();
+        archive
+            .write_all(b"name: floodgate\nversion: 2.2.5-SNAPSHOT (b140-8780fa4)\n")
+            .unwrap();
+        archive.finish().unwrap();
+    }
+    fs::write(&plugin_path, bytes.into_inner()).unwrap();
+
+    let installed = geyser::installed_plugin_version(&StdFileSystem, &plugin_path).unwrap();
+    assert_eq!(installed.version, "2.2.5-SNAPSHOT (b140-8780fa4)");
+    assert_eq!(installed.build, Some(140));
+
+    let _ = fs::remove_dir_all(dir);
+}
+
+#[test]
+fn reads_geyser_build_from_matching_cache_metadata() {
+    let root = std::env::temp_dir().join(format!("msc-geyser-cache-{}", Uuid::new_v4()));
+    let server_dir = root.join("servers/java/paper");
+    let plugin_path = server_dir.join("plugins/Geyser-Spigot.jar");
+    fs::create_dir_all(plugin_path.parent().unwrap()).unwrap();
+    let mut bytes = Cursor::new(Vec::new());
+    {
+        let mut archive = ZipWriter::new(&mut bytes);
+        archive
+            .start_file("plugin.yml", SimpleFileOptions::default())
+            .unwrap();
+        archive
+            .write_all(b"name: Geyser-Spigot\nversion: 2.11.2-SNAPSHOT\n")
+            .unwrap();
+        archive.finish().unwrap();
+    }
+    let bytes = bytes.into_inner();
+    fs::write(&plugin_path, &bytes).unwrap();
+
+    let cached_dir = root.join("servers/_addon_cache/geyser/2.11.2-build-1233");
+    fs::create_dir_all(&cached_dir).unwrap();
+    fs::write(cached_dir.join("Geyser-Spigot.jar"), &bytes).unwrap();
+    fs::write(
+        cached_dir.join("Geyser-Spigot.jar.metadata.json"),
+        serde_json::json!({
+            "helper": "geyser",
+            "version": "2.11.2-build-1233",
+            "platform": "macos-x86-64",
+            "releaseMetadataUrl": "https://download.geysermc.org/latest",
+            "assetName": "Geyser-Spigot.jar",
+            "assetUrl": "https://download.geysermc.org/geyser.jar",
+            "sha256": sha256_hex(&bytes),
+            "checksumSource": "upstream-published"
+        })
+        .to_string(),
+    )
+    .unwrap();
+
+    let installed = geyser::installed_plugin_version(&StdFileSystem, &plugin_path).unwrap();
+    assert_eq!(installed.version, "2.11.2-SNAPSHOT");
+    assert_eq!(installed.build, Some(1233));
+
+    let _ = fs::remove_dir_all(root);
 }

@@ -52,6 +52,7 @@ use msc_infrastructure::download_staging::sha512_hex;
 use msc_infrastructure::fs::FileSystem;
 
 use crate::add_on_inventory;
+use crate::geyser;
 
 /// See this module's own doc on why this bounds *servers*, not add-ons —
 /// one server's own plan already has no per-item cap (matching the
@@ -132,12 +133,26 @@ fn list_disk_entries(fs: &dyn FileSystem, dir: &Path, kind: AddOnKind) -> Vec<Di
                 let display_name = add_on_inventory::plugin_yml_name(&path)
                     .filter(|s| !s.is_empty())
                     .unwrap_or(p.display_name);
+                let version = if p.jar_stem.to_ascii_lowercase().contains("geyser")
+                    || p.jar_stem.to_ascii_lowercase().contains("floodgate")
+                {
+                    geyser::installed_plugin_version(fs, &path)
+                        .map(|metadata| {
+                            metadata
+                                .build
+                                .map(|build| build.to_string())
+                                .unwrap_or(metadata.version)
+                        })
+                        .or(p.version)
+                } else {
+                    p.version
+                };
                 DiskEntry {
                     filename: p.filename,
                     jar_stem: p.jar_stem,
                     is_enabled: p.is_enabled,
                     display_name,
-                    version: p.version,
+                    version,
                 }
             })
             .collect(),

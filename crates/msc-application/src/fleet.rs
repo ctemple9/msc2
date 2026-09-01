@@ -178,6 +178,51 @@ pub fn rename_server(
     Ok(())
 }
 
+#[derive(Debug)]
+pub enum UpdateServerDirectoryError {
+    EmptyServerId,
+    EmptyDirectory,
+    ServerNotFound,
+}
+
+impl fmt::Display for UpdateServerDirectoryError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyServerId => write!(f, "server id is empty"),
+            Self::EmptyDirectory => write!(f, "server directory is empty"),
+            Self::ServerNotFound => write!(f, "server not found"),
+        }
+    }
+}
+
+impl std::error::Error for UpdateServerDirectoryError {}
+
+/// Updates only the configured directory for a server. This intentionally
+/// does not move or create files: MSC 1's General-tab Browse action repoints
+/// the config record at the selected folder, leaving filesystem ownership to
+/// the user and the server importer.
+pub fn update_server_directory(
+    config: &mut AppConfig,
+    server_id: &str,
+    directory: &str,
+) -> Result<(), UpdateServerDirectoryError> {
+    let trimmed_id = server_id.trim();
+    if trimmed_id.is_empty() {
+        return Err(UpdateServerDirectoryError::EmptyServerId);
+    }
+    let trimmed_directory = directory.trim();
+    if trimmed_directory.is_empty() {
+        return Err(UpdateServerDirectoryError::EmptyDirectory);
+    }
+    let server = config
+        .servers
+        .iter_mut()
+        .find(|server| server.id == trimmed_id)
+        .ok_or(UpdateServerDirectoryError::ServerNotFound)?;
+    server.server_dir = trimmed_directory.to_string();
+    Ok(())
+}
+
 /// `EULAManager.readEULA(in:)`'s three-way result (`EULAManager.swift:
 /// 14-31`): `Accepted`/`ExplicitlyFalse` both require a recognized
 /// `eula=` line; anything else — no file, unreadable, no `eula=` line at

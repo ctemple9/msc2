@@ -92,6 +92,16 @@ Rules:
 
 - Rust: `cargo fmt` and `cargo clippy` clean before any commit
 - Tests run with `cargo nextest run`
+- **Test proportion is mandatory.** For a small UI change such as one control,
+  picker, copy change, or straightforward wiring with no novel business logic,
+  the default is **no new tests**: use the narrowest useful type-check/build or
+  manual verification instead. Add tests only for important behavior,
+  state-transition or safety/data-loss risk, backend contract behavior, or a
+  regression that cannot be cheaply covered at one boundary. Prefer one
+  focused test over duplicate frontend/domain/route assertions, and never add
+  tests merely to repeat string or callback wiring. Before running a test
+  command, inspect its scope; do not invoke a whole test file or suite when a
+  single focused check is sufficient.
 - **Run only the step's own declared `Verify:` command for that step's own verification.** Never run a full `cargo nextest run --workspace` (or an equivalent full-suite sweep) as extra diligence on top of it — this workspace's full suite takes 20-40+ minutes, and doing that after every single step turned Phase 7 into an hours-long slog Cameron had to sit through. A step's own targeted Verify (a `-p <crate>` run, a filtered test set, a fixture-runner call) is the bar; meeting it is enough to commit with status `awaiting verification`. Reserve a full-workspace run for steps whose own Verify line already calls for one (gate-check steps like a `P<phase>.<last>` re-check, or a phase's final evidence step) — don't add it yourself. If a step's own Verify line is broken (a missing `--expect N`, a filter regex that matches zero tests, etc.), fix the Verify line itself, in the same commit, and say so in the report back — don't paper over it by running something broader instead.
 - Commit messages: `P<phase>.<step>: <what changed>` — imperative, lowercase
 - **One commit per step. Never two.** That single commit contains the work *and* the `rolling-plan.md` status update. Do not add a follow-up commit to record the hash — you cannot know a hash before committing, and the step number in the message is already the link (`git log --grep="P0.1"`). Leave the `Commit:` field as the message subject, not a hash.

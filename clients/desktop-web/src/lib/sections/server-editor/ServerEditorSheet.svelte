@@ -72,6 +72,11 @@
     void onServersChanged();
   }
 
+  function handleDirectoryChanged(directory: string): void {
+    currentServer = { ...currentServer, directory };
+    void onServersChanged();
+  }
+
   function handleDeleted(): void {
     void onServersChanged();
     onClose();
@@ -94,6 +99,7 @@
           {isActive}
           {canControl}
           onRenamed={handleRenamed}
+          onDirectoryChanged={handleDirectoryChanged}
           onDeleted={handleDeleted}
           onRequestActivate={requestActivate}
         />

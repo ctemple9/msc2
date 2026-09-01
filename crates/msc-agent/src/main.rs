@@ -250,6 +250,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .route("/servers/create", post(routes::servers::create))
         .route("/servers/delete", post(routes::servers::delete))
         .route("/servers/rename", post(routes::servers::rename))
+        .route("/servers/directory", post(routes::servers::directory))
         .route("/servers/eula", post(routes::servers::eula))
         .route("/active-server", post(routes::lifecycle::active_server))
         .route("/start", post(routes::lifecycle::start))

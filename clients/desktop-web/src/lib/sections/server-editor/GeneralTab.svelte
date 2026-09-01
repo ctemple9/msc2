@@ -9,11 +9,10 @@
   // all real, wired routes. Not silently dropped -- see this step's rolling
   // plan entry.
   //
-  // "Server Directory" is likewise real (`ConfigServer.server_dir`) but has
-  // no update route at all -- MSC 1's Browse... only ever repoints the config
-  // record at an already-existing folder (no filesystem move happens there
-  // either), but nothing here can send that repoint anywhere, so it renders
-  // read-only.
+  // "Server Directory" follows MSC 1's Browse... behavior: it repoints the
+  // config record and never moves files. The native picker is supplied by the
+  // shared platform adapter, with the browser adapter's manual-path prompt as
+  // its fallback.
   //
   // Memory (RAM) is a real route (`/v1/config/ram`) but, like every route
   // this tab touches besides rename/eula/delete, it has no serverId
@@ -30,6 +29,7 @@
   import StatusDot from '../../components/base/StatusDot.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
+  import { getPlatform } from '../../platform';
   import { serverEditorPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
@@ -37,11 +37,13 @@
   export let isActive = false;
   export let canControl = true;
   export let onRenamed: (name: string) => void;
+  export let onDirectoryChanged: (directory: string) => void;
   export let onDeleted: () => void;
   export let onRequestActivate: () => void;
 
   let nameDraft = server.name;
   let renaming = false;
+  let directoryPicking = false;
   let notice = '';
 
   let ram: Schema['RAMConfigResponseDTO'] | undefined;
@@ -93,6 +95,27 @@
       notice = errorMessage(error);
     } finally {
       renaming = false;
+    }
+  }
+
+  async function browseForDirectory(): Promise<void> {
+    if (directoryPicking || !canControl) return;
+    directoryPicking = true;
+    try {
+      const selected = await (await getPlatform()).pickFolder('Choose server directory');
+      const directory = selected?.trim();
+      if (!directory) return;
+      const result = await mutate<Schema['ServerDirectoryResultDTO']>(
+        api,
+        serverEditorPaths.directory,
+        { serverId: server.id, directory },
+      );
+      notice = result.message;
+      onDirectoryChanged(result.directory ?? directory);
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      directoryPicking = false;
     }
   }
 
@@ -171,11 +194,20 @@
       </div>
       <div class="row bordered">
         <span class="name">Server Directory</span>
-        <span class="dir">{server.directory}</span>
+        <div class="directory-control">
+          <span class="dir">{server.directory}</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={directoryPicking || !canControl}
+            onclick={browseForDirectory}>{directoryPicking ? 'Opening…' : 'Browse…'}</Button
+          >
+        </div>
       </div>
     </Card>
     <p class="hint">
-      Server Directory is set when the server is created; changing it isn't available here yet.
+      Choose the folder where this server's files live. Changing it updates the configured path; it
+      does not move files on disk.
     </p>
   </section>
 
@@ -333,6 +365,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     max-width: 320px;
+  }
+  .directory-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
   }
   .control {
     display: flex;

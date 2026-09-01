@@ -14,8 +14,9 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
     ErrorDto, PermissionCategoryDto, ServerCreateRequestDto, ServerCreateResultDto,
-    ServerCreateWorldSettingsDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
-    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
+    ServerCreateWorldSettingsDto, ServerDeleteRequestDto, ServerDeleteResultDto,
+    ServerDirectoryRequestDto, ServerDirectoryResultDto, ServerDto, ServerEulaRequestDto,
+    ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
     ServerImportScanResponseDto, ServerImportWorldDto, ServerRenameRequestDto,
     ServerRenameResultDto,
 };
@@ -2023,6 +2024,62 @@ pub async fn rename(
             StatusCode::INTERNAL_SERVER_ERROR,
             "internal_error",
             &error.to_string(),
+        ),
+    }
+}
+
+// ---------- P12.12c: POST /v1/servers/directory ----------
+
+pub async fn directory(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<ServerDirectoryRequestDto>, JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let server_id = body.server_id.trim().to_string();
+    let directory = body.directory.trim().to_string();
+    if server_id.is_empty() {
+        return invalid_body("missing_server_id", "serverId is required.");
+    }
+    if directory.is_empty() {
+        return invalid_body("directory_required", "directory is required.");
+    }
+
+    match state.update_server_directory(&server_id, &directory) {
+        Ok(()) => Json(ServerDirectoryResultDto {
+            success: true,
+            message: "Server directory updated.".to_string(),
+            server_id: Some(server_id),
+            directory: Some(directory),
+        })
+        .into_response(),
+        Err(TryMutateError::Domain(error)) => directory_error_response(error),
+        Err(TryMutateError::Save(error)) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &error.to_string(),
+        ),
+    }
+}
+
+fn directory_error_response(error: msc_application::fleet::UpdateServerDirectoryError) -> Response {
+    match error {
+        msc_application::fleet::UpdateServerDirectoryError::EmptyServerId => {
+            invalid_body("missing_server_id", "serverId is required.")
+        }
+        msc_application::fleet::UpdateServerDirectoryError::EmptyDirectory => {
+            invalid_body("directory_required", "directory is required.")
+        }
+        msc_application::fleet::UpdateServerDirectoryError::ServerNotFound => error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
         ),
     }
 }

@@ -19,6 +19,7 @@ import type { Schema, ScreenApi } from '../shared/types';
 // reads/writes it unconditionally, with no `isActive` gate.
 export const serverEditorPaths = {
   rename: '/v1/servers/rename',
+  directory: '/v1/servers/directory',
   delete: '/v1/servers/delete',
   eula: '/v1/servers/eula',
   active: '/v1/active-server',

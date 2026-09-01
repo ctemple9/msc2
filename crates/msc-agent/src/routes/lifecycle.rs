@@ -811,6 +811,16 @@ impl LifecycleRoutesState {
             .try_mutate(|config| msc_application::fleet::rename_server(config, server_id, new_name))
     }
 
+    pub fn update_server_directory(
+        &self,
+        server_id: &str,
+        directory: &str,
+    ) -> Result<(), TryMutateError<msc_application::fleet::UpdateServerDirectoryError>> {
+        self.inner.app_config.try_mutate(|config| {
+            msc_application::fleet::update_server_directory(config, server_id, directory)
+        })
+    }
+
     /// See [`AgentConsoleSink`] / `ConsoleState::recent_lines` — the
     /// production `BackupConsole`'s read half.
     pub fn recent_console_lines(&self, count: usize) -> Vec<ConsoleLine> {

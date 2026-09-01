@@ -303,6 +303,68 @@
         "x-permission-category": "fleet"
       }
     },
+    "/v1/servers/directory": {
+      "post": {
+        "summary": "Update a server's configured directory",
+        "description": "Updates the configured path only; it does not move or create files on disk.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServerDirectoryRequestDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Server directory updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDirectoryResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_body / invalid_json / missing_server_id / directory_required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          },
+          "500": {
+            "description": "internal error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "fleet"
+      }
+    },
     "/v1/servers/eula": {
       "post": {
         "summary": "Accept the Minecraft EULA for a server",
@@ -6117,7 +6179,7 @@
           "200": {
             "description": "Thumbnail image bytes",
             "content": {
-              "image/png": {
+              "image/jpeg": {
                 "schema": {
                   "type": "string",
                   "format": "binary"
@@ -6792,6 +6854,42 @@
             "type": "string"
           },
           "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "ServerDirectoryRequestDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "directory": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "serverId",
+          "directory"
+        ]
+      },
+      "ServerDirectoryResultDTO": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "directory": {
             "type": "string"
           }
         },

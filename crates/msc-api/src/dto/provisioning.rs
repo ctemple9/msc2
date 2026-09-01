@@ -1,8 +1,9 @@
 //! P7.23: `ServerCreateRequestDTO`/`ServerCreateResultDTO`,
 //! `ServerDeleteRequestDTO`/`ServerDeleteResultDTO`,
 //! `ServerRenameRequestDTO`/`ServerRenameResultDTO`,
+//! `ServerDirectoryRequestDTO`/`ServerDirectoryResultDTO`,
 //! `ServerEULARequestDTO`/`ServerEULAResultDTO` — `openapi.json`'s frozen
-//! shapes for `POST /v1/servers/create|delete|rename|eula`.
+//! shapes for `POST /v1/servers/create|delete|rename|directory|eula`.
 
 use serde::{Deserialize, Serialize};
 
@@ -121,6 +122,24 @@ pub struct ServerRenameResultDto {
     pub server_id: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerDirectoryRequestDto {
+    pub server_id: String,
+    pub directory: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerDirectoryResultDto {
+    pub success: bool,
+    pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub directory: Option<String>,
 }
 
 /// `serverId` is optional in the wire schema, but the real route treats

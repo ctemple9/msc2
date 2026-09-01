@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 8075f7d31ef643f444383b6e6623f1fffbaeb99eeab68fb0937afa628c0eabe6
+// Contract SHA-256: 5df9f334ef9391ee2d5c2d09f869dadc2e28953cee17c518541c5a168132a3f5
 
 export interface paths {
   '/v1/active-server': {
@@ -4187,6 +4187,76 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/directory': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Update a server's configured directory
+     * @description Updates the configured path only; it does not move or create files on disk.
+     */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['ServerDirectoryRequestDTO'];
+        };
+      };
+      responses: {
+        /** @description Server directory updated */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ServerDirectoryResultDTO'];
+          };
+        };
+        /** @description missing_body / invalid_json / missing_server_id / directory_required */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description internal error */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/eula': {
     parameters: {
       query?: never;
@@ -7355,6 +7425,20 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ServerDirectoryRequestDTO: {
+      directory: string;
+      serverId: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ServerDirectoryResultDTO: {
+      directory?: string;
+      message: string;
+      serverId?: string;
+      success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
     ServerDTO: {
       /** @description Configured Java cross-play Bedrock port, when present. */
       bedrockPort?: number;
@@ -9219,7 +9303,7 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          'image/png': string;
+          'image/jpeg': string;
         };
       };
       /** @description slot_not_found / backup_not_found / staged_upload_not_found */

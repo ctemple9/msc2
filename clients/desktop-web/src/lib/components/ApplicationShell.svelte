@@ -242,8 +242,13 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     padding: 14px;
     background: var(--msc2-tier-atmosphere);
+  }
+  .content::-webkit-scrollbar {
+    display: none;
   }
   .console-resize {
     flex-shrink: 0;

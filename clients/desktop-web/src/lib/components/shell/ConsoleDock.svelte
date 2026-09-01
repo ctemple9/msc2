@@ -18,6 +18,8 @@
     EMPTY_CUSTOM_FILTER,
     commandEchoLine,
     commandSuggestions,
+    consoleLineKey,
+    consoleLinesAfterClear,
     consoleLineTone,
     livePaths,
     rememberCommand,
@@ -48,6 +50,9 @@
   let logEl: HTMLDivElement | undefined;
   let followTail = true;
   let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let clearVersion = 0;
+  let clearedAt: number | undefined;
+  const clearedLineKeys = new Set<string>();
   let playersResponse: Schema['PlayersResponseDTO'] = { count: 0, players: [] };
   let showPalette = false;
 
@@ -64,8 +69,12 @@
 
   async function poll(): Promise<void> {
     if (!api) return;
+    const version = clearVersion;
     try {
-      lines = await api.get<ConsoleLine[]>(livePaths.tail);
+      const fetchedLines = await api.get<ConsoleLine[]>(livePaths.tail);
+      if (version === clearVersion) {
+        lines = consoleLinesAfterClear(fetchedLines, clearedAt, clearedLineKeys);
+      }
     } catch {
       // Agent unreachable this cycle — keep showing the last known buffer.
     }
@@ -146,6 +155,9 @@
   }
 
   function clearConsole(): void {
+    for (const line of lines) clearedLineKeys.add(consoleLineKey(line));
+    clearedAt = Date.now();
+    clearVersion += 1;
     lines = [];
   }
 </script>

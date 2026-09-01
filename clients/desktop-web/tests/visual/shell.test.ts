@@ -70,6 +70,8 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
   it('keeps the docked console collapsible and console-tier surfaced', () => {
     expect(consoleDockSource).toContain('onToggle');
     expect(consoleDockSource).toContain('var(--msc2-tier-terminal)');
+    expect(consoleDockSource).toContain('consoleLinesAfterClear');
+    expect(consoleDockSource).toContain('clearedLineKeys');
   });
 
   it('keeps the avatar switcher centered and submits identity with Enter', () => {
@@ -97,6 +99,12 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(howToConnectSource).toContain('class:scrollable={playitSelected');
     expect(howToConnectSource).toContain('overflow-x: auto');
     expect(howToConnectSource).toContain('.pill-value.scrollable::-webkit-scrollbar');
+  });
+
+  it('keeps the main tab content scrollable without displaying scrollbar chrome', () => {
+    expect(applicationShellSource).toContain('class="content"');
+    expect(applicationShellSource).toContain('scrollbar-width: none');
+    expect(applicationShellSource).toContain('.content::-webkit-scrollbar');
   });
 
   it('shows the real crossplay address and authenticated Xbox identity', () => {

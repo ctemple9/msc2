@@ -2,6 +2,40 @@ import type { Schema } from '../shared/types';
 
 export type ConsoleLine = Schema['ConsoleLineDTO'];
 
+/**
+ * Stable identity for a console line while the agent's tail has no numeric id.
+ * The dock uses this to keep a locally-cleared line hidden when the next poll
+ * returns the agent's still-retained history.
+ */
+export function consoleLineKey(line: ConsoleLine): string {
+  return [line.ts, line.source, line.level ?? '', line.text].join('\u0000');
+}
+
+function consoleLineTimestamp(ts: string): number | undefined {
+  const numeric = Number(ts);
+  if (Number.isFinite(numeric)) return numeric;
+  const parsed = Date.parse(ts);
+  return Number.isNaN(parsed) ? undefined : parsed;
+}
+
+/**
+ * Applies the dock's local clear boundary to a freshly fetched tail. The
+ * timestamp handles lines that arrived between the last poll and Clear; the
+ * key set handles lines already rendered, including local command echoes.
+ */
+export function consoleLinesAfterClear(
+  lines: readonly ConsoleLine[],
+  clearedAt: number | undefined,
+  clearedLineKeys: ReadonlySet<string>,
+): ConsoleLine[] {
+  if (clearedAt === undefined && clearedLineKeys.size === 0) return [...lines];
+  return lines.filter((line) => {
+    if (clearedLineKeys.has(consoleLineKey(line))) return false;
+    const timestamp = consoleLineTimestamp(line.ts);
+    return timestamp === undefined || clearedAt === undefined || timestamp > clearedAt;
+  });
+}
+
 export const demoConsole: ConsoleLine[] = [
   {
     ts: '2026-08-24T12:00:00Z',

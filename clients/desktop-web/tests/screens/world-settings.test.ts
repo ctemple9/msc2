@@ -21,6 +21,10 @@ describe('world-settings release gate', () => {
   it('keeps server-wide force-gamemode separate from the active world profile', () => {
     expect(settingsSource).toContain('force-gamemode');
     expect(settingsSource).toContain('Applies to every world and can override saved defaults.');
+    expect(settingsSource).toContain('forceGamemodeConfirmation');
+    expect(settingsSource).toContain('confirmForceGamemode');
+    expect(settingsSource).toContain("'server_force_gamemode'");
+    expect(settingsSource).not.toContain('Edit active world settings in Worlds');
     expect(formSource).toContain('serverSettingsHref');
     expect(formSource).toContain('The agent will require an acknowledgement');
   });

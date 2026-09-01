@@ -69,6 +69,7 @@
   let rejected: Schema['SettingRejectionDTO'][] = [];
   let saving = false;
   let confirmation: SafetyPrompt | undefined;
+  let forceGamemodeConfirmation = false;
   let lastServerId: string | undefined;
 
   type SafetyPrompt = {
@@ -108,7 +109,22 @@
     draft = { ...draft, [key]: value };
   }
 
+  function handleBooleanChange(key: string, checked: boolean): void {
+    if (key === 'force-gamemode' && checked) {
+      forceGamemodeConfirmation = true;
+      return;
+    }
+    if (key === 'force-gamemode') forceGamemodeConfirmation = false;
+    setValue(key, checked ? 'true' : 'false');
+  }
+
+  function confirmForceGamemode(): void {
+    forceGamemodeConfirmation = false;
+    setValue('force-gamemode', 'true');
+  }
+
   function revert(): void {
+    forceGamemodeConfirmation = false;
     draft = { ...original };
   }
 
@@ -116,6 +132,7 @@
     settings = await call(api, settings, '/v1/settings');
     original = snapshot(settings.sections);
     draft = { ...original };
+    forceGamemodeConfirmation = false;
   }
 
   $: changes = Object.fromEntries(
@@ -134,9 +151,12 @@
     saving = true;
     confirmation = undefined;
     try {
+      const effectiveConfirmation =
+        confirmationToken ??
+        (changes['force-gamemode'] === 'true' ? 'server_force_gamemode' : undefined);
       const result = await mutate<Schema['SettingsUpdateResultDTO']>(api, '/v1/settings', {
         changes,
-        ...(confirmationToken ? { confirmation: confirmationToken } : {}),
+        ...(effectiveConfirmation ? { confirmation: effectiveConfirmation } : {}),
       });
       if (result.sections) settings = { ...settings, sections: result.sections };
       original = snapshot(settings.sections);
@@ -169,11 +189,6 @@
       {#if dirty}<StatusDot tone="warn" label="Unsaved changes" />{/if}
     </div>
   </div>
-  <p class="hint">
-    These are server settings shared by every world. Changes stay local until you click Save
-    Changes.
-    <a href="../worlds">Edit active world settings in Worlds</a>
-  </p>
 
   {#if notice}<p class="notice" role="status">{notice}</p>{/if}
   {#if confirmation}
@@ -213,7 +228,7 @@
                   <Toggle
                     checked={draft[field.key] === 'true'}
                     label={field.label}
-                    onchange={(checked) => setValue(field.key, checked ? 'true' : 'false')}
+                    onchange={(checked) => handleBooleanChange(field.key, checked)}
                   />
                 {:else if field.type === 'enum' && field.options?.length}
                   {#if segmentedKeys.has(field.key)}
@@ -242,13 +257,27 @@
                 {:else}
                   <Field bind:value={draft[field.key]} width="260px" />
                 {/if}
-                {#if field.key === 'force-gamemode'}
-                  <span class="field-hint"
-                    >Applies to every world and can override saved defaults.</span
-                  >
-                {/if}
               </div>
             </div>
+            {#if field.key === 'force-gamemode' && forceGamemodeConfirmation}
+              <div class="force-confirmation" role="alert">
+                <div class="force-confirmation-copy">
+                  <span class="confirmation-title">Enable Force Gamemode?</span>
+                  <span class="hint">Applies to every world and can override saved defaults.</span>
+                </div>
+                <div class="confirmation-actions">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onclick={() => (forceGamemodeConfirmation = false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button size="sm" variant="primary" onclick={confirmForceGamemode}>Confirm</Button
+                  >
+                </div>
+              </div>
+            {/if}
           {/each}
         </Card>
       </section>
@@ -294,12 +323,6 @@
     font-size: 12px;
     color: var(--msc2-text-tertiary);
   }
-  .hint a {
-    margin-left: 4px;
-    color: var(--msc2-text-secondary);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
   .notice {
     margin: 0;
     font-size: 12px;
@@ -333,16 +356,8 @@
   }
   .control {
     display: flex;
-    flex-direction: column;
     align-items: center;
     gap: 8px;
-  }
-  .field-hint {
-    max-width: 260px;
-    font-size: 10px;
-    line-height: 1.4;
-    text-align: right;
-    color: var(--msc2-text-tertiary);
   }
   .unit {
     font-size: 11px;
@@ -375,5 +390,22 @@
     display: flex;
     justify-content: flex-end;
     gap: 8px;
+  }
+  .force-confirmation {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .force-confirmation-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .force-confirmation-copy .hint {
+    margin: 0;
   }
 </style>

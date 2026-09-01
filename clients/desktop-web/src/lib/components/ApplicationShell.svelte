@@ -45,6 +45,8 @@
   export let onOpenBrowser: (() => void) | undefined = undefined;
   export let onSettings: (() => void) | undefined = undefined;
   export let onRefresh: (() => void) | undefined = undefined;
+  export let addressesVisible = false;
+  export let onToggleAddresses: () => void = () => undefined;
 
   const SIDEBAR_KEY = 'msc2.sidebarCollapsed';
   const CONSOLE_KEY = 'msc2.consoleHidden';
@@ -147,6 +149,8 @@
         {onResumeInitiation}
         {onOpenAgentSetup}
         {onManage}
+        {addressesVisible}
+        {onToggleAddresses}
       />
     {/if}
 

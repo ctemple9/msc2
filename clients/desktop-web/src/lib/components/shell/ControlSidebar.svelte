@@ -5,6 +5,7 @@
   import Button from '../base/Button.svelte';
   import Menu from '../base/Menu.svelte';
   import Icon from '../base/Icon.svelte';
+  import VisibilityIcon from '../base/VisibilityIcon.svelte';
   import ShellIcon from './ShellIcon.svelte';
   import PlayerAvatar from './PlayerAvatar.svelte';
   import HowToConnectSection from './sidebar/HowToConnectSection.svelte';
@@ -56,6 +57,8 @@
   export let onResumeInitiation: () => void = () => undefined;
   export let onOpenAgentSetup: () => void;
   export let onManage: () => void;
+  export let addressesVisible = false;
+  export let onToggleAddresses: () => void = () => undefined;
 
   let pickerOpen = false;
   let pickerPos = { x: 0, y: 0 };
@@ -247,6 +250,20 @@
             <ShellIcon name={expanded[section] ? 'chevron-down' : 'chevron-right'} size={11} />
             <span class="overline">{section}</span>
           </button>
+          {#if section === 'How to connect' && expanded[section]}
+            <button
+              type="button"
+              class="visibility-toggle"
+              aria-label={addressesVisible
+                ? 'Hide connection addresses'
+                : 'Show connection addresses'}
+              aria-pressed={addressesVisible}
+              title={addressesVisible ? 'Hide connection addresses' : 'Show connection addresses'}
+              onclick={onToggleAddresses}
+            >
+              <VisibilityIcon visible={addressesVisible} />
+            </button>
+          {/if}
         </div>
         {#if expanded[section]}
           <div class="disclosure-content">
@@ -268,6 +285,7 @@
                 hostAddress={activeServer?.hostAddress}
                 {showXboxBroadcast}
                 xboxBroadcastEnabled={activeServer?.xboxBroadcastEnabled === true}
+                {addressesVisible}
               />
             {:else if section === 'Maintenance'}
               <div class="maintenance-row">
@@ -431,6 +449,24 @@
   }
   .disclosure-toggle:focus-visible {
     outline: 2px solid rgba(255, 255, 255, 0.4);
+  }
+  .visibility-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: var(--msc2-text-tertiary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .visibility-toggle:hover {
+    color: var(--msc2-text-primary);
+  }
+  .visibility-toggle:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.4);
+    outline-offset: 2px;
+    border-radius: 3px;
   }
   .disclosure-content {
     margin: 0 0 10px;

@@ -22,6 +22,8 @@
   export let hostId = 'local-agent';
   export let serverId = 'survival';
   export let onWorlds: (() => void) | undefined = undefined;
+  export let addressesVisible = false;
+  export let onToggleAddresses: () => void = () => undefined;
 
   let health: Schema['HealthResponseDTO'] = {
     cards: [],
@@ -101,6 +103,8 @@
         {geyser}
         {connectivity}
         {playit}
+        {addressesVisible}
+        {onToggleAddresses}
       />
       <LiveStatsCard snapshot={performance} />
     </div>

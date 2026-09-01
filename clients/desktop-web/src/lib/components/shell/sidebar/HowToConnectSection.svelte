@@ -23,6 +23,7 @@
   export let hostAddress: string | undefined = undefined;
   export let showXboxBroadcast = false;
   export let xboxBroadcastEnabled = false;
+  export let addressesVisible = false;
 
   let connectivity: Schema['ConnectivityResponseDTO'] | undefined;
   let geyser: Schema['GeyserConfigResponseDTO'] | undefined;
@@ -197,7 +198,7 @@
   {#each rows as row (row.key)}
     <div class="row">
       <span class="row-label">{row.label}</span>
-      {#if row.value}
+      {#if row.value && addressesVisible}
         <button type="button" class="pill" onclick={() => copy(row.key, row.value ?? '')}>
           <span
             class="pill-value mono"
@@ -220,6 +221,8 @@
           </svg>
           <span class="sr-only">{copiedRow === row.key ? 'Copied' : `Copy ${row.label}`}</span>
         </button>
+      {:else if row.value}
+        <p class="unavailable hidden-value">Hidden</p>
       {:else}
         <p class="unavailable">{row.fallback}</p>
       {/if}

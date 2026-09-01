@@ -169,6 +169,11 @@
   let settingsOpen = false;
   let resetOpen = false;
   let browserHandoffError = '';
+  let addressesVisible = false;
+
+  function toggleAddresses(): void {
+    addressesVisible = !addressesVisible;
+  }
 
   function refreshHosts(): void {
     hosts = hostStore.listHosts();
@@ -711,6 +716,8 @@
   onOpenAgentSetup={openAgentSetup}
   onOpenBrowser={isDesktopShell ? () => void openLocalAgentInBrowser() : undefined}
   onManage={() => (manageOpen = true)}
+  {addressesVisible}
+  onToggleAddresses={toggleAddresses}
   onHelp={() => void selectSection('handbook')}
   onSettings={() => (settingsOpen = true)}
   onRefresh={() => void initializeClient()}
@@ -733,6 +740,8 @@
       onServerSelected={(id: string) => (selectedServerId = id)}
       onFleet={() => (manageOpen = true)}
       onWorlds={() => void selectSection('worlds')}
+      addressesVisible={activeSection === 'home' ? addressesVisible : false}
+      onToggleAddresses={toggleAddresses}
     />
   {:else}
     <div class="dashboard" data-bundle-id={bundleIdentity.id} data-client-surface="shared">

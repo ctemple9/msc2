@@ -8,6 +8,7 @@
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import Button from '../../components/base/Button.svelte';
   import Icon from '../../components/base/Icon.svelte';
+  import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import type { Schema } from '../shared/types';
 
   export let serverType: string | undefined = undefined;
@@ -17,6 +18,8 @@
   export let geyser: Schema['GeyserConfigResponseDTO'] | undefined = undefined;
   export let connectivity: Schema['ConnectivityResponseDTO'] | undefined = undefined;
   export let playit: Schema['PlayitStatusResponseDTO'] | undefined = undefined;
+  export let addressesVisible = false;
+  export let onToggleAddresses: () => void = () => {};
 
   let showPublic = false;
   let copiedLabel = '';
@@ -169,6 +172,16 @@
         value={showPublic ? 'public' : 'local'}
         onchange={(v) => (showPublic = v === 'public')}
       />
+      <button
+        type="button"
+        class="visibility-toggle"
+        aria-label={addressesVisible ? 'Hide connection addresses' : 'Show connection addresses'}
+        aria-pressed={addressesVisible}
+        title={addressesVisible ? 'Hide connection addresses' : 'Show connection addresses'}
+        onclick={onToggleAddresses}
+      >
+        <VisibilityIcon visible={addressesVisible} />
+      </button>
     </div>
   </div>
 
@@ -182,19 +195,21 @@
         <span class="source-tag">{javaSourceTag}</span>
       </div>
       <span class="label">IP</span>
-      {#if javaIp}
+      {#if !addressesVisible}
+        <p class="value mono muted-value">Hidden</p>
+      {:else if javaIp}
         <p class="value mono">{javaIp}</p>
       {:else}
         <p class="value mono muted-value">{javaIpFallback}</p>
       {/if}
       <span class="label">Port</span>
       <p class="value mono">
-        {javaDisplayPort !== undefined ? javaDisplayPort : '—'}
+        {addressesVisible ? (javaDisplayPort !== undefined ? javaDisplayPort : '—') : 'Hidden'}
       </p>
       <Button
         variant="secondary"
         size="sm"
-        disabled={!javaCopyValue}
+        disabled={!addressesVisible || !javaCopyValue}
         onclick={() => javaCopyValue && copy('Java', javaCopyValue)}
       >
         {copiedLabel === 'Java' ? 'Copied' : showPublic ? 'Copy address' : 'Copy port'}
@@ -210,19 +225,25 @@
             <span class="source-tag">{bedrockSourceTag}</span>
           </div>
           <span class="label">IP</span>
-          {#if geyserIp}
+          {#if !addressesVisible}
+            <p class="value mono muted-value">Hidden</p>
+          {:else if geyserIp}
             <p class="value mono">{geyserIp}</p>
           {:else}
             <p class="value mono muted-value">{geyserIpFallback}</p>
           {/if}
           <span class="label">Port</span>
           <p class="value mono">
-            {geyserDisplayPort !== undefined ? geyserDisplayPort : '—'}
+            {addressesVisible
+              ? geyserDisplayPort !== undefined
+                ? geyserDisplayPort
+                : '—'
+              : 'Hidden'}
           </p>
           <Button
             variant="secondary"
             size="sm"
-            disabled={!bedrockCopyValue}
+            disabled={!addressesVisible || !bedrockCopyValue}
             onclick={() => bedrockCopyValue && copy('Bedrock', bedrockCopyValue)}
           >
             {copiedLabel === 'Bedrock' ? 'Copied' : 'Copy address'}
@@ -260,6 +281,24 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+  .visibility-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: var(--msc2-text-tertiary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .visibility-toggle:hover {
+    color: var(--msc2-text-primary);
+  }
+  .visibility-toggle:focus-visible {
+    outline: 2px solid var(--msc2-hairline);
+    outline-offset: 2px;
+    border-radius: 3px;
   }
   .columns {
     display: grid;

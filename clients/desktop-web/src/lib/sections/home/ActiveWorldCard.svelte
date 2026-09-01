@@ -138,6 +138,10 @@
   .actions {
     display: flex;
     gap: 8px;
+    justify-content: center;
+  }
+  .actions :global(.btn) {
+    flex: 1;
   }
   .empty {
     display: flex;

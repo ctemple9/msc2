@@ -90,11 +90,15 @@
     font-size: 10px;
   }
   .feed {
-    max-height: 190px;
+    height: 190px;
     overflow-y: auto;
+    scrollbar-width: none;
     display: flex;
     flex-direction: column;
     gap: 4px;
+  }
+  .feed::-webkit-scrollbar {
+    display: none;
   }
   .line {
     margin: 0;

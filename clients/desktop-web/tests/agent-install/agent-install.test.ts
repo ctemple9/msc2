@@ -50,6 +50,14 @@ describe('local agent installation boundary', () => {
     expect(setupSource).toContain('Closing the app window never stops the service');
   });
 
+  it('explains the control panel and agent relationship before service controls', () => {
+    expect(setupSource).toContain('MSC has two parts');
+    expect(setupSource).toContain('The control panel');
+    expect(setupSource).toContain('The agent');
+    expect(setupSource).toContain('The control panel is like a remote control');
+    expect(setupSource).toContain('One control panel can connect to multiple agents');
+  });
+
   it('starts an installed stopped agent and waits for its health endpoint', async () => {
     const platform: AgentPreparationPlatform = {
       kind: 'tauri',

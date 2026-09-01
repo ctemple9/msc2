@@ -142,6 +142,57 @@
     </div>
   </div>
 
+  <Card as="section" padding="18px 20px">
+    <div class="architecture">
+      <div class="architecture-copy">
+        <p class="msc2-type-overline">How MSC works</p>
+        <h2>MSC has two parts</h2>
+        <ol class="architecture-parts">
+          <li>
+            <strong>The control panel</strong> — this desktop window, browser page, phone app, or CLI.
+            It sends commands and displays information.
+          </li>
+          <li>
+            <strong>The agent</strong> — a small background service running on the computer that owns
+            the Minecraft servers. It manages server files, starts processes, reads logs, and keeps servers
+            running.
+          </li>
+        </ol>
+        <p class="architecture-analogy">
+          The control panel is like a remote control. The agent is the machinery doing the work.
+        </p>
+      </div>
+
+      <div class="architecture-diagram" aria-label="The control panel communicates with the agent">
+        <div class="architecture-node">
+          <span class="node-kicker">What you use</span>
+          <strong>Control panel</strong>
+          <span>Desktop · browser · phone · CLI</span>
+        </div>
+        <div class="architecture-link" aria-hidden="true">
+          <span>communicates with</span>
+          <strong>↔</strong>
+        </div>
+        <div class="architecture-node">
+          <span class="node-kicker">Where Minecraft runs</span>
+          <strong>MSC agent</strong>
+          <span>{hostLabel}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="architecture-means">
+      <p class="msc2-type-overline">That means</p>
+      <ul>
+        <li>Closing the control panel does not stop the agent.</li>
+        <li>Closing the control panel does not stop a running Minecraft server.</li>
+        <li>A browser or phone can manage a server without running the server itself.</li>
+        <li>One control panel can connect to multiple agents on different computers.</li>
+        <li>Installing or starting the agent must happen on the agent’s computer.</li>
+      </ul>
+    </div>
+  </Card>
+
   <div class="screen-grid two">
     <Card>
       <div class="card-heading">
@@ -332,6 +383,94 @@
     margin-top: 5px;
     line-height: 1.5;
   }
+  .architecture {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+    gap: 24px;
+    align-items: center;
+  }
+  .architecture h2 {
+    margin-top: 7px;
+    font-size: 17px;
+  }
+  .architecture-parts,
+  .architecture-means ul {
+    margin: 12px 0 0;
+    padding-left: 20px;
+    color: var(--msc2-text-secondary);
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .architecture-parts li + li,
+  .architecture-means li + li {
+    margin-top: 7px;
+  }
+  .architecture-parts strong {
+    color: var(--msc2-text-primary);
+    font-weight: 500;
+  }
+  .architecture-analogy {
+    margin: 14px 0 0;
+    color: var(--msc2-text-primary);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .architecture-diagram {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+  }
+  .architecture-node {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 13px 12px;
+    background: var(--msc2-tier-chrome);
+    border-radius: 9px;
+  }
+  .architecture-node strong {
+    color: var(--msc2-text-primary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .architecture-node span:last-child {
+    overflow-wrap: anywhere;
+    color: var(--msc2-text-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+  }
+  .node-kicker,
+  .architecture-link span {
+    color: var(--msc2-text-tertiary);
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .architecture-link {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    color: var(--msc2-text-tertiary);
+  }
+  .architecture-link strong {
+    font-size: 22px;
+    font-weight: 400;
+    line-height: 1;
+  }
+  .architecture-means {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--msc2-hairline-faint);
+  }
+  .architecture-means ul {
+    columns: 2;
+    column-gap: 28px;
+    margin-top: 8px;
+  }
+  .architecture-means li {
+    break-inside: avoid;
+  }
   .quiet-label {
     font-size: 12px;
   }
@@ -362,5 +501,13 @@
     color: var(--msc2-status-error);
     font-size: 13px;
     line-height: 1.5;
+  }
+  @media (max-width: 760px) {
+    .architecture {
+      grid-template-columns: 1fr;
+    }
+    .architecture-means ul {
+      columns: 1;
+    }
   }
 </style>

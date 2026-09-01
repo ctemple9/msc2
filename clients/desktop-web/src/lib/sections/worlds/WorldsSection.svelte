@@ -98,6 +98,7 @@
    *  pattern as ComponentsSection.svelte's `addonMenu`/ManageSheet.svelte's
    *  `openMenuFor`, not one Menu per card. */
   let actionMenu: { slot: Schema['WorldSlotDTO']; x: number; y: number } | undefined;
+  let headerMenu: { x: number; y: number } | undefined;
 
   $: activeServer = servers.find((server) => server.id === serverId);
   $: isBedrock = activeServer?.serverType === 'bedrock';
@@ -279,6 +280,11 @@
 
   function openActionMenu(event: MouseEvent, slot: Schema['WorldSlotDTO']): void {
     actionMenu = { slot, x: event.clientX, y: event.clientY };
+  }
+
+  function openHeaderMenu(event: MouseEvent): void {
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    headerMenu = { x: rect.left, y: rect.bottom + 4 };
   }
 
   async function confirmActivate(): Promise<void> {
@@ -467,25 +473,6 @@
         <span class="msc2-type-overline">World Slots</span>
       </div>
       <div class="header-actions">
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={busy}
-          onclick={() => void saveCurrentWorld()}
-        >
-          Save Current World
-        </Button>
-        <Button
-          size="sm"
-          variant="secondary"
-          disabled={busy}
-          onclick={() => (importZipOpen = true)}
-        >
-          Import ZIP…
-        </Button>
-        <Button size="sm" variant="secondary" disabled={busy} onclick={() => (replaceOpen = true)}>
-          Replace World…
-        </Button>
         {#if isBedrock}
           <Button
             size="sm"
@@ -499,6 +486,7 @@
         <Button size="sm" variant="primary" disabled={busy} onclick={() => (showCreate = true)}>
           Create New World
         </Button>
+        <Button size="sm" variant="secondary" disabled={busy} onclick={openHeaderMenu}>…</Button>
       </div>
     </div>
 
@@ -543,6 +531,19 @@
       </div>
     {/if}
   </section>
+
+  {#if headerMenu}
+    <Menu
+      x={headerMenu.x}
+      y={headerMenu.y}
+      onClose={() => (headerMenu = undefined)}
+      items={[
+        { label: 'Save Current World', disabled: busy, onSelect: () => void saveCurrentWorld() },
+        { label: 'Import ZIP…', disabled: busy, onSelect: () => (importZipOpen = true) },
+        { label: 'Replace World…', disabled: busy, onSelect: () => (replaceOpen = true) },
+      ]}
+    />
+  {/if}
 
   {#if actionMenu}
     {@const menuSlot = actionMenu.slot}

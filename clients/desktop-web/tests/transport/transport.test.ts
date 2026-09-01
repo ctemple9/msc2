@@ -11,6 +11,33 @@ function response(body: unknown, status = 200, version = '1.0'): Response {
 }
 
 describe('shared host-aware transport', () => {
+  it('builds resource URLs against the selected host', () => {
+    const client = new ApiClient({ baseUrl: 'http://alpha.test/', hostId: 'alpha' });
+
+    expect(client.resourceUrl('/v1/worlds/slot-1/thumbnail')).toBe(
+      'http://alpha.test/v1/worlds/slot-1/thumbnail',
+    );
+  });
+
+  it('fetches binary resources through the selected host transport', async () => {
+    let requestedUrl = '';
+    const client = new ApiClient({
+      baseUrl: 'http://alpha.test',
+      hostId: 'alpha',
+      fetchImpl: async (url) => {
+        requestedUrl = url;
+        return new Response(new Uint8Array([1, 2, 3]), {
+          headers: { 'X-MSC-Api-Version': '1.0' },
+        });
+      },
+    });
+
+    await expect(client.requestBytes('GET', '/v1/worlds/slot-1/thumbnail')).resolves.toEqual(
+      new Uint8Array([1, 2, 3]),
+    );
+    expect(requestedUrl).toBe('http://alpha.test/v1/worlds/slot-1/thumbnail');
+  });
+
   it('adds version and bearer headers and decodes ErrorDTO failures', async () => {
     let request: RequestInit | undefined;
     const client = new ApiClient({

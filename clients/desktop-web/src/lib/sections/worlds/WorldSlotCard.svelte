@@ -24,11 +24,12 @@
   // the Backups panel below) is unchanged, just recolored to the same blue
   // `--msc2-selection` token those rows use for their own selected state,
   // instead of a plain brighter-white border.
+  import { onDestroy } from 'svelte';
   import Card from '../../components/base/Card.svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
-  import { bytesLabel, dateLabel, mutate } from '../shared/types';
+  import { bytesLabel, dateLabel, imageObjectUrl, mutate } from '../shared/types';
   import { getPlatform } from '../../platform';
   import { placeholderHue, slotThumbnailUrl, worldPaths, type WorldProfile } from './model';
 
@@ -52,14 +53,57 @@
   let thumbnailBusy = false;
   let thumbnailError: string | undefined;
   let fileInput: HTMLInputElement;
+  let thumbnailRevision = 0;
+  let thumbnailObjectUrl: string | undefined;
+  let thumbnailLoadToken = 0;
 
-  $: thumbnail = slotThumbnailUrl(slot);
+  $: thumbnailPath = slotThumbnailUrl(slot);
+  $: thumbnailUrl = thumbnailPath
+    ? (api?.resourceUrl?.(thumbnailPath) ?? thumbnailPath)
+    : undefined;
+  $: thumbnail = api?.getBytes
+    ? thumbnailObjectUrl
+    : thumbnailUrl
+      ? `${thumbnailUrl}${thumbnailUrl.includes('?') ? '&' : '?'}v=${thumbnailRevision}`
+      : undefined;
   $: hue = placeholderHue(slot.name || slot.id);
   $: seed = slot.worldSeed?.trim();
   $: profileSummary = [profile?.gameplay.difficulty, profile?.gameplay.defaultGameMode]
     .filter((value): value is string => Boolean(value))
     .map((value) => value.charAt(0).toUpperCase() + value.slice(1))
     .join(' · ');
+
+  $: if (api?.getBytes && thumbnailPath) {
+    void loadThumbnail(thumbnailPath, thumbnailRevision);
+  } else if (api?.getBytes) {
+    clearThumbnail();
+  }
+
+  async function loadThumbnail(path: string, revision: number): Promise<void> {
+    const token = ++thumbnailLoadToken;
+    clearThumbnailUrl();
+    try {
+      const bytes = await api?.getBytes?.(path);
+      if (!bytes || token !== thumbnailLoadToken) return;
+      thumbnailObjectUrl = imageObjectUrl(bytes);
+    } catch {
+      if (token === thumbnailLoadToken && revision === thumbnailRevision) {
+        thumbnailObjectUrl = undefined;
+      }
+    }
+  }
+
+  function clearThumbnailUrl(): void {
+    if (thumbnailObjectUrl) URL.revokeObjectURL(thumbnailObjectUrl);
+    thumbnailObjectUrl = undefined;
+  }
+
+  function clearThumbnail(): void {
+    thumbnailLoadToken += 1;
+    clearThumbnailUrl();
+  }
+
+  onDestroy(clearThumbnail);
 
   async function setThumbnail(): Promise<void> {
     if (!api?.upload) return;
@@ -75,6 +119,7 @@
     try {
       const staged = await api.upload('world-thumbnail', picked.bytes);
       await mutate(api, worldPaths.thumbnail(slot.id), { stagedUploadId: staged.stagedUploadId });
+      thumbnailRevision += 1;
       onThumbnailUpdated();
     } catch (error) {
       thumbnailError = error instanceof Error ? error.message : 'Failed to set thumbnail.';

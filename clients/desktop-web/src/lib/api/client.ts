@@ -63,6 +63,11 @@ export class ApiClient {
     return this.hostId;
   }
 
+  /** Builds an absolute URL for non-JSON resources rendered by the UI. */
+  resourceUrl(path: string): string {
+    return this.urlFor(path);
+  }
+
   get capabilities(): components['schemas']['CapabilitiesDTO'] | null {
     return this.capabilitiesValue ? structuredClone(this.capabilitiesValue) : null;
   }

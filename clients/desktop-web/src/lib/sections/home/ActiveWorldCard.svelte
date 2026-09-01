@@ -3,25 +3,76 @@
   // that reads level.dat directly in MSC 1; the agent contract has no
   // equivalent field, so it is honestly omitted here rather than faked.
   // Thumbnails use the same deterministic gradient placeholder MSC 1 falls
-  // back to when a slot has no saved photo (no real thumbnail fetch wired
-  // yet — WorldsSection.svelte, the tab that owns real world art, is P12.4).
+  // back to when a slot has no saved photo. Saved thumbnails are fetched
+  // through the authenticated screen API because CSS image requests cannot
+  // carry the desktop client's bearer credentials.
+  import { onDestroy } from 'svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Icon from '../../components/base/Icon.svelte';
-  import type { Schema } from '../shared/types';
+  import { imageObjectUrl, type Schema, type ScreenApi } from '../shared/types';
+  import { slotThumbnailUrl } from '../worlds/model';
 
+  export let api: ScreenApi | undefined = undefined;
   export let slot: Schema['WorldSlotDTO'] | undefined = undefined;
   export let isBedrock = false;
   export let difficulty: string | undefined = undefined;
   export let gamemode: string | undefined = undefined;
-  export let maxPlayers: string | undefined = undefined;
   export let onSwitch: () => void = () => {};
   export let onBackup: () => void = () => {};
+
+  let thumbnailObjectUrl: string | undefined;
+  let thumbnailLoadToken = 0;
+
+  $: thumbnailPath = slot ? slotThumbnailUrl(slot) : undefined;
+  $: thumbnailUrl = thumbnailPath
+    ? (api?.resourceUrl?.(thumbnailPath) ?? thumbnailPath)
+    : undefined;
+  $: thumbnail = api?.getBytes
+    ? thumbnailObjectUrl
+    : thumbnailUrl
+      ? `${thumbnailUrl}${thumbnailUrl.includes('?') ? '&' : '?'}v=0`
+      : undefined;
+
+  $: if (api?.getBytes && thumbnailPath) {
+    void loadThumbnail(thumbnailPath);
+  } else if (api?.getBytes) {
+    clearThumbnail();
+  }
+
+  async function loadThumbnail(path: string): Promise<void> {
+    const token = ++thumbnailLoadToken;
+    clearThumbnailUrl();
+    try {
+      const bytes = await api?.getBytes?.(path);
+      if (!bytes || token !== thumbnailLoadToken) return;
+      thumbnailObjectUrl = imageObjectUrl(bytes);
+    } catch {
+      if (token === thumbnailLoadToken) thumbnailObjectUrl = undefined;
+    }
+  }
+
+  function clearThumbnailUrl(): void {
+    if (thumbnailObjectUrl) URL.revokeObjectURL(thumbnailObjectUrl);
+    thumbnailObjectUrl = undefined;
+  }
+
+  function clearThumbnail(): void {
+    thumbnailLoadToken += 1;
+    clearThumbnailUrl();
+  }
+
+  onDestroy(clearThumbnail);
 
   function hue(seed: string): number {
     let h = 0;
     for (let i = 0; i < seed.length; i += 1) h = (h * 31 + seed.charCodeAt(i)) % 360;
     return h;
+  }
+
+  function placeholderStyle(name: string): string {
+    const baseHue = hue(name);
+    return `background: linear-gradient(160deg, hsl(${baseHue} 40% 42%), hsl(${(baseHue + 30) % 360} 45% 22%));`;
   }
 </script>
 
@@ -35,13 +86,9 @@
     <div class="row">
       <div
         class="thumb"
-        style="background: linear-gradient(160deg, hsl({hue(slot.name)} 40% 42%), hsl({(hue(
-          slot.name,
-        ) +
-          30) %
-          360} 45% 22%));"
+        style={thumbnail ? `background-image: url(${thumbnail});` : placeholderStyle(slot.name)}
       >
-        <Icon name="world" size={22} />
+        {#if !thumbnail}<Icon name="world" size={22} />{/if}
       </div>
       <div class="meta">
         <p class="name">{slot.name}</p>
@@ -55,9 +102,6 @@
         </div>{/if}
       {#if gamemode}<div class="fact">
           <span class="k">Mode</span><span class="v">{gamemode}</span>
-        </div>{/if}
-      {#if maxPlayers}<div class="fact">
-          <span class="k">Max</span><span class="v">{maxPlayers}</span>
         </div>{/if}
     </div>
 

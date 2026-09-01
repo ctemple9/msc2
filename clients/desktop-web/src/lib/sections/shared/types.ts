@@ -6,6 +6,10 @@ export type Schema = components['schemas'];
 export interface ScreenApi {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body?: unknown): Promise<T>;
+  /** Fetches binary resources through the authenticated host transport. */
+  getBytes?(path: string): Promise<Uint8Array>;
+  /** Builds a host-aware URL for resources rendered directly by the browser. */
+  resourceUrl?(path: string): string;
   upload?(
     purpose: Schema['StagedUploadBeginRequestDTO']['purpose'],
     bytes: Uint8Array,
@@ -42,6 +46,13 @@ export function dateLabel(value: string | undefined): string {
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : 'The agent did not complete that request.';
+}
+
+/** Creates a browser image URL from bytes returned by the authenticated API. */
+export function imageObjectUrl(bytes: Uint8Array, mimeType = 'image/jpeg'): string {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return URL.createObjectURL(new Blob([buffer], { type: mimeType }));
 }
 
 export async function call<T>(api: ScreenApi | undefined, fallback: T, path: string): Promise<T> {

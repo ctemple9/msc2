@@ -126,11 +126,11 @@
       />
       <div class="world-col">
         <ActiveWorldCard
+          {api}
           slot={activeSlot}
           {isBedrock}
           difficulty={settingField('difficulty')}
           gamemode={settingField('gamemode')}
-          maxPlayers={settingField('max-players')}
           onSwitch={() => onWorlds?.()}
           onBackup={() => void createBackup()}
         />

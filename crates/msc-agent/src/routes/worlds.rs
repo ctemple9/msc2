@@ -1494,7 +1494,7 @@ pub async fn thumbnail(
     match StdFileSystem.read(&path) {
         Ok(bytes) => {
             let mut headers = HeaderMap::new();
-            headers.insert(header::CONTENT_TYPE, "image/png".parse().unwrap());
+            headers.insert(header::CONTENT_TYPE, "image/jpeg".parse().unwrap());
             (StatusCode::OK, headers, bytes).into_response()
         }
         Err(_) => error_response(
@@ -3401,6 +3401,16 @@ mod tests {
                 .find(|slot| slot.id == slot_id)
                 .unwrap()
                 .has_thumbnail
+        );
+
+        let thumbnail_response = thumbnail(State(state.clone()), AxumPath(slot_id.clone())).await;
+        assert_eq!(thumbnail_response.status(), StatusCode::OK);
+        assert_eq!(
+            thumbnail_response
+                .headers()
+                .get(header::CONTENT_TYPE)
+                .unwrap(),
+            "image/jpeg"
         );
 
         let thumbnail_path = server_dir.join(format!("world_slots/{slot_id}/thumbnail.jpg"));

@@ -15,7 +15,12 @@
   // Button component (solid neutral fill, no gradient/capsule).
   import { onDestroy, onMount } from 'svelte';
   import Button from '../components/base/Button.svelte';
-  import { anchorFrames, ONBOARDING_ANCHOR_ACTION_EVENT, remeasureAll } from './tourAnchors';
+  import {
+    anchorFrames,
+    ONBOARDING_ANCHOR_ACTION_EVENT,
+    remeasureAll,
+    scrollAnchorIntoView,
+  } from './tourAnchors';
   import { activeTourStep, tourServerCreated } from './onboarding';
   import type { OnboardingStep } from './types';
 
@@ -43,10 +48,13 @@
 
   let cardHidden = false;
   let lastIndex = -1;
+  let scrollRequest = 0;
+  let scrollFrame: number | undefined;
   let createCompletionHandled = false;
   $: if (stepIndex !== lastIndex) {
     cardHidden = false;
     lastIndex = stepIndex;
+    scrollRequest += 1;
     createCompletionHandled = false;
   }
 
@@ -78,7 +86,10 @@
     createCompletionHandled = true;
     onComplete();
   }
-  onDestroy(() => activeTourStep.set(null));
+  onDestroy(() => {
+    if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame);
+    activeTourStep.set(null);
+  });
 
   // Catches spotlights going stale when a layout change moves an anchor without
   // resizing it -- e.g. Sheet.svelte's vertically-centered scrim shifting every
@@ -117,6 +128,23 @@
   $: resolved = hasAnchor && !!anchorRect;
   $: blocking = !hasAnchor || !resolved;
   $: totalSteps = steps.length;
+
+  // A new step can replace wizard content in the same render pass. Wait two
+  // frames so the new anchor is mounted before revealing it in its scroll
+  // container.
+  $: if (spotlightAnchor && scrollRequest > 0) {
+    const request = scrollRequest;
+    const anchor = spotlightAnchor;
+    if (typeof window !== 'undefined') {
+      if (scrollFrame !== undefined) cancelAnimationFrame(scrollFrame);
+      scrollFrame = requestAnimationFrame(() => {
+        scrollFrame = requestAnimationFrame(() => {
+          if (request !== scrollRequest) return;
+          scrollAnchorIntoView(anchor, reduceMotion ? 'auto' : 'smooth');
+        });
+      });
+    }
+  }
 
   $: spot =
     resolved && anchorRect

@@ -99,6 +99,14 @@ export function remeasureAll(): void {
   });
 }
 
+/** Scrolls the anchor's nearest scroll container just enough to reveal it. */
+export function scrollAnchorIntoView(anchorId: string, behavior: ScrollBehavior = 'smooth'): void {
+  const node = elements.get(anchorId);
+  if (!node) return;
+  node.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior });
+  remeasureAll();
+}
+
 /**
  * `use:onboardingAnchor={'ob_start_button'}` on a real element reports its
  * live rect under that id so `TourOverlay.svelte` can spotlight it. Mirrors

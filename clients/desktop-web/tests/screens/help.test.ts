@@ -9,6 +9,7 @@ import routerTroubleshootingSource from '../../src/lib/sections/handbook/RouterG
 import setupSource from '../../src/lib/help/SetupIntro.svelte?raw';
 import splashSource from '../../src/lib/help/SplashGate.svelte?raw';
 import tourSource from '../../src/lib/help/TourOverlay.svelte?raw';
+import tourAnchorsSource from '../../src/lib/help/tourAnchors.ts?raw';
 import { renderMarkdown } from '../../src/lib/help/markdown';
 import { applicableTourSteps, firstLaunchStage, nextTourStep } from '../../src/lib/help/onboarding';
 
@@ -168,6 +169,8 @@ describe('shared help and onboarding screens', () => {
     expect(tourSource).toContain("'network-continue': 'ob_wizard_continue'");
     expect(tourSource).toContain("'first-world': 'ob_wizard_continue'");
     expect(tourSource).toContain("'add-ons': 'ob_wizard_continue'");
+    expect(tourSource).toContain('scrollAnchorIntoView');
+    expect(tourAnchorsSource).toContain("block: 'nearest'");
     expect(tourSource).toContain('Click Continue once you have reviewed your settings.');
     expect(tourSource).toContain('Nothing is required for a basic server.');
     expect(tourSource).toContain('onComplete');

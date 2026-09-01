@@ -228,6 +228,14 @@ pub struct BroadcastCredentialsDto {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct BroadcastCredentialsStatusDto {
+    pub email: Option<String>,
+    pub gamertag: Option<String>,
+    pub has_password: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BroadcastJarStatusDto {
     pub installed: bool,
     pub downloading: bool,

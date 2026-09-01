@@ -18,11 +18,12 @@ use axum::response::{IntoResponse, Response};
 use axum::{Json, Router, routing::post};
 use msc_api::dto::{
     BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
-    BroadcastJarDownloadResultDto, BroadcastJarStatusDto, BroadcastSimpleResultDto,
-    BroadcastStatusDto, PermissionCategoryDto, PlayitActionResultDto, PlayitResetResultDto,
-    PlayitSetupAcceptedDto, PlayitSetupRequestDto, PlayitStatusDto, ResourcePackActivateRequestDto,
-    ResourcePackItemDto, ResourcePackMutationResultDto, ResourcePackRemoveRequestDto,
-    ResourcePackSetUrlRequestDto, ResourcePackToggleRequestDto, ResourcePacksResponseDto,
+    BroadcastCredentialsStatusDto, BroadcastJarDownloadResultDto, BroadcastJarStatusDto,
+    BroadcastSimpleResultDto, BroadcastStatusDto, PermissionCategoryDto, PlayitActionResultDto,
+    PlayitResetResultDto, PlayitSetupAcceptedDto, PlayitSetupRequestDto, PlayitStatusDto,
+    ResourcePackActivateRequestDto, ResourcePackItemDto, ResourcePackMutationResultDto,
+    ResourcePackRemoveRequestDto, ResourcePackSetUrlRequestDto, ResourcePackToggleRequestDto,
+    ResourcePacksResponseDto,
 };
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{
@@ -442,7 +443,10 @@ pub fn router(state: NetworkingState) -> Router {
             "/broadcast/auth-prompt/dismiss",
             post(dismiss_broadcast_prompt),
         )
-        .route("/broadcast/credentials", post(set_broadcast_credentials))
+        .route(
+            "/broadcast/credentials",
+            axum::routing::get(broadcast_credentials).post(set_broadcast_credentials),
+        )
         .route(
             "/broadcast/jar-status",
             axum::routing::get(broadcast_jar_status),
@@ -1122,6 +1126,34 @@ pub async fn broadcast_autostart(
     })
 }
 
+pub async fn broadcast_credentials(State(state): State<NetworkingState>) -> Response {
+    let config = state.lifecycle.app_config_snapshot();
+    let mut has_password = state
+        .secrets
+        .get(msc_infrastructure::xbox_broadcast::global_alt_password_secret_key())
+        .map(|value| value.is_some_and(|value| !value.trim().is_empty()));
+    if matches!(has_password, Ok(false)) {
+        for server in &config.servers {
+            has_password = state
+                .secrets
+                .get(&msc_infrastructure::xbox_broadcast::alt_password_secret_key(&server.id))
+                .map(|value| value.is_some_and(|value| !value.trim().is_empty()));
+            if matches!(has_password, Ok(true)) {
+                break;
+            }
+        }
+    }
+    match has_password {
+        Ok(has_password) => Json(BroadcastCredentialsStatusDto {
+            email: config.xbox_broadcast_alt_email,
+            gamertag: config.xbox_broadcast_alt_gamertag,
+            has_password,
+        })
+        .into_response(),
+        Err(error) => helper_error_response(error.to_string(), "credential_status_failed"),
+    }
+}
+
 pub async fn set_broadcast_autostart(
     State(state): State<NetworkingState>,
     Extension(credential): Extension<AuthenticatedCredential>,
@@ -1213,23 +1245,15 @@ pub async fn set_broadcast_credentials(
         Ok(body) => body,
         Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
     };
-    let server = match state.active_server() {
-        Ok(server) => server,
-        Err(response) => return response,
-    };
-    let mut services = state.broadcast_service(&server);
-    let service = services.get_mut(&server.id).expect("service was inserted");
-    if let Err(error) = service.save_password(&body.password) {
+    if let Err(error) = state.secrets.set(
+        msc_infrastructure::xbox_broadcast::global_alt_password_secret_key(),
+        body.password.trim(),
+    ) {
         return helper_error_response(error.to_string(), "credential_store_failed");
     }
     let user_update = state.lifecycle.try_mutate_config(|config| {
-        let entry = config
-            .servers
-            .iter_mut()
-            .find(|item| item.id == server.id)
-            .ok_or("server disappeared")?;
-        entry.xbox_broadcast_alt_email = Some(body.email.trim().to_string());
-        entry.xbox_broadcast_alt_gamertag = Some(body.gamertag.trim().to_string());
+        config.xbox_broadcast_alt_email = Some(body.email.trim().to_string());
+        config.xbox_broadcast_alt_gamertag = Some(body.gamertag.trim().to_string());
         Ok::<_, &str>(())
     });
     match user_update {

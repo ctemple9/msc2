@@ -914,6 +914,11 @@ pub struct AppConfig {
 
     pub xbox_broadcast_jar_path: Option<String>,
     pub xbox_broadcast_auto_start_enabled: bool,
+    /// Host-wide Xbox Broadcast account identity. Older configs stored these
+    /// values on each server; decode falls back to the first populated legacy
+    /// entry so upgrading does not make the account disappear.
+    pub xbox_broadcast_alt_email: Option<String>,
+    pub xbox_broadcast_alt_gamertag: Option<String>,
     pub minecraft_username: Option<String>,
     pub minecraft_bedrock_gamertag: Option<String>,
     pub minecraft_avatar_edition_raw_value: Option<String>,
@@ -965,6 +970,8 @@ impl AppConfig {
             has_shown_concept_guide: false,
             xbox_broadcast_jar_path: None,
             xbox_broadcast_auto_start_enabled: true,
+            xbox_broadcast_alt_email: None,
+            xbox_broadcast_alt_gamertag: None,
             minecraft_username: None,
             minecraft_bedrock_gamertag: None,
             minecraft_avatar_edition_raw_value: None,
@@ -1084,6 +1091,30 @@ impl AppConfig {
             "xbox_broadcast_auto_start_enabled",
             defaults.xbox_broadcast_auto_start_enabled,
         )?;
+        let first_legacy_alt_value = |value: fn(&ConfigServer) -> &Option<String>| {
+            active_server_id
+                .as_ref()
+                .and_then(|id| {
+                    servers
+                        .iter()
+                        .find(|server| &server.id == id)
+                        .and_then(|server| value(server).clone())
+                        .filter(|value| !value.trim().is_empty())
+                })
+                .or_else(|| {
+                    servers.iter().find_map(|server| {
+                        value(server)
+                            .clone()
+                            .filter(|value| !value.trim().is_empty())
+                    })
+                })
+        };
+        let xbox_broadcast_alt_email = opt_str(v, "xbox_broadcast_alt_email")?
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| first_legacy_alt_value(|server| &server.xbox_broadcast_alt_email));
+        let xbox_broadcast_alt_gamertag = opt_str(v, "xbox_broadcast_alt_gamertag")?
+            .filter(|value| !value.trim().is_empty())
+            .or_else(|| first_legacy_alt_value(|server| &server.xbox_broadcast_alt_gamertag));
         let minecraft_username =
             opt_str(v, "minecraft_username")?.or_else(|| defaults.minecraft_username.clone());
         let minecraft_bedrock_gamertag = opt_str(v, "minecraft_bedrock_gamertag")?
@@ -1129,6 +1160,8 @@ impl AppConfig {
             has_shown_concept_guide,
             xbox_broadcast_jar_path,
             xbox_broadcast_auto_start_enabled,
+            xbox_broadcast_alt_email,
+            xbox_broadcast_alt_gamertag,
             minecraft_username,
             minecraft_bedrock_gamertag,
             minecraft_avatar_edition_raw_value,
@@ -1205,6 +1238,16 @@ impl AppConfig {
         m.insert(
             "xbox_broadcast_auto_start_enabled".into(),
             Value::Bool(self.xbox_broadcast_auto_start_enabled),
+        );
+        insert_opt_str(
+            &mut m,
+            "xbox_broadcast_alt_email",
+            &self.xbox_broadcast_alt_email,
+        );
+        insert_opt_str(
+            &mut m,
+            "xbox_broadcast_alt_gamertag",
+            &self.xbox_broadcast_alt_gamertag,
         );
         insert_opt_str(&mut m, "minecraft_username", &self.minecraft_username);
         insert_opt_str(

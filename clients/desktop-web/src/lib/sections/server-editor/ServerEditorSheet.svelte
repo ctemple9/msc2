@@ -34,12 +34,12 @@
   $: tabOptions = isJavaServer
     ? ([
         { value: 'general', label: 'General' },
-        { value: 'broadcast', label: 'Broadcast' },
+        { value: 'broadcast', label: 'Services' },
         { value: 'java', label: 'Java' },
       ] as const)
     : ([
         { value: 'general', label: 'General' },
-        { value: 'broadcast', label: 'Broadcast' },
+        { value: 'broadcast', label: 'Services' },
       ] as const);
   $: if (tab === 'java' && !isJavaServer) tab = 'general';
 

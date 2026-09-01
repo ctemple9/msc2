@@ -3,7 +3,7 @@ import type { Schema, ScreenApi } from '../shared/types';
 // Real, frozen routes this sheet is built against. `rename`/`delete`/`eula`
 // take an explicit serverId (docs/msc2/api-contract/openapi.json), so they
 // work on any server card regardless of which one is currently active.
-// Everything else here -- RAM, broadcast, Playit, DuckDNS, resource packs --
+// Everything else here -- RAM, broadcast, Playit, and DuckDNS --
 // has no serverId parameter at all: crates/msc-agent/src/routes/networking.rs
 // and routes/servers.rs's `/v1/config/ram` both resolve a single agent-wide
 // `state.active_server()`, so a mutation always lands on whichever server is
@@ -43,8 +43,6 @@ export const serverEditorPaths = {
   playitStart: '/v1/playit/start',
   playitStop: '/v1/playit/stop',
   duckdns: '/v1/duckdns',
-  resourcePacks: '/v1/resourcepacks',
-  resourcePacksToggle: '/v1/resourcepacks/toggle',
   javaConfig: '/v1/config/java-runtime',
   javaRuntimes: '/v1/java-runtimes',
   javaRuntimeInstall: '/v1/java-runtimes/install',

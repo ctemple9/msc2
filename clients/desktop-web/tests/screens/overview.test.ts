@@ -12,6 +12,12 @@ describe('overview connection information', () => {
     expect(connectionSource).not.toContain('Addresses hidden');
   });
 
+  it('uses the same copy-address action label for Java and Bedrock', () => {
+    expect(connectionSource).not.toContain('Copy port');
+    expect(connectionSource).toContain("copiedLabel === 'Java' ? 'Copied' : 'Copy address'");
+    expect(connectionSource).toContain("copiedLabel === 'Bedrock' ? 'Copied' : 'Copy address'");
+  });
+
   it('threads the agent-reported host address into Overview and the sidebar', () => {
     expect(connectionSource).toContain('export let hostAddress: string | undefined = undefined;');
     expect(connectionSource).toContain('export let bedrockPort: number | undefined = undefined;');

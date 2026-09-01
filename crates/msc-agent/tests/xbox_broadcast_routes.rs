@@ -1,6 +1,7 @@
 use msc_api::dto::{
-    BroadcastAuthPromptDto, BroadcastCredentialsDto, BroadcastJarDownloadResultDto,
-    BroadcastSimpleResultDto, BroadcastStatusDto, NotificationEventDto,
+    BroadcastAuthPromptDto, BroadcastCredentialsDto, BroadcastCredentialsStatusDto,
+    BroadcastJarDownloadResultDto, BroadcastSimpleResultDto, BroadcastStatusDto,
+    NotificationEventDto,
 };
 use serde_json::json;
 
@@ -30,6 +31,15 @@ fn broadcast_route_dtos_match_the_frozen_wire_names_and_redact_nothing_by_accide
     }))
     .unwrap();
     assert_eq!(credentials.email, "test@example.com");
+
+    let credential_status = serde_json::to_value(BroadcastCredentialsStatusDto {
+        email: Some("test@example.com".into()),
+        gamertag: Some("TestPlayer".into()),
+        has_password: true,
+    })
+    .unwrap();
+    assert_eq!(credential_status["hasPassword"], true);
+    assert!(credential_status.get("password").is_none());
 
     let result = serde_json::to_value(BroadcastJarDownloadResultDto {
         success: true,

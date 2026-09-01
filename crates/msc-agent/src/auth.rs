@@ -43,7 +43,9 @@ use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 #[cfg(test)]
 use msc_infrastructure::secret_store::FakeSecretStore;
 use msc_infrastructure::secret_store::{SecretStore, SecretStoreError};
-use msc_infrastructure::xbox_broadcast::{alt_password_secret_key, auth_token_secret_key};
+use msc_infrastructure::xbox_broadcast::{
+    alt_password_secret_key, auth_token_secret_key, global_alt_password_secret_key,
+};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -547,6 +549,7 @@ impl AuthState {
             "remote-api.guest-token",
             "playit.secret-key",
             "curseforge.api-key",
+            global_alt_password_secret_key(),
         ] {
             self.inner.secret_store.delete(key)?;
         }
@@ -595,6 +598,7 @@ impl AuthState {
             "curseforge.api-key".to_string(),
             desktop::AGENT_HOST_ID_KEY.to_string(),
             PAIRING_INDEX_KEY.to_string(),
+            global_alt_password_secret_key().to_string(),
         ]);
         keys.extend(previous_server_ids.iter().flat_map(|id| {
             [

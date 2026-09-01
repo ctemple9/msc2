@@ -16,6 +16,7 @@ use serde::Deserialize;
 use std::path::{Path, PathBuf};
 
 pub const XBOX_BROADCAST_ALT_PASSWORD_KEY_PREFIX: &str = "xbox-broadcast.alt-password.";
+pub const XBOX_BROADCAST_ALT_PASSWORD_KEY: &str = "xbox-broadcast.alt-password";
 pub const XBOX_BROADCAST_AUTH_TOKEN_KEY_PREFIX: &str = "xbox-broadcast.auth-token.";
 pub const XBOX_BROADCAST_RELEASES_URL: &str =
     "https://api.github.com/repos/MCXboxBroadcast/Broadcaster/releases/latest";
@@ -24,6 +25,10 @@ pub const XBOX_BROADCAST_ASSET_NAME: &str = "MCXboxBroadcastStandalone.jar";
 
 pub fn alt_password_secret_key(server_id: &str) -> String {
     format!("{XBOX_BROADCAST_ALT_PASSWORD_KEY_PREFIX}{server_id}")
+}
+
+pub const fn global_alt_password_secret_key() -> &'static str {
+    XBOX_BROADCAST_ALT_PASSWORD_KEY
 }
 
 pub fn auth_token_secret_key(server_id: &str) -> String {

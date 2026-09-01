@@ -212,7 +212,7 @@
         disabled={!addressesVisible || !javaCopyValue}
         onclick={() => javaCopyValue && copy('Java', javaCopyValue)}
       >
-        {copiedLabel === 'Java' ? 'Copied' : showPublic ? 'Copy address' : 'Copy port'}
+        {copiedLabel === 'Java' ? 'Copied' : 'Copy address'}
       </Button>
     </div>
 

@@ -403,11 +403,13 @@
   }
   .control-row {
     display: flex;
+    width: 100%;
     gap: 6px;
     margin-top: 8px;
   }
-  .control-row :global(.btn.secondary) {
-    flex-shrink: 0;
+  .control-row :global(.btn) {
+    flex: 1 1 0;
+    min-width: 0;
   }
   .initiation-notice {
     display: flex;

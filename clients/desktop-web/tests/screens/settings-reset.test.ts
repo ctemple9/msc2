@@ -23,6 +23,16 @@ describe('settings reset flows', () => {
     expect(appSource).toContain('setTabPreloadPreference');
   });
 
+  it('keeps the Xbox Broadcast password eye minimal and inline', () => {
+    expect(appSettingsSource).toContain(
+      "import VisibilityIcon from '../../components/base/VisibilityIcon.svelte'",
+    );
+    expect(appSettingsSource).toContain('class="password-control"');
+    expect(appSettingsSource).toContain('class="visibility-toggle"');
+    expect(appSettingsSource).toContain('broadcastPasswordVisible');
+    expect(appSettingsSource).not.toContain('class="reveal"');
+  });
+
   it('requires the exact reset phrase and keeps native controls out of the reset sheet', () => {
     expect(resetSource).toContain('/v1/host/reset');
     expect(resetSource).toContain("'RESET AGENT'");

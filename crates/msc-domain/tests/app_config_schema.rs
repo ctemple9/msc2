@@ -242,6 +242,28 @@ fn app_config_schema_app_config_full_round_trip() {
 }
 
 #[test]
+fn app_config_schema_stores_xbox_broadcast_identity_at_host_scope() {
+    let mut config = AppConfig::default_config("/tmp/test-servers");
+    config.xbox_broadcast_alt_email = Some("alt@example.com".into());
+    config.xbox_broadcast_alt_gamertag = Some("BroadcastAlt".into());
+
+    let encoded = config.encode();
+    assert_eq!(encoded["xbox_broadcast_alt_email"], "alt@example.com");
+    assert_eq!(encoded["xbox_broadcast_alt_gamertag"], "BroadcastAlt");
+
+    let decoded = AppConfig::decode(&encoded, &AppConfig::default_config("/tmp/test-servers"))
+        .expect("host-scoped Xbox identity should decode");
+    assert_eq!(
+        decoded.xbox_broadcast_alt_email.as_deref(),
+        Some("alt@example.com")
+    );
+    assert_eq!(
+        decoded.xbox_broadcast_alt_gamertag.as_deref(),
+        Some("BroadcastAlt")
+    );
+}
+
+#[test]
 fn app_config_schema_registered_server_migrates_host_setup_to_complete() {
     let defaults = AppConfig::default_config("/tmp/test-servers");
     let mut encoded = defaults.encode();

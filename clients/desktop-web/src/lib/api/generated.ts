@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 749bc22cfa5347f4f8e0d459e6442b07111874527f0a52f844ae91248de0a45d
+// Contract SHA-256: 299d994b4bc1deb5027379e9cf8c8e8652dcd1cddcb8b79fbaf262401b8fc996
 
 export interface paths {
   '/v1/active-server': {
@@ -585,9 +585,38 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** Get the host-wide MCXboxBroadcast account status */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Configured account identity and password presence; the password is never returned */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['BroadcastCredentialsStatusDTO'];
+          };
+        };
+        /** @description credential_status_failed */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
     put?: never;
-    /** Update MCXboxBroadcast Microsoft account credentials */
+    /** Update the host-wide MCXboxBroadcast Microsoft account credentials */
     post: {
       parameters: {
         query?: never;
@@ -6147,6 +6176,16 @@ export interface components {
       email: string;
       gamertag: string;
       password: string;
+    } & {
+      [key: string]: unknown;
+    };
+    BroadcastCredentialsStatusDTO: {
+      /** @description Configured Microsoft account email, when present. */
+      email?: string;
+      /** @description Configured Xbox gamertag, when present. */
+      gamertag?: string;
+      /** @description Whether a password is stored in the host secret store. */
+      hasPassword: boolean;
     } & {
       [key: string]: unknown;
     };

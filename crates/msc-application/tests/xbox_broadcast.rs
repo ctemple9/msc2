@@ -11,7 +11,7 @@ use msc_infrastructure::process::FakeProcessSupervisor;
 use msc_infrastructure::secret_store::{FakeSecretStore, SecretStore};
 use msc_infrastructure::xbox_broadcast::{
     XboxBroadcastJarAcquisition, XboxBroadcastLaunch, alt_password_secret_key,
-    auth_token_secret_key, download_latest_jar,
+    auth_token_secret_key, download_latest_jar, global_alt_password_secret_key,
 };
 use std::path::{Path, PathBuf};
 
@@ -101,6 +101,29 @@ fn broadcast_launch_and_readiness_are_journaled_without_secret_arguments() {
         operations.snapshot(&operation_id).unwrap().unwrap().state,
         OperationState::Succeeded
     );
+}
+
+#[test]
+fn broadcast_password_is_shared_across_server_services_with_legacy_fallback() {
+    let (operations, supervisor, secrets, _fs) = service_setup();
+    let first = XboxBroadcastService::new("paper-1", true, supervisor, secrets, operations);
+    first.save_password("shared-password").unwrap();
+
+    let second = XboxBroadcastService::new("paper-2", true, supervisor, secrets, operations);
+    assert!(second.status().unwrap().has_password);
+    assert_eq!(
+        secrets
+            .get(global_alt_password_secret_key())
+            .unwrap()
+            .as_deref(),
+        Some("shared-password")
+    );
+
+    first.delete_password().unwrap();
+    secrets
+        .set(&alt_password_secret_key("paper-2"), "legacy-password")
+        .unwrap();
+    assert!(second.status().unwrap().has_password);
 }
 
 #[test]

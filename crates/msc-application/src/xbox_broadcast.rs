@@ -10,7 +10,7 @@ use msc_infrastructure::process::{OutputStream, ProcessSupervisor};
 use msc_infrastructure::secret_store::SecretStore;
 use msc_infrastructure::xbox_broadcast::{
     XboxBroadcastJarAcquisition, XboxBroadcastLaunch, alt_password_secret_key,
-    auth_token_secret_key,
+    auth_token_secret_key, global_alt_password_secret_key,
 };
 use std::collections::BTreeMap;
 use std::fmt;
@@ -105,7 +105,7 @@ impl<'a> XboxBroadcastService<'a> {
             snapshot: self.snapshot.clone(),
             auth_prompt: self.auth_prompt.clone(),
             gamertag: self.authenticated_gamertag.clone(),
-            has_password: self.has_secret(&alt_password_secret_key(&self.server_id))?,
+            has_password: self.has_password()?,
             has_auth_token: self.has_secret(&auth_token_secret_key(&self.server_id))?,
         })
     }
@@ -116,13 +116,13 @@ impl<'a> XboxBroadcastService<'a> {
             return self.delete_password();
         }
         self.secrets
-            .set(&alt_password_secret_key(&self.server_id), password)
+            .set(global_alt_password_secret_key(), password)
             .map_err(|error| XboxBroadcastError::SecretStore(error.to_string()))
     }
 
     pub fn delete_password(&self) -> Result<(), XboxBroadcastError> {
         self.secrets
-            .delete(&alt_password_secret_key(&self.server_id))
+            .delete(global_alt_password_secret_key())
             .map_err(|error| XboxBroadcastError::SecretStore(error.to_string()))
     }
 
@@ -346,6 +346,15 @@ impl<'a> XboxBroadcastService<'a> {
             .get(key)
             .map(|value| value.is_some_and(|value| !value.trim().is_empty()))
             .map_err(|error| XboxBroadcastError::SecretStore(error.to_string()))
+    }
+
+    fn has_password(&self) -> Result<bool, XboxBroadcastError> {
+        if self.has_secret(global_alt_password_secret_key())? {
+            return Ok(true);
+        }
+        // Keep existing MSC 2 installations usable until the account is
+        // saved again from MSC Settings under the new host-wide key.
+        self.has_secret(&alt_password_secret_key(&self.server_id))
     }
 
     fn key(&self) -> HelperKey {

@@ -120,6 +120,13 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(howToConnectSource).toContain('font-size: 10px');
   });
 
+  it('gives the lifecycle and manage buttons the full picker width equally', () => {
+    expect(controlSidebarSource).toContain('.control-row');
+    expect(controlSidebarSource).toContain('width: 100%');
+    expect(controlSidebarSource).toContain('.control-row :global(.btn)');
+    expect(controlSidebarSource).toContain('flex: 1 1 0');
+  });
+
   it('defines accessible states, focus treatment, and reduced motion tokens', () => {
     expect(appSource).toContain('role="status"');
     expect(confirmDialogSource).toContain('role="alertdialog"');

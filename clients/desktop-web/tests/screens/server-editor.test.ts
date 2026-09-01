@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import broadcastSource from '../../src/lib/sections/server-editor/BroadcastTab.svelte?raw';
 import generalSource from '../../src/lib/sections/server-editor/GeneralTab.svelte?raw';
 import javaSource from '../../src/lib/sections/server-editor/JavaTab.svelte?raw';
 import sheetSource from '../../src/lib/sections/server-editor/ServerEditorSheet.svelte?raw';
@@ -44,5 +45,11 @@ describe('server editor memory settings', () => {
     expect(sheetSource).toContain('scrollbar-width: none');
     expect(sheetSource).toContain('.tab-panel::-webkit-scrollbar');
     expect(javaSource).toContain('.list::-webkit-scrollbar');
+  });
+
+  it('labels the services tab clearly and leaves resource packs out of it', () => {
+    expect(sheetSource).toContain("{ value: 'broadcast', label: 'Services' }");
+    expect(broadcastSource).not.toContain('Resource Packs');
+    expect(broadcastSource).not.toContain('resourcePacks');
   });
 });

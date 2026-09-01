@@ -21,17 +21,22 @@
   // client-local by design, see styles/bannerColor.ts, which already had
   // save/read helpers with zero call sites until this sheet) and Open
   // Server Folder (GET /v1/config/servers-root + the revealInFileManager
-  // seam P12.9 built for the Files tab). Two cards isn't enough to justify
-  // General/Remote/Data tabs, so this ships as one flat sheet instead.
+  // seam P12.9 built for the Files tab), plus host-wide service configuration
+  // below. This remains one flat sheet because the app-level settings are
+  // intentionally small and concrete.
   import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
+  import Field from '../../components/base/Field.svelte';
+  import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
+  import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import { getPlatform } from '../../platform';
   import { bannerColorFor, setBannerColorFor, clampBannerColor } from '../../styles/bannerColor';
   import type { Schema, ScreenApi } from '../shared/types';
-  import { call, errorMessage } from '../shared/types';
+  import { call, errorMessage, mutate } from '../shared/types';
+  import { pollOperation } from '../server-editor/model';
 
   export let api: ScreenApi | undefined = undefined;
   export let hostId: string;
@@ -50,15 +55,60 @@
   let revealBusy = false;
   let revealNotice = '';
 
+  let broadcastCredentials: Schema['BroadcastCredentialsStatusDTO'] | undefined;
+  let broadcastEmail = '';
+  let broadcastGamertag = '';
+  let broadcastPassword = '';
+  let broadcastPasswordVisible = false;
+  let broadcastSaving = false;
+  let broadcastNotice = '';
+  let broadcastAutostart: Schema['BroadcastAutoStartDTO'] | undefined;
+  let broadcastJar: Schema['BroadcastJarStatusDTO'] | undefined;
+  let broadcastJarBusy = false;
+
+  let playit: Schema['PlayitStatusResponseDTO'] = {
+    serverName: '',
+    serverType: 'java',
+    playitEnabled: false,
+    isRunning: false,
+    hasSecretKey: false,
+    voiceChatEnabled: false,
+  };
+  let showPlayitSetup = false;
+  let servicesNotice = '';
+
+  let duckdns: Schema['DuckDNSStatusResponseDTO'] = { isConfigured: false };
+  let duckHost = '';
+  let duckBusy = false;
+
   $: colorDirty = !!serverId && colorDraft !== bannerColorFor(hostId, serverId);
 
   onMount(async () => {
-    const root = await call<Schema['ServersRootResponseDTO']>(
-      api,
-      { path: '' },
-      '/v1/config/servers-root',
-    );
+    const [root, credentials, autostart, jar, playitStatus, duckdnsStatus] = await Promise.all([
+      call<Schema['ServersRootResponseDTO']>(api, { path: '' }, '/v1/config/servers-root'),
+      call<Schema['BroadcastCredentialsStatusDTO']>(
+        api,
+        { hasPassword: false },
+        '/v1/broadcast/credentials',
+      ),
+      call<Schema['BroadcastAutoStartDTO']>(api, { enabled: true }, '/v1/broadcast/autostart'),
+      call<Schema['BroadcastJarStatusDTO']>(
+        api,
+        { installed: false, downloading: false },
+        '/v1/broadcast/jar-status',
+      ),
+      call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
+      call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
+    ]);
     serversRootPath = root.path;
+    broadcastCredentials = credentials;
+    broadcastEmail = credentials.email ?? '';
+    broadcastGamertag = credentials.gamertag ?? '';
+    broadcastAutostart = autostart;
+    broadcastJar = jar;
+    playit = playitStatus;
+    duckdns = duckdnsStatus;
+    duckHost = duckdnsStatus.hostname ?? '';
   });
 
   function handleColorInput(event: Event): void {
@@ -93,6 +143,91 @@
     } finally {
       revealBusy = false;
     }
+  }
+
+  async function saveBroadcastCredentials(): Promise<void> {
+    if (
+      broadcastSaving ||
+      !broadcastEmail.trim() ||
+      !broadcastGamertag.trim() ||
+      !broadcastPassword
+    ) {
+      return;
+    }
+    broadcastSaving = true;
+    broadcastNotice = '';
+    try {
+      await mutate(api, '/v1/broadcast/credentials', {
+        email: broadcastEmail.trim(),
+        gamertag: broadcastGamertag.trim(),
+        password: broadcastPassword,
+      });
+      broadcastPassword = '';
+      broadcastCredentials = {
+        email: broadcastEmail.trim(),
+        gamertag: broadcastGamertag.trim(),
+        hasPassword: true,
+      };
+      broadcastNotice = 'Xbox Broadcast credentials saved for this agent.';
+    } catch (error) {
+      broadcastNotice = errorMessage(error);
+    } finally {
+      broadcastSaving = false;
+    }
+  }
+
+  async function updateBroadcastAutostart(enabled: boolean): Promise<void> {
+    try {
+      broadcastAutostart = await mutate<Schema['BroadcastAutoStartDTO']>(
+        api,
+        '/v1/broadcast/autostart',
+        { enabled },
+      );
+    } catch (error) {
+      broadcastNotice = errorMessage(error);
+    }
+  }
+
+  async function downloadBroadcastJar(): Promise<void> {
+    if (broadcastJarBusy) return;
+    broadcastJarBusy = true;
+    broadcastNotice = '';
+    try {
+      const result = await mutate<Schema['BroadcastJarDownloadResultDTO']>(
+        api,
+        '/v1/broadcast/download-jar',
+      );
+      if (result.operationId) await pollOperation(api, result.operationId);
+      broadcastNotice = result.message;
+      broadcastJar = await call(api, broadcastJar, '/v1/broadcast/jar-status');
+    } catch (error) {
+      broadcastNotice = errorMessage(error);
+    } finally {
+      broadcastJarBusy = false;
+    }
+  }
+
+  async function saveDuckDns(): Promise<void> {
+    if (duckBusy) return;
+    duckBusy = true;
+    servicesNotice = '';
+    try {
+      const result = await mutate<Schema['DuckDNSUpdateResultDTO']>(api, '/v1/duckdns', {
+        hostname: duckHost.trim(),
+      });
+      duckdns = { isConfigured: !!result.hostname, hostname: result.hostname };
+      servicesNotice = result.message ?? 'DuckDNS hostname saved.';
+    } catch (error) {
+      servicesNotice = errorMessage(error);
+    } finally {
+      duckBusy = false;
+    }
+  }
+
+  function refreshPlayit(): void {
+    void (async () => {
+      playit = await call(api, playit, '/v1/playit');
+    })();
   }
 </script>
 
@@ -139,6 +274,138 @@
     </section>
 
     <section class="zone">
+      <p class="msc2-type-overline">Services</p>
+      <p class="hint">
+        These Xbox Broadcast settings belong to this agent and are shared by every server.
+      </p>
+      <Card padding="0">
+        <div class="service-form">
+          <div class="form-row">
+            <span class="name">Microsoft account email</span>
+            <Field bind:value={broadcastEmail} type="email" width="220px" />
+          </div>
+          <div class="form-row">
+            <span class="name">Xbox gamertag</span>
+            <Field bind:value={broadcastGamertag} width="220px" />
+          </div>
+          <div class="form-row">
+            <span class="name">Password</span>
+            <div class="password-control">
+              <Field
+                bind:value={broadcastPassword}
+                type={broadcastPasswordVisible ? 'text' : 'password'}
+                placeholder={broadcastCredentials?.hasPassword ? 'Saved — enter to replace' : ''}
+                width="220px"
+              />
+              <button
+                type="button"
+                class="visibility-toggle"
+                aria-label={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
+                aria-pressed={broadcastPasswordVisible}
+                title={broadcastPasswordVisible ? 'Hide password' : 'Show password'}
+                onclick={() => (broadcastPasswordVisible = !broadcastPasswordVisible)}
+              >
+                <VisibilityIcon visible={broadcastPasswordVisible} />
+              </button>
+            </div>
+          </div>
+          <div class="form-actions">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={broadcastSaving ||
+                !broadcastEmail.trim() ||
+                !broadcastGamertag.trim() ||
+                !broadcastPassword}
+              onclick={saveBroadcastCredentials}
+              >{broadcastSaving ? 'Saving…' : 'Save credentials'}</Button
+            >
+          </div>
+        </div>
+        <div class="row bordered">
+          <div class="row-text">
+            <span class="name">Start Xbox Broadcast automatically</span>
+            <span class="hint">Applies when an eligible server starts.</span>
+          </div>
+          <Toggle
+            checked={broadcastAutostart?.enabled ?? false}
+            label="Start Xbox Broadcast automatically"
+            onchange={updateBroadcastAutostart}
+          />
+        </div>
+        <div class="row bordered">
+          <div class="row-text">
+            <span class="name">Helper JAR</span>
+            <span class="hint"
+              >{broadcastJar?.installed
+                ? (broadcastJar.filename ?? 'Installed')
+                : 'Not installed'}</span
+            >
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={broadcastJarBusy}
+            onclick={downloadBroadcastJar}
+          >
+            {broadcastJarBusy ? 'Downloading…' : broadcastJar?.installed ? 'Update…' : 'Download…'}
+          </Button>
+        </div>
+      </Card>
+      {#if broadcastNotice}<p class="hint" role="status">{broadcastNotice}</p>{/if}
+    </section>
+
+    <section class="zone">
+      <p class="msc2-type-overline">Playit</p>
+      <p class="hint">
+        The Playit account and shared tunnels belong to this agent. Per-server tunnel participation
+        stays under Manage → Services.
+      </p>
+      <Card padding="0">
+        <div class="row">
+          <div class="row-text">
+            <span class="name">Playit account</span>
+            <span class="hint">{playit.hasSecretKey ? 'Configured' : 'Setup required'}</span>
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!playit.playitEnabled}
+            onclick={() => (showPlayitSetup = true)}
+            >{playit.hasSecretKey ? 'Manage setup…' : 'Set up…'}</Button
+          >
+        </div>
+        {#if playit.javaAddress || playit.bedrockAddress || playit.voiceAddress}
+          <div class="row bordered">
+            <div class="row-text">
+              <span class="name">Shared tunnel addresses</span>
+              <span class="hint mono"
+                >{playit.javaAddress ?? playit.bedrockAddress ?? playit.voiceAddress}</span
+              >
+            </div>
+          </div>
+        {/if}
+      </Card>
+      {#if servicesNotice}<p class="hint" role="status">{servicesNotice}</p>{/if}
+    </section>
+
+    <section class="zone">
+      <p class="msc2-type-overline">DuckDNS</p>
+      <p class="hint">This hostname is shared by the agent and can be used by every server.</p>
+      <Card padding="0">
+        <div class="row">
+          <span class="name">Hostname</span>
+          <div class="control">
+            <Field bind:value={duckHost} placeholder="example.duckdns.org" width="220px" />
+            <Button variant="secondary" size="sm" disabled={duckBusy} onclick={saveDuckDns}>
+              {duckBusy ? 'Saving…' : 'Save'}
+            </Button>
+          </div>
+        </div>
+      </Card>
+    </section>
+
+    <section class="zone">
       <p class="msc2-type-overline">Data &amp; Folders</p>
       <Card padding="0">
         <div class="row">
@@ -174,6 +441,17 @@
   </div>
 </Sheet>
 
+{#if showPlayitSetup}
+  <PlayitSetupSheet
+    {api}
+    {playit}
+    context="settings"
+    onClose={() => (showPlayitSetup = false)}
+    onComplete={refreshPlayit}
+    onReset={refreshPlayit}
+  />
+{/if}
+
 <style>
   .settings {
     display: flex;
@@ -192,6 +470,24 @@
     gap: 12px;
     padding: 11px 14px;
   }
+  .service-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 2px 14px 11px;
+  }
+  .form-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 9px 0;
+  }
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 3px;
+  }
   .row-text {
     display: flex;
     flex-direction: column;
@@ -208,6 +504,30 @@
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
+  }
+  .password-control {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .visibility-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    color: var(--msc2-text-tertiary);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+  }
+  .visibility-toggle:hover {
+    color: var(--msc2-text-primary);
+  }
+  .visibility-toggle:focus-visible {
+    outline: 2px solid var(--msc2-hairline);
+    outline-offset: 2px;
+    border-radius: 3px;
   }
   .swatch {
     box-sizing: border-box;
@@ -234,6 +554,12 @@
     margin: 0;
     font-size: 12px;
     color: var(--msc2-text-tertiary);
+  }
+  .mono {
+    font-family: var(--msc2-font-mono, monospace);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .hint.dir {
     overflow: hidden;

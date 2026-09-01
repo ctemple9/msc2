@@ -2524,8 +2524,34 @@
       }
     },
     "/v1/broadcast/credentials": {
+      "get": {
+        "summary": "Get the host-wide MCXboxBroadcast account status",
+        "responses": {
+          "200": {
+            "description": "Configured account identity and password presence; the password is never returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BroadcastCredentialsStatusDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "credential_status_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        }
+      },
       "post": {
-        "summary": "Update MCXboxBroadcast Microsoft account credentials",
+        "summary": "Update the host-wide MCXboxBroadcast Microsoft account credentials",
         "x-notes": "Travels as plaintext JSON over LAN HTTP by design \u2014 see the wire-format notes at the top of RemoteAPIServerDTOs.swift for the threat-model reasoning (S4).",
         "requestBody": {
           "required": true,
@@ -8576,6 +8602,26 @@
           "email",
           "password",
           "gamertag"
+        ]
+      },
+      "BroadcastCredentialsStatusDTO": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Configured Microsoft account email, when present."
+          },
+          "gamertag": {
+            "type": "string",
+            "description": "Configured Xbox gamertag, when present."
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "Whether a password is stored in the host secret store."
+          }
+        },
+        "required": [
+          "hasPassword"
         ]
       },
       "BroadcastJarStatusDTO": {

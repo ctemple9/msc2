@@ -54,20 +54,23 @@
   $: meta = META[edition];
 
   onMount(() => {
-    edition = getStoredEdition();
-    javaUsername = getIdentity('java');
-    bedrockGamertag = getIdentity('bedrock');
-    loadForEdition();
+    const storedEdition = getStoredEdition();
+    const storedJavaUsername = getIdentity('java');
+    const storedBedrockGamertag = getIdentity('bedrock');
+    edition = storedEdition;
+    javaUsername = storedJavaUsername;
+    bedrockGamertag = storedBedrockGamertag;
+    loadForEdition(storedEdition === 'java' ? storedJavaUsername : storedBedrockGamertag);
   });
 
   onDestroy(() => {
     avatarRequest += 1;
   });
 
-  function loadForEdition(): void {
+  function loadForEdition(identityValue = currentIdentity): void {
     avatarRequest += 1;
     showEdit = false;
-    const identity = currentIdentity.trim();
+    const identity = identityValue.trim();
     if (!identity) {
       status = 'prompt';
       isEditing = false;
@@ -123,9 +126,10 @@
 
   function selectEdition(next: string): void {
     showEdit = false;
-    edition = next as AvatarEdition;
-    setStoredEdition(edition);
-    loadForEdition();
+    const nextEdition = next as AvatarEdition;
+    edition = nextEdition;
+    setStoredEdition(nextEdition);
+    loadForEdition(nextEdition === 'java' ? javaUsername : bedrockGamertag);
   }
 
   function startEdit(): void {
@@ -146,7 +150,7 @@
     }
     setIdentity(edition, trimmed);
     isEditing = false;
-    loadForEdition();
+    loadForEdition(trimmed);
   }
 </script>
 

@@ -88,6 +88,12 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(playerAvatarSource).toContain('event.preventDefault();');
     expect(playerAvatarSource).toContain('fetchBedrockBodyUrl');
     expect(playerAvatarSource).not.toContain("lookup isn't available yet");
+    expect(playerAvatarSource).toContain(
+      "loadForEdition(storedEdition === 'java' ? storedJavaUsername : storedBedrockGamertag)",
+    );
+    expect(playerAvatarSource).toContain(
+      "loadForEdition(nextEdition === 'java' ? javaUsername : bedrockGamertag)",
+    );
   });
 
   it('keeps the sidebar scrollable without displaying scrollbar chrome', () => {

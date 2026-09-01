@@ -25,7 +25,7 @@
     missing: 'Agent not installed',
     stopped: 'Agent stopped',
     starting: 'Agent starting',
-    ready: 'Agent ready',
+    ready: 'Agent connected',
     incompatible: 'Agent version incompatible',
     unavailable: 'Agent unavailable',
   };
@@ -33,7 +33,7 @@
     missing: 'Install the local agent, then continue into host setup.',
     stopped: 'The installed agent is stopped. Start it, then continue into host setup.',
     starting: 'The agent is starting. Reconnect after its health endpoint responds.',
-    ready: 'The local agent is ready for server management.',
+    ready: 'The local agent is connected and ready for server management.',
     incompatible: 'This agent cannot serve the current client. Install a compatible update.',
     unavailable: 'MSC cannot reach or authenticate with the local agent. Reconnect or repair it.',
   };
@@ -134,63 +134,129 @@
     <div class="heading-row">
       <div>
         <h1>Background agent</h1>
-        <p>The agent keeps Minecraft servers running after this window closes.</p>
       </div>
-      <Button variant="secondary" onclick={onAgentRetry ?? refresh}>
-        {onAgentRetry ? 'Reconnect' : 'Refresh status'}
-      </Button>
     </div>
   </div>
 
-  <Card as="section" padding="18px 20px">
-    <div class="architecture">
-      <div class="architecture-copy">
-        <p class="msc2-type-overline">How MSC works</p>
-        <h2>MSC has two parts</h2>
-        <ol class="architecture-parts">
-          <li>
-            <strong>The control panel</strong> — this desktop window, browser page, phone app, or CLI.
-            It sends commands and displays information.
-          </li>
-          <li>
-            <strong>The agent</strong> — a small background service running on the computer that owns
-            the Minecraft servers. It manages server files, starts processes, reads logs, and keeps servers
-            running.
-          </li>
-        </ol>
-        <p class="architecture-analogy">
-          The control panel is like a remote control. The agent is the machinery doing the work.
+  <Card>
+    {#if isLocalDesktopHost}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Service controls</span>
+        <span class="quiet-label">This computer</span>
+      </div>
+      <h2>Manage the agent service</h2>
+      <p class="detail">
+        Install, start, stop, or repair the agent. Closing this window does not stop it or any
+        running Minecraft server.
+      </p>
+      <div class="actions">
+        {#if readiness === 'missing' || status?.state === 'not-installed'}
+          <Button variant="primary" disabled={busy} onclick={() => manage('install')}
+            >Install and Continue</Button
+          >
+        {:else if readiness === 'stopped' || status?.state === 'stopped'}
+          <Button variant="primary" disabled={busy} onclick={() => manage('start')}
+            >Start and Continue</Button
+          >
+        {:else if readiness === 'incompatible'}
+          <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
+            >Repair service</Button
+          >
+        {:else}
+          <Button
+            variant="start"
+            disabled={busy || status?.state === 'running'}
+            onclick={() => manage('start')}>Start agent</Button
+          >
+          <Button
+            variant="stop"
+            disabled={busy || status?.state !== 'running'}
+            onclick={() => manage('stop')}>Stop agent</Button
+          >
+        {/if}
+        <Button
+          variant="secondary"
+          disabled={busy}
+          onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
+          >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
+        >
+        {#if readiness !== 'missing' && status?.state !== 'not-installed' && readiness !== 'stopped' && status?.state !== 'stopped' && readiness !== 'incompatible'}
+          <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
+            >Repair service</Button
+          >
+        {/if}
+      </div>
+    {:else if !isDesktopShell && isLoopbackHost}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Terminal controls</span>
+        <span class="quiet-label">This computer</span>
+      </div>
+      {#if status?.state === 'not-installed'}
+        <h2>Install the headless package first</h2>
+        <p class="detail">
+          This agent is not installed. Reinstall it with this platform’s headless package or
+          installer, then return here.
         </p>
+      {:else}
+        <h2>Run one command in Terminal</h2>
+        <p class="detail">
+          These commands control the agent on this same machine. They do not stop any Minecraft
+          server when this page closes.
+        </p>
+        <div class="command-list">
+          {#each serviceCommands as command (command)}
+            <div class="command-row">
+              <Field value={command} />
+              <Button size="sm" variant="secondary" onclick={() => void copyCommand(command)}>
+                {copiedCommand === command ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          {/each}
+        </div>
+        <div class="actions reconnect-only">
+          <Button
+            variant="secondary"
+            onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
+            >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
+          >
+        </div>
+      {/if}
+    {:else if isDesktopShell && onPairAgain}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Fresh pairing</span>
+        <span class="quiet-label">{hostLabel}</span>
       </div>
-
-      <div class="architecture-diagram" aria-label="The control panel communicates with the agent">
-        <div class="architecture-node">
-          <span class="node-kicker">What you use</span>
-          <strong>Control panel</strong>
-          <span>Desktop · browser · phone · CLI</span>
-        </div>
-        <div class="architecture-link" aria-hidden="true">
-          <span>communicates with</span>
-          <strong>↔</strong>
-        </div>
-        <div class="architecture-node">
-          <span class="node-kicker">Where Minecraft runs</span>
-          <strong>MSC agent</strong>
-          <span>{hostLabel}</span>
-        </div>
+      <h2>Pair this host again</h2>
+      <p class="detail">
+        Run <span class="mono">msc pairing create</span> on {hostLabel}, then paste its one-use code
+        here. Pairing replaces the old credential and reopens host setup.
+      </p>
+      <div class="pairing-row">
+        <Field bind:value={pairingCode} placeholder="pair_…" />
+        <Button
+          variant="primary"
+          disabled={pairingBusy || !pairingCode.trim()}
+          onclick={() => void pairAgain()}>Pair Again</Button
+        >
       </div>
-    </div>
-
-    <div class="architecture-means">
-      <p class="msc2-type-overline">That means</p>
-      <ul>
-        <li>Closing the control panel does not stop the agent.</li>
-        <li>Closing the control panel does not stop a running Minecraft server.</li>
-        <li>A browser or phone can manage a server without running the server itself.</li>
-        <li>One control panel can connect to multiple agents on different computers.</li>
-        <li>Installing or starting the agent must happen on the agent’s computer.</li>
-      </ul>
-    </div>
+      <div class="actions reconnect-only">
+        <Button variant="secondary" onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
+          >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
+        >
+      </div>
+    {:else}
+      <div class="card-heading">
+        <span class="msc2-type-overline">Service controls</span>
+        <span class="quiet-label">Another computer</span>
+      </div>
+      <h2>Manage the agent on {hostLabel}</h2>
+      <p class="detail">Run service controls on the computer that hosts this agent.</p>
+      <div class="actions reconnect-only">
+        <Button variant="secondary" onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
+          >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
+        >
+      </div>
+    {/if}
   </Card>
 
   <div class="screen-grid two">
@@ -230,102 +296,55 @@
     </Card>
   </div>
 
-  <Card>
-    {#if isLocalDesktopHost}
-      <div class="card-heading">
-        <span class="msc2-type-overline">Service controls</span>
-        <span class="quiet-label">This computer</span>
-      </div>
-      <h2>Keep servers independent of the window</h2>
-      <p class="detail">Use the installed desktop app to change this computer’s agent service.</p>
-      <p class="detail">Closing the app window never stops the service.</p>
-      <p class="detail">It never stops any Minecraft server either.</p>
-      <div class="actions">
-        {#if readiness === 'missing' || status?.state === 'not-installed'}
-          <Button variant="primary" disabled={busy} onclick={() => manage('install')}
-            >Install and Continue</Button
-          >
-        {:else if readiness === 'stopped' || status?.state === 'stopped'}
-          <Button variant="primary" disabled={busy} onclick={() => manage('start')}
-            >Start and Continue</Button
-          >
-        {:else if readiness === 'incompatible'}
-          <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
-            >Repair service</Button
-          >
-        {:else}
-          <Button
-            variant="start"
-            disabled={busy || status?.state === 'running'}
-            onclick={() => manage('start')}>Start agent</Button
-          >
-          <Button
-            variant="stop"
-            disabled={busy || status?.state !== 'running'}
-            onclick={() => manage('stop')}>Stop agent</Button
-          >
-          <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
-            >Repair service</Button
-          >
-        {/if}
-      </div>
-    {:else if !isDesktopShell && isLoopbackHost}
-      <div class="card-heading">
-        <span class="msc2-type-overline">Terminal controls</span>
-        <span class="quiet-label">This computer</span>
-      </div>
-      {#if status?.state === 'not-installed'}
-        <h2>Install the headless package first</h2>
-        <p class="detail">
-          This agent is not installed. Reinstall it with this platform’s headless package or
-          installer, then return here.
+  <Card as="section" padding="18px 20px">
+    <div class="architecture">
+      <div class="architecture-copy">
+        <p class="msc2-type-overline">How MSC works</p>
+        <h2>MSC has two parts</h2>
+        <ol class="architecture-parts">
+          <li>
+            <strong>The control panel</strong> — this desktop window, browser page, phone app, or CLI.
+            It sends commands and displays information.
+          </li>
+          <li>
+            <strong>The agent</strong> — a small background service running on the computer that owns
+            the Minecraft servers. It manages server files, starts processes, reads logs, and keeps servers
+            running.
+          </li>
+        </ol>
+        <p class="architecture-analogy">
+          The control panel is like a remote control. The agent is the machinery doing the work.
         </p>
-      {:else}
-        <h2>Run one command in Terminal</h2>
-        <p class="detail">
-          These commands control the agent on this same machine. They do not stop any Minecraft
-          server when this page closes.
-        </p>
-        <div class="command-list">
-          {#each serviceCommands as command (command)}
-            <div class="command-row">
-              <Field value={command} />
-              <Button size="sm" variant="secondary" onclick={() => void copyCommand(command)}>
-                {copiedCommand === command ? 'Copied' : 'Copy'}
-              </Button>
-            </div>
-          {/each}
+      </div>
+
+      <div class="architecture-diagram" aria-label="The control panel communicates with the agent">
+        <div class="architecture-node">
+          <span class="node-kicker">What you use</span>
+          <strong>Control panel</strong>
+          <span>Desktop · phone · CLI</span>
         </div>
-      {/if}
-    {:else if isDesktopShell && onPairAgain}
-      <div class="card-heading">
-        <span class="msc2-type-overline">Fresh pairing</span>
-        <span class="quiet-label">{hostLabel}</span>
+        <div class="architecture-link" aria-hidden="true">
+          <span>communicates with</span>
+          <strong>↔</strong>
+        </div>
+        <div class="architecture-node">
+          <span class="node-kicker">Where Minecraft runs</span>
+          <strong>MSC agent</strong>
+          <span>{hostLabel}</span>
+        </div>
       </div>
-      <h2>Pair this host again</h2>
-      <p class="detail">
-        Run <span class="mono">msc pairing create</span> on {hostLabel}, then paste its one-use code
-        here. Pairing replaces the old credential and reopens host setup.
-      </p>
-      <div class="pairing-row">
-        <Field bind:value={pairingCode} placeholder="pair_…" />
-        <Button
-          variant="primary"
-          disabled={pairingBusy || !pairingCode.trim()}
-          onclick={() => void pairAgain()}>Pair Again</Button
-        >
-      </div>
-    {:else}
-      <div class="card-heading">
-        <span class="msc2-type-overline">Service controls</span>
-        <span class="quiet-label">Another computer</span>
-      </div>
-      <h2>Run service controls on {hostLabel}</h2>
-      <p class="detail">
-        The selected agent is on another computer. Run service controls there; this client cannot
-        install, start, stop, or repair it.
-      </p>
-    {/if}
+    </div>
+
+    <div class="architecture-means">
+      <p class="msc2-type-overline">That means</p>
+      <ul>
+        <li>Closing the control panel does not stop the agent.</li>
+        <li>Closing the control panel does not stop a running Minecraft server.</li>
+        <li>A browser or phone can manage a server without running the server itself.</li>
+        <li>One control panel can connect to multiple agents on different computers.</li>
+        <li>Installing or starting the agent must happen on the agent’s computer.</li>
+      </ul>
+    </div>
   </Card>
 
   {#if errorMessage || browserHandoffError}<p class="error" role="alert">
@@ -348,8 +367,7 @@
     font-weight: 500;
   }
   .heading-row,
-  .card-heading,
-  .actions {
+  .card-heading {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -428,6 +446,8 @@
     padding: 13px 12px;
     background: var(--msc2-tier-chrome);
     border-radius: 9px;
+    justify-items: center;
+    text-align: center;
   }
   .architecture-node strong {
     color: var(--msc2-text-primary);
@@ -475,7 +495,16 @@
     font-size: 12px;
   }
   .actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
     margin-top: 14px;
+  }
+  .actions :global(.btn) {
+    width: 100%;
+  }
+  .actions.reconnect-only {
+    grid-template-columns: minmax(0, 1fr);
   }
   .command-list {
     display: grid;

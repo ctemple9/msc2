@@ -42,15 +42,29 @@ describe('local agent installation boundary', () => {
     expect(setupSource).toContain("export let hostId = '';");
     expect(setupSource).toContain('isDesktopShell && isLocalHost');
     expect(setupSource).toContain('{:else if !isDesktopShell && isLoopbackHost}');
-    expect(setupSource).toContain('Run service controls on {hostLabel}');
+    expect(setupSource).toContain('Manage the agent on {hostLabel}');
     expect(setupSource).toContain('label={`Managed on ${hostLabel}`}');
   });
 
   it('states that closing the window does not stop a service or server', () => {
-    expect(setupSource).toContain('Closing the app window never stops the service');
+    expect(setupSource).toContain('Closing this window does not stop it or any');
   });
 
-  it('explains the control panel and agent relationship before service controls', () => {
+  it('labels a healthy connection as connected', () => {
+    expect(setupSource).toContain("ready: 'Agent connected'");
+    expect(setupSource).toContain('connected and ready for server management');
+  });
+
+  it('keeps connection, service, and service controls in equal columns', () => {
+    expect(setupSource).toContain('<div class="screen-grid two">');
+    expect(setupSource).toContain('Install, start, stop, or repair the agent.');
+    expect(setupSource).toContain(
+      'onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}',
+    );
+    expect(setupSource).toContain('grid-template-columns: repeat(2, minmax(0, 1fr));');
+  });
+
+  it('explains the control panel and agent relationship', () => {
     expect(setupSource).toContain('MSC has two parts');
     expect(setupSource).toContain('The control panel');
     expect(setupSource).toContain('The agent');

@@ -36,7 +36,9 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
   });
 
   it('keeps the host-scoped agent screen reachable without adding an eighth server tab', () => {
-    expect(controlSidebarSource).toContain("label: 'Agent…'");
+    expect(controlSidebarSource).not.toContain("label: 'Agent…'");
+    expect(controlSidebarSource).toContain("label: 'Manage…'");
+    expect(controlSidebarSource).toContain('onclick={onOpenAgentSetup}>Agent</Button>');
     expect(applicationShellSource).toContain('{onOpenAgentSetup}');
     expect(appSource).toContain("selectSection('agent-setup')");
     expect(primaryTabsSource.match(/\{ id: '/g)?.length).toBe(7);
@@ -131,6 +133,7 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).toContain('width: 100%');
     expect(controlSidebarSource).toContain('.control-row :global(.btn)');
     expect(controlSidebarSource).toContain('flex: 1 1 0');
+    expect(controlSidebarSource).not.toContain('>Manage</Button');
   });
 
   it('defines accessible states, focus treatment, and reduced motion tokens', () => {

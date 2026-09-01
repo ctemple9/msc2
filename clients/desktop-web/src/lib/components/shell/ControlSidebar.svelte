@@ -1,5 +1,5 @@
 <script lang="ts">
-  // Server-control rail: host-aware picker, Initiate/Start/Stop, Manage…, and MSC 1's
+  // Server-control rail: host-aware picker, Initiate/Start/Stop, Manage, Agent, and MSC 1's
   // four collapsible sections, all real now (P12.21, P12.22).
   // docs/msc2/renderings/shell.html, MSC 1 SidebarView.swift.
   import Button from '../base/Button.svelte';
@@ -80,7 +80,6 @@
           label: server.name,
           onSelect: () => onSelectServer(server.id),
         })),
-        { label: 'Agent…', onSelect: onOpenAgentSetup },
         { label: 'Manage…', onSelect: onManage },
       ];
     }
@@ -95,7 +94,6 @@
         items.push({ label: 'Switch to this host…', onSelect: () => onSwitchHost(host.id) });
       }
     }
-    items.push({ label: 'Agent…', onSelect: onOpenAgentSetup });
     items.push({ label: 'Manage…', onSelect: onManage });
     return items;
   }
@@ -226,9 +224,7 @@
           <ShellIcon name="play" size={13} />
           {running ? 'Stop' : startLabel}
         </Button>
-        <Button variant="secondary" size="sm" onclick={onManage} anchorId="ob_manage_servers"
-          >Manage…</Button
-        >
+        <Button variant="secondary" size="sm" onclick={onOpenAgentSetup}>Agent</Button>
       </div>
       {#if canResumeInitiation}
         <div class="initiation-notice" role="status">

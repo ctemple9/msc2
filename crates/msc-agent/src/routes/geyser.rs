@@ -100,13 +100,45 @@ pub async fn update_config(
         body.address.as_deref(),
         body.port,
     ) {
-        Ok(config) => Json(GeyserConfigUpdateResultDto {
-            success: true,
-            message: "saved".into(),
-            address: Some(config.address),
-            port: config.port.map(i64::from),
-        })
-        .into_response(),
+        Ok(config) => {
+            if let Some(port) = config.port {
+                let Some(active_id) = state.active_server_id() else {
+                    return error_response(
+                        StatusCode::CONFLICT,
+                        "no_active_server",
+                        "No active server.",
+                    );
+                };
+                if let Err(error) = state.try_mutate_config(|app_config| {
+                    let server = app_config
+                        .servers
+                        .iter_mut()
+                        .find(|server| server.id == active_id)
+                        .ok_or(())?;
+                    server.bedrock_port = Some(i64::from(port));
+                    Ok::<(), ()>(())
+                }) {
+                    let message = match error {
+                        crate::routes::lifecycle::TryMutateError::Domain(()) => {
+                            "No active server.".to_owned()
+                        }
+                        crate::routes::lifecycle::TryMutateError::Save(error) => error.to_string(),
+                    };
+                    return error_response(
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        "internal_error",
+                        &message,
+                    );
+                }
+            }
+            Json(GeyserConfigUpdateResultDto {
+                success: true,
+                message: "saved".into(),
+                address: Some(config.address),
+                port: config.port.map(i64::from),
+            })
+            .into_response()
+        }
         Err(message) => error_response(StatusCode::BAD_REQUEST, "invalid_config", &message),
     }
 }

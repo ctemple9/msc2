@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 5df9f334ef9391ee2d5c2d09f869dadc2e28953cee17c518541c5a168132a3f5
+// Contract SHA-256: 749bc22cfa5347f4f8e0d459e6442b07111874527f0a52f844ae91248de0a45d
 
 export interface paths {
   '/v1/active-server': {
@@ -4485,6 +4485,62 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/size': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Measure a registered server's directory */
+    get: {
+      parameters: {
+        query: {
+          serverId: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Directory size */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ServerDirectorySizeResponseDTO'];
+          };
+        };
+        /** @description missing_server_id */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/session-log': {
     parameters: {
       query?: never;
@@ -7436,6 +7492,13 @@ export interface components {
       message: string;
       serverId?: string;
       success: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    ServerDirectorySizeResponseDTO: {
+      serverId: string;
+      /** Format: int64 */
+      sizeBytes?: number;
     } & {
       [key: string]: unknown;
     };

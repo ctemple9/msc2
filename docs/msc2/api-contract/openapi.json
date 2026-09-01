@@ -3877,6 +3877,56 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/servers/size": {
+      "get": {
+        "summary": "Measure a registered server's directory",
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory size",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerDirectorySizeResponseDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_server_id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "missing_server_id"
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "server_not_found"
+          }
+        },
+        "x-permission-category": "none"
+      }
+    },
     "/v1/status": {
       "get": {
         "summary": "Current run status (active server, pid, running state)",
@@ -6896,6 +6946,21 @@
         "required": [
           "success",
           "message"
+        ]
+      },
+      "ServerDirectorySizeResponseDTO": {
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "required": [
+          "serverId"
         ]
       },
       "ServerEULARequestDTO": {

@@ -102,6 +102,7 @@
           onDirectoryChanged={handleDirectoryChanged}
           onDeleted={handleDeleted}
           onRequestActivate={requestActivate}
+          onPortsChanged={onServersChanged}
         />
       {:else if tab === 'broadcast'}
         <BroadcastTab
@@ -131,5 +132,12 @@
   .tab-panel {
     height: 560px;
     overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .tab-panel::-webkit-scrollbar {
+    display: none;
+    width: 0;
   }
 </style>

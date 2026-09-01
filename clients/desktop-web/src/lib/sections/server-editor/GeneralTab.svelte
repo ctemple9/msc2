@@ -22,13 +22,14 @@
   // would silently read/write the WRONG server's RAM, so this block is
   // gated on `isActive` and offers the same "Set as Active" action
   // ManageSheet's row menu already exposes instead.
+  import { onDestroy } from 'svelte';
   import Card from '../../components/base/Card.svelte';
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
   import NumberField from '../../components/base/NumberField.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import type { Schema, ScreenApi } from '../shared/types';
-  import { call, errorMessage, mutate } from '../shared/types';
+  import { bytesLabel, call, errorMessage, mutate } from '../shared/types';
   import { getPlatform } from '../../platform';
   import { serverEditorPaths } from './model';
 
@@ -40,6 +41,7 @@
   export let onDirectoryChanged: (directory: string) => void;
   export let onDeleted: () => void;
   export let onRequestActivate: () => void;
+  export let onPortsChanged: () => Promise<void>;
 
   let nameDraft = server.name;
   let renaming = false;
@@ -51,6 +53,14 @@
   let maxRamDraft = '';
   let ramSaving = false;
   let loadedForActive = false;
+  let ramSaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let directorySize: number | undefined;
+  let directorySizeLoading = false;
+  let loadedDirectorySizeKey = '';
+  let gamePortDraft = String(server.gamePort ?? (server.serverType === 'bedrock' ? 19132 : 25565));
+  let bedrockPortDraft = server.bedrockPort === undefined ? '' : String(server.bedrockPort);
+  let portSaving = false;
+  let portSaveTimer: ReturnType<typeof setTimeout> | undefined;
 
   let eulaAccepted: boolean | undefined;
   let eulaBusy = false;
@@ -62,6 +72,8 @@
   $: ramDirty =
     !!ram && (minRamDraft !== String(ram.minRamGB) || maxRamDraft !== String(ram.maxRamGB));
   $: isJava = server.serverType !== 'bedrock';
+  $: directorySizeKey = `${server.id}:${server.directory}`;
+  $: hasBedrockPort = isJava && server.bedrockPort !== undefined;
 
   $: if (isActive && !loadedForActive) {
     loadedForActive = true;
@@ -71,6 +83,10 @@
     loadedForActive = false;
     ram = undefined;
   }
+  $: if (directorySizeKey !== loadedDirectorySizeKey) {
+    loadedDirectorySizeKey = directorySizeKey;
+    void loadDirectorySize(directorySizeKey);
+  }
 
   async function loadRam(): Promise<void> {
     ram = await call(api, ram, serverEditorPaths.ram);
@@ -78,6 +94,19 @@
       minRamDraft = String(ram.minRamGB);
       maxRamDraft = String(ram.maxRamGB);
     }
+  }
+
+  async function loadDirectorySize(requestKey: string): Promise<void> {
+    directorySizeLoading = true;
+    directorySize = undefined;
+    const result = await call<Schema['ServerDirectorySizeResponseDTO']>(
+      api,
+      { serverId: server.id },
+      serverEditorPaths.directorySize(server.id),
+    );
+    if (directorySizeKey !== requestKey) return;
+    directorySize = result.sizeBytes;
+    directorySizeLoading = false;
   }
 
   async function saveName(): Promise<void> {
@@ -119,17 +148,53 @@
     }
   }
 
+  function parseRamDraft(value: string): number | undefined {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+  }
+
+  function parsePortDraft(value: string): number | undefined {
+    const parsed = Number(value.trim());
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535 ? parsed : undefined;
+  }
+
+  function scheduleRamSave(): void {
+    if (!canControl) return;
+    if (ramSaveTimer) clearTimeout(ramSaveTimer);
+    ramSaveTimer = setTimeout(() => {
+      ramSaveTimer = undefined;
+      void saveRam();
+    }, 450);
+  }
+
+  function handleMinRamChange(value: string): void {
+    minRamDraft = value;
+    scheduleRamSave();
+  }
+
+  function handleMaxRamChange(value: string): void {
+    maxRamDraft = value;
+    scheduleRamSave();
+  }
+
   async function saveRam(): Promise<void> {
-    if (!ramDirty || ramSaving) return;
+    if (!canControl || !ramDirty || ramSaving) return;
+    const minRamGB = parseRamDraft(minRamDraft);
+    const maxRamGB = parseRamDraft(maxRamDraft);
+    if (minRamGB === undefined || maxRamGB === undefined) {
+      notice = 'Enter a valid minimum and maximum RAM value.';
+      return;
+    }
     ramSaving = true;
     try {
-      const changes: Record<string, number> = {};
-      if (ram && minRamDraft !== String(ram.minRamGB)) changes.minRamGB = Number(minRamDraft);
-      if (ram && maxRamDraft !== String(ram.maxRamGB)) changes.maxRamGB = Number(maxRamDraft);
       const result = await mutate<Schema['RAMConfigUpdateResultDTO']>(
         api,
         serverEditorPaths.ram,
-        changes,
+        // Send the complete pair so an automatic save never reaches the
+        // agent as an empty partial update when both fields were edited.
+        { minRamGB, maxRamGB },
       );
       notice = result.restartRequired
         ? `${result.message ?? 'RAM allocation saved.'} Restart the server to apply.`
@@ -141,6 +206,61 @@
       ramSaving = false;
     }
   }
+
+  function schedulePortSave(): void {
+    if (!canControl || !isActive) return;
+    if (portSaveTimer) clearTimeout(portSaveTimer);
+    portSaveTimer = setTimeout(() => {
+      portSaveTimer = undefined;
+      void savePorts();
+    }, 450);
+  }
+
+  function handleGamePortChange(value: string): void {
+    gamePortDraft = value;
+    schedulePortSave();
+  }
+
+  function handleBedrockPortChange(value: string): void {
+    bedrockPortDraft = value;
+    schedulePortSave();
+  }
+
+  async function savePorts(): Promise<void> {
+    if (!canControl || !isActive || portSaving) return;
+    const gamePort = parsePortDraft(gamePortDraft);
+    const bedrockPort = hasBedrockPort ? parsePortDraft(bedrockPortDraft) : undefined;
+    if (gamePort === undefined || (hasBedrockPort && bedrockPort === undefined)) {
+      notice = 'Enter ports between 1 and 65535.';
+      return;
+    }
+    portSaving = true;
+    try {
+      const result = await mutate<Schema['SettingsUpdateResultDTO']>(
+        api,
+        serverEditorPaths.settings,
+        { changes: { 'server-port': String(gamePort) } },
+      );
+      let restartRequired = result.restartRequired;
+      if (bedrockPort !== undefined) {
+        await mutate<Schema['GeyserConfigUpdateResultDTO']>(api, serverEditorPaths.geyser, {
+          port: bedrockPort,
+        });
+        restartRequired = true;
+      }
+      notice = restartRequired ? 'Ports saved. Restart the server to apply.' : 'Ports saved.';
+      await onPortsChanged();
+    } catch (error) {
+      notice = errorMessage(error);
+    } finally {
+      portSaving = false;
+    }
+  }
+
+  onDestroy(() => {
+    if (ramSaveTimer) clearTimeout(ramSaveTimer);
+    if (portSaveTimer) clearTimeout(portSaveTimer);
+  });
 
   async function acceptEula(): Promise<void> {
     if (eulaBusy) return;
@@ -233,30 +353,101 @@
         <div class="row">
           <span class="name">Minimum RAM</span>
           <div class="control">
-            <NumberField bind:value={minRamDraft} min={0} step={0.5} width="80px" />
+            <NumberField
+              value={minRamDraft}
+              min={0}
+              step={0.1}
+              width="80px"
+              disabled={!canControl || ramSaving}
+              onchange={handleMinRamChange}
+            />
             <span class="unit">GB</span>
           </div>
         </div>
         <div class="row bordered">
           <span class="name">Maximum RAM</span>
           <div class="control">
-            <NumberField bind:value={maxRamDraft} min={0} step={0.5} width="80px" />
+            <NumberField
+              value={maxRamDraft}
+              min={0}
+              step={0.1}
+              width="80px"
+              disabled={!canControl || ramSaving}
+              onchange={handleMaxRamChange}
+            />
             <span class="unit">GB</span>
           </div>
         </div>
       </Card>
-      <div class="memory-footer">
-        <span class="hint"
-          >{ram.physicalRAMGB} GB physical · {ram.recommendedMaxGB} GB recommended max</span
-        >
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!ramDirty || ramSaving || !canControl}
-          onclick={saveRam}>{ramSaving ? 'Saving…' : 'Save'}</Button
+      {#if ramSaving}<p class="hint memory-status">Saving…</p>{/if}
+    {/if}
+  </section>
+
+  <section class="zone">
+    <p class="msc2-type-overline">Ports</p>
+    {#if !isActive}
+      <Card>
+        <div class="notice-row">
+          <div class="notice-text">
+            <span class="name">Set as active to edit ports</span>
+            <p class="hint">
+              Port changes apply to the currently active server and take effect after its next
+              restart.
+            </p>
+          </div>
+          <Button variant="secondary" size="sm" onclick={onRequestActivate}>Set as Active</Button>
+        </div>
+      </Card>
+    {:else}
+      <Card padding="0">
+        <div class="row">
+          <span class="name">{isJava ? 'Java Port' : 'Bedrock Port'}</span>
+          <div class="control">
+            <NumberField
+              value={gamePortDraft}
+              min={1}
+              max={65535}
+              step={1}
+              width="90px"
+              disabled={!canControl || portSaving}
+              onchange={handleGamePortChange}
+            />
+          </div>
+        </div>
+        {#if hasBedrockPort}
+          <div class="row bordered">
+            <span class="name">Bedrock / Geyser Port</span>
+            <div class="control">
+              <NumberField
+                value={bedrockPortDraft}
+                min={1}
+                max={65535}
+                step={1}
+                width="90px"
+                disabled={!canControl || portSaving}
+                onchange={handleBedrockPortChange}
+              />
+            </div>
+          </div>
+        {/if}
+      </Card>
+      <p class="hint">
+        Changes the local server port only. Router forwarding and Playit mappings are separate.
+      </p>
+      {#if portSaving}<p class="hint memory-status">Saving…</p>{/if}
+    {/if}
+  </section>
+
+  <section class="zone">
+    <p class="msc2-type-overline">Storage</p>
+    <Card padding="0">
+      <div class="row">
+        <span class="name">Server Folder Size</span>
+        <span class="storage-value"
+          >{directorySizeLoading ? 'Loading…' : bytesLabel(directorySize)}</span
         >
       </div>
-    {/if}
+    </Card>
   </section>
 
   {#if isJava}
@@ -381,16 +572,18 @@
     font-size: 11px;
     color: var(--msc2-text-tertiary);
   }
+  .storage-value {
+    font-size: 12px;
+    font-family: var(--msc2-font-mono, monospace);
+    color: var(--msc2-text-secondary);
+  }
   .hint {
     margin: 0;
     font-size: 12px;
     color: var(--msc2-text-tertiary);
   }
-  .memory-footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
+  .memory-status {
+    min-height: 16px;
   }
   .eula-info {
     display: flex;

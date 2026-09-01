@@ -435,7 +435,13 @@
     gap: 6px;
     max-height: 260px;
     overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
     margin-bottom: 12px;
+  }
+  .list::-webkit-scrollbar {
+    display: none;
+    width: 0;
   }
   .list .row {
     background: var(--msc2-tier-chrome);

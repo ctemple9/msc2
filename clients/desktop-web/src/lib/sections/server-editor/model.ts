@@ -20,8 +20,12 @@ import type { Schema, ScreenApi } from '../shared/types';
 export const serverEditorPaths = {
   rename: '/v1/servers/rename',
   directory: '/v1/servers/directory',
+  directorySize: (serverId: string): string =>
+    `/v1/servers/size?serverId=${encodeURIComponent(serverId)}`,
   delete: '/v1/servers/delete',
   eula: '/v1/servers/eula',
+  settings: '/v1/settings',
+  geyser: '/v1/config/geyser',
   active: '/v1/active-server',
   status: '/v1/status',
   ram: '/v1/config/ram',

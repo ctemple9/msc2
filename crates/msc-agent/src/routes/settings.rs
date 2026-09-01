@@ -40,7 +40,7 @@ use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use crate::auth::AuthenticatedCredential;
 use crate::routes::bedrock::runtime_for;
 use crate::routes::lifecycle::{
-    LifecycleRoutesState, error_response, invalid_body, require_permission,
+    LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
 
 const PROPERTIES_FILE_NAME: &str = "server.properties";
@@ -210,6 +210,35 @@ fn apply_settings_update(
                 .into_response()
             }
             Ok(result) => {
+                if result.applied_keys.iter().any(|key| key == "server-port") {
+                    let port = result.settings.model.server_port;
+                    let Some(active_id) = state.active_server_id() else {
+                        return error_response(
+                            StatusCode::CONFLICT,
+                            "no_active_server",
+                            "No server is currently active.",
+                        );
+                    };
+                    if let Err(error) = state.try_mutate_config(|config| {
+                        let server = config
+                            .servers
+                            .iter_mut()
+                            .find(|server| server.id == active_id)
+                            .ok_or(())?;
+                        server.bedrock_port = Some(port);
+                        Ok::<(), ()>(())
+                    }) {
+                        let message = match error {
+                            TryMutateError::Domain(()) => "No server is currently active.".into(),
+                            TryMutateError::Save(error) => error.to_string(),
+                        };
+                        return error_response(
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "internal_error",
+                            &message,
+                        );
+                    }
+                }
                 ownership_rejections.extend(result.rejected.into_iter().map(|rejection| {
                     SettingRejectionDto {
                         key: rejection.key,

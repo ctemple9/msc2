@@ -118,6 +118,34 @@ pub fn browse_directory(
     })
 }
 
+/// Returns the total size of a server directory without following symbolic
+/// links. A server can contain large nested worlds and mod caches, so the
+/// General tab needs one authoritative recursive measurement rather than the
+/// immediate file sizes exposed by the browser listing.
+pub fn directory_size(fs: &dyn FileSystem, server_dir: &Path, home_dir: &Path) -> Option<u64> {
+    let root = safe_path(fs, server_dir, None, home_dir).ok()?;
+    directory_size_at(fs, &root).ok()
+}
+
+fn directory_size_at(fs: &dyn FileSystem, path: &Path) -> std::io::Result<u64> {
+    // Counting a link's target would both escape the configured server root
+    // and risk looping through a link cycle. The link itself consumes no
+    // server-directory file bytes, so it contributes zero.
+    if fs.read_link(path).is_ok() {
+        return Ok(0);
+    }
+    let metadata = fs.stat(path)?;
+    if metadata.is_file {
+        return Ok(metadata.size);
+    }
+    if !metadata.is_dir {
+        return Ok(0);
+    }
+    fs.list(path)?.into_iter().try_fold(0u64, |total, child| {
+        Ok(total.saturating_add(directory_size_at(fs, &child)?))
+    })
+}
+
 fn file_entry(fs: &dyn FileSystem, root: &Path, child: &Path) -> Option<FileEntry> {
     let stat = fs.stat(child).ok()?;
     let name = child.file_name()?.to_string_lossy().into_owned();
@@ -349,6 +377,26 @@ mod tests {
             Some("paper.jar"),
         );
         assert_eq!(outcome, BrowseOutcome::DirectoryNotFound);
+    }
+
+    #[test]
+    fn directory_size_includes_nested_and_hidden_files_but_not_symlink_targets() {
+        let fs = fs_with_server("/srv/test")
+            .with_file("/srv/test/plugins/config.yml", b"config".to_vec(), false)
+            .with_symlink("/srv/test/link-to-outside", "/elsewhere");
+        assert_eq!(
+            directory_size(&fs, Path::new("/srv/test"), Path::new("/home/nobody")),
+            Some(37)
+        );
+    }
+
+    #[test]
+    fn directory_size_rejects_a_forbidden_server_root() {
+        let fs = fs_with_server("/home/nobody/server");
+        assert_eq!(
+            directory_size(&fs, Path::new("/home/nobody"), Path::new("/home/nobody")),
+            None
+        );
     }
 
     #[test]

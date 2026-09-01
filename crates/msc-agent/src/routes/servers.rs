@@ -9,14 +9,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Extension, State};
+use axum::extract::{Extension, Query, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
     ErrorDto, PermissionCategoryDto, ServerCreateRequestDto, ServerCreateResultDto,
     ServerCreateWorldSettingsDto, ServerDeleteRequestDto, ServerDeleteResultDto,
-    ServerDirectoryRequestDto, ServerDirectoryResultDto, ServerDto, ServerEulaRequestDto,
-    ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
+    ServerDirectoryRequestDto, ServerDirectoryResultDto, ServerDirectorySizeResponseDto, ServerDto,
+    ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
     ServerImportScanResponseDto, ServerImportWorldDto, ServerRenameRequestDto,
     ServerRenameResultDto,
 };
@@ -80,6 +80,42 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
         })
         .collect();
     Json(servers)
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerDirectorySizeQuery {
+    pub server_id: Option<String>,
+}
+
+pub async fn directory_size(
+    State(state): State<LifecycleRoutesState>,
+    Query(query): Query<ServerDirectorySizeQuery>,
+) -> Response {
+    let Some(server_id) = query.server_id.filter(|id| !id.trim().is_empty()) else {
+        return invalid_body("missing_server_id", "serverId is required.");
+    };
+    let Some(server) = state
+        .servers()
+        .into_iter()
+        .find(|server| server.id == server_id)
+    else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        );
+    };
+    let size_bytes = msc_application::server_files::directory_size(
+        &StdFileSystem,
+        Path::new(&server.directory),
+        &agent_home_dir(),
+    );
+    Json(ServerDirectorySizeResponseDto {
+        server_id,
+        size_bytes,
+    })
+    .into_response()
 }
 
 pub async fn import(
@@ -3369,6 +3405,52 @@ mod tests {
         let state = route_state();
         let response = call_delete(&state, "does-not-exist").await;
         assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
+
+    async fn call_directory_size(
+        state: &LifecycleRoutesState,
+        server_id: Option<&str>,
+    ) -> Response {
+        directory_size(
+            State(state.clone()),
+            Query(ServerDirectorySizeQuery {
+                server_id: server_id.map(str::to_owned),
+            }),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn directory_size_route_reports_nested_server_folder_bytes() {
+        let state = route_state();
+        let dir = temp_dir("directory-size-route");
+        std::fs::create_dir_all(dir.join("world")).unwrap();
+        std::fs::write(dir.join("server.properties"), b"abc").unwrap();
+        std::fs::write(dir.join("world/level.dat"), b"12345").unwrap();
+        state
+            .register_imported_config_servers(vec![seeded_server("SIZE-1", &dir)], false)
+            .unwrap();
+
+        let (status, body): (StatusCode, ServerDirectorySizeResponseDto) =
+            response_json(call_directory_size(&state, Some("SIZE-1")).await).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body.server_id, "SIZE-1");
+        assert_eq!(body.size_bytes, Some(8));
+    }
+
+    #[tokio::test]
+    async fn directory_size_route_requires_a_registered_server_id() {
+        let state = route_state();
+        assert_eq!(
+            call_directory_size(&state, None).await.status(),
+            StatusCode::BAD_REQUEST
+        );
+        assert_eq!(
+            call_directory_size(&state, Some("does-not-exist"))
+                .await
+                .status(),
+            StatusCode::NOT_FOUND
+        );
     }
 
     // ---------- P7.23: POST /v1/servers/rename ----------

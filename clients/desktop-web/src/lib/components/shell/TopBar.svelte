@@ -4,7 +4,7 @@
   // window chrome comes from the browser or the Tauri titlebar.
   // docs/msc2/renderings/shell.html, MSC 1 ContentView.swift top banner.
   import ShellIcon from './ShellIcon.svelte';
-  import { bannerColorAccent } from '../../styles/bannerColor';
+  import RunningBannerGame from './RunningBannerGame.svelte';
 
   export let bannerColor: string;
   export let running = false;
@@ -25,14 +25,7 @@
   </div>
 
   {#if running}
-    <div
-      class="terrain"
-      style="background: {bannerColorAccent(bannerColor, 1)};"
-      aria-hidden="true"
-    >
-      <div class="ground"></div>
-      <div class="grass"></div>
-    </div>
+    <RunningBannerGame {running} {bannerColor} />
   {:else}
     <div class="spacer"></div>
   {/if}
@@ -120,30 +113,9 @@
     font-size: 10px;
     color: var(--msc2-text-tertiary);
   }
-  .spacer,
-  .terrain {
+  .spacer {
     flex: 1;
     min-width: 0;
-    height: 30px;
-    border-radius: 7px;
-    overflow: hidden;
-    position: relative;
-  }
-  .terrain .ground {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    height: 40%;
-    background: rgba(0, 0, 0, 0.28);
-  }
-  .terrain .grass {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 40%;
-    height: 14%;
-    background: rgba(255, 255, 255, 0.18);
   }
   .actions {
     display: flex;

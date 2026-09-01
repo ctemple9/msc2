@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import applicationShellSource from '../../src/lib/components/ApplicationShell.svelte?raw';
 import topBarSource from '../../src/lib/components/shell/TopBar.svelte?raw';
+import runningBannerGameSource from '../../src/lib/components/shell/RunningBannerGame.svelte?raw';
 import controlSidebarSource from '../../src/lib/components/shell/ControlSidebar.svelte?raw';
 import howToConnectSource from '../../src/lib/components/shell/sidebar/HowToConnectSection.svelte?raw';
 import detailsHeaderSource from '../../src/lib/components/shell/DetailsHeader.svelte?raw';
@@ -63,10 +64,21 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
   });
 
   it('spends bannerColor only on its four sanctioned spots', () => {
-    expect(topBarSource).toContain('bannerColorAccent');
+    expect(topBarSource).toContain('<RunningBannerGame {running} {bannerColor} />');
+    expect(runningBannerGameSource).toContain('fill={bannerColor}');
     expect(detailsHeaderSource).toContain('bannerColorAccent');
     expect(tabStripSource).toContain('bannerColorAccent');
     expect(controlSidebarSource).toContain('bannerColorAccent');
+  });
+
+  it('keeps the running banner interactive and client-local', () => {
+    expect(runningBannerGameSource).toContain('requestAnimationFrame');
+    expect(runningBannerGameSource).toContain('onpointerdown={handleJumpInput}');
+    expect(runningBannerGameSource).toContain('autoJumpEnabled = false');
+    expect(runningBannerGameSource).toContain('flashRemaining = 0.3');
+    expect(runningBannerGameSource).toContain('slice(-MAX_OBSTACLES)');
+    expect(runningBannerGameSource).toContain('score >= MAX_SCORE');
+    expect(runningBannerGameSource).toContain('preserveAspectRatio="none"');
   });
 
   it('keeps the docked console collapsible and console-tier surfaced', () => {

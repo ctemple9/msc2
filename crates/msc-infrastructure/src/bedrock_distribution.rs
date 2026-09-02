@@ -199,6 +199,22 @@ struct ManifestEntry {
     sha256: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct EndstoneVersionRegistry {
+    release: EndstoneChannel,
+}
+
+#[derive(Debug, Deserialize)]
+struct EndstoneChannel {
+    versions: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EndstoneMetadata {
+    version: String,
+    binary: BTreeMap<String, ManifestEntry>,
+}
+
 impl BedrockPlatform {
     fn release<'a>(&self, manifest: &'a Manifest, key: &str) -> Option<&'a ManifestEntry> {
         manifest.release.get(key)?.get(self.manifest_key())
@@ -249,6 +265,73 @@ pub fn resolve_release(
 
     Ok(BedrockRelease {
         version: version_from_url(&entry.url).unwrap_or_else(|| key.clone()),
+        url: entry.url.clone(),
+        sha256,
+        platform,
+    })
+}
+
+/// Resolves the release branch from Endstone's version registry. Endstone
+/// stores the URL and checksum in a second per-version metadata document, so
+/// this function deliberately returns only the branch name.
+pub fn resolve_endstone_version(
+    registry_bytes: &[u8],
+    request: BedrockVersionRequest<'_>,
+) -> Result<String, BedrockDistributionError> {
+    let registry: EndstoneVersionRegistry = serde_json::from_slice(registry_bytes)
+        .map_err(|error| BedrockDistributionError::Manifest(error.to_string()))?;
+
+    match request {
+        BedrockVersionRequest::Pinned(version) => registry
+            .release
+            .versions
+            .iter()
+            .find(|candidate| candidate.as_str() == version)
+            .or_else(|| {
+                registry.release.versions.iter().find(|candidate| {
+                    version
+                        .strip_prefix(candidate.as_str())
+                        .is_some_and(|suffix| suffix.starts_with('.'))
+                })
+            })
+            .cloned()
+            .ok_or_else(|| BedrockDistributionError::VersionNotFound(version.to_string())),
+        BedrockVersionRequest::Latest => registry
+            .release
+            .versions
+            .iter()
+            .filter(|version| numeric_version(version).is_some())
+            .max_by(|left, right| compare_numeric_versions(left, right))
+            .cloned()
+            .ok_or(BedrockDistributionError::Manifest(
+                "Endstone release registry has no numeric versions".into(),
+            )),
+    }
+}
+
+/// Resolves one platform's verified archive from Endstone's per-version
+/// metadata document. The metadata contains the official Mojang URL and the
+/// published SHA-256 that the provisioner requires.
+pub fn resolve_endstone_release(
+    metadata_bytes: &[u8],
+    platform: BedrockPlatform,
+) -> Result<BedrockRelease, BedrockDistributionError> {
+    let metadata: EndstoneMetadata = serde_json::from_slice(metadata_bytes)
+        .map_err(|error| BedrockDistributionError::Manifest(error.to_string()))?;
+    let entry = metadata
+        .binary
+        .get(platform.manifest_key())
+        .ok_or(BedrockDistributionError::NoPlatformRelease(platform))?;
+    let sha256 = entry
+        .sha256
+        .clone()
+        .ok_or(BedrockDistributionError::UnverifiedArchive)?;
+    if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(BedrockDistributionError::InvalidChecksum(sha256));
+    }
+
+    Ok(BedrockRelease {
+        version: version_from_url(&entry.url).unwrap_or(metadata.version),
         url: entry.url.clone(),
         sha256,
         platform,

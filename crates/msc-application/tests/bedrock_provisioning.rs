@@ -198,6 +198,33 @@ fn manifest(releases: &[(&str, &str, &str, &[u8])]) -> Vec<u8> {
     serde_json::to_vec(&json!({ "release": release })).unwrap()
 }
 
+fn endstone_registry(version: &str) -> Vec<u8> {
+    serde_json::to_vec(&json!({
+        "release": {
+            "latest": version,
+            "versions": [version]
+        }
+    }))
+    .unwrap()
+}
+
+fn endstone_metadata(version: &str, linux: &[u8], windows: &[u8]) -> Vec<u8> {
+    serde_json::to_vec(&json!({
+        "version": version,
+        "binary": {
+            "linux": {
+                "url": format!("https://cdn/bedrock-server-{version}.1.zip"),
+                "sha256": sha256_hex(linux)
+            },
+            "windows": {
+                "url": format!("https://cdn/bedrock-server-{version}.1.zip"),
+                "sha256": sha256_hex(windows)
+            }
+        }
+    }))
+    .unwrap()
+}
+
 fn request<'a>(
     server_dir: &'a Path,
     version: Option<&'a str>,
@@ -211,6 +238,58 @@ fn request<'a>(
         force,
         manifest_url: BEDROCK_MANIFEST_URL,
     }
+}
+
+#[test]
+fn endstone_metadata_verifies_linux_and_windows_archives() {
+    let version = "1.26.45";
+    let linux_archive = archive(version, b"linux", b"linux-settings");
+    let windows_archive = archive_for_platform(
+        version,
+        b"windows",
+        b"windows-settings",
+        BedrockPlatform::Windows,
+    );
+    let index_url = BEDROCK_MANIFEST_URL;
+    let metadata_url = format!(
+        "https://raw.githubusercontent.com/EndstoneMC/bedrock-server-data/v2/release/{version}/metadata.json"
+    );
+    let transport = FakeTransport::new()
+        .with_response(index_url, endstone_registry(version))
+        .with_response(
+            &metadata_url,
+            endstone_metadata(version, &linux_archive, &windows_archive),
+        )
+        .with_response(
+            "https://cdn/bedrock-server-1.26.45.1.zip",
+            linux_archive.clone(),
+        );
+    let linux_server = PathBuf::from("servers/endstone-linux");
+    let linux = ensure_installed(
+        &FakeFileSystem::new(),
+        &transport,
+        &request(&linux_server, None, BedrockPlatform::Linux, false),
+        || true,
+    )
+    .unwrap();
+    assert!(matches!(linux, ProvisionOutcome::Installed { .. }));
+
+    let windows_transport = FakeTransport::new()
+        .with_response(index_url, endstone_registry(version))
+        .with_response(
+            &metadata_url,
+            endstone_metadata(version, &linux_archive, &windows_archive),
+        )
+        .with_response("https://cdn/bedrock-server-1.26.45.1.zip", windows_archive);
+    let windows_server = PathBuf::from("servers/endstone-windows");
+    let windows = ensure_installed(
+        &FakeFileSystem::new(),
+        &windows_transport,
+        &request(&windows_server, None, BedrockPlatform::Windows, false),
+        || true,
+    )
+    .unwrap();
+    assert!(matches!(windows, ProvisionOutcome::Installed { .. }));
 }
 
 fn fixture(case: &str) -> serde_json::Value {

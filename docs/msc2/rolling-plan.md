@@ -65,6 +65,16 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 | **12** | Client redesign (MSC 1 fidelity, refreshed) | complete |
 | 13 | Terminal UI (deferred from v1) | not started |
 
+## Phase 12 amendment — Bedrock checksum metadata
+
+### P12.35 — Use published Bedrock checksums for all host archives
+**Status:** awaiting verification
+**Files:** `crates/msc-infrastructure/src/bedrock_distribution.rs`, `crates/msc-application/src/bedrock_provisioning.rs`, `crates/msc-application/tests/bedrock_provisioning.rs`, `docs/msc2/rolling-plan.md`
+**What:** Replace the unusable Bedrock release source with Endstone's two-document registry and per-version metadata, which publishes SHA-256 values for the official Mojang Linux and Windows archives. Keep the existing manifest shape supported for mirrors and fixtures, retain strict verification before staging, and prove both native platform paths. Intel macOS continues to consume the verified Linux guest archive through the existing platform mapping.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-infrastructure -p msc-application --all-targets -- -D warnings && cargo nextest run -p msc-application --test bedrock_provisioning`
+**Commit:** `P12.35: use published Bedrock checksums`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

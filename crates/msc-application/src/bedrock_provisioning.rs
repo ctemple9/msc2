@@ -14,7 +14,10 @@ use msc_infrastructure::jar_provider::{JarProviderError, Transport};
 use std::fmt;
 use std::path::Path;
 
-pub const BEDROCK_MANIFEST_URL: &str = "https://raw.githubusercontent.com/kittizz/bedrock-server-downloads/refs/heads/main/bedrock-server-downloads.json";
+/// Endstone publishes the official Mojang archive URLs together with the
+/// SHA-256 values generated for each Linux and Windows release.
+pub const BEDROCK_MANIFEST_URL: &str =
+    "https://raw.githubusercontent.com/EndstoneMC/bedrock-server-data/v2/versions.json";
 const VERSION_MARKER: &str = bedrock_distribution::BEDROCK_VERSION_MARKER;
 const PRESERVED_FILES: [&str; 4] = [
     "server.properties",
@@ -130,12 +133,39 @@ pub fn ensure_installed(
         Err(error) => return Err(BedrockProvisioningError::Download(error)),
     };
 
-    let target = bedrock_distribution::resolve_release(
+    let target = match bedrock_distribution::resolve_release(
         &manifest,
         BedrockVersionRequest::parse(request.version),
         request.platform,
-    )
-    .map_err(BedrockProvisioningError::Distribution)?;
+    ) {
+        Ok(release) => release,
+        Err(BedrockDistributionError::Manifest(_)) => {
+            let version = bedrock_distribution::resolve_endstone_version(
+                &manifest,
+                BedrockVersionRequest::parse(request.version),
+            )
+            .map_err(BedrockProvisioningError::Distribution)?;
+            let metadata_url = request
+                .manifest_url
+                .strip_suffix("/versions.json")
+                .map(|base| format!("{base}/release/{version}/metadata.json"))
+                .ok_or_else(|| {
+                    BedrockProvisioningError::Distribution(BedrockDistributionError::Manifest(
+                        "Endstone version registry URL must end in /versions.json".into(),
+                    ))
+                })?;
+            let metadata = transport
+                .get(
+                    &metadata_url,
+                    "Bedrock release metadata",
+                    bedrock_distribution::BEDROCK_MANIFEST_MAX_BYTES,
+                )
+                .map_err(BedrockProvisioningError::Download)?;
+            bedrock_distribution::resolve_endstone_release(&metadata, request.platform)
+                .map_err(BedrockProvisioningError::Distribution)?
+        }
+        Err(error) => return Err(BedrockProvisioningError::Distribution(error)),
+    };
 
     if already_installed && !request.force {
         if installed_version.as_deref() == Some(target.version.as_str()) {

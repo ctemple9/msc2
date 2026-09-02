@@ -18,7 +18,7 @@ use msc_infrastructure::playit::{
     PLAYIT_SECRET_KEY, PlayitBinaryAcquisition, PlayitLaunch, PlayitSecretBridge,
 };
 use msc_infrastructure::playit_api::{
-    PLAYIT_AGENT_NAME, PlayitApi, PlayitApiError, PlayitHttpTransport, PlayitTunnel,
+    PLAYIT_AGENT_NAME, PlayitApi, PlayitApiError, PlayitHttpTransport, PlayitSession, PlayitTunnel,
 };
 use msc_infrastructure::process::ProcessSupervisor;
 use msc_infrastructure::secret_store::SecretStore;
@@ -31,17 +31,26 @@ use uuid::Uuid;
 pub const PLAYIT_OPERATION_TYPE: &str = "playit-tunnel";
 pub const PLAYIT_SETUP_OPERATION_TYPE: &str = "playit-setup";
 pub const PLAYIT_SETUP_OPERATION_TARGET: &str = "playit-account";
+pub const PLAYIT_INVALID_SECRET_MESSAGE: &str = "The saved Playit credential was rejected. Relink the existing agent before trying again; MSC did not replace it.";
+pub const PLAYIT_CONTROL_SESSION_FAILURE_MESSAGE: &str = "Playit repeatedly rejected its control session. MSC will retry the saved agent without creating a replacement.";
 
 const PLAYIT_RESET_STOP_TIMEOUT: Duration = Duration::from_secs(5);
 const PLAYIT_RESET_POLL_INTERVAL: Duration = Duration::from_millis(25);
 const PLAYIT_AGENT_CONNECTION_TIMEOUT: Duration = Duration::from_secs(75);
 const PLAYIT_AGENT_CONNECTION_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const PLAYIT_PUBLIC_ADDRESS_ATTEMPTS: usize = 16;
+const PLAYIT_REGISTER_UNAUTHORIZED_LIMIT: u8 = 3;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayitStartResult {
     pub operation_id: Option<String>,
     pub status: HelperStatus,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlayitOutputLine {
+    pub stream: msc_infrastructure::process::OutputStream,
+    pub line: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -153,6 +162,15 @@ pub struct PlayitSetupResult {
     pub tunnel_addresses: PlayitTunnelAddresses,
 }
 
+struct PlayitProvisionContext<'a> {
+    agent_id: &'a str,
+    secret_key: &'a str,
+    session: &'a PlayitSession,
+    reused_existing_agent: bool,
+    existing_inventory: Option<Vec<PlayitTunnel>>,
+    tunnel_specs: &'a [PlayitTunnelSpec],
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlayitSetupError {
     Cancelled,
@@ -160,6 +178,8 @@ pub enum PlayitSetupError {
     CredentialStore,
     AgentStart(String),
     TunnelMismatch(PlayitTunnelKind),
+    TunnelMissing(PlayitTunnelKind),
+    ExistingAgentCredentialRequired,
     PublicAddressesUnavailable,
 }
 
@@ -171,6 +191,8 @@ impl PlayitSetupError {
             Self::CredentialStore => "credential_store_failed",
             Self::AgentStart(_) => "playit_helper_start_failed",
             Self::TunnelMismatch(_) => "tunnel_mismatch",
+            Self::TunnelMissing(_) => "tunnel_missing",
+            Self::ExistingAgentCredentialRequired => "existing_agent_credential_required",
             Self::PublicAddressesUnavailable => "public_addresses_unavailable",
         }
     }
@@ -191,6 +213,15 @@ impl fmt::Display for PlayitSetupError {
                 f,
                 "The existing {} Playit tunnel does not match this server's saved agent or local port; repair it on playit.gg before trying again.",
                 kind.name()
+            ),
+            Self::TunnelMissing(kind) => write!(
+                f,
+                "The saved Playit agent has no {} tunnel. MSC kept the existing agent and did not create a replacement tunnel.",
+                kind.name()
+            ),
+            Self::ExistingAgentCredentialRequired => write!(
+                f,
+                "MSC has a saved Playit agent but no usable credential for it. Relink that existing agent before setup can continue; MSC did not create a replacement agent."
             ),
             Self::PublicAddressesUnavailable => write!(
                 f,
@@ -304,31 +335,27 @@ impl<'a> PlayitAccountSetup<'a> {
             .get(PLAYIT_SECRET_KEY)
             .map_err(|_| PlayitSetupError::CredentialStore)?;
         report(PlayitSetupStage::ClaimingOrReusingAgent);
-        let (agent_id, reused_existing_agent, secret_key) = if existing_agent_id
-            .is_some_and(|agent_id| !agent_id.trim().is_empty())
-            && existing_secret
-                .as_deref()
-                .is_some_and(|secret| !secret.trim().is_empty())
-        {
-            (
-                existing_agent_id.expect("checked above").to_owned(),
-                true,
-                existing_secret.expect("checked above"),
-            )
-        } else {
-            let claim_code = generate_claim_code();
-            self.api
-                .claim_setup(&claim_code)
-                .map_err(PlayitSetupError::Api)?;
+        let saved_agent_id = existing_agent_id.filter(|agent_id| !agent_id.trim().is_empty());
+        let saved_secret = existing_secret.filter(|secret| !secret.trim().is_empty());
+        let (agent_id, reused_existing_agent, secret_key) =
+            if let (Some(agent_id), Some(secret)) = (saved_agent_id, saved_secret.as_deref()) {
+                (agent_id.to_owned(), true, secret.to_owned())
+            } else if saved_agent_id.is_some() || saved_secret.is_some() {
+                return Err(PlayitSetupError::ExistingAgentCredentialRequired);
+            } else {
+                let claim_code = generate_claim_code();
+                self.api
+                    .claim_setup(&claim_code)
+                    .map_err(PlayitSetupError::Api)?;
 
-            let claimed_agent_id = self.accept_claim(&claim_code, &session, &should_cancel)?;
-            report(PlayitSetupStage::WaitingForAgent);
-            let secret = self.exchange_claim(&claim_code, &should_cancel)?;
-            self.secrets
-                .set(PLAYIT_SECRET_KEY, secret.as_str())
-                .map_err(|_| PlayitSetupError::CredentialStore)?;
-            (claimed_agent_id, false, secret.as_str().to_owned())
-        };
+                let claimed_agent_id = self.accept_claim(&claim_code, &session, &should_cancel)?;
+                report(PlayitSetupStage::WaitingForAgent);
+                let secret = self.exchange_claim(&claim_code, &should_cancel)?;
+                self.secrets
+                    .set(PLAYIT_SECRET_KEY, secret.as_str())
+                    .map_err(|_| PlayitSetupError::CredentialStore)?;
+                (claimed_agent_id, false, secret.as_str().to_owned())
+            };
 
         if let Some(agent_configuration_saver) = self.agent_configuration_saver
             && agent_configuration_saver(&agent_id).is_err()
@@ -338,6 +365,21 @@ impl<'a> PlayitAccountSetup<'a> {
             }
             return Err(PlayitSetupError::CredentialStore);
         }
+
+        // A saved agent must prove its key against the provider before MSC
+        // starts playitd. This turns a revoked key into one bounded setup
+        // failure instead of a daemon authentication loop. The inventory is
+        // read-only and is reused below; no replacement agent or tunnel is
+        // created from this branch.
+        let existing_inventory = if reused_existing_agent && !tunnel_specs.is_empty() {
+            Some(
+                self.api
+                    .list_tunnels(&secret_key)
+                    .map_err(PlayitSetupError::Api)?,
+            )
+        } else {
+            None
+        };
 
         if !tunnel_specs.is_empty() {
             // MSC1 starts playitd before asking the provider to list or create
@@ -360,10 +402,14 @@ impl<'a> PlayitAccountSetup<'a> {
             PlayitTunnelAddresses::default()
         } else {
             self.provision_tunnels(
-                &agent_id,
-                &secret_key,
-                &session,
-                tunnel_specs,
+                PlayitProvisionContext {
+                    agent_id: &agent_id,
+                    secret_key: &secret_key,
+                    session: &session,
+                    reused_existing_agent,
+                    existing_inventory,
+                    tunnel_specs,
+                },
                 &should_cancel,
                 &report,
             )?
@@ -400,15 +446,15 @@ impl<'a> PlayitAccountSetup<'a> {
 
     fn provision_tunnels(
         &self,
-        agent_id: &str,
-        secret_key: &str,
-        session: &msc_infrastructure::playit_api::PlayitSession,
-        tunnel_specs: &[PlayitTunnelSpec],
+        context: PlayitProvisionContext<'_>,
         should_cancel: &impl Fn() -> bool,
         report: &impl Fn(PlayitSetupStage),
     ) -> Result<PlayitTunnelAddresses, PlayitSetupError> {
-        let mut inventory = self.list_tunnels(secret_key, should_cancel)?;
-        for spec in tunnel_specs {
+        let mut inventory = match context.existing_inventory {
+            Some(inventory) => inventory,
+            None => self.list_tunnels(context.secret_key, should_cancel)?,
+        };
+        for spec in context.tunnel_specs {
             report(stage_for_tunnel(spec.kind));
             let matching: Vec<&PlayitTunnel> = inventory
                 .iter()
@@ -420,9 +466,14 @@ impl<'a> PlayitAccountSetup<'a> {
                 // different local port in its saved files, but it must not
                 // cause MSC to create another free-plan tunnel.
                 [tunnel]
-                    if tunnel_matches(tunnel, *spec, agent_id)
+                    if tunnel_matches(tunnel, *spec, context.agent_id)
                         || tunnel.name == spec.kind.name() => {}
-                [] => self.create_tunnel(agent_id, *spec, session, should_cancel)?,
+                [] if context.reused_existing_agent => {
+                    return Err(PlayitSetupError::TunnelMissing(spec.kind));
+                }
+                [] => {
+                    self.create_tunnel(context.agent_id, *spec, context.session, should_cancel)?
+                }
                 _ => return Err(PlayitSetupError::TunnelMismatch(spec.kind)),
             }
             if should_cancel() {
@@ -432,10 +483,13 @@ impl<'a> PlayitAccountSetup<'a> {
 
         for attempt in 0..PLAYIT_PUBLIC_ADDRESS_ATTEMPTS {
             report(PlayitSetupStage::ReceivingPublicAddresses);
-            inventory = self.list_tunnels(secret_key, should_cancel)?;
-            let addresses =
-                Self::tunnel_addresses_from_inventory(&inventory, tunnel_specs, agent_id)?;
-            if tunnel_addresses_resolved(&addresses, tunnel_specs) {
+            inventory = self.list_tunnels(context.secret_key, should_cancel)?;
+            let addresses = Self::tunnel_addresses_from_inventory(
+                &inventory,
+                context.tunnel_specs,
+                context.agent_id,
+            )?;
+            if tunnel_addresses_resolved(&addresses, context.tunnel_specs) {
                 return Ok(addresses);
             }
             if attempt + 1 < PLAYIT_PUBLIC_ADDRESS_ATTEMPTS
@@ -727,6 +781,8 @@ pub struct PlayitService<'a> {
     secret_bridge: Option<PlayitSecretBridge>,
     secret_bridge_path: Option<PathBuf>,
     connected_agent_id: Option<String>,
+    register_unauthorized_streak: u8,
+    control_session_failures: u8,
 }
 
 impl<'a> PlayitService<'a> {
@@ -753,6 +809,8 @@ impl<'a> PlayitService<'a> {
             secret_bridge: None,
             secret_bridge_path: None,
             connected_agent_id: None,
+            register_unauthorized_streak: 0,
+            control_session_failures: 0,
         }
     }
 
@@ -788,6 +846,10 @@ impl<'a> PlayitService<'a> {
     /// observed before the first tunnel is created.
     pub fn agent_connection_matches(&self, expected_agent_id: &str) -> bool {
         self.connected_agent_id.as_deref() == Some(expected_agent_id)
+    }
+
+    pub fn control_session_failures(&self) -> u8 {
+        self.control_session_failures
     }
 
     /// Wait for the daemon's own connection line before provisioning the
@@ -849,6 +911,7 @@ impl<'a> PlayitService<'a> {
     pub fn record_start_failure(&mut self, message: impl Into<String>) {
         self.expecting_address = false;
         self.connected_agent_id = None;
+        self.register_unauthorized_streak = 0;
         self.snapshot.status = HelperStatus::Stopped;
         self.lifecycle_status = PlayitLifecycleStatus::Failed {
             message: message.into(),
@@ -981,6 +1044,8 @@ impl<'a> PlayitService<'a> {
     ) -> Result<(), PlayitError> {
         if let Some(agent_id) = parse_connected_agent_id(line) {
             self.connected_agent_id = Some(agent_id);
+            self.register_unauthorized_streak = 0;
+            self.control_session_failures = 0;
         }
         if line.to_ascii_lowercase().contains("tunnel setup") {
             self.expecting_address = true;
@@ -1015,6 +1080,20 @@ impl<'a> PlayitService<'a> {
     /// to make progress. Output is redacted before it reaches diagnostics and
     /// the readiness parser, and exits reconcile the operation immediately.
     pub fn poll(&mut self) -> Result<(), PlayitError> {
+        self.poll_output().map(|_| ())
+    }
+
+    /// Drain Playit output for both readiness parsing and the shared console.
+    /// The helper manager redacts the secret before these lines leave this
+    /// service, so console visibility cannot become a credential leak.
+    pub fn poll_output(&mut self) -> Result<Vec<PlayitOutputLine>, PlayitError> {
+        self.poll_output_inner(true)
+    }
+
+    fn poll_output_inner(
+        &mut self,
+        detect_invalid_secret: bool,
+    ) -> Result<Vec<PlayitOutputLine>, PlayitError> {
         let secret = self
             .secrets
             .get(PLAYIT_SECRET_KEY)
@@ -1026,10 +1105,28 @@ impl<'a> PlayitService<'a> {
             .helpers
             .poll_with_redactor(|line| redact_secret(line, secret.as_deref()))
             .map_err(map_process_error)?;
+        let mut output = Vec::new();
+        let mut rejected_secret = false;
+        let mut persistent_control_failure = false;
         for event in events {
             match event {
-                ManagedHelperEvent::Output { line, .. } => {
+                ManagedHelperEvent::Output { stream, line } => {
+                    output.push(PlayitOutputLine {
+                        stream,
+                        line: line.clone(),
+                    });
                     self.observe_output_line(&line, false)?;
+                    match classify_playit_auth_output(&line) {
+                        PlayitAuthOutput::InvalidSecret => rejected_secret = true,
+                        PlayitAuthOutput::RegisterUnauthorized => {
+                            self.register_unauthorized_streak =
+                                self.register_unauthorized_streak.saturating_add(1);
+                            persistent_control_failure = self.register_unauthorized_streak
+                                >= PLAYIT_REGISTER_UNAUTHORIZED_LIMIT;
+                        }
+                        PlayitAuthOutput::Connected => persistent_control_failure = false,
+                        PlayitAuthOutput::Other => {}
+                    }
                 }
                 ManagedHelperEvent::Exited(exit) => self.reconcile_exit(exit)?,
             }
@@ -1042,7 +1139,49 @@ impl<'a> PlayitService<'a> {
         {
             self.lifecycle_status = PlayitLifecycleStatus::WaitingForTunnels;
         }
-        Ok(())
+        if detect_invalid_secret && rejected_secret {
+            self.reject_invalid_secret()?;
+        } else if detect_invalid_secret && persistent_control_failure {
+            self.reject_persistent_control_session()?;
+        }
+        Ok(output)
+    }
+
+    /// Stops the provider daemon when it reports that the saved credential is
+    /// no longer valid. Playit intentionally waits for a replacement secret
+    /// in this state; MSC must not leave that daemon or a stale start
+    /// operation running forever.
+    pub fn reject_invalid_secret(&mut self) -> Result<(), PlayitError> {
+        if let Some(operation_id) = self.active_operation.take() {
+            self.operations
+                .fail(
+                    &operation_id,
+                    lifecycle_error("playit_invalid_secret", PLAYIT_INVALID_SECRET_MESSAGE),
+                )
+                .map_err(|error| PlayitError::Operation(error.to_string()))?;
+        }
+
+        let reset_result = self.reset();
+        self.record_start_failure(PLAYIT_INVALID_SECRET_MESSAGE);
+        reset_result
+    }
+
+    fn reject_persistent_control_session(&mut self) -> Result<(), PlayitError> {
+        if let Some(operation_id) = self.active_operation.take() {
+            self.operations
+                .fail(
+                    &operation_id,
+                    lifecycle_error(
+                        "playit_control_session_rejected",
+                        PLAYIT_CONTROL_SESSION_FAILURE_MESSAGE,
+                    ),
+                )
+                .map_err(|error| PlayitError::Operation(error.to_string()))?;
+        }
+        self.control_session_failures = self.control_session_failures.saturating_add(1);
+        let reset_result = self.reset();
+        self.record_start_failure(PLAYIT_CONTROL_SESSION_FAILURE_MESSAGE);
+        reset_result
     }
 
     fn reconcile_exit(
@@ -1051,6 +1190,7 @@ impl<'a> PlayitService<'a> {
     ) -> Result<(), PlayitError> {
         self.cleanup_secret_bridge()?;
         self.connected_agent_id = None;
+        self.register_unauthorized_streak = 0;
         let stop_operation = self.active_stop_operation.take();
         if let Some(operation_id) = stop_operation {
             let stop_was_forced = std::mem::take(&mut self.stop_requested_forcefully);
@@ -1154,7 +1294,7 @@ impl<'a> PlayitService<'a> {
     /// followed by force termination and bounded event reconciliation.
     pub fn reset(&mut self) -> Result<(), PlayitError> {
         let key = self.key();
-        self.poll()?;
+        self.poll_output_inner(false).map(|_| ())?;
 
         if self.helper_is_live(&key) {
             let _ = self.helpers.request_graceful_stop(&key);
@@ -1167,7 +1307,7 @@ impl<'a> PlayitService<'a> {
 
             let deadline = Instant::now() + PLAYIT_RESET_STOP_TIMEOUT;
             loop {
-                self.poll()?;
+                self.poll_output_inner(false).map(|_| ())?;
                 if !self.helper_is_live(&key) {
                     break;
                 }
@@ -1319,6 +1459,30 @@ fn redact_secret(line: &str, secret: Option<&str>) -> String {
         || line.to_owned(),
         |secret| line.replace(secret, "<redacted>"),
     )
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PlayitAuthOutput {
+    InvalidSecret,
+    RegisterUnauthorized,
+    Connected,
+    Other,
+}
+
+fn classify_playit_auth_output(line: &str) -> PlayitAuthOutput {
+    let line = line.to_ascii_lowercase();
+    if line.contains("configured playit secret is no longer valid")
+        || line.contains("configured agent secret is no longer valid")
+        || line.contains("invalid agent secret")
+    {
+        PlayitAuthOutput::InvalidSecret
+    } else if line.contains("registerunauthorized") {
+        PlayitAuthOutput::RegisterUnauthorized
+    } else if line.contains("playit connected") {
+        PlayitAuthOutput::Connected
+    } else {
+        PlayitAuthOutput::Other
+    }
 }
 
 fn exit_message(exit: msc_infrastructure::process::ProcessExitStatus) -> String {

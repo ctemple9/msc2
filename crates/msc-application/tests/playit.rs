@@ -1,6 +1,7 @@
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{
-    PLAYIT_OPERATION_TYPE, PlayitError, PlayitLifecycleStatus, PlayitService,
+    PLAYIT_INVALID_SECRET_MESSAGE, PLAYIT_OPERATION_TYPE, PlayitError, PlayitLifecycleStatus,
+    PlayitService,
 };
 use msc_domain::helper::HelperStatus;
 use msc_domain::networking::{PlayitTunnelKind, PlayitTunnelSpec};
@@ -311,10 +312,12 @@ fn playit_output_pump_redacts_diagnostics_and_reconciles_exit() {
     supervisor
         .emit_stdout(pid, b"join.example.joinmc.link\n")
         .unwrap();
-    service.poll().unwrap();
+    let output = service.poll_output().unwrap();
 
     assert!(bridge_path.exists());
     assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Running);
+    assert!(output.iter().any(|line| line.line == "tunnel setup"));
+    assert!(output.iter().all(|line| !line.line.contains(secret)));
     assert!(
         service
             .diagnostics()
@@ -337,6 +340,125 @@ fn playit_output_pump_redacts_diagnostics_and_reconciles_exit() {
     service.poll().unwrap();
     assert!(!bridge_path.exists());
     assert_eq!(service.lifecycle_status(), PlayitLifecycleStatus::Stopped);
+}
+
+#[test]
+fn playit_persistent_register_unauthorized_restarts_the_saved_session() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "rejected-secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    let first_launch = launch();
+    let bridge_path = first_launch.secret_path.clone();
+    let operation_id = msc_domain::operation::OperationId::new(
+        service
+            .start(first_launch, &binary)
+            .unwrap()
+            .operation_id
+            .unwrap(),
+    );
+    let pid = supervisor.spawned_requests().pop().unwrap().0;
+
+    for _ in 0..3 {
+        supervisor
+            .emit_stderr(pid, b"playitd error: Setup error: RegisterUnauthorized\n")
+            .unwrap();
+    }
+    let output = service.poll_output().unwrap();
+
+    assert!(
+        output
+            .iter()
+            .any(|line| line.line.contains("RegisterUnauthorized"))
+    );
+    assert_eq!(
+        service.lifecycle_status(),
+        PlayitLifecycleStatus::Failed {
+            message: msc_application::playit::PLAYIT_CONTROL_SESSION_FAILURE_MESSAGE.into(),
+        }
+    );
+    assert_eq!(supervisor.force_terminations(), vec![pid]);
+    assert!(!bridge_path.exists());
+    assert_eq!(
+        operations
+            .snapshot(&operation_id)
+            .unwrap()
+            .unwrap()
+            .error
+            .unwrap()
+            .code,
+        "playit_control_session_rejected"
+    );
+
+    // The manager observed the forced exit, so a later manual repair/start
+    // can supervise a fresh helper instead of colliding with the old one.
+    service.start(launch(), &binary).unwrap();
+    assert_eq!(supervisor.spawned_requests().len(), 2);
+}
+
+#[test]
+fn playit_transient_session_warnings_are_cleared_by_a_connection() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "accepted-secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    service.start(launch(), &binary).unwrap();
+    let pid = supervisor.spawned_requests().pop().unwrap().0;
+
+    for line in [
+        "control session expired; reconnecting reason=SessionNotSetup\n",
+        "failed to authenticate error=RegisterUnauthorized\n",
+        "unexpected response Pong\n",
+        "playit connected; tunnels loaded agent_id=6af10e70-44cc-4b60-b8f7-f6949ee4f999 tunnel_count=3\n",
+    ] {
+        supervisor.emit_stderr(pid, line.as_bytes()).unwrap();
+    }
+    service.poll_output().unwrap();
+
+    assert!(service.agent_connection_matches("6af10e70-44cc-4b60-b8f7-f6949ee4f999"));
+    assert_eq!(service.control_session_failures(), 0);
+    assert!(supervisor.force_terminations().is_empty());
+}
+
+#[test]
+fn playit_explicitly_invalid_secret_fails_without_reconnect_loop() {
+    let fs = FakeFileSystem::new()
+        .with_file(format!("{OPERATIONS_DIR}/.keep"), [], false)
+        .with_dir("/cache");
+    let operations = LifecycleOperations::new(&fs, OPERATIONS_DIR);
+    let supervisor = FakeProcessSupervisor::new();
+    let transport = FakeTransport::with_playit_fixture();
+    let binary = acquisition(&transport, &fs);
+    let secrets = FakeSecretStore::new();
+    secrets.set(PLAYIT_SECRET_KEY, "rejected-secret").unwrap();
+    let mut service = PlayitService::new("paper-1", true, &supervisor, &secrets, &operations);
+    service.start(launch(), &binary).unwrap();
+    let pid = supervisor.spawned_requests().pop().unwrap().0;
+
+    supervisor
+        .emit_stderr(pid, b"The configured playit secret is no longer valid.\n")
+        .unwrap();
+    service.poll_output().unwrap();
+
+    assert_eq!(
+        service.lifecycle_status(),
+        PlayitLifecycleStatus::Failed {
+            message: PLAYIT_INVALID_SECRET_MESSAGE.into(),
+        }
+    );
+    assert_eq!(supervisor.force_terminations(), vec![pid]);
 }
 
 #[test]
@@ -897,6 +1019,77 @@ fn native_setup_reuses_a_configured_host_agent_without_claiming_another() {
 }
 
 #[test]
+fn native_setup_never_replaces_a_saved_agent_with_a_missing_credential() {
+    let transport = FakeAccountTransport::new([(
+        200,
+        serde_json::json!({"status":"success","data":{"session_key":"session-secret"}}),
+    )]);
+    let secrets = FakeSecretStore::new();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+
+    let error = setup
+        .run(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            || false,
+            |_| {},
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        error,
+        msc_application::playit::PlayitSetupError::ExistingAgentCredentialRequired
+    );
+    assert_eq!(secrets.get(PLAYIT_SECRET_KEY).unwrap(), None);
+    assert!(transport.responses.lock().unwrap().is_empty());
+}
+
+#[test]
+fn native_setup_never_creates_a_missing_tunnel_for_a_saved_agent() {
+    let transport = FakeAccountTransport::new([
+        (
+            200,
+            serde_json::json!({"status":"success","data":{"session_key":"session-secret"}}),
+        ),
+        tunnel_list_response(Vec::new()),
+    ]);
+    let secrets = FakeSecretStore::new();
+    secrets
+        .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
+        .unwrap();
+    let setup = msc_application::playit::PlayitAccountSetup::new(&transport, &secrets);
+    let specs = [PlayitTunnelSpec {
+        kind: PlayitTunnelKind::Java,
+        local_port: 25565,
+    }];
+
+    let error = setup
+        .run_with_tunnels(
+            "owner@example.test",
+            "password",
+            Some("agent-existing"),
+            &specs,
+            || false,
+            |_| {},
+        )
+        .unwrap_err();
+
+    assert_eq!(
+        error,
+        msc_application::playit::PlayitSetupError::TunnelMissing(PlayitTunnelKind::Java)
+    );
+    assert!(
+        transport
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|request| !request.0.ends_with("/tunnels/create"))
+    );
+}
+
+#[test]
 fn native_setup_cancellation_drops_the_temporary_session_before_claiming() {
     let transport = FakeAccountTransport::new([(
         200,
@@ -992,26 +1185,19 @@ fn tunnel_list_response(tunnels: Vec<Value>) -> (u16, Value) {
     )
 }
 
-fn setup_responses(specs: &[PlayitTunnelSpec], inventory: Vec<Value>) -> Vec<(u16, Value)> {
-    let mut responses = vec![
+fn reuse_responses(inventory: Vec<Value>) -> Vec<(u16, Value)> {
+    vec![
         (
             200,
             serde_json::json!({"status": "success", "data": {"session_key": "session-secret"}}),
         ),
-        tunnel_list_response(Vec::new()),
-    ];
-    responses.extend(specs.iter().map(|_| {
-        (
-            200,
-            serde_json::json!({"status": "success", "data": {"id": "tunnel"}}),
-        )
-    }));
-    responses.push(tunnel_list_response(inventory));
-    responses
+        tunnel_list_response(inventory.clone()),
+        tunnel_list_response(inventory),
+    ]
 }
 
 #[test]
-fn native_setup_provisions_one_two_and_three_tunnel_accounts() {
+fn native_setup_reuses_one_two_and_three_shared_tunnel_sets() {
     for specs in [
         vec![PlayitTunnelSpec {
             kind: PlayitTunnelKind::Java,
@@ -1046,7 +1232,7 @@ fn native_setup_provisions_one_two_and_three_tunnel_accounts() {
             .iter()
             .map(|spec| tunnel_fixture(spec.kind, spec.local_port))
             .collect::<Vec<_>>();
-        let transport = FakeAccountTransport::new(setup_responses(&specs, inventory));
+        let transport = FakeAccountTransport::new(reuse_responses(inventory));
         let secrets = FakeSecretStore::new();
         secrets
             .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
@@ -1085,30 +1271,12 @@ fn native_setup_provisions_one_two_and_three_tunnel_accounts() {
             requests[1].2.as_deref(),
             Some("Agent-Key existing-agent-secret")
         );
-        for (request, spec) in requests[2..2 + specs.len()].iter().zip(&specs) {
-            assert_eq!(request.2.as_deref(), Some("session session-secret"));
-            assert_eq!(request.1["name"], spec.kind.name());
-            assert_eq!(request.1["origin"]["data"]["agent_id"], "agent-existing");
-            match spec.kind {
-                PlayitTunnelKind::Java | PlayitTunnelKind::Bedrock => {
-                    assert_eq!(request.0, "/tunnels/create");
-                    assert_eq!(request.1["origin"]["data"]["local_port"], spec.local_port);
-                }
-                PlayitTunnelKind::Voice => {
-                    assert_eq!(request.0, "/v1/tunnels/create");
-                    assert_eq!(
-                        request.1["origin"]["data"]["config"]["fields"][1]["value"],
-                        spec.local_port.to_string()
-                    );
-                }
-            }
-        }
         assert_eq!(
             requests
                 .iter()
                 .filter(|(path, _, _)| path.ends_with("/tunnels/create"))
                 .count(),
-            specs.len()
+            0
         );
     }
 }
@@ -1121,11 +1289,14 @@ fn native_setup_waits_for_public_addresses_before_succeeding() {
     }];
     let mut not_ready = tunnel_fixture(PlayitTunnelKind::Java, 25565);
     not_ready["active"] = Value::Bool(false);
-    let mut responses = setup_responses(&specs, vec![not_ready]);
-    responses.push(tunnel_list_response(vec![tunnel_fixture(
-        PlayitTunnelKind::Java,
-        25565,
-    )]));
+    let responses = vec![
+        (
+            200,
+            serde_json::json!({"status": "success", "data": {"session_key": "session-secret"}}),
+        ),
+        tunnel_list_response(vec![not_ready]),
+        tunnel_list_response(vec![tunnel_fixture(PlayitTunnelKind::Java, 25565)]),
+    ];
     let transport = FakeAccountTransport::new(responses);
     let secrets = FakeSecretStore::new();
     secrets
@@ -1156,7 +1327,7 @@ fn native_setup_waits_for_public_addresses_before_succeeding() {
             .iter()
             .filter(|request| request.0 == "/tunnels/list")
             .count(),
-        3
+        2
     );
 }
 
@@ -1208,15 +1379,15 @@ fn saved_agent_address_refresh_reuses_the_key_without_signing_in_or_mutating_tun
 }
 
 #[test]
-fn native_setup_starts_agent_before_first_tunnel_request() {
+fn native_setup_validates_the_saved_key_before_starting_the_agent() {
     let specs = [PlayitTunnelSpec {
         kind: PlayitTunnelKind::Java,
         local_port: 25565,
     }];
-    let transport = FakeAccountTransport::new(setup_responses(
-        &specs,
-        vec![tunnel_fixture(PlayitTunnelKind::Java, 25565)],
-    ));
+    let transport = FakeAccountTransport::new(reuse_responses(vec![tunnel_fixture(
+        PlayitTunnelKind::Java,
+        25565,
+    )]));
     let secrets = FakeSecretStore::new();
     secrets
         .set(PLAYIT_SECRET_KEY, "existing-agent-secret")
@@ -1225,7 +1396,12 @@ fn native_setup_starts_agent_before_first_tunnel_request() {
     let ensure_agent = |agent_id: &str| {
         *agent_starts.lock().unwrap() += 1;
         let requests = transport.requests.lock().unwrap();
-        assert_eq!(requests.len(), 1, "only sign-in may precede agent start");
+        assert_eq!(
+            requests.len(),
+            2,
+            "saved key validation precedes agent start"
+        );
+        assert_eq!(requests[1].0, "/tunnels/list");
         assert_eq!(agent_id, "agent-existing");
         Ok(())
     };
@@ -1247,7 +1423,7 @@ fn native_setup_starts_agent_before_first_tunnel_request() {
         .unwrap();
 
     assert_eq!(*agent_starts.lock().unwrap(), 1);
-    assert_eq!(transport.requests.lock().unwrap()[1].0, "/tunnels/list");
+    assert_eq!(transport.requests.lock().unwrap()[2].0, "/tunnels/list");
 }
 
 #[test]
@@ -1257,7 +1433,7 @@ fn native_setup_reuses_existing_tunnels_without_duplicates_on_repeat() {
         local_port: 25565,
     }];
     let inventory = vec![tunnel_fixture(PlayitTunnelKind::Java, 25565)];
-    let mut responses = setup_responses(&specs, inventory.clone());
+    let mut responses = reuse_responses(inventory.clone());
     responses.extend([
         (
             200,
@@ -1300,7 +1476,7 @@ fn native_setup_reuses_existing_tunnels_without_duplicates_on_repeat() {
             .iter()
             .filter(|(path, _, _)| path.ends_with("/tunnels/create"))
             .count(),
-        1
+        0
     );
 }
 

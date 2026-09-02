@@ -6,11 +6,11 @@
 //! process supervisor as the rest of the agent; a second in-memory operation
 //! map here would make polling and cancellation lie.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::extract::{Extension, State};
 use axum::http::StatusCode;
@@ -27,8 +27,9 @@ use msc_api::dto::{
 };
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{
+    PLAYIT_CONTROL_SESSION_FAILURE_MESSAGE, PLAYIT_INVALID_SECRET_MESSAGE,
     PLAYIT_SETUP_OPERATION_TARGET, PLAYIT_SETUP_OPERATION_TYPE, PlayitAccountSetup, PlayitError,
-    PlayitLifecycleStatus, PlayitService, PlayitSetupError, PlayitSetupStage,
+    PlayitLifecycleStatus, PlayitOutputLine, PlayitService, PlayitSetupError, PlayitSetupStage,
 };
 use msc_application::resource_packs::ResourcePackService;
 use msc_application::xbox_broadcast::{
@@ -58,6 +59,16 @@ use crate::routes::operations::OperationsState;
 type SharedPlayitService = PlayitService<'static>;
 type SharedBroadcastService = XboxBroadcastService<'static>;
 
+const PLAYIT_AUTOSTART_RETRY_DELAY: Duration = Duration::from_secs(2);
+const PLAYIT_AUTOSTART_MAX_RETRIES: u8 = 3;
+const PLAYIT_CONTROL_SESSION_MAX_RESTARTS: u8 = 3;
+
+#[derive(Debug, Clone, Copy)]
+struct PendingPlayitStart {
+    retry_at: Instant,
+    attempts: u8,
+}
+
 struct PlayitLifecycleController {
     services: Arc<Mutex<BTreeMap<String, SharedPlayitService>>>,
     broadcast: Arc<Mutex<BTreeMap<String, SharedBroadcastService>>>,
@@ -67,66 +78,177 @@ struct PlayitLifecycleController {
     transport: &'static HttpTransport,
     fs: &'static dyn FileSystem,
     helper_cache: &'static Path,
-    pending_starts: Mutex<BTreeSet<String>>,
+    lifecycle: LifecycleRoutesState,
+    pending_starts: Mutex<BTreeMap<String, PendingPlayitStart>>,
 }
 
 impl PlayitLifecycleController {
     fn start_for_server(&self, server: &ConfigServer) {
-        if !server.playit_enabled {
-            return;
-        }
-        let mut services = self.services.lock().expect("Playit service lock poisoned");
-        let service = services.entry(server.id.clone()).or_insert_with(|| {
-            PlayitService::new(
-                server.id.clone(),
-                server.playit_enabled,
-                self.process,
-                self.secrets,
-                self.operations,
-            )
-        });
-        if service.is_active() {
-            if service.lifecycle_status() == PlayitLifecycleStatus::Stopping {
-                self.pending_starts
-                    .lock()
-                    .expect("Playit pending-start lock poisoned")
-                    .insert(server.id.clone());
+        self.start_for_server_attempt(server, 0);
+    }
+
+    fn start_for_server_attempt(&self, server: &ConfigServer, attempts: u8) {
+        if server.playit_enabled {
+            let mut services = self.services.lock().expect("Playit service lock poisoned");
+            let service = services.entry(server.id.clone()).or_insert_with(|| {
+                PlayitService::new(
+                    server.id.clone(),
+                    server.playit_enabled,
+                    self.process,
+                    self.secrets,
+                    self.operations,
+                )
+            });
+            if service.is_active() {
+                if service.lifecycle_status() == PlayitLifecycleStatus::Stopping {
+                    self.schedule_playit_retry(&server.id, attempts, Instant::now());
+                }
+                self.start_broadcast_for_server(server);
+                return;
             }
+            self.pending_starts
+                .lock()
+                .expect("Playit pending-start lock poisoned")
+                .remove(&server.id);
+            match service.has_secret() {
+                Ok(true) => {}
+                Ok(false) => {
+                    self.start_broadcast_for_server(server);
+                    return;
+                }
+                Err(error) => {
+                    self.record_playit_start_failure(server, service, error.to_string(), attempts);
+                    self.start_broadcast_for_server(server);
+                    return;
+                }
+            }
+            let acquisition =
+                match msc_infrastructure::playit::PlayitBinaryAcquisition::for_current_platform(
+                    self.transport,
+                    self.fs,
+                    self.helper_cache,
+                ) {
+                    Ok(acquisition) => acquisition,
+                    Err(error) => {
+                        self.record_playit_start_failure(
+                            server,
+                            service,
+                            format!("Playit helper acquisition failed: {error}"),
+                            attempts,
+                        );
+                        self.start_broadcast_for_server(server);
+                        return;
+                    }
+                };
+            let working_directory = PathBuf::from(&server.server_dir).join(".msc2-playit");
+            if let Err(error) = std::fs::create_dir_all(&working_directory) {
+                self.record_playit_start_failure(
+                    server,
+                    service,
+                    format!("Playit helper working directory could not be created: {error}"),
+                    attempts,
+                );
+                self.start_broadcast_for_server(server);
+                return;
+            }
+            let launch = msc_infrastructure::playit::PlayitLaunch::managed(working_directory);
+            if let Err(error) = service.start(launch, &acquisition) {
+                self.record_playit_start_failure(server, service, error.to_string(), attempts);
+            }
+        }
+        self.start_broadcast_for_server(server);
+    }
+
+    fn record_playit_start_failure(
+        &self,
+        server: &ConfigServer,
+        service: &mut SharedPlayitService,
+        message: String,
+        attempts: u8,
+    ) {
+        service.record_start_failure(message.clone());
+        self.lifecycle.append_console_line(
+            "playit",
+            &format!(
+                "[Playit autostart failed for {}] {message}",
+                server.display_name
+            ),
+        );
+        self.schedule_playit_retry(
+            &server.id,
+            attempts,
+            Instant::now() + PLAYIT_AUTOSTART_RETRY_DELAY,
+        );
+    }
+
+    fn schedule_playit_retry(&self, server_id: &str, attempts: u8, retry_at: Instant) {
+        if attempts >= PLAYIT_AUTOSTART_MAX_RETRIES {
+            self.lifecycle.append_console_line(
+                "playit",
+                &format!(
+                    "[Playit autostart] retry limit reached for server {server_id}; start it manually after fixing the error."
+                ),
+            );
             return;
         }
         self.pending_starts
             .lock()
             .expect("Playit pending-start lock poisoned")
-            .remove(&server.id);
-        match service.has_secret() {
-            Ok(true) => {}
-            Ok(false) => return,
-            Err(error) => {
-                service.record_start_failure(error.to_string());
-                return;
-            }
-        }
-        let acquisition =
-            match msc_infrastructure::playit::PlayitBinaryAcquisition::for_current_platform(
-                self.transport,
-                self.fs,
-                self.helper_cache,
-            ) {
-                Ok(acquisition) => acquisition,
-                Err(error) => {
-                    service
-                        .record_start_failure(format!("Playit helper acquisition failed: {error}"));
-                    return;
-                }
-            };
-        let working_directory = PathBuf::from(&server.server_dir).join(".msc2-playit");
-        if let Err(error) = std::fs::create_dir_all(&working_directory) {
-            service.record_start_failure(format!(
-                "Playit helper working directory could not be created: {error}"
-            ));
+            .insert(
+                server_id.to_owned(),
+                PendingPlayitStart {
+                    retry_at,
+                    attempts: attempts.saturating_add(1),
+                },
+            );
+    }
+
+    fn start_broadcast_for_server(&self, server: &ConfigServer) {
+        if !server.xbox_broadcast_enabled
+            || !self
+                .lifecycle
+                .app_config_snapshot()
+                .xbox_broadcast_auto_start_enabled
+        {
             return;
         }
-        let launch = msc_infrastructure::playit::PlayitLaunch::managed(working_directory);
+        let mut services = self
+            .broadcast
+            .lock()
+            .expect("Broadcast service lock poisoned");
+        let service = services.entry(server.id.clone()).or_insert_with(|| {
+            XboxBroadcastService::new(
+                server.id.clone(),
+                server.xbox_broadcast_enabled,
+                self.process,
+                self.secrets,
+                self.operations,
+            )
+        });
+        let is_active = service.status().is_ok_and(|status| {
+            matches!(
+                status.snapshot.status,
+                HelperStatus::Starting | HelperStatus::Running
+            )
+        });
+        if is_active {
+            return;
+        }
+        let Ok(acquisition) = xbox_broadcast::XboxBroadcastJarAcquisition::for_current_platform(
+            self.transport,
+            self.fs,
+            self.helper_cache,
+        ) else {
+            return;
+        };
+        let working_directory = PathBuf::from(&server.server_dir).join(".msc2-broadcast");
+        if std::fs::create_dir_all(&working_directory).is_err() {
+            return;
+        }
+        let launch = xbox_broadcast::XboxBroadcastLaunch {
+            java_path: PathBuf::from(self.lifecycle.app_config_snapshot().java_path),
+            working_directory,
+        };
         let _ = service.start(launch, &acquisition);
     }
 
@@ -150,6 +272,32 @@ impl PlayitLifecycleController {
         if let Some(service) = services.get_mut(server_id) {
             let _ = service.stop();
         }
+    }
+
+    fn clear_playit_retry(&self, server_id: &str) {
+        self.pending_starts
+            .lock()
+            .expect("Playit pending-start lock poisoned")
+            .remove(server_id);
+    }
+
+    fn schedule_control_session_recovery(&self, server_id: &str, failures: u8) {
+        if failures > PLAYIT_CONTROL_SESSION_MAX_RESTARTS {
+            self.clear_playit_retry(server_id);
+            self.lifecycle.append_console_line(
+                "playit",
+                "[Playit recovery] The saved agent still cannot establish a control session. MSC stopped retrying and did not create or replace anything.",
+            );
+            return;
+        }
+        self.pending_starts
+            .lock()
+            .expect("Playit pending-start lock poisoned")
+            .entry(server_id.to_owned())
+            .or_insert(PendingPlayitStart {
+                retry_at: Instant::now() + PLAYIT_AUTOSTART_RETRY_DELAY,
+                attempts: 0,
+            });
     }
 
     fn stop_all(&self) {
@@ -187,14 +335,22 @@ impl PlayitLifecycleController {
         if !lifecycle.status_snapshot().running {
             return;
         }
-        let should_start = self
+        let pending = self
             .pending_starts
             .lock()
             .expect("Playit pending-start lock poisoned")
             .remove(&server.id);
-        if should_start {
-            self.start_for_server(&server);
+        let Some(pending) = pending else {
+            return;
+        };
+        if Instant::now() < pending.retry_at {
+            self.pending_starts
+                .lock()
+                .expect("Playit pending-start lock poisoned")
+                .insert(server.id.clone(), pending);
+            return;
         }
+        self.start_for_server_attempt(&server, pending.attempts);
     }
 }
 
@@ -261,7 +417,7 @@ impl NetworkingState {
             let _ = PlayitSecretBridge::remove_path(&bridge);
         }
         let state = Self {
-            lifecycle,
+            lifecycle: lifecycle.clone(),
             operations,
             playit: playit.clone(),
             playit_mutation,
@@ -283,7 +439,8 @@ impl NetworkingState {
             transport,
             fs,
             helper_cache,
-            pending_starts: Mutex::new(BTreeSet::new()),
+            lifecycle: lifecycle.clone(),
+            pending_starts: Mutex::new(BTreeMap::new()),
         });
         state
             .lifecycle
@@ -481,8 +638,42 @@ fn spawn_playit_output_pump(
                     continue;
                 };
                 for (server_id, service) in services.iter_mut() {
-                    if let Err(error) = service.poll() {
-                        service.record_start_failure(error.to_string());
+                    if let Err(error) = service.poll_output().map(|lines| {
+                        for line in lines {
+                            append_playit_console_line(&lifecycle, line);
+                        }
+                    }) {
+                        let message = error.to_string();
+                        if !matches!(
+                            service.lifecycle_status(),
+                            PlayitLifecycleStatus::Failed { message: ref current }
+                                if current == PLAYIT_INVALID_SECRET_MESSAGE
+                        ) {
+                            service.record_start_failure(message.clone());
+                        }
+                        lifecycle.append_console_line("playit", &message);
+                    }
+                    if matches!(
+                        service.lifecycle_status(),
+                        PlayitLifecycleStatus::Failed { message: ref current }
+                            if current == PLAYIT_INVALID_SECRET_MESSAGE
+                    ) {
+                        controller.clear_playit_retry(server_id);
+                    }
+                    if matches!(
+                        service.lifecycle_status(),
+                        PlayitLifecycleStatus::Failed { message: ref current }
+                            if current == PLAYIT_CONTROL_SESSION_FAILURE_MESSAGE
+                    ) {
+                        let failures = service.control_session_failures();
+                        if failures > PLAYIT_CONTROL_SESSION_MAX_RESTARTS {
+                            service.record_start_failure(
+                                "Playit could not re-establish the saved agent's control session. MSC stopped retrying and did not create or replace anything.",
+                            );
+                            controller.clear_playit_retry(server_id);
+                        } else {
+                            controller.schedule_control_session_recovery(server_id, failures);
+                        }
                     }
                     let status = service.lifecycle_status();
                     if service.first_start_ready() {
@@ -504,6 +695,16 @@ fn spawn_playit_output_pump(
             controller.start_pending(&lifecycle);
         }
     });
+}
+
+fn append_playit_console_line(lifecycle: &LifecycleRoutesState, line: PlayitOutputLine) {
+    let text = match line.stream {
+        msc_infrastructure::process::OutputStream::Stdout => line.line,
+        msc_infrastructure::process::OutputStream::Stderr => {
+            format!("[Playit stderr] {}", line.line)
+        }
+    };
+    lifecycle.append_console_line("playit", &text);
 }
 
 /// Keeps the managed Xbox Broadcast process moving independently of status

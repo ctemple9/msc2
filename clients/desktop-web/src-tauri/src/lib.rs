@@ -10,7 +10,7 @@ use reqwest::{header, Method, Url};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
+use std::sync::Mutex;
 
 mod update;
 
@@ -25,15 +25,27 @@ const PROTOCOL_VERSION: u32 = 1;
 const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
 static STAGED_PACKAGED_AGENT_PATH: PackagedAgentPathCache = PackagedAgentPathCache::new();
 
-struct PackagedAgentPathCache(OnceLock<Result<PathBuf, String>>);
+struct PackagedAgentPathCache(Mutex<Option<Result<PathBuf, String>>>);
 
 impl PackagedAgentPathCache {
     const fn new() -> Self {
-        Self(OnceLock::new())
+        Self(Mutex::new(None))
     }
 
     fn resolve(&self, stage: impl FnOnce() -> Result<PathBuf, String>) -> Result<PathBuf, String> {
-        self.0.get_or_init(stage).clone()
+        let mut cached = self.0.lock().expect("packaged agent path cache poisoned");
+        if let Some(path) = cached.as_ref() {
+            return path.clone();
+        }
+        let path = stage();
+        *cached = Some(path.clone());
+        path
+    }
+
+    fn refresh(&self, stage: impl FnOnce() -> Result<PathBuf, String>) -> Result<PathBuf, String> {
+        let path = stage();
+        *self.0.lock().expect("packaged agent path cache poisoned") = Some(path.clone());
+        path
     }
 }
 
@@ -583,8 +595,11 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
     #[cfg(target_os = "macos")]
     let report = match action {
         AgentServiceAction::Install | AgentServiceAction::Repair => {
-            msc_platform_macos::service::install_and_start_elevated(agent_install_request()?)
-                .map_err(|error| error.to_string())?
+            let request = agent_install_request()?;
+            let expected_binary = request.binary_path.clone();
+            let report = msc_platform_macos::service::install_and_start_elevated(request)
+                .map_err(|error| error.to_string())?;
+            ensure_service_report_uses_binary(report, &expected_binary)?
         }
         AgentServiceAction::Start => {
             msc_platform_macos::service::start_elevated(service_name.as_str())
@@ -605,12 +620,14 @@ fn manage_agent_service(action: AgentServiceAction) -> Result<AgentServiceStatus
         match action {
             AgentServiceAction::Install | AgentServiceAction::Repair => {
                 let request = agent_install_request()?;
+                let expected_binary = request.binary_path.clone();
                 manager
                     .execute(ServiceManagerCommand::Install(request))
                     .map_err(|error| error.to_string())?;
-                manager
+                let report = manager
                     .execute(ServiceManagerCommand::Start { service_name })
-                    .map_err(|error| error.to_string())?
+                    .map_err(|error| error.to_string())?;
+                ensure_service_report_uses_binary(report, &expected_binary)?
             }
             AgentServiceAction::Start => manager
                 .execute(ServiceManagerCommand::Start { service_name })
@@ -658,7 +675,10 @@ fn service_manager() -> Result<Box<dyn ServiceManager>, String> {
 }
 
 fn agent_install_request() -> Result<ServiceInstallRequest, String> {
-    let binary_path = staged_packaged_agent_path()?;
+    // Repair is the explicit boundary where a running dev shell may have
+    // received a newly staged resource. Refresh the content-addressed copy
+    // instead of trusting the status path cache from before that rebuild.
+    let binary_path = refresh_staged_packaged_agent_path()?;
     let working_directory = agent_data_directory()?;
     let secret_store_directory = working_directory.join("secrets");
     #[cfg(target_os = "macos")]
@@ -843,6 +863,10 @@ fn stage_packaged_agent_once() -> Result<PathBuf, String> {
     stage_packaged_agent(&source, &agent_data_directory()?)
 }
 
+fn refresh_staged_packaged_agent_path() -> Result<PathBuf, String> {
+    STAGED_PACKAGED_AGENT_PATH.refresh(stage_packaged_agent_once)
+}
+
 fn stage_packaged_agent(source: &Path, data_directory: &Path) -> Result<PathBuf, String> {
     let source_bytes = std::fs::read(source)
         .map_err(|error| format!("Could not read the packaged agent: {error}"))?;
@@ -967,6 +991,19 @@ fn service_report_uses_binary(report: &ServiceStatusReport, expected_binary: &Pa
         .definition
         .as_ref()
         .is_some_and(|definition| definition.binary_path == expected_binary)
+}
+
+fn ensure_service_report_uses_binary(
+    report: ServiceStatusReport,
+    expected_binary: &Path,
+) -> Result<ServiceStatusReport, String> {
+    if service_report_uses_binary(&report, expected_binary) {
+        return Ok(report);
+    }
+    Err(format!(
+        "Repair completed, but the installed agent does not use the refreshed binary at {}.",
+        expected_binary.display()
+    ))
 }
 
 fn current_local_agent_report() -> Result<(ServiceStatusReport, PathBuf), String> {
@@ -1266,6 +1303,34 @@ mod tests {
             Path::new("/current-build/msc")
         );
         assert_eq!(stage_count.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn repair_refreshes_a_path_cached_before_a_rebuild() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let cache = PackagedAgentPathCache::new();
+        let stage_count = AtomicUsize::new(0);
+        let old_stage = || {
+            stage_count.fetch_add(1, Ordering::Relaxed);
+            Ok(PathBuf::from("/old-build/msc"))
+        };
+        let new_stage = || {
+            stage_count.fetch_add(1, Ordering::Relaxed);
+            Ok(PathBuf::from("/new-build/msc"))
+        };
+
+        assert_eq!(cache.resolve(old_stage).unwrap(), Path::new("/old-build/msc"));
+        assert_eq!(
+            cache.refresh(new_stage).unwrap(),
+            Path::new("/new-build/msc")
+        );
+        assert_eq!(
+            cache.resolve(|| Ok(PathBuf::from("/unexpected-build/msc")))
+                .unwrap(),
+            Path::new("/new-build/msc")
+        );
+        assert_eq!(stage_count.load(Ordering::Relaxed), 2);
     }
 
     #[cfg(target_os = "macos")]

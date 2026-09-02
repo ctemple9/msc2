@@ -123,6 +123,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.41: sign macos bedrock sidecar`
 **Batch:** solo
 
+### P12.42 — Keep the macOS sidecar main queue available for VM callbacks
+**Status:** awaiting verification
+**Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `docs/msc2/rolling-plan.md`
+**What:** Read sidecar protocol input on a background queue and keep the main run loop active for Virtualization.framework VM callbacks and guest serial output. The previous blocking `readLine()` loop prevented the start completion, readiness event, and console lines from being delivered, leaving first-start stuck at “Bedrock process spawned.” EOF still force-stops the guest before the sidecar exits. The terminal UI files and native Windows/Linux Bedrock paths are unchanged.
+**Verify:** `cd clients/desktop-web && npm run prepare:agent && codesign --verify --deep --strict --verbose=2 src-tauri/target/Resources/agent/sidecar/BedrockSidecar`
+**Commit:** `P12.42: keep sidecar vm callbacks available`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

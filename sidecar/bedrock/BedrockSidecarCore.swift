@@ -498,27 +498,39 @@ private final class UDPRelay: @unchecked Sendable {
 
 func runSidecar() {
     let controller = BedrockSidecarController()
-    while let line = readLine(strippingNewline: true) {
-        do {
-            let request = try JSONDecoder().decode(SidecarRequest.self, from: Data(line.utf8))
-            controller.handle(request).forEach { response in
+    // Virtualization.framework delivers VM and serial-port callbacks on the
+    // main queue. Reading stdin there would block that queue forever after a
+    // start request, leaving the sidecar stuck at "process spawned" with no
+    // ready signal or guest console output.
+    DispatchQueue.global(qos: .userInitiated).async {
+        while let line = readLine(strippingNewline: true) {
+            DispatchQueue.main.async {
                 do {
-                    let encoder = JSONEncoder()
-                    encoder.outputFormatting = [.sortedKeys]
-                    var data = try encoder.encode(response)
-                    data.append(0x0A)
-                    protocolOutputLock.lock()
-                    FileHandle.standardOutput.write(data)
-                    protocolOutputLock.unlock()
+                    let request = try JSONDecoder().decode(SidecarRequest.self, from: Data(line.utf8))
+                    controller.handle(request).forEach { response in
+                        do {
+                            let encoder = JSONEncoder()
+                            encoder.outputFormatting = [.sortedKeys]
+                            var data = try encoder.encode(response)
+                            data.append(0x0A)
+                            protocolOutputLock.lock()
+                            FileHandle.standardOutput.write(data)
+                            protocolOutputLock.unlock()
+                        } catch {
+                            FileHandle.standardError.write(Data("sidecar response encoding failed: \(error)\n".utf8))
+                        }
+                    }
                 } catch {
-                    FileHandle.standardError.write(Data("sidecar response encoding failed: \(error)\n".utf8))
+                    FileHandle.standardError.write(Data("sidecar protocol error: \(error.localizedDescription)\n".utf8))
                 }
             }
-        } catch {
-            FileHandle.standardError.write(Data("sidecar protocol error: \(error.localizedDescription)\n".utf8))
+        }
+        // EOF is the agent's shutdown signal. A live VM must not outlive its
+        // supervisor, so force the guest down before the sidecar exits.
+        DispatchQueue.main.async {
+            _ = controller.handle(.forceStop)
+            CFRunLoopStop(CFRunLoopGetMain())
         }
     }
-    // EOF is the agent's shutdown signal. A live VM must not outlive its
-    // supervisor, so force the guest down before the sidecar exits.
-    _ = controller.handle(.forceStop)
+    RunLoop.main.run()
 }

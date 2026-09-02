@@ -11,6 +11,7 @@ mod routes;
 mod web_ui;
 mod ws;
 
+use std::io::IsTerminal;
 use std::net::SocketAddr;
 use std::process::ExitCode;
 
@@ -27,17 +28,30 @@ struct App {
     #[command(flatten)]
     common: cli::CommonArgs,
     #[command(subcommand)]
-    command: cli::Command,
+    command: Option<cli::Command>,
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
     let App { common, command } = App::parse();
-    let result = match command {
-        cli::Command::Serve { bind } => run_service(bind).await,
-        #[cfg(target_os = "linux")]
-        cli::Command::CredentialHelper { command } => run_credential_helper(command),
-        command => cli::run(common, command).await,
+    let target = cli::select_invocation(
+        command.is_some(),
+        common.json,
+        std::io::stdin().is_terminal(),
+        std::io::stdout().is_terminal(),
+        std::env::var_os("TERM").as_deref(),
+    );
+    let result = match target {
+        cli::InvocationTarget::Tui => cli::run_tui(common),
+        cli::InvocationTarget::Usage => Err(cli::CliError::usage(
+            "a named command is required unless bare msc is launched interactively without --json",
+        )),
+        cli::InvocationTarget::Command => match command.expect("command target requires command") {
+            cli::Command::Serve { bind } => run_service(bind).await,
+            #[cfg(target_os = "linux")]
+            cli::Command::CredentialHelper { command } => run_credential_helper(command),
+            command => cli::run(common, command).await,
+        },
     };
 
     match result {

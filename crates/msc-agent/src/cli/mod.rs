@@ -50,6 +50,37 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 48001;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvocationTarget {
+    Command,
+    Tui,
+    Usage,
+}
+
+/// Selects the root invocation without changing the behavior of named
+/// commands. The TUI is deliberately gated on both streams and TERM so a
+/// script cannot receive terminal control bytes by accident.
+pub fn select_invocation(
+    has_named_command: bool,
+    json: bool,
+    stdin_is_tty: bool,
+    stdout_is_tty: bool,
+    term: Option<&std::ffi::OsStr>,
+) -> InvocationTarget {
+    if has_named_command {
+        return InvocationTarget::Command;
+    }
+
+    let usable_term = term
+        .and_then(|value| value.to_str())
+        .is_some_and(|value| !value.is_empty() && value != "dumb");
+    if !json && stdin_is_tty && stdout_is_tty && usable_term {
+        InvocationTarget::Tui
+    } else {
+        InvocationTarget::Usage
+    }
+}
+
 #[derive(Debug, Clone, Args)]
 pub struct CommonArgs {
     /// Full base URL for the agent, for example http://127.0.0.1:48001.
@@ -877,7 +908,7 @@ pub struct CliError {
 }
 
 impl CliError {
-    fn usage(message: impl Into<String>) -> Self {
+    pub(crate) fn usage(message: impl Into<String>) -> Self {
         Self {
             exit_code: 2,
             message: message.into(),
@@ -961,6 +992,15 @@ impl CliError {
     pub fn exit_code(&self) -> u8 {
         self.exit_code
     }
+}
+
+/// P13.1 reserves the interactive entry point. P13.2 supplies the terminal
+/// lifecycle; until then, returning a normal CLI error keeps the root seam
+/// testable without putting the process into raw or alternate-screen mode.
+pub fn run_tui(_common: CommonArgs) -> Result<(), CliError> {
+    Err(CliError::internal(
+        "the interactive terminal UI is not available yet",
+    ))
 }
 
 pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {

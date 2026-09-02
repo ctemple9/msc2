@@ -91,6 +91,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.37: implement bedrock vm runtime health card`
 **Batch:** solo
 
+### P12.38 — Refresh the embedded agent web bundle
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Rebuild and package the current desktop-web output into the agent's embedded web UI so installed agents on macOS, Windows, and Linux serve the complete-pair RAM save flow. The served editor accepts decimal gigabyte values such as 4.5 and sends both `minRamGB` and `maxRamGB`; the tracked bundle must no longer serve the retired partial-save editor.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/server-editor/GeneralTab.svelte src/lib/components/base/NumberField.svelte && npx vitest run tests/screens/server-editor.test.ts && cd ../.. && rg -l 'minRamGB:se,maxRamGB:ve' crates/msc-agent/web-ui/assets --glob '*.js'`
+**Commit:** `P12.38: refresh embedded agent web bundle`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

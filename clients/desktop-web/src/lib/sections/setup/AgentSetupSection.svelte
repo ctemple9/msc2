@@ -334,6 +334,43 @@
     {/if}
   </Card>
 
+  <div class="screen-grid two">
+    <Card>
+      <div class="card-heading">
+        <span class="msc2-type-overline">Connection</span>
+        <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
+      </div>
+      <StatusDot tone={readinessTone} label={readinessTitle} />
+      <p class="detail">{readinessMessage}</p>
+    </Card>
+
+    <Card>
+      <div class="card-heading">
+        <span class="msc2-type-overline">Background service</span>
+        <Badge variant="status" tone={isLocalDesktopHost ? statusTone : 'warn'}
+          >{isLocalDesktopHost ? serviceState : 'host-managed'}</Badge
+        >
+      </div>
+      {#if isLocalDesktopHost}
+        <StatusDot tone={statusTone} label={serviceState} />
+        <p class="detail">{status?.detail ?? 'Looking for the local service.'}</p>
+        {#if status?.pid}<p class="detail">Service process: {status.pid}</p>{/if}
+      {:else if !isDesktopShell && isLoopbackHost}
+        <StatusDot tone="warn" label="Service status needs Terminal" />
+        <p class="detail">
+          This browser can reach the local agent, but only Terminal can inspect or change its
+          background service.
+        </p>
+      {:else}
+        <StatusDot tone="warn" label={`Managed on ${hostLabel}`} />
+        <p class="detail">
+          This client can manage Minecraft through this agent, but its background service is managed
+          on {hostLabel}.
+        </p>
+      {/if}
+    </Card>
+  </div>
+
   {#if isDesktopShell}
     <Card>
       <div class="card-heading">
@@ -390,43 +427,6 @@
       </div>
     </Card>
   {/if}
-
-  <div class="screen-grid two">
-    <Card>
-      <div class="card-heading">
-        <span class="msc2-type-overline">Connection</span>
-        <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
-      </div>
-      <StatusDot tone={readinessTone} label={readinessTitle} />
-      <p class="detail">{readinessMessage}</p>
-    </Card>
-
-    <Card>
-      <div class="card-heading">
-        <span class="msc2-type-overline">Background service</span>
-        <Badge variant="status" tone={isLocalDesktopHost ? statusTone : 'warn'}
-          >{isLocalDesktopHost ? serviceState : 'host-managed'}</Badge
-        >
-      </div>
-      {#if isLocalDesktopHost}
-        <StatusDot tone={statusTone} label={serviceState} />
-        <p class="detail">{status?.detail ?? 'Looking for the local service.'}</p>
-        {#if status?.pid}<p class="detail">Service process: {status.pid}</p>{/if}
-      {:else if !isDesktopShell && isLoopbackHost}
-        <StatusDot tone="warn" label="Service status needs Terminal" />
-        <p class="detail">
-          This browser can reach the local agent, but only Terminal can inspect or change its
-          background service.
-        </p>
-      {:else}
-        <StatusDot tone="warn" label={`Managed on ${hostLabel}`} />
-        <p class="detail">
-          This client can manage Minecraft through this agent, but its background service is managed
-          on {hostLabel}.
-        </p>
-      {/if}
-    </Card>
-  </div>
 
   <Card as="section" padding="18px 20px">
     <div class="architecture">

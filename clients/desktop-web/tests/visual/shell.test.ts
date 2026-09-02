@@ -35,6 +35,8 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(controlSidebarSource).toContain('onOpenAgentSetup');
     expect(applicationShellSource).toContain('{onOpenBrowser}');
     expect(controlSidebarSource).toContain('onManage');
+    expect(controlSidebarSource).toContain("anchorId: 'ob_manage_servers'");
+    expect(controlSidebarSource).toContain("use:onboardingAnchor={'ob_server_picker'}");
   });
 
   it('keeps the host-scoped agent screen reachable without adding an eighth server tab', () => {

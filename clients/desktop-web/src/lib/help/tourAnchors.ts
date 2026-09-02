@@ -13,6 +13,7 @@ import { writable } from 'svelte/store';
  */
 export const KNOWN_TOUR_ANCHOR_IDS: ReadonlySet<string> = new Set([
   'ob_manage_servers',
+  'ob_server_picker',
   'ob_create_server',
   'ob_wizard_path_picker',
   'ob_wizard_fresh_card',

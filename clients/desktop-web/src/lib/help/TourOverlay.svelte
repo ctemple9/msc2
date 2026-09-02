@@ -73,6 +73,13 @@
   onMount(() => {
     const onAnchorAction = (event: Event) => {
       const anchorId = (event as CustomEvent<{ anchorId?: string }>).detail?.anchorId;
+      if (step?.id === 'manage-servers' && anchorId === 'ob_server_picker') {
+        // The picker menu renders above the page but below this tour layer. Hide
+        // the coach mark after opening it so the Manage item remains visible
+        // and clickable; selecting that item still advances the tour below.
+        cardHidden = true;
+        return;
+      }
       if (step && ACTION_ANCHORS[step.id] === anchorId) {
         onAdvance(true);
       }
@@ -262,11 +269,11 @@
         {:else if step.id === 'manage-servers' || step.id === 'create-server' || step.id === 'network-continue'}
           <div class="hint-row">
             <p class="hint">
-              Click {step.id === 'manage-servers'
-                ? 'Manage…'
+              {step.id === 'manage-servers'
+                ? 'Open the server dropdown, then choose Manage… to continue.'
                 : step.id === 'create-server'
-                  ? 'Add Server…'
-                  : 'Continue'} to continue.
+                  ? 'Click Add Server… to continue.'
+                  : 'Click Continue to continue.'}
             </p>
           </div>
         {:else if step.id === 'choose-path'}

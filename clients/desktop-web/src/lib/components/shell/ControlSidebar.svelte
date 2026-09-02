@@ -11,6 +11,7 @@
   import HowToConnectSection from './sidebar/HowToConnectSection.svelte';
   import ConsoleAccessSection from './sidebar/ConsoleAccessSection.svelte';
   import QuickCommandsSection from './sidebar/QuickCommandsSection.svelte';
+  import { onboardingAnchor } from '../../help/tourAnchors';
   import { bannerColorAccent } from '../../styles/bannerColor';
   import { getPlatform } from '../../platform';
   import { JAVA_FLAVOR_CATALOG, crossPlayUnavailable } from '../../sections/fleet/wizard/model';
@@ -71,7 +72,7 @@
 
   $: multiHost = isDesktopShell && hosts.length > 1;
 
-  type PickerItem = { label: string; onSelect: () => void; disabled?: boolean };
+  type PickerItem = { label: string; onSelect: () => void; disabled?: boolean; anchorId?: string };
 
   function buildPickerItems(): PickerItem[] {
     if (!multiHost) {
@@ -80,7 +81,7 @@
           label: server.name,
           onSelect: () => onSelectServer(server.id),
         })),
-        { label: 'Manage…', onSelect: onManage },
+        { label: 'Manage…', onSelect: onManage, anchorId: 'ob_manage_servers' },
       ];
     }
     const items: PickerItem[] = [];
@@ -94,7 +95,7 @@
         items.push({ label: 'Switch to this host…', onSelect: () => onSwitchHost(host.id) });
       }
     }
-    items.push({ label: 'Manage…', onSelect: onManage });
+    items.push({ label: 'Manage…', onSelect: onManage, anchorId: 'ob_manage_servers' });
     return items;
   }
 
@@ -199,6 +200,7 @@
         style="background: {bannerColorAccent(bannerColor, 0.12)};"
         aria-haspopup="menu"
         onclick={openPicker}
+        use:onboardingAnchor={'ob_server_picker'}
       >
         <span class="sr-only">{connected ? 'Connected' : 'Disconnected'}</span>
         <span class="picker-label">{hostLabel} ▸ {activeServer?.name ?? 'No server'}</span>

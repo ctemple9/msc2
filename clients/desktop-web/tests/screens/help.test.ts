@@ -173,6 +173,10 @@ describe('shared help and onboarding screens', () => {
     expect(tourSource).toContain("'add-ons': 'ob_wizard_continue'");
     expect(tourSource).toContain('WORLD_FORM_STEP_IDS');
     expect(tourSource).toContain("stepIndex === 0 || step.id === 'first-world'");
+    expect(tourSource).toContain('Open the server dropdown, then choose Manage… to continue.');
+    expect(tourSource).toContain("anchorId === 'ob_server_picker'");
+    expect(tourSource).toContain('cardHidden = true');
+    expect(tourAnchorsSource).toContain("'ob_server_picker'");
     expect(tourSource).toContain('scrollAnchorIntoView');
     expect(tourAnchorsSource).toContain("block: 'nearest'");
     expect(tourSource).toContain('Click Continue once you have reviewed your settings.');

@@ -4,6 +4,8 @@
   // surface, no blur (docs/msc2/antiAIslop.md #4 reserves blur for a true
   // modal scrim; this is a lightweight popover, not one). Clamped to stay
   // inside the viewport since the anchor point can be anywhere on screen.
+  import { onboardingAnchor } from '../../help/tourAnchors';
+
   export let x: number;
   export let y: number;
   export let onClose: () => void;
@@ -12,6 +14,7 @@
     onSelect: () => void;
     tone?: 'default' | 'destructive';
     disabled?: boolean;
+    anchorId?: string;
   }[];
 
   let menuEl: HTMLDivElement | undefined;
@@ -54,6 +57,7 @@
       class:destructive={item.tone === 'destructive'}
       disabled={item.disabled}
       onclick={() => select(item)}
+      use:onboardingAnchor={item.anchorId}
     >
       {item.label}
     </button>

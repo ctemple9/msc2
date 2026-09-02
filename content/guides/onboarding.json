@@ -6,7 +6,7 @@
   "skip": {"label": "Skip tour", "effect": "marks the tour complete; it can be reopened from Preferences", "source": "OnboardingOverlayView.fullScreenCard / OnboardingManager.complete()"},
   "steps": [
     {"order": 0, "id": "welcome", "title": "Welcome to MSC", "body": "Let's get your first Minecraft server online. This tour takes about two minutes — we'll do everything together.", "actionLabel": "Let's go →", "anchor": null, "requiresUserAction": false},
-    {"order": 1, "id": "manage-servers", "title": "Your Server List", "body": "Open your server list to add your first server.", "anchor": "ob_manage_servers", "requiresUserAction": true},
+    {"order": 1, "id": "manage-servers", "title": "Your Server List", "body": "Open the server dropdown, then choose Manage to open your server list.", "anchor": "ob_server_picker", "requiresUserAction": true},
     {"order": 2, "id": "create-server", "title": "Create a Server", "body": "Choose Add Server to open the server builder.", "anchor": "ob_create_server", "requiresUserAction": true},
     {"order": 3, "id": "choose-path", "title": "Choose Your Path", "body": "Start Fresh sets up a brand new server from scratch. It is selected for you.", "anchor": "ob_wizard_path_picker", "requiresUserAction": true},
     {"order": 4, "id": "server-type", "title": "Pick a Type", "body": "Java is for PC players. Bedrock is for mobile, console, and Windows players.", "anchor": "ob_server_type", "requiresUserAction": false},

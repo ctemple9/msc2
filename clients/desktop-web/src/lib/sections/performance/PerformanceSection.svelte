@@ -40,7 +40,6 @@
   import Icon from '../../components/base/Icon.svelte';
   import MetricTile from './MetricTile.svelte';
   import PerformanceChart from './PerformanceChart.svelte';
-  import MonitoringRail from './MonitoringRail.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
   import { bytesLabel, call } from '../shared/types';
   import {
@@ -80,9 +79,6 @@
   let cpuHistory: number[] = [];
   let tpsChartHistory: number[] = [];
   let ramHistory: number[] = [];
-
-  let paused = false;
-  let collapsed = false;
 
   let runStartMs: number | undefined;
   let previousRunning: boolean | undefined;
@@ -152,12 +148,6 @@
     if (clockTimer) clearInterval(clockTimer);
   });
 
-  function togglePause(): void {
-    paused = !paused;
-    if (paused) stopPolling();
-    else startPolling();
-  }
-
   // Bedrock Load 1m/5m/15m: rolling averages over the same repeatedly-
   // polled cpuPercent (12/60/180 samples at the 5s poll cadence == 1m/5m/15m).
   $: load1m = rollingAverage(cpuHistory, 12);
@@ -181,18 +171,6 @@
 
   $: cpuDomainMax = Math.max(25, Math.ceil(Math.max(...cpuHistory, 0) / 25) * 25);
   $: ramDomainMax = Math.max(1024, ramMax ?? 0, ...ramHistory);
-
-  $: healthRows = isBedrock
-    ? [
-        { label: 'Load', tone: cpuTone(load1m) },
-        { label: 'CPU', tone: cpuTone(cpuValue) },
-        { label: 'Memory', tone: ramTone(ramUsed, ramMax) },
-      ]
-    : [
-        { label: 'TPS', tone: tpsTone(tps1m) },
-        { label: 'CPU', tone: cpuTone(cpuValue) },
-        { label: 'Memory', tone: ramTone(ramUsed, ramMax) },
-      ];
 
   const toneColor: Record<'ok' | 'warn' | 'error', string> = {
     ok: 'var(--msc2-status-ok)',
@@ -361,28 +339,13 @@
       />
     </div>
   </div>
-
-  <MonitoringRail
-    {collapsed}
-    onToggleCollapse={() => (collapsed = !collapsed)}
-    serverRunning={health.serverRunning}
-    {paused}
-    onTogglePause={togglePause}
-    onRefreshWorldSize={() => void poll()}
-    {healthRows}
-    {hostId}
-    {serverId}
-  />
 </div>
 
 <style>
   .performance {
-    display: flex;
-    align-items: flex-start;
-    gap: 16px;
+    width: 100%;
   }
   .main {
-    flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -439,9 +402,6 @@
     }
     .charts-row {
       grid-template-columns: 1fr;
-    }
-    .performance {
-      flex-direction: column;
     }
   }
 </style>

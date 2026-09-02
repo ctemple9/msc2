@@ -133,7 +133,9 @@ pub struct JavaRuntimeInstallResultDto {
 pub struct RamConfigResponseDto {
     pub server_name: String,
     pub server_type: String,
+    #[serde(rename = "minRamGB")]
     pub min_ram_gb: f64,
+    #[serde(rename = "maxRamGB")]
     pub max_ram_gb: f64,
     pub physical_ram_gb: i64,
     pub recommended_max_gb: i64,
@@ -145,8 +147,10 @@ pub struct RamConfigResponseDto {
 #[serde(rename_all = "camelCase")]
 pub struct RamConfigUpdateRequestDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "minRamGB", alias = "minRamGb")]
     pub min_ram_gb: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "maxRamGB", alias = "maxRamGb")]
     pub max_ram_gb: Option<f64>,
 }
 
@@ -155,8 +159,10 @@ pub struct RamConfigUpdateRequestDto {
 pub struct RamConfigUpdateResultDto {
     pub success: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "minRamGB")]
     pub min_ram_gb: Option<f64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "maxRamGB")]
     pub max_ram_gb: Option<f64>,
     pub restart_required: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -107,6 +107,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.39: make ram field updates explicit`
 **Batch:** solo
 
+### P12.40 — Correct RAM acronym wire names
+**Status:** awaiting verification
+**Files:** `crates/msc-api/src/dto/versions.rs`, `docs/msc2/rolling-plan.md`
+**What:** Explicitly serialize and deserialize RAM fields as the frozen `minRamGB`/`maxRamGB` API names. Rust's generic `camelCase` rule lowercases the acronym suffix to `minRamGb`/`maxRamGb`; the desktop was sending the documented names, so the agent silently parsed both values as absent and returned `no_changes`. Accept the lowercase-suffix spelling while reading for compatibility, but always emit the documented spelling across macOS, Windows, Linux, browser, and desktop clients.
+**Verify:** `cargo check -p msc-api`
+**Commit:** `P12.40: correct ram acronym wire names`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

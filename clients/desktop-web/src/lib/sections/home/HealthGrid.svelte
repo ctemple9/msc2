@@ -9,16 +9,16 @@
   // single `flippedCardID`). Server Directory is dropped per Cameron's
   // 2026-08-26 call -- not useful enough to earn a card. The backend's
   // real card ids (crates/msc-agent/src/routes/health.rs) differ from
-  // MSC 1's id set. Overview keeps only the three actionable checks that
-  // Cameron wants in this compact first-read; the agent may continue to
-  // return additional health data for other clients and future screens.
+  // MSC 1's id set. Overview keeps the three actionable checks plus Bedrock's
+  // runtime availability in this compact first-read; the agent may continue
+  // to return additional health data for other clients and future screens.
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
   import type { Schema } from '../shared/types';
 
   export let cards: readonly Schema['HealthCardDTO'][] = [];
 
-  const overviewCardIds = new Set(['ram', 'lastStartup', 'portReachability']);
+  const overviewCardIds = new Set(['ram', 'lastStartup', 'portReachability', 'vmRuntime']);
 
   $: visibleCards = cards.filter((card) => overviewCardIds.has(card.id));
 
@@ -48,6 +48,7 @@
     ram: 'chip',
     lastStartup: 'seal-check',
     portReachability: 'network',
+    vmRuntime: 'chip',
   };
 
   function icon(

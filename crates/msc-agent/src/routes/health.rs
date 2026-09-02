@@ -39,8 +39,9 @@ use axum::extract::{Extension, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{
-    HealthCardDto, HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto,
-    HealthResponseDto, PermissionCategoryDto, StartupProblemDto,
+    BedrockBackendDto, BedrockRuntimeStateDto, HealthCardDto, HealthProblemsResponseDto,
+    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, PermissionCategoryDto,
+    StartupProblemDto,
 };
 use msc_application::diagnostics::{
     self, DirectoryProbe, HealthCardResult, HealthStatus, JavaCandidateProbe, RepairAction,
@@ -151,17 +152,35 @@ fn health_card_icon(id: &str, status: HealthStatus) -> String {
     .to_string()
 }
 
-fn not_yet_implemented_card(id: &str, title: &str, short_label: &str) -> HealthCardDto {
+fn bedrock_vm_runtime_card(runtime: BedrockRuntimeStateDto) -> HealthCardDto {
+    let state = runtime.state.as_str();
+    let fallback_detail = runtime
+        .message
+        .unwrap_or_else(|| format!("Bedrock runtime state: {state}."));
+    let (severity, detail) = match (state, runtime.backend) {
+        ("available", Some(BedrockBackendDto::Native)) => (
+            "green",
+            "Native Bedrock runtime is available; no VM is required.".to_string(),
+        ),
+        ("available", Some(BedrockBackendDto::VzSidecar)) => {
+            ("green", "Bedrock VM sidecar is available.".to_string())
+        }
+        ("available", None) => ("green", fallback_detail),
+        ("provisioning_required", _) => ("yellow", fallback_detail),
+        ("unavailable", _) => ("gray", fallback_detail),
+        (_, _) => ("gray", fallback_detail),
+    };
+
     HealthCardDto {
-        id: id.to_string(),
-        title: title.to_string(),
-        short_label: short_label.to_string(),
-        severity: "gray".to_string(),
-        detail: Some("Not yet implemented.".to_string()),
-        icon_system_name: "questionmark.circle".to_string(),
+        id: "vmRuntime".to_string(),
+        title: "VM Runtime".to_string(),
+        short_label: "VM".to_string(),
+        severity: severity.to_string(),
+        detail: Some(detail),
+        icon_system_name: "memorychip".to_string(),
         action_label: None,
         action_code: None,
-        help_id: None,
+        help_id: runtime.help_id,
     }
 }
 
@@ -405,12 +424,7 @@ async fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto 
         card_result_to_dto(component_jars),
     ];
     if server.server_type == ServerType::Bedrock {
-        cards.push(not_yet_implemented_card(
-            "bedrockWorldData",
-            "Bedrock World Data",
-            "World Data",
-        ));
-        cards.push(not_yet_implemented_card("vmRuntime", "VM Runtime", "VM"));
+        cards.push(bedrock_vm_runtime_card(state.bedrock_runtime_state()));
     }
 
     let overall_severity = cards
@@ -830,6 +844,51 @@ mod tests {
             Ok(Json(body)),
         )
         .await
+    }
+
+    #[test]
+    fn bedrock_vm_runtime_card_reflects_backend_state() {
+        let native = bedrock_vm_runtime_card(BedrockRuntimeStateDto {
+            state: "available".to_string(),
+            backend: Some(BedrockBackendDto::Native),
+            host_os: None,
+            reason_code: None,
+            message: None,
+            help_id: None,
+        });
+        assert_eq!(native.severity, "green");
+        assert_eq!(
+            native.detail.as_deref(),
+            Some("Native Bedrock runtime is available; no VM is required.")
+        );
+
+        let sidecar = bedrock_vm_runtime_card(BedrockRuntimeStateDto {
+            state: "available".to_string(),
+            backend: Some(BedrockBackendDto::VzSidecar),
+            host_os: None,
+            reason_code: None,
+            message: None,
+            help_id: None,
+        });
+        assert_eq!(sidecar.severity, "green");
+        assert_eq!(
+            sidecar.detail.as_deref(),
+            Some("Bedrock VM sidecar is available.")
+        );
+
+        let provisioning = bedrock_vm_runtime_card(BedrockRuntimeStateDto {
+            state: "provisioning_required".to_string(),
+            backend: Some(BedrockBackendDto::Native),
+            host_os: None,
+            reason_code: Some("archive_missing".to_string()),
+            message: Some("A verified Bedrock distribution is required before start.".to_string()),
+            help_id: None,
+        });
+        assert_eq!(provisioning.severity, "yellow");
+        assert_eq!(
+            provisioning.detail.as_deref(),
+            Some("A verified Bedrock distribution is required before start.")
+        );
     }
 
     #[tokio::test]

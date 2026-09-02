@@ -83,6 +83,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.36: keep overview health checks actionable`
 **Batch:** solo
 
+### P12.37 — Implement the Bedrock VM Runtime health card
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/health.rs`, `clients/desktop-web/src/lib/sections/home/HealthGrid.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Keep VM Runtime in the Bedrock Overview health grid and replace its placeholder with the agent's real Bedrock runtime state. Report native Linux/Windows support as green without implying a VM is needed, report the Intel macOS Virtualization Framework sidecar as green, show provisioning-required as yellow, and show unsupported hosts as a neutral unavailable state. Keep Java Runtime, Add-on Jars, and Bedrock World Data out of this compact Overview surface while retaining the existing flip interaction and cross-platform wording.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --bin msc -- -D warnings -A unused-mut && cargo nextest run -p msc-agent --bin msc -E 'test(bedrock_vm_runtime_card_reflects_backend_state)' && cd clients/desktop-web && npx prettier --check src/lib/sections/home/HealthGrid.svelte && npx vitest run tests/screens/overview.test.ts`
+**Commit:** `P12.37: implement bedrock vm runtime health card`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

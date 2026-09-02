@@ -3,6 +3,7 @@
 
 pub mod pairing;
 pub mod service;
+pub mod tui;
 
 use std::collections::HashMap;
 use std::fmt::Display;
@@ -994,13 +995,10 @@ impl CliError {
     }
 }
 
-/// P13.1 reserves the interactive entry point. P13.2 supplies the terminal
-/// lifecycle; until then, returning a normal CLI error keeps the root seam
-/// testable without putting the process into raw or alternate-screen mode.
-pub fn run_tui(_common: CommonArgs) -> Result<(), CliError> {
-    Err(CliError::internal(
-        "the interactive terminal UI is not available yet",
-    ))
+/// P13.2 owns terminal lifecycle behind P13.1's already-tested dispatch seam.
+/// Named and non-TTY invocations never reach this function.
+pub fn run_tui(common: CommonArgs) -> Result<(), CliError> {
+    tui::run(common)
 }
 
 pub async fn run(common: CommonArgs, command: Command) -> Result<(), CliError> {

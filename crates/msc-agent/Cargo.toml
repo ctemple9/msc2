@@ -31,6 +31,8 @@ subtle = "2.6"
 uuid = { version = "1.24.0", features = ["v4"] }
 include_dir = "0.7"
 image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+ratatui = "0.29"
+crossterm = "0.28"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["test-util"] }

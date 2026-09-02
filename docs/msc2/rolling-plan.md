@@ -182,7 +182,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.2 — Establish terminal lifecycle, responsive layout, and deterministic rendering
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/Cargo.toml`, `crates/msc-agent/src/cli/tui/mod.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/src/cli/tui/layout.rs`, `crates/msc-agent/src/cli/tui/render.rs`, `crates/msc-agent/tests/tui_terminal_lifecycle.rs`
 **What:** Add the approved `ratatui` and `crossterm` foundation and a terminal guard that always restores raw mode, cursor, and alternate screen after normal exit, error, resize, or panic. Build the event loop, resize handling, focus order, and the wide/medium/small shell before feature screens. Wide must visibly preserve the desktop's app/context header, left controls rail, server identity band, seven-tab strip, content region, and reserved bottom console dock. Medium must make the rail and dock explicitly collapsible rather than silently dropping them; small must present one focused surface at a time with the current host/server, section switcher, console, and help immediately reachable. Use `ratatui`'s test backend for deterministic structural renders at all three sizes, including visible focus and absence of clipping. The shell must be terminal-native and quiet — hierarchy and whitespace, not a grid of generic cards or decorative ANSI color.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Main View/mainview.png`; `/Users/camerontemple/Documents/msc2 pictures/Main View/sidebarcollapsed.png`; `/Users/camerontemple/Documents/msc2 pictures/Main View/consolecollapsed.png`.

@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT_PATH = ROOT / "docs/msc2/api-contract/openapi.json"
 GENERATED_PATH = ROOT / "clients/desktop-web/src/lib/api/generated.ts"
-SCHEMA_START = re.compile(r"^    ([A-Za-z_$][A-Za-z0-9_$]*): \{$", re.MULTILINE)
+SCHEMA_START = re.compile(r"^    ([A-Za-z_$][A-Za-z0-9_$]*): ", re.MULTILINE)
 PROPERTY = re.compile(r"^      ([A-Za-z_$][A-Za-z0-9_$]*)(\?)?:", re.MULTILINE)
 
 
@@ -64,14 +64,21 @@ def check() -> list[str]:
             if properties[field] != (field not in required)
         )
         require(not wrong_requiredness, f"{name}: required/optional fields drifted: {wrong_requiredness}")
+        # openapi-typescript represents an intentionally empty object schema as
+        # Record<string, never>; there are no declared fields to drift in that
+        # shape, so it is the only valid exception to the usual additive-field
+        # intersection emitted for populated schemas.
         require(
-            "[key: string]: unknown;" in blocks[name],
+            "[key: string]: unknown;" in blocks[name]
+            or (not schema.get("properties") and "Record<string, never>" in blocks[name]),
             f"{name}: additive unknown fields are not accepted",
         )
 
     paths = contract["paths"]
     require("export interface paths" in generated, "generated output has no HTTP paths interface")
-    missing_paths = sorted(path for path in paths if f'"{path}":' not in generated)
+    # openapi-typescript uses single-quoted keys in the generated paths
+    # interface; the contract JSON uses double-quoted keys.
+    missing_paths = sorted(path for path in paths if f"'{path}':" not in generated)
     require(not missing_paths, f"generated output is missing paths: {missing_paths}")
 
     operations = {

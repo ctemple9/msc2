@@ -46,6 +46,7 @@
   import {
     CHART_CAPACITY,
     HISTORY_CAPACITY,
+    RAM_POLL_INTERVAL_MS,
     POLL_INTERVAL_MS,
     cpuTone,
     formatPercent,
@@ -78,7 +79,7 @@
 
   let cpuHistory: number[] = [];
   let tpsChartHistory: number[] = [];
-  let playerHistory: number[] = [];
+  let ramHistory: number[] = [];
 
   let paused = false;
   let collapsed = false;
@@ -96,7 +97,7 @@
     if (cpu !== undefined) cpuHistory = pushCapped(cpuHistory, cpu, HISTORY_CAPACITY);
     const tps = snapshot.tps1m?.value;
     if (tps !== undefined) tpsChartHistory = pushCapped(tpsChartHistory, tps, CHART_CAPACITY);
-    playerHistory = pushCapped(playerHistory, snapshot.playersOnline ?? 0, CHART_CAPACITY);
+    recordRamSample();
 
     if (health.serverRunning !== previousRunning) {
       if (health.serverRunning && previousRunning === false) runStartMs = Date.now();
@@ -105,16 +106,41 @@
     }
   }
 
+  async function pollRam(): Promise<void> {
+    const nextSnapshot = await call(api, snapshot, '/v1/performance');
+    snapshot = {
+      ...snapshot,
+      ts: nextSnapshot.ts,
+      ramUsedMB: nextSnapshot.ramUsedMB,
+      ramMaxMB: nextSnapshot.ramMaxMB,
+    };
+    recordRamSample();
+  }
+
   let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let ramPollTimer: ReturnType<typeof setInterval> | undefined;
   let clockTimer: ReturnType<typeof setInterval> | undefined;
+
+  let lastRamSampleMs = 0;
+
+  function recordRamSample(): void {
+    const now = Date.now();
+    if (now - lastRamSampleMs < RAM_POLL_INTERVAL_MS) return;
+    lastRamSampleMs = now;
+    const ram = snapshot.ramUsedMB?.value;
+    if (ram !== undefined) ramHistory = pushCapped(ramHistory, ram, CHART_CAPACITY);
+  }
 
   function startPolling(): void {
     void poll();
     pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
+    ramPollTimer = setInterval(() => void pollRam(), RAM_POLL_INTERVAL_MS);
   }
   function stopPolling(): void {
     if (pollTimer) clearInterval(pollTimer);
     pollTimer = undefined;
+    if (ramPollTimer) clearInterval(ramPollTimer);
+    ramPollTimer = undefined;
   }
 
   onMount(() => {
@@ -154,7 +180,7 @@
     : 'Offline';
 
   $: cpuDomainMax = Math.max(25, Math.ceil(Math.max(...cpuHistory, 0) / 25) * 25);
-  $: playerDomainMax = Math.max(6, ...playerHistory);
+  $: ramDomainMax = Math.max(1024, ramMax ?? 0, ...ramHistory);
 
   $: healthRows = isBedrock
     ? [
@@ -290,18 +316,21 @@
 
       <div class="chart-panel">
         <div class="panel-header">
-          <Icon name="people" size={13} />
-          <span class="panel-title">Player Activity</span>
-          <span class="panel-value">{snapshot.playersOnline ?? 0}</span>
+          <Icon name="box" size={13} />
+          <span class="panel-title">Memory Over Time</span>
+          <span class="panel-value" style={css(ramTone(ramUsed, ramMax))}>
+            {formatRamCompact(ramUsed)}
+          </span>
         </div>
         <PerformanceChart
-          samples={playerHistory}
-          domainMax={playerDomainMax}
-          color="rgba(255, 255, 255, 0.7)"
-          valueLabel={(v) => `${Math.round(v)}`}
-          sampleIntervalMs={POLL_INTERVAL_MS}
-          emptyIcon="people"
-          emptyMessage="Collecting player activity data"
+          samples={ramHistory}
+          domainMax={ramDomainMax}
+          color={toneColor[ramTone(ramUsed, ramMax) ?? 'ok']}
+          referenceValue={ramMax}
+          valueLabel={(v) => `${(v / 1024).toFixed(1)} GB`}
+          sampleIntervalMs={RAM_POLL_INTERVAL_MS}
+          emptyIcon="box"
+          emptyMessage="Collecting memory data"
         />
       </div>
     </div>

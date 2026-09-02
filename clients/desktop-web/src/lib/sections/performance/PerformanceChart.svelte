@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A small history line/area chart for TPS-Over-Time and Player Activity.
+  // A small history line/area chart for the performance tab's live metrics.
   // MSC 1's Charts-framework equivalents (DetailsPerformanceCharts.swift)
   // are static -- no hover layer -- but the dataviz skill treats a
   // crosshair+tooltip as the non-negotiable default for any line/area
@@ -8,8 +8,7 @@
   // are flattened to a single flat color per antiAIslop rule #2/#5 (no
   // decorative gradients) -- color is either the metric's live status tone
   // (TPS/CPU: an explicitly allowed "live-stat fill") or, for a series with
-  // no defined state (Player Activity), a quiet neutral tone that spends
-  // none of the 10% accent budget.
+  // memory's live status tone, which is an explicitly allowed live-stat fill.
   import Icon from '../../components/base/Icon.svelte';
 
   export let samples: readonly number[] = [];
@@ -18,7 +17,7 @@
   export let referenceValue: number | undefined = undefined;
   export let valueLabel: (value: number) => string = (value) => `${Math.round(value)}`;
   export let sampleIntervalMs: number;
-  export let emptyIcon: 'waveform' | 'people';
+  export let emptyIcon: 'waveform' | 'people' | 'box';
   export let emptyMessage: string;
 
   const width = 300;

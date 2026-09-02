@@ -81,6 +81,8 @@ export function rollingAverage(history: readonly number[], count: number): numbe
 /** Matches the Monitoring rail's "Active (5s)" label and the 12/60/180
  *  sample windows above; also this screen's own /v1/performance poll rate. */
 export const POLL_INTERVAL_MS = 5000;
+/** RAM is sampled more often so short Java GC drops are visible in the chart. */
+export const RAM_POLL_INTERVAL_MS = 1000;
 /** 180 samples * 5s == 15 minutes, the longest rolling window shown. */
 export const HISTORY_CAPACITY = 180;
 /** MSC 1 caps its charted (as opposed to averaged) histories at 30 samples. */

@@ -375,7 +375,6 @@
     <Card>
       <div class="card-heading">
         <span class="msc2-type-overline">Host pairing</span>
-        <span class="quiet-label">One-use code · 10 minutes</span>
       </div>
       <div class="pairing-grid">
         <div class="pairing-block">

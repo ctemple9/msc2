@@ -7,7 +7,7 @@
   // MSC 1's per-row icon-in-tinted-box (ZStack { RoundedRectangle.fill(color
   // .opacity(0.12)); Image(...).foregroundStyle(color) }) is rule #6's exact
   // tell -- a colored icon on an informational element -- so it's dropped
-  // here, not ported: rows carry name + badge + StatusDot(+label) only, the
+  // here, not ported: rows carry name + badge + quiet status labels only, the
   // same vocabulary HealthGrid/WorldSlotCard already established.
   //
   // Two real, pre-existing backend gaps found while wiring this, left alone
@@ -57,7 +57,6 @@
     broadcastPaths,
     componentPaths,
     componentStatusLabel,
-    componentTone,
     demoBroadcastAutostart,
     demoBroadcastStatus,
     demoJarStatus,
@@ -171,12 +170,7 @@
     ]);
   }
   async function loadAll(): Promise<void> {
-    await Promise.all([
-      loadComponents(),
-      loadServers(),
-      loadHealth(),
-      loadBroadcast(),
-    ]);
+    await Promise.all([loadComponents(), loadServers(), loadHealth(), loadBroadcast()]);
     checkVoiceTunnelPrompt();
     coreLoaded = true;
     void loadPlayit();
@@ -197,10 +191,7 @@
     if (typeof localStorage !== 'undefined') localStorage.removeItem(voicePromptKey());
   }
 
-  function checkVoiceTunnelPrompt(
-    currentPlayit = playit,
-    currentAddons = addons,
-  ): void {
+  function checkVoiceTunnelPrompt(currentPlayit = playit, currentAddons = addons): void {
     const currentSvcAddon = currentAddons.find(isSimpleVoiceChatAddon);
     if (!currentSvcAddon || !currentPlayit?.playitEnabled) {
       showVoicePrompt = false;
@@ -472,10 +463,7 @@
               </span>
             </div>
             {#if primaryComponent && !isModded}
-              <StatusDot
-                tone={componentTone(primaryComponent)}
-                label={componentStatusLabel(primaryComponent)}
-              />
+              <span class="status-label">{componentStatusLabel(primaryComponent)}</span>
             {/if}
             <Button
               size="sm"
@@ -505,9 +493,9 @@
               </Button>
             {/if}
           </div>
-        {#if !addonsLoaded}
-          <p class="loading-state" role="status">Loading installed plugins…</p>
-        {:else if addons.length === 0}
+          {#if !addonsLoaded}
+            <p class="loading-state" role="status">Loading installed plugins…</p>
+          {:else if addons.length === 0}
             <EmptyState title={`No ${isModded ? 'mods' : 'plugins'} installed`}>
               <Icon name="box" size={26} slot="icon" />
             </EmptyState>
@@ -602,10 +590,7 @@
                 </div>
                 <span class="subtitle">{jarStatus.filename ?? 'Not downloaded'}</span>
               </div>
-              <StatusDot
-                tone={jarStatus.installed ? 'ok' : 'error'}
-                label={jarStatus.installed ? 'Installed' : 'Missing'}
-              />
+              <span class="status-label">{jarStatus.installed ? 'Installed' : 'Missing'}</span>
               <Button
                 size="sm"
                 variant="secondary"
@@ -881,6 +866,12 @@
   }
   .subtitle.error {
     color: var(--msc2-status-error);
+  }
+  .status-label {
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--msc2-text-tertiary);
   }
   .confirm {
     font-size: 12px;

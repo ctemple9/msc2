@@ -146,8 +146,8 @@
 {#snippet serverCard(server: Schema['ServerDTO'])}
   {@const isActive = server.id === status.activeServerId}
   <Card padding="0">
-    <div class="server-row" class:active={isActive}>
-      <div class="server-icon" class:active={isActive}>
+    <div class="server-row">
+      <div class="server-icon">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
           <path
             d="M4 6h16v4H4zM4 14h16v4H4z"
@@ -167,7 +167,9 @@
         </div>
         <p class="server-dir">{server.directory}</p>
       </div>
-      <Button variant="secondary" size="sm" onclick={() => setActive(server.id)}>Set Active</Button>
+      <Button variant="secondary" size="sm" disabled={isActive} onclick={() => setActive(server.id)}
+        >Set Active</Button
+      >
       <Button
         variant="ghost-icon"
         size="sm"
@@ -343,9 +345,6 @@
     gap: 10px;
     padding: 11px 14px;
   }
-  .server-row.active {
-    box-shadow: inset 3px 0 0 var(--msc2-status-ok);
-  }
   .server-icon {
     width: 32px;
     height: 32px;
@@ -356,9 +355,6 @@
     border-radius: 8px;
     background: var(--msc2-neutral-elevated);
     color: rgba(255, 255, 255, 0.6);
-  }
-  .server-icon.active {
-    color: var(--msc2-status-ok);
   }
   .server-info {
     flex: 1;

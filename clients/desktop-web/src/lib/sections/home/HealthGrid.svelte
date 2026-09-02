@@ -1,7 +1,7 @@
 <script lang="ts">
   // MSC 1 HealthCardsGridView, rebuilt to the locked status card
   // (docs/msc2/renderings/status-card.html): no side rail, no colored
-  // icon-in-box — status is dot + label only. Restores MSC 1's real
+  // icon-in-box — status is a quiet label. Restores MSC 1's real
   // flip interaction (HealthGridCardTile's rotation3DEffect) that an
   // earlier pass had flattened away: the front face is icon + title +
   // status only, tapping flips to a back face carrying the detail line
@@ -11,7 +11,6 @@
   // real card ids (crates/msc-agent/src/routes/health.rs) differ from
   // MSC 1's id set, and several report "gray -- not yet implemented"
   // honestly; this grid renders whatever the agent actually returns.
-  import StatusDot from '../../components/base/StatusDot.svelte';
   import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
   import type { Schema } from '../shared/types';
@@ -59,13 +58,6 @@
     return iconFor[id] ?? 'grid';
   }
 
-  function tone(severity: string): 'ok' | 'warn' | 'error' | undefined {
-    if (severity === 'green') return 'ok';
-    if (severity === 'yellow') return 'warn';
-    if (severity === 'red') return 'error';
-    return undefined;
-  }
-
   function label(severity: string): string {
     if (severity === 'green') return 'OK';
     if (severity === 'yellow') return 'Warn';
@@ -99,14 +91,7 @@
             <span class="title">{card.title}</span>
             <span class="hint" aria-hidden="true"><Icon name="chevron" size={11} /></span>
           </div>
-          {#if tone(card.severity)}
-            <StatusDot tone={tone(card.severity)} label={label(card.severity)} />
-          {:else}
-            <span class="neutral-status">
-              <span class="neutral-dot"></span>
-              <span class="neutral-label">{label(card.severity)}</span>
-            </span>
-          {/if}
+          <span class="status-label">{label(card.severity)}</span>
         </div>
         <div class="face back">
           <div class="tile-header">
@@ -114,14 +99,7 @@
             <span class="title">{card.title}</span>
             <span class="hint back-hint" aria-hidden="true"><Icon name="chevron" size={11} /></span>
           </div>
-          {#if tone(card.severity)}
-            <StatusDot tone={tone(card.severity)} label={label(card.severity)} />
-          {:else}
-            <span class="neutral-status">
-              <span class="neutral-dot"></span>
-              <span class="neutral-label">{label(card.severity)}</span>
-            </span>
-          {/if}
+          <span class="status-label">{label(card.severity)}</span>
           {#if card.detail}
             <p class="detail">{card.detail}</p>
           {/if}
@@ -214,19 +192,7 @@
   .back-hint {
     transform: rotate(180deg);
   }
-  .neutral-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .neutral-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--msc2-neutral-muted);
-    display: inline-block;
-  }
-  .neutral-label {
+  .status-label {
     font-size: 12px;
     font-weight: 500;
     color: var(--msc2-text-tertiary);

@@ -6,10 +6,8 @@
   // extension) -- dropped in favor of the same status vocabulary
   // HealthGrid.svelte already established: a neutral scanning icon, a
   // colored *value* (the design law's explicitly allowed "live-stat fill"),
-  // and a StatusDot + text label. Value color is the only accent this tile
-  // spends.
+  // and a quiet text label. Value color is the only accent this tile spends.
   import Icon from '../../components/base/Icon.svelte';
-  import StatusDot from '../../components/base/StatusDot.svelte';
   import type { Tone } from './model';
   import { toneLabel } from './model';
 
@@ -33,7 +31,7 @@
   </div>
   <p class="value" style={tone ? `color: ${toneColor[tone]};` : ''}>{value}</p>
   {#if tone}
-    <StatusDot {tone} label={toneLabel(tone)} />
+    <span class="tone-label" style={`color: ${toneColor[tone]};`}>{toneLabel(tone)}</span>
   {/if}
   {#if subtitle}<p class="subtitle">{subtitle}</p>{/if}
 </div>
@@ -70,5 +68,9 @@
     margin: 0;
     font-size: 11px;
     color: var(--msc2-text-tertiary);
+  }
+  .tone-label {
+    font-size: 12px;
+    font-weight: 500;
   }
 </style>

@@ -43,7 +43,6 @@
   import NumberField from '../../components/base/NumberField.svelte';
   import Select from '../../components/base/Select.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
-  import StatusDot from '../../components/base/StatusDot.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
   import { ApiError } from '../../api/client';
   import type { Schema, ScreenProps } from '../shared/types';
@@ -186,7 +185,7 @@
       <span class="msc2-type-overline">Server Properties</span>
     </div>
     <div class="header-actions">
-      {#if dirty}<StatusDot tone="warn" label="Unsaved changes" />{/if}
+      {#if dirty}<span class="status-label">Unsaved changes</span>{/if}
     </div>
   </div>
 
@@ -317,6 +316,11 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+  .status-label {
+    color: var(--msc2-status-warn);
+    font-size: 12px;
+    font-weight: 500;
   }
   .hint {
     margin: -10px 0 0;

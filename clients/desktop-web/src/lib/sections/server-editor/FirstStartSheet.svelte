@@ -522,7 +522,7 @@
           MSC created the server files and recorded the connections that actually resolved.
         </p>
       </div>
-      <StatusDot tone="ok" label="One-time setup complete" />
+      <span class="status-label">One-time setup complete</span>
 
       <section class="section">
         <p class="section-label">How people connect</p>
@@ -666,9 +666,8 @@
     color: var(--msc2-text-tertiary);
   }
   .notice {
-    padding: 10px 12px;
+    padding: 10px 0;
     background: var(--msc2-tier-chrome);
-    border-left: 2px solid var(--msc2-status-warn);
   }
   .broadcast-auth-notice {
     display: flex;
@@ -692,6 +691,11 @@
   }
   .status-line {
     color: var(--msc2-text-secondary);
+  }
+  .status-label {
+    color: var(--msc2-status-ok);
+    font-size: 12px;
+    font-weight: 500;
   }
   .error {
     margin: 0;

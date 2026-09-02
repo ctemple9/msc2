@@ -416,7 +416,6 @@
     padding: 9px;
     color: var(--msc2-text-secondary);
     background: var(--msc2-tier-surface);
-    border-left: 2px solid var(--msc2-status-warn);
     font-size: 11px;
     line-height: 1.4;
   }

@@ -1,6 +1,6 @@
 <script lang="ts">
   // MSC 1 OverviewConnectionCardView, ported to the S0 disciplined card —
-  // no gradient rails, status carried by dot + label only. The agent reports
+  // no gradient rails. The agent reports
   // the host's best-effort LAN address through
   // ServerDTO.hostAddress. If discovery is unavailable, the Local column
   // keeps the honest fallback rather than fabricating an address.
@@ -187,7 +187,6 @@
   <div class="columns" class:single={isBedrockServer}>
     <div class="cell">
       <div class="cell-header">
-        <span class="dot" class:online={!showPublic || !!javaIp}></span>
         <span class="platform-label"
           >{isBedrockServer ? 'Bedrock · Dedicated' : 'Java · PC / Mac'}</span
         >
@@ -219,7 +218,6 @@
       {#if hasGeyser}
         <div class="cell">
           <div class="cell-header">
-            <span class="dot" class:online={!showPublic || !!geyserIp}></span>
             <span class="platform-label">Bedrock (Geyser)</span>
             <span class="source-tag">{bedrockSourceTag}</span>
           </div>
@@ -251,7 +249,6 @@
       {:else}
         <div class="cell ghost">
           <div class="cell-header">
-            <span class="dot"></span>
             <span class="platform-label muted">Bedrock (Geyser)</span>
           </div>
           <p class="unavailable">Not configured</p>
@@ -326,16 +323,6 @@
     align-items: center;
     gap: 5px;
     margin-bottom: 6px;
-  }
-  .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--msc2-neutral-muted);
-    flex-shrink: 0;
-  }
-  .dot.online {
-    background: var(--msc2-status-ok);
   }
   .platform-label {
     font-size: 9px;

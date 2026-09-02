@@ -45,6 +45,7 @@
   export let onOpenBrowser: (() => void) | undefined = undefined;
   export let onSettings: (() => void) | undefined = undefined;
   export let onRefresh: (() => void) | undefined = undefined;
+  export let onEditServer: (() => void) | undefined = undefined;
   export let addressesVisible = false;
   export let onToggleAddresses: () => void = () => undefined;
 
@@ -162,6 +163,7 @@
         directory={activeServer?.directory}
         {running}
         {bannerColor}
+        {onEditServer}
       />
 
       <div class="tabs-row">

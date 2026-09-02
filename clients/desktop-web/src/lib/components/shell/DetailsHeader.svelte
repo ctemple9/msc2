@@ -12,6 +12,7 @@
   export let directory: string | undefined = undefined;
   export let running: boolean;
   export let bannerColor: string;
+  export let onEditServer: (() => void) | undefined = undefined;
 
   $: typeLabel = serverType === 'java' ? 'Java' : serverType === 'bedrock' ? 'Bedrock' : serverType;
 </script>
@@ -19,7 +20,13 @@
 <div class="header" style="--wash: {bannerColorAccent(bannerColor, 0.06)};">
   <div class="wash" aria-hidden="true"></div>
   <div class="row">
-    <span class="name">{serverName}</span>
+    {#if onEditServer}
+      <button type="button" class="name name-button" title="Edit server" onclick={onEditServer}>
+        {serverName}
+      </button>
+    {:else}
+      <span class="name">{serverName}</span>
+    {/if}
     {#if typeLabel}<Badge variant="category">{typeLabel}</Badge>{/if}
     {#if javaFlavor}<Badge variant="category">{javaFlavor}</Badge>{/if}
     <span class="fill"></span>
@@ -52,6 +59,17 @@
     font-size: 19px;
     font-weight: 600;
     color: var(--msc2-text-primary);
+  }
+  .name-button {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .name-button:hover {
+    color: var(--msc2-text-secondary);
   }
   .fill {
     flex: 1;

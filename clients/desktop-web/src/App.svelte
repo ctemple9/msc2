@@ -8,6 +8,7 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import FirstStartSheet from './lib/sections/server-editor/FirstStartSheet.svelte';
+  import ServerEditorSheet from './lib/sections/server-editor/ServerEditorSheet.svelte';
   import { buildSectionPath } from './lib/navigation/route';
   import {
     AgentHealthTimeoutError,
@@ -169,6 +170,7 @@
   let manageOpen = false;
   let settingsOpen = false;
   let resetOpen = false;
+  let headerEditingServer: Schema['ServerDTO'] | undefined;
   let browserHandoffError = '';
   let addressesVisible = false;
 
@@ -744,6 +746,7 @@
   onHelp={() => void selectSection('handbook')}
   onSettings={() => (settingsOpen = true)}
   onRefresh={() => void initializeClient()}
+  onEditServer={activeServer ? () => (headerEditingServer = activeServer) : undefined}
 >
   {#if activeComponent}
     <svelte:component
@@ -815,6 +818,17 @@
       selectedServerId = id;
       status = { ...status, activeServerId: id };
     }}
+  />
+{/if}
+
+{#if headerEditingServer}
+  <ServerEditorSheet
+    api={screenApi}
+    server={headerEditingServer}
+    {canControl}
+    onClose={() => (headerEditingServer = undefined)}
+    onServersChanged={refreshServerSnapshot}
+    onSetActive={selectServer}
   />
 {/if}
 

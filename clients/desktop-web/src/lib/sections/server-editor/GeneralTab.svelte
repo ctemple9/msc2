@@ -359,7 +359,7 @@
               step={0.1}
               width="80px"
               disabled={!canControl || ramSaving}
-              onchange={handleMinRamChange}
+              onValueChange={handleMinRamChange}
             />
             <span class="unit">GB</span>
           </div>
@@ -373,7 +373,7 @@
               step={0.1}
               width="80px"
               disabled={!canControl || ramSaving}
-              onchange={handleMaxRamChange}
+              onValueChange={handleMaxRamChange}
             />
             <span class="unit">GB</span>
           </div>

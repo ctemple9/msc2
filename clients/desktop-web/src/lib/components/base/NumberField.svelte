@@ -15,13 +15,13 @@
   export let min: number | undefined = undefined;
   export let max: number | undefined = undefined;
   export let step: number | undefined = undefined;
-  export let onchange: ((value: string) => void) | undefined = undefined;
+  export let onValueChange: ((value: string) => void) | undefined = undefined;
 
   let inputEl: HTMLInputElement;
 
   function handleInput(event: Event): void {
     value = (event.currentTarget as HTMLInputElement).value;
-    onchange?.(value as string);
+    onValueChange?.(value as string);
   }
 
   function bump(delta: number): void {
@@ -29,7 +29,7 @@
     if (delta > 0) inputEl.stepUp();
     else inputEl.stepDown();
     value = inputEl.value;
-    onchange?.(value as string);
+    onValueChange?.(value as string);
   }
 </script>
 

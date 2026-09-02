@@ -10,8 +10,8 @@ describe('server editor memory settings', () => {
     expect(generalSource).toContain('Number.isFinite(parsed)');
     expect(generalSource).toContain('{ minRamGB, maxRamGB }');
     expect(generalSource).toContain('step={0.1}');
-    expect(generalSource).toContain('onchange={handleMinRamChange}');
-    expect(generalSource).toContain('onchange={handleMaxRamChange}');
+    expect(generalSource).toContain('onValueChange={handleMinRamChange}');
+    expect(generalSource).toContain('onValueChange={handleMaxRamChange}');
     expect(generalSource).not.toContain('bind:value={minRamDraft}');
     expect(generalSource).not.toContain('bind:value={maxRamDraft}');
   });

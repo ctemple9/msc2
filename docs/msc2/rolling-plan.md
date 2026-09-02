@@ -99,6 +99,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.38: refresh embedded agent web bundle`
 **Batch:** solo
 
+### P12.39 — Make RAM field updates explicit across the component boundary
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/base/NumberField.svelte`, `clients/desktop-web/src/lib/sections/server-editor/GeneralTab.svelte`, `clients/desktop-web/tests/screens/server-editor.test.ts`, `clients/desktop-web/tests/auth/desktop/desktop.test.ts`, `crates/msc-agent/web-ui/`, `docs/msc2/rolling-plan.md`
+**What:** Rename the number field's value callback from the DOM-shaped `onchange` prop to `onValueChange`, so the Bedrock RAM editor cannot lose typed or stepped values at the reusable component boundary. Keep complete-pair saves, decimal parsing, and 0.1 GB steps intact, then rebuild the embedded agent bundle that the desktop and headless agent serve on all supported host platforms.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/components/base/NumberField.svelte src/lib/sections/server-editor/GeneralTab.svelte tests/screens/server-editor.test.ts tests/auth/desktop/desktop.test.ts && npx vitest run tests/screens/server-editor.test.ts tests/components/base.test.ts tests/auth/desktop/desktop.test.ts && npm run build && node ./tools/package-agent-bundle.mjs && cd ../.. && rg -l 'onValueChange' crates/msc-agent/web-ui/assets --glob '*.js'`
+**Commit:** `P12.39: make ram field updates explicit`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

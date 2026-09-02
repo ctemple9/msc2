@@ -20,7 +20,9 @@ describe('desktop credentials', () => {
     const native = bridge();
     const session = new DesktopSessionAuth(native);
 
-    await expect(session.redeemRemotePairing('https://beta.example', 'pairing-code')).resolves.toEqual({
+    await expect(
+      session.redeemRemotePairing('https://beta.example', 'pairing-code'),
+    ).resolves.toEqual({
       agentHostId: 'agent-beta',
     });
     expect(native.exchangePairing).toHaveBeenCalledWith({
@@ -55,6 +57,27 @@ describe('desktop credentials', () => {
       expect.objectContaining({ agentHostId: 'agent-alpha', path: '/v1/me' }),
     );
     expect(JSON.stringify(native.authorizedRequest.mock.calls)).not.toContain('msc2_');
+  });
+
+  it('forwards JSON request bodies through the native desktop transport', async () => {
+    const native = bridge();
+    const session = new DesktopSessionAuth(native);
+    const client = new ApiClient({
+      baseUrl: 'https://beta.example',
+      hostId: 'agent-beta',
+      fetchImpl: session.fetchForHost('agent-beta'),
+    });
+
+    await client.requestJson('POST', '/v1/config/ram', {
+      body: { minRamGB: 2, maxRamGB: 4.5 },
+    });
+
+    const request = native.authorizedRequest.mock.calls[0]?.[0];
+    expect(request?.path).toBe('/v1/config/ram');
+    expect(JSON.parse(new TextDecoder().decode(request?.body))).toEqual({
+      minRamGB: 2,
+      maxRamGB: 4.5,
+    });
   });
 
   it('forgets only the requested host credentials and can include the local bootstrap record', async () => {

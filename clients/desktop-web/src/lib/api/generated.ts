@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 299d994b4bc1deb5027379e9cf8c8e8652dcd1cddcb8b79fbaf262401b8fc996
+// Contract SHA-256: 79083f21b07a1862e3f245b361e5ac31863b73dbf44a464b1e5b436e81a00346
 
 export interface paths {
   '/v1/active-server': {
@@ -1435,6 +1435,93 @@ export interface paths {
     put?: never;
     /** Change the active server's JAR version/build */
     post: operations['changeVersion'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/config/curseforge': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Get whether this agent has a CurseForge API key */
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description CurseForge API key status */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['CurseForgeApiKeyStatusDTO'];
+          };
+        };
+        /** @description credential_status_failed */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
+    put?: never;
+    /** Save or clear this agent's CurseForge API key */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          'application/json': components['schemas']['CurseForgeApiKeyUpdateDTO'];
+        };
+      };
+      responses: {
+        /** @description CurseForge API key status after the update */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['CurseForgeApiKeyStatusDTO'];
+          };
+        };
+        /** @description invalid_json */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description credential_store_failed */
+        500: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -6541,6 +6628,18 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    CurseForgeApiKeyStatusDTO: {
+      /** @description Whether a CurseForge API key is stored in the host secret store. The key itself is never returned. */
+      configured: boolean;
+    } & {
+      [key: string]: unknown;
+    };
+    CurseForgeApiKeyUpdateDTO: {
+      /** @description The CurseForge API key to store. An empty value clears the stored key. */
+      apiKey: string;
+    } & {
+      [key: string]: unknown;
+    };
     DesktopCredentialResultDTO: {
       agentHostId: string;
       credentialId: string;
@@ -8969,7 +9068,7 @@ export interface operations {
           'application/json': components['schemas']['ModpackImportResultDTO'];
         };
       };
-      /** @description missing_body / invalid_json / missing_staged_upload_id / missing_action */
+      /** @description missing_body / invalid_json / missing_staged_upload_id / missing_action / invalid_archive / missing_curseforge_api_key */
       400: {
         headers: {
           [name: string]: unknown;

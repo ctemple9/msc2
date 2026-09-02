@@ -1643,3 +1643,11 @@ The inventory explicitly covers the Java create-world choices (world type/flat p
 **Verify:** `cd clients/desktop-web && npm run test:unit && npm run check`, then `cd ../.. && python3 tools/phase11/phase11-check.py --gate && python3 tools/phase6/capability-matrix-check.py docs/msc2/client-capability-matrix.csv && cargo nextest run --workspace`, then Cameron's full visual parity + anti-slop pass across every screen against `~/Documents/MSCSS/` and MSC 1. (This is Phase 12's only full-workspace run.)
 **Commit:** `P12.LAST: consistency sweep and parity gate`
 **Batch:** solo
+
+### P12.40 — Configure CurseForge API keys for modpack imports
+**Status:** BUILT — awaiting Cameron's verification
+**Files:** `crates/msc-agent/src/routes/components.rs`, `crates/msc-agent/src/routes/networking.rs`, `crates/msc-api/src/dto/networking.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Follow MSC 1's behavior by making CurseForge API-key configuration a host-wide setting. Save and clear the key through the existing authenticated `SecretStore`, expose only a configured/not-configured status, add the setting to MSC Settings, and refuse a CurseForge import before file resolution when no key is configured so the staged upload remains retryable. The key is never returned by the API or written to normal application configuration.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-api -p msc-agent && cargo nextest run -p msc-api --test dto_conformance && cd clients/desktop-web && npm run api:generate -- --check && npm run build`
+**Commit:** `P12.40: configure CurseForge API keys for modpack imports`
+**Batch:** solo

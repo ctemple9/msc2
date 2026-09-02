@@ -1818,7 +1818,8 @@ pub async fn import_modpack(
         .uploads
         .lock()
         .unwrap()
-        .remove(&body.staged_upload_id);
+        .get(&body.staged_upload_id)
+        .cloned();
     let Some(entry) = entry else {
         return error_response(
             StatusCode::NOT_FOUND,
@@ -1835,6 +1836,67 @@ pub async fn import_modpack(
             "Unknown or already-redeemed staged upload.",
         );
     }
+    let transport = HttpTransport::new();
+    let secrets = match production_secret_store() {
+        Ok(secrets) => secrets,
+        Err(error) => {
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &error.to_string(),
+            );
+        }
+    };
+    let inspection_id = format!("inspect-{}", Uuid::new_v4());
+    let inspection = match modpacks::inspect_staged_archive(
+        &StdFileSystem,
+        &transport,
+        secrets.as_ref(),
+        &entry.path,
+        &staging_root(&state.lifecycle.servers_root()).join("modpacks"),
+        &inspection_id,
+    ) {
+        Ok(inspection) => inspection,
+        Err(error) => return invalid_body("invalid_body", &error.to_string()),
+    };
+
+    if matches!(inspection.format, modpacks::InspectedFormat::CurseForge(_)) {
+        let configured = match secrets.get(provider::CURSEFORGE_API_KEY_SECRET) {
+            Ok(value) => value.is_some_and(|value| !value.trim().is_empty()),
+            Err(error) => {
+                let _ = std::fs::remove_dir_all(&inspection.staged_dir);
+                return error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "internal_error",
+                    &error.to_string(),
+                );
+            }
+        };
+        if !configured {
+            let _ = std::fs::remove_dir_all(&inspection.staged_dir);
+            return error_response(
+                StatusCode::BAD_REQUEST,
+                "missing_curseforge_api_key",
+                "This CurseForge modpack needs an API key. Save one in MSC Settings, then retry the import.",
+            );
+        }
+    }
+
+    if state
+        .staging
+        .uploads
+        .lock()
+        .unwrap()
+        .remove(&body.staged_upload_id)
+        .is_none()
+    {
+        let _ = std::fs::remove_dir_all(&inspection.staged_dir);
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "not_found",
+            "Unknown or already-redeemed staged upload.",
+        );
+    }
     let operation_id = match state.lifecycle.operations().begin_lifecycle(
         "modpack-import",
         Some(server.id.clone()),
@@ -1842,54 +1904,6 @@ pub async fn import_modpack(
     ) {
         Ok(id) => id,
         Err(error) => return crate::routes::operations::operation_error_response(error),
-    };
-    let transport = HttpTransport::new();
-    let secrets = match production_secret_store() {
-        Ok(secrets) => secrets,
-        Err(error) => {
-            let _ = state.lifecycle.finish_operation_failure(
-                &operation_id,
-                "internal_error",
-                error.to_string(),
-            );
-            return (
-                StatusCode::ACCEPTED,
-                Json(ModpackImportResultDto {
-                    success: true,
-                    message: "Import started.".to_string(),
-                    operation_id: operation_id.as_str().to_string(),
-                    pending_manual_files: Vec::new(),
-                }),
-            )
-                .into_response();
-        }
-    };
-    let inspection = match modpacks::inspect_staged_archive(
-        &StdFileSystem,
-        &transport,
-        secrets.as_ref(),
-        &entry.path,
-        &staging_root(&state.lifecycle.servers_root()).join("modpacks"),
-        operation_id.as_str(),
-    ) {
-        Ok(inspection) => inspection,
-        Err(error) => {
-            let _ = state.lifecycle.finish_operation_failure(
-                &operation_id,
-                "invalid_body",
-                error.to_string(),
-            );
-            return (
-                StatusCode::ACCEPTED,
-                Json(ModpackImportResultDto {
-                    success: true,
-                    message: "Import started.".to_string(),
-                    operation_id: operation_id.as_str().to_string(),
-                    pending_manual_files: Vec::new(),
-                }),
-            )
-                .into_response();
-        }
     };
 
     let result = match &inspection.format {

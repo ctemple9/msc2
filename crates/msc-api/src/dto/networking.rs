@@ -234,6 +234,18 @@ pub struct BroadcastCredentialsStatusDto {
     pub has_password: bool,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeApiKeyStatusDto {
+    pub configured: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CurseForgeApiKeyUpdateDto {
+    pub api_key: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BroadcastJarStatusDto {

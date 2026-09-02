@@ -1144,7 +1144,7 @@
             }
           },
           "400": {
-            "description": "missing_body / invalid_json / missing_staged_upload_id / missing_action",
+            "description": "missing_body / invalid_json / missing_staged_upload_id / missing_action / invalid_archive / missing_curseforge_api_key",
             "content": {
               "application/json": {
                 "schema": {
@@ -1578,6 +1578,84 @@
           },
           "500": {
             "description": "set_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "settings"
+      }
+    },
+    "/v1/config/curseforge": {
+      "get": {
+        "summary": "Get whether this agent has a CurseForge API key",
+        "responses": {
+          "200": {
+            "description": "CurseForge API key status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurseForgeApiKeyStatusDTO"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "credential_status_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-permission-category": "none"
+      },
+      "post": {
+        "summary": "Save or clear this agent's CurseForge API key",
+        "x-notes": "The key is accepted over the authenticated connection and stored in the host secret store. It is never returned in an API response or written to normal application configuration.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CurseForgeApiKeyUpdateDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CurseForge API key status after the update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurseForgeApiKeyStatusDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "invalid_json",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "500": {
+            "description": "credential_store_failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -8622,6 +8700,30 @@
         },
         "required": [
           "hasPassword"
+        ]
+      },
+      "CurseForgeApiKeyStatusDTO": {
+        "type": "object",
+        "properties": {
+          "configured": {
+            "type": "boolean",
+            "description": "Whether a CurseForge API key is stored in the host secret store. The key itself is never returned."
+          }
+        },
+        "required": [
+          "configured"
+        ]
+      },
+      "CurseForgeApiKeyUpdateDTO": {
+        "type": "object",
+        "properties": {
+          "apiKey": {
+            "type": "string",
+            "description": "The CurseForge API key to store. An empty value clears the stored key."
+          }
+        },
+        "required": [
+          "apiKey"
         ]
       },
       "BroadcastJarStatusDTO": {

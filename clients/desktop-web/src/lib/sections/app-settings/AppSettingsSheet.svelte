@@ -5,8 +5,7 @@
   // replaced the thing they managed, not because they were never ported:
   // Remote Access -> named tokens + Tailscale (AccessSection, D-012);
   // Bedrock Runtime toggle -> automatic per-host runtime detection
-  // (Phase 10); CurseForge API Key -> D-027's manual-download import, which
-  // uses no key; Process Management (orphan scan, relaunch-on-crash) -> the
+  // (Phase 10); Process Management (orphan scan, relaunch-on-crash) -> the
   // agent is itself the OS-managed persistent service, so MSC 1's "orphaned
   // by a crashed app" problem doesn't exist here. Four more -- Config
   // Recovery, Storage, Archives, Network Ports -- have no route in the
@@ -66,6 +65,12 @@
   let broadcastJar: Schema['BroadcastJarStatusDTO'] | undefined;
   let broadcastJarBusy = false;
 
+  let curseforge: Schema['CurseForgeApiKeyStatusDTO'] = { configured: false };
+  let curseforgeApiKey = '';
+  let curseforgeApiKeyVisible = false;
+  let curseforgeSaving = false;
+  let curseforgeNotice = '';
+
   let playit: Schema['PlayitStatusResponseDTO'] = {
     serverName: '',
     serverType: 'java',
@@ -84,22 +89,24 @@
   $: colorDirty = !!serverId && colorDraft !== bannerColorFor(hostId, serverId);
 
   onMount(async () => {
-    const [root, credentials, autostart, jar, playitStatus, duckdnsStatus] = await Promise.all([
-      call<Schema['ServersRootResponseDTO']>(api, { path: '' }, '/v1/config/servers-root'),
-      call<Schema['BroadcastCredentialsStatusDTO']>(
-        api,
-        { hasPassword: false },
-        '/v1/broadcast/credentials',
-      ),
-      call<Schema['BroadcastAutoStartDTO']>(api, { enabled: true }, '/v1/broadcast/autostart'),
-      call<Schema['BroadcastJarStatusDTO']>(
-        api,
-        { installed: false, downloading: false },
-        '/v1/broadcast/jar-status',
-      ),
-      call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
-      call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
-    ]);
+    const [root, credentials, autostart, jar, playitStatus, duckdnsStatus, curseforgeStatus] =
+      await Promise.all([
+        call<Schema['ServersRootResponseDTO']>(api, { path: '' }, '/v1/config/servers-root'),
+        call<Schema['BroadcastCredentialsStatusDTO']>(
+          api,
+          { hasPassword: false },
+          '/v1/broadcast/credentials',
+        ),
+        call<Schema['BroadcastAutoStartDTO']>(api, { enabled: true }, '/v1/broadcast/autostart'),
+        call<Schema['BroadcastJarStatusDTO']>(
+          api,
+          { installed: false, downloading: false },
+          '/v1/broadcast/jar-status',
+        ),
+        call<Schema['PlayitStatusResponseDTO']>(api, playit, '/v1/playit'),
+        call<Schema['DuckDNSStatusResponseDTO']>(api, duckdns, '/v1/duckdns'),
+        call<Schema['CurseForgeApiKeyStatusDTO']>(api, curseforge, '/v1/config/curseforge'),
+      ]);
     serversRootPath = root.path;
     broadcastCredentials = credentials;
     broadcastEmail = credentials.email ?? '';
@@ -109,6 +116,7 @@
     playit = playitStatus;
     duckdns = duckdnsStatus;
     duckHost = duckdnsStatus.hostname ?? '';
+    curseforge = curseforgeStatus;
   });
 
   function handleColorInput(event: Event): void {
@@ -173,6 +181,25 @@
       broadcastNotice = errorMessage(error);
     } finally {
       broadcastSaving = false;
+    }
+  }
+
+  async function saveCurseForgeApiKey(value = curseforgeApiKey): Promise<void> {
+    if (curseforgeSaving) return;
+    curseforgeSaving = true;
+    curseforgeNotice = '';
+    try {
+      curseforge = await mutate<Schema['CurseForgeApiKeyStatusDTO']>(api, '/v1/config/curseforge', {
+        apiKey: value.trim(),
+      });
+      curseforgeApiKey = '';
+      curseforgeNotice = curseforge.configured
+        ? 'CurseForge API key saved for this agent.'
+        : 'CurseForge API key cleared.';
+    } catch (error) {
+      curseforgeNotice = errorMessage(error);
+    } finally {
+      curseforgeSaving = false;
     }
   }
 
@@ -353,6 +380,62 @@
         </div>
       </Card>
       {#if broadcastNotice}<p class="hint" role="status">{broadcastNotice}</p>{/if}
+    </section>
+
+    <section class="zone">
+      <p class="msc2-type-overline">Modpack Imports</p>
+      <p class="hint">
+        CurseForge modpacks need an API key to resolve their files. Create one at
+        <a href="https://console.curseforge.com/" target="_blank" rel="noreferrer"
+          >console.curseforge.com</a
+        >. The key is stored securely on this agent and is never shown again.
+      </p>
+      <Card padding="0">
+        <div class="service-form">
+          <div class="form-row">
+            <div class="row-text">
+              <span class="name">CurseForge API key</span>
+              <span class="hint">{curseforge.configured ? 'Configured' : 'Not configured'}</span>
+            </div>
+            <div class="password-control">
+              <Field
+                bind:value={curseforgeApiKey}
+                type={curseforgeApiKeyVisible ? 'text' : 'password'}
+                placeholder={curseforge.configured ? 'Saved — enter to replace' : 'Paste API key'}
+                width="220px"
+              />
+              <button
+                type="button"
+                class="visibility-toggle"
+                aria-label={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+                aria-pressed={curseforgeApiKeyVisible}
+                title={curseforgeApiKeyVisible ? 'Hide API key' : 'Show API key'}
+                onclick={() => (curseforgeApiKeyVisible = !curseforgeApiKeyVisible)}
+              >
+                <VisibilityIcon visible={curseforgeApiKeyVisible} />
+              </button>
+            </div>
+          </div>
+          <div class="form-actions">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={curseforgeSaving || !curseforgeApiKey.trim()}
+              onclick={() => void saveCurseForgeApiKey()}
+              >{curseforgeSaving ? 'Saving…' : 'Save key'}</Button
+            >
+            {#if curseforge.configured}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={curseforgeSaving}
+                onclick={() => void saveCurseForgeApiKey('')}>Clear key</Button
+              >
+            {/if}
+          </div>
+        </div>
+      </Card>
+      {#if curseforgeNotice}<p class="hint" role="status">{curseforgeNotice}</p>{/if}
     </section>
 
     <section class="zone">
@@ -554,6 +637,9 @@
     margin: 0;
     font-size: 12px;
     color: var(--msc2-text-tertiary);
+  }
+  .hint a {
+    color: var(--msc2-text-secondary);
   }
   .mono {
     font-family: var(--msc2-font-mono, monospace);

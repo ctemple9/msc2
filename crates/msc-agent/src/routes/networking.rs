@@ -19,11 +19,11 @@ use axum::{Json, Router, routing::post};
 use msc_api::dto::{
     BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
     BroadcastCredentialsStatusDto, BroadcastJarDownloadResultDto, BroadcastJarStatusDto,
-    BroadcastSimpleResultDto, BroadcastStatusDto, PermissionCategoryDto, PlayitActionResultDto,
-    PlayitResetResultDto, PlayitSetupAcceptedDto, PlayitSetupRequestDto, PlayitStatusDto,
-    ResourcePackActivateRequestDto, ResourcePackItemDto, ResourcePackMutationResultDto,
-    ResourcePackRemoveRequestDto, ResourcePackSetUrlRequestDto, ResourcePackToggleRequestDto,
-    ResourcePacksResponseDto,
+    BroadcastSimpleResultDto, BroadcastStatusDto, CurseForgeApiKeyStatusDto,
+    CurseForgeApiKeyUpdateDto, PermissionCategoryDto, PlayitActionResultDto, PlayitResetResultDto,
+    PlayitSetupAcceptedDto, PlayitSetupRequestDto, PlayitStatusDto, ResourcePackActivateRequestDto,
+    ResourcePackItemDto, ResourcePackMutationResultDto, ResourcePackRemoveRequestDto,
+    ResourcePackSetUrlRequestDto, ResourcePackToggleRequestDto, ResourcePacksResponseDto,
 };
 use msc_application::operations::LifecycleOperations;
 use msc_application::playit::{
@@ -603,6 +603,10 @@ pub fn router(state: NetworkingState) -> Router {
         .route(
             "/broadcast/credentials",
             axum::routing::get(broadcast_credentials).post(set_broadcast_credentials),
+        )
+        .route(
+            "/config/curseforge",
+            axum::routing::get(curseforge_api_key).post(set_curseforge_api_key),
         )
         .route(
             "/broadcast/jar-status",
@@ -1352,6 +1356,51 @@ pub async fn broadcast_credentials(State(state): State<NetworkingState>) -> Resp
         })
         .into_response(),
         Err(error) => helper_error_response(error.to_string(), "credential_status_failed"),
+    }
+}
+
+pub async fn curseforge_api_key(State(state): State<NetworkingState>) -> Response {
+    match state
+        .secrets
+        .get(msc_infrastructure::addon_provider::CURSEFORGE_API_KEY_SECRET)
+    {
+        Ok(value) => Json(CurseForgeApiKeyStatusDto {
+            configured: value.is_some_and(|value| !value.trim().is_empty()),
+        })
+        .into_response(),
+        Err(error) => helper_error_response(error.to_string(), "credential_status_failed"),
+    }
+}
+
+pub async fn set_curseforge_api_key(
+    State(state): State<NetworkingState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    body: Result<Json<CurseForgeApiKeyUpdateDto>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Settings) {
+        return response;
+    }
+    let Json(body) = match body {
+        Ok(body) => body,
+        Err(_) => return invalid_body("invalid_json", "Request body must be valid JSON."),
+    };
+    let key = body.api_key.trim();
+    let result = if key.is_empty() {
+        state
+            .secrets
+            .delete(msc_infrastructure::addon_provider::CURSEFORGE_API_KEY_SECRET)
+    } else {
+        state.secrets.set(
+            msc_infrastructure::addon_provider::CURSEFORGE_API_KEY_SECRET,
+            key,
+        )
+    };
+    match result {
+        Ok(()) => Json(CurseForgeApiKeyStatusDto {
+            configured: !key.is_empty(),
+        })
+        .into_response(),
+        Err(error) => helper_error_response(error.to_string(), "credential_store_failed"),
     }
 }
 

@@ -472,6 +472,7 @@ impl<'deps> LifecycleService<'deps> {
         self.require_active_server(id)?;
         self.active_process = None;
         self.active_ram_max_mb = None;
+        self.latest_tps = None;
         let was_user_requested_stop = self.state == LifecycleState::Stopping;
         let reached_ready_state = self.output_reducer.reached_ready();
         let next = match self.state {

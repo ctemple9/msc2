@@ -126,6 +126,19 @@ fn status_metrics_snapshot_reports_active_paper_process_state() {
     assert_eq!(snapshot.world_size_mb, Some(2.0));
     assert_eq!(snapshot.server_type.as_deref(), Some("paper"));
 
+    service
+        .mark_process_exited(&server.id, "2026-08-20T00:01:00Z")
+        .unwrap();
+    let exited_snapshot = service
+        .performance_snapshot(&metrics, "2026-08-20T00:01:00Z")
+        .unwrap();
+    assert_eq!(exited_snapshot.tps_1m, None);
+    assert_eq!(exited_snapshot.tps_5m, None);
+    assert_eq!(exited_snapshot.tps_15m, None);
+    assert_eq!(exited_snapshot.cpu_percent, None);
+    assert_eq!(exited_snapshot.ram_used_mb, None);
+    assert_eq!(exited_snapshot.ram_max_mb, None);
+
     fs::remove_dir_all(server_dir).unwrap();
 }
 

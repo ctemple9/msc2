@@ -199,7 +199,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.3 — Extract only the shared authenticated transport the TUI needs
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/src/cli/tui/transport.rs`, `crates/msc-agent/src/cli/tui/session.rs`, `crates/msc-agent/tests/tui_transport.rs`
 **What:** Move the existing CLI's HTTP request, bearer-auth, API-error, and selected-host primitives behind a shared client seam only where both one-shot commands and the TUI need them. Add authenticated WebSocket connection/reconnection support for the already-defined console, operation-progress, and notification paths, with bounded exponential backoff and a re-fetch after reconnect where the contract requires it. Preserve existing one-shot JSON output, polling, exit-code, and non-TTY behavior exactly; do not add a new API, local filesystem access to a remote host, or credential persistence.
 **Verify:** `cargo nextest run -p msc-agent --test tui_transport`

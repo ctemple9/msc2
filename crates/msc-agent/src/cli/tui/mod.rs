@@ -5,6 +5,8 @@
 pub mod app;
 pub mod layout;
 pub mod render;
+pub mod session;
+pub mod transport;
 
 use std::io;
 use std::panic::{self, AssertUnwindSafe};

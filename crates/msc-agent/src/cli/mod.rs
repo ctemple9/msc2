@@ -5,30 +5,31 @@ pub mod pairing;
 pub mod service;
 pub mod tui;
 
+use self::tui::transport::SharedClient as RemoteClient;
+
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use axum::http::{Method, StatusCode, Uri};
+use axum::http::StatusCode;
 use clap::{Args, Subcommand};
 use msc_api::dto::{
-    ActiveServerRequestDto, AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto,
-    AddonsResponseDto, BackupConfigResponseDto, BackupConfigUpdateRequestDto,
-    BackupConfigUpdateResultDto, BackupDeleteRequestDto, BackupNowResultDto,
-    BackupRestoreRequestDto, BackupRestoreResultDto, BackupsResponseDto, BedrockRuntimeStateDto,
-    BroadcastAuthPromptDto, BroadcastAutoStartDto, BroadcastCredentialsDto,
-    BroadcastJarDownloadResultDto, BroadcastSimpleResultDto, BroadcastStatusDto, CapabilitiesDto,
-    CatalogInstallRequestDto, CatalogInstallResultDto, CatalogSearchResponseDto,
-    ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto, ConnectivityResponseDto,
-    DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto, HealthProblemsResponseDto,
-    HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto, JavaConfigResponseDto,
-    JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto, JavaRuntimeInstallResultDto,
-    JavaRuntimesResponseDto, ModpackImportRequestDto, ModpackImportResultDto,
-    ModpackInspectionRequestDto, ModpackInspectionResultDto, ModpackManualFileRequestDto,
-    ModpackManualFileResultDto, OperationDto, OperationStateDto, PlayitActionResultDto,
-    PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
+    AddonRemoveRequestDto, AddonRemoveResultDto, AddonUpdateResultDto, AddonsResponseDto,
+    BackupConfigResponseDto, BackupConfigUpdateRequestDto, BackupConfigUpdateResultDto,
+    BackupDeleteRequestDto, BackupNowResultDto, BackupRestoreRequestDto, BackupRestoreResultDto,
+    BackupsResponseDto, BedrockRuntimeStateDto, BroadcastAuthPromptDto, BroadcastAutoStartDto,
+    BroadcastCredentialsDto, BroadcastJarDownloadResultDto, BroadcastSimpleResultDto,
+    BroadcastStatusDto, CapabilitiesDto, CatalogInstallRequestDto, CatalogInstallResultDto,
+    CatalogSearchResponseDto, ClientExportResponseDto, CommandResultDto, ComponentUpdateRequestDto,
+    ConnectivityResponseDto, DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, ErrorDto,
+    HealthProblemsResponseDto, HealthRepairRequestDto, HealthRepairResultDto, HealthResponseDto,
+    JavaConfigResponseDto, JavaConfigSetRequestDto, JavaRuntimeInstallRequestDto,
+    JavaRuntimeInstallResultDto, JavaRuntimesResponseDto, ModpackImportRequestDto,
+    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
+    ModpackManualFileRequestDto, ModpackManualFileResultDto, OperationDto, OperationStateDto,
+    PlayitActionResultDto, PlayitStatusDto, RemoteApiStatus, ResourcePackActivateRequestDto,
     ResourcePackMutationResultDto, ResourcePacksResponseDto, ServerCreateRequestDto,
     ServerCreateResultDto, ServerDeleteRequestDto, ServerDeleteResultDto, ServerDto,
     ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
@@ -45,8 +46,6 @@ use msc_api::dto::{
 use msc_infrastructure::archive::create_zip_from_folders;
 use msc_infrastructure::console_buffer::ConsoleLine;
 use serde::Serialize;
-use serde::de::DeserializeOwned;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 const DEFAULT_HOST: &str = "127.0.0.1";
 const DEFAULT_PORT: u16 = 48001;
@@ -893,12 +892,6 @@ struct RestartResult {
     result: String,
     active_server_id: Option<String>,
     operation_id: Option<String>,
-}
-
-#[derive(Debug, Clone)]
-struct RemoteClient {
-    base_url: String,
-    token: String,
 }
 
 #[derive(Debug)]
@@ -3207,166 +3200,15 @@ fn print_backup_config(config: &BackupConfigResponseDto) {
     }
 }
 
-impl RemoteClient {
-    fn from_common(common: &CommonArgs) -> Result<Self, CliError> {
-        Ok(Self {
-            base_url: resolve_base_url(common),
-            token: resolve_token(common)?,
-        })
-    }
-
-    async fn get_json<T: DeserializeOwned>(&self, path: &str) -> Result<T, CliError> {
-        let response = self.request_raw(Method::GET, path, None, None).await?;
-        decode_json(&response.body)
-    }
-
-    async fn post_json<Req: Serialize + ?Sized, Resp: DeserializeOwned>(
-        &self,
-        path: &str,
-        body: &Req,
-    ) -> Result<Resp, CliError> {
-        let payload = serde_json::to_vec(body)
-            .map_err(|err| CliError::internal(format!("failed to encode request body: {err}")))?;
-        let response = self
-            .request_raw(Method::POST, path, Some("application/json"), Some(payload))
-            .await?;
-        decode_json(&response.body)
-    }
-
-    /// Uploads raw bytes (a staged world-import ZIP) rather than a JSON
-    /// body — the one non-JSON request this CLI makes.
-    async fn put_bytes<Resp: DeserializeOwned>(
-        &self,
-        path: &str,
-        content_type: &str,
-        body: Vec<u8>,
-    ) -> Result<Resp, CliError> {
-        let response = self
-            .request_raw(Method::PUT, path, Some(content_type), Some(body))
-            .await?;
-        decode_json(&response.body)
-    }
-
-    /// Downloads a raw response body (a staged world-export ZIP) instead
-    /// of decoding it as JSON.
-    async fn get_raw_bytes(&self, path: &str) -> Result<Vec<u8>, CliError> {
-        let response = self.request_raw(Method::GET, path, None, None).await?;
-        Ok(response.body)
-    }
-
-    async fn request_raw(
-        &self,
-        method: Method,
-        path: &str,
-        content_type: Option<&str>,
-        body: Option<Vec<u8>>,
-    ) -> Result<RawHttpResponse, CliError> {
-        let uri: Uri = format!("{}{}", self.base_url, path)
-            .parse()
-            .map_err(|err| CliError::usage(format!("invalid request URI: {err}")))?;
-        if uri.scheme_str() == Some("https") {
-            return Err(CliError::usage(
-                "https base URLs are not implemented for the Phase 4 CLI yet",
-            ));
-        }
-        let authority = uri
-            .authority()
-            .ok_or_else(|| CliError::usage("request URI is missing a host"))?;
-        let host = authority.host().to_string();
-        let port = authority.port_u16().unwrap_or(80);
-        let target = uri
-            .path_and_query()
-            .map(|value| value.as_str().to_string())
-            .unwrap_or_else(|| "/".to_string());
-
-        let stream = tokio::net::TcpStream::connect((host.as_str(), port))
-            .await
-            .map_err(|err| {
-                CliError::internal(format!("failed to connect to {host}:{port}: {err}"))
-            })?;
-        let response = send_http_request(
-            stream,
-            &method,
-            authority.as_str(),
-            &target,
-            &self.token,
-            content_type,
-            body,
-        )
-        .await
-        .map_err(CliError::internal)?;
-        let status = StatusCode::from_u16(response.status)
-            .map_err(|err| CliError::internal(format!("response status was invalid: {err}")))?;
-
-        if !status.is_success() {
-            return Err(CliError::api(status, &response.body));
-        }
-
-        Ok(response)
-    }
-}
-
-fn decode_json<T: DeserializeOwned>(bytes: &[u8]) -> Result<T, CliError> {
-    serde_json::from_slice(bytes)
-        .map_err(|err| CliError::internal(format!("failed to decode response JSON: {err}")))
-}
-
 async fn ensure_active_server(
     client: &RemoteClient,
     selector: Option<&str>,
 ) -> Result<ServerDto, CliError> {
-    let selector = selector
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| CliError::usage("server selector cannot be empty"))?;
-    let server = resolve_server(client, selector).await?;
-    let body = ActiveServerRequestDto {
-        server_id: Some(server.id.clone()),
-    };
-    let _: SimpleResultDto = client.post_json("/v1/active-server", &body).await?;
-    Ok(server)
+    tui::session::ensure_active_server(client, selector).await
 }
 
 async fn resolve_server(client: &RemoteClient, selector: &str) -> Result<ServerDto, CliError> {
-    let servers: Vec<ServerDto> = client.get_json("/v1/servers").await?;
-    if servers.is_empty() {
-        return Err(CliError::usage("the agent reports no imported servers"));
-    }
-
-    if let Some(server) = servers.iter().find(|server| server.id == selector) {
-        return Ok(server.clone());
-    }
-
-    let exact_name_matches: Vec<&ServerDto> = servers
-        .iter()
-        .filter(|server| server.name == selector)
-        .collect();
-    if exact_name_matches.len() == 1 {
-        return Ok(exact_name_matches[0].clone());
-    }
-    if exact_name_matches.len() > 1 {
-        return Err(CliError::usage(format!(
-            "multiple servers are named {selector:?}; use the server id instead"
-        )));
-    }
-
-    let folded = selector.to_ascii_lowercase();
-    let folded_matches: Vec<&ServerDto> = servers
-        .iter()
-        .filter(|server| server.name.to_ascii_lowercase() == folded)
-        .collect();
-    if folded_matches.len() == 1 {
-        return Ok(folded_matches[0].clone());
-    }
-    if folded_matches.len() > 1 {
-        return Err(CliError::usage(format!(
-            "multiple servers match {selector:?}; use the server id instead"
-        )));
-    }
-
-    Err(CliError::usage(format!(
-        "no imported server matched {selector:?}"
-    )))
+    tui::session::resolve_server(client, selector).await
 }
 
 async fn wait_for_stopped(client: &RemoteClient) -> Result<(), CliError> {
@@ -3508,128 +3350,4 @@ impl Display for CliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(&self.message)
     }
-}
-
-struct RawHttpResponse {
-    status: u16,
-    body: Vec<u8>,
-}
-
-async fn send_http_request(
-    mut stream: tokio::net::TcpStream,
-    method: &Method,
-    authority: &str,
-    target: &str,
-    token: &str,
-    content_type: Option<&str>,
-    body: Option<Vec<u8>>,
-) -> Result<RawHttpResponse, String> {
-    let mut header = format!(
-        "{} {} HTTP/1.1\r\nHost: {}\r\nAuthorization: Bearer {}\r\nConnection: close\r\n",
-        method.as_str(),
-        target,
-        authority,
-        token
-    );
-    if let Some(body) = &body {
-        if let Some(content_type) = content_type {
-            header.push_str(&format!("Content-Type: {content_type}\r\n"));
-        }
-        header.push_str(&format!("Content-Length: {}\r\n", body.len()));
-    }
-    header.push_str("\r\n");
-
-    let mut request = header.into_bytes();
-    if let Some(body) = body {
-        request.extend_from_slice(&body);
-    }
-
-    stream
-        .write_all(&request)
-        .await
-        .map_err(|err| format!("failed to write request: {err}"))?;
-    let mut response = Vec::new();
-    let mut chunk = [0u8; 4096];
-    let mut header_end = None;
-    let mut expected_body_len = None;
-
-    let response_timeout = std::env::var("MSC2_CLI_RESPONSE_TIMEOUT_SECS")
-        .ok()
-        .and_then(|value| value.parse::<u64>().ok())
-        .filter(|seconds| *seconds > 0)
-        .map(tokio::time::Duration::from_secs)
-        .unwrap_or_else(|| tokio::time::Duration::from_secs(5));
-
-    loop {
-        let read = tokio::time::timeout(response_timeout, stream.read(&mut chunk))
-            .await
-            .map_err(|_| "timed out waiting for the agent response".to_string())?
-            .map_err(|err| format!("failed to read response: {err}"))?;
-        if read == 0 {
-            break;
-        }
-        response.extend_from_slice(&chunk[..read]);
-
-        if header_end.is_none() {
-            header_end = response.windows(4).position(|window| window == b"\r\n\r\n");
-            if let Some(end) = header_end {
-                let headers = String::from_utf8(response[..end].to_vec())
-                    .map_err(|err| format!("response headers were not valid UTF-8: {err}"))?;
-                expected_body_len = parse_content_length(&headers)?;
-                if expected_body_len == Some(0) {
-                    break;
-                }
-            }
-        }
-
-        if let (Some(end), Some(body_len)) = (header_end, expected_body_len)
-            && response.len() >= end + 4 + body_len
-        {
-            break;
-        }
-    }
-
-    let header_end = response
-        .windows(4)
-        .position(|window| window == b"\r\n\r\n")
-        .ok_or_else(|| "response did not contain a header/body separator".to_string())?;
-    let header_bytes = &response[..header_end];
-    let body_bytes = &response[header_end + 4..];
-    let headers = String::from_utf8(header_bytes.to_vec())
-        .map_err(|err| format!("response headers were not valid UTF-8: {err}"))?;
-    let body = if let Some(body_len) = parse_content_length(&headers)? {
-        let wanted = body_len.min(body_bytes.len());
-        body_bytes[..wanted].to_vec()
-    } else {
-        body_bytes.to_vec()
-    };
-    let mut lines = headers.lines();
-    let status_line = lines
-        .next()
-        .ok_or_else(|| "response was missing a status line".to_string())?;
-    let status = status_line
-        .split_whitespace()
-        .nth(1)
-        .ok_or_else(|| "response status line was malformed".to_string())?
-        .parse::<u16>()
-        .map_err(|err| format!("response status line was malformed: {err}"))?;
-
-    Ok(RawHttpResponse { status, body })
-}
-
-fn parse_content_length(headers: &str) -> Result<Option<usize>, String> {
-    let Some(line) = headers
-        .lines()
-        .find(|line| line.to_ascii_lowercase().starts_with("content-length:"))
-    else {
-        return Ok(None);
-    };
-    let value = line
-        .split_once(':')
-        .map(|(_, value)| value.trim())
-        .ok_or_else(|| "content-length header was malformed".to_string())?;
-    value
-        .parse::<usize>()
-        .map(Some)
-        .map_err(|err| format!("content-length header was malformed: {err}"))
 }

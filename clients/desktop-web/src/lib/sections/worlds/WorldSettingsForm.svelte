@@ -6,6 +6,7 @@
   import Field from '../../components/base/Field.svelte';
   import Select from '../../components/base/Select.svelte';
   import Toggle from '../../components/base/Toggle.svelte';
+  import { onboardingAnchor } from '../../help/tourAnchors';
   import {
     WORLD_DIFFICULTY_OPTIONS,
     WORLD_GAMEMODE_OPTIONS,
@@ -181,7 +182,10 @@
     <p class="boundary" role="status">{unknownFieldNotice()}</p>
   {/if}
 
-  <section class="essentials">
+  <section
+    class="essentials"
+    use:onboardingAnchor={mode === 'wizard' ? 'ob_world_essentials' : undefined}
+  >
     <p class="section-title">Essentials</p>
     <div class="field-grid">
       <label class="field-group wide">
@@ -242,7 +246,10 @@
     </p>
   {/if}
 
-  <details class="disclosure">
+  <details
+    class="disclosure"
+    use:onboardingAnchor={mode === 'wizard' ? 'ob_world_generation' : undefined}
+  >
     <summary>
       <span>
         <span class="disclosure-title">World Generation</span>
@@ -399,7 +406,10 @@
     </div>
   </details>
 
-  <details class="disclosure">
+  <details
+    class="disclosure"
+    use:onboardingAnchor={mode === 'wizard' ? 'ob_world_gameplay' : undefined}
+  >
     <summary>
       <span>
         <span class="disclosure-title">Gameplay Rules</span>

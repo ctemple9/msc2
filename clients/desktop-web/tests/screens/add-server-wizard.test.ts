@@ -229,6 +229,10 @@ describe('shared world settings flow (P12.27)', () => {
     expect(worldSettingsFormSource).toContain('Essentials');
     expect(worldSettingsFormSource).toContain('World Generation');
     expect(worldSettingsFormSource).toContain('Gameplay Rules');
+    expect(worldSettingsFormSource).toContain("'ob_world_essentials'");
+    expect(worldSettingsFormSource).toContain("'ob_world_generation'");
+    expect(worldSettingsFormSource).toContain("'ob_world_gameplay'");
+    expect(worldSettingsFormSource).toContain("mode === 'wizard'");
     expect(confirmSource).toContain('Server settings — apply to every world');
     expect(confirmSource).toContain('First world settings — saved with this world');
   });

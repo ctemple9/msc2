@@ -41,10 +41,13 @@
     'choose-path': 'ob_wizard_continue',
     'server-settings': 'ob_wizard_continue',
     'network-continue': 'ob_wizard_continue',
-    'first-world': 'ob_wizard_continue',
+    'world-generation-expand': 'ob_world_generation',
+    'world-gameplay-expand': 'ob_world_gameplay',
+    'world-review': 'ob_wizard_continue',
     'add-ons': 'ob_wizard_continue',
   };
-  const REVIEW_STEP_IDS = new Set(['server-settings', 'first-world', 'add-ons', 'create']);
+  const REVIEW_STEP_IDS = new Set(['server-settings', 'world-review', 'add-ons', 'create']);
+  const WORLD_FORM_STEP_IDS = new Set(['world-essentials', 'world-generation', 'world-gameplay']);
 
   let cardHidden = false;
   let lastIndex = -1;
@@ -204,9 +207,9 @@
             Nothing is required for a basic server. Feel free to browse or add files, then click
             Okay and Continue when you are ready.
           </p>
-        {:else if step.id === 'first-world'}
+        {:else if step.id === 'world-review'}
           <p class="hint review-hint">
-            Choose your world settings, then click Okay and Continue when you are ready.
+            Review your world settings, then click Continue when you are ready.
           </p>
         {:else}
           <p class="hint review-hint">
@@ -224,7 +227,7 @@
         <h2>{step.title}</h2>
         <p>{step.body}</p>
         <div class="actions center">
-          {#if stepIndex === 0}
+          {#if stepIndex === 0 || step.id === 'first-world'}
             <Button variant="secondary" size="sm" onclick={onSkip}>{skipLabel}</Button>
           {/if}
           <Button variant="primary" onclick={() => onAdvance(false)}
@@ -269,6 +272,15 @@
         {:else if step.id === 'choose-path'}
           <div class="hint-row">
             <p class="hint">Start Fresh is selected. Click Continue to continue.</p>
+          </div>
+        {:else if step.id === 'world-generation-expand' || step.id === 'world-gameplay-expand'}
+          <div class="hint-row">
+            <p class="hint">Expand the highlighted section to continue.</p>
+          </div>
+        {:else if WORLD_FORM_STEP_IDS.has(step.id)}
+          <div class="hint-row">
+            <p class="hint">When you are finished, click Okay.</p>
+            <Button variant="primary" size="sm" onclick={() => onAdvance(true)}>Okay</Button>
           </div>
         {:else if step.requiresUserAction}
           <!-- Checked before hideCard: this client confirms a required action by an

@@ -37,3 +37,20 @@ fn creation_result_advertises_first_start_readiness() {
     assert!(servers.contains("firstStartRequired"));
     assert!(servers.contains("provisioning::first_start_required"));
 }
+
+#[test]
+fn server_start_reconciles_enabled_helper_services_and_console_output() {
+    let networking = source("src/routes/networking.rs");
+    for marker in [
+        "fn start_broadcast_for_server",
+        "xbox_broadcast_auto_start_enabled",
+        "service.poll_output()",
+        "append_playit_console_line",
+        "spawn_broadcast_output_pump",
+    ] {
+        assert!(
+            networking.contains(marker),
+            "missing networking marker {marker}"
+        );
+    }
+}

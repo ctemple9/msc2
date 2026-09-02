@@ -268,6 +268,7 @@
                 {api}
                 serverType={activeServer?.serverType}
                 {activeServerId}
+                {running}
                 {canControl}
                 {showXboxBroadcast}
               />

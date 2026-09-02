@@ -167,8 +167,12 @@ describe('shared help and onboarding screens', () => {
     expect(helpSource).toContain('hideCard');
     expect(tourSource).toContain("'server-settings': 'ob_wizard_continue'");
     expect(tourSource).toContain("'network-continue': 'ob_wizard_continue'");
-    expect(tourSource).toContain("'first-world': 'ob_wizard_continue'");
+    expect(tourSource).toContain("'world-generation-expand': 'ob_world_generation'");
+    expect(tourSource).toContain("'world-gameplay-expand': 'ob_world_gameplay'");
+    expect(tourSource).toContain("'world-review': 'ob_wizard_continue'");
     expect(tourSource).toContain("'add-ons': 'ob_wizard_continue'");
+    expect(tourSource).toContain('WORLD_FORM_STEP_IDS');
+    expect(tourSource).toContain("stepIndex === 0 || step.id === 'first-world'");
     expect(tourSource).toContain('scrollAnchorIntoView');
     expect(tourAnchorsSource).toContain("block: 'nearest'");
     expect(tourSource).toContain('Click Continue once you have reviewed your settings.');

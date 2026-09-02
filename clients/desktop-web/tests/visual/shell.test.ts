@@ -6,6 +6,7 @@ import topBarSource from '../../src/lib/components/shell/TopBar.svelte?raw';
 import runningBannerGameSource from '../../src/lib/components/shell/RunningBannerGame.svelte?raw';
 import controlSidebarSource from '../../src/lib/components/shell/ControlSidebar.svelte?raw';
 import howToConnectSource from '../../src/lib/components/shell/sidebar/HowToConnectSection.svelte?raw';
+import consoleAccessSource from '../../src/lib/components/shell/sidebar/ConsoleAccessSection.svelte?raw';
 import detailsHeaderSource from '../../src/lib/components/shell/DetailsHeader.svelte?raw';
 import tabStripSource from '../../src/lib/components/shell/TabStrip.svelte?raw';
 import consoleDockSource from '../../src/lib/components/shell/ConsoleDock.svelte?raw';
@@ -124,6 +125,15 @@ describe('S1 shell skeleton (docs/msc2/renderings/shell.html)', () => {
     expect(howToConnectSource).toContain('class:scrollable={playitSelected');
     expect(howToConnectSource).toContain('overflow-x: auto');
     expect(howToConnectSource).toContain('.pill-value.scrollable::-webkit-scrollbar');
+  });
+
+  it('reconciles helper service labels after asynchronous agent startup', () => {
+    expect(controlSidebarSource).toContain('<ConsoleAccessSection');
+    expect(controlSidebarSource).toContain('{running}');
+    expect(consoleAccessSource).toContain('setInterval(() => void load(), 1000)');
+    expect(consoleAccessSource).toContain('let loadVersion = 0');
+    expect(consoleAccessSource).toContain('await load();');
+    expect(consoleAccessSource).not.toContain('isRunning: !playit.isRunning');
   });
 
   it('keeps the main tab content scrollable without displaying scrollbar chrome', () => {

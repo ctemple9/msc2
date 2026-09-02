@@ -55,16 +55,13 @@ export type {
 export { createBrowserPlatform } from './browser';
 export { createTauriPlatform } from './tauri';
 
-/** Starts only an already-installed service, then waits for its HTTP listener. */
+/** Reports an installed service without changing an explicit stopped state. */
 export async function prepareInstalledAgent(
   platform: AgentPreparationPlatform,
   healthCheck: () => Promise<boolean> = localAgentHealthCheck,
   options: AgentHealthCheckOptions = {},
 ): Promise<AgentServiceStatus> {
-  let status = await platform.agentServiceStatus();
-  if (status.state === 'stopped') {
-    status = await platform.manageAgentService('start');
-  }
+  const status = await platform.agentServiceStatus();
   if (status.state !== 'running') return status;
 
   const attempts = options.attempts ?? 20;

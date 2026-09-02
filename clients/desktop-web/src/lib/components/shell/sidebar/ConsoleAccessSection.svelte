@@ -18,6 +18,7 @@
   // crossplay-specific), so it always renders here. Xbox Broadcast's own
   // crossplay visibility rule lives in ControlSidebar and is passed down as
   // showXboxBroadcast.
+  import { onDestroy, onMount } from 'svelte';
   import Button from '../../base/Button.svelte';
   import type { Schema, ScreenApi } from '../../../sections/shared/types';
   import { call, errorMessage, mutate } from '../../../sections/shared/types';
@@ -26,6 +27,7 @@
   export let api: ScreenApi | undefined = undefined;
   export let serverType: string | undefined = undefined;
   export let activeServerId: string | undefined = undefined;
+  export let running = false;
   export let canControl = true;
   export let showXboxBroadcast = false;
 
@@ -36,6 +38,9 @@
   let playitBusy = false;
   let notice = '';
   let loadedForServerId: string | undefined;
+  let loadedRunning: boolean | undefined;
+  let loadVersion = 0;
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
 
   $: isBedrock = serverType === 'bedrock';
   $: broadcastRunning = isBedrock
@@ -47,18 +52,34 @@
   // jar-installed gate the oracle's own XboxBroadcastSidebarRow uses.
   $: showBroadcastControls = isBedrock || (jarStatus?.installed ?? false);
 
-  $: if (activeServerId !== loadedForServerId) {
+  $: if (activeServerId !== loadedForServerId || running !== loadedRunning) {
     loadedForServerId = activeServerId;
+    loadedRunning = running;
     void load();
   }
 
   async function load(): Promise<void> {
-    [status, jarStatus, playit] = await Promise.all([
+    const version = ++loadVersion;
+    const nextValues = await Promise.all([
       call(api, status, serverEditorPaths.broadcastStatus),
       call(api, jarStatus, serverEditorPaths.broadcastJarStatus),
       call(api, playit, serverEditorPaths.playit),
     ]);
+    if (version !== loadVersion) return;
+    [status, jarStatus, playit] = nextValues;
   }
+
+  onMount(() => {
+    // Helper startup is asynchronous and is owned by the agent, so the first
+    // read after the Minecraft process starts can still be stale. This keeps
+    // the sidebar's Start/Stop labels reconciled without a manual refresh.
+    refreshTimer = setInterval(() => void load(), 1000);
+  });
+
+  onDestroy(() => {
+    if (refreshTimer) clearInterval(refreshTimer);
+    loadVersion += 1;
+  });
 
   async function toggleBroadcast(): Promise<void> {
     if (broadcastBusy) return;
@@ -68,7 +89,7 @@
         ? serverEditorPaths.broadcastStop
         : serverEditorPaths.broadcastStart;
       await mutate<Schema['BroadcastSimpleResultDTO']>(api, path);
-      status = await call(api, status, serverEditorPaths.broadcastStatus);
+      await load();
     } catch (error) {
       notice = errorMessage(error);
     } finally {
@@ -82,7 +103,7 @@
     try {
       const path = playit.isRunning ? serverEditorPaths.playitStop : serverEditorPaths.playitStart;
       await mutate(api, path);
-      playit = { ...playit, isRunning: !playit.isRunning };
+      await load();
     } catch (error) {
       notice = errorMessage(error);
     } finally {

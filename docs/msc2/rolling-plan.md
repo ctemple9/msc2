@@ -108,6 +108,20 @@ and small (under 80 columns or 24 rows: one focused view at a time with a
 dedicated, immediately reachable console/activity view). No size may overflow
 or require a graphical desktop.
 
+**Tauri-layout fidelity.** At wide size, the TUI's reference is the established
+MSC Tauri server window, translated into terminal-native cells rather than
+copied as a browser-like dashboard. Its first screen must preserve this reading
+order: (1) the selected host/server and runtime-state identity in the header;
+(2) a left server-controls rail with picker, lifecycle controls, and grouped
+actions; (3) the server identity band; (4) a horizontal server-section tab
+strip in the same information family; (5) Overview's Connection plus Live
+Stats, then Server Health, then Activity; and (6) a persistent bottom console
+reachable from every section. Terminal controls may replace graphical
+controls, imagery, and pixel-level styling, but may not replace that
+information architecture with a generic terminal dashboard. Cameron reviews
+wide, medium, and small reference renders against the Tauri window and the
+anti-slop checklist before the terminal shell is accepted.
+
 ### P13.1 — Define the TUI boundary and preserve the command-line contract
 **Status:** not started
 **Files:** `docs/msc2/terminal-ui/phase13-scope.md`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/tui_contract.rs`
@@ -135,7 +149,7 @@ or require a graphical desktop.
 ### P13.4 — Deliver the host/server and overview vertical slice
 **Status:** not started
 **Files:** `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/src/cli/tui/overview.rs`, `crates/msc-agent/src/cli/tui/render.rs`, `crates/msc-agent/tests/tui_overview.rs`, `docs/msc2/client-capability-matrix.csv`
-**What:** Deliver a usable first TUI slice: an always-visible selected host and server, keyboard server selection, in-memory session-host switching, lifecycle controls, and Overview content driven by status, capabilities, health, connectivity, and performance API responses. Tab availability must come from the agent advertisement and token permissions, not a hardcoded product promise. Keep the live console reachable from every layout and use focused, labeled status rather than decorative color.
+**What:** Deliver a usable first TUI slice: an always-visible selected host and server, keyboard server selection, in-memory session-host switching, lifecycle controls, and Overview content driven by status, capabilities, health, connectivity, and performance API responses. At wide size, establish the Tauri-derived hierarchy defined above: left controls rail, server identity band, section tabs, Connection plus Live Stats, Server Health, Activity, and docked console in that reading order. Tab availability must come from the agent advertisement and token permissions, not a hardcoded product promise. Keep the live console reachable from every layout and use focused, labeled status rather than decorative color.
 **Verify:** `cargo nextest run -p msc-agent --test tui_overview`
 **Commit:** P13.4: add tui overview slice
 **Batch:** solo
@@ -199,7 +213,7 @@ or require a graphical desktop.
 ### P13.12 — Record Phase 13 gate evidence
 **Status:** not started
 **Files:** `docs/msc2/client-capability-matrix.csv`, `docs/msc2/terminal-ui/phase13-gate.md`, `crates/msc-agent/tests/tui_phase_gate.rs`, `docs/msc2/rolling-plan.md`
-**What:** Verify and record that bare interactive `msc` is a resilient full-screen API client while named and non-TTY commands remain scriptable; all delivered sections are capability/permission-gated; console, operation, and notification state reconnects with bounded local memory; every size class has deterministic rendering evidence; and no screen claims backend behavior that is absent. Update the TUI matrix cells only for capability-backed workflows actually delivered, leaving the scriptable CLI column independent. This is gate evidence, not an excuse to add routes or broaden filesystem/credential authority.
+**What:** Verify and record that bare interactive `msc` is a resilient full-screen API client while named and non-TTY commands remain scriptable; all delivered sections are capability/permission-gated; console, operation, and notification state reconnects with bounded local memory; every size class has deterministic rendering evidence; Cameron has visually reviewed wide, medium, and small reference renders against the Tauri-derived layout contract and anti-slop checklist; and no screen claims backend behavior that is absent. Update the TUI matrix cells only for capability-backed workflows actually delivered, leaving the scriptable CLI column independent. This is gate evidence, not an excuse to add routes or broaden filesystem/credential authority.
 **Verify:** `cargo nextest run -p msc-agent --test tui_phase_gate`
 **Commit:** P13.12: record terminal ui gate evidence
 **Batch:** stop-after

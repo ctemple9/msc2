@@ -10,6 +10,7 @@
     type AgentServiceAction,
     type AgentServiceStatus,
   } from '../../platform';
+  import type { Schema, ScreenApi } from '../shared/types';
 
   export let readiness: AgentReadiness = 'starting';
   export let onAgentRetry: (() => void) | undefined = undefined;
@@ -20,6 +21,10 @@
   export let isLocalHost = true;
   export let browserHandoffError = '';
   export let onPairAgain: ((pairingCode: string) => Promise<void>) | undefined = undefined;
+  export let onConnectHost:
+    ((label: string, baseUrl: string, pairingCode: string) => Promise<void>) | undefined =
+    undefined;
+  export let api: ScreenApi | undefined = undefined;
 
   const readinessTitles: Record<AgentReadiness, string> = {
     missing: 'Agent not installed',
@@ -43,6 +48,13 @@
   let errorMessage = '';
   let pairingCode = '';
   let pairingBusy = false;
+  let localPairingCode = '';
+  let localPairingBusy = false;
+  let copiedPairingCode = false;
+  let remoteHostLabel = '';
+  let remoteHostUrl = '';
+  let remotePairingCode = '';
+  let remotePairingBusy = false;
   let copiedCommand = '';
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
@@ -65,8 +77,10 @@
     if (!isLocalDesktopHost) {
       inspectedHostId = undefined;
       status = undefined;
+      localPairingCode = '';
     } else if (inspectedHostId !== hostId) {
       inspectedHostId = hostId;
+      localPairingCode = '';
       void refresh();
     }
   }
@@ -83,7 +97,9 @@
     errorMessage = '';
     try {
       status = await (await getPlatform()).manageAgentService(action);
-      if (status.state === 'running') await onAgentRetry?.();
+      // Re-run the parent connection flow after every service change. A stop
+      // must also clear the selected host's server snapshot immediately.
+      await onAgentRetry?.();
     } catch (error) {
       errorMessage = String(error);
     } finally {
@@ -103,6 +119,65 @@
       errorMessage = String(error);
     } finally {
       pairingBusy = false;
+    }
+  }
+
+  async function createPairingCode(): Promise<void> {
+    if (!api || readiness !== 'ready' || localPairingBusy) return;
+    localPairingBusy = true;
+    errorMessage = '';
+    try {
+      const result = await api.post<Schema['PairingCreateResultDTO']>('/v1/auth/pairings', {
+        clientKind: 'desktop',
+        label: 'Desktop pairing',
+        role: 'admin',
+        permissions: [
+          'serverControl',
+          'players',
+          'settings',
+          'addons',
+          'worlds',
+          'broadcast',
+          'networking',
+          'fleet',
+          'admin',
+        ],
+      });
+      localPairingCode = result.pairingCode;
+    } catch (error) {
+      errorMessage = String(error);
+    } finally {
+      localPairingBusy = false;
+    }
+  }
+
+  async function copyPairingCode(): Promise<void> {
+    if (!localPairingCode) return;
+    try {
+      await navigator.clipboard.writeText(localPairingCode);
+      copiedPairingCode = true;
+      setTimeout(() => (copiedPairingCode = false), 1500);
+    } catch {
+      // The code remains selectable in its field when clipboard access is unavailable.
+    }
+  }
+
+  async function connectHost(): Promise<void> {
+    const label = remoteHostLabel.trim();
+    const baseUrl = remoteHostUrl.trim();
+    const code = remotePairingCode.trim();
+    if (!onConnectHost || !label || !baseUrl || !code || remotePairingBusy) return;
+    remotePairingBusy = true;
+    errorMessage = '';
+    try {
+      await onConnectHost(label, baseUrl, code);
+      remoteHostLabel = '';
+      remoteHostUrl = '';
+      remotePairingCode = '';
+    } catch (error) {
+      errorMessage = String(error);
+    } finally {
+      remotePairingBusy = false;
     }
   }
 
@@ -259,6 +334,63 @@
     {/if}
   </Card>
 
+  {#if isDesktopShell}
+    <Card>
+      <div class="card-heading">
+        <span class="msc2-type-overline">Host pairing</span>
+        <span class="quiet-label">One-use code · 10 minutes</span>
+      </div>
+      <div class="pairing-grid">
+        <div class="pairing-block">
+          <h2>Show this agent’s pairing code</h2>
+          <p class="detail">
+            Start this agent first. Then create a code to connect another desktop, phone, or browser
+            to {hostLabel}.
+          </p>
+          {#if localPairingCode}
+            <div class="pairing-code-row">
+              <Field value={localPairingCode} />
+              <Button variant="secondary" onclick={() => void copyPairingCode()}>
+                {copiedPairingCode ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+            <p class="pairing-expiry">This code expires automatically and can be used once.</p>
+          {:else}
+            <Button
+              variant="primary"
+              disabled={readiness !== 'ready' || localPairingBusy}
+              onclick={() => void createPairingCode()}
+            >
+              {readiness === 'ready' ? 'Create pairing code' : 'Start agent to create a code'}
+            </Button>
+          {/if}
+        </div>
+
+        <div class="pairing-block">
+          <h2>Connect to another agent</h2>
+          <p class="detail">
+            Start the other agent, create its pairing code, then enter the code and address here.
+          </p>
+          <div class="remote-pairing-form">
+            <Field bind:value={remoteHostLabel} placeholder="Label, e.g. Home server" />
+            <Field bind:value={remoteHostUrl} placeholder="http://192.168.1.20:48001" />
+            <Field bind:value={remotePairingCode} placeholder="Pairing code from that agent" />
+            <Button
+              variant="primary"
+              disabled={remotePairingBusy ||
+                !remoteHostLabel.trim() ||
+                !remoteHostUrl.trim() ||
+                !remotePairingCode.trim()}
+              onclick={() => void connectHost()}
+            >
+              {remotePairingBusy ? 'Connecting…' : 'Connect agent'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  {/if}
+
   <div class="screen-grid two">
     <Card>
       <div class="card-heading">
@@ -391,12 +523,10 @@
     font-size: 15px;
     font-weight: 500;
   }
-  .heading-row p,
   .detail,
   .quiet-label {
     color: var(--msc2-text-secondary);
   }
-  .heading-row p,
   .detail {
     margin-top: 5px;
     line-height: 1.5;
@@ -522,6 +652,33 @@
     gap: 8px;
     margin-top: 14px;
   }
+  .pairing-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    margin-top: 14px;
+  }
+  .pairing-block {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+  }
+  .pairing-block h2 {
+    margin: 0;
+  }
+  .pairing-code-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+  }
+  .pairing-expiry {
+    color: var(--msc2-text-tertiary);
+    font-size: 11px;
+  }
+  .remote-pairing-form {
+    display: grid;
+    gap: 8px;
+  }
   .mono {
     font-family: var(--msc2-font-mono, monospace);
     color: var(--msc2-text-primary);
@@ -537,6 +694,9 @@
     }
     .architecture-means ul {
       columns: 1;
+    }
+    .pairing-grid {
+      grid-template-columns: 1fr;
     }
   }
 </style>

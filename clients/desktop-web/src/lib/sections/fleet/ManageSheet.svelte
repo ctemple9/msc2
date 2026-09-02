@@ -56,7 +56,6 @@
   export let isDesktopShell = false;
   export let onClose: () => void;
   export let onSwitchHost: (id: HostId) => void;
-  export let onAddHost: (label: string, baseUrl: string, pairingCode: string) => Promise<string>;
   export let onRemoveHost: (id: HostId) => void;
   export let onServersChanged: (servers: readonly Schema['ServerDTO'][]) => void;
   /** Called after `setActive`'s own `POST /v1/active-server` succeeds, so the
@@ -78,19 +77,12 @@
   let importPath = '';
   let showImport = false;
   let showWizard = false;
-  let showAddHost = false;
   let notice = '';
 
   let openMenuFor: string | undefined;
   let menuPos = { x: 0, y: 0 };
   let confirmingRemoveId: string | undefined;
   let editingServer: Schema['ServerDTO'] | undefined;
-
-  let addHostLabel = '';
-  let addHostUrl = '';
-  let addHostCode = '';
-  let addHostBusy = false;
-  let addHostError = '';
 
   $: multiHost = isDesktopShell && hosts.length > 1;
 
@@ -143,26 +135,6 @@
       await refreshServers();
     } catch (error) {
       notice = errorMessage(error);
-    }
-  }
-
-  async function submitAddHost(): Promise<void> {
-    const label = addHostLabel.trim();
-    const baseUrl = addHostUrl.trim();
-    const pairingCode = addHostCode.trim();
-    if (!label || !baseUrl || !pairingCode) return;
-    addHostBusy = true;
-    addHostError = '';
-    try {
-      await onAddHost(label, baseUrl, pairingCode);
-      addHostLabel = '';
-      addHostUrl = '';
-      addHostCode = '';
-      showAddHost = false;
-    } catch (error) {
-      addHostError = errorMessage(error);
-    } finally {
-      addHostBusy = false;
     }
   }
 
@@ -308,9 +280,6 @@
       <Button variant="secondary" onclick={() => (showImport = !showImport)} disabled={!canControl}
         >Import…</Button
       >
-      {#if isDesktopShell}
-        <Button variant="secondary" onclick={() => (showAddHost = !showAddHost)}>Add Host…</Button>
-      {/if}
       <Button
         variant="primary"
         onclick={() => (showWizard = true)}
@@ -325,20 +294,6 @@
           <Field bind:value={importPath} placeholder="/path/to/existing/server" />
           <Button variant="primary" onclick={importServer} disabled={!importPath.trim()}
             >Import</Button
-          >
-        </div>
-      </Card>
-    {/if}
-
-    {#if showAddHost}
-      <Card>
-        <div class="add-host-form">
-          <Field bind:value={addHostLabel} placeholder="Label, e.g. Garage Mini PC" />
-          <Field bind:value={addHostUrl} placeholder="https://host-address:port" />
-          <Field bind:value={addHostCode} placeholder="Pairing code from that host" />
-          {#if addHostError}<p class="error">{addHostError}</p>{/if}
-          <Button variant="primary" onclick={submitAddHost} disabled={addHostBusy}
-            >Redeem pairing code</Button
           >
         </div>
       </Card>
@@ -474,19 +429,9 @@
     padding-top: 8px;
     border-top: 1px solid var(--msc2-hairline-subtle);
   }
-  .inline-form,
-  .add-host-form {
+  .inline-form {
     display: flex;
     align-items: center;
     gap: 8px;
-  }
-  .add-host-form {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .error {
-    margin: 0;
-    font-size: 12px;
-    color: var(--msc2-status-error);
   }
 </style>

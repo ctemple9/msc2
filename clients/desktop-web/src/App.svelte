@@ -208,6 +208,16 @@
     return result.agentHostId;
   }
 
+  async function connectRemoteHost(
+    label: string,
+    baseUrl: string,
+    pairingCode: string,
+  ): Promise<void> {
+    const remoteHostId = await addRemoteHost(label, baseUrl, pairingCode);
+    await switchHost(remoteHostId);
+    await selectSection('agent-setup');
+  }
+
   async function pairAgain(pairingCode: string): Promise<void> {
     if (!isDesktopShell || hostId === localAgentHostId) {
       throw new Error('Fresh pairing is available only for a remote desktop host.');
@@ -489,6 +499,9 @@
     } catch (error) {
       capabilities = null;
       permissions = [];
+      servers = [];
+      selectedServerId = '';
+      status = defaultStatus;
       agentReadiness = readinessForError(error);
       shellMessage = `Unable to establish the selected host context: ${String(error)}`;
       hostStore.updateConnection(hostId, 'error');
@@ -564,8 +577,12 @@
     cancelTabPreload?.();
     cancelTabPreload = undefined;
     clientReady = false;
+    client = undefined;
     capabilities = null;
     permissions = [];
+    servers = [];
+    selectedServerId = '';
+    status = defaultStatus;
     agentReadiness = 'starting';
     hostStore.updateConnection(hostId, 'connecting');
     try {
@@ -743,6 +760,8 @@
       {browserHandoffError}
       onAgentRetry={() => void initializeClient()}
       onPairAgain={(code: string) => pairAgain(code)}
+      onConnectHost={(label: string, baseUrl: string, code: string) =>
+        connectRemoteHost(label, baseUrl, code)}
       onServerSelected={(id: string) => (selectedServerId = id)}
       onFleet={() => (manageOpen = true)}
       onWorlds={() => void selectSection('worlds')}
@@ -790,7 +809,6 @@
     {isDesktopShell}
     onClose={() => (manageOpen = false)}
     onSwitchHost={(id) => void switchHost(id)}
-    onAddHost={(label, baseUrl, code) => addRemoteHost(label, baseUrl, code)}
     onRemoveHost={(id) => removeRemoteHost(id)}
     onServersChanged={(updated) => (servers = updated)}
     onActivated={(id) => {

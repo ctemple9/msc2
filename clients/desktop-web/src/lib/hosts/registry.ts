@@ -93,7 +93,11 @@ export class HostStore {
   }
 
   updateConnection(hostId: HostId, connection: HostCache['connection'], error = null): void {
-    this.updateCache(hostId, { connection, error });
+    this.updateCache(hostId, {
+      connection,
+      error,
+      ...(connection === 'connected' ? {} : { servers: [], activeServerId: null }),
+    });
   }
 
   setCapabilities(

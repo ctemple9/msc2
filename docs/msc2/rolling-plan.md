@@ -75,6 +75,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.35: use published Bedrock checksums`
 **Batch:** solo
 
+### P12.36 — Keep Overview Server Health to actionable checks
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/home/HealthGrid.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Narrow the Overview Server Health grid to RAM Allocation, Last Startup, and Port Reachability. Remove Java Runtime, Add-on Jars, Bedrock World Data, and the placeholder VM Runtime from this compact Overview surface without changing the agent health payload or other client surfaces. Keep the health grid's existing card flip behavior and responsive layout.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/home/HealthGrid.svelte && npx vitest run tests/screens/overview.test.ts`
+**Commit:** `P12.36: keep overview health checks actionable`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

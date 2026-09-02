@@ -48,7 +48,9 @@ use msc_application::diagnostics::{
 };
 use msc_domain::crash_analysis::StartupProblem;
 use msc_domain::identity::ServerType;
+use msc_domain::networking::DiagnosticResult;
 use msc_infrastructure::fs::StdFileSystem;
+use msc_infrastructure::port_diagnostics::{probe_tcp, probe_udp};
 
 use crate::auth::AuthenticatedCredential;
 use crate::routes::lifecycle::{
@@ -231,7 +233,107 @@ fn java_health_card(configured_java_path: &str) -> HealthCardResult {
     diagnostics::check_java_runtime(&candidates)
 }
 
-fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
+fn server_port(server: &msc_domain::app_config_schema::ConfigServer) -> u16 {
+    if server.server_type == ServerType::Bedrock {
+        return server
+            .bedrock_port
+            .and_then(|port| u16::try_from(port).ok())
+            .filter(|port| *port > 0)
+            .unwrap_or(19132);
+    }
+
+    std::fs::read_to_string(Path::new(&server.server_dir).join("server.properties"))
+        .ok()
+        .and_then(|contents| {
+            contents
+                .lines()
+                .find_map(|line| line.strip_prefix("server-port="))
+                .and_then(|value| value.trim().parse::<u16>().ok())
+        })
+        .filter(|port| *port > 0)
+        .unwrap_or(25565)
+}
+
+fn port_reachability_card(
+    server: &msc_domain::app_config_schema::ConfigServer,
+    running: bool,
+    local: DiagnosticResult,
+) -> HealthCardDto {
+    let port = server_port(server);
+    let protocol = if server.server_type == ServerType::Bedrock {
+        "UDP"
+    } else {
+        "TCP"
+    };
+    let (detail, severity, action_label, action_code) = if !server.has_ever_started && !running {
+        (
+            format!("Waiting for first start\nPort {} ({})", port, protocol),
+            "gray",
+            Some("View Port Setup Guide"),
+            Some("openRouterPortForwardGuide"),
+        )
+    } else if !running {
+        (
+            format!(
+                "Server is off\nStart it to verify port {} ({}) reachability.",
+                port, protocol
+            ),
+            "gray",
+            Some("View Port Setup Guide"),
+            Some("openRouterPortForwardGuide"),
+        )
+    } else {
+        match local {
+            DiagnosticResult::Open => (
+                format!(
+                    "Port {} ({})\nListening locally ✓\nPublic forwarding is not verified here.\nSee Networking for the internet-side check.",
+                    port, protocol
+                ),
+                "yellow",
+                None,
+                None,
+            ),
+            DiagnosticResult::Closed => (
+                format!(
+                    "Port {} ({})\nServer is running but nothing is listening on this port.\nCheck the port in your server settings.",
+                    port, protocol
+                ),
+                "red",
+                Some("View Port Setup Guide"),
+                Some("openRouterPortForwardGuide"),
+            ),
+            DiagnosticResult::Unreachable | DiagnosticResult::Unavailable => (
+                format!(
+                    "Port {} ({})\nThe local listener could not be verified.\nSee Networking for more diagnostics.",
+                    port, protocol
+                ),
+                "yellow",
+                None,
+                None,
+            ),
+            DiagnosticResult::NotAttempted | DiagnosticResult::NotApplicable => (
+                format!("Port {} ({})\nNo probe was attempted.", port, protocol),
+                "gray",
+                None,
+                None,
+            ),
+        }
+    };
+
+    HealthCardDto {
+        id: "portReachability".to_string(),
+        title: "Port Reachability".to_string(),
+        short_label: "Port".to_string(),
+        severity: severity.to_string(),
+        detail: Some(detail),
+        icon_system_name: "network".to_string(),
+        action_label: action_label.map(str::to_string),
+        action_code: action_code.map(str::to_string),
+        help_id: None,
+    }
+}
+
+async fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
     let Some(server) = state.active_config_server() else {
         return HealthResponseDto {
             server_type: String::new(),
@@ -244,6 +346,22 @@ fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
     };
 
     let cfg = state.app_config_snapshot();
+    let server_running = state.status_snapshot().running;
+    let port = server_port(&server);
+    let server_type = server.server_type;
+    let local_port = if server_running {
+        tokio::task::spawn_blocking(move || {
+            if server_type == ServerType::Bedrock {
+                probe_udp("127.0.0.1", port, std::time::Duration::from_secs(1))
+            } else {
+                probe_tcp("127.0.0.1", port, std::time::Duration::from_secs(1))
+            }
+        })
+        .await
+        .unwrap_or(DiagnosticResult::Unavailable)
+    } else {
+        DiagnosticResult::NotAttempted
+    };
     let directory = diagnostics::check_directory(
         &server.server_dir,
         probe_directory(Path::new(&server.server_dir)),
@@ -283,7 +401,7 @@ fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
         card_result_to_dto(java),
         card_result_to_dto(ram),
         card_result_to_dto(last_startup),
-        not_yet_implemented_card("portReachability", "Port Reachability", "Port"),
+        port_reachability_card(&server, server_running, local_port),
         card_result_to_dto(component_jars),
     ];
     if server.server_type == ServerType::Bedrock {
@@ -305,7 +423,7 @@ fn health_response_for(state: &LifecycleRoutesState) -> HealthResponseDto {
     HealthResponseDto {
         server_type: server.server_type.raw_value().to_string(),
         server_name: server.display_name,
-        server_running: state.status_snapshot().running,
+        server_running,
         overall_severity,
         cards,
         note: None,
@@ -362,7 +480,7 @@ fn detect_physical_ram_gb() -> i64 {
 }
 
 pub async fn health(State(state): State<LifecycleRoutesState>) -> Response {
-    let mut response = Json(health_response_for(&state)).into_response();
+    let mut response = Json(health_response_for(&state).await).into_response();
     // This route already runs outside the bearer-auth gate (see module doc)
     // and carries no secrets, so a permissive CORS allowance is safe here —
     // unlike every authenticated route, which stays same-origin-only. A

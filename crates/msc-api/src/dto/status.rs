@@ -39,10 +39,13 @@ pub struct PerformanceSnapshotDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cpu_percent: Option<PerformanceMetricNumberDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "ramUsedMB")]
     pub ram_used_mb: Option<PerformanceMetricNumberDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "ramMaxMB")]
     pub ram_max_mb: Option<PerformanceMetricNumberDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "worldSizeMB")]
     pub world_size_mb: Option<PerformanceMetricNumberDto>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub server_type: Option<String>,

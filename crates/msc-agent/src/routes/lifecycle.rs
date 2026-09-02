@@ -1557,9 +1557,14 @@ impl LifecycleRoutesState {
         let state = self.clone();
         let handle = tokio::spawn(async move {
             let mut framer = OutputLineFramer::new();
+            let mut last_metrics_poll = Instant::now();
             loop {
                 state.drain_process_events(pid, &mut framer);
                 state.enforce_first_start_safety_cap();
+                if last_metrics_poll.elapsed() >= Duration::from_secs(5) {
+                    state.poll_java_metrics(pid);
+                    last_metrics_poll = Instant::now();
+                }
                 if state
                     .inner
                     .lifecycle
@@ -1574,6 +1579,34 @@ impl LifecycleRoutesState {
             }
         });
         self.inner.pump_tasks.lock().unwrap().push(handle);
+    }
+
+    /// Requests the same live player/TPS readings MSC 1 asks for every five
+    /// seconds. The performance route is intentionally read-only: it reports
+    /// the latest values already parsed from the server's console, so the
+    /// lifecycle owner must issue these commands while the process is alive.
+    fn poll_java_metrics(&self, pid: ProcessId) {
+        let Some(server_id) = self.active_server_id() else {
+            return;
+        };
+        let Some(server) = self.inner.registry.get(&ServerId::new(server_id)) else {
+            return;
+        };
+        if server.server_type != ServerType::Java {
+            return;
+        }
+
+        let tps_command = server
+            .java_flavor
+            .tps_poll_command(server.minecraft_version.as_deref());
+        let mut lifecycle = self.inner.lifecycle.lock().unwrap();
+        if lifecycle.active_process() != Some(pid) || lifecycle.state() != LifecycleState::Running {
+            return;
+        }
+        let _ = lifecycle.send_command("list");
+        if let Some(command) = tps_command {
+            let _ = lifecycle.send_command(command);
+        }
     }
 
     fn enforce_first_start_safety_cap(&self) {

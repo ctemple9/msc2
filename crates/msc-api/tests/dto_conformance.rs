@@ -386,6 +386,10 @@ fn dto_conformance_performance_snapshot_matches_schema() {
         runtime: None,
     };
     let instance = serde_json::to_value(&example).unwrap();
+    assert!(instance.get("ramUsedMB").is_some());
+    assert!(instance.get("ramMaxMB").is_some());
+    assert!(instance.get("worldSizeMB").is_some());
+    assert!(instance.get("ramUsedMb").is_none());
     assert_conforms(&contract, schema, &instance, "PerformanceSnapshotDTO");
 }
 

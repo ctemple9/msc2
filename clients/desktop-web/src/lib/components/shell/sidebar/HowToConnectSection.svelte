@@ -38,7 +38,7 @@
 
   $: isBedrockServer = serverType === 'bedrock';
   $: bedrockEndpointPort = isBedrockServer ? gamePort : (bedrockPort ?? geyser?.port);
-  $: hasBedrockEndpoint = isBedrockServer || bedrockEndpointPort !== undefined;
+  $: hasBedrockEndpoint = isBedrockServer || geyser?.isGeyserInstalled === true;
 
   // /v1/connectivity's joinAddress and Playit's protocol-specific addresses
   // carry "host:port" combined. Local endpoints use the detected host from

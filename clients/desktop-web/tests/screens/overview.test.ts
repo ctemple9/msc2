@@ -34,7 +34,16 @@ describe('overview connection information', () => {
     expect(homeSource).toContain('hostAddress={activeServer?.hostAddress}');
     expect(homeSource).toContain('bedrockPort={activeServer?.bedrockPort}');
     expect(connectionSource).toContain('configuredBedrockPort = bedrockPort ?? geyser?.port');
-    expect(connectionSource).toContain('configuredBedrockPort !== undefined');
+    expect(connectionSource).toContain(
+      'hasGeyser = !isBedrockServer && geyser?.isGeyserInstalled === true',
+    );
+    expect(howToConnectSource).toContain(
+      'hasBedrockEndpoint = isBedrockServer || geyser?.isGeyserInstalled === true',
+    );
+    expect(connectionSource).not.toContain('configuredBedrockPort !== undefined');
+    expect(howToConnectSource).not.toContain(
+      'hasBedrockEndpoint = isBedrockServer || bedrockEndpointPort',
+    );
     expect(connectionSource).toContain(
       'playitSelected ? undefined : isBedrockServer ? gamePort : configuredBedrockPort',
     );

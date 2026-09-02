@@ -26,8 +26,7 @@
 
   $: isBedrockServer = serverType === 'bedrock';
   $: configuredBedrockPort = bedrockPort ?? geyser?.port;
-  $: hasGeyser =
-    !isBedrockServer && (geyser?.isGeyserInstalled === true || configuredBedrockPort !== undefined);
+  $: hasGeyser = !isBedrockServer && geyser?.isGeyserInstalled === true;
 
   type Endpoint = { host: string; port?: number };
 

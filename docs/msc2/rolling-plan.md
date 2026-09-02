@@ -1493,6 +1493,14 @@ For a later SVC install, local-file add, import, enable, or re-enable, re-run th
 **Commit:** `P12.21: port sidebar How to Connect and Maintenance sections`
 **Batch:** stop-after
 
+### P12.21a — Show Bedrock connection details only when Geyser exists
+**Status:** built, awaiting Cameron's verification
+**Files:** `clients/desktop-web/src/lib/sections/home/ConnectionCard.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte`, `clients/desktop-web/tests/screens/overview.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Correct the live result from the new Java server "Paper 3": its default/saved Bedrock port made Overview and How to Connect infer that Geyser was configured even though it was not installed. Keep the port solely as the address value and use `/v1/config/geyser`'s `isGeyserInstalled` as the installation authority. A Java server without Geyser now shows Overview's existing "Not configured" state and omits the sidebar's Bedrock rows; both surfaces already refresh the Geyser response every eight seconds, so the address and port appear after Geyser is installed later. Native Bedrock servers remain unchanged.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/home/ConnectionCard.svelte src/lib/components/shell/sidebar/HowToConnectSection.svelte tests/screens/overview.test.ts && npx vitest run tests/screens/overview.test.ts`
+**Commit:** `P12.21a: gate Bedrock connection details on Geyser`
+**Batch:** solo
+
 ### P12.22 — Sidebar: Console Access → Services (Xbox Broadcast + playit.gg quick control) + Quick Commands
 **Status:** built, awaiting verification
 **Files:** `clients/desktop-web/src/lib/components/shell/ControlSidebar.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/ConsoleAccessSection.svelte` (new), `clients/desktop-web/src/lib/components/shell/sidebar/QuickCommandsSection.svelte` (new)

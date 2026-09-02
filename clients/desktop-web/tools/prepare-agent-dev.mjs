@@ -88,6 +88,7 @@ function stageMacosSidecar() {
 
   const devSidecarDirectory = join(destinationRoot, 'Resources', 'agent', 'sidecar');
   const packageSidecarDirectory = join(packageAgentDirectory, 'sidecar');
+  verifySidecarEntitlement(builtSidecar);
   stageFile(builtSidecar, join(devSidecarDirectory, 'BedrockSidecar'));
   stageFile(builtSidecar, join(packageSidecarDirectory, 'BedrockSidecar'));
   for (const name of Object.keys(applianceChecksums)) {
@@ -95,6 +96,24 @@ function stageMacosSidecar() {
     stageFile(join(applianceDirectory, name), join(packageSidecarDirectory, name));
   }
   console.log(`staged Intel BedrockSidecar and appliance resources at ${devSidecarDirectory}`);
+}
+
+function verifySidecarEntitlement(sidecarPath) {
+  const verification = spawnSync(
+    'codesign',
+    ['-d', '--entitlements', ':-', sidecarPath],
+    { encoding: 'utf8' },
+  );
+  const output = `${verification.stdout}${verification.stderr}`;
+  if (
+    verification.status !== 0 ||
+    !output.includes('com.apple.security.virtualization') ||
+    !output.includes('<true/>')
+  ) {
+    fail(
+      `BedrockSidecar was built without com.apple.security.virtualization entitlement: ${sidecarPath}`,
+    );
+  }
 }
 
 function stageFile(sourcePath, destinationPath) {

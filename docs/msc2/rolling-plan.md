@@ -115,6 +115,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.40: correct ram acronym wire names`
 **Batch:** solo
 
+### P12.41 — Sign the macOS Bedrock sidecar for Virtualization.framework
+**Status:** awaiting verification
+**Files:** `sidecar/bedrock/BedrockSidecar.xcodeproj/project.pbxproj`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `docs/msc2/rolling-plan.md`
+**What:** Apply `BedrockSidecar.entitlements` to the executable instead of packaging it as an unused resource. Enable ad-hoc signing for Debug and Release so the macOS sidecar carries `com.apple.security.virtualization`, then make development staging fail if the built executable is unsigned or missing that entitlement. This affects only the macOS Bedrock VM process; native Windows/Linux Bedrock and the Phase 13 terminal UI are unchanged.
+**Verify:** `cd clients/desktop-web && npm run prepare:agent && codesign -d --entitlements :- src-tauri/target/Resources/agent/sidecar/BedrockSidecar 2>&1 | rg -A1 'com.apple.security.virtualization|<true/>'`
+**Commit:** `P12.41: sign macos bedrock sidecar`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

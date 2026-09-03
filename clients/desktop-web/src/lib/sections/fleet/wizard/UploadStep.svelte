@@ -446,7 +446,6 @@
     flex-direction: column;
     gap: 4px;
     padding: 12px 14px;
-    border-left: 2px solid var(--msc2-selection);
     background: var(--msc2-tier-chrome);
   }
   .locked-title {

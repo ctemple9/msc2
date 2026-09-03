@@ -207,6 +207,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.50: make modpack creation manifest-authoritative`
 **Batch:** solo
 
+### P12.51 — Remove decorative accent from pinned modpack context
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/UploadStep.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Keep the pinned Minecraft/loader explanation visible while removing the blue left-edge accent from its neutral context block. The information remains labeled and readable without turning a static explanation into a decorative status treatment.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/fleet/wizard/UploadStep.svelte && npx vitest run tests/screens/add-server-wizard.test.ts`
+**Commit:** `P12.51: remove pinned modpack accent`
+**Batch:** safe
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

@@ -313,7 +313,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.14 — Record Phase 13 gate evidence
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/client-capability-matrix.csv`, `docs/msc2/terminal-ui/phase13-gate.md`, `crates/msc-agent/tests/tui_phase_gate.rs`, `docs/msc2/rolling-plan.md`
 **What:** Verify and record that bare interactive `msc` is a resilient full-screen API client while named and non-TTY commands remain scriptable; all delivered sections are capability/permission-gated; console, operation, and notification state reconnects with bounded local memory; and every parity-ledger row is either delivered or a named, owner-reviewed terminal exception. Record deterministic wide/medium/small rendering evidence and Cameron's side-by-side review against the exact linked Tauri screenshots and anti-slop checklist, including first/second/third reading order, rail/dock reachability, selected host/server visibility, state clarity, and the absence of a generic dashboard treatment. Update the TUI matrix cells only for capability-backed workflows actually delivered, leaving the scriptable CLI column independent. This is gate evidence, not an excuse to add routes or broaden filesystem/credential authority.
 **Verify:** `cargo nextest run -p msc-agent --test tui_phase_gate`

@@ -215,6 +215,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.51: remove pinned modpack accent`
 **Batch:** safe
 
+### P12.52 — Remove redundant pinned modpack section
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/UploadStep.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Remove the standalone “Pinned by modpack” explanation because the existing Software and Minecraft summary rows already present the manifest-authoritative values. Keep the inspection summary and file contents unchanged.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/fleet/wizard/UploadStep.svelte && npx vitest run tests/screens/add-server-wizard.test.ts`
+**Commit:** `P12.52: remove redundant pinned modpack section`
+**Batch:** safe
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

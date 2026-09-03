@@ -293,15 +293,6 @@
       </p>
     {/if}
 
-    <div class="locked-context">
-      <span class="locked-title">Pinned by modpack</span>
-      <p>
-        Minecraft {inspection.minecraftVersion ?? 'version from manifest'} · {inspection.loaderName ??
-          'loader'}{inspection.loaderVersion ? ` ${inspection.loaderVersion}` : ''}. These values
-        cannot be changed during import.
-      </p>
-    </div>
-
     {#if inspection.files?.length}
       <details class="disclosure contents">
         <summary>View pack contents ({inspection.files.length})</summary>
@@ -440,24 +431,6 @@
     padding: 12px 14px;
     background: var(--msc2-tier-chrome);
     border-radius: 10px;
-  }
-  .locked-context {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px 14px;
-    background: var(--msc2-tier-chrome);
-  }
-  .locked-title {
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--msc2-text-primary);
-  }
-  .locked-context p {
-    margin: 0;
-    font-size: 11.5px;
-    line-height: 1.5;
-    color: var(--msc2-text-tertiary);
   }
   .contents {
     gap: 10px;

@@ -14,8 +14,9 @@ describe('overview connection information', () => {
 
   it('uses the same copy-address action label for Java and Bedrock', () => {
     expect(connectionSource).not.toContain('Copy port');
-    expect(connectionSource).toContain("copiedLabel === 'Java' ? 'Copied' : 'Copy address'");
-    expect(connectionSource).toContain("copiedLabel === 'Bedrock' ? 'Copied' : 'Copy address'");
+    expect(connectionSource).toContain(
+      "copiedLabel === (isBedrockServer ? 'Bedrock' : 'Java') ? 'Copied' : 'Copy address'",
+    );
   });
 
   it('threads the agent-reported host address into Overview and the sidebar', () => {
@@ -25,7 +26,10 @@ describe('overview connection information', () => {
       "export let playit: Schema['PlayitStatusResponseDTO'] | undefined = undefined;",
     );
     expect(connectionSource).toContain(
-      '$: javaIp = showPublic ? (publicJavaEndpoint?.host ?? null) : (hostAddress ?? null);',
+      '$: primaryPublicEndpoint = isBedrockServer ? publicBedrockEndpoint : publicJavaEndpoint;',
+    );
+    expect(connectionSource).toContain(
+      '$: primaryIp = showPublic ? (primaryPublicEndpoint?.host ?? null) : (hostAddress ?? null);',
     );
     expect(connectionSource).toMatch(
       /publicJavaValue\s*=\s*playit\s*===\s*undefined[\s\S]*playitSelected\s*\?\s*playitJavaAddress/,

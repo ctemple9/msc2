@@ -89,6 +89,10 @@
     publicBedrockValue,
     playitSelected ? undefined : isBedrockServer ? gamePort : configuredBedrockPort,
   );
+  // The single-column card represents the selected server's protocol. It
+  // must not keep using Java's Playit endpoint merely because the original
+  // layout called this cell the Java column.
+  $: primaryPublicEndpoint = isBedrockServer ? publicBedrockEndpoint : publicJavaEndpoint;
 
   function sourceTag(
     isPublic: boolean,
@@ -115,10 +119,11 @@
 
   // Local uses the detected host address. Public uses the endpoint belonging
   // to that protocol, including a different tunnel port when one exists.
-  $: javaIp = showPublic ? (publicJavaEndpoint?.host ?? null) : (hostAddress ?? null);
-  $: javaIpFallback = showPublic ? 'Not available yet' : 'Not reported by this host yet';
-  $: javaDisplayPort = showPublic
-    ? (publicJavaEndpoint?.port ?? (playit === undefined || playitSelected ? undefined : gamePort))
+  $: primaryIp = showPublic ? (primaryPublicEndpoint?.host ?? null) : (hostAddress ?? null);
+  $: primaryIpFallback = showPublic ? 'Not available yet' : 'Not reported by this host yet';
+  $: primaryDisplayPort = showPublic
+    ? (primaryPublicEndpoint?.port ??
+      (playit === undefined || playitSelected ? undefined : gamePort))
     : gamePort;
   $: geyserIp = showPublic ? (publicBedrockEndpoint?.host ?? null) : (hostAddress ?? null);
   $: geyserIpFallback = showPublic ? 'Not available yet' : 'Not reported by this host yet';
@@ -130,8 +135,8 @@
           ? gamePort
           : configuredBedrockPort))
     : configuredBedrockPort;
-  $: javaCopyValue = showPublic
-    ? endpointText(publicJavaEndpoint)
+  $: primaryCopyValue = showPublic
+    ? endpointText(primaryPublicEndpoint)
     : gamePort !== undefined
       ? String(gamePort)
       : undefined;
@@ -195,22 +200,27 @@
       <span class="label">IP</span>
       {#if !addressesVisible}
         <p class="value mono muted-value">Hidden</p>
-      {:else if javaIp}
-        <p class="value mono">{javaIp}</p>
+      {:else if primaryIp}
+        <p class="value mono">{primaryIp}</p>
       {:else}
-        <p class="value mono muted-value">{javaIpFallback}</p>
+        <p class="value mono muted-value">{primaryIpFallback}</p>
       {/if}
       <span class="label">Port</span>
       <p class="value mono">
-        {addressesVisible ? (javaDisplayPort !== undefined ? javaDisplayPort : '—') : 'Hidden'}
+        {addressesVisible
+          ? primaryDisplayPort !== undefined
+            ? primaryDisplayPort
+            : '—'
+          : 'Hidden'}
       </p>
       <Button
         variant="secondary"
         size="sm"
-        disabled={!addressesVisible || !javaCopyValue}
-        onclick={() => javaCopyValue && copy('Java', javaCopyValue)}
+        disabled={!addressesVisible || !primaryCopyValue}
+        onclick={() =>
+          primaryCopyValue && copy(isBedrockServer ? 'Bedrock' : 'Java', primaryCopyValue)}
       >
-        {copiedLabel === 'Java' ? 'Copied' : 'Copy address'}
+        {copiedLabel === (isBedrockServer ? 'Bedrock' : 'Java') ? 'Copied' : 'Copy address'}
       </Button>
     </div>
 

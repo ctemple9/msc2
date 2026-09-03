@@ -187,6 +187,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.49: show Bedrock addresses in the correct surfaces`
 **Batch:** solo
 
+### P12.50 — Keep Bedrock connection surfaces on one endpoint
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/home/ConnectionCard.svelte`, `clients/desktop-web/tests/screens/overview.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Make the Overview Connection Info card use the selected server's protocol-specific Playit endpoint. A Bedrock server now uses the Bedrock tunnel address and port, matching the sidebar, while Java continues using the Java endpoint and optional Geyser endpoint.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/home/ConnectionCard.svelte tests/screens/overview.test.ts && npx vitest run tests/screens/overview.test.ts`
+**Commit:** `P12.50: keep Bedrock connection surfaces on one endpoint`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

@@ -638,13 +638,6 @@
               {/each}
             </Card>
           {/if}
-          {#if packManaged}
-            <p class="managed-note">
-              This server was imported from a modpack. You can still add, remove, enable, disable,
-              and update individual {isModded ? 'mods' : 'plugins'}; Replace Modpack is available
-              for applying a new pack as a bulk operation.
-            </p>
-          {/if}
           <div class="footer-actions">
             <span title="File access lands with the Files tab (P12.9) — not available yet">
               <Button size="sm" variant="secondary" disabled>
@@ -876,12 +869,6 @@
     color: var(--msc2-text-secondary);
   }
 
-  .managed-note {
-    margin: -2px 0 0;
-    font-size: 11.5px;
-    line-height: 1.5;
-    color: var(--msc2-text-tertiary);
-  }
   .loading-state {
     margin: 0;
     color: var(--msc2-text-secondary);

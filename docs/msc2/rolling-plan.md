@@ -295,7 +295,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.12 — Deliver the Files section without expanding filesystem authority
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/files.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_files.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Add the capability- and permission-gated Files tab using the existing scoped browse and bounded preview routes. Preserve the desktop's Server Root → folders/files → selected preview reading flow, server context, and path metadata, but label it honestly as read-only wherever the API exposes read-only behavior. A copyable/reported path is the terminal equivalent of Show in Finder; do not smuggle in remote filesystem access, arbitrary paths, or file mutations. Provide a narrow, keyboard-first browser/detail flow that works at small terminal sizes.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Tabs/files.png`.

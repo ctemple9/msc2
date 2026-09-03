@@ -15,6 +15,7 @@ use super::backups::BackupsState;
 use super::components::{ComponentSurface, ComponentsState};
 use super::connections::ConnectionSurface;
 use super::console::ConsoleView;
+use super::files::FilesState;
 use super::health::HealthState;
 use super::layout::{LayoutMode, ShellLayout};
 use super::manage_servers::{ManageServersState, ManageSurface};
@@ -227,6 +228,10 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
         render_admin(frame, area, app);
         return;
     }
+    if app.active_tab() == 6 {
+        render_files(frame, area, app, app.files());
+        return;
+    }
     let body = if app.active_tab() == 0 {
         let health = overview.health_summary();
         let health_state = overview
@@ -292,6 +297,160 @@ fn render_admin(frame: &mut Frame, area: Rect, app: &App) {
         AdminSurface::Access => render_access_lines(&mut lines, app.access()),
     }
     render_box(frame, area, title, lines);
+}
+
+fn render_files(frame: &mut Frame, area: Rect, app: &App, files: &FilesState) {
+    let title = if app.focus() == FocusTarget::Content {
+        "› FILES · READ ONLY"
+    } else {
+        "FILES · READ ONLY"
+    };
+    let mut lines = Vec::new();
+    if let Some(error) = &files.error {
+        lines.push(Line::from(format!("Files unavailable: {error}")));
+    } else if !files.loaded {
+        lines.push(Line::from("Loading the selected server's files…"));
+    } else if files.detail_open {
+        if let Some(preview) = &files.preview {
+            let path = preview
+                .path
+                .as_deref()
+                .map(display_file_path)
+                .unwrap_or_else(|| "Server Root".to_string());
+            lines.push(Line::from(format!(
+                "Server: {}",
+                preview.name.as_deref().unwrap_or("Selected file")
+            )));
+            lines.push(Line::from(format!("Path: {path}")));
+            lines.push(Line::from(format!(
+                "Size: {} · Encoding: {}{}",
+                preview
+                    .size_bytes
+                    .map(format_file_size)
+                    .unwrap_or_else(|| "unknown".to_string()),
+                preview.encoding.as_deref().unwrap_or("unknown"),
+                if preview.truncated.unwrap_or(false) {
+                    " · preview truncated at the agent limit"
+                } else {
+                    ""
+                }
+            )));
+            lines.push(Line::from(""));
+            lines.extend(
+                preview
+                    .content
+                    .as_deref()
+                    .unwrap_or("The agent returned no preview content.")
+                    .lines()
+                    .map(|line| Line::from(line.to_string())),
+            );
+            lines.push(Line::from(""));
+            lines.push(Line::from("[esc/b] file list  [y] report path"));
+        } else {
+            lines.push(Line::from("No file preview is selected."));
+        }
+    } else if let Some(response) = &files.response {
+        lines.push(Line::from(format!(
+            "Server: {}",
+            response
+                .server_name
+                .as_deref()
+                .unwrap_or(app.overview().selected_server_name())
+        )));
+        lines.push(Line::from(format!(
+            "Path: {}{}",
+            display_file_path(&response.path),
+            response
+                .parent_path
+                .as_deref()
+                .map(|parent| format!(" · parent {}", display_file_path(parent)))
+                .unwrap_or_default()
+        )));
+        if let Some(note) = &response.note {
+            lines.push(Line::from(format!("Agent note: {note}")));
+        }
+        lines.push(Line::from(""));
+        let folders = response
+            .items
+            .iter()
+            .filter(|item| item.is_directory)
+            .collect::<Vec<_>>();
+        let files_only = response
+            .items
+            .iter()
+            .filter(|item| !item.is_directory)
+            .collect::<Vec<_>>();
+        let mut has_items = false;
+        for (label, items) in [
+            ("Folders", folders.as_slice()),
+            ("Files", files_only.as_slice()),
+        ] {
+            if items.is_empty() {
+                continue;
+            }
+            has_items = true;
+            lines.push(Line::from(label));
+            for item in items {
+                let index = response
+                    .items
+                    .iter()
+                    .position(|candidate| candidate.id == item.id)
+                    .unwrap_or_default();
+                let marker = if index == files.selected { "›" } else { " " };
+                let kind = if item.is_directory {
+                    "DIR"
+                } else if item.is_previewable {
+                    "PREVIEW"
+                } else {
+                    "FILE"
+                };
+                let metadata = if item.is_directory {
+                    String::new()
+                } else {
+                    format!(
+                        " · {}",
+                        item.size_bytes
+                            .map(format_file_size)
+                            .unwrap_or_else(|| "size unknown".to_string())
+                    )
+                };
+                lines.push(Line::from(format!(
+                    "{marker} {kind:<7} {}{}",
+                    item.name, metadata
+                )));
+            }
+            lines.push(Line::from(""));
+        }
+        if !has_items {
+            lines.push(Line::from("This folder is empty."));
+            lines.push(Line::from(""));
+        }
+        lines.push(Line::from(
+            "[j/k] choose  [enter] open/preview  [b/esc] parent  [y] report path  [r] reload",
+        ));
+    }
+    if let Some(status) = &files.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    render_box(frame, area, title, lines);
+}
+
+fn display_file_path(path: &str) -> String {
+    if path.is_empty() {
+        "Server Root".to_string()
+    } else {
+        format!("Server Root / {path}")
+    }
+}
+
+fn format_file_size(bytes: u64) -> String {
+    if bytes < 1024 {
+        return format!("{bytes} B");
+    }
+    if bytes < 1024 * 1024 {
+        return format!("{:.1} KiB", bytes as f64 / 1024.0);
+    }
+    format!("{:.1} MiB", bytes as f64 / (1024.0 * 1024.0))
 }
 
 fn render_settings_lines(lines: &mut Vec<Line<'static>>, settings: &SettingsState) {
@@ -1962,6 +2121,10 @@ fn render_small(frame: &mut Frame, area: Rect, app: &App) {
             }
             if app.active_tab() == 5 {
                 render_admin(frame, area, app);
+                return;
+            }
+            if app.active_tab() == 6 {
+                render_files(frame, area, app, app.files());
                 return;
             }
             let text = format!(

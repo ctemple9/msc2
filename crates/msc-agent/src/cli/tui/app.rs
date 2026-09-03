@@ -14,6 +14,7 @@ use super::components::{ComponentIntent, ComponentMutation, ComponentsState};
 use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, ConfirmationState};
 use super::connections::{ConnectionIntent, ConnectionMutation, ConnectionsState};
 use super::console::ConsoleView;
+use super::files::{FilesIntent, FilesState};
 use super::health::{HealthIntent, HealthMutation, HealthState};
 use super::layout::{LayoutMode, ShellLayout};
 use super::manage_servers::{ManageIntent, ManageMutation, ManageServersState};
@@ -98,12 +99,14 @@ struct HostSession {
     connections: ConnectionsState,
     health: HealthState,
     access: AccessState,
+    files: FilesState,
 }
 
 enum AppIntent {
     World(WorldIntent),
     Backup(BackupIntent),
     Component(ComponentIntent),
+    Files(FilesIntent),
 }
 
 enum AdminIntent {
@@ -169,6 +172,7 @@ impl App {
                 connections: ConnectionsState::default(),
                 health: HealthState::default(),
                 access: AccessState::default(),
+                files: FilesState::default(),
             }],
             active_host: 0,
             notes: BTreeMap::new(),
@@ -315,6 +319,17 @@ impl App {
             }
             return false;
         }
+        if self.active_tab == 6 && self.focus == FocusTarget::Content {
+            let intent = self
+                .current_session_mut()
+                .files
+                .handle_key(key)
+                .map(AppIntent::Files);
+            if let Some(intent) = intent {
+                self.handle_app_intent(intent);
+            }
+            return false;
+        }
         match key {
             KeyCode::Char('q') => return true,
             KeyCode::Char('m') => {
@@ -453,6 +468,7 @@ impl App {
             3 => self.load_performance_if_needed(),
             4 => self.load_components_if_needed(),
             5 => self.load_admin_if_needed(),
+            6 => self.load_files_if_needed(),
             _ => {}
         }
     }
@@ -505,6 +521,10 @@ impl App {
         &self.current_session().access
     }
 
+    pub fn files(&self) -> &FilesState {
+        &self.current_session().files
+    }
+
     pub fn open_admin_surface(&mut self, surface: AdminSurface) {
         self.settings_surface = surface;
         self.active_tab = 5;
@@ -512,7 +532,21 @@ impl App {
     }
 
     pub fn available_tabs(&self) -> Vec<usize> {
-        self.overview().available_tabs()
+        let mut tabs = self.overview().available_tabs();
+        if self
+            .overview()
+            .capabilities
+            .as_ref()
+            .is_some_and(|capabilities| {
+                !capabilities
+                    .base
+                    .permissions
+                    .contains(&msc_api::dto::PermissionCategoryDto::Admin)
+            })
+        {
+            tabs.retain(|tab| *tab != 6);
+        }
+        tabs
     }
 
     pub fn notes_for_selected_server(&self) -> Option<&str> {
@@ -568,6 +602,7 @@ impl App {
             connections: ConnectionsState::default(),
             health: HealthState::default(),
             access: AccessState::default(),
+            files: FilesState::default(),
         });
         self.activity.start_notifications(
             self.sessions
@@ -721,6 +756,7 @@ impl App {
                 self.current_session_mut()
                     .manage_servers
                     .set_servers(servers);
+                self.current_session_mut().files = FilesState::default();
                 self.last_action = Some(format!("Selected server {selector}"));
             }
             Err(error) => self.last_action = Some(error.to_string()),
@@ -867,6 +903,7 @@ impl App {
                 self.current_session_mut()
                     .manage_servers
                     .set_servers(servers);
+                self.current_session_mut().files = FilesState::default();
             }
             Err(error) => self.last_action = Some(error.to_string()),
         }
@@ -1071,6 +1108,30 @@ impl App {
             }
             AppIntent::Component(ComponentIntent::Confirm(mutation)) => {
                 self.begin_component_confirmation(mutation);
+            }
+            AppIntent::Files(intent) => self.handle_files_intent(intent),
+        }
+    }
+
+    fn handle_files_intent(&mut self, intent: FilesIntent) {
+        match intent {
+            FilesIntent::Navigate(path) => {
+                self.current_session_mut().files.set_requested_path(path);
+            }
+            FilesIntent::Preview(path) => {
+                let Some(client) = self.current_session().client.clone() else {
+                    self.current_session_mut().files.error =
+                        Some("File preview requires an authenticated host session".to_string());
+                    return;
+                };
+                if let Err(error) =
+                    run_blocking(self.current_session_mut().files.preview(&client, &path))
+                {
+                    self.current_session_mut().files.error = Some(error.to_string());
+                }
+            }
+            FilesIntent::ReportPath(path) => {
+                self.last_action = Some(format!("Reported path: {path}"));
             }
         }
     }
@@ -1565,6 +1626,35 @@ impl App {
             Ok(state) => self.current_session_mut().components = state,
             Err(error) => {
                 let state = &mut self.current_session_mut().components;
+                state.error = Some(error.to_string());
+                state.loaded = true;
+            }
+        }
+    }
+
+    fn load_files_if_needed(&mut self) {
+        if self.current_session().files.loaded {
+            return;
+        }
+        if self.overview().capabilities.is_some()
+            && !self.has_permission(msc_api::dto::PermissionCategoryDto::Admin)
+        {
+            let state = &mut self.current_session_mut().files;
+            state.error = Some("Files require the agent's admin permission".to_string());
+            state.loaded = true;
+            return;
+        }
+        let Some(client) = self.current_session().client.clone() else {
+            let state = &mut self.current_session_mut().files;
+            state.error = Some("Files require an authenticated host session".to_string());
+            state.loaded = true;
+            return;
+        };
+        let requested_path = self.current_session().files.requested_path.clone();
+        match run_blocking(FilesState::load(&client, requested_path)) {
+            Ok(files) => self.current_session_mut().files = files,
+            Err(error) => {
+                let state = &mut self.current_session_mut().files;
                 state.error = Some(error.to_string());
                 state.loaded = true;
             }

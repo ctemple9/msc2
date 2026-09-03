@@ -10,6 +10,7 @@ pub mod components;
 pub mod confirm;
 pub mod connections;
 pub mod console;
+pub mod files;
 pub mod health;
 pub mod layout;
 pub mod manage_servers;

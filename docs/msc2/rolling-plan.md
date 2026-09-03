@@ -171,6 +171,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.47: stop bedrock through its selected runtime during first start`
 **Batch:** solo
 
+### P12.48 — Reuse the first-start operation when stopping Bedrock
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/tests/playit_routes.rs`, `docs/msc2/rolling-plan.md`
+**What:** Keep the Pass 2 operation alive when the first-start sheet requests `/v1/stop`. Reuse the existing first-start operation instead of replacing it with a separate `bedrock-stop` operation, and make repeated stops during `Stopping` or `Stopped` idempotent so the Bedrock pump can report the clean termination that completes the sheet.
+**Verify:** `cargo nextest run -p msc-agent --test playit_routes && cargo fmt --all -- --check`
+**Commit:** `P12.48: reuse the first-start operation when stopping Bedrock`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

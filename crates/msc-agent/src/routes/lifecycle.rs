@@ -12,8 +12,8 @@ use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use msc_api::dto::{ActiveServerRequestDto, ErrorDto, PermissionCategoryDto, SimpleResultDto};
 use msc_application::bedrock_runtime::{
-    BedrockProvisionRequest, BedrockRuntimeError, BedrockRuntimeEvent, BedrockStartRequest,
-    BedrockTerminationReason,
+    BedrockProvisionRequest, BedrockRuntimeError, BedrockRuntimeEvent, BedrockRuntimeState,
+    BedrockStartRequest, BedrockTerminationReason,
 };
 #[cfg(test)]
 use msc_application::import::ImportedPaperServer;
@@ -745,13 +745,29 @@ impl LifecycleRoutesState {
     /// Stop the backend that actually owns the first-start process. The Java
     /// lifecycle service is still the right owner for Java, but Bedrock lives
     /// in the selected runtime (including the macOS VM sidecar).
+    fn stop_bedrock_runtime_if_needed(&self) -> Result<(), BedrockRuntimeError> {
+        match self.inner.bedrock_runtime.state() {
+            BedrockRuntimeState::Starting | BedrockRuntimeState::Running => {
+                self.inner.bedrock_runtime.stop()
+            }
+            // The first-start pump is already responsible for observing the
+            // resulting termination event. A repeated stop must not replace
+            // the operation or turn an in-flight shutdown into an error.
+            BedrockRuntimeState::Stopping | BedrockRuntimeState::Stopped => Ok(()),
+            state => Err(BedrockRuntimeError::InvalidState {
+                operation: "stop",
+                state,
+            }),
+        }
+    }
+
     fn stop_first_start_server(&self, server_id: &str) {
         self.stop_helpers_for_server(server_id);
         if self
             .active_bedrock_server()
             .is_some_and(|server| server.id == server_id)
         {
-            if let Err(error) = self.inner.bedrock_runtime.stop() {
+            if let Err(error) = self.stop_bedrock_runtime_if_needed() {
                 self.abort_first_start();
                 self.finish_active_lifecycle_operation_failure(&error.to_string());
             }
@@ -1292,6 +1308,43 @@ impl LifecycleRoutesState {
 
     #[allow(clippy::result_large_err)]
     pub fn stop_active_bedrock_server(&self) -> Result<LifecycleActionResult, LifecycleRouteError> {
+        let active = self
+            .active_bedrock_server()
+            .ok_or(LifecycleRouteError::Lifecycle(
+                LifecycleError::NoActiveServer,
+            ))?;
+
+        // Pass two already owns a start operation, and FirstStartSheet polls
+        // that operation even after it asks this route to stop the server.
+        // Reusing it lets the existing Bedrock pump complete the first-start
+        // result when the sidecar reports clean termination. Creating a new
+        // bedrock-stop operation here would orphan the operation in the sheet.
+        let first_start_active = self
+            .inner
+            .first_start
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|run| run.server_id == active.id);
+        if first_start_active {
+            self.stop_helpers_for_server(&active.id);
+            if let Err(error) = self.stop_bedrock_runtime_if_needed() {
+                self.finish_active_lifecycle_operation_failure(&error.to_string());
+                return Err(self.bedrock_runtime_error(error));
+            }
+            self.progress_first_start("Connections are recorded. Stopping the server.");
+            let operation_id = self
+                .inner
+                .active_lifecycle_operation
+                .lock()
+                .unwrap()
+                .clone();
+            return Ok(LifecycleActionResult {
+                active_server_id: Some(active.id),
+                operation_id: operation_id.map(|id| id.as_str().to_string()),
+            });
+        }
+
         self.drain_bedrock_events();
         let active = self
             .active_bedrock_server()

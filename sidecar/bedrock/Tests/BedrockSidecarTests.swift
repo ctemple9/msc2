@@ -60,6 +60,31 @@ final class BedrockSidecarTests: XCTestCase {
             [.provisioned(ok: false, reason: "VM kernel is missing from the app")])
     }
 
+    func testTerminatedSidecarCanBeReprovisionedForARetry() throws {
+        guard BedrockSidecarController.hostArchitectureIsIntel && VZVirtualMachine.isSupported else {
+            throw XCTSkip("Virtualization.framework is unavailable on this host")
+        }
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let kernel = directory.appendingPathComponent("vmlinuz-kata")
+        let initramfs = directory.appendingPathComponent("appliance-initramfs.gz")
+        FileManager.default.createFile(atPath: kernel.path, contents: Data([0]))
+        FileManager.default.createFile(atPath: initramfs.path, contents: Data([0]))
+
+        let controller = BedrockSidecarController(resources: TestResources(kernelURL: kernel, initramfsURL: initramfs))
+        XCTAssertEqual(
+            controller.handle(.provision(serverDir: directory.path, version: "1.26.32.2")),
+            [.provisioned(ok: true, reason: nil)])
+
+        // With no VM running, force-stop transitions the controller through
+        // the same terminated state produced by a completed first-start run.
+        XCTAssertEqual(controller.handle(.forceStop), [])
+        XCTAssertEqual(
+            controller.handle(.provision(serverDir: directory.path, version: "1.26.32.2")),
+            [.provisioned(ok: true, reason: nil)])
+    }
+
     func testGuestIPParserMatchesOracleShape() {
         XCTAssertEqual(BedrockSidecarController.parseGuestIP("[appliance] dhcp: 192.168.64.7/24"), "192.168.64.7")
         XCTAssertNil(BedrockSidecarController.parseGuestIP("[appliance] dhcp: unavailable"))

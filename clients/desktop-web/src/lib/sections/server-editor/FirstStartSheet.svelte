@@ -12,7 +12,12 @@
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation, serverEditorPaths } from './model';
   import { fleetMutationPaths } from '../fleet/model';
-  import { livePaths, type ConsoleLine } from '../console/model';
+  import {
+    consoleLineKey,
+    consoleLinesAfterClear,
+    livePaths,
+    type ConsoleLine,
+  } from '../console/model';
 
   export let api: ScreenApi | undefined = undefined;
   export let serverName: string;
@@ -63,6 +68,9 @@
   let stopRequested = false;
   let eulaAccepted = false;
   let consoleLines: ConsoleLine[] = [];
+  let consoleClearVersion = 0;
+  let consoleClearedAt: number | undefined;
+  const clearedConsoleLineKeys = new Set<string>();
   let consoleTimer: ReturnType<typeof setInterval> | undefined;
 
   $: busy =
@@ -77,8 +85,16 @@
 
   async function refreshConsole(): Promise<void> {
     if (!api) return;
+    const clearVersion = consoleClearVersion;
     try {
-      consoleLines = await api.get<ConsoleLine[]>(livePaths.tail);
+      const fetchedLines = await api.get<ConsoleLine[]>(livePaths.tail);
+      if (clearVersion === consoleClearVersion) {
+        consoleLines = consoleLinesAfterClear(
+          fetchedLines,
+          consoleClearedAt,
+          clearedConsoleLineKeys,
+        );
+      }
     } catch {
       // The operation remains authoritative if the agent is briefly
       // unreachable; keep the last visible console tail in place.
@@ -407,6 +423,13 @@
     statusLine = 'First-start setup is complete.';
     onComplete();
   }
+
+  function clearConsole(): void {
+    for (const line of consoleLines) clearedConsoleLineKeys.add(consoleLineKey(line));
+    consoleClearedAt = Date.now();
+    consoleClearVersion += 1;
+    consoleLines = [];
+  }
 </script>
 
 <Sheet {title} size="md" visible={!hidden} {onClose}>
@@ -607,7 +630,15 @@
     <section class="console-panel" aria-label="First-start console">
       <div class="console-header">
         <span>Console</span>
-        <span class="console-live">Live</span>
+        <div class="console-header-actions">
+          <span class="console-live">Live</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={!consoleLines.length}
+            onclick={clearConsole}>Clear</Button
+          >
+        </div>
       </div>
       <div class="console-body" aria-live="polite">
         {#if consoleLines.length}
@@ -791,6 +822,11 @@
     color: var(--msc2-text-secondary);
     font-size: 11px;
     font-weight: 600;
+  }
+  .console-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
   .console-live {
     color: var(--msc2-status-ok);

@@ -139,6 +139,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.43: allow bedrock reprovisioning after stop`
 **Batch:** solo
 
+### P12.44 — Fix Bedrock retry and first-start console separation
+**Status:** awaiting verification
+**Files:** `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/Tests/BedrockSidecarTests.swift`, `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `clients/desktop-web/tests/screens/first-start.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Let the long-lived macOS Bedrock sidecar accept a new provision request after its previous VM reaches `terminated`, matching the Rust runtime's stopped-retry behavior, and reset per-run guest state before binding the retry. Add a visible local Clear button to the first-start sheet's live console; keep the agent's bounded history intact, hide already-rendered lines after the next poll, allow newer lines through, and ignore stale in-flight poll results so a retry can be visually separated from the previous run.
+**Verify:** `xcodebuild test -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO && cd clients/desktop-web && npx prettier --check src/lib/sections/server-editor/FirstStartSheet.svelte tests/screens/first-start.test.ts && npx vitest run tests/screens/first-start.test.ts tests/screens/live.test.ts`
+**Commit:** `P12.44: fix Bedrock retry and first-start console separation`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

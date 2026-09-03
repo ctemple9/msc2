@@ -193,7 +193,10 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     }
 
     private func provision(serverDir: String, version: String) -> [SidecarResponse] {
-        guard case .new = state else {
+        switch state {
+        case .new, .terminated:
+            break
+        default:
             return [.provisioned(ok: false, reason: "provision-already-completed")]
         }
         guard Self.hostArchitectureIsIntel else {
@@ -212,6 +215,12 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         guard FileManager.default.fileExists(atPath: serverDir, isDirectory: &isDirectory), isDirectory.boolValue else {
             return [.provisioned(ok: false, reason: "Server folder not found: \(serverDir)")]
         }
+        // The sidecar process stays alive between first-start attempts. A
+        // terminated VM is a fresh run, so discard the previous run's guest
+        // address and termination latch before binding the next one.
+        pendingOutput.removeAll(keepingCapacity: false)
+        guestIP = nil
+        didTerminate = false
         state = .provisioned(serverDirectory: URL(fileURLWithPath: serverDir, isDirectory: true), version: version)
         return [.provisioned(ok: true, reason: nil)]
     }

@@ -16,12 +16,15 @@ describe('first-start initiation flow', () => {
     expect(sheetSource).toContain("disabled={serverType === 'java' && !eulaAccepted}");
     expect(sheetSource).toContain('livePaths.tail');
     expect(sheetSource).toContain('First-start console');
+    expect(sheetSource).toContain('consoleLinesAfterClear');
+    expect(sheetSource).toContain('onclick={clearConsole}');
+    expect(sheetSource).toContain('>Clear</Button');
     expect(sheetSource).toContain('Pass 1 of 2');
     expect(sheetSource).toContain('Pass 2 of 2');
     expect(sheetSource).toContain('serverEditorPaths.playitStart');
     expect(sheetSource).toContain('serverEditorPaths.broadcastStart');
     expect(sheetSource).toContain(
-      'Xbox Broadcast helper is ready. Continue to start it with your server.',
+      'Xbox Broadcast helper is ready. Use Set up to start it with your server.',
     );
     expect(sheetSource).toContain('600_000');
     expect(sheetSource).toContain('Future starts are manual');

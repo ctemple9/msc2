@@ -8,14 +8,18 @@ use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs, Wrap};
+use serde_json::Value;
 
 use super::access::AccessSurface;
-use super::app::{AdminSurface, App, FocusTarget, SmallSurface};
+use super::agent::AgentSurface;
+use super::app::{AdminSurface, App, FocusTarget, SmallSurface, SupportSurface};
+use super::app_settings::AppSettingsSurface;
 use super::backups::BackupsState;
 use super::components::{ComponentSurface, ComponentsState};
 use super::connections::ConnectionSurface;
 use super::console::ConsoleView;
 use super::files::FilesState;
+use super::handbook::HandbookSurface;
 use super::health::HealthState;
 use super::layout::{LayoutMode, ShellLayout};
 use super::manage_servers::{ManageServersState, ManageSurface};
@@ -38,6 +42,9 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         LayoutMode::Medium => render_standard_shell(frame, &layout, app, false),
         LayoutMode::Small => render_small(frame, layout.content, app),
     }
+    if app.support_surface().is_some() {
+        render_support(frame, layout.content, app);
+    }
     if app.confirmation().is_open() {
         render_confirmation(frame, layout.content, app);
     }
@@ -46,12 +53,14 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 fn render_header(frame: &mut Frame, area: Rect, app: &App, mode: LayoutMode) {
     let controls = match mode {
         LayoutMode::Wide => {
-            "[Tab] focus  [1-7] section  [a/x] lifecycle  [m] manage  [i] activity  [q] quit"
+            "[Tab] focus  [1-7] section  [g] handbook  [A] agent  [,] settings  [?] help  [q] quit"
         }
         LayoutMode::Medium => {
-            "[r] rail  [c] console  [s] section  [a/x] lifecycle  [m] manage  [q] quit"
+            "[r] rail  [c] console  [s] section  [g] handbook  [A] agent  [,] settings  [q] quit"
         }
-        LayoutMode::Small => "[s] sections  [c] console  [i] activity  [?] help  [q] quit",
+        LayoutMode::Small => {
+            "[s] sections  [c] console  [g] handbook  [A] agent  [?] help  [q] quit"
+        }
     };
     let state = app.overview().lifecycle_label();
     let line = Line::from(vec![
@@ -110,7 +119,7 @@ fn render_rail(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.overview().selected_server_name();
     let action = app.last_action().unwrap_or("Ready");
     let text = format!(
-        "Host session\n{}\n\nSelected server\n{}\n\nLifecycle\n{}  [a] start  [x] stop\n\nManage Servers  [m]\nServices  [v]\nHow to connect  [h]\nMaintenance  [d]\nAccess  [u]\nQuick commands\n\n{}",
+        "Host session\n{}\n\nSelected server\n{}\n\nLifecycle\n{}  [a] start  [x] stop\n\nManage Servers  [m]\nServices  [v]\nHow to connect  [h]\nMaintenance  [d]\nAccess  [u]\n\nHandbook [g]  Agent [A]\nMSC settings [,]  Help [?]\n\n{}",
         app.host(),
         selected,
         lifecycle,
@@ -2187,6 +2196,351 @@ fn render_small(frame: &mut Frame, area: Rect, app: &App) {
             area,
         ),
     }
+}
+
+fn render_support(frame: &mut Frame, area: Rect, app: &App) {
+    let width = area.width.saturating_sub(6).clamp(44, 104);
+    let height = area.height.saturating_sub(4).clamp(12, area.height.max(12));
+    let modal = Rect {
+        x: area.x + area.width.saturating_sub(width) / 2,
+        y: area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    };
+    frame.render_widget(Clear, modal);
+    match app.support_surface() {
+        Some(SupportSurface::Help) => render_support_box(
+            frame,
+            modal,
+            "› KEYBOARD HELP",
+            vec![
+                Line::from("The first session keeps the important paths close to the keyboard."),
+                Line::from(""),
+                Line::from("[g] Handbook and router guides"),
+                Line::from("[A] Agent status, pairing, and reconnect"),
+                Line::from("[,] MSC settings and reset boundaries"),
+                Line::from("[1-7] server sections  [m] Manage Servers"),
+                Line::from("[i] activity  [a/x] start or stop the selected server"),
+                Line::from("[Tab] move focus  [Esc] close this surface  [q] quit"),
+                Line::from(""),
+                Line::from(
+                    "Raw console input stays literal Minecraft text; management requests use the API.",
+                ),
+            ],
+        ),
+        Some(SupportSurface::Agent) => render_agent(frame, modal, app),
+        Some(SupportSurface::Handbook) => render_handbook(frame, modal, app),
+        Some(SupportSurface::AppSettings) => render_app_settings(frame, modal, app),
+        None => {}
+    }
+}
+
+fn render_support_box(frame: &mut Frame, area: Rect, title: &str, lines: Vec<Line<'static>>) {
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(Block::default().borders(Borders::ALL).title(title))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_agent(frame: &mut Frame, area: Rect, app: &App) {
+    let agent = app.agent();
+    let mut lines = vec![Line::from(
+        "[1] status  [2] pairing  [I] install  [S] start  [X] stop  [R] reconnect  [F] repair",
+    )];
+    if let Some(error) = &agent.error {
+        lines.push(Line::from(format!("Error: {error}")));
+    }
+    match agent.surface {
+        AgentSurface::Status => {
+            lines.push(Line::from(format!(
+                "Local service: {}  PID: {}",
+                agent.service.state.label(),
+                agent
+                    .service
+                    .pid
+                    .map_or("—".to_string(), |pid| pid.to_string())
+            )));
+            lines.push(Line::from(format!(
+                "Platform: {}  Name: {}",
+                agent.service.platform, agent.service.service_name
+            )));
+            lines.push(Line::from(agent.service.detail.clone()));
+            if let Some(identity) = &agent.identity {
+                lines.push(Line::from(format!("")));
+                lines.push(Line::from(format!(
+                    "Host session: {} ({})",
+                    identity.name, identity.role
+                )));
+                lines.push(Line::from(format!(
+                    "Permissions: {}",
+                    identity
+                        .permissions
+                        .iter()
+                        .map(|p| format!("{p:?}"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )));
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(
+                "The service runs independently of this terminal window.",
+            ));
+        }
+        AgentSurface::Pairing => {
+            lines.push(Line::from(
+                "Create a one-use desktop pairing code, or exchange a code from another MSC host.",
+            ));
+            lines.push(Line::from(
+                "[c] create code  [p] type pairing code  [enter] exchange  [r] refresh",
+            ));
+            if let Some(input) = &agent.pairing_input {
+                lines.push(Line::from(format!("Pairing code: {input}")));
+            }
+            if let Some(code) = &agent.pairing_code {
+                lines.push(Line::from(format!("New one-use code: {code}")));
+                lines.push(Line::from(format!(
+                    "Host id: {}",
+                    agent.pairing_host_id.as_deref().unwrap_or("—")
+                )));
+                lines.push(Line::from(format!(
+                    "Expires: {}",
+                    agent.pairing_expires_at.as_deref().unwrap_or("—")
+                )));
+                lines.push(Line::from(
+                    "The resulting credential is held in memory only.",
+                ));
+            }
+        }
+    }
+    if let Some(status) = &agent.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    render_support_box(frame, area, "› AGENT SUPPORT", lines);
+}
+
+fn render_handbook(frame: &mut Frame, area: Rect, app: &App) {
+    let handbook = app.handbook();
+    let mut lines = vec![Line::from(
+        "[1] topics  [s] search  [r] router guides  [t] troubleshooting  [esc] close",
+    )];
+    if let Some(error) = &handbook.error {
+        lines.push(Line::from(format!("Error: {error}")));
+    }
+    match handbook.surface {
+        HandbookSurface::Topics => {
+            lines.push(Line::from(format!("Search: {}", handbook.query)));
+            if let Some(input) = &handbook.search_input {
+                lines.push(Line::from(format!("Search input: {input}")));
+            }
+            for (index, topic) in handbook.filtered_topics().iter().take(18).enumerate() {
+                lines.push(Line::from(format!(
+                    "{} {}  [{}]",
+                    if index == handbook.selected {
+                        "›"
+                    } else {
+                        " "
+                    },
+                    topic.title,
+                    topic.category
+                )));
+            }
+            lines.push(Line::from("[j/k] choose  [enter] read selected topic"));
+        }
+        HandbookSurface::Topic => {
+            if let Some(topic) = &handbook.topic {
+                lines.push(Line::from(format!("{}  [{}]", topic.title, topic.category)));
+                if let Some(subtitle) = &topic.subtitle {
+                    lines.push(Line::from(subtitle.clone()));
+                }
+                if let Some(analogy) = &topic.analogy {
+                    lines.push(Line::from(format!("Analogy: {analogy}")));
+                }
+                lines.push(Line::from(""));
+                lines.extend(topic.body.lines().map(|line| Line::from(line.to_string())));
+                for section in &topic.sections {
+                    append_help_block(&mut lines, section);
+                }
+                let related = handbook.related_titles();
+                if !related.is_empty() {
+                    lines.push(Line::from(""));
+                    lines.push(Line::from(format!("Related: {}", related.join("  ·  "))));
+                }
+                lines.push(Line::from(
+                    "[b] topics  [j/k] related topic  [enter] open related",
+                ));
+            }
+        }
+        HandbookSurface::RouterSearch => {
+            lines.push(Line::from(
+                "Search a provider, router, mesh system, or model.",
+            ));
+            if let Some(input) = &handbook.search_input {
+                lines.push(Line::from(format!("Router search: {input}")));
+            } else {
+                lines.push(Line::from(format!(
+                    "Query: {}  [s] type a query",
+                    handbook.query
+                )));
+            }
+            for (index, (_id, title)) in handbook.router_candidates().iter().enumerate().take(12) {
+                lines.push(Line::from(format!(
+                    "{} {}",
+                    if index == handbook.router_selected {
+                        "›"
+                    } else {
+                        " "
+                    },
+                    title
+                )));
+            }
+            lines.push(Line::from(
+                "[j/k] choose  [o] open selected guide  [t] troubleshoot",
+            ));
+        }
+        HandbookSurface::RouterGuide => {
+            if let Some(guide) = &handbook.router_guide {
+                append_json_text(&mut lines, guide.get("guide"));
+                append_json_text(&mut lines, guide.get("runtime"));
+                if let Some(sections) = guide.get("sections").and_then(Value::as_array) {
+                    for section in sections {
+                        append_json_text(&mut lines, section.get("title"));
+                        append_json_text(&mut lines, section.get("items"));
+                    }
+                }
+                lines.push(Line::from("[b] router search  [t] troubleshooting"));
+            }
+        }
+        HandbookSurface::Troubleshooting => {
+            lines.push(Line::from(
+                "Select symptoms, then ask the agent for likely causes and next actions.",
+            ));
+            for (index, (id, title)) in handbook.symptoms().iter().enumerate().take(16) {
+                let selected = handbook.selected_symptoms.contains(id);
+                lines.push(Line::from(format!(
+                    "{} [{}] {}",
+                    if index == handbook.selected {
+                        "›"
+                    } else {
+                        " "
+                    },
+                    if selected { "x" } else { " " },
+                    title
+                )));
+            }
+            if let Some(analysis) = &handbook.troubleshooting {
+                lines.push(Line::from(""));
+                append_json_text(&mut lines, analysis.get("summary"));
+                append_json_text(&mut lines, analysis.get("recommendedActions"));
+            }
+            lines.push(Line::from(
+                "[j/k] choose  [space] select  [enter] analyze  [esc] back",
+            ));
+        }
+    }
+    render_support_box(frame, area, "› SERVER HANDBOOK", lines);
+}
+
+fn append_help_block(lines: &mut Vec<Line<'static>>, block: &Value) {
+    let kind = block
+        .get("type")
+        .and_then(Value::as_str)
+        .unwrap_or("content");
+    lines.push(Line::from(format!("{kind}:")));
+    for key in ["markdown", "text", "phase"] {
+        if let Some(value) = block.get(key).and_then(Value::as_str) {
+            lines.extend(value.lines().map(|line| Line::from(format!("  {line}"))));
+        }
+    }
+    for key in ["items", "bullets", "steps"] {
+        if let Some(values) = block.get(key).and_then(Value::as_array) {
+            for value in values.iter().take(20) {
+                lines.push(Line::from(format!("  • {}", value_to_text(value))));
+            }
+        }
+    }
+}
+
+fn append_json_text(lines: &mut Vec<Line<'static>>, value: Option<&Value>) {
+    let Some(value) = value else { return };
+    match value {
+        Value::String(text) => lines.extend(text.lines().map(|line| Line::from(line.to_string()))),
+        Value::Array(values) => values.iter().take(24).for_each(|value| {
+            lines.push(Line::from(format!("  • {}", value_to_text(value))));
+        }),
+        Value::Object(map) => {
+            if let Some(title) = map.get("displayName").and_then(Value::as_str) {
+                lines.push(Line::from(title.to_string()));
+            } else if let Some(title) = map.get("title").and_then(Value::as_str) {
+                lines.push(Line::from(title.to_string()));
+            }
+        }
+        _ => {}
+    }
+}
+
+fn value_to_text(value: &Value) -> String {
+    value
+        .as_str()
+        .map(str::to_string)
+        .unwrap_or_else(|| serde_json::to_string(value).unwrap_or_else(|_| "—".to_string()))
+}
+
+fn render_app_settings(frame: &mut Frame, area: Rect, app: &App) {
+    let settings = app.app_settings();
+    let mut lines = vec![Line::from(
+        "Terminal-local preferences are separate from the authenticated host reset.",
+    )];
+    if settings.surface == AppSettingsSurface::Preferences {
+        lines.push(Line::from(format!(
+            "[1] first-session guide: {}",
+            if settings.show_first_session_guide {
+                "shown"
+            } else {
+                "hidden"
+            }
+        )));
+        lines.push(Line::from(
+            "[c] reset this client (notes and presentation preferences only)",
+        ));
+        lines.push(Line::from(
+            "[2] reset host configuration  [3] reset host everything",
+        ));
+        lines.push(Line::from("[esc] close"));
+    } else {
+        lines.push(Line::from(format!("Host: {}", app.host())));
+        lines.push(Line::from(format!(
+            "Selected server: {}",
+            app.overview().selected_server_name()
+        )));
+        lines.push(Line::from(format!(
+            "Reset mode: {}",
+            settings.host_reset_mode
+        )));
+        if let Some(input) = &settings.host_reset_confirmation {
+            lines.push(Line::from(format!("Type exactly RESET AGENT: {input}")));
+            lines.push(Line::from("[enter] submit  [esc] cancel"));
+        }
+        if let Some(result) = &settings.host_reset_result {
+            lines.push(Line::from(format!("Operation: {}", result.operation_id)));
+            lines.push(Line::from(format!(
+                "State after completion: {}",
+                result.agent_state
+            )));
+            lines.push(Line::from(result.message.clone()));
+            lines.push(Line::from(
+                "The old credential cannot be used; pair this host again.",
+            ));
+        }
+    }
+    if let Some(status) = &settings.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    if let Some(error) = &settings.error {
+        lines.push(Line::from(format!("Error: {error}")));
+    }
+    render_support_box(frame, area, "› MSC SETTINGS", lines);
 }
 
 fn state_style(state: &str) -> Style {

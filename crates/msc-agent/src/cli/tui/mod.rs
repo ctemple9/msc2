@@ -4,13 +4,16 @@
 
 pub mod access;
 pub mod activity;
+pub mod agent;
 pub mod app;
+pub mod app_settings;
 pub mod backups;
 pub mod components;
 pub mod confirm;
 pub mod connections;
 pub mod console;
 pub mod files;
+pub mod handbook;
 pub mod health;
 pub mod layout;
 pub mod manage_servers;

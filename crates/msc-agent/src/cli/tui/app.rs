@@ -9,12 +9,15 @@ use ratatui::layout::Rect;
 
 use super::access::{AccessIntent, AccessMutation, AccessState};
 use super::activity::ActivityState;
+use super::agent::{AgentIntent, AgentServiceAction, AgentState};
+use super::app_settings::{AppSettingsIntent, AppSettingsState};
 use super::backups::{BackupIntent, BackupMutation, BackupsState};
 use super::components::{ComponentIntent, ComponentMutation, ComponentsState};
 use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, ConfirmationState};
 use super::connections::{ConnectionIntent, ConnectionMutation, ConnectionsState};
 use super::console::ConsoleView;
 use super::files::{FilesIntent, FilesState};
+use super::handbook::{HandbookIntent, HandbookState, HandbookSurface};
 use super::health::{HealthIntent, HealthMutation, HealthState};
 use super::layout::{LayoutMode, ShellLayout};
 use super::manage_servers::{ManageIntent, ManageMutation, ManageServersState};
@@ -56,6 +59,14 @@ pub enum SmallSurface {
     Help,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SupportSurface {
+    Help,
+    Agent,
+    Handbook,
+    AppSettings,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum AdminSurface {
     #[default]
@@ -80,6 +91,10 @@ pub struct App {
     activity: ActivityState,
     confirmation: ConfirmationState,
     settings_surface: AdminSurface,
+    support_surface: Option<SupportSurface>,
+    agent: AgentState,
+    handbook: HandbookState,
+    app_settings: AppSettingsState,
 }
 
 #[derive(Debug, Clone)]
@@ -186,6 +201,13 @@ impl App {
             activity: ActivityState::default(),
             confirmation: ConfirmationState::default(),
             settings_surface: AdminSurface::Settings,
+            support_surface: None,
+            agent: AgentState::default(),
+            handbook: HandbookState::default(),
+            app_settings: AppSettingsState {
+                show_first_session_guide: true,
+                ..AppSettingsState::default()
+            },
         }
     }
 
@@ -211,6 +233,32 @@ impl App {
                     }
                 } else {
                     self.last_action = Some("Request cancelled before dispatch".to_string());
+                }
+            }
+            return false;
+        }
+        if let Some(surface) = self.support_surface {
+            if key == KeyCode::Esc {
+                self.support_surface = None;
+                self.focus = FocusTarget::Content;
+                return false;
+            }
+            match surface {
+                SupportSurface::Help => {}
+                SupportSurface::Agent => {
+                    if let Some(intent) = self.agent.handle_key(key) {
+                        self.handle_agent_intent(intent);
+                    }
+                }
+                SupportSurface::Handbook => {
+                    if let Some(intent) = self.handbook.handle_key(key) {
+                        self.handle_handbook_intent(intent);
+                    }
+                }
+                SupportSurface::AppSettings => {
+                    if let Some(intent) = self.app_settings.handle_key(key) {
+                        self.handle_app_settings_intent(intent);
+                    }
                 }
             }
             return false;
@@ -364,7 +412,10 @@ impl App {
                 self.small_surface = SmallSurface::Console;
                 self.focus = FocusTarget::Console;
             }
-            KeyCode::Char('?') => self.small_surface = SmallSurface::Help,
+            KeyCode::Char('?') => self.open_support(SupportSurface::Help),
+            KeyCode::Char('g') => self.open_support(SupportSurface::Handbook),
+            KeyCode::Char('A') => self.open_support(SupportSurface::Agent),
+            KeyCode::Char(',') => self.open_support(SupportSurface::AppSettings),
             KeyCode::Char('i') => {
                 self.activity.open();
                 self.focus = FocusTarget::Content;
@@ -570,6 +621,32 @@ impl App {
 
     pub fn confirmation(&self) -> &ConfirmationState {
         &self.confirmation
+    }
+
+    pub fn support_surface(&self) -> Option<SupportSurface> {
+        self.support_surface
+    }
+
+    pub fn agent(&self) -> &AgentState {
+        &self.agent
+    }
+
+    pub fn handbook(&self) -> &HandbookState {
+        &self.handbook
+    }
+
+    pub fn app_settings(&self) -> &AppSettingsState {
+        &self.app_settings
+    }
+
+    pub fn open_support(&mut self, surface: SupportSurface) {
+        self.support_surface = Some(surface);
+        self.focus = FocusTarget::Content;
+        match surface {
+            SupportSurface::Agent if !self.agent.loaded => self.load_agent_support(),
+            SupportSurface::Handbook if !self.handbook.loaded => self.load_handbook_support(),
+            _ => {}
+        }
     }
 
     /// Add a host session without writing a profile or token to disk. This is
@@ -998,6 +1075,166 @@ impl App {
                 self.execute_access_mutation(client, mutation)
             }
         }
+    }
+
+    fn handle_agent_intent(&mut self, intent: AgentIntent) {
+        match intent {
+            AgentIntent::Service(action) => match AgentState::execute_service(action) {
+                Ok(status) => {
+                    self.agent.service = status;
+                    self.agent.status = Some(format!("Agent service {} completed", action.label()));
+                    if action == AgentServiceAction::Reconnect {
+                        self.replace_current_client_after_reconnect();
+                    }
+                }
+                Err(error) => self.agent.error = Some(error),
+            },
+            AgentIntent::BeginPairing => {
+                let Some(client) = self.current_session().client.clone() else {
+                    self.agent.error =
+                        Some("Pairing creation needs an authenticated host session.".to_string());
+                    return;
+                };
+                if let Err(error) = run_blocking(self.agent.create_pairing(&client)) {
+                    self.agent.error = Some(error.to_string());
+                }
+            }
+            AgentIntent::ExchangePairing(code) => {
+                let Some(client) = self.current_session().client.clone() else {
+                    self.agent.error =
+                        Some("Pairing exchange needs a host URL and current session.".to_string());
+                    return;
+                };
+                match run_blocking(self.agent.exchange_pairing(&client, code)) {
+                    Ok(exchange) => {
+                        self.current_session_mut().client = Some(exchange.client.clone());
+                        self.reload_overview(&exchange.client);
+                        self.current_session_mut()
+                            .console
+                            .start_feed(exchange.client.clone());
+                        self.last_action = Some(format!(
+                            "Paired host {}; credential kept in memory",
+                            exchange.agent_host_id
+                        ));
+                    }
+                    Err(error) => self.agent.error = Some(error.to_string()),
+                }
+            }
+        }
+    }
+
+    fn handle_handbook_intent(&mut self, intent: HandbookIntent) {
+        let Some(client) = self.current_session().client.clone() else {
+            self.handbook.error =
+                Some("Handbook requires an authenticated host session".to_string());
+            return;
+        };
+        let result = match intent {
+            HandbookIntent::LoadTopic(id) => {
+                run_blocking(HandbookState::topic(&client, id)).map(|topic| {
+                    self.handbook.topic = Some(topic);
+                    self.handbook.surface = HandbookSurface::Topic;
+                })
+            }
+            HandbookIntent::SearchRouter(query) => {
+                self.handbook.query = query;
+                run_blocking(HandbookState::search_router(
+                    &client,
+                    self.handbook.query.clone(),
+                ))
+                .map(|search| {
+                    self.handbook.router_search = Some(search);
+                    self.handbook.router_selected = 0;
+                })
+            }
+            HandbookIntent::OpenRouterGuide(id) => {
+                run_blocking(HandbookState::router_guide(&client, id)).map(|guide| {
+                    self.handbook.router_guide = Some(guide);
+                    self.handbook.surface = HandbookSurface::RouterGuide;
+                })
+            }
+            HandbookIntent::AnalyzeTroubleshooting(symptoms) => run_blocking(
+                HandbookState::analyze_troubleshooting(&client, symptoms),
+            )
+            .map(|analysis| {
+                self.handbook.troubleshooting = Some(analysis);
+            }),
+        };
+        if let Err(error) = result {
+            self.handbook.error = Some(error.to_string());
+        }
+    }
+
+    fn handle_app_settings_intent(&mut self, intent: AppSettingsIntent) {
+        match intent {
+            AppSettingsIntent::ResetClient => {
+                self.notes.clear();
+                self.app_settings.status = Some(
+                    "Client preferences reset; the agent and host data were not changed."
+                        .to_string(),
+                );
+                self.last_action = Some("Reset this client completed".to_string());
+            }
+            AppSettingsIntent::HostReset { mode, confirmation } => {
+                let Some(client) = self.current_session().client.clone() else {
+                    self.app_settings.error =
+                        Some("Host reset requires an authenticated host session".to_string());
+                    return;
+                };
+                match run_blocking(AppSettingsState::reset_host(&client, mode, confirmation)) {
+                    Ok(result) => {
+                        self.app_settings.host_reset_result = Some(result.clone());
+                        self.app_settings.host_reset_confirmation = None;
+                        self.app_settings.status = Some(result.message.clone());
+                        self.activity
+                            .track_operation(client, result.operation_id.clone());
+                        self.last_action = Some(
+                            "Host reset accepted; this credential is no longer a recovery path. Pair again after completion."
+                                .to_string(),
+                        );
+                    }
+                    Err(error) => self.app_settings.error = Some(error.to_string()),
+                }
+            }
+        }
+    }
+
+    fn load_agent_support(&mut self) {
+        let Some(client) = self.current_session().client.clone() else {
+            self.agent.error =
+                Some("Agent support needs an authenticated host session".to_string());
+            self.agent.loaded = true;
+            return;
+        };
+        match run_blocking(AgentState::load(&client)) {
+            Ok(state) => self.agent = state,
+            Err(error) => {
+                self.agent.error = Some(error.to_string());
+                self.agent.loaded = true;
+            }
+        }
+    }
+
+    fn load_handbook_support(&mut self) {
+        let Some(client) = self.current_session().client.clone() else {
+            self.handbook.error = Some("Handbook needs an authenticated host session".to_string());
+            self.handbook.loaded = true;
+            return;
+        };
+        match run_blocking(HandbookState::load(&client)) {
+            Ok(state) => self.handbook = state,
+            Err(error) => {
+                self.handbook.error = Some(error.to_string());
+                self.handbook.loaded = true;
+            }
+        }
+    }
+
+    fn replace_current_client_after_reconnect(&mut self) {
+        let Some(client) = self.current_session().client.clone() else {
+            return;
+        };
+        self.reload_overview(&client);
     }
 
     fn handle_admin_intent(&mut self, intent: AdminIntent) {

@@ -32,6 +32,13 @@ pub(crate) struct SharedClient {
 }
 
 impl SharedClient {
+    pub(crate) fn with_token(&self, token: String) -> Self {
+        Self {
+            base_url: self.base_url.clone(),
+            token,
+        }
+    }
+
     pub(crate) fn from_common(common: &CommonArgs) -> Result<Self, CliError> {
         Ok(Self {
             base_url: resolve_base_url(common),

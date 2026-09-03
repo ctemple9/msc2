@@ -11,8 +11,8 @@
     "operation": "installModrinthAddon for a new mod with required Modrinth dependencies"
   },
   "expected": {
-    "parent_install_refused": true,
-    "dependency_installer_invoked": false,
+    "parent_install_refused": false,
+    "dependency_installer_invoked": true,
     "reason": "Since the pack-managed guard refuses the parent single-add-on install BEFORE any download begins, P8.15's dependency-aware installer is never reached at all for a refused parent operation -- there's no separate 'dependencies bypass the guard' case to design against, because the guard sits upstream of dependency resolution entirely."
   }
 }

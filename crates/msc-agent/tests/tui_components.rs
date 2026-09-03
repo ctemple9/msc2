@@ -63,6 +63,7 @@ fn state() -> ComponentsState {
             server_supports_addons: true,
             pack_managed: Some(true),
             pack_name: Some("Create pack".to_string()),
+            check_addon_updates: Some(false),
             note: Some("Provider unavailable; installed state is still authoritative.".to_string()),
         }),
         catalog: Some(CatalogSearchResponseDto {

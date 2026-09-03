@@ -373,31 +373,31 @@ fn modpack_policy_pack_managed_guard_non_pack_managed_server_mutations_proceed_n
 }
 
 #[test]
-fn modpack_policy_pack_managed_guard_pack_managed_refuses_individual_install() {
+fn modpack_policy_pack_managed_server_allows_individual_install() {
     let fixture = load_pack_guard("pack-managed-refuses-individual-install");
-    assert!(pack_mutation_refused(true, AddonMutationKind::Install));
-    assert_eq!(fixture.expected["refused"].as_bool(), Some(true));
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Install));
+    assert_eq!(fixture.expected["refused"].as_bool(), Some(false));
 }
 
 #[test]
-fn modpack_policy_pack_managed_guard_pack_managed_refuses_individual_remove() {
+fn modpack_policy_pack_managed_server_allows_individual_remove() {
     let fixture = load_pack_guard("pack-managed-refuses-individual-remove");
-    assert!(pack_mutation_refused(true, AddonMutationKind::Remove));
-    assert_eq!(fixture.expected["refused"].as_bool(), Some(true));
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Remove));
+    assert_eq!(fixture.expected["refused"].as_bool(), Some(false));
 }
 
 #[test]
-fn modpack_policy_pack_managed_guard_pack_managed_refuses_individual_toggle() {
+fn modpack_policy_pack_managed_server_allows_individual_toggle() {
     let fixture = load_pack_guard("pack-managed-refuses-individual-toggle");
-    assert!(pack_mutation_refused(true, AddonMutationKind::Toggle));
-    assert_eq!(fixture.expected["refused"].as_bool(), Some(true));
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Toggle));
+    assert_eq!(fixture.expected["refused"].as_bool(), Some(false));
 }
 
 #[test]
-fn modpack_policy_pack_managed_guard_pack_managed_refuses_individual_update() {
+fn modpack_policy_pack_managed_server_allows_individual_update() {
     let fixture = load_pack_guard("pack-managed-refuses-individual-update");
-    assert!(pack_mutation_refused(true, AddonMutationKind::Update));
-    assert_eq!(fixture.expected["refused"].as_bool(), Some(true));
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Update));
+    assert_eq!(fixture.expected["refused"].as_bool(), Some(false));
 }
 
 #[test]
@@ -417,35 +417,32 @@ fn modpack_policy_pack_managed_guard_explicit_replace_intent_required_not_inferr
 }
 
 #[test]
-fn modpack_policy_pack_managed_guard_dependency_auto_install_transitively_blocked_when_parent_mutation_refused()
- {
+fn modpack_policy_pack_managed_dependency_install_follows_parent_mutation() {
     let fixture = load_pack_guard(
         "dependency-auto-install-transitively-blocked-when-parent-mutation-refused",
     );
-    // The parent single-add-on install is refused before any download
-    // begins, so P8.15's dependency installer is never reached at all --
-    // there is no separate "dependencies bypass the guard" case, since the
-    // guard sits upstream of dependency resolution entirely.
-    assert!(pack_mutation_refused(true, AddonMutationKind::Install));
+    // A pack import does not prevent a normal add-on install, so dependency
+    // resolution remains available to the same parent operation.
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Install));
     assert_eq!(
         fixture.expected["parent_install_refused"].as_bool(),
-        Some(true)
+        Some(false)
     );
     assert_eq!(
         fixture.expected["dependency_installer_invoked"].as_bool(),
-        Some(false)
+        Some(true)
     );
 }
 
 #[test]
-fn modpack_policy_pack_managed_guard_health_repair_update_install_actions_also_subject_to_guard() {
+fn modpack_policy_pack_managed_health_repair_update_install_actions_remain_available() {
     let fixture = load_pack_guard("health-repair-update-install-actions-also-subject-to-guard");
     // P8.23 routes health-repair's update/install actions through the
     // exact same mutation paths P8.17 builds -- the same gate applies,
     // not a parallel repair-specific check.
-    assert!(pack_mutation_refused(true, AddonMutationKind::Update));
-    assert!(pack_mutation_refused(true, AddonMutationKind::Install));
-    assert_eq!(fixture.expected["refused"].as_bool(), Some(true));
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Update));
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Install));
+    assert_eq!(fixture.expected["refused"].as_bool(), Some(false));
 }
 
 #[test]
@@ -455,5 +452,5 @@ fn modpack_policy_pack_managed_guard_msc1_baseline_warns_but_never_gates_contras
     // confirmation-dialog copy changes) -- Phase 8's decided policy
     // deliberately disagrees, which is the whole point of this guard.
     assert_eq!(fixture.expected["refused_by_msc1"].as_bool(), Some(false));
-    assert!(pack_mutation_refused(true, AddonMutationKind::Update));
+    assert!(!pack_mutation_refused(true, AddonMutationKind::Update));
 }

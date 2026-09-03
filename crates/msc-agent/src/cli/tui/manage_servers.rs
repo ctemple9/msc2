@@ -488,6 +488,7 @@ pub async fn execute(
                         max_players: None,
                         accept_eula: Some(draft.accept_eula),
                         enable_playit: None,
+                        check_addon_updates: None,
                         transfer_mode: None,
                         backup_path: None,
                         java_port_overrides: HashMap::new(),

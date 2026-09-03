@@ -31,6 +31,8 @@ pub struct ServerImportRequestDto {
     pub accept_eula: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enable_playit: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_addon_updates: Option<bool>,
     /// `merge` (default, including absent/unrecognized) or `replaceAll` —
     /// see `phase5-scope.md`'s "Transfer behavior".
     #[serde(default, skip_serializing_if = "Option::is_none")]

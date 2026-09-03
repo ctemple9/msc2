@@ -159,7 +159,7 @@ fn modrinth_project_id_from_url(url: &str) -> Option<String> {
     }
 }
 
-// --- Pack-managed mutation guard (new policy, not a port) ---
+// --- Modpack metadata policy ---
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AddonMutationKind {
@@ -169,16 +169,13 @@ pub enum AddonMutationKind {
     Update,
 }
 
-/// The decided contract's mutation matrix: a pack-managed server refuses
-/// every individual add-on mutation, regardless of kind. `health/repair`'s
-/// `Update`/`Install` actions (P8.23) route through this exact same gate
-/// since they route through the exact same mutation paths P8.17 builds,
-/// not a parallel implementation. Contrast: MSC 1 itself never gates any
-/// of these calls (`AddonUpdateSheet.swift:272-277`,
-/// `DetailsComponentsTabView.swift:1148-1157` only change confirmation
-/// copy) -- this is Phase 8's own invented enforcement, not a port.
-pub fn pack_mutation_refused(pack_managed: bool, _kind: AddonMutationKind) -> bool {
-    pack_managed
+/// Imported pack metadata does not make an installed server read-only.
+/// Individual add-on changes remain available after import, matching MSC 1's
+/// behavior (`AddonUpdateSheet.swift:272-277`,
+/// `DetailsComponentsTabView.swift:1148-1157`). The arguments remain in the
+/// helper so existing application call sites keep the same shape.
+pub fn pack_mutation_refused(_pack_managed: bool, _kind: AddonMutationKind) -> bool {
+    false
 }
 
 /// Whole-pack replacement is the one sanctioned escape hatch, but only

@@ -47,6 +47,8 @@ pub struct ServerCreateRequestDto {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub enable_xbox_broadcast: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_addon_updates: Option<bool>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub difficulty: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gamemode: Option<String>,

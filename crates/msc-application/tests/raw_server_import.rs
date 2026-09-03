@@ -250,6 +250,7 @@ fn raw_server_import_applies_port_max_players_world_name_and_eula_overrides() {
         active_world_name: Some("survival".to_string()),
         eula_accepted: Some(true),
         enable_playit: Some(true),
+        check_addon_updates: None,
     };
 
     let imported = import_raw_server(&request, &temp.home_dir()).expect("import should succeed");

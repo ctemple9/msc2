@@ -518,6 +518,9 @@ pub struct ConfigServer {
     pub svc_tunnel_prompt_dismissed: bool,
     pub svc_port_forwarding_confirmed: bool,
     pub auto_restart_on_crash: bool,
+    /// Whether provider-backed add-on update checks are enabled.
+    /// Disabled by default so opening Components stays a local, fast read.
+    pub check_addon_updates: bool,
 
     pub pack_managed: bool,
     pub pack_name: Option<String>,
@@ -586,6 +589,7 @@ impl ConfigServer {
             svc_tunnel_prompt_dismissed: false,
             svc_port_forwarding_confirmed: false,
             auto_restart_on_crash: false,
+            check_addon_updates: false,
 
             pack_managed: false,
             pack_name: None,
@@ -742,6 +746,7 @@ impl ConfigServer {
             svc_tunnel_prompt_dismissed,
             svc_port_forwarding_confirmed,
             auto_restart_on_crash,
+            check_addon_updates: opt_bool(v, "check_addon_updates", false)?,
             pack_managed,
             pack_name,
             pack_version,
@@ -872,6 +877,10 @@ impl ConfigServer {
         m.insert(
             "auto_restart_on_crash".into(),
             Value::Bool(self.auto_restart_on_crash),
+        );
+        m.insert(
+            "check_addon_updates".into(),
+            Value::Bool(self.check_addon_updates),
         );
 
         m.insert("pack_managed".into(), Value::Bool(self.pack_managed));

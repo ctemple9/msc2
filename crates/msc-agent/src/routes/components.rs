@@ -18,11 +18,12 @@ use msc_api::dto::{
     AddonsResponseDto, CatalogGalleryImageDto, CatalogInstallRequestDto, CatalogInstallResultDto,
     CatalogItemDto, CatalogProjectDetailDto, CatalogSearchResponseDto, CatalogVersionDependencyDto,
     CatalogVersionDto, CatalogVersionFileDto, CatalogVersionsResponseDto, ClientExportItemDto,
-    ClientExportResponseDto, ComponentStatusDto, ComponentUpdateRequestDto, ComponentsStatusDto,
-    ModpackFileDto, ModpackImportRequestDto, ModpackImportResultDto, ModpackInspectionRequestDto,
-    ModpackInspectionResultDto, ModpackManualFileDto, ModpackManualFileRequestDto,
-    ModpackManualFileResultDto, PermissionCategoryDto, StagedUploadBeginRequestDto,
-    StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
+    ClientExportResponseDto, ComponentStatusDto, ComponentUpdateRequestDto,
+    ComponentUpdateResultDto, ComponentsStatusDto, ModpackFileDto, ModpackImportRequestDto,
+    ModpackImportResultDto, ModpackInspectionRequestDto, ModpackInspectionResultDto,
+    ModpackManualFileDto, ModpackManualFileRequestDto, ModpackManualFileResultDto,
+    PermissionCategoryDto, StagedUploadBeginRequestDto, StagedUploadBeginResultDto,
+    StagedUploadCompleteResultDto, StagedUploadPurposeDto,
 };
 use msc_application::addon_updates;
 use msc_application::addons::{self, AddonMutationError};
@@ -99,6 +100,12 @@ pub(crate) struct CatalogQuery {
 pub(crate) struct ClientExportQuery {
     #[serde(default)]
     selected: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+pub(crate) struct AddonsQuery {
+    #[serde(default)]
+    local: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -669,6 +676,7 @@ pub async fn get_components(
 pub async fn get_addons(
     State(state): State<ComponentsRoutesState>,
     Extension(_credential): Extension<AuthenticatedCredential>,
+    Query(query): Query<AddonsQuery>,
 ) -> Response {
     let Some(server) = state.lifecycle.active_config_server() else {
         return Json(AddonsResponseDto {
@@ -677,6 +685,7 @@ pub async fn get_addons(
             server_supports_addons: false,
             pack_managed: None,
             pack_name: None,
+            check_addon_updates: None,
             note: Some("No active server.".to_string()),
         })
         .into_response();
@@ -688,20 +697,31 @@ pub async fn get_addons(
             server_supports_addons: false,
             pack_managed: Some(server.pack_managed),
             pack_name: server.pack_name.clone(),
+            check_addon_updates: Some(server.check_addon_updates),
             note: Some("This server flavor has no add-ons.".to_string()),
         })
         .into_response();
     };
-    let transport = HttpTransport::new();
-    let plan = addon_updates::resolve_addon_updates(
-        &transport,
-        &StdFileSystem,
-        &add_on_dir,
-        server.java_flavor,
-        server.minecraft_version.as_deref(),
-        &server.addon_links.clone().unwrap_or_default(),
-        &server.plugin_sources.clone().unwrap_or_default(),
-    );
+    let links = server.addon_links.clone().unwrap_or_default();
+    let plan = if server.check_addon_updates && !query.local {
+        let transport = HttpTransport::new();
+        addon_updates::resolve_addon_updates(
+            &transport,
+            &StdFileSystem,
+            &add_on_dir,
+            server.java_flavor,
+            server.minecraft_version.as_deref(),
+            &links,
+            &server.plugin_sources.clone().unwrap_or_default(),
+        )
+    } else {
+        addon_updates::local_addon_inventory(
+            &StdFileSystem,
+            &add_on_dir,
+            server.java_flavor,
+            &links,
+        )
+    };
     Json(AddonsResponseDto {
         addons: plan
             .items
@@ -717,10 +737,11 @@ pub async fn get_addons(
                 icon_url: None,
             })
             .collect(),
-        is_resolving: false,
+        is_resolving: server.check_addon_updates && query.local,
         server_supports_addons: true,
         pack_managed: Some(server.pack_managed),
         pack_name: server.pack_name,
+        check_addon_updates: Some(server.check_addon_updates),
         note: None,
     })
     .into_response()
@@ -1341,6 +1362,35 @@ pub async fn update_component(
     let Some(server) = state.lifecycle.active_config_server() else {
         return no_active_server();
     };
+    if let Some(enabled) = body.check_addon_updates {
+        let result = state.lifecycle.try_mutate_config(|config| {
+            let server_cfg = config
+                .servers
+                .iter_mut()
+                .find(|candidate| candidate.id == server.id)
+                .ok_or(())?;
+            server_cfg.check_addon_updates = enabled;
+            Ok::<(), ()>(())
+        });
+        return match result {
+            Ok(()) => Json(ComponentUpdateResultDto {
+                success: true,
+                message: if enabled {
+                    "Add-on update checks enabled.".to_string()
+                } else {
+                    "Add-on update checks disabled.".to_string()
+                },
+                new_build: None,
+                new_version: None,
+            })
+            .into_response(),
+            Err(error) => error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "internal_error",
+                &format!("Could not save add-on update preference: {error:?}"),
+            ),
+        };
+    }
     let Some(add_on_dir) = add_on_dir(&server) else {
         return error_response(
             StatusCode::CONFLICT,
@@ -1370,7 +1420,7 @@ pub async fn update_component(
         } else {
             add_on_dir.join(format!("{jar_stem}.jar.disabled"))
         };
-        if !server.pack_managed && !path.is_file() && target.is_file() {
+        if !path.is_file() && target.is_file() {
             return update_result(
                 if enabled { "enabled" } else { "disabled" },
                 Some(jar_stem.to_string()),

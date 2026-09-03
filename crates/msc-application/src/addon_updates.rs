@@ -159,6 +159,49 @@ fn list_disk_entries(fs: &dyn FileSystem, dir: &Path, kind: AddOnKind) -> Vec<Di
     }
 }
 
+/// Builds the local half of an add-on response without hashing jars or
+/// contacting a provider. This is the default read path: update checks are an
+/// explicit server preference, so opening Components should still show every
+/// installed file immediately when that preference is off.
+pub fn local_addon_inventory(
+    fs: &dyn FileSystem,
+    add_on_dir: &Path,
+    flavor: JavaServerFlavor,
+    persisted_links: &HashMap<String, AddonLink>,
+) -> AddonUpdatePlan {
+    let Some(kind) = flavor.add_on_kind() else {
+        return AddonUpdatePlan::default();
+    };
+    let by_filename: HashMap<&str, &AddonLink> = persisted_links
+        .values()
+        .filter_map(|link| link.installed_file_name.as_deref().map(|name| (name, link)))
+        .collect();
+    let items = list_disk_entries(fs, add_on_dir, kind)
+        .into_iter()
+        .map(|entry| {
+            let link = by_filename.get(entry.filename.as_str()).copied();
+            AddonUpdateItem {
+                filename: entry.filename,
+                jar_stem: entry.jar_stem,
+                is_enabled: entry.is_enabled,
+                display_name: entry.display_name,
+                project_id: link.map(|link| link.project_id.clone()),
+                provenance: link.map(|link| link.provenance),
+                tier: None,
+                current_version: entry.version,
+                bucket: AddonUpdateBucket::Unlinked,
+                available_version_id: None,
+                available_version_label: None,
+                available_version: None,
+            }
+        })
+        .collect();
+    AddonUpdatePlan {
+        items,
+        discovered_links: HashMap::new(),
+    }
+}
+
 /// `resolveAddonUpdates(for:force:)`'s real body once the stale-plan-cache
 /// guard has already decided a recompute is needed (that guard is
 /// [`AddonPlanCache`]'s job, not this function's — this function always

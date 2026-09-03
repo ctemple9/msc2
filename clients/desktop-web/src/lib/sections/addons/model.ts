@@ -29,6 +29,7 @@ export const demoAddons: Schema['AddonItemDTO'][] = [
 
 export const addonPaths = {
   list: '/v1/addons',
+  localList: '/v1/addons?local=true',
   search: '/v1/catalog/search?q=',
   install: '/v1/components/install',
   update: '/v1/components/update',

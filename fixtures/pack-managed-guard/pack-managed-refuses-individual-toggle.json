@@ -11,7 +11,7 @@
     "operation": "toggleMod / togglePlugin (enable/disable)"
   },
   "expected": {
-    "refused": true,
+    "refused": false,
     "reason": "Enable/disable is a mutation of the pack's installed-file state exactly like install/remove -- covered by the same \"refuse individual mutation\" contract, not carved out as a lesser change."
   }
 }

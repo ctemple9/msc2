@@ -1160,6 +1160,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 max_players,
                 accept_eula: eula.then_some(true),
                 enable_playit: None,
+                check_addon_updates: None,
                 transfer_mode: transfer_mode.clone(),
                 backup_path: backup_path.clone(),
                 java_port_overrides: parse_port_overrides(&java_port_overrides)?,
@@ -1237,6 +1238,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 max_players: None,
                 accept_eula: None,
                 enable_playit: None,
+                check_addon_updates: None,
                 transfer_mode: None,
                 backup_path: None,
                 java_port_overrides: HashMap::new(),
@@ -1334,6 +1336,7 @@ async fn run_server(common: CommonArgs, command: ServerCommand) -> Result<(), Cl
                 enable_cross_play: args.enable_cross_play.then_some(true),
                 cross_play_bedrock_port: args.cross_play_bedrock_port.map(i64::from),
                 enable_playit: args.playit.then_some(true),
+                check_addon_updates: None,
                 enable_voice_chat: None,
                 enable_xbox_broadcast: args.xbox_broadcast.then_some(true),
                 difficulty: args.difficulty,
@@ -2698,6 +2701,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         link_project_id: None,
                         source_url: None,
                         remove_source: None,
+                        check_addon_updates: None,
                     },
                 )
                 .await?;
@@ -2731,6 +2735,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         link_project_id: None,
                         source_url: None,
                         remove_source: None,
+                        check_addon_updates: None,
                     },
                 )
                 .await?;
@@ -2764,6 +2769,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         link_project_id: None,
                         source_url: None,
                         remove_source: None,
+                        check_addon_updates: None,
                     },
                 )
                 .await?;
@@ -2786,6 +2792,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         link_project_id: None,
                         source_url: None,
                         remove_source: None,
+                        check_addon_updates: None,
                     },
                 )
                 .await?;
@@ -2822,6 +2829,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         link_project_id: Some(project_id),
                         source_url: None,
                         remove_source: None,
+                        check_addon_updates: None,
                     },
                 )
                 .await?;
@@ -2844,6 +2852,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         link_project_id: None,
                         source_url: Some(url),
                         remove_source: None,
+                        check_addon_updates: None,
                     },
                 )
                 .await?;
@@ -2866,6 +2875,7 @@ async fn run_addon(common: CommonArgs, command: AddonCommand) -> Result<(), CliE
                         link_project_id: None,
                         source_url: None,
                         remove_source: Some(true),
+                        check_addon_updates: None,
                     },
                 )
                 .await?;

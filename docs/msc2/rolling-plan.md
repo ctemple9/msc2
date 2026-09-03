@@ -223,6 +223,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.52: remove redundant pinned modpack section`
 **Batch:** safe
 
+### P12.53 — Make imported modpacks ordinary mutable servers and update checks opt-in
+**Status:** awaiting verification
+**Files:** `crates/msc-domain/src/app_config_schema.rs`, `crates/msc-domain/src/modpack.rs`, `crates/msc-application/src/{addon_updates.rs,addons.rs,import.rs}`, `crates/msc-agent/src/routes/{components.rs,servers.rs}`, `crates/msc-api/src/dto/{addons.rs,lifecycle.rs,provisioning.rs}`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/{ConfirmStep.svelte,model.ts}`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/lib/api/generated.ts`, `fixtures/pack-managed-guard/`, `docs/msc2/rolling-plan.md`
+**What:** Keep modpack metadata and explicit whole-pack replacement, but allow normal individual add-on management after import. Return the local add-on inventory without provider calls when the new per-server update preference is off, render the Components tab without waiting for add-on resolution, prevent overlapping refreshes, and expose the opt-in preference during create/import and later in Components. Persist the preference with a false default and carry it through the shared Rust agent/API so Windows, Linux, and macOS use the same behavior.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain -p msc-api -p msc-application -- -D warnings && cargo check -p msc-agent --bin msc && cargo test -p msc-domain --test modpack_policy && cargo test -p msc-application --test raw_server_import && cd clients/desktop-web && npm run api:check && npm run build && npm run test:screen-addons`
+**Commit:** P12.53: make imported modpacks ordinary mutable servers and update checks opt-in
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

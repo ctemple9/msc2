@@ -81,6 +81,7 @@
   };
   let addons: Schema['AddonItemDTO'][] = [];
   let packManaged = false;
+  let checkAddonUpdates = false;
   let servers: Schema['ServerDTO'][] = [];
   let health: Schema['HealthResponseDTO'] = {
     cards: [],
@@ -113,6 +114,8 @@
   let notice = '';
   let downloadingBroadcastJar = false;
   let updatingAll = false;
+  let loadingAll = false;
+  let addonsRequestInFlight = false;
   let togglingStems: Set<string> = new Set();
   let updatingStems: Set<string> = new Set();
   let confirmingRemove: string | undefined;
@@ -138,15 +141,47 @@
     components = await call(api, components, componentPaths.status);
   }
   async function loadAddons(): Promise<void> {
+    if (addonsRequestInFlight) return;
+    addonsRequestInFlight = true;
     const response = await call<Schema['AddonsResponseDTO']>(
       api,
-      { addons, isResolving: false, serverSupportsAddons: !!kind, packManaged: false },
+      {
+        addons,
+        isResolving: false,
+        serverSupportsAddons: !!kind,
+        packManaged: false,
+        checkAddonUpdates: false,
+      },
+      addonPaths.localList,
+    );
+    addons = response.addons;
+    packManaged = response.packManaged;
+    checkAddonUpdates = response.checkAddonUpdates ?? false;
+    addonsLoaded = true;
+    checkVoiceTunnelPrompt(playit, response.addons);
+    addonsRequestInFlight = false;
+    if (response.checkAddonUpdates && response.isResolving) void loadResolvedAddons();
+  }
+
+  async function loadResolvedAddons(): Promise<void> {
+    if (addonsRequestInFlight) return;
+    addonsRequestInFlight = true;
+    const response = await call<Schema['AddonsResponseDTO']>(
+      api,
+      {
+        addons,
+        isResolving: false,
+        serverSupportsAddons: !!kind,
+        packManaged,
+        checkAddonUpdates,
+      },
       addonPaths.list,
     );
     addons = response.addons;
     packManaged = response.packManaged;
     addonsLoaded = true;
     checkVoiceTunnelPrompt(playit, response.addons);
+    addonsRequestInFlight = false;
   }
   async function loadPlayit(): Promise<void> {
     const next = await call(api, playit, '/v1/playit');
@@ -172,11 +207,32 @@
     ]);
   }
   async function loadAll(): Promise<void> {
-    await Promise.all([loadComponents(), loadServers(), loadHealth(), loadBroadcast()]);
-    checkVoiceTunnelPrompt();
-    coreLoaded = true;
-    void loadPlayit();
-    await loadAddons();
+    if (loadingAll) return;
+    loadingAll = true;
+    try {
+      await Promise.all([loadComponents(), loadServers(), loadHealth(), loadBroadcast()]);
+      checkVoiceTunnelPrompt();
+      coreLoaded = true;
+      void loadPlayit();
+      // Provider checks can be slow. Keep the rest of Components usable while
+      // the local inventory request finishes.
+      void loadAddons();
+    } finally {
+      loadingAll = false;
+    }
+  }
+
+  async function toggleAddonUpdateChecks(enabled: boolean): Promise<void> {
+    try {
+      await mutate<Schema['ComponentUpdateResultDTO']>(api, addonPaths.update, {
+        checkAddonUpdates: enabled,
+      });
+      checkAddonUpdates = enabled;
+      flash(enabled ? 'Add-on update checks enabled.' : 'Add-on update checks disabled.');
+      void loadAddons();
+    } catch (error) {
+      flash(error instanceof Error ? error.message : 'Failed to change update checks.');
+    }
   }
 
   function voicePromptKey(): string {
@@ -415,7 +471,7 @@
           {packManaged ? 'Replace Modpack' : 'Import Modpack'}
         </Button>
       {/if}
-      {#if kind && !packManaged}
+      {#if kind}
         <Button size="sm" variant="secondary" onclick={() => (showBrowser = true)}>
           Browse {isModded ? 'mods' : 'plugins'}
         </Button>
@@ -482,9 +538,29 @@
 
       {#if kind}
         <section class="zone">
+          <p class="msc2-type-overline">Update checks</p>
+          <Card padding="0">
+            <div class="row">
+              <Toggle
+                checked={checkAddonUpdates}
+                label="Check for mod/plugin updates"
+                onchange={(enabled) => void toggleAddonUpdateChecks(enabled)}
+              />
+              <div class="info">
+                <span class="name">Check for mod/plugin updates</span>
+                <span class="subtitle">
+                  {checkAddonUpdates
+                    ? 'Provider checks run when the list refreshes.'
+                    : 'Off — Components uses the local inventory only.'}
+                </span>
+              </div>
+            </div>
+          </Card>
+        </section>
+        <section class="zone">
           <div class="section-header">
             <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
-            {#if anyAddonUpdatable && !packManaged}
+            {#if anyAddonUpdatable}
               <Button
                 size="sm"
                 variant="secondary"
@@ -547,7 +623,7 @@
                         <StatusDot tone="warn" label={addonStatusLabel(addon) ?? ''} />
                       {/if}
                     </button>
-                    {#if addon.bucket === 'updateAvailable' && !packManaged}
+                    {#if addon.bucket === 'updateAvailable'}
                       <Button
                         size="sm"
                         variant="secondary"
@@ -564,8 +640,9 @@
           {/if}
           {#if packManaged}
             <p class="managed-note">
-              This server is managed by its modpack. The list below shows what is installed; replace
-              the whole pack to change it.
+              This server was imported from a modpack. You can still add, remove, enable, disable,
+              and update individual {isModded ? 'mods' : 'plugins'}; Replace Modpack is available
+              for applying a new pack as a bulk operation.
             </p>
           {/if}
           <div class="footer-actions">
@@ -574,11 +651,9 @@
                 Reveal {addonFolderName} folder
               </Button>
             </span>
-            {#if !packManaged}
-              <Button size="sm" variant="primary" onclick={() => void addLocalAddon()}>
-                Add {isModded ? 'Mod' : 'Plugin'}
-              </Button>
-            {/if}
+            <Button size="sm" variant="primary" onclick={() => void addLocalAddon()}>
+              Add {isModded ? 'Mod' : 'Plugin'}
+            </Button>
           </div>
         </section>
       {/if}
@@ -668,30 +743,22 @@
     x={addonMenu.x}
     y={addonMenu.y}
     onClose={() => (addonMenu = undefined)}
-    items={packManaged
-      ? [
-          {
-            label: 'View',
-            disabled: !menuAddon.projectId,
-            onSelect: () => (detailAddon = menuAddon),
-          },
-        ]
-      : [
-          {
-            label: menuAddon.isEnabled ? 'Disable' : 'Enable',
-            onSelect: () => void toggleAddon(menuAddon),
-          },
-          {
-            label: 'View',
-            disabled: !menuAddon.projectId,
-            onSelect: () => (detailAddon = menuAddon),
-          },
-          {
-            label: 'Uninstall',
-            tone: 'destructive',
-            onSelect: () => (confirmingRemove = menuAddon.jarStem),
-          },
-        ]}
+    items={[
+      {
+        label: menuAddon.isEnabled ? 'Disable' : 'Enable',
+        onSelect: () => void toggleAddon(menuAddon),
+      },
+      {
+        label: 'View',
+        disabled: !menuAddon.projectId,
+        onSelect: () => (detailAddon = menuAddon),
+      },
+      {
+        label: 'Uninstall',
+        tone: 'destructive',
+        onSelect: () => (confirmingRemove = menuAddon.jarStem),
+      },
+    ]}
   />
 {/if}
 

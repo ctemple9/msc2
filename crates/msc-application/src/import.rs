@@ -1028,6 +1028,8 @@ pub struct RawImportOverrides {
     /// like the others here; `None` (the client omitted it) is treated the
     /// same as `Some(false)`.
     pub enable_playit: Option<bool>,
+    /// Per-server opt-in for provider-backed add-on update checks.
+    pub check_addon_updates: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1187,6 +1189,7 @@ pub fn import_raw_server(
     );
     config.server_type = request.server_type;
     config.playit_enabled = request.overrides.enable_playit.unwrap_or(false);
+    config.check_addon_updates = request.overrides.check_addon_updates.unwrap_or(false);
     if request.server_type == ServerType::Bedrock {
         config.bedrock_port = Some(pre_override_port);
     }

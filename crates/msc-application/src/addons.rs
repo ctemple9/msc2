@@ -2,10 +2,9 @@
 //! mutation half of `AddonUpdateResolver`/`AppViewModel+ModManagement.swift`/
 //! `AppViewModel+PluginManagement.swift`, wiring P8.14's verified storage
 //! primitives and P8.15's dependency installer to real add-on/plugin
-//! mutations. Pack-managed refusal (`msc_domain::modpack::
-//! pack_mutation_refused`, P8.12) gates every mutation here, including the
-//! two `health/repair` actions (P8.23) once those route through the same
-//! functions — not a second, parallel gate.
+//! mutations. The `pack_mutation_refused` policy seam is passed explicitly
+//! through every mutation, including the two `health/repair` actions (P8.23),
+//! but imported pack metadata does not currently refuse individual changes.
 //!
 //! **No `LifecycleOperations`/audit-log wiring here**, the same deferral
 //! `addon_updates.rs`'s own module doc already explains for the read path:

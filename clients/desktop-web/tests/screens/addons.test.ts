@@ -60,10 +60,11 @@ describe('add-on and modpack screens', () => {
   it('keeps provider state on the item instead of inventing a client list', () => {
     expect(demoAddons.every((addon) => addon.jarStem && addon.bucket)).toBe(true);
   });
-  it('shows pack contents while preserving the whole-pack replacement boundary', () => {
-    expect(componentsSource).toContain('This server is managed by its modpack');
+  it('shows pack contents while keeping individual add-on management available', () => {
+    expect(componentsSource).toContain('This server was imported from a modpack');
     expect(componentsSource).toContain("{packManaged ? 'Replace Modpack' : 'Import Modpack'}");
-    expect(componentsSource).toContain('replace the whole pack to change it');
+    expect(componentsSource).toContain('Add {isModded ? \'Mod\' : \'Plugin\'}');
+    expect(componentsSource).toContain('Check for mod/plugin updates');
   });
   it('uses the real resolver bucket enum, not an invented mod/plugin/component category', () => {
     // crates/msc-agent/src/routes/components.rs's addon_bucket_name -- the

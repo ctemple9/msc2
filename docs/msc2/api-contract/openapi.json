@@ -771,7 +771,7 @@
     "/v1/components/update": {
       "post": {
         "summary": "Update a system component (paper/geyser/floodgate) or a Modrinth-tracked add-on",
-        "x-notes": "Seven request shapes now share one endpoint (RemoteAPIServer+ComponentRoutes.swift's own handleUpdateComponent precedent, extended per P8.9): updateAll=true updates every add-on with an available update (async, 202); jarStem alone updates one specific add-on (async, 202); jarStem+enabled toggles it (sync, 200, togglePlugin/toggleMod); jarStem+linkProjectId manually links it to a Modrinth project (sync, 200, manuallyLinkAddon); jarStem+sourceUrl sets/replaces its plugin source (sync, 200, setPluginSource); jarStem+removeSource removes one (sync, 200, removePluginSource); the legacy component=paper|geyser|floodgate path updates a system component (sync, 200, ComponentUpdateResultDTO). All six add-on shapes are refused (409 conflict, code pack_managed) against a pack-managed server; the explicit escape hatch is POST /v1/modpacks/import {action: \"replace\"}, not any shape of this route.",
+        "x-notes": "Eight request shapes now share one endpoint: updateAll=true updates every add-on with an available update (async, 202); jarStem alone updates one specific add-on (async, 202); jarStem+enabled toggles it (sync, 200); jarStem+linkProjectId manually links it; jarStem+sourceUrl sets/replaces its plugin source; jarStem+removeSource removes one; checkAddonUpdates alone changes the active server's provider-check preference (sync, 200); and the legacy component=paper|geyser|floodgate path updates a system component. Imported modpacks retain their metadata but do not disable individual add-on management. POST /v1/modpacks/import remains the explicit bulk replacement path.",
         "requestBody": {
           "required": true,
           "content": {
@@ -4214,6 +4214,18 @@
     "/v1/addons": {
       "get": {
         "summary": "Installed add-ons (mods/plugins) with update status",
+        "parameters": [
+          {
+            "name": "local",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "description": "Return the local inventory immediately without provider-backed update checks."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Installed add-ons (mods/plugins) with update status",
@@ -6671,6 +6683,10 @@
             "type": "boolean",
             "description": "Creation-time intent from a staged Simple Voice Chat add-on. The agent creates the voice tunnel only after an active SVC plugin or mod is present in plugins/ or mods/."
           },
+          "checkAddonUpdates": {
+            "type": "boolean",
+            "description": "Whether provider-backed mod/plugin update checks are enabled for the new server. Defaults to false."
+          },
           "enableXboxBroadcast": {
             "type": "boolean"
           },
@@ -6815,6 +6831,10 @@
           },
           "enablePlayit": {
             "type": "boolean"
+          },
+          "checkAddonUpdates": {
+            "type": "boolean",
+            "description": "Whether provider-backed mod/plugin update checks are enabled for the imported server. Defaults to false."
           },
           "transferMode": {
             "type": "string"
@@ -7626,6 +7646,10 @@
           "removeSource": {
             "type": "boolean",
             "description": "With jarStem: remove a previously-set plugin source (removePluginSource)."
+          },
+          "checkAddonUpdates": {
+            "type": "boolean",
+            "description": "With no other request shape: enable or disable provider-backed mod/plugin update checks for the active server. Off by default."
           }
         },
         "required": []
@@ -10154,6 +10178,9 @@
           },
           "packName": {
             "type": "string"
+          },
+          "checkAddonUpdates": {
+            "type": "boolean"
           },
           "note": {
             "type": "string",

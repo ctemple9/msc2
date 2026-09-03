@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: eaf690f970786afc40ee472316cd2b48159f19b2b41c97395158672702a2b508
+// Contract SHA-256: 2fa7e01e2277a0d5be3d9de6dc97ee07d96c1277b6ef38610c8406b8c39afc13
 
 export interface paths {
   '/v1/active-server': {
@@ -74,7 +74,10 @@ export interface paths {
     /** Installed add-ons (mods/plugins) with update status */
     get: {
       parameters: {
-        query?: never;
+        query?: {
+          /** @description Return the local inventory immediately without provider-backed update checks. */
+          local?: boolean;
+        };
         header?: never;
         path?: never;
         cookie?: never;
@@ -6093,6 +6096,7 @@ export interface components {
     };
     AddonsResponseDTO: {
       addons: components['schemas']['AddonItemDTO'][];
+      checkAddonUpdates?: boolean;
       isResolving: boolean;
       /** @description Set when a provider was unreachable during this resolve pass (provider_unavailable) -- addons still reflect last-known persisted state, not a fabricated fresh result. */
       note?: string;
@@ -6538,6 +6542,8 @@ export interface components {
       [key: string]: unknown;
     };
     ComponentUpdateRequestDTO: {
+      /** @description With no other request shape: enable or disable provider-backed mod/plugin update checks for the active server. Off by default. */
+      checkAddonUpdates?: boolean;
       component?: string;
       /** @description With jarStem and no updateAll/component: enable/disable that add-on (togglePlugin/toggleMod). */
       enabled?: boolean;
@@ -7568,6 +7574,8 @@ export interface components {
       acceptEula?: boolean;
       /** @description Requested BDS release for serverType=bedrock. The agent resolves and verifies the platform-appropriate distribution entry. */
       bedrockVersion?: string;
+      /** @description Whether provider-backed mod/plugin update checks are enabled for the new server. Defaults to false. */
+      checkAddonUpdates?: boolean;
       /** @description Acknowledgement token returned in a confirmation_required error for a Creative or other safety-sensitive world choice. */
       confirmation?: string;
       crossPlayBedrockPort?: number;
@@ -7727,6 +7735,8 @@ export interface components {
       bedrockPortOverrides?: {
         [key: string]: number;
       };
+      /** @description Whether provider-backed mod/plugin update checks are enabled for the imported server. Defaults to false. */
+      checkAddonUpdates?: boolean;
       displayName?: string;
       enablePlayit?: boolean;
       importKind?: string;

@@ -12,7 +12,7 @@
     "target": "a jar that IS part of the imported pack"
   },
   "expected": {
-    "refused": true,
+    "refused": false,
     "reason": "Same decided-contract source as the install case: removing a single pack-managed add-on individually is refused; the only sanctioned path to change the pack's mod set is a whole-pack replacement (re-import)."
   }
 }

@@ -426,6 +426,7 @@ fn import_raw(
         active_world_name: body.active_world_name.clone(),
         eula_accepted: body.accept_eula,
         enable_playit: body.enable_playit,
+        check_addon_updates: body.check_addon_updates,
     };
 
     let worker_state = state.clone();
@@ -1449,6 +1450,7 @@ pub async fn create(
         .filter(|p| !p.trim().is_empty())
         .unwrap_or_else(|| cfg.java_path.clone());
     let accept_eula = body.accept_eula.unwrap_or(false);
+    let check_addon_updates = body.check_addon_updates.unwrap_or(false);
     let save_downloaded_jars = cfg.save_downloaded_jars;
     let default_banner_color_hex = cfg.default_banner_color_hex.clone().unwrap_or_default();
     let home_dir = agent_home_dir();
@@ -1482,6 +1484,7 @@ pub async fn create(
                 default_banner_color_hex,
                 java_path,
                 accept_eula,
+                check_addon_updates,
                 home_dir,
                 servers_root,
                 paper_template_dir,
@@ -1646,6 +1649,7 @@ fn run_create_server(
     default_banner_color_hex: String,
     java_path: String,
     accept_eula: bool,
+    check_addon_updates: bool,
     home_dir: PathBuf,
     servers_root: PathBuf,
     paper_template_dir: PathBuf,
@@ -1749,7 +1753,8 @@ fn run_create_server(
         let _ = StdFileSystem.remove(&staged_modpack.path);
         match result {
             Ok(created) => {
-                let created = created.created;
+                let mut created = created.created;
+                created.config.check_addon_updates = check_addon_updates;
                 let flavor = created.config.java_flavor;
                 finish_created_server(
                     &state,
@@ -1833,6 +1838,7 @@ fn run_create_server(
             }
 
             let java_compatibility_warning = created.java_compatibility_warning.clone();
+            created.config.check_addon_updates = check_addon_updates;
             finish_created_server(
                 &state,
                 &operation_id,
@@ -2614,6 +2620,7 @@ mod tests {
             max_players: None,
             accept_eula: None,
             enable_playit: None,
+            check_addon_updates: None,
             transfer_mode: transfer_mode.map(str::to_string),
             backup_path: backup_path.map(str::to_string),
             java_port_overrides: HashMap::new(),
@@ -2861,6 +2868,7 @@ mod tests {
             max_players: None,
             accept_eula: None,
             enable_playit: None,
+            check_addon_updates: None,
             transfer_mode: None,
             backup_path: None,
             java_port_overrides: HashMap::new(),
@@ -2880,6 +2888,7 @@ mod tests {
             max_players: None,
             accept_eula: None,
             enable_playit: None,
+            check_addon_updates: None,
             transfer_mode: None,
             backup_path: None,
             java_port_overrides: HashMap::new(),

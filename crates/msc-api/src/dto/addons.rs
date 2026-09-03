@@ -47,6 +47,9 @@ pub struct ComponentUpdateRequestDto {
     pub source_url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remove_source: Option<bool>,
+    /// Controls whether `/v1/addons` performs provider-backed update checks.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_addon_updates: Option<bool>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
@@ -87,6 +90,8 @@ pub struct AddonsResponseDto {
     pub pack_managed: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pack_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub check_addon_updates: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
 }

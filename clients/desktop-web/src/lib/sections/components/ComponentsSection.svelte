@@ -45,8 +45,6 @@
   import PluginBrowserSheet from './PluginBrowserSheet.svelte';
   import PlayitSetupSheet from '../server-editor/PlayitSetupSheet.svelte';
   import ProjectDetailSheet from './ProjectDetailSheet.svelte';
-  import ImportModpackSheet from './ImportModpackSheet.svelte';
-  import CurseForgeManualDownloadSheet from './CurseForgeManualDownloadSheet.svelte';
   import { getPlatform } from '../../platform';
   import type { Schema, ScreenProps } from '../shared/types';
   import { call, mutate } from '../shared/types';
@@ -127,9 +125,7 @@
 
   let showVersionPicker = false;
   let showBrowser = false;
-  let showImportModpack = false;
-  let pendingManualFiles:
-    { operationId: string; files: Schema['ModpackManualFileEntryDTO'][] } | undefined;
+  let componentActionMenu: { x: number; y: number } | undefined;
 
   let fileInput: HTMLInputElement;
 
@@ -436,11 +432,21 @@
     }
   }
 
-  function onManualFilesPending(
-    operationId: string,
-    files: Schema['ModpackManualFileEntryDTO'][],
-  ): void {
-    pendingManualFiles = { operationId, files };
+  function openComponentActionMenu(event: MouseEvent): void {
+    componentActionMenu = { x: event.clientX, y: event.clientY };
+  }
+
+  async function openAddonFolder(): Promise<void> {
+    if (!activeServer) return;
+    if (hostId !== 'local-agent') {
+      flash('Open the add-on folder is available for a locally-connected agent.');
+      return;
+    }
+    await (
+      await getPlatform()
+    ).revealInFileManager(`${activeServer.directory}/${addonFolderName}`, async () => {
+      flash('Opening the add-on folder needs the desktop app.');
+    });
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
@@ -466,17 +472,17 @@
       <span class="msc2-type-overline">Components</span>
     </div>
     <div class="header-actions">
-      {#if isModded}
-        <Button size="sm" variant="secondary" onclick={() => (showImportModpack = true)}>
-          {packManaged ? 'Replace Modpack' : 'Import Modpack'}
-        </Button>
-      {/if}
       {#if kind}
         <Button size="sm" variant="secondary" onclick={() => (showBrowser = true)}>
           Browse {isModded ? 'mods' : 'plugins'}
         </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          label="More component actions"
+          onclick={openComponentActionMenu}>…</Button
+        >
       {/if}
-      <Button size="sm" variant="secondary" onclick={() => void loadAll()}>Refresh</Button>
     </div>
   </div>
 
@@ -638,16 +644,6 @@
               {/each}
             </Card>
           {/if}
-          <div class="footer-actions">
-            <span title="File access lands with the Files tab (P12.9) — not available yet">
-              <Button size="sm" variant="secondary" disabled>
-                Reveal {addonFolderName} folder
-              </Button>
-            </span>
-            <Button size="sm" variant="primary" onclick={() => void addLocalAddon()}>
-              Add {isModded ? 'Mod' : 'Plugin'}
-            </Button>
-          </div>
         </section>
       {/if}
 
@@ -716,6 +712,25 @@
   <input bind:this={fileInput} type="file" accept=".jar" class="hidden-input" />
 </div>
 
+{#if componentActionMenu}
+  <Menu
+    x={componentActionMenu.x}
+    y={componentActionMenu.y}
+    onClose={() => (componentActionMenu = undefined)}
+    items={[
+      {
+        label: `Add ${isModded ? 'Mod' : 'Plugin'}`,
+        onSelect: () => void addLocalAddon(),
+      },
+      {
+        label: `Open ${addonFolderName} folder`,
+        disabled: !activeServer,
+        onSelect: () => void openAddonFolder(),
+      },
+    ]}
+  />
+{/if}
+
 {#if showVersionPicker}
   <VersionPickerSheet
     {api}
@@ -774,29 +789,6 @@
     serverMinecraftVersion={primaryComponent?.installedVersion}
     onClose={() => (showBrowser = false)}
     onInstalled={() => void loadAddons()}
-  />
-{/if}
-
-{#if showImportModpack}
-  <ImportModpackSheet
-    {api}
-    onClose={() => (showImportModpack = false)}
-    onImported={() => void loadAddons()}
-    {onManualFilesPending}
-  />
-{/if}
-
-{#if pendingManualFiles}
-  <CurseForgeManualDownloadSheet
-    {api}
-    operationId={pendingManualFiles.operationId}
-    files={pendingManualFiles.files}
-    onClose={() => (pendingManualFiles = undefined)}
-    onAllResolved={() => {
-      pendingManualFiles = undefined;
-      flash('All files resolved — import finishing in the background.');
-      void loadAddons();
-    }}
   />
 {/if}
 
@@ -955,11 +947,6 @@
   .confirm {
     font-size: 12px;
     color: var(--msc2-text-tertiary);
-  }
-  .footer-actions {
-    display: flex;
-    justify-content: space-between;
-    gap: 8px;
   }
   .hidden-input {
     position: absolute;

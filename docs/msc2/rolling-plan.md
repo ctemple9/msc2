@@ -224,7 +224,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.5 — Deliver the live console and raw-command vertical slice
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/console.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_console.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Consume the console history-plus-live WebSocket stream with reconnect and bounded local scrollback, falling back to the documented tail route only for recovery. Match the dock's actual working vocabulary: collapse/expand, search, follow/pause, copy-friendly selection, clear-local-history, and the All/Server/Plugins/Warnings/Controller/Commands/custom-filter distinction where that source metadata exists. Supply the command history and an explicit action palette; its Quick Commands entries reproduce the rail's time, weather, difficulty, gamemode, whitelist, save-all, and reload actions through their real raw-command or agent-backed boundary. Make the input boundary unmistakable: `>` sends literal raw Minecraft console text only to `/v1/command`; a separate palette/keybinding layer invokes MSC management actions. Never invent Minecraft command completion the API does not expose.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Main View/mainview.png`; `/Users/camerontemple/Documents/msc2 pictures/Main View/consolecollapsed.png`; `/Users/camerontemple/Documents/msc2 pictures/SIdebar/quickcommands.png`.

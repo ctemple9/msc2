@@ -10,10 +10,12 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
 
 use super::app::{App, FocusTarget, SmallSurface};
+use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
 use super::overview::TAB_NAMES;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
+    app.poll_console();
     let layout = app.prepare_layout(frame.area());
     render_header(frame, layout.header, app, layout.mode);
 
@@ -220,19 +222,63 @@ fn render_console(frame: &mut Frame, area: Rect, app: &App) {
     } else {
         "CONSOLE"
     };
-    let text = if app.overview().console.is_empty() {
-        "No console data loaded. Raw command entry is available after a server connects."
-            .to_string()
+    let console = app.console();
+    let mut lines = vec![Line::from(format!(
+        "Filter: {}{}  Follow: {}  {}",
+        console.filter().label(),
+        if console.search().is_empty() {
+            String::new()
+        } else {
+            format!("  Search: /{}", console.search())
+        },
+        if console.follow() { "on" } else { "off" },
+        if console.paused() { "PAUSED" } else { "LIVE" },
+    ))];
+    if let Some(status) = console.status() {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    if console.palette_open() {
+        lines.push(Line::from(
+            "COMMAND PALETTE  [j/k] choose  [enter] run  [esc] close",
+        ));
+        lines.extend(ConsoleView::palette_entries().iter().enumerate().map(
+            |(index, (label, command))| {
+                let marker = if index == console.palette_index() {
+                    "›"
+                } else {
+                    " "
+                };
+                Line::from(format!("{marker} {label:<12} {command}"))
+            },
+        ));
+    } else if console.collapsed() {
+        lines.push(Line::from(
+            "Console collapsed  [C] expand  [>] raw command  [p] palette",
+        ));
     } else {
-        app.overview()
-            .console
-            .iter()
-            .map(|line| format!("[{}] {} {}", line.ts, line.source, line.text))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
+        lines.extend(
+            console
+                .visible_lines()
+                .into_iter()
+                .map(|line| Line::from(format!("[{}] {} {}", line.ts, line.source, line.text))),
+        );
+        if lines.len() == 1 {
+            lines.push(Line::from("No console lines yet."));
+        }
+        lines.push(Line::from(format!(
+            "> {}",
+            if console.command().is_empty() {
+                "raw Minecraft command"
+            } else {
+                console.command()
+            }
+        )));
+        lines.push(Line::from(
+            "[c] collapse  [/] search  [f] follow  [space] pause  [v/y] select/copy  [l] clear  [p] palette",
+        ));
+    }
     frame.render_widget(
-        Paragraph::new(text)
+        Paragraph::new(lines)
             .block(Block::default().borders(Borders::TOP).title(title))
             .wrap(Wrap { trim: true }),
         area,

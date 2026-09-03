@@ -3,6 +3,7 @@
 //! responsibilities.
 
 pub mod app;
+pub mod console;
 pub mod layout;
 pub mod overview;
 pub mod render;

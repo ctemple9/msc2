@@ -7,6 +7,7 @@ use std::future::Future;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
+use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
 use super::overview::{OverviewState, TAB_NAMES};
 use super::transport::SharedClient;
@@ -60,6 +61,7 @@ struct HostSession {
     host: String,
     client: Option<SharedClient>,
     overview: OverviewState,
+    console: ConsoleView,
 }
 
 impl App {
@@ -83,7 +85,11 @@ impl App {
                 })
             },
         );
-        Self::with_session(host, client, overview)
+        let mut app = Self::with_session(host, client.clone(), overview);
+        if let Some(client) = client {
+            app.current_session_mut().console.start_feed(client);
+        }
+        app
     }
 
     pub fn new(host: impl Into<String>) -> Self {
@@ -99,6 +105,7 @@ impl App {
             sessions: vec![HostSession {
                 host,
                 client,
+                console: ConsoleView::from_lines(overview.console.clone()),
                 overview,
             }],
             active_host: 0,
@@ -126,6 +133,13 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyCode) -> bool {
+        if self.console().is_editing() {
+            self.handle_console_input(key);
+            return false;
+        }
+        if self.focus == FocusTarget::Console && self.handle_console_key(key) {
+            return false;
+        }
         match key {
             KeyCode::Char('q') => return true,
             KeyCode::Tab => self.advance_focus(),
@@ -218,6 +232,14 @@ impl App {
         &self.current_session().overview
     }
 
+    pub fn console(&self) -> &ConsoleView {
+        &self.current_session().console
+    }
+
+    pub fn poll_console(&mut self) {
+        self.current_session_mut().console.poll();
+    }
+
     pub fn available_tabs(&self) -> Vec<usize> {
         self.overview().available_tabs()
     }
@@ -248,9 +270,12 @@ impl App {
             .clone()
             .unwrap_or_else(|| format!("{}:{}", common.host, common.port));
         let overview = OverviewState::load_blocking(&client).map_err(|error| error.to_string())?;
+        let mut console = ConsoleView::from_lines(overview.console.clone());
+        console.start_feed(client.clone());
         self.sessions.push(HostSession {
             host,
             client: Some(client),
+            console,
             overview,
         });
         Ok(())
@@ -414,6 +439,82 @@ impl App {
                 } else {
                     "Stop requested".to_string()
                 });
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn handle_console_key(&mut self, key: KeyCode) -> bool {
+        match key {
+            KeyCode::Char('>') => self.current_session_mut().console.begin_command(),
+            KeyCode::Char('/') => self.current_session_mut().console.begin_search(),
+            KeyCode::Char('p') => self.current_session_mut().console.begin_palette(),
+            KeyCode::Char('f') => self.current_session_mut().console.toggle_follow(),
+            KeyCode::Char(' ') => self.current_session_mut().console.toggle_paused(),
+            KeyCode::Char('l') => self.current_session_mut().console.clear_local_history(),
+            KeyCode::Char('v') => self.current_session_mut().console.toggle_selection_anchor(),
+            KeyCode::Char('y') => {
+                let count = self.console().selected_text().lines().count();
+                self.last_action = Some(format!("Selected {count} console line(s) for copying"));
+            }
+            KeyCode::Char('C') => self.current_session_mut().console.toggle_collapsed(),
+            KeyCode::Char('0'..='6') => {
+                let character = match key {
+                    KeyCode::Char(character) => character,
+                    _ => unreachable!(),
+                };
+                self.current_session_mut()
+                    .console
+                    .select_filter_key(character);
+            }
+            KeyCode::Up | KeyCode::Char('k') => {
+                self.current_session_mut().console.move_selection(-1)
+            }
+            KeyCode::Down | KeyCode::Char('j') => {
+                self.current_session_mut().console.move_selection(1)
+            }
+            _ => return false,
+        }
+        true
+    }
+
+    fn handle_console_input(&mut self, key: KeyCode) {
+        match key {
+            KeyCode::Esc => self.current_session_mut().console.cancel_input(),
+            KeyCode::Backspace => self.current_session_mut().console.pop_input(),
+            KeyCode::Up if !self.console().palette_open() => {
+                self.current_session_mut().console.history_previous()
+            }
+            KeyCode::Down if !self.console().palette_open() => {
+                self.current_session_mut().console.history_next()
+            }
+            KeyCode::Up => self.current_session_mut().console.move_palette(-1),
+            KeyCode::Down => self.current_session_mut().console.move_palette(1),
+            KeyCode::Enter if self.console().palette_open() => {
+                let command = self.console().selected_palette_command().to_string();
+                self.current_session_mut().console.cancel_input();
+                self.send_console_command(command);
+            }
+            KeyCode::Enter => {
+                if let Some(command) = self.current_session_mut().console.take_command() {
+                    self.send_console_command(command);
+                } else {
+                    self.current_session_mut().console.cancel_input();
+                }
+            }
+            KeyCode::Char(character) => self.current_session_mut().console.push_input(character),
+            _ => {}
+        }
+    }
+
+    fn send_console_command(&mut self, command: String) {
+        let Some(client) = self.current_session().client.clone() else {
+            self.last_action = Some("No authenticated host session".to_string());
+            return;
+        };
+        match run_blocking(ConsoleView::send_command(&client, &command)) {
+            Ok(result) => {
+                self.last_action = Some(format!("Sent raw command: {}", result.command));
             }
             Err(error) => self.last_action = Some(error.to_string()),
         }

@@ -1,8 +1,9 @@
 <script lang="ts">
   // Real port of AddServerWizardView.swift's merged Import step: a server
   // folder/archive is scanned in place, while a Modrinth or CurseForge
-  // archive is staged and inspected before the wizard continues. The staged
-  // pack is redeemed by the existing create operation after this step.
+  // archive chosen through the modpack action is staged and inspected before
+  // the wizard continues. The staged pack is redeemed by the existing create
+  // operation after this step.
   import { onDestroy, onMount } from 'svelte';
   import Button from '../../../components/base/Button.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
@@ -89,11 +90,7 @@
     }
   }
 
-  async function inspectModpack(
-    fileName: string,
-    bytes: Uint8Array,
-    fallbackPath: string | undefined,
-  ): Promise<void> {
+  async function inspectModpack(fileName: string, bytes: Uint8Array): Promise<void> {
     if (!api?.upload) throw new Error('Modpack staging needs a connected agent.');
     isScanning = true;
     scanError = undefined;
@@ -121,14 +118,7 @@
         importActiveWorldName: undefined,
       };
     } catch (error) {
-      // A normal server .zip is not a modpack. On desktop, the same dropped
-      // path can be handed to the existing agent-side scan without uploading
-      // the whole server archive first.
-      if (fallbackPath && fallbackPath.toLowerCase().endsWith('.zip')) {
-        await scanServerPath(fallbackPath, true);
-      } else {
-        throw error;
-      }
+      throw error;
     } finally {
       isScanning = false;
     }
@@ -136,7 +126,14 @@
 
   async function handlePath(path: string): Promise<void> {
     const lower = path.toLowerCase();
-    if (!lower.endsWith('.zip') && !lower.endsWith('.mrpack')) {
+    if (lower.endsWith('.zip')) {
+      // Server archives can contain hundreds of megabytes of mods and
+      // libraries. Inspect them through the agent's path-based scan instead
+      // of first loading and uploading the entire archive as a modpack.
+      await scanServerPath(path, true);
+      return;
+    }
+    if (!lower.endsWith('.mrpack')) {
       await scanServerPath(path, false);
       return;
     }
@@ -146,19 +143,15 @@
       if (!readFile)
         throw new Error('Reading a dropped file is unavailable in this desktop build.');
       const bytes = await readFile(path);
-      await inspectModpack(baseName(path), bytes, path);
+      await inspectModpack(baseName(path), bytes);
     } catch (error) {
-      if (lower.endsWith('.zip')) {
-        await scanServerPath(path, true);
-      } else {
-        scanError = errorMessage(error);
-      }
+      scanError = errorMessage(error);
     }
   }
 
   async function handlePickedFile(file: PickedFile): Promise<void> {
     try {
-      await inspectModpack(file.name, file.bytes, undefined);
+      await inspectModpack(file.name, file.bytes);
     } catch (error) {
       scanError = errorMessage(error);
     }
@@ -333,8 +326,8 @@
     <div class="intro">
       <h2>Drop your server folder, archive, or modpack</h2>
       <p>
-        Drop a server folder or .zip to import an existing server, or a .mrpack / CurseForge .zip to
-        start from a modpack.
+        Drop a server folder or server .zip to import an existing server. For a .mrpack or
+        CurseForge .zip modpack, use Choose Modpack below.
       </p>
     </div>
 
@@ -353,7 +346,7 @@
     >
       <p class="dropzone-title">
         {supportsDrop
-          ? 'Drop server folder, .zip, or .mrpack here'
+          ? 'Drop server folder or server .zip here'
           : 'Browse for a server folder, archive, or modpack'}
       </p>
       {#if !supportsDrop}

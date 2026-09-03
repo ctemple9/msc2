@@ -1,11 +1,14 @@
 use msc_application::import::{
     DetectedWorld, RawImportFileSystem, RawScanEntry, ScannedServerInfo, resolve_unwrap_root,
-    scan_server_directory,
+    scan_server_directory, scan_zip_source,
 };
 use msc_domain::identity::{JavaServerFlavor, ServerType};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
+use zip::ZipWriter;
+use zip::write::SimpleFileOptions;
 
 /// In-memory [`RawImportFileSystem`] built from a fixture's `entries`/
 /// `files` (or `extractedEntries`/`extractedFiles`) trees. Intermediate
@@ -358,4 +361,76 @@ fn raw_server_scan_zip_single_root_folder_unwrapped_before_scan() {
             expected_world["hasEnd"].as_bool().unwrap()
         );
     }
+}
+
+#[test]
+fn raw_server_scan_indexes_large_macos_zip_without_extracting_it() {
+    let zip_path = std::env::temp_dir().join(format!(
+        "msc2-raw-scan-{}-{}.zip",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("test")
+    ));
+    let _ = std::fs::remove_file(&zip_path);
+
+    let result = (|| {
+        let file = std::fs::File::create(&zip_path).unwrap();
+        let mut archive = ZipWriter::new(file);
+        let options = SimpleFileOptions::default();
+        archive
+            .start_file("campak/server.properties", options)
+            .unwrap();
+        archive
+            .write_all(b"server-port=25577\nmax-players=8\nlevel-name=campak\n")
+            .unwrap();
+        archive.start_file("campak/eula.txt", options).unwrap();
+        archive.write_all(b"eula=true\n").unwrap();
+        archive
+            .start_file("campak/fabric-server-launch-1.20.1.jar", options)
+            .unwrap();
+        archive
+            .start_file(
+                "campak/.fabric/server/libraries/net/fabricmc/fabric-loader/0.16.9/marker",
+                options,
+            )
+            .unwrap();
+        archive
+            .start_file("campak/world/level.dat", options)
+            .unwrap();
+        archive.write_all(b"level").unwrap();
+        archive
+            .start_file("campak/world/region/r.0.0.mca", options)
+            .unwrap();
+        archive.write_all(b"region-data").unwrap();
+
+        // This is representative of the supplied archive's large mod files.
+        // A scan must use central-directory sizes and never read this payload.
+        archive
+            .start_file("campak/mods/large.jar", options)
+            .unwrap();
+        archive.write_all(&vec![0_u8; 16 * 1024 * 1024]).unwrap();
+
+        // Finder metadata must not prevent the real single server root from
+        // being unwrapped.
+        archive
+            .start_file("__MACOSX/campak/._server.properties", options)
+            .unwrap();
+        archive.write_all(b"finder metadata").unwrap();
+        archive.finish().unwrap();
+
+        let scanned = scan_zip_source(&zip_path).unwrap();
+        assert_eq!(scanned.server_type, ServerType::Java);
+        assert_eq!(scanned.port, 25577);
+        assert_eq!(scanned.max_players, 8);
+        assert!(scanned.eula_accepted);
+        assert_eq!(scanned.java_flavor, Some(JavaServerFlavor::Fabric));
+        assert_eq!(scanned.detected_mc_version.as_deref(), Some("1.20.1"));
+        assert_eq!(scanned.detected_loader_version.as_deref(), Some("0.16.9"));
+        assert_eq!(scanned.worlds.len(), 1);
+        assert_eq!(scanned.worlds[0].name, "world");
+        assert_eq!(scanned.worlds[0].size_bytes, 16);
+        Ok::<(), Box<dyn std::error::Error>>(())
+    })();
+
+    let _ = std::fs::remove_file(&zip_path);
+    result.unwrap();
 }

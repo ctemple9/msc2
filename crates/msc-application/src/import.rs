@@ -21,7 +21,8 @@ use msc_domain::identity::{JavaServerFlavor, ServerType};
 use msc_domain::properties::ServerPropertiesModel;
 use msc_infrastructure::fs::StdFileSystem;
 use msc_infrastructure::path_safety::safe_path;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::io::Read as _;
@@ -358,6 +359,131 @@ impl RawImportFileSystem for StdRawImportFileSystem {
 
     fn file_size(&self, path: &Path) -> u64 {
         fs::metadata(path).map(|m| m.len()).unwrap_or(0)
+    }
+}
+
+/// ZIP-backed scan filesystem. A scan only needs directory metadata, the
+/// sizes of discovered world files, and two small text files. Keeping the
+/// archive indexed instead of extracting it avoids copying every mod and
+/// library just to populate the review step.
+struct ZipRawImportFileSystem {
+    archive_path: PathBuf,
+    entries: BTreeMap<PathBuf, ZipRawImportEntry>,
+}
+
+struct ZipRawImportEntry {
+    index: usize,
+    is_file: bool,
+    size: u64,
+}
+
+impl ZipRawImportFileSystem {
+    fn open(archive_path: &Path) -> Result<Self, RawImportError> {
+        let file = fs::File::open(archive_path).map_err(|e| RawImportError::Io(e.to_string()))?;
+        let mut archive =
+            ZipArchive::new(file).map_err(|e| RawImportError::OpenZip(e.to_string()))?;
+        let mut entries = BTreeMap::new();
+
+        for index in 0..archive.len() {
+            let entry = archive
+                .by_index(index)
+                .map_err(|e| RawImportError::OpenZip(e.to_string()))?;
+            let raw_name = entry.name().to_string();
+            if is_unsafe_zip_entry_name(&raw_name) || is_symlink_zip_mode(entry.unix_mode()) {
+                return Err(RawImportError::UnsafeZipEntry { name: raw_name });
+            }
+            let Some(path) = entry.enclosed_name() else {
+                return Err(RawImportError::UnsafeZipEntry { name: raw_name });
+            };
+            if path.as_os_str().is_empty() {
+                return Err(RawImportError::UnsafeZipEntry { name: raw_name });
+            }
+
+            // Match extraction's last-entry-wins behavior if a malformed ZIP
+            // contains duplicate names, while retaining the central-directory
+            // index needed to read a text file later.
+            entries.insert(
+                path.to_path_buf(),
+                ZipRawImportEntry {
+                    index,
+                    is_file: !entry.is_dir(),
+                    size: entry.size(),
+                },
+            );
+        }
+
+        Ok(Self {
+            archive_path: archive_path.to_path_buf(),
+            entries,
+        })
+    }
+
+    fn relative_child<'a>(&self, path: &Path, entry: &'a Path) -> Option<&'a Path> {
+        if path.as_os_str().is_empty() {
+            Some(entry)
+        } else {
+            entry.strip_prefix(path).ok()
+        }
+    }
+
+    fn read_entry_to_string(&self, entry: &ZipRawImportEntry) -> Option<String> {
+        let file = fs::File::open(&self.archive_path).ok()?;
+        let mut archive = ZipArchive::new(file).ok()?;
+        let mut zip_entry = archive.by_index(entry.index).ok()?;
+        let mut contents = String::new();
+        zip_entry.read_to_string(&mut contents).ok()?;
+        Some(contents)
+    }
+}
+
+impl RawImportFileSystem for ZipRawImportFileSystem {
+    fn list_dir(&self, path: &Path) -> Vec<RawScanEntry> {
+        let mut children: BTreeMap<OsString, bool> = BTreeMap::new();
+        for (entry_path, entry) in &self.entries {
+            let Some(relative) = self.relative_child(path, entry_path) else {
+                continue;
+            };
+            let mut components = relative.components();
+            let Some(first) = components.next() else {
+                continue;
+            };
+            let name = first.as_os_str().to_os_string();
+            let is_file = components.next().is_none() && entry.is_file;
+            children
+                .entry(name)
+                .and_modify(|existing| *existing = *existing && is_file)
+                .or_insert(is_file);
+        }
+        children
+            .into_iter()
+            .map(|(name, is_file)| RawScanEntry {
+                name: name.to_string_lossy().into_owned(),
+                is_file,
+            })
+            .collect()
+    }
+
+    fn is_dir(&self, path: &Path) -> bool {
+        if let Some(entry) = self.entries.get(path) {
+            return !entry.is_file;
+        }
+        self.entries.keys().any(|entry| {
+            self.relative_child(path, entry)
+                .is_some_and(|relative| relative.components().next().is_some())
+        })
+    }
+
+    fn is_file(&self, path: &Path) -> bool {
+        self.entries.get(path).is_some_and(|entry| entry.is_file)
+    }
+
+    fn read_to_string(&self, path: &Path) -> Option<String> {
+        let entry = self.entries.get(path)?;
+        entry.is_file.then(|| self.read_entry_to_string(entry))?
+    }
+
+    fn file_size(&self, path: &Path) -> u64 {
+        self.entries.get(path).map_or(0, |entry| entry.size)
     }
 }
 
@@ -860,7 +986,7 @@ pub fn resolve_unwrap_root(fs: &dyn RawImportFileSystem, root: &Path) -> PathBuf
     let entries: Vec<RawScanEntry> = fs
         .list_dir(root)
         .into_iter()
-        .filter(|e| !e.name.starts_with('.'))
+        .filter(|e| !e.name.starts_with('.') && e.name != "__MACOSX")
         .collect();
     let dirs: Vec<&RawScanEntry> = entries.iter().filter(|e| !e.is_file).collect();
     let file_count = entries.iter().filter(|e| e.is_file).count();
@@ -964,22 +1090,15 @@ fn is_symlink_zip_mode(unix_mode: Option<u32>) -> bool {
     matches!(unix_mode, Some(mode) if mode & 0o170000 == 0o120000)
 }
 
-/// Scan-time zip source adapter: extracts `zip_path` into disposable
-/// staging, applies [`resolve_unwrap_root`], scans the result, and always
-/// removes staging — matching `performScan`'s `ditto` + unwrap + scan +
-/// cleanup sequence (`AddServerWizardView.swift:2142-2199`), with real
-/// zip-safety hardening in place of the oracle's un-hardened shell-out.
+/// Scan-time zip source adapter: indexes `zip_path`'s central directory,
+/// applies [`resolve_unwrap_root`], and scans the archive-backed tree without
+/// extracting it. The later mutating import still performs the full safe
+/// extraction after the user confirms the review step.
 pub fn scan_zip_source(zip_path: &Path) -> Result<ScannedServerInfo, RawImportError> {
-    let staging = std::env::temp_dir().join(format!("msc_raw_scan_{}", Uuid::new_v4()));
-    fs::create_dir_all(&staging).map_err(|e| RawImportError::Io(e.to_string()))?;
-
-    let result = extract_zip_traversal_safe(zip_path, &staging).map(|()| {
-        let resolved = resolve_unwrap_root(&StdRawImportFileSystem, &staging);
-        scan_server_directory(&StdRawImportFileSystem, &resolved)
-    });
-
-    let _ = fs::remove_dir_all(&staging);
-    result
+    let archive_fs = ZipRawImportFileSystem::open(zip_path)?;
+    let root = PathBuf::new();
+    let resolved = resolve_unwrap_root(&archive_fs, &root);
+    Ok(scan_server_directory(&archive_fs, &resolved))
 }
 
 // =====================================================================

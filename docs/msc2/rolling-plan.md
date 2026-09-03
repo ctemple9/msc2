@@ -239,6 +239,16 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** P12.56: keep server tabs alive within the active server scope
 **Batch:** solo
 
+## Phase 12 amendment — large raw archive import scan
+
+### P12.57 — Scan server archives without extracting them
+**Status:** awaiting verification
+**Files:** `crates/msc-application/src/import.rs`, `crates/msc-application/tests/raw_server_scan.rs`, `crates/msc-agent/src/routes/servers.rs`, `clients/desktop-web/src/lib/sections/fleet/wizard/UploadStep.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Make raw server ZIP inspection use the archive central directory and a virtual scan filesystem instead of extracting every mod and library into temporary storage. Preserve traversal/symlink validation, world-size reporting, Java flavor detection, and the single-root unwrap while ignoring Finder's `__MACOSX` metadata directory. Run folder and archive scans on Tokio's blocking pool. Dropped `.zip` server archives go directly to the path-based scan so the desktop client does not upload a potentially hundreds-of-megabytes archive as a modpack before inspection; explicit Choose Modpack remains the modpack path.
+**Verify:** `cargo nextest run -p msc-application --test raw_server_scan`
+**Commit:** P12.57: scan server archives without extraction
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

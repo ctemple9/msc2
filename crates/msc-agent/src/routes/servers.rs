@@ -148,7 +148,7 @@ pub async fn import(
     };
 
     if action == "scan" {
-        return perform_raw_scan(&source_path, body.import_kind.as_deref());
+        return perform_raw_scan(&source_path, body.import_kind.as_deref()).await;
     }
 
     // Transfer matching is evaluated only for non-scan requests (the scan
@@ -303,24 +303,33 @@ fn resolve_is_zip(import_kind: Option<&str>, source_path: &str) -> bool {
 /// rather than silently returning a defaulted, low-information scan
 /// result for a typo'd path. Reuses this endpoint's own documented 404
 /// `source_not_found` code (`openapi.json`), previously unwired for scan.
-fn perform_raw_scan(source_path: &str, import_kind: Option<&str>) -> Response {
+async fn perform_raw_scan(source_path: &str, import_kind: Option<&str>) -> Response {
     let is_zip = resolve_is_zip(import_kind, source_path);
     let path = Path::new(source_path);
 
-    if is_zip {
-        if !path.is_file() {
-            return source_not_found_response(source_path);
+    if (is_zip && !path.is_file()) || (!is_zip && !path.is_dir()) {
+        return source_not_found_response(source_path);
+    }
+
+    let source_path = source_path.to_string();
+    let scan_path = path.to_path_buf();
+    let result = tokio::task::spawn_blocking(move || {
+        if is_zip {
+            scan_zip_source(&scan_path)
+        } else {
+            Ok(scan_server_directory(&StdRawImportFileSystem, &scan_path))
         }
-        match scan_zip_source(path) {
-            Ok(info) => Json(scan_response_dto(source_path, true, &info)).into_response(),
-            Err(error) => raw_import_error_response(error),
-        }
-    } else {
-        if !path.is_dir() {
-            return source_not_found_response(source_path);
-        }
-        let info = scan_server_directory(&StdRawImportFileSystem, path);
-        Json(scan_response_dto(source_path, false, &info)).into_response()
+    })
+    .await;
+
+    match result {
+        Ok(Ok(info)) => Json(scan_response_dto(&source_path, is_zip, &info)).into_response(),
+        Ok(Err(error)) => raw_import_error_response(error),
+        Err(error) => error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "background_worker_failed",
+            &format!("server import scan worker failed: {error}"),
+        ),
     }
 }
 

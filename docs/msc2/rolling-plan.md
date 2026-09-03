@@ -197,6 +197,16 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 
 ---
 
+## Phase 12 amendment — modpack creation flow
+
+### P12.50 — Make modpack creation manifest-authoritative and inspectable
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/{AddServerWizard.svelte,UploadStep.svelte,WorldStep.svelte,ConfirmStep.svelte,model.ts}`, `clients/desktop-web/src/lib/sections/components/ComponentsSection.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `crates/msc-api/src/dto/addons.rs`, `crates/msc-agent/src/routes/components.rs`, `crates/msc-application/src/modpacks.rs`, `docs/msc2/api-contract/openapi.json`
+**What:** Give modpacks a dedicated Create from Modpack path while keeping older modpack uploads on the same semantics. Treat the manifest as authoritative: show its pinned Minecraft/loader context, pass that context to world capabilities, and remove the misleading change-loader/version affordance. Report server files, client-only files skipped, and override files, with an expandable manifest-file list. Present the final page as a newly created server and first world, and expose pack-managed state in Components so individual changes are not offered while whole-pack replacement remains available. Explain CurseForge API-key requirements only for CurseForge archives; Modrinth `.mrpack` imports state that no CurseForge key is needed.
+**Verify:** `cd clients/desktop-web && npm run api:check && npx vitest run tests/screens/add-server-wizard.test.ts && npm run build && cd ../.. && cargo fmt --all -- --check && cargo nextest run -p msc-api --test phase8_conformance`
+**Commit:** `P12.50: make modpack creation manifest-authoritative`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,
@@ -255,7 +265,7 @@ anti-slop checklist before the terminal shell is accepted.
 ### P13.1 — Define the TUI boundary and preserve the command-line contract
 **Status:** awaiting verification
 **Files:** `docs/msc2/terminal-ui/phase13-scope.md`, `docs/msc2/client-capability-matrix.csv`, `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/cli/mod.rs`, `crates/msc-agent/tests/tui_contract.rs`
-**What:** Record the accepted invocation matrix, client/agent boundary, and a Tauri-to-TUI parity ledger before drawing a screen. The ledger must name every desktop surface represented by the supplied references — shell/control rail; Overview including Notes; Players; Worlds and Backups; Performance; Components; Settings/Health/Connectivity/Access; Files; fleet/manage-server and its create/import flow; server editor General/Services/Java; agent/pairing; Handbook/router guides; and MSC Settings/reset — and give each one (a) its exact Phase 13 destination, (b) its required wide/medium/small behavior, (c) the capability/API evidence, and (d) either a terminal treatment or a deliberately recorded, owner-reviewed terminal exception. Images, macOS window chrome, Finder reveal, and avatar/skin/thumbnail art may be translated or excepted; no workflow may disappear merely because it was presented in a desktop sheet. Add a distinct TUI capability-matrix column so an implemented one-shot CLI command is never mistaken for an implemented screen. Implement and test only the command-dispatch seam: named commands, `--json`, help, and non-TTY use remain conventional; bare interactive `msc` selects the TUI. A first interactive connection can use an explicit bearer token or exchange the existing one-use desktop-pairing code, but its resulting host session and credential exist only in memory; do not create a plaintext profile or token store. Set the test treatment here as well: tests cover lifecycle, transport, state selection, confirmations, and regressions with real behavioral risk — not static labels, callback wiring, or a second assertion of an already-tested agent rule.
+**What:** Record the accepted invocation matrix, client/agent boundary, and a Tauri-to-TUI parity ledger before drawing a screen. The ledger must name every desktop surface represented by the supplied references — shell/control rail; Overview including Notes; Players; Worlds and Backups; Performance; Components; Settings/Health/Connectivity/Access; Files; Manage Servers and its create/import flow; server editor General/Services/Java; agent/pairing; Handbook/router guides; and MSC Settings/reset — and give each one (a) its exact Phase 13 destination, (b) its required wide/medium/small behavior, (c) the capability/API evidence, and (d) either a terminal treatment or a deliberately recorded, owner-reviewed terminal exception. Images, macOS window chrome, Finder reveal, and avatar/skin/thumbnail art may be translated or excepted; no workflow may disappear merely because it was presented in a desktop sheet. Add a distinct TUI capability-matrix column so an implemented one-shot CLI command is never mistaken for an implemented screen. Implement and test only the command-dispatch seam: named commands, `--json`, help, and non-TTY use remain conventional; bare interactive `msc` selects the TUI. A first interactive connection can use an explicit bearer token or exchange the existing one-use desktop-pairing code, but its resulting host session and credential exist only in memory; do not create a plaintext profile or token store. Set the test treatment here as well: tests cover lifecycle, transport, state selection, confirmations, and regressions with real behavioral risk — not static labels, callback wiring, or a second assertion of an already-tested agent rule.
 **Visual reference:** the ledger indexes every image under `/Users/camerontemple/Documents/msc2 pictures/`; it is the binding photo index for all later interactive-surface steps.
 **Verify:** `cargo nextest run -p msc-agent --test tui_contract`
 **Commit:** P13.1: define tui invocation contract
@@ -300,7 +310,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/activity.rs`, `crates/msc-agent/src/cli/tui/confirm.rs`, `crates/msc-agent/src/ws/notifications.rs`, `crates/msc-agent/tests/tui_activity.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Show bounded current-session operations and notifications as a focused activity surface that can be opened without losing the current tab or console. Subscribe to each operation's existing progress stream, treat its documented terminal close as normal, and resync an operation with HTTP after reconnect. Verify the notification stream has real existing agent producers; if it is only an empty mounted stream, connect those producers to this already-specified channel rather than inventing a TUI-only feed, route, or event shape. Make destructive or disruptive requests visibly name the selected host, server, affected world/backup/component where applicable, and consequence before the agent's existing acknowledgement/confirmation response is dispatched; cancellation remains the agent's cooperative operation API. Use a modal/focused terminal flow, not a desktop-style sheet imitation.
-**Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Main View/mainview.png` for the persistent shell context; terminal activity and confirmation flows are the explicit modal/focused equivalent of the desktop sheets in the later fleet, world, and settings references.
+**Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Main View/mainview.png` for the persistent shell context; terminal activity and confirmation flows are the explicit modal/focused equivalent of the desktop sheets in the later Manage Servers, world, and settings references.
 **Verify:** `cargo nextest run -p msc-agent --test tui_activity`
 **Commit:** P13.6: add tui activity streams
 **Batch:** solo
@@ -332,13 +342,13 @@ anti-slop checklist before the terminal shell is accepted.
 **Commit:** P13.9: add tui components
 **Batch:** solo
 
-### P13.10 — Deliver fleet management and the server-editor workflow
+### P13.10 — Deliver Manage Servers and the server-editor workflow
 **Status:** awaiting verification
-**Files:** `crates/msc-agent/src/cli/tui/fleet.rs`, `crates/msc-agent/src/cli/tui/server_editor.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_fleet.rs`, `docs/msc2/client-capability-matrix.csv`
+**Files:** `crates/msc-agent/src/cli/tui/manage_servers.rs`, `crates/msc-agent/src/cli/tui/server_editor.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_manage_servers.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Make the rail's Manage action a complete terminal fleet flow: list servers with active/lifecycle/type context; set active; create or import through the desktop flow's explicit staged choices rather than an opaque one-line command; rename; accept EULA; and delete through the shared confirmation surface. Provide the server editor as a focused General/Services/Java subflow: display name, server directory/path semantics, RAM, ports, storage size, EULA and deletion boundary; capability-backed Playit/Xbox service state; Java detect/path/version/arguments actions. A terminal may request a host-side path as text but must not pretend it can browse a remote host or reuse the local desktop's Finder picker. The selected server must update the entire shell consistently after every fleet action.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Edit Server/manageservers.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/editserver.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/generaltab2.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/java.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/services.png`.
-**Verify:** `cargo nextest run -p msc-agent --test tui_fleet`
-**Commit:** P13.10: add tui fleet and server editor
+**Verify:** `cargo nextest run -p msc-agent --test tui_manage_servers`
+**Commit:** P13.10: add tui manage servers and server editor
 **Batch:** solo
 
 ### P13.11 — Deliver Settings, Connections, Health, and Access sections

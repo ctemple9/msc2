@@ -144,6 +144,8 @@ fn phase8_conformance_modpack_inspection_result_mrpack() {
             "loaderVersion": "0.16.9",
             "fileCount": 214,
             "clientOnlyFileCount": 12,
+            "overrideFileCount": 0,
+            "files": [],
             "manualFiles": [],
             "warnings": []
         }),
@@ -165,6 +167,8 @@ fn phase8_conformance_modpack_inspection_result_curseforge_with_manual_files() {
             "loaderVersion": "0.16.9",
             "fileCount": 214,
             "clientOnlyFileCount": 12,
+            "overrideFileCount": 0,
+            "files": [],
             "manualFiles": [
                 {
                     "fileId": "8287121",

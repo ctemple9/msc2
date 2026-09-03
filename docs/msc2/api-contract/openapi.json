@@ -12383,6 +12383,22 @@
           "fileName"
         ]
       },
+      "ModpackFileDTO": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "clientOnly": {
+            "type": "boolean",
+            "description": "Whether the pack manifest marks this file as client-only and MSC will skip it on the server."
+          }
+        },
+        "required": [
+          "path",
+          "clientOnly"
+        ]
+      },
       "ModpackInspectionResultDTO": {
         "type": "object",
         "properties": {
@@ -12422,6 +12438,17 @@
             "type": "integer",
             "description": "Files this pack's own precedence chain (manifest/Modrinth/embedded-jar/known-list, phase8-scope.md) will skip or disable -- reported so a client can show 'N files' vs 'N will actually install' before committing to import."
           },
+          "overrideFileCount": {
+            "type": "integer",
+            "description": "Files supplied by the archive's overrides or server-overrides trees, counted separately from manifest downloads."
+          },
+          "files": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ModpackFileDTO"
+            },
+            "description": "Manifest files available for an mrpack inspection. CurseForge packs leave this empty because their file ids need provider resolution."
+          },
           "manualFiles": {
             "type": "array",
             "items": {
@@ -12441,6 +12468,8 @@
           "message",
           "format",
           "fileCount",
+          "overrideFileCount",
+          "files",
           "manualFiles"
         ]
       },

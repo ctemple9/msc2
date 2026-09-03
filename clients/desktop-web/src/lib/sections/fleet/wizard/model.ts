@@ -4,14 +4,14 @@ import { fleetMutationPaths } from '../model';
 import { worldPaths, worldSettingsProfile, type WorldSettingsValues } from '../../worlds/model';
 import { addonPaths } from '../../addons/model';
 
-/** The two entry points `AddServerWizardView.swift`'s step 1 offers. */
-export type WizardPath = 'importExisting' | 'fresh';
+/** The three server-creation meanings exposed by the wizard's path picker. */
+export type WizardPath = 'importExisting' | 'modpack' | 'fresh';
 
 /**
- * Step-chip labels for the wizard's step counter, mirroring
- * `AddServerWizardView.swift`'s `stepLabel(_:)` -- Fresh and Import each walk
- * a different five-step sequence, sharing only step 1 (Choose path) and the
- * final step (Confirm). The oracle also inserts a sixth Add-ons step for
+ * Step-chip labels for the wizard's step counter. Fresh, existing-server
+ * import, and modpack creation each walk their own sequence, sharing only
+ * step 1 (Choose path) and the final step (Confirm). Fresh also inserts a
+ * sixth Add-ons step for
  * Fresh/Java flavors with a plugin or mod ecosystem (`hasAddOnsStep`,
  * `showAddOns` here), between World and Confirm.
  */
@@ -26,7 +26,7 @@ export function wizardStepLabels(
     labels.push('Confirm');
     return labels;
   }
-  return isModpackImport
+  return path === 'modpack' || isModpackImport
     ? ['Choose path', 'Upload', 'Network', 'World', 'Confirm']
     : ['Choose path', 'Upload', 'Review', 'Network', 'Confirm'];
 }

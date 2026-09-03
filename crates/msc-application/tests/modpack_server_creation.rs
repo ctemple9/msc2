@@ -152,6 +152,7 @@ fn inspection(format: InspectedFormat, staged_dir: PathBuf) -> ModpackInspection
         pinned_version: None,
         manual_downloads: Vec::new(),
         curseforge_lookup_available: false,
+        override_file_count: 0,
         staged_dir,
     }
 }

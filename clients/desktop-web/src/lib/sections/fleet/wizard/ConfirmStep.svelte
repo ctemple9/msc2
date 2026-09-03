@@ -60,6 +60,9 @@
   $: addOnNoun = addOnKind === 'plugin' ? 'Plugins' : 'Mods';
   $: totalStagedAddOns = draft.pendingAddOns.length;
   $: hasStagedVoiceChat = hasStagedSimpleVoiceChat(draft);
+  $: isPackCreation = draft.stagedModpack !== undefined;
+  $: isExistingImport = path === 'importExisting' && !isPackCreation;
+  $: packInspection = draft.stagedModpack?.inspection;
 
   // The oracle keeps one shared `selectedVersionEntry` state var visible to
   // every step; this port only knows the picked `versionId` by the time it
@@ -91,7 +94,7 @@
     <div class="success">
       <StatusDot tone="ok" label="{displayName || draft.serverName} created" />
       <p class="hint">
-        {#if path === 'importExisting'}
+        {#if isExistingImport}
           Open Server Settings to review defaults.{#if !draft.importEulaAccepted}
             The EULA still needs to be accepted before this server can start.{/if}
         {:else if draft.worldSourceMode === 'fresh'}
@@ -124,7 +127,7 @@
     <section class="block">
       <p class="msc2-type-overline">Server settings — apply to every world</p>
       <div class="summary">
-        {#if path === 'importExisting'}
+        {#if isExistingImport}
           <div class="row">
             <span class="label">Method</span>
             <span class="value">Import existing</span>
@@ -172,8 +175,10 @@
             <div class="row">
               <span class="label">Version</span>
               <span class="value"
-                >{pinnedVersionLabel ??
-                  `Latest ${flavorInfo?.displayName ?? draft.javaFlavor}`}</span
+                >{packInspection?.minecraftVersion
+                  ? `${packInspection.minecraftVersion} · ${packInspection.loaderName ?? flavorInfo?.displayName ?? draft.javaFlavor}${packInspection.loaderVersion ? ` ${packInspection.loaderVersion}` : ''}`
+                  : (pinnedVersionLabel ??
+                    `Latest ${flavorInfo?.displayName ?? draft.javaFlavor}`)}</span
               >
             </div>
             <div class="row">
@@ -220,6 +225,12 @@
               >
             </div>
           {/if}
+          {#if isPackCreation}
+            <div class="row">
+              <span class="label">Component policy</span>
+              <span class="value">Managed by this modpack</span>
+            </div>
+          {/if}
           {#if totalStagedAddOns > 0}
             <div class="row">
               <span class="label">{addOnNoun}</span>
@@ -232,12 +243,12 @@
 
     <section class="block">
       <p class="msc2-type-overline">
-        {path === 'importExisting'
+        {isExistingImport
           ? 'Imported world settings — saved with this world'
           : 'First world settings — saved with this world'}
       </p>
       <div class="summary">
-        {#if path === 'importExisting'}
+        {#if isExistingImport}
           <div class="row">
             <span class="label">Active world</span>
             <span class="value">{importActiveWorldName ?? '—'}</span>
@@ -285,13 +296,13 @@
         {/if}
       </div>
 
-      {#if path === 'fresh' && draft.worldGamemode === 'creative'}
+      {#if !isExistingImport && draft.worldGamemode === 'creative'}
         <p class="hint warn">
           Creative is saved with this world. The agent will ask for an acknowledgement before it
           applies the gameplay change.
         </p>
       {/if}
-      {#if path === 'fresh' && draft.serverType === 'java' && draft.javaCategory === 'modded'}
+      {#if !isExistingImport && draft.serverType === 'java' && draft.javaCategory === 'modded'}
         <p class="hint">
           To join, every player needs the {flavorInfo?.displayName ?? draft.javaFlavor} loader for this
           Minecraft version, plus the same mods installed.

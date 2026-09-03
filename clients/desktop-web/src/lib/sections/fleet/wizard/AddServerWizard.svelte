@@ -97,7 +97,7 @@
   // add-ons, shifting Confirm from 5 to 6. When it's false, position 5 is
   // Confirm directly and the layout is unchanged from before this step.
   $: showAddOns = path === 'fresh' && hasAddOnsStep(draft);
-  $: showModpack = path === 'importExisting' && draft.stagedModpack !== undefined;
+  $: showModpack = path === 'modpack' || draft.stagedModpack !== undefined;
   $: labels = wizardStepLabels(path, showAddOns, showModpack);
   $: totalSteps = labels.length;
   // Confirm is always the final step of either path now that P12.18h gives
@@ -110,7 +110,7 @@
   $: if (isConfirmStep && !displayName.trim()) {
     if (path === 'fresh' && draft.serverName.trim()) {
       displayName = draft.serverName;
-    } else if (path === 'importExisting' && draft.stagedModpack?.inspection.packName) {
+    } else if (showModpack && draft.stagedModpack?.inspection.packName) {
       displayName = draft.stagedModpack.inspection.packName;
     } else if (path === 'importExisting' && draft.importSourcePath) {
       displayName = importDisplayNameFromPath(draft.importSourcePath);
@@ -119,14 +119,16 @@
   $: canContinue =
     currentStep === 1 ||
     (currentStep === 2 && path === 'fresh' && canAdvanceConfigure(draft)) ||
-    (currentStep === 2 && path === 'importExisting' && canAdvanceUpload(draft)) ||
+    (currentStep === 2 &&
+      (path === 'importExisting' || path === 'modpack') &&
+      canAdvanceUpload(draft)) ||
     (currentStep === 3 && path === 'fresh' && canAdvanceNetwork(draft)) ||
-    (currentStep === 3 && path === 'importExisting' && showModpack && canAdvanceNetwork(draft)) ||
+    (currentStep === 3 && showModpack && canAdvanceNetwork(draft)) ||
     // Review's own `canAdvance` case is unconditional in the oracle --
     // nothing on this step blocks Continue once it's reachable at all.
     (currentStep === 3 && path === 'importExisting' && !showModpack) ||
     (currentStep === 4 && path === 'fresh' && canAdvanceWorld(draft)) ||
-    (currentStep === 4 && path === 'importExisting' && showModpack && canAdvanceWorld(draft)) ||
+    (currentStep === 4 && showModpack && canAdvanceWorld(draft)) ||
     (currentStep === 4 && path === 'importExisting' && !showModpack && canAdvanceNetwork(draft)) ||
     (currentStep === 5 && path === 'fresh' && showAddOns);
 
@@ -136,15 +138,13 @@
 
   function selectPath(next: WizardPath): void {
     path = next;
-    if (next === 'fresh') {
-      draft = {
-        ...draft,
-        stagedModpack: undefined,
-        importSourcePath: undefined,
-        importIsZip: false,
-        importScan: undefined,
-      };
-    }
+    draft = {
+      ...draft,
+      stagedModpack: undefined,
+      importSourcePath: undefined,
+      importIsZip: false,
+      importScan: undefined,
+    };
   }
 
   function backStep(): void {
@@ -154,15 +154,14 @@
   async function beginCreate(): Promise<void> {
     if (!canCreateServer(displayName) || isCreating) return;
     isCreating = true;
-    statusMessage = path === 'fresh' ? 'Creating server…' : 'Importing server…';
+    statusMessage =
+      path === 'importExisting' && !showModpack ? 'Importing server…' : 'Creating server…';
     const onProgress = (line: string) => (statusMessage = line);
     try {
       const { warnings } =
-        path === 'fresh'
-          ? await createServerFromDraft(api, draft, displayName, onProgress)
-          : showModpack
-            ? await createServerFromDraft(api, draft, displayName, onProgress)
-            : await importServerFromDraft(api, draft, displayName, onProgress);
+        path === 'importExisting' && !showModpack
+          ? await importServerFromDraft(api, draft, displayName, onProgress)
+          : await createServerFromDraft(api, draft, displayName, onProgress);
       createWarnings = warnings;
       createSucceeded = true;
       tourServerCreated.set(true);
@@ -200,7 +199,7 @@
       {#if currentStep === 1}
         <div class="intro">
           <h2>How do you want to add this server?</h2>
-          <p>Import a server you already have, or start a brand new one from scratch.</p>
+          <p>Import an existing server, create one from a modpack, or start from scratch.</p>
         </div>
         <div class="paths" use:onboardingAnchor={'ob_wizard_path_picker'}>
           <button
@@ -218,6 +217,18 @@
           <button
             type="button"
             class="path-card"
+            class:selected={path === 'modpack'}
+            onclick={() => selectPath('modpack')}
+          >
+            <span class="path-title">Create from Modpack</span>
+            <span class="path-subtitle"
+              >Inspect a .mrpack or CurseForge archive, then create a new server from its pinned
+              files.</span
+            >
+          </button>
+          <button
+            type="button"
+            class="path-card"
             class:selected={path === 'fresh'}
             use:onboardingAnchor={'ob_wizard_fresh_card'}
             onclick={() => selectPath('fresh')}
@@ -230,17 +241,17 @@
         </div>
       {:else if currentStep === 2 && path === 'fresh'}
         <ConfigureStep {api} bind:draft />
-      {:else if currentStep === 2 && path === 'importExisting'}
+      {:else if currentStep === 2 && (path === 'importExisting' || path === 'modpack')}
         <UploadStep {api} bind:draft />
       {:else if currentStep === 3 && path === 'fresh'}
         <NetworkStep bind:draft />
-      {:else if currentStep === 3 && path === 'importExisting' && showModpack}
+      {:else if currentStep === 3 && showModpack}
         <NetworkStep bind:draft />
       {:else if currentStep === 3 && path === 'importExisting'}
         <ReviewStep bind:draft />
       {:else if currentStep === 4 && path === 'fresh'}
         <WorldStep {api} bind:draft />
-      {:else if currentStep === 4 && path === 'importExisting' && showModpack}
+      {:else if currentStep === 4 && showModpack}
         <WorldStep {api} bind:draft />
       {:else if currentStep === 4 && path === 'importExisting'}
         <NetworkStep bind:draft />

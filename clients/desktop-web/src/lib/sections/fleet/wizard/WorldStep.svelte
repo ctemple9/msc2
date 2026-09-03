@@ -60,7 +60,13 @@
   if (!draft.worldSettings) draft.worldSettings = worldSettings;
 
   $: {
-    const requestKey = [draft.serverType, draft.javaFlavor, draft.versionId ?? 'latest'].join('|');
+    const pack = draft.stagedModpack?.inspection;
+    const requestKey = [
+      draft.serverType,
+      draft.javaFlavor,
+      pack?.minecraftVersion ?? draft.versionId ?? 'latest',
+      pack?.loaderVersion ?? '',
+    ].join('|');
     if (requestKey !== capabilityRequestKey) {
       capabilityRequestKey = requestKey;
       capabilities = undefined;
@@ -72,7 +78,8 @@
     if (!api) return;
     capabilitiesError = undefined;
     try {
-      let minecraftVersion = draft.versionId;
+      const pack = draft.stagedModpack?.inspection;
+      let minecraftVersion = pack?.minecraftVersion ?? draft.versionId;
       if (!minecraftVersion && draft.serverType === 'java') {
         const versions = await api.get<Schema['VersionsResponseDTO']>(
           versionsForCreatePath('java', draft.javaFlavor),
@@ -83,6 +90,7 @@
       const params = new URLSearchParams({ serverType: draft.serverType });
       if (minecraftVersion) params.set('minecraftVersion', minecraftVersion);
       if (draft.serverType === 'java') params.set('javaFlavor', draft.javaFlavor);
+      if (pack?.loaderVersion) params.set('loaderVersion', pack.loaderVersion);
       const response = await api.get<{ worldSettings?: WorldSettingsCapabilities }>(
         `/v1/capabilities?${params.toString()}`,
       );

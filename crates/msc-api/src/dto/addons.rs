@@ -310,6 +310,13 @@ pub struct ModpackInspectionRequestDto {
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ModpackFileDto {
+    pub path: String,
+    pub client_only: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ModpackInspectionResultDto {
     pub success: bool,
     pub message: String,
@@ -326,6 +333,8 @@ pub struct ModpackInspectionResultDto {
     pub loader_version: Option<String>,
     pub file_count: i64,
     pub client_only_file_count: i64,
+    pub override_file_count: i64,
+    pub files: Vec<ModpackFileDto>,
     pub manual_files: Vec<ModpackManualFileDto>,
     pub warnings: Vec<String>,
 }

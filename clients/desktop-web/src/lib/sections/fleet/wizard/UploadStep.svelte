@@ -22,6 +22,7 @@
   let dropTargeted = false;
   let supportsDrop = false;
   let unsubscribeDrop: (() => void) | undefined;
+  let fileFilter = '';
 
   onMount(async () => {
     const platform = await getPlatform();
@@ -250,9 +251,27 @@
         </div>
       {/if}
       <div class="row">
-        <span class="label">Files</span>
+        <span class="label">Manifest files</span>
         <span class="value">{inspection.fileCount}</span>
       </div>
+      <div class="row">
+        <span class="label">Installed on server</span>
+        <span class="value"
+          >{inspection.fileCount - (inspection.clientOnlyFileCount ?? 0)} manifest files</span
+        >
+      </div>
+      {#if inspection.clientOnlyFileCount}
+        <div class="row">
+          <span class="label">Client-only files</span>
+          <span class="value">{inspection.clientOnlyFileCount} skipped</span>
+        </div>
+      {/if}
+      {#if inspection.overrideFileCount}
+        <div class="row">
+          <span class="label">Included overrides</span>
+          <span class="value">{inspection.overrideFileCount} files</span>
+        </div>
+      {/if}
     </div>
 
     {#if inspection.warnings?.length}
@@ -263,13 +282,48 @@
       </ul>
     {/if}
 
-    <details class="disclosure">
-      <summary>Change loader/version…</summary>
-      <p>
-        This pack's manifest pins its loader and Minecraft version for creation. To use a different
-        loader or version, choose a different pack or start fresh.
+    {#if inspection.format === 'curseforge'}
+      <p class="hint warn">
+        CurseForge packs need an API key before creation. Save it in MSC Settings → Modpack Imports,
+        then return here to retry.
       </p>
-    </details>
+    {:else if inspection.format === 'mrpack'}
+      <p class="hint">
+        This Modrinth pack downloads from its manifest; no CurseForge API key is needed.
+      </p>
+    {/if}
+
+    <div class="locked-context">
+      <span class="locked-title">Pinned by modpack</span>
+      <p>
+        Minecraft {inspection.minecraftVersion ?? 'version from manifest'} · {inspection.loaderName ??
+          'loader'}{inspection.loaderVersion ? ` ${inspection.loaderVersion}` : ''}. These values
+        cannot be changed during import.
+      </p>
+    </div>
+
+    {#if inspection.files?.length}
+      <details class="disclosure contents">
+        <summary>View pack contents ({inspection.files.length})</summary>
+        <input
+          class="file-filter"
+          type="search"
+          bind:value={fileFilter}
+          placeholder="Filter files"
+          aria-label="Filter modpack files"
+        />
+        <div class="file-list">
+          {#each inspection.files.filter((file) => file.path
+              .toLowerCase()
+              .includes(fileFilter.trim().toLowerCase())) as file (file.path)}
+            <div class="file-row" class:client-only={file.clientOnly}>
+              <span>{file.path}</span>
+              {#if file.clientOnly}<span class="file-note">client-only</span>{/if}
+            </div>
+          {/each}
+        </div>
+      </details>
+    {/if}
 
     <Button variant="secondary" size="sm" onclick={chooseDifferentFile}
       >Choose a different file</Button
@@ -387,6 +441,66 @@
     background: var(--msc2-tier-chrome);
     border-radius: 10px;
   }
+  .locked-context {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px 14px;
+    border-left: 2px solid var(--msc2-selection);
+    background: var(--msc2-tier-chrome);
+  }
+  .locked-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--msc2-text-primary);
+  }
+  .locked-context p {
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
+  }
+  .contents {
+    gap: 10px;
+  }
+  .file-filter {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 10px;
+    color: var(--msc2-text-primary);
+    background: var(--msc2-tier-chrome);
+    border: 1px solid var(--msc2-hairline-subtle);
+    border-radius: 7px;
+    font: inherit;
+    font-size: 11.5px;
+  }
+  .file-list {
+    display: flex;
+    flex-direction: column;
+    max-height: 180px;
+    overflow: auto;
+    border: 1px solid var(--msc2-hairline-subtle);
+    border-radius: 7px;
+  }
+  .file-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 6px 9px;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+    font-size: 10.5px;
+    color: var(--msc2-text-secondary);
+  }
+  .file-row:first-child {
+    border-top: none;
+  }
+  .file-row.client-only {
+    color: var(--msc2-text-tertiary);
+  }
+  .file-note {
+    flex-shrink: 0;
+    color: var(--msc2-status-warn);
+  }
   .row {
     display: flex;
     justify-content: space-between;
@@ -416,11 +530,6 @@
   .disclosure summary {
     cursor: pointer;
     color: var(--msc2-text-primary);
-  }
-  .disclosure p {
-    margin: 8px 0 0;
-    color: var(--msc2-text-tertiary);
-    line-height: 1.5;
   }
 
   .status {

@@ -46,6 +46,16 @@ describe('add server wizard step labels', () => {
       'Confirm',
     ]);
   });
+
+  it('gives modpack creation its own upload-to-world sequence', () => {
+    expect(wizardStepLabels('modpack')).toEqual([
+      'Choose path',
+      'Upload',
+      'Network',
+      'World',
+      'Confirm',
+    ]);
+  });
 });
 
 describe('add server wizard onboarding anchors', () => {
@@ -187,6 +197,8 @@ describe('add server wizard confirm step (P12.18g)', () => {
           format: 'mrpack' as const,
           fileCount: 3,
           clientOnlyFileCount: 0,
+          overrideFileCount: 0,
+          files: [],
           manualFiles: [],
         },
       },

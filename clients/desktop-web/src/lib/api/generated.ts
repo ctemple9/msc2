@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 79083f21b07a1862e3f245b361e5ac31863b73dbf44a464b1e5b436e81a00346
+// Contract SHA-256: eaf690f970786afc40ee472316cd2b48159f19b2b41c97395158672702a2b508
 
 export interface paths {
   '/v1/active-server': {
@@ -6935,6 +6935,13 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ModpackFileDTO: {
+      /** @description Whether the pack manifest marks this file as client-only and MSC will skip it on the server. */
+      clientOnly: boolean;
+      path: string;
+    } & {
+      [key: string]: unknown;
+    };
     ModpackImportRequestDTO: {
       /**
        * @description import: the active server is not yet pack-managed. replace: an explicit whole-pack replacement of an already pack-managed server. Sending import against an already pack-managed server, or replace against one that isn't, is refused as ambiguous (409 conflict) -- the client must know and say which case this is, never guessed server-side.
@@ -6958,6 +6965,8 @@ export interface components {
       /** @description Files this pack's own precedence chain (manifest/Modrinth/embedded-jar/known-list, phase8-scope.md) will skip or disable -- reported so a client can show 'N files' vs 'N will actually install' before committing to import. */
       clientOnlyFileCount?: number;
       fileCount: number;
+      /** @description Manifest files available for an mrpack inspection. CurseForge packs leave this empty because their file ids need provider resolution. */
+      files: components['schemas']['ModpackFileDTO'][];
       /**
        * @description Unrecognized archives are a 400, not a 200 with a format value -- there is no third case to represent here.
        * @enum {string}
@@ -6969,6 +6978,8 @@ export interface components {
       manualFiles: components['schemas']['ModpackManualFileEntryDTO'][];
       message: string;
       minecraftVersion?: string;
+      /** @description Files supplied by the archive's overrides or server-overrides trees, counted separately from manifest downloads. */
+      overrideFileCount: number;
       packName?: string;
       packVersion?: string;
       success: boolean;

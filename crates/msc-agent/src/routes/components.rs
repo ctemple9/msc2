@@ -19,7 +19,7 @@ use msc_api::dto::{
     CatalogItemDto, CatalogProjectDetailDto, CatalogSearchResponseDto, CatalogVersionDependencyDto,
     CatalogVersionDto, CatalogVersionFileDto, CatalogVersionsResponseDto, ClientExportItemDto,
     ClientExportResponseDto, ComponentStatusDto, ComponentUpdateRequestDto, ComponentsStatusDto,
-    ModpackImportRequestDto, ModpackImportResultDto, ModpackInspectionRequestDto,
+    ModpackFileDto, ModpackImportRequestDto, ModpackImportResultDto, ModpackInspectionRequestDto,
     ModpackInspectionResultDto, ModpackManualFileDto, ModpackManualFileRequestDto,
     ModpackManualFileResultDto, PermissionCategoryDto, StagedUploadBeginRequestDto,
     StagedUploadBeginResultDto, StagedUploadCompleteResultDto, StagedUploadPurposeDto,
@@ -1772,7 +1772,30 @@ fn modpack_inspection_response(
             .and_then(|label| label.split_whitespace().next().map(str::to_string)),
         loader_version: pinned.and_then(|entry| entry.loader_version),
         file_count,
-        client_only_file_count: 0,
+        client_only_file_count: match &inspection.format {
+            modpacks::InspectedFormat::Mrpack(manifest) => manifest
+                .files
+                .iter()
+                .filter(|file| {
+                    msc_domain::modpack::is_manifest_server_unsupported(file.env.as_ref())
+                })
+                .count() as i64,
+            _ => 0,
+        },
+        override_file_count: inspection.override_file_count as i64,
+        files: match &inspection.format {
+            modpacks::InspectedFormat::Mrpack(manifest) => manifest
+                .files
+                .iter()
+                .map(|file| ModpackFileDto {
+                    path: file.path.clone(),
+                    client_only: msc_domain::modpack::is_manifest_server_unsupported(
+                        file.env.as_ref(),
+                    ),
+                })
+                .collect(),
+            _ => Vec::new(),
+        },
         manual_files: inspection
             .manual_downloads
             .iter()

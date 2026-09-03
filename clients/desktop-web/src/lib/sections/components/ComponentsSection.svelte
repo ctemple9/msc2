@@ -80,6 +80,7 @@
     restartRequiredToApply: false,
   };
   let addons: Schema['AddonItemDTO'][] = [];
+  let packManaged = false;
   let servers: Schema['ServerDTO'][] = [];
   let health: Schema['HealthResponseDTO'] = {
     cards: [],
@@ -143,6 +144,7 @@
       addonPaths.list,
     );
     addons = response.addons;
+    packManaged = response.packManaged;
     addonsLoaded = true;
     checkVoiceTunnelPrompt(playit, response.addons);
   }
@@ -410,10 +412,10 @@
     <div class="header-actions">
       {#if isModded}
         <Button size="sm" variant="secondary" onclick={() => (showImportModpack = true)}>
-          Import Modpack
+          {packManaged ? 'Replace Modpack' : 'Import Modpack'}
         </Button>
       {/if}
-      {#if kind}
+      {#if kind && !packManaged}
         <Button size="sm" variant="secondary" onclick={() => (showBrowser = true)}>
           Browse {isModded ? 'mods' : 'plugins'}
         </Button>
@@ -482,7 +484,7 @@
         <section class="zone">
           <div class="section-header">
             <p class="msc2-type-overline">{isModded ? 'Mods' : 'Plugins'}</p>
-            {#if anyAddonUpdatable}
+            {#if anyAddonUpdatable && !packManaged}
               <Button
                 size="sm"
                 variant="secondary"
@@ -545,7 +547,7 @@
                         <StatusDot tone="warn" label={addonStatusLabel(addon) ?? ''} />
                       {/if}
                     </button>
-                    {#if addon.bucket === 'updateAvailable'}
+                    {#if addon.bucket === 'updateAvailable' && !packManaged}
                       <Button
                         size="sm"
                         variant="secondary"
@@ -560,15 +562,23 @@
               {/each}
             </Card>
           {/if}
+          {#if packManaged}
+            <p class="managed-note">
+              This server is managed by its modpack. The list below shows what is installed; replace
+              the whole pack to change it.
+            </p>
+          {/if}
           <div class="footer-actions">
             <span title="File access lands with the Files tab (P12.9) — not available yet">
               <Button size="sm" variant="secondary" disabled>
                 Reveal {addonFolderName} folder
               </Button>
             </span>
-            <Button size="sm" variant="primary" onclick={() => void addLocalAddon()}>
-              Add {isModded ? 'Mod' : 'Plugin'}
-            </Button>
+            {#if !packManaged}
+              <Button size="sm" variant="primary" onclick={() => void addLocalAddon()}>
+                Add {isModded ? 'Mod' : 'Plugin'}
+              </Button>
+            {/if}
           </div>
         </section>
       {/if}
@@ -658,22 +668,30 @@
     x={addonMenu.x}
     y={addonMenu.y}
     onClose={() => (addonMenu = undefined)}
-    items={[
-      {
-        label: menuAddon.isEnabled ? 'Disable' : 'Enable',
-        onSelect: () => void toggleAddon(menuAddon),
-      },
-      {
-        label: 'View',
-        disabled: !menuAddon.projectId,
-        onSelect: () => (detailAddon = menuAddon),
-      },
-      {
-        label: 'Uninstall',
-        tone: 'destructive',
-        onSelect: () => (confirmingRemove = menuAddon.jarStem),
-      },
-    ]}
+    items={packManaged
+      ? [
+          {
+            label: 'View',
+            disabled: !menuAddon.projectId,
+            onSelect: () => (detailAddon = menuAddon),
+          },
+        ]
+      : [
+          {
+            label: menuAddon.isEnabled ? 'Disable' : 'Enable',
+            onSelect: () => void toggleAddon(menuAddon),
+          },
+          {
+            label: 'View',
+            disabled: !menuAddon.projectId,
+            onSelect: () => (detailAddon = menuAddon),
+          },
+          {
+            label: 'Uninstall',
+            tone: 'destructive',
+            onSelect: () => (confirmingRemove = menuAddon.jarStem),
+          },
+        ]}
   />
 {/if}
 
@@ -789,6 +807,13 @@
     margin: 0;
     font-size: 12px;
     color: var(--msc2-text-secondary);
+  }
+
+  .managed-note {
+    margin: -2px 0 0;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
   }
   .loading-state {
     margin: 0;

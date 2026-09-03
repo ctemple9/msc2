@@ -162,6 +162,9 @@ pub struct ModpackInspection {
     /// blocked").
     pub manual_downloads: Vec<ManualDownloadEntry>,
     pub curseforge_lookup_available: bool,
+    /// Files supplied by the archive's `overrides/` and `server-overrides/`
+    /// trees, counted separately because they are not manifest downloads.
+    pub override_file_count: usize,
     /// The operation-owned directory this archive was extracted into.
     pub staged_dir: PathBuf,
 }
@@ -280,13 +283,36 @@ fn extract_and_enrich(
         _ => (Vec::new(), false),
     };
 
+    let override_file_count = match &format {
+        InspectedFormat::Mrpack(_) | InspectedFormat::CurseForge(_) => {
+            count_files(fs, &staged_dir.join("overrides"))
+                + count_files(fs, &staged_dir.join("server-overrides"))
+        }
+        InspectedFormat::PlainJarZip { .. } => 0,
+    };
+
     Ok(ModpackInspection {
         format,
         pinned_version,
         manual_downloads,
         curseforge_lookup_available,
+        override_file_count,
         staged_dir: staged_dir.to_path_buf(),
     })
+}
+
+fn count_files(fs: &dyn FileSystem, directory: &Path) -> usize {
+    let Ok(entries) = fs.list(directory) else {
+        return 0;
+    };
+    entries
+        .into_iter()
+        .map(|entry| match fs.stat(&entry) {
+            Ok(metadata) if metadata.is_file => 1,
+            Ok(metadata) if metadata.is_dir => count_files(fs, &entry),
+            _ => 0,
+        })
+        .sum()
 }
 
 /// Re-reads the already-extracted `manifest.json`'s own `files[]` list,

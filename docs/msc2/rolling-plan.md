@@ -155,6 +155,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.45: make macos bedrock startup compatible and honest`
 **Batch:** solo
 
+### P12.46 — Restore Release appliance validation inputs
+**Status:** awaiting verification
+**Files:** `sidecar/bedrock/BedrockSidecar.xcodeproj/project.pbxproj`, `docs/msc2/rolling-plan.md`
+**What:** Restore the Intel kernel checksum build setting in the Release sidecar configuration. P12.45 updated the initramfs checksum but accidentally dropped this companion setting, causing `npm run prepare:agent` to fail under `set -u` before the newly fixed sidecar could be staged.
+**Verify:** `xcodebuild build -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -configuration Release -derivedDataPath /tmp/msc2-bedrock-sidecar-release ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO MSC2_BEDROCK_APPLIANCE_DIR=/Users/camerontemple/msc2/sidecar/bedrock/Resources CODE_SIGNING_ALLOWED=NO`
+**Commit:** `P12.46: restore release appliance validation inputs`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

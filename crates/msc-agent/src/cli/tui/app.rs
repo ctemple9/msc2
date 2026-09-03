@@ -7,6 +7,8 @@ use std::future::Future;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
+use super::activity::ActivityState;
+use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, ConfirmationState};
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
 use super::overview::{OverviewState, TAB_NAMES};
@@ -54,6 +56,8 @@ pub struct App {
     console_visible: bool,
     mode: LayoutMode,
     small_surface: SmallSurface,
+    activity: ActivityState,
+    confirmation: ConfirmationState,
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +91,8 @@ impl App {
         );
         let mut app = Self::with_session(host, client.clone(), overview);
         if let Some(client) = client {
-            app.current_session_mut().console.start_feed(client);
+            app.current_session_mut().console.start_feed(client.clone());
+            app.activity.start_notifications(client);
         }
         app
     }
@@ -117,6 +122,8 @@ impl App {
             console_visible: true,
             mode: LayoutMode::Wide,
             small_surface: SmallSurface::Overview,
+            activity: ActivityState::default(),
+            confirmation: ConfirmationState::default(),
         }
     }
 
@@ -133,11 +140,34 @@ impl App {
     }
 
     pub fn handle_key(&mut self, key: KeyCode) -> bool {
+        if self.confirmation.is_open() {
+            if let Some(result) = self.confirmation.handle_key(key) {
+                let request = self.confirmation.resolve(result);
+                if result == ConfirmationResult::Confirmed {
+                    if let Some(request) = request {
+                        self.execute_confirmed_action(request.action);
+                    }
+                } else {
+                    self.last_action = Some("Request cancelled before dispatch".to_string());
+                }
+            }
+            return false;
+        }
         if self.console().is_editing() {
             self.handle_console_input(key);
             return false;
         }
         if self.focus == FocusTarget::Console && self.handle_console_key(key) {
+            return false;
+        }
+        if self.activity.is_open() {
+            match key {
+                KeyCode::Esc | KeyCode::Char('i') => self.activity.close(),
+                KeyCode::Up | KeyCode::Char('k') => self.activity.move_selection(-1),
+                KeyCode::Down | KeyCode::Char('j') => self.activity.move_selection(1),
+                KeyCode::Char('x') => self.begin_cancel_confirmation(),
+                _ => {}
+            }
             return false;
         }
         match key {
@@ -157,6 +187,10 @@ impl App {
                 self.focus = FocusTarget::Console;
             }
             KeyCode::Char('?') => self.small_surface = SmallSurface::Help,
+            KeyCode::Char('i') => {
+                self.activity.open();
+                self.focus = FocusTarget::Content;
+            }
             KeyCode::Char('a') => self.request_lifecycle(true),
             KeyCode::Char('x') => self.request_lifecycle(false),
             KeyCode::Char('1'..='7') => {
@@ -240,6 +274,10 @@ impl App {
         self.current_session_mut().console.poll();
     }
 
+    pub fn poll_activity(&mut self) {
+        self.activity.poll();
+    }
+
     pub fn available_tabs(&self) -> Vec<usize> {
         self.overview().available_tabs()
     }
@@ -257,6 +295,14 @@ impl App {
 
     pub fn last_action(&self) -> Option<&str> {
         self.last_action.as_deref()
+    }
+
+    pub fn activity(&self) -> &ActivityState {
+        &self.activity
+    }
+
+    pub fn confirmation(&self) -> &ConfirmationState {
+        &self.confirmation
     }
 
     /// Add a host session without writing a profile or token to disk. This is
@@ -278,6 +324,12 @@ impl App {
             console,
             overview,
         });
+        self.activity.start_notifications(
+            self.sessions
+                .last()
+                .and_then(|session| session.client.clone())
+                .expect("new host session has its client"),
+        );
         Ok(())
     }
 
@@ -427,21 +479,93 @@ impl App {
     }
 
     fn request_lifecycle(&mut self, start: bool) {
+        let Some(server) = self.overview().selected_server() else {
+            self.last_action = Some("No selected server to change".to_string());
+            return;
+        };
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: server.name.clone(),
+            target: server.id.clone(),
+            consequence: if start {
+                "The agent will launch this server and begin managing its process.".to_string()
+            } else {
+                "The agent will ask the server to stop; players may be disconnected.".to_string()
+            },
+            action: if start {
+                ConfirmAction::StartServer
+            } else {
+                ConfirmAction::StopServer
+            },
+        });
+    }
+
+    fn execute_confirmed_action(&mut self, action: ConfirmAction) {
         let Some(client) = self.current_session().client.clone() else {
             self.last_action = Some("No authenticated host session".to_string());
             return;
         };
-        match run_blocking(OverviewState::request_lifecycle(&client, start)) {
-            Ok(overview) => {
-                self.current_session_mut().overview = overview;
-                self.last_action = Some(if start {
-                    "Start requested".to_string()
-                } else {
-                    "Stop requested".to_string()
-                });
+        match action {
+            ConfirmAction::StartServer | ConfirmAction::StopServer => {
+                let start = matches!(action, ConfirmAction::StartServer);
+                match run_blocking(ActivityState::request_lifecycle(&client, start)) {
+                    Ok((result, overview)) => {
+                        self.current_session_mut().overview = overview;
+                        if let Some(operation_id) = result.operation_id {
+                            self.activity.track_operation(client, operation_id.clone());
+                            self.last_action = Some(format!(
+                                "{} requested; operation {operation_id} is being tracked",
+                                if start { "Start" } else { "Stop" }
+                            ));
+                        } else {
+                            self.last_action = Some(if start {
+                                "Start requested".to_string()
+                            } else {
+                                "Stop requested".to_string()
+                            });
+                        }
+                    }
+                    Err(error) => self.last_action = Some(error.to_string()),
+                }
             }
-            Err(error) => self.last_action = Some(error.to_string()),
+            ConfirmAction::CancelOperation { operation_id } => {
+                match run_blocking(ActivityState::cancel_operation(&client, &operation_id)) {
+                    Ok(_) => {
+                        self.last_action = Some(format!(
+                            "Cancellation requested for operation {operation_id}"
+                        ));
+                    }
+                    Err(error) => self.last_action = Some(error.to_string()),
+                }
+            }
         }
+    }
+
+    fn begin_cancel_confirmation(&mut self) {
+        if !self.activity.selected_operation_is_active() {
+            self.last_action = Some("Select a queued or running operation to cancel".to_string());
+            return;
+        }
+        let Some(operation_id) = self.activity.selected_operation_id() else {
+            self.last_action = Some("Select a running operation to cancel".to_string());
+            return;
+        };
+        let operation_id = operation_id.to_string();
+        let target = self
+            .activity
+            .operations()
+            .find(|operation| operation.id == operation_id)
+            .and_then(|operation| operation.target.clone())
+            .unwrap_or_else(|| operation_id.clone());
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: self.overview().selected_server_name().to_string(),
+            target,
+            consequence:
+                "The agent will stop this operation at its next cooperative safe boundary."
+                    .to_string(),
+            action: ConfirmAction::CancelOperation { operation_id },
+        });
     }
 
     fn handle_console_key(&mut self, key: KeyCode) -> bool {

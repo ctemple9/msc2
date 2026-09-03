@@ -2,7 +2,9 @@
 //! presentation; authentication and all management behavior remain agent API
 //! responsibilities.
 
+pub mod activity;
 pub mod app;
+pub mod confirm;
 pub mod console;
 pub mod layout;
 pub mod overview;

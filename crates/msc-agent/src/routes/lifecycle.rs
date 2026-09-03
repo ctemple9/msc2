@@ -55,6 +55,7 @@ use crate::auth::{AuthState, AuthenticatedCredential};
 use crate::routes::bedrock_runtime::BedrockRuntimeSelection;
 use crate::routes::operations::{OperationsState, operation_error_response};
 use crate::ws::console::ConsoleState;
+use crate::ws::notifications::NotificationState;
 
 /// Per-server outcome of world reconciliation and interrupted-mutation
 /// recovery. The map is live rather than a startup-only snapshot because
@@ -228,6 +229,7 @@ struct LifecycleRoutesInner {
     metrics: PsProcessMetricsProvider,
     lifecycle: Mutex<LifecycleService<'static>>,
     operations: OperationsState,
+    notifications: NotificationState,
     active_lifecycle_operation: Mutex<Option<OperationId>>,
     bedrock_active_server_id: Mutex<Option<String>>,
     pump_tasks: Mutex<Vec<JoinHandle<()>>>,
@@ -280,6 +282,7 @@ impl LifecycleRoutesState {
             default_process_supervisor(),
             None,
             BedrockRuntimeSelection::unavailable_for_tests(),
+            NotificationState::default(),
         )
     }
 
@@ -300,6 +303,7 @@ impl LifecycleRoutesState {
             default_process_supervisor(),
             None,
             BedrockRuntimeSelection::unavailable_for_tests(),
+            NotificationState::default(),
         )
     }
 
@@ -326,6 +330,24 @@ impl LifecycleRoutesState {
         auth_state: AuthState,
         bedrock_runtime: BedrockRuntimeSelection,
     ) -> Self {
+        Self::with_app_config_and_auth_and_bedrock_and_notifications(
+            console_state,
+            operations,
+            app_config,
+            auth_state,
+            bedrock_runtime,
+            NotificationState::default(),
+        )
+    }
+
+    pub fn with_app_config_and_auth_and_bedrock_and_notifications(
+        console_state: ConsoleState,
+        operations: OperationsState,
+        app_config: &'static AgentAppConfigStore,
+        auth_state: AuthState,
+        bedrock_runtime: BedrockRuntimeSelection,
+        notifications: NotificationState,
+    ) -> Self {
         Self::with_dependencies(
             console_state,
             operations,
@@ -333,6 +355,7 @@ impl LifecycleRoutesState {
             default_process_supervisor(),
             Some(auth_state),
             bedrock_runtime,
+            notifications,
         )
     }
 
@@ -343,6 +366,7 @@ impl LifecycleRoutesState {
         process: Box<dyn ProcessSupervisor + Send + Sync>,
         auth_state: Option<AuthState>,
         bedrock_runtime: BedrockRuntimeSelection,
+        notifications: NotificationState,
     ) -> Self {
         let reconciliation = reconcile_servers_at_startup(&app_config.servers());
 
@@ -384,6 +408,7 @@ impl LifecycleRoutesState {
                 metrics: PsProcessMetricsProvider::default(),
                 lifecycle: Mutex::new(lifecycle),
                 operations,
+                notifications,
                 active_lifecycle_operation: Mutex::new(None),
                 bedrock_active_server_id: Mutex::new(initial_bedrock_active_server_id),
                 pump_tasks: Mutex::new(Vec::new()),
@@ -480,6 +505,7 @@ impl LifecycleRoutesState {
             Box::new(supervisor),
             None,
             BedrockRuntimeSelection::unavailable_for_tests(),
+            NotificationState::default(),
         );
         (state, supervisor)
     }
@@ -1797,6 +1823,18 @@ impl LifecycleRoutesState {
             .inner
             .operations
             .succeed(&operation_id, status_line, result);
+        if let Some(server_id) = self.active_server_id() {
+            let server_name = self
+                .inner
+                .registry
+                .get(&ServerId::new(server_id.clone()))
+                .map(|server| server.display_name)
+                .unwrap_or_else(|| server_id.clone());
+            let started = !status_line.to_ascii_lowercase().contains("stopped");
+            self.inner
+                .notifications
+                .push_lifecycle(&server_id, &server_name, started);
+        }
     }
 
     fn finish_active_lifecycle_operation_failure(&self, message: &str) {

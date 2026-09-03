@@ -3,7 +3,9 @@
 //! concern; this channel carries only safe, typed status text.
 
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
@@ -15,6 +17,8 @@ use tokio::sync::broadcast;
 const HISTORY_LIMIT: usize = 200;
 const CHANNEL_CAPACITY: usize = 200;
 const MAX_INBOUND_FRAME_BYTES: usize = 64 * 1024;
+
+static NEXT_EVENT_ID: AtomicU64 = AtomicU64::new(1);
 
 #[derive(Clone)]
 pub struct NotificationState {
@@ -47,6 +51,38 @@ impl NotificationState {
         }
         drop(history);
         let _ = self.sender.send(event);
+    }
+
+    /// Connects the lifecycle producer to the same agent-owned feed used by
+    /// the TUI and other clients. The event is deliberately the frozen
+    /// NotificationEventDto shape; no terminal-specific event is introduced.
+    pub fn push_lifecycle(&self, server_id: &str, server_name: &str, started: bool) {
+        self.push(NotificationEventDto {
+            id: format!(
+                "notification-{}",
+                NEXT_EVENT_ID.fetch_add(1, Ordering::Relaxed)
+            ),
+            server_id: server_id.to_string(),
+            occurred_at_iso8601: iso8601_now(),
+            kind: if started {
+                "server_started"
+            } else {
+                "server_stopped"
+            }
+            .to_string(),
+            title: if started {
+                "Server Started"
+            } else {
+                "Server Stopped"
+            }
+            .to_string(),
+            body: if started {
+                format!("{server_name} is now online.")
+            } else {
+                format!("{server_name} has stopped.")
+            },
+            help_id: None,
+        });
     }
 
     fn backfill(&self) -> Vec<NotificationEventDto> {
@@ -97,4 +133,12 @@ async fn send_event(
             serde_json::to_string(event).expect("notification DTO serializes"),
         ))
         .await
+}
+
+fn iso8601_now() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    crate::routes::system_time_to_iso8601(seconds).unwrap_or_else(|| "1970-01-01T00:00:00Z".into())
 }

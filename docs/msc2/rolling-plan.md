@@ -233,7 +233,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.6 — Deliver operation progress, notifications, and confirmation behavior
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/activity.rs`, `crates/msc-agent/src/cli/tui/confirm.rs`, `crates/msc-agent/src/ws/notifications.rs`, `crates/msc-agent/tests/tui_activity.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Show bounded current-session operations and notifications as a focused activity surface that can be opened without losing the current tab or console. Subscribe to each operation's existing progress stream, treat its documented terminal close as normal, and resync an operation with HTTP after reconnect. Verify the notification stream has real existing agent producers; if it is only an empty mounted stream, connect those producers to this already-specified channel rather than inventing a TUI-only feed, route, or event shape. Make destructive or disruptive requests visibly name the selected host, server, affected world/backup/component where applicable, and consequence before the agent's existing acknowledgement/confirmation response is dispatched; cancellation remains the agent's cooperative operation API. Use a modal/focused terminal flow, not a desktop-style sheet imitation.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Main View/mainview.png` for the persistent shell context; terminal activity and confirmation flows are the explicit modal/focused equivalent of the desktop sheets in the later fleet, world, and settings references.

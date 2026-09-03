@@ -136,21 +136,21 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         .expect("failed to load durable MSC 2 application config"),
     ));
     let console_state = ws::console::ConsoleState::default();
+    let notification_state = ws::notifications::NotificationState::default();
     let bedrock_runtime = routes::bedrock_runtime::BedrockRuntimeSelection::production(app_config);
-    let lifecycle_state =
-        routes::lifecycle::LifecycleRoutesState::with_app_config_and_auth_and_bedrock(
+    let lifecycle_state = routes::lifecycle::LifecycleRoutesState::with_app_config_and_auth_and_bedrock_and_notifications(
             console_state.clone(),
             operations_state.clone(),
             app_config,
             auth_state.clone(),
             bedrock_runtime,
+            notification_state.clone(),
         );
     let host_reset_state = routes::host_reset::HostResetRoutesState::new(
         lifecycle_state.clone(),
         auth_state.clone(),
         operations_state.clone(),
     );
-    let notification_state = ws::notifications::NotificationState::default();
     let networking_state = routes::networking::NetworkingState::new(
         lifecycle_state.clone(),
         operations_state.clone(),

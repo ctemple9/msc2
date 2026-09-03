@@ -7,7 +7,7 @@ use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Borders, Paragraph, Tabs, Wrap};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs, Wrap};
 
 use super::app::{App, FocusTarget, SmallSurface};
 use super::console::ConsoleView;
@@ -16,6 +16,7 @@ use super::overview::TAB_NAMES;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     app.poll_console();
+    app.poll_activity();
     let layout = app.prepare_layout(frame.area());
     render_header(frame, layout.header, app, layout.mode);
 
@@ -24,13 +25,18 @@ pub fn render(frame: &mut Frame, app: &mut App) {
         LayoutMode::Medium => render_standard_shell(frame, &layout, app, false),
         LayoutMode::Small => render_small(frame, layout.content, app),
     }
+    if app.confirmation().is_open() {
+        render_confirmation(frame, layout.content, app);
+    }
 }
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App, mode: LayoutMode) {
     let controls = match mode {
-        LayoutMode::Wide => "[Tab] focus  [1-7] section  [a] start  [x] stop  [q] quit",
-        LayoutMode::Medium => "[r] rail  [c] console  [s] section  [a/x] lifecycle  [q] quit",
-        LayoutMode::Small => "[s] sections  [c] console  [?] help  [q] quit",
+        LayoutMode::Wide => "[Tab] focus  [1-7] section  [a/x] lifecycle  [i] activity  [q] quit",
+        LayoutMode::Medium => {
+            "[r] rail  [c] console  [s] section  [a/x] lifecycle  [i] activity  [q] quit"
+        }
+        LayoutMode::Small => "[s] sections  [c] console  [i] activity  [?] help  [q] quit",
     };
     let state = app.overview().lifecycle_label();
     let line = Line::from(vec![
@@ -69,7 +75,11 @@ fn render_standard_shell(frame: &mut Frame, layout: &ShellLayout, app: &App, wid
             render_section_selector(frame, tabs, app);
         }
     }
-    render_content(frame, layout.content, app);
+    if app.activity().is_open() {
+        render_activity(frame, layout.content, app);
+    } else {
+        render_content(frame, layout.content, app);
+    }
     if let Some(console) = layout.console {
         render_console(frame, console, app);
     }
@@ -216,6 +226,93 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
+fn render_activity(frame: &mut Frame, area: Rect, app: &App) {
+    let activity = app.activity();
+    let mut lines = vec![Line::from(
+        "Current session activity  [j/k] select  [x] cancel operation  [esc/i] close",
+    )];
+    for (index, operation) in activity.operations().enumerate() {
+        let marker = if index == activity.selected_index() {
+            "›"
+        } else {
+            " "
+        };
+        let progress = operation
+            .progress
+            .as_ref()
+            .map(|value| format!(" {}/{}", value.current, value.total))
+            .unwrap_or_default();
+        lines.push(Line::from(format!(
+            "{marker} OP  {}  {}{}  {}",
+            operation.id,
+            operation_state(operation.state),
+            progress,
+            operation.status_line.as_deref().unwrap_or("—")
+        )));
+    }
+    let notification_offset = activity.operations().count();
+    for (index, notification) in activity.notifications().enumerate() {
+        let marker = if notification_offset + index == activity.selected_index() {
+            "›"
+        } else {
+            " "
+        };
+        lines.push(Line::from(format!(
+            "{marker} NOTE  {}  {}",
+            notification.title, notification.body
+        )));
+    }
+    if lines.len() == 1 {
+        lines.push(Line::from(
+            "No operations or notifications in this session yet.",
+        ));
+    }
+    if let Some(status) = activity.status() {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(Block::default().borders(Borders::ALL).title("› ACTIVITY"))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_confirmation(frame: &mut Frame, area: Rect, app: &App) {
+    let Some(request) = app.confirmation().request() else {
+        return;
+    };
+    let text = format!(
+        "Confirm request\n\nHost: {}\nServer: {}\nTarget: {}\n\n{}\n\n[enter/y] confirm  [esc/n] cancel",
+        request.host, request.server, request.target, request.consequence
+    );
+    let width = area.width.saturating_sub(8).clamp(32, 84);
+    let height = area.height.saturating_sub(8).clamp(8, 14);
+    let modal = Rect {
+        x: area.x + area.width.saturating_sub(width) / 2,
+        y: area.y + area.height.saturating_sub(height) / 2,
+        width,
+        height,
+    };
+    frame.render_widget(Clear, modal);
+    frame.render_widget(
+        Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title("› CONFIRM"))
+            .wrap(Wrap { trim: true }),
+        modal,
+    );
+}
+
+fn operation_state(state: msc_api::dto::OperationStateDto) -> &'static str {
+    match state {
+        msc_api::dto::OperationStateDto::Queued => "QUEUED",
+        msc_api::dto::OperationStateDto::Running => "RUNNING",
+        msc_api::dto::OperationStateDto::Succeeded => "SUCCEEDED",
+        msc_api::dto::OperationStateDto::Failed => "FAILED",
+        msc_api::dto::OperationStateDto::Cancelled => "CANCELLED",
+    }
+}
+
 fn render_console(frame: &mut Frame, area: Rect, app: &App) {
     let title = if app.focus() == FocusTarget::Console {
         "› CONSOLE"
@@ -286,6 +383,10 @@ fn render_console(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_small(frame: &mut Frame, area: Rect, app: &App) {
+    if app.activity().is_open() {
+        render_activity(frame, area, app);
+        return;
+    }
     match app.small_surface() {
         SmallSurface::Overview => {
             let text = format!(

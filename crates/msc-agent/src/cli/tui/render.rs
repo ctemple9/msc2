@@ -10,11 +10,13 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs, Wrap};
 
 use super::app::{App, FocusTarget, SmallSurface};
+use super::backups::BackupsState;
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
 use super::overview::TAB_NAMES;
 use super::performance::{TrendMetric, format_bytes, format_memory_mb, format_metric};
 use super::players::{PlayersState, profile_edition, profile_status};
+use super::worlds::WorldsState;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     app.poll_console();
@@ -188,6 +190,14 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
         render_players(frame, area, app);
         return;
     }
+    if app.active_tab() == 2 {
+        if app.backups().open {
+            render_backups(frame, area, app.backups());
+        } else {
+            render_worlds(frame, area, app, app.worlds());
+        }
+        return;
+    }
     if app.active_tab() == 3 {
         render_performance(frame, area, app);
         return;
@@ -235,6 +245,197 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
             .wrap(Wrap { trim: true }),
         area,
     );
+}
+
+fn render_worlds(frame: &mut Frame, area: Rect, app: &App, worlds: &WorldsState) {
+    let title = if app.focus() == FocusTarget::Content {
+        "› WORLDS"
+    } else {
+        "WORLDS"
+    };
+    let mut lines = Vec::new();
+    if let Some(error) = &worlds.error {
+        lines.push(Line::from(format!("World slots unavailable: {error}")));
+    } else if !worlds.loaded {
+        lines.push(Line::from("Loading world slots from the selected server…"));
+    } else if worlds.detail_open {
+        let Some(slot) = worlds.selected_slot() else {
+            lines.push(Line::from("No world slot is selected."));
+            render_box(frame, area, title, lines);
+            return;
+        };
+        lines.push(Line::from("SELECTED WORLD SLOT"));
+        lines.push(Line::from(format!(
+            "{}  ·  {}{}",
+            slot.name,
+            if slot.is_active { "ACTIVE" } else { "SAVED" },
+            if worlds
+                .active_slot()
+                .is_some_and(|active| active.id == slot.id)
+            {
+                " · live identity"
+            } else {
+                ""
+            }
+        )));
+        lines.push(Line::from(format!("Slot ID: {}", slot.id)));
+        lines.push(Line::from(format!("Created: {}", slot.created_at)));
+        lines.push(Line::from(format!(
+            "Archive: {}",
+            slot.zip_size_bytes
+                .map(format_archive_bytes)
+                .unwrap_or_else(|| "not reported".to_string())
+        )));
+        lines.push(Line::from(format!(
+            "Seed: {}",
+            slot.world_seed.as_deref().unwrap_or("not reported")
+        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from(
+            "[b] backups  [a] activate  [s] save current  [n] rename  [N] rename active",
+        ));
+        lines.push(Line::from(
+            "[p] copy into  [l] replace active  [e] export  [v] convert  [R] repair",
+        ));
+        lines.push(Line::from("[d] delete  [esc] world list"));
+    } else {
+        let active = worlds
+            .active_slot()
+            .map(|slot| slot.name.as_str())
+            .unwrap_or("none");
+        lines.push(Line::from(format!("ACTIVE WORLD  {active}")));
+        lines.push(Line::from(format!(
+            "{} saved slots · server {}",
+            worlds.slots().len(),
+            worlds
+                .response
+                .as_ref()
+                .map(|response| if response.server_running {
+                    "RUNNING"
+                } else {
+                    "STOPPED"
+                })
+                .unwrap_or("unknown")
+        )));
+        lines.push(Line::from(""));
+        if worlds.slots().is_empty() {
+            lines.push(Line::from("No world slots are available."));
+        } else {
+            for (index, slot) in worlds.slots().iter().enumerate() {
+                let marker = if index == worlds.selected_slot {
+                    "›"
+                } else {
+                    " "
+                };
+                let state = if slot.is_active { "ACTIVE" } else { "SAVED" };
+                lines.push(Line::from(format!(
+                    "{marker} {}  {state}  {}",
+                    slot.name, slot.id
+                )));
+            }
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(
+            "[j/k] choose  [enter] detail  [c] create  [i] import  [r] reload",
+        ));
+    }
+    if let Some((kind, value)) = &worlds.input {
+        lines.push(Line::from(format!("{}: {}_", kind.prompt(), value)));
+    }
+    if let Some(status) = &worlds.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    render_box(frame, area, title, lines);
+}
+
+fn render_backups(frame: &mut Frame, area: Rect, backups: &BackupsState) {
+    let mut lines = Vec::new();
+    if let Some(error) = &backups.error {
+        lines.push(Line::from(format!("Backups unavailable: {error}")));
+    } else if !backups.loaded {
+        lines.push(Line::from(
+            "Loading backups and schedule from the selected server…",
+        ));
+    } else {
+        lines.push(Line::from("BACKUP CONTEXT FOR SELECTED WORLD"));
+        let visible_backups = backups.visible_backups();
+        lines.push(Line::from(format!("{} backups", visible_backups.len())));
+        lines.push(Line::from(
+            "Verification: per-backup verification is not exposed; the agent enforces restore/delete safety.",
+        ));
+        lines.push(Line::from(""));
+        if visible_backups.is_empty() {
+            lines.push(Line::from("No backups are available for this server."));
+        } else {
+            for (index, backup) in visible_backups.iter().enumerate() {
+                let marker = if index == backups.selected_backup {
+                    "›"
+                } else {
+                    " "
+                };
+                let kind = if backup.is_automatic {
+                    "AUTO"
+                } else {
+                    "MANUAL"
+                };
+                let size = backup
+                    .file_size
+                    .map(format_archive_bytes)
+                    .unwrap_or_else(|| "size unknown".to_string());
+                lines.push(Line::from(format!(
+                    "{marker} {}  {kind}  {}  {}",
+                    backup.display_name, backup.trigger_reason, size
+                )));
+            }
+        }
+        lines.push(Line::from(""));
+        if let Some(config) = &backups.config {
+            lines.push(Line::from(format!(
+                "SCHEDULE  {} · every {} min · retain {}",
+                if config.auto_backup_enabled {
+                    "ON"
+                } else {
+                    "OFF"
+                },
+                config.auto_backup_interval_minutes,
+                config.auto_backup_max_count
+            )));
+        } else {
+            lines.push(Line::from("SCHEDULE  unavailable"));
+        }
+        lines.push(Line::from(
+            "[m] backup now  [r] restore  [d] delete  [c] edit schedule  [R] reload  [b] back",
+        ));
+    }
+    if let Some(value) = &backups.input {
+        lines.push(Line::from(format!(
+            "Schedule enabled,true/false; interval minutes; retention count: {}_",
+            value
+        )));
+    }
+    if let Some(status) = &backups.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    render_box(frame, area, "› BACKUPS", lines);
+}
+
+fn render_box(frame: &mut Frame, area: Rect, title: &str, lines: Vec<Line<'static>>) {
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(Block::default().borders(Borders::ALL).title(title))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn format_archive_bytes(bytes: i64) -> String {
+    if bytes < 1024 {
+        return format!("{bytes} B");
+    }
+    if bytes < 1024 * 1024 {
+        return format!("{:.1} KiB", bytes as f64 / 1024.0);
+    }
+    format!("{:.1} MiB", bytes as f64 / (1024.0 * 1024.0))
 }
 
 fn render_players(frame: &mut Frame, area: Rect, app: &App) {
@@ -686,6 +887,14 @@ fn render_small(frame: &mut Frame, area: Rect, app: &App) {
         SmallSurface::Overview => {
             if app.active_tab() == 1 {
                 render_players(frame, area, app);
+                return;
+            }
+            if app.active_tab() == 2 {
+                if app.backups().open {
+                    render_backups(frame, area, app.backups());
+                } else {
+                    render_worlds(frame, area, app, app.worlds());
+                }
                 return;
             }
             if app.active_tab() == 3 {

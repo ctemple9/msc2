@@ -4,6 +4,7 @@
 
 pub mod activity;
 pub mod app;
+pub mod backups;
 pub mod confirm;
 pub mod console;
 pub mod layout;
@@ -13,6 +14,7 @@ pub mod players;
 pub mod render;
 pub mod session;
 pub mod transport;
+pub mod worlds;
 
 use std::io;
 use std::panic::{self, AssertUnwindSafe};

@@ -6,7 +6,9 @@
 
 use crossterm::event::KeyCode;
 
+use super::backups::BackupMutation;
 use super::players::PlayerMutation;
+use super::worlds::WorldMutation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfirmAction {
@@ -14,6 +16,8 @@ pub enum ConfirmAction {
     StopServer,
     CancelOperation { operation_id: String },
     PlayerMutation(PlayerMutation),
+    WorldMutation(WorldMutation),
+    BackupMutation(BackupMutation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

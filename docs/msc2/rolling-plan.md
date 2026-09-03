@@ -259,7 +259,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.8 — Deliver the Worlds and Backups vertical slice
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/worlds.rs`, `crates/msc-agent/src/cli/tui/backups.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_worlds_backups.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Add the capability-filtered world-slot and backup workflows, including create/import, rename, duplicate, save-current, activate, copy/replace-active, export, conversion, Bedrock repair where advertised, manual backup, schedule/retention, restore, and delete. Preserve the desktop's selected-slot relationship: a list of world slots with active identity leads to its detail/actions and then its backup context — it is not two unrelated generic tables. Put active-world identity, backup verification state, required stopped-server/safety-backup implications, destructive target, and confirmation ahead of secondary metadata; preserve server-owned versus world-owned settings boundaries instead of presenting duplicate editors. World thumbnails become name/type/status treatment unless a terminal-specific rendering option is deliberately approved in the ledger. On narrow terminals, use focused list/detail flows rather than a compressed table.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Tabs/worlds.png`; `/Users/camerontemple/Documents/msc2 pictures/Tabs/overview.png` (active-world and Backup entry point).

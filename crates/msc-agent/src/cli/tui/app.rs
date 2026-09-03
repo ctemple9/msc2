@@ -8,6 +8,7 @@ use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
 use super::activity::ActivityState;
+use super::backups::{BackupIntent, BackupMutation, BackupsState};
 use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, ConfirmationState};
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
@@ -15,6 +16,7 @@ use super::overview::{OverviewState, TAB_NAMES};
 use super::performance::PerformanceState;
 use super::players::{PlayerIntent, PlayerMutation, PlayersState};
 use super::transport::SharedClient;
+use super::worlds::{WorldIntent, WorldMutation, WorldsState};
 use crate::cli::CommonArgs;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -70,6 +72,13 @@ struct HostSession {
     console: ConsoleView,
     players: PlayersState,
     performance: PerformanceState,
+    worlds: WorldsState,
+    backups: BackupsState,
+}
+
+enum AppIntent {
+    World(WorldIntent),
+    Backup(BackupIntent),
 }
 
 impl App {
@@ -118,6 +127,8 @@ impl App {
                 overview,
                 players: PlayersState::default(),
                 performance: PerformanceState::default(),
+                worlds: WorldsState::default(),
+                backups: BackupsState::default(),
             }],
             active_host: 0,
             notes: BTreeMap::new(),
@@ -186,6 +197,23 @@ impl App {
         if self.active_tab == 3 && self.focus == FocusTarget::Content {
             if key == KeyCode::Char('r') {
                 self.current_session_mut().performance.loaded = false;
+            }
+            return false;
+        }
+        if self.active_tab == 2 && self.focus == FocusTarget::Content {
+            let intent = if self.current_session().backups.open {
+                self.current_session_mut()
+                    .backups
+                    .handle_key(key)
+                    .map(AppIntent::Backup)
+            } else {
+                self.current_session_mut()
+                    .worlds
+                    .handle_key(key)
+                    .map(AppIntent::World)
+            };
+            if let Some(intent) = intent {
+                self.handle_app_intent(intent);
             }
             return false;
         }
@@ -300,6 +328,12 @@ impl App {
     pub fn poll_sections(&mut self) {
         match self.active_tab {
             1 => self.load_players_if_needed(),
+            2 => {
+                self.load_worlds_if_needed();
+                if self.current_session().backups.open {
+                    self.load_backups_if_needed();
+                }
+            }
             3 => self.load_performance_if_needed(),
             _ => {}
         }
@@ -311,6 +345,14 @@ impl App {
 
     pub fn performance(&self) -> &PerformanceState {
         &self.current_session().performance
+    }
+
+    pub fn worlds(&self) -> &WorldsState {
+        &self.current_session().worlds
+    }
+
+    pub fn backups(&self) -> &BackupsState {
+        &self.current_session().backups
     }
 
     pub fn available_tabs(&self) -> Vec<usize> {
@@ -360,6 +402,8 @@ impl App {
             overview,
             players: PlayersState::default(),
             performance: PerformanceState::default(),
+            worlds: WorldsState::default(),
+            backups: BackupsState::default(),
         });
         self.activity.start_notifications(
             self.sessions
@@ -578,6 +622,103 @@ impl App {
             ConfirmAction::PlayerMutation(mutation) => {
                 self.execute_player_mutation(client, mutation)
             }
+            ConfirmAction::WorldMutation(mutation) => self.execute_world_mutation(client, mutation),
+            ConfirmAction::BackupMutation(mutation) => {
+                self.execute_backup_mutation(client, mutation)
+            }
+        }
+    }
+
+    fn handle_app_intent(&mut self, intent: AppIntent) {
+        match intent {
+            AppIntent::World(WorldIntent::OpenBackups) => {
+                let slot_id = self
+                    .current_session()
+                    .worlds
+                    .selected_slot_id()
+                    .map(str::to_owned);
+                let backups = &mut self.current_session_mut().backups;
+                backups.context_slot_id = slot_id;
+                backups.open = true;
+                backups.loaded = false;
+            }
+            AppIntent::World(WorldIntent::Confirm(mutation)) => {
+                self.begin_world_confirmation(mutation);
+            }
+            AppIntent::Backup(BackupIntent::Confirm(mutation)) => {
+                self.begin_backup_confirmation(mutation);
+            }
+        }
+    }
+
+    fn begin_world_confirmation(&mut self, mutation: WorldMutation) {
+        if !self.has_permission(msc_api::dto::PermissionCategoryDto::Worlds) {
+            self.last_action = Some("This credential cannot change worlds or backups".to_string());
+            return;
+        }
+        let (target, consequence) = world_confirmation_details(&mutation);
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: self.overview().selected_server_name().to_string(),
+            target,
+            consequence,
+            action: ConfirmAction::WorldMutation(mutation),
+        });
+    }
+
+    fn begin_backup_confirmation(&mut self, mutation: BackupMutation) {
+        let permission = if matches!(mutation, BackupMutation::UpdateConfig { .. }) {
+            msc_api::dto::PermissionCategoryDto::Settings
+        } else {
+            msc_api::dto::PermissionCategoryDto::Worlds
+        };
+        if !self.has_permission(permission) {
+            self.last_action = Some("This credential cannot change backup state".to_string());
+            return;
+        }
+        let (target, consequence) = backup_confirmation_details(&mutation);
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: self.overview().selected_server_name().to_string(),
+            target,
+            consequence,
+            action: ConfirmAction::BackupMutation(mutation),
+        });
+    }
+
+    fn has_permission(&self, permission: msc_api::dto::PermissionCategoryDto) -> bool {
+        self.overview()
+            .capabilities
+            .as_ref()
+            .is_some_and(|capabilities| capabilities.base.permissions.contains(&permission))
+    }
+
+    fn execute_world_mutation(&mut self, client: SharedClient, mutation: WorldMutation) {
+        match run_blocking(super::worlds::execute(&client, mutation)) {
+            Ok(result) => {
+                self.current_session_mut().worlds.loaded = false;
+                self.current_session_mut().backups.loaded = false;
+                self.last_action = Some(result.message);
+                if let Some(operation_id) = result.operation_id {
+                    self.activity.track_operation(client, operation_id.clone());
+                    self.last_action = Some(format!("Operation {operation_id} is being tracked"));
+                }
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn execute_backup_mutation(&mut self, client: SharedClient, mutation: BackupMutation) {
+        match run_blocking(super::backups::execute(&client, mutation)) {
+            Ok(result) => {
+                self.current_session_mut().backups.loaded = false;
+                self.last_action = Some(result.message);
+                if let Some(operation_id) = result.operation_id {
+                    self.activity.track_operation(client, operation_id.clone());
+                    self.last_action = Some(format!("Operation {operation_id} is being tracked"));
+                }
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
         }
     }
 
@@ -717,6 +858,47 @@ impl App {
             Ok(players) => self.current_session_mut().players = players,
             Err(error) => {
                 let state = &mut self.current_session_mut().players;
+                state.error = Some(error.to_string());
+                state.loaded = true;
+            }
+        }
+    }
+
+    fn load_worlds_if_needed(&mut self) {
+        if self.current_session().worlds.loaded {
+            return;
+        }
+        let Some(client) = self.current_session().client.clone() else {
+            let state = &mut self.current_session_mut().worlds;
+            state.error = Some("Worlds require an authenticated host session".to_string());
+            state.loaded = true;
+            return;
+        };
+        match run_blocking(super::worlds::WorldsState::load(&client)) {
+            Ok(worlds) => self.current_session_mut().worlds = worlds,
+            Err(error) => {
+                let state = &mut self.current_session_mut().worlds;
+                state.error = Some(error.to_string());
+                state.loaded = true;
+            }
+        }
+    }
+
+    fn load_backups_if_needed(&mut self) {
+        if self.current_session().backups.loaded {
+            return;
+        }
+        let Some(client) = self.current_session().client.clone() else {
+            let state = &mut self.current_session_mut().backups;
+            state.error = Some("Backups require an authenticated host session".to_string());
+            state.loaded = true;
+            return;
+        };
+        let context_slot_id = self.current_session().backups.context_slot_id.clone();
+        match run_blocking(super::backups::BackupsState::load(&client, context_slot_id)) {
+            Ok(backups) => self.current_session_mut().backups = backups,
+            Err(error) => {
+                let state = &mut self.current_session_mut().backups;
                 state.error = Some(error.to_string());
                 state.loaded = true;
             }
@@ -914,6 +1096,93 @@ fn player_mutation_consequence(mutation: &PlayerMutation) -> String {
         PlayerMutation::ClearSessionLog => {
             "The agent will delete the selected server's recorded join/leave history.".to_string()
         }
+    }
+}
+
+fn world_confirmation_details(mutation: &WorldMutation) -> (String, String) {
+    match mutation {
+        WorldMutation::Create { name } => (
+            name.clone(),
+            "The agent will create a new saved world slot from the current world.".to_string(),
+        ),
+        WorldMutation::Rename { slot_id, name } => (
+            slot_id.clone(),
+            format!("The selected slot name will change to {name}; its world files are untouched."),
+        ),
+        WorldMutation::RenameActive { name } => (
+            name.clone(),
+            "The agent will rename the active world's on-disk folders.".to_string(),
+        ),
+        WorldMutation::Delete { slot_id } => (
+            slot_id.clone(),
+            "The selected non-active world slot and its saved archive will be deleted.".to_string(),
+        ),
+        WorldMutation::Duplicate { slot_id } => (
+            slot_id.clone(),
+            "The agent will create another saved slot from this world.".to_string(),
+        ),
+        WorldMutation::Copy { destination_slot_id, source_slot_id } => (
+            destination_slot_id.clone(),
+            format!("Saved slot {source_slot_id} will replace the selected destination slot."),
+        ),
+        WorldMutation::SaveCurrent { slot_id } => (
+            slot_id.clone(),
+            "The current live world will be archived into the selected slot.".to_string(),
+        ),
+        WorldMutation::Activate { slot_id } => (
+            slot_id.clone(),
+            "The server must be stopped; the agent takes a safety backup before activation.".to_string(),
+        ),
+        WorldMutation::ReplaceActive { level_name, .. } => (
+            level_name.clone(),
+            "The server must be stopped; the agent takes a safety backup before replacing the live world.".to_string(),
+        ),
+        WorldMutation::Export { slot_id, output } => (
+            slot_id.clone(),
+            format!("The agent will stage this slot and write the archive to {}.", output.display()),
+        ),
+        WorldMutation::Import { path, name } => (
+            name.clone(),
+            format!("The agent will upload {} into a new world slot.", path.display()),
+        ),
+        WorldMutation::Convert { source_slot_id, target_server_id, .. } => (
+            source_slot_id.clone(),
+            format!("The agent will convert this world for target server {target_server_id}."),
+        ),
+        WorldMutation::Repair { slot_id } => (
+            slot_id.clone(),
+            "The agent will run its Bedrock level.dat repair operation.".to_string(),
+        ),
+    }
+}
+
+fn backup_confirmation_details(mutation: &BackupMutation) -> (String, String) {
+    match mutation {
+        BackupMutation::Manual => (
+            "active server".to_string(),
+            "The agent will create and verify a manual backup; a running server may pause saves."
+                .to_string(),
+        ),
+        BackupMutation::Restore { backup_id } => (
+            backup_id.clone(),
+            "The server must be stopped; the agent takes a safety backup before restoring."
+                .to_string(),
+        ),
+        BackupMutation::Delete { backup_id } => (
+            backup_id.clone(),
+            "The agent will delete this backup and enforce its last-verified-backup safety rule."
+                .to_string(),
+        ),
+        BackupMutation::UpdateConfig {
+            enabled,
+            interval_minutes,
+            max_count,
+        } => (
+            "backup schedule".to_string(),
+            format!(
+                "The agent will set enabled={enabled:?}, interval={interval_minutes:?} minutes, retention={max_count:?} backups."
+            ),
+        ),
     }
 }
 

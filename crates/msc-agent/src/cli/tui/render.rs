@@ -13,10 +13,13 @@ use super::app::{App, FocusTarget, SmallSurface};
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
 use super::overview::TAB_NAMES;
+use super::performance::{TrendMetric, format_bytes, format_memory_mb, format_metric};
+use super::players::{PlayersState, profile_edition, profile_status};
 
 pub fn render(frame: &mut Frame, app: &mut App) {
     app.poll_console();
     app.poll_activity();
+    app.poll_sections();
     let layout = app.prepare_layout(frame.area());
     render_header(frame, layout.header, app, layout.mode);
 
@@ -181,6 +184,14 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
         app.active_tab_name().to_uppercase()
     };
     let overview = app.overview();
+    if app.active_tab() == 1 {
+        render_players(frame, area, app);
+        return;
+    }
+    if app.active_tab() == 3 {
+        render_performance(frame, area, app);
+        return;
+    }
     let body = if app.active_tab() == 0 {
         let health = overview.health_summary();
         let health_state = overview
@@ -220,6 +231,290 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
     };
     frame.render_widget(
         Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title(title))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_players(frame: &mut Frame, area: Rect, app: &App) {
+    let players = app.players();
+    let title = if app.focus() == FocusTarget::Content {
+        "› PLAYERS"
+    } else {
+        "PLAYERS"
+    };
+    let mut lines = Vec::new();
+    if let Some(error) = &players.error {
+        lines.push(Line::from(format!("Player data unavailable: {error}")));
+    } else if !players.loaded {
+        lines.push(Line::from("Loading player data from the selected server…"));
+    } else if players.detail_open {
+        render_player_detail(&mut lines, players);
+    } else {
+        lines.push(Line::from("ONLINE NOW"));
+        lines.push(Line::from(players.online_summary()));
+        if let Some(note) = &players.online.note {
+            lines.push(Line::from(format!("Source: {}", player_note(note))));
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from("Roster  [j/k] choose profile  [enter] details"));
+        if players.online.players.is_empty() {
+            lines.push(Line::from("No players are online."));
+        } else {
+            for player in players.online.players.iter().take(12) {
+                let identity = player
+                    .uuid
+                    .as_deref()
+                    .map(|uuid| format!(" · {uuid}"))
+                    .unwrap_or_default();
+                lines.push(Line::from(format!("  {}{}", player.name, identity)));
+            }
+        }
+        lines.push(Line::from(""));
+        let hidden = players
+            .profiles
+            .iter()
+            .filter(|profile| profile.is_hidden)
+            .count();
+        lines.push(Line::from(format!(
+            "PLAYER DATA  {} profiles · sort: {} · hidden: {}",
+            players.profiles.len().saturating_sub(hidden),
+            players.sort.label(),
+            if players.show_hidden {
+                "shown"
+            } else {
+                "hidden"
+            }
+        )));
+        if let Some((kind, value)) = &players.input {
+            lines.push(Line::from(format!("{}: {}_", kind.prompt(), value)));
+        } else {
+            lines.push(Line::from(format!(
+                "Search: {}  [/] search  [s] sort  [H] hidden profiles",
+                if players.profile_query.is_empty() {
+                    "all"
+                } else {
+                    &players.profile_query
+                }
+            )));
+            for (index, profile) in players.filtered_profiles().iter().enumerate().take(12) {
+                let marker = if index == players.selected_profile {
+                    "›"
+                } else {
+                    " "
+                };
+                lines.push(Line::from(format!(
+                    "{marker} {}  {} · {}{}",
+                    PlayersState::display_name(profile),
+                    profile_status(profile),
+                    profile_edition(profile),
+                    if profile.is_op { " · operator" } else { "" }
+                )));
+            }
+            if players.filtered_profiles().is_empty() {
+                lines.push(Line::from("No stored profiles match the current search."));
+            }
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(format!(
+            "SESSION LOG  {} events · filter: {}",
+            players.filtered_session_events().len(),
+            if players.session_query.is_empty() {
+                "all"
+            } else {
+                &players.session_query
+            }
+        )));
+        for event in players.filtered_session_events().iter().rev().take(6) {
+            lines.push(Line::from(format!(
+                "  {}  {} {}",
+                event.timestamp, event.player_name, event.event_type
+            )));
+        }
+        if players.filtered_session_events().is_empty() {
+            lines.push(Line::from("No session events match the current filter."));
+        }
+        if players.is_bedrock {
+            lines.push(Line::from(""));
+            lines.push(Line::from(format!(
+                "BEDROCK ALLOWLIST  {} entries  [a] add",
+                players.allowlist.len()
+            )));
+            for name in players.allowlist.iter().take(6) {
+                lines.push(Line::from(format!("  {name}")));
+            }
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(
+            "[f] session filter  [l] clear session history  [r] reload  [tab] move focus",
+        ));
+    }
+    if let Some(status) = &players.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    frame.render_widget(
+        Paragraph::new(lines)
+            .block(Block::default().borders(Borders::ALL).title(title))
+            .wrap(Wrap { trim: true }),
+        area,
+    );
+}
+
+fn render_player_detail(lines: &mut Vec<Line<'static>>, players: &PlayersState) {
+    let Some(profile) = players.selected_profile() else {
+        lines.push(Line::from("No profile is selected."));
+        return;
+    };
+    lines.push(Line::from("PLAYER PROFILE"));
+    lines.push(Line::from(format!(
+        "{}  ·  {}  ·  {}",
+        PlayersState::display_name(profile),
+        profile_status(profile),
+        profile_edition(profile)
+    )));
+    lines.push(Line::from(format!("Profile ID: {}", profile.id)));
+    lines.push(Line::from(format!(
+        "Skin lookup identity: {}",
+        profile
+            .skin_override_identifier
+            .as_deref()
+            .unwrap_or(&profile.image_identifier)
+    )));
+    if profile.is_op {
+        lines.push(Line::from("Role: operator"));
+    }
+    if let Some(last_seen) = &profile.last_seen {
+        lines.push(Line::from(format!("Last seen: {last_seen}")));
+    }
+    if let Some(stats) = &profile.stats {
+        lines.push(Line::from(""));
+        lines.push(Line::from("CURRENT DATA"));
+        lines.push(Line::from(format!(
+            "Health {:.1}/{:.1} · food {} · level {} · {}",
+            stats.health,
+            stats.max_health,
+            stats.food_level,
+            stats.xp_level,
+            stats.game_mode_display
+        )));
+        lines.push(Line::from(format!(
+            "Position x {:.0} y {:.0} z {:.0} · {}",
+            stats.pos_x, stats.pos_y, stats.pos_z, stats.dimension_display
+        )));
+        lines.push(Line::from(format!(
+            "Score: {} · XP total: {}",
+            stats.score, stats.xp_total
+        )));
+    } else {
+        lines.push(Line::from(
+            "Current stats are not available for this profile.",
+        ));
+    }
+    lines.push(Line::from(""));
+    lines.push(Line::from(
+        "ACTIONS  [h] hide/show  [u] duplicate  [m] offline UUID  [t] custom UUID",
+    ));
+    lines.push(Line::from(
+        "         [i] identify Bedrock  [o] skin override  [d] delete  [esc] back",
+    ));
+    if let Some((kind, value)) = &players.input {
+        lines.push(Line::from(format!("{}: {}_", kind.prompt(), value)));
+    }
+}
+
+fn player_note(note: &str) -> &str {
+    match note {
+        "not_bedrock" => "online roster is only available for Bedrock servers",
+        "no_active_server" => "no active server",
+        other => other,
+    }
+}
+
+fn render_performance(frame: &mut Frame, area: Rect, app: &App) {
+    let performance = app.performance();
+    let title = if app.focus() == FocusTarget::Content {
+        "› PERFORMANCE"
+    } else {
+        "PERFORMANCE"
+    };
+    let mut lines = Vec::new();
+    if let Some(error) = &performance.error {
+        lines.push(Line::from(format!("Performance unavailable: {error}")));
+    } else if !performance.loaded {
+        lines.push(Line::from("Loading live performance data…"));
+    } else if let Some(snapshot) = performance.current() {
+        lines.push(Line::from("LIVE PERFORMANCE"));
+        lines.push(Line::from(format!(
+            "Source: {} · sample: {}",
+            if performance.server_type.is_empty() {
+                "unknown"
+            } else {
+                &performance.server_type
+            },
+            snapshot.ts
+        )));
+        lines.push(Line::from(""));
+        if performance.server_type.eq_ignore_ascii_case("bedrock") {
+            lines.push(Line::from(
+                "TPS  Bedrock does not report TPS through this API.",
+            ));
+        } else {
+            lines.push(Line::from(format!(
+                "TPS       1m {}   5m {}   15m {}",
+                format_metric(snapshot.tps_1m.as_ref().map(|m| m.value), "", 2),
+                format_metric(snapshot.tps_5m.as_ref().map(|m| m.value), "", 2),
+                format_metric(snapshot.tps_15m.as_ref().map(|m| m.value), "", 2)
+            )));
+            lines.push(Line::from(format!(
+                "TPS trend {}  (old → new)",
+                performance.trend(TrendMetric::Tps)
+            )));
+        }
+        lines.push(Line::from(format!(
+            "Players   {} currently online",
+            snapshot
+                .players_online
+                .map_or_else(|| "—".to_string(), |value| value.to_string())
+        )));
+        lines.push(Line::from(format!(
+            "CPU       {}  · trend {}",
+            format_metric(snapshot.cpu_percent.as_ref().map(|m| m.value), "%", 1),
+            performance.trend(TrendMetric::Cpu)
+        )));
+        lines.push(Line::from(format!(
+            "Memory    {} / {}  · trend {}",
+            format_memory_mb(snapshot.ram_used_mb.as_ref().map(|m| m.value)),
+            format_memory_mb(snapshot.ram_max_mb.as_ref().map(|m| m.value)),
+            performance.trend(TrendMetric::Memory)
+        )));
+        lines.push(Line::from(format!(
+            "World     {}",
+            snapshot
+                .world_size_mb
+                .as_ref()
+                .map(|value| format_bytes(value.value * 1024.0 * 1024.0))
+                .unwrap_or_else(|| "—".to_string())
+        )));
+        lines.push(Line::from(format!(
+            "Uptime    {}",
+            performance.uptime_label()
+        )));
+        lines.push(Line::from(format!(
+            "Status    {} · {}",
+            performance.status_label(),
+            performance.status_detail()
+        )));
+        if let Some(note) = performance.runtime_note() {
+            lines.push(Line::from(format!("Runtime note: {note}")));
+        }
+        lines.push(Line::from(""));
+        lines.push(Line::from(
+            "[r] refresh  [tab] move focus  values are from /v1/performance",
+        ));
+    }
+    frame.render_widget(
+        Paragraph::new(lines)
             .block(Block::default().borders(Borders::ALL).title(title))
             .wrap(Wrap { trim: true }),
         area,
@@ -389,6 +684,14 @@ fn render_small(frame: &mut Frame, area: Rect, app: &App) {
     }
     match app.small_surface() {
         SmallSurface::Overview => {
+            if app.active_tab() == 1 {
+                render_players(frame, area, app);
+                return;
+            }
+            if app.active_tab() == 3 {
+                render_performance(frame, area, app);
+                return;
+            }
             let text = format!(
                 "{}\n\nHost: {}\nServer: {}\nState: {}\n\n{}\n\n[s] sections  [c] console  [?] help",
                 app.active_tab_name(),

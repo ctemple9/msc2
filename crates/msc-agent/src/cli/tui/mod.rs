@@ -8,6 +8,8 @@ pub mod confirm;
 pub mod console;
 pub mod layout;
 pub mod overview;
+pub mod performance;
+pub mod players;
 pub mod render;
 pub mod session;
 pub mod transport;

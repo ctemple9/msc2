@@ -12,6 +12,8 @@ use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, Con
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
 use super::overview::{OverviewState, TAB_NAMES};
+use super::performance::PerformanceState;
+use super::players::{PlayerIntent, PlayerMutation, PlayersState};
 use super::transport::SharedClient;
 use crate::cli::CommonArgs;
 
@@ -66,6 +68,8 @@ struct HostSession {
     client: Option<SharedClient>,
     overview: OverviewState,
     console: ConsoleView,
+    players: PlayersState,
+    performance: PerformanceState,
 }
 
 impl App {
@@ -112,6 +116,8 @@ impl App {
                 client,
                 console: ConsoleView::from_lines(overview.console.clone()),
                 overview,
+                players: PlayersState::default(),
+                performance: PerformanceState::default(),
             }],
             active_host: 0,
             notes: BTreeMap::new(),
@@ -167,6 +173,19 @@ impl App {
                 KeyCode::Down | KeyCode::Char('j') => self.activity.move_selection(1),
                 KeyCode::Char('x') => self.begin_cancel_confirmation(),
                 _ => {}
+            }
+            return false;
+        }
+        if self.active_tab == 1 && self.focus == FocusTarget::Content {
+            let intent = self.current_session_mut().players.handle_key(key);
+            if let Some(intent) = intent {
+                self.handle_player_intent(intent);
+            }
+            return false;
+        }
+        if self.active_tab == 3 && self.focus == FocusTarget::Content {
+            if key == KeyCode::Char('r') {
+                self.current_session_mut().performance.loaded = false;
             }
             return false;
         }
@@ -278,6 +297,22 @@ impl App {
         self.activity.poll();
     }
 
+    pub fn poll_sections(&mut self) {
+        match self.active_tab {
+            1 => self.load_players_if_needed(),
+            3 => self.load_performance_if_needed(),
+            _ => {}
+        }
+    }
+
+    pub fn players(&self) -> &PlayersState {
+        &self.current_session().players
+    }
+
+    pub fn performance(&self) -> &PerformanceState {
+        &self.current_session().performance
+    }
+
     pub fn available_tabs(&self) -> Vec<usize> {
         self.overview().available_tabs()
     }
@@ -323,6 +358,8 @@ impl App {
             client: Some(client),
             console,
             overview,
+            players: PlayersState::default(),
+            performance: PerformanceState::default(),
         });
         self.activity.start_notifications(
             self.sessions
@@ -538,6 +575,191 @@ impl App {
                     Err(error) => self.last_action = Some(error.to_string()),
                 }
             }
+            ConfirmAction::PlayerMutation(mutation) => {
+                self.execute_player_mutation(client, mutation)
+            }
+        }
+    }
+
+    fn handle_player_intent(&mut self, intent: PlayerIntent) {
+        match intent {
+            PlayerIntent::ClearLocalSession => {
+                self.current_session_mut().players.clear_local_session();
+                self.last_action = Some("Session history cleared locally".to_string());
+            }
+            PlayerIntent::ClearSessionLog => {
+                self.begin_player_confirmation(
+                    PlayerMutation::ClearSessionLog,
+                    "The agent will delete the selected server's recorded join/leave history."
+                        .to_string(),
+                );
+            }
+            PlayerIntent::Confirm(mutation) => {
+                let consequence = player_mutation_consequence(&mutation);
+                self.begin_player_confirmation(mutation, consequence);
+            }
+        }
+    }
+
+    fn begin_player_confirmation(&mut self, mutation: PlayerMutation, consequence: String) {
+        let Some(capabilities) = &self.overview().capabilities else {
+            self.last_action = Some("Player permissions are unavailable".to_string());
+            return;
+        };
+        if !capabilities
+            .base
+            .permissions
+            .contains(&msc_api::dto::PermissionCategoryDto::Players)
+        {
+            self.last_action = Some("This credential cannot change player data".to_string());
+            return;
+        }
+        let target = match &mutation {
+            PlayerMutation::AllowlistAdd { name } | PlayerMutation::AllowlistRemove { name } => {
+                name.clone()
+            }
+            PlayerMutation::ClearSessionLog => self.overview().selected_server_name().to_string(),
+            PlayerMutation::ToggleHidden { profile_id, .. }
+            | PlayerMutation::Delete { profile_id }
+            | PlayerMutation::Duplicate { profile_id }
+            | PlayerMutation::MigrateOffline { profile_id }
+            | PlayerMutation::MigrateCustom { profile_id, .. }
+            | PlayerMutation::Identify { profile_id, .. }
+            | PlayerMutation::SkinOverride { profile_id, .. } => profile_id.clone(),
+        };
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: self.overview().selected_server_name().to_string(),
+            target,
+            consequence,
+            action: ConfirmAction::PlayerMutation(mutation),
+        });
+    }
+
+    fn execute_player_mutation(&mut self, client: SharedClient, mutation: PlayerMutation) {
+        let (path, body) = match mutation {
+            PlayerMutation::ClearSessionLog => ("/v1/session-log/clear", serde_json::json!({})),
+            PlayerMutation::ToggleHidden { profile_id, hidden } => (
+                "/v1/players/hidden",
+                serde_json::json!({"profileId": profile_id, "hidden": hidden}),
+            ),
+            PlayerMutation::Delete { profile_id } => (
+                "/v1/players/delete",
+                serde_json::json!({"profileId": profile_id}),
+            ),
+            PlayerMutation::Duplicate { profile_id } => (
+                "/v1/players/duplicate",
+                serde_json::json!({"profileId": profile_id}),
+            ),
+            PlayerMutation::MigrateOffline { profile_id } => (
+                "/v1/players/migrate-offline",
+                serde_json::json!({"profileId": profile_id}),
+            ),
+            PlayerMutation::MigrateCustom {
+                profile_id,
+                target_uuid,
+            } => (
+                "/v1/players/migrate",
+                serde_json::json!({"profileId": profile_id, "targetUuid": target_uuid}),
+            ),
+            PlayerMutation::Identify {
+                profile_id,
+                gamertag,
+            } => (
+                "/v1/players/identify",
+                serde_json::json!({"profileId": profile_id, "gamertag": gamertag}),
+            ),
+            PlayerMutation::SkinOverride {
+                profile_id,
+                lookup_identifier,
+            } => (
+                "/v1/players/skin-override",
+                serde_json::json!({"profileId": profile_id, "lookupIdentifier": lookup_identifier}),
+            ),
+            PlayerMutation::AllowlistAdd { name } => (
+                "/v1/allowlist",
+                serde_json::json!({"action": "add", "name": name}),
+            ),
+            PlayerMutation::AllowlistRemove { name } => (
+                "/v1/allowlist",
+                serde_json::json!({"action": "remove", "name": name}),
+            ),
+        };
+        let result = run_blocking(client.post_json::<_, serde_json::Value>(path, &body));
+        match result {
+            Ok(_) => {
+                self.last_action = Some("Player request accepted".to_string());
+                if path == "/v1/session-log/clear" {
+                    self.current_session_mut().players.clear_local_session();
+                } else {
+                    self.current_session_mut().players.loaded = false;
+                }
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn load_players_if_needed(&mut self) {
+        if self.current_session().players.loaded {
+            return;
+        }
+        let Some(client) = self.current_session().client.clone() else {
+            let state = &mut self.current_session_mut().players;
+            state.error = Some("Players require an authenticated host session".to_string());
+            state.loaded = true;
+            return;
+        };
+        let is_bedrock = self
+            .overview()
+            .server_type_label()
+            .eq_ignore_ascii_case("bedrock");
+        match run_blocking(PlayersState::load(&client, is_bedrock)) {
+            Ok(players) => self.current_session_mut().players = players,
+            Err(error) => {
+                let state = &mut self.current_session_mut().players;
+                state.error = Some(error.to_string());
+                state.loaded = true;
+            }
+        }
+    }
+
+    fn load_performance_if_needed(&mut self) {
+        if !self.current_session().performance.poll_due() {
+            return;
+        }
+        let Some(client) = self.current_session().client.clone() else {
+            let state = &mut self.current_session_mut().performance;
+            state.error = Some("Performance requires an authenticated host session".to_string());
+            state.loaded = true;
+            return;
+        };
+        let server_type = self.overview().server_type_label().to_string();
+        let status = self.overview().status.clone();
+        let running = status.as_ref().map(|value| value.running);
+        if self.current_session().performance.loaded {
+            match run_blocking(
+                self.current_session_mut()
+                    .performance
+                    .refresh(&client, running),
+            ) {
+                Ok(()) => {}
+                Err(error) => {
+                    self.current_session_mut().performance.error = Some(error.to_string())
+                }
+            }
+        } else {
+            match run_blocking(PerformanceState::load(
+                &client,
+                status.as_ref(),
+                &server_type,
+            )) {
+                Ok(performance) => self.current_session_mut().performance = performance,
+                Err(error) => {
+                    let state = &mut self.current_session_mut().performance;
+                    state.error = Some(error.to_string());
+                    state.loaded = true;
+                }
+            }
         }
     }
 
@@ -649,6 +871,49 @@ fn key_to_tab(key: KeyCode) -> usize {
     match key {
         KeyCode::Char(value) => value.to_digit(10).unwrap_or(1).saturating_sub(1) as usize,
         _ => 0,
+    }
+}
+
+fn player_mutation_consequence(mutation: &PlayerMutation) -> String {
+    match mutation {
+        PlayerMutation::ToggleHidden { hidden, .. } => format!(
+            "The selected profile will be {} from the player-data list.",
+            if *hidden { "hidden" } else { "shown" }
+        ),
+        PlayerMutation::Delete { .. } => {
+            "The selected player's stored data will be deleted from this server.".to_string()
+        }
+        PlayerMutation::Duplicate { .. } => {
+            "The agent will create a second stored copy of this player's data.".to_string()
+        }
+        PlayerMutation::MigrateOffline { .. } => {
+            "The agent will move this player's data to its offline UUID.".to_string()
+        }
+        PlayerMutation::MigrateCustom { target_uuid, .. } => {
+            format!("The agent will move this player's data to custom UUID {target_uuid}.")
+        }
+        PlayerMutation::Identify { gamertag, .. } => {
+            format!("The agent will identify this Bedrock profile as {gamertag}.")
+        }
+        PlayerMutation::SkinOverride {
+            lookup_identifier, ..
+        } => format!(
+            "The agent will {} the skin lookup override.",
+            if lookup_identifier.is_some() {
+                "set"
+            } else {
+                "clear"
+            }
+        ),
+        PlayerMutation::AllowlistAdd { name } => {
+            format!("The Bedrock allowlist will include {name}.")
+        }
+        PlayerMutation::AllowlistRemove { name } => {
+            format!("The Bedrock allowlist will remove {name}.")
+        }
+        PlayerMutation::ClearSessionLog => {
+            "The agent will delete the selected server's recorded join/leave history.".to_string()
+        }
     }
 }
 

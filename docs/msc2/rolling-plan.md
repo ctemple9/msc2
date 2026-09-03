@@ -250,7 +250,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.7 — Deliver capability-backed Players and Performance sections
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/players.rs`, `crates/msc-agent/src/cli/tui/performance.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_players_performance.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Add keyboard-first Players and Performance tabs using only implemented, capability-advertised API data. Players preserves the desktop's Online Now/session summary, session-log filtering and clear-local action, player-data search/sort/detail flow, and supported profile actions; compact player identity and text replace skin art without losing Java/Bedrock or online/history distinctions. Performance preserves live TPS (1m/5m/15m), players, CPU, memory, world-size, uptime, and status meaning, with readable terminal history/trend treatment rather than pretending a terminal can reproduce browser charts pixel-for-pixel. Unavailable edition-specific data is explained plainly rather than represented by fake empty widgets. Keep player mutations behind permission checks and the shared confirmation surface.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Tabs/players.png`; `/Users/camerontemple/Documents/msc2 pictures/Tabs/performance.png`.

@@ -6,11 +6,14 @@
 
 use crossterm::event::KeyCode;
 
+use super::players::PlayerMutation;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConfirmAction {
     StartServer,
     StopServer,
     CancelOperation { operation_id: String },
+    PlayerMutation(PlayerMutation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

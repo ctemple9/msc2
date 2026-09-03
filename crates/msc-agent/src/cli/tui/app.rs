@@ -1960,6 +1960,7 @@ impl App {
     }
 
     fn load_performance_if_needed(&mut self) {
+        self.current_session_mut().performance.poll_pending();
         if !self.current_session().performance.poll_due() {
             return;
         }
@@ -1972,31 +1973,9 @@ impl App {
         let server_type = self.overview().server_type_label().to_string();
         let status = self.overview().status.clone();
         let running = status.as_ref().map(|value| value.running);
-        if self.current_session().performance.loaded {
-            match run_blocking(
-                self.current_session_mut()
-                    .performance
-                    .refresh(&client, running),
-            ) {
-                Ok(()) => {}
-                Err(error) => {
-                    self.current_session_mut().performance.error = Some(error.to_string())
-                }
-            }
-        } else {
-            match run_blocking(PerformanceState::load(
-                &client,
-                status.as_ref(),
-                &server_type,
-            )) {
-                Ok(performance) => self.current_session_mut().performance = performance,
-                Err(error) => {
-                    let state = &mut self.current_session_mut().performance;
-                    state.error = Some(error.to_string());
-                    state.loaded = true;
-                }
-            }
-        }
+        self.current_session_mut()
+            .performance
+            .begin_request(client, running, server_type);
     }
 
     fn load_components_if_needed(&mut self) {

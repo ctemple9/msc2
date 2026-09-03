@@ -4,6 +4,7 @@
 //! small in-memory history so a terminal can show direction without claiming
 //! to be a pixel-for-pixel chart or inventing edition-specific values.
 
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use msc_api::dto::{PerformanceSnapshotDto, RemoteApiStatus};
@@ -30,7 +31,11 @@ pub struct PerformanceState {
     observed_running: Option<bool>,
     started_at: Option<Instant>,
     last_poll: Option<Instant>,
+    pending: Option<PendingPerformanceRequest>,
+    pending_running: Option<bool>,
 }
+
+type PendingPerformanceRequest = Arc<Mutex<Option<Result<PerformanceSnapshotDto, String>>>>;
 
 impl PerformanceState {
     pub async fn load(
@@ -48,6 +53,8 @@ impl PerformanceState {
             observed_running: None,
             started_at: None,
             last_poll: None,
+            pending: None,
+            pending_running: None,
         };
         state.record(snapshot, status.map(|value| value.running));
         Ok(state)
@@ -62,6 +69,63 @@ impl PerformanceState {
         self.record(snapshot, running);
         self.error = None;
         Ok(())
+    }
+
+    /// Starts a metric request without blocking the terminal event loop.
+    /// The render loop later calls `poll_pending` and applies the snapshot.
+    pub fn begin_request(
+        &mut self,
+        client: SharedClient,
+        running: Option<bool>,
+        server_type: String,
+    ) {
+        if self.pending.is_some() {
+            return;
+        }
+        self.server_type = server_type;
+        self.pending_running = running;
+        let result = Arc::new(Mutex::new(None));
+        let result_slot = Arc::clone(&result);
+        std::thread::spawn(move || {
+            let response = match tokio::runtime::Runtime::new() {
+                Ok(runtime) => {
+                    runtime.block_on(client.get_json::<PerformanceSnapshotDto>("/v1/performance"))
+                }
+                Err(error) => Err(crate::cli::CliError::internal(format!(
+                    "creating performance request runtime: {error}"
+                ))),
+            };
+            let response = response.map_err(|error| error.to_string());
+            if let Ok(mut slot) = result_slot.lock() {
+                *slot = Some(response);
+            }
+        });
+        self.pending = Some(result);
+    }
+
+    /// Applies a completed background request, if one is available.
+    pub fn poll_pending(&mut self) {
+        let Some(result) = self.pending.as_ref() else {
+            return;
+        };
+        let completed = result.lock().ok().and_then(|mut slot| slot.take());
+        let Some(completed) = completed else {
+            return;
+        };
+        self.pending = None;
+        let running = self.pending_running.take();
+        match completed {
+            Ok(snapshot) => {
+                self.record(snapshot, running);
+                self.loaded = true;
+                self.error = None;
+            }
+            Err(error) => {
+                self.error = Some(error);
+                self.loaded = true;
+                self.last_poll = Some(Instant::now());
+            }
+        }
     }
 
     pub fn record(&mut self, snapshot: PerformanceSnapshotDto, running: Option<bool>) {

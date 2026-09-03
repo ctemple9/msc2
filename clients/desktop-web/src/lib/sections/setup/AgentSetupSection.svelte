@@ -59,6 +59,7 @@
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
   let inspectedHostId: string | undefined;
+  let refreshedReadyHostId: string | undefined;
   $: readinessTitle = readinessTitles[readiness];
   $: readinessMessage = readinessMessages[readiness];
   $: isLoopbackHost = loopbackHost(hostBaseUrl);
@@ -78,11 +79,24 @@
       inspectedHostId = undefined;
       status = undefined;
       localPairingCode = '';
+      refreshedReadyHostId = undefined;
     } else if (inspectedHostId !== hostId) {
       inspectedHostId = hostId;
+      status = undefined;
       localPairingCode = '';
+      refreshedReadyHostId = undefined;
       void refresh();
     }
+  }
+
+  // Reconnect changes the parent readiness state without remounting this
+  // screen. Re-read the OS service once when that connection becomes ready so
+  // the service card cannot keep the result from before reconnect.
+  $: if (!isLocalDesktopHost || readiness !== 'ready') {
+    refreshedReadyHostId = undefined;
+  } else if (refreshedReadyHostId !== hostId) {
+    refreshedReadyHostId = hostId;
+    void refresh();
   }
 
   async function refresh(): Promise<void> {

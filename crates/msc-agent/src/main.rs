@@ -203,6 +203,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
 
     let public = Router::new()
         .route("/health", get(routes::health::health))
+        .route("/healthz", get(routes::health::healthz))
         .merge(browser_pairings)
         .merge(browser_public)
         .merge(desktop_public)

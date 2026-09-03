@@ -559,8 +559,9 @@ fn agent_service_status() -> Result<AgentServiceStatus, String> {
         .map_err(|error| error.to_string())
 }
 
-/// Checks the pre-auth health route from the native shell. A webview fetch is
-/// cross-origin and can be blocked by browser policy before credentials exist.
+/// Checks the cheap pre-auth liveness route from the native shell. A webview
+/// fetch is cross-origin and can be blocked by browser policy before
+/// credentials exist; this route must not perform the full health-card scan.
 #[tauri::command]
 async fn agent_health_check() -> bool {
     let Ok(client) = reqwest::Client::builder()
@@ -570,7 +571,7 @@ async fn agent_health_check() -> bool {
         return false;
     };
     client
-        .get("http://127.0.0.1:48001/v1/health")
+        .get("http://127.0.0.1:48001/v1/healthz")
         .send()
         .await
         .is_ok_and(|response| response.status().is_success())

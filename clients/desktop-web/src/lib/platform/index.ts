@@ -140,7 +140,7 @@ export async function openLocalAgentBrowser(): Promise<void> {
 
 async function localAgentHealthCheck(): Promise<boolean> {
   try {
-    const response = await fetch(`${LOCAL_AGENT_ORIGIN}/v1/health`, {
+    const response = await fetch(`${LOCAL_AGENT_ORIGIN}/v1/healthz`, {
       credentials: 'omit',
     });
     return response.ok;

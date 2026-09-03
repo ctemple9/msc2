@@ -64,6 +64,13 @@ fn runtime_diagnostics_routes_are_mounted_behind_bearer_auth() {
     );
     wait_for_health(port);
 
+    let response = http_get(port, "/v1/healthz", None);
+    assert!(
+        response.starts_with("HTTP/1.1 204"),
+        "/v1/healthz expected 204 unauthenticated, got: {}",
+        response.lines().next().unwrap_or_default()
+    );
+
     // GET /v1/health stays public (Phase 2's own design) — and now
     // returns real data instead of the canned `demo-card`.
     let response = http_get(port, "/v1/health", None);

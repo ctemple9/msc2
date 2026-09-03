@@ -513,6 +513,19 @@ pub async fn health(State(state): State<LifecycleRoutesState>) -> Response {
     response
 }
 
+/// Cheap unauthenticated liveness response for desktop startup and reconnect.
+/// The full `/health` route is intentionally richer, but its diagnostics may
+/// inspect every installed mod JAR and therefore is not a service readiness
+/// probe.
+pub async fn healthz() -> Response {
+    let mut response = StatusCode::NO_CONTENT.into_response();
+    response.headers_mut().insert(
+        axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
+        axum::http::HeaderValue::from_static("*"),
+    );
+    response
+}
+
 // ---------- GET /v1/health/problems ----------
 
 fn startup_problem_to_dto(problem: &StartupProblem) -> StartupProblemDto {
@@ -897,6 +910,13 @@ mod tests {
         let response = health(State(state)).await;
         assert_eq!(response.status(), StatusCode::OK);
         assert!(response_body(response).await.contains("No active server."));
+    }
+
+    #[tokio::test]
+    async fn healthz_route_is_a_cheap_liveness_probe() {
+        let response = healthz().await;
+        assert_eq!(response.status(), StatusCode::NO_CONTENT);
+        assert_eq!(response.headers()["access-control-allow-origin"], "*");
     }
 
     #[tokio::test]

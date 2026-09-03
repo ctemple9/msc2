@@ -179,6 +179,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.48: reuse the first-start operation when stopping Bedrock`
 **Batch:** solo
 
+### P12.49 — Show Bedrock addresses in the correct surfaces
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `clients/desktop-web/src/lib/components/shell/sidebar/HowToConnectSection.svelte`, `clients/desktop-web/tests/screens/first-start.test.ts`, `clients/desktop-web/tests/screens/overview.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Thread the agent-reported local host address into the completed Bedrock first-start sheet, replacing its placeholder text while retaining an honest fallback when discovery is unavailable. Build the sidebar connection rows from the selected server type so Bedrock shows only Bedrock endpoints, while Java retains its optional Geyser rows.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/sections/server-editor/FirstStartSheet.svelte src/lib/components/shell/sidebar/HowToConnectSection.svelte tests/screens/first-start.test.ts tests/screens/overview.test.ts && npx vitest run tests/screens/first-start.test.ts tests/screens/overview.test.ts`
+**Commit:** `P12.49: show Bedrock addresses in the correct surfaces`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

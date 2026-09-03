@@ -23,6 +23,7 @@
   export let serverName: string;
   export let serverType: 'java' | 'bedrock';
   export let localPort: number;
+  export let hostAddress: string | undefined = undefined;
   export let localBedrockPort: number | undefined = undefined;
   export let playitEnabled = false;
   export let broadcastEnabled = false;
@@ -82,6 +83,14 @@
   $: allTransportsResolved = Object.values(transport).every((state) => state !== 'waiting');
   $: serverReady = /ready/i.test(statusLine);
   $: broadcastUnlocked = !playitEnabled || playitAttempted;
+
+  function localEndpoint(host: string | undefined, port: number): string {
+    if (!host) return `local address:${port}`;
+    const displayHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
+    return `${displayHost}:${port}`;
+  }
+
+  $: localAddress = localEndpoint(hostAddress, localPort);
 
   async function refreshConsole(): Promise<void> {
     if (!api) return;
@@ -552,7 +561,7 @@
         <div class="connection-list">
           <div>
             <span>{serverType === 'bedrock' ? 'Bedrock — same Wi-Fi' : 'Java — same Wi-Fi'}</span
-            ><code>local address:{localPort}</code>
+            ><code>{localAddress}</code>
           </div>
           {#if serverType === 'java' && localBedrockPort}
             <div>

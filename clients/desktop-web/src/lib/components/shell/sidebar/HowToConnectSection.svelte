@@ -112,21 +112,8 @@
   }
 
   $: rows = ((): ConnectRow[] => {
-    const out: ConnectRow[] = [
-      {
-        key: 'java-lan',
-        label: 'Java · same Wi-Fi',
-        value: localJavaAddress,
-        fallback: 'Not reported by this host yet',
-      },
-      {
-        key: 'java-public',
-        label: `Java · ${publicSuffix(playitSelected, connectivity?.joinAddressSource)}`,
-        value: publicJavaAddress,
-        fallback: 'Not available yet',
-      },
-    ];
-    if (hasBedrockEndpoint || (showXboxBroadcast && xboxBroadcastEnabled)) {
+    const out: ConnectRow[] = [];
+    if (isBedrockServer) {
       out.push(
         {
           key: 'bedrock-lan',
@@ -141,6 +128,37 @@
           fallback: 'Not available yet',
         },
       );
+    } else {
+      out.push(
+        {
+          key: 'java-lan',
+          label: 'Java · same Wi-Fi',
+          value: localJavaAddress,
+          fallback: 'Not reported by this host yet',
+        },
+        {
+          key: 'java-public',
+          label: `Java · ${publicSuffix(playitSelected, connectivity?.joinAddressSource)}`,
+          value: publicJavaAddress,
+          fallback: 'Not available yet',
+        },
+      );
+      if (hasBedrockEndpoint) {
+        out.push(
+          {
+            key: 'bedrock-lan',
+            label: 'Bedrock · same Wi-Fi',
+            value: localBedrockAddress,
+            fallback: 'Not reported by this host yet',
+          },
+          {
+            key: 'bedrock-public',
+            label: `Bedrock · ${publicSuffix(playitSelected, connectivity?.joinAddressSource)}`,
+            value: publicBedrockAddress,
+            fallback: 'Not available yet',
+          },
+        );
+      }
     }
     if (showXboxBroadcast && xboxBroadcastEnabled) {
       out.push({

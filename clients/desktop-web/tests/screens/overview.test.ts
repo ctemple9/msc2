@@ -40,6 +40,9 @@ describe('overview connection information', () => {
     expect(howToConnectSource).toContain(
       'hasBedrockEndpoint = isBedrockServer || geyser?.isGeyserInstalled === true',
     );
+    expect(howToConnectSource).toContain('if (isBedrockServer)');
+    expect(howToConnectSource).toContain("key: 'java-lan'");
+    expect(howToConnectSource).toContain("key: 'bedrock-lan'");
     expect(connectionSource).not.toContain('configuredBedrockPort !== undefined');
     expect(howToConnectSource).not.toContain(
       'hasBedrockEndpoint = isBedrockServer || bedrockEndpointPort',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import appSource from '../../src/App.svelte?raw';
 import confirmSource from '../../src/lib/sections/fleet/wizard/ConfirmStep.svelte?raw';
 import sheetSource from '../../src/lib/sections/server-editor/FirstStartSheet.svelte?raw';
 import authSource from '../../src/lib/sections/server-editor/BroadcastAuthSheet.svelte?raw';
@@ -15,6 +16,9 @@ describe('first-start initiation flow', () => {
     expect(sheetSource).toContain('I accept the Minecraft server EULA.');
     expect(sheetSource).toContain("disabled={serverType === 'java' && !eulaAccepted}");
     expect(sheetSource).toContain('livePaths.tail');
+    expect(sheetSource).toContain('export let hostAddress: string | undefined = undefined;');
+    expect(sheetSource).toContain('<code>{localAddress}</code>');
+    expect(appSource).toContain('hostAddress={initiationServer.hostAddress}');
     expect(sheetSource).toContain('First-start console');
     expect(sheetSource).toContain('consoleLinesAfterClear');
     expect(sheetSource).toContain('onclick={clearConsole}');

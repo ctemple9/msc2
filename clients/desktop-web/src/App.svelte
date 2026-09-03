@@ -786,6 +786,7 @@
     serverType={initiationServer.serverType === 'bedrock' ? 'bedrock' : 'java'}
     localPort={initiationServer.gamePort ??
       (initiationServer.serverType === 'bedrock' ? 19132 : 25565)}
+    hostAddress={initiationServer.hostAddress}
     localBedrockPort={initiationServer.serverType !== 'bedrock'
       ? initiationServer.bedrockPort
       : undefined}

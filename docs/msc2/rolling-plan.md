@@ -147,6 +147,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.44: fix Bedrock retry and first-start console separation`
 **Batch:** solo
 
+### P12.45 — Make macOS Bedrock startup compatible and honest
+**Status:** awaiting verification
+**Files:** `sidecar/bedrock/Resources/appliance-initramfs.gz`, `sidecar/bedrock/Resources/README.md`, `sidecar/bedrock/BedrockSidecar.xcodeproj/project.pbxproj`, `sidecar/bedrock/BedrockSidecarCore.swift`, `sidecar/bedrock/Tests/BedrockSidecarTests.swift`, `clients/desktop-web/tools/prepare-agent-dev.mjs`, `tools/phase12/bedrock-package-check.py`, `docs/msc2/rolling-plan.md`
+**What:** Add the glibc compatibility links required by the current official Linux Bedrock binary to the Intel VM appliance and update its recorded checksum everywhere the sidecar resources are validated. Make the sidecar emit its readiness event only after both the UDP relay and Bedrock's `Server started` console line are present, so a missing library or other early BDS exit becomes a failed first-start operation instead of an automatic stop that can remain visually stuck.
+**Verify:** `xcodebuild test -project sidecar/bedrock/BedrockSidecar.xcodeproj -scheme BedrockSidecar -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO && cd clients/desktop-web && npx prettier --check src/lib/sections/server-editor/FirstStartSheet.svelte tests/screens/first-start.test.ts tools/prepare-agent-dev.mjs && npx vitest run tests/screens/first-start.test.ts tests/screens/live.test.ts`
+**Commit:** `P12.45: make macos bedrock startup compatible and honest`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

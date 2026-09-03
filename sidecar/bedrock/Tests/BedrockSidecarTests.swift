@@ -89,4 +89,11 @@ final class BedrockSidecarTests: XCTestCase {
         XCTAssertEqual(BedrockSidecarController.parseGuestIP("[appliance] dhcp: 192.168.64.7/24"), "192.168.64.7")
         XCTAssertNil(BedrockSidecarController.parseGuestIP("[appliance] dhcp: unavailable"))
     }
+
+    func testBedrockReadinessUsesTheServerStartedLine() {
+        XCTAssertTrue(BedrockSidecarController.isBedrockServerReadyLine("[Server] Server started."))
+        XCTAssertTrue(BedrockSidecarController.isBedrockServerReadyLine("server STARTED"))
+        XCTAssertFalse(BedrockSidecarController.isBedrockServerReadyLine("[appliance] dhcp: 192.168.64.7/24"))
+        XCTAssertFalse(BedrockSidecarController.isBedrockServerReadyLine("BDS exited — powering off"))
+    }
 }

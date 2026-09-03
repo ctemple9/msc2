@@ -12,7 +12,7 @@ const packageAgentDirectory = join(destinationRoot, 'package', 'agent');
 
 const applianceChecksums = {
   'vmlinuz-kata': '85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e',
-  'appliance-initramfs.gz': '0865eb432f61249a5a2f76770e7c79e53cf803c5fa435d110ced03747da8a278',
+  'appliance-initramfs.gz': '4a67a927c406ff45fa64ad00dc1b541a13d8b7bb0a1d40258697c28731166bb2',
 };
 
 const build = spawnSync('cargo', ['build', '-p', 'msc-agent'], {
@@ -44,7 +44,8 @@ function stageMacosSidecar() {
   // environment variable as an explicit override for release or replacement
   // appliance inputs.
   const applianceDirectory =
-    process.env.MSC2_BEDROCK_APPLIANCE_DIR || join(workspaceRoot, 'sidecar', 'bedrock', 'Resources');
+    process.env.MSC2_BEDROCK_APPLIANCE_DIR ||
+    join(workspaceRoot, 'sidecar', 'bedrock', 'Resources');
 
   for (const [name, checksum] of Object.entries(applianceChecksums)) {
     const path = join(applianceDirectory, name);
@@ -99,11 +100,9 @@ function stageMacosSidecar() {
 }
 
 function verifySidecarEntitlement(sidecarPath) {
-  const verification = spawnSync(
-    'codesign',
-    ['-d', '--entitlements', ':-', sidecarPath],
-    { encoding: 'utf8' },
-  );
+  const verification = spawnSync('codesign', ['-d', '--entitlements', ':-', sidecarPath], {
+    encoding: 'utf8',
+  });
   const output = `${verification.stdout}${verification.stderr}`;
   if (
     verification.status !== 0 ||

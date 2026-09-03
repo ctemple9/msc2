@@ -168,6 +168,8 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     private var relay: UDPRelay?
     private var bedrockPort: UInt16 = 19132
     private var guestIP: String?
+    private var relayReady = false
+    private var bedrockReady = false
     private var gracefulStopWorkItem: DispatchWorkItem?
     private var didTerminate = false
 
@@ -220,6 +222,8 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
         // address and termination latch before binding the next one.
         pendingOutput.removeAll(keepingCapacity: false)
         guestIP = nil
+        relayReady = false
+        bedrockReady = false
         didTerminate = false
         state = .provisioned(serverDirectory: URL(fileURLWithPath: serverDir, isDirectory: true), version: version)
         return [.provisioned(ok: true, reason: nil)]
@@ -372,8 +376,8 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
                         self?.finish(reason: "start-failed:UDP relay could not bind")
                         return
                     }
-                    self?.send(.ready(guestIP: ip, port: self?.bedrockPort ?? 19132, relayUp: true))
-                    self?.state = .running
+                    self?.relayReady = true
+                    self?.emitReadyIfPossible()
                 }
             } catch {
                 finish(reason: "start-failed:\(error.localizedDescription)")
@@ -381,6 +385,17 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
             }
         }
         send(.consoleLine(line))
+        if Self.isBedrockServerReadyLine(line) {
+            bedrockReady = true
+            emitReadyIfPossible()
+        }
+    }
+
+    private func emitReadyIfPossible() {
+        guard relayReady, bedrockReady, let guestIP else { return }
+        guard case .starting = state else { return }
+        send(.ready(guestIP: guestIP, port: bedrockPort, relayUp: true))
+        state = .running
     }
 
     private func finish(reason: String) {
@@ -420,6 +435,10 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     static func parseGuestIP(_ line: String) -> String? {
         guard let range = line.range(of: #"\d{1,3}(\.\d{1,3}){3}"#, options: .regularExpression) else { return nil }
         return String(line[range])
+    }
+
+    static func isBedrockServerReadyLine(_ line: String) -> Bool {
+        line.range(of: "Server started", options: .caseInsensitive) != nil
     }
 
     #if arch(x86_64)

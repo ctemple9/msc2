@@ -1,7 +1,9 @@
 # Bedrock VM appliance resources
 
 The distributable sidecar bundle must contain the Intel (`x86_64`) appliance
-pair from the MSC 1 VZ backend:
+pair from the MSC 1 VZ backend. The initramfs also carries glibc compatibility
+links for the current official BDS binary's legacy `libpthread`, `libdl`, and
+`librt` sonames:
 
 - `vmlinuz-kata`
 - `appliance-initramfs.gz`
@@ -22,7 +24,7 @@ this port:
 | File | SHA-256 |
 |---|---|
 | `vmlinuz-kata` | `85ac495fce6bb6ee01206c8e022b65acad45ca3fcc2729ba377af33943c8b05e` |
-| `appliance-initramfs.gz` | `0865eb432f61249a5a2f76770e7c79e53cf803c5fa435d110ced03747da8a278` |
+| `appliance-initramfs.gz` | `4a67a927c406ff45fa64ad00dc1b541a13d8b7bb0a1d40258697c28731166bb2` |
 
 The Xcode validation phase fails before compilation when either file is missing
 or a checksum differs. The pair is a verified distribution input rather than

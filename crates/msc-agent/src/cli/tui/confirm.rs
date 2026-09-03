@@ -7,6 +7,7 @@
 use crossterm::event::KeyCode;
 
 use super::backups::BackupMutation;
+use super::components::ComponentMutation;
 use super::players::PlayerMutation;
 use super::worlds::WorldMutation;
 
@@ -18,6 +19,7 @@ pub enum ConfirmAction {
     PlayerMutation(PlayerMutation),
     WorldMutation(WorldMutation),
     BackupMutation(BackupMutation),
+    ComponentMutation(ComponentMutation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

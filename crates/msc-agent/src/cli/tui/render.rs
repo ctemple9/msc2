@@ -11,6 +11,7 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs, Wrap};
 
 use super::app::{App, FocusTarget, SmallSurface};
 use super::backups::BackupsState;
+use super::components::{ComponentSurface, ComponentsState};
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
 use super::overview::TAB_NAMES;
@@ -200,6 +201,10 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
     }
     if app.active_tab() == 3 {
         render_performance(frame, area, app);
+        return;
+    }
+    if app.active_tab() == 4 {
+        render_components(frame, area, app.components());
         return;
     }
     let body = if app.active_tab() == 0 {
@@ -722,6 +727,342 @@ fn render_performance(frame: &mut Frame, area: Rect, app: &App) {
     );
 }
 
+fn render_components(frame: &mut Frame, area: Rect, components: &ComponentsState) {
+    let mut lines = vec![Line::from(
+        "[1] JAR/version  [2] add-ons  [3] system  [4] catalog  [5] packs  [6] modpacks",
+    )];
+    if let Some(error) = &components.error {
+        lines.push(Line::from(format!("Components unavailable: {error}")));
+    } else if !components.loaded {
+        lines.push(Line::from(
+            "Loading component state from the selected server…",
+        ));
+    } else {
+        lines.push(Line::from(format!(
+            "{}  ·  {} item(s)",
+            components.surface.label(),
+            components.item_count()
+        )));
+        match components.surface {
+            ComponentSurface::Versions => render_versions(&mut lines, components),
+            ComponentSurface::Addons => render_addons(&mut lines, components),
+            ComponentSurface::System => render_system_components(&mut lines, components),
+            ComponentSurface::Catalog => render_catalog(&mut lines, components),
+            ComponentSurface::ResourcePacks => render_resource_packs(&mut lines, components),
+            ComponentSurface::Modpacks => {
+                lines.push(Line::from(
+                    "Modpack archives use bounded staging before inspection or import.",
+                ));
+                lines.push(Line::from(
+                    "[i] enter: inspect|import|replace | local .mrpack/.zip path",
+                ));
+            }
+        }
+        if let Some((kind, value)) = &components.input {
+            lines.push(Line::from(format!("{}: {}_", kind.prompt(), value)));
+        }
+        if let Some(status) = &components.status {
+            lines.push(Line::from(format!("Status: {status}")));
+        }
+    }
+    render_box(frame, area, "› COMPONENTS", lines);
+}
+
+fn render_versions(lines: &mut Vec<Line<'static>>, components: &ComponentsState) {
+    let Some(versions) = &components.versions else {
+        lines.push(Line::from("Server version information is unavailable."));
+        return;
+    };
+    lines.push(Line::from(format!(
+        "Flavor: {}  · current: {}  · supports changes: {}",
+        versions.flavor_name,
+        versions
+            .current_version
+            .as_deref()
+            .unwrap_or("not reported"),
+        versions.supports_versions
+    )));
+    if components.detail_open {
+        if let Some(version) = components.selected_version() {
+            lines.push(Line::from(format!(
+                "SELECTED  {}  · {}  · {}",
+                version.display_label,
+                version.mc_version,
+                if version.is_latest {
+                    "LATEST"
+                } else {
+                    "available"
+                }
+            )));
+            lines.push(Line::from(format!("Version ID: {}", version.id)));
+            lines.push(Line::from("[a] actions  [esc] version list"));
+            if components.action_menu_open {
+                lines.push(Line::from(
+                    "ACTIONS  [v] change this server's version  [esc] close",
+                ));
+            }
+        }
+    } else {
+        for (index, version) in versions.versions.iter().enumerate().take(16) {
+            lines.push(Line::from(format!(
+                "{} {}  {}{}",
+                if index == components.selected {
+                    "›"
+                } else {
+                    " "
+                },
+                version.display_label,
+                version.mc_version,
+                if version.is_latest { "  LATEST" } else { "" }
+            )));
+        }
+        lines.push(Line::from("[j/k] choose  [enter] detail  [r] reload"));
+    }
+}
+
+fn render_addons(lines: &mut Vec<Line<'static>>, components: &ComponentsState) {
+    let Some(addons) = &components.addons else {
+        lines.push(Line::from("Installed add-ons are unavailable."));
+        return;
+    };
+    if addons.pack_managed == Some(true) {
+        lines.push(Line::from(format!(
+            "PACK-MANAGED  {}  · individual add-on updates may be refused",
+            addons.pack_name.as_deref().unwrap_or("unnamed pack")
+        )));
+    }
+    if let Some(note) = &addons.note {
+        lines.push(Line::from(format!("Agent note: {note}")));
+    }
+    if components.detail_open {
+        if let Some(addon) = components.selected_addon() {
+            lines.push(Line::from(format!(
+                "SELECTED  {}  · {}",
+                addon.display_name,
+                if addon.is_enabled {
+                    "ENABLED"
+                } else {
+                    "DISABLED"
+                }
+            )));
+            lines.push(Line::from(format!("Jar stem: {}", addon.jar_stem)));
+            lines.push(Line::from(format!(
+                "Version: {}  · available: {}  · bucket: {}",
+                addon.current_version.as_deref().unwrap_or("not reported"),
+                addon.available_version.as_deref().unwrap_or("not reported"),
+                addon.bucket
+            )));
+            lines.push(Line::from("[a] actions  [esc] add-on list"));
+            if components.action_menu_open {
+                lines.push(Line::from(
+                    "ACTIONS  [u] update  [e] enable  [d] disable  [x] remove",
+                ));
+            }
+        }
+    } else {
+        if addons.addons.is_empty() {
+            lines.push(Line::from("No installed add-ons are reported."));
+        }
+        for (index, addon) in addons.addons.iter().enumerate().take(16) {
+            lines.push(Line::from(format!(
+                "{} {}  {}  {}",
+                if index == components.selected {
+                    "›"
+                } else {
+                    " "
+                },
+                addon.display_name,
+                if addon.is_enabled {
+                    "ENABLED"
+                } else {
+                    "DISABLED"
+                },
+                addon
+                    .current_version
+                    .as_deref()
+                    .unwrap_or("version unknown")
+            )));
+        }
+        lines.push(Line::from("[j/k] choose  [enter] detail  [r] reload"));
+    }
+}
+
+fn render_system_components(lines: &mut Vec<Line<'static>>, components: &ComponentsState) {
+    let Some(system) = &components.system else {
+        lines.push(Line::from("System component status is unavailable."));
+        return;
+    };
+    lines.push(Line::from(format!(
+        "Restart required to apply: {}",
+        system.restart_required_to_apply
+    )));
+    if components.detail_open {
+        if let Some(component) = components.selected_system() {
+            lines.push(Line::from(format!("SELECTED  {}", component.name)));
+            lines.push(Line::from(format!(
+                "Installed: {}  · latest: {}  · up to date: {}",
+                component
+                    .installed_version
+                    .as_deref()
+                    .unwrap_or("not reported"),
+                component
+                    .latest_version
+                    .as_deref()
+                    .unwrap_or("not reported"),
+                component.is_up_to_date
+            )));
+            if let Some(note) = &component.note {
+                lines.push(Line::from(format!("Agent note: {note}")));
+            }
+            lines.push(Line::from("[a] actions  [esc] system component list"));
+            if components.action_menu_open {
+                lines.push(Line::from(
+                    "ACTIONS  [u] update this component  [esc] close",
+                ));
+            }
+        }
+    } else {
+        for (index, component) in system.components.iter().enumerate().take(16) {
+            lines.push(Line::from(format!(
+                "{} {}  {} → {}",
+                if index == components.selected {
+                    "›"
+                } else {
+                    " "
+                },
+                component.name,
+                component
+                    .installed_label
+                    .as_deref()
+                    .unwrap_or("not installed"),
+                component
+                    .latest_version
+                    .as_deref()
+                    .unwrap_or("latest unknown")
+            )));
+        }
+        lines.push(Line::from("[j/k] choose  [enter] detail  [r] reload"));
+    }
+}
+
+fn render_catalog(lines: &mut Vec<Line<'static>>, components: &ComponentsState) {
+    let Some(catalog) = &components.catalog else {
+        lines.push(Line::from("[ / ] search the server-compatible catalog."));
+        return;
+    };
+    if let Some(note) = &catalog.note {
+        lines.push(Line::from(format!("Provider note: {note}")));
+    }
+    if components.detail_open {
+        if let Some(item) = components.selected_catalog() {
+            lines.push(Line::from(format!(
+                "SELECTED  {}  · {}",
+                item.title, item.project_type
+            )));
+            lines.push(Line::from(format!(
+                "Project: {}  · author: {}",
+                item.project_id, item.author
+            )));
+            lines.push(Line::from(format!(
+                "Downloads: {}  · client-only: {}",
+                item.downloads, item.is_client_only
+            )));
+            lines.push(Line::from(item.description.clone()));
+            lines.push(Line::from("[a] actions  [esc] catalog list"));
+            if components.action_menu_open {
+                lines.push(Line::from(
+                    "ACTIONS  [i] install selected add-on  [esc] close",
+                ));
+            }
+        }
+    } else {
+        if catalog.results.is_empty() {
+            lines.push(Line::from("No catalog results match the current search."));
+        }
+        for (index, item) in catalog.results.iter().enumerate().take(16) {
+            lines.push(Line::from(format!(
+                "{} {}  {}  {} downloads",
+                if index == components.selected {
+                    "›"
+                } else {
+                    " "
+                },
+                item.title,
+                item.project_type,
+                item.downloads
+            )));
+        }
+        lines.push(Line::from("[/] search  [j/k] choose  [enter] detail"));
+    }
+}
+
+fn render_resource_packs(lines: &mut Vec<Line<'static>>, components: &ComponentsState) {
+    let Some(packs) = &components.resource_packs else {
+        lines.push(Line::from("Resource-pack state is unavailable."));
+        return;
+    };
+    if let Some(note) = &packs.note {
+        lines.push(Line::from(format!("Agent note: {note}")));
+    }
+    lines.push(Line::from(format!(
+        "Java packs: {}  · Geyser packs: {}  · required: {}",
+        packs.packs.len(),
+        packs.geyser_packs.len(),
+        packs.require_pack
+    )));
+    if components.detail_open {
+        if let Some(pack) = components.selected_resource_pack() {
+            lines.push(Line::from(format!(
+                "SELECTED  {}  · {}",
+                pack.name, pack.type_label
+            )));
+            lines.push(Line::from(format!(
+                "File: {}  · size: {}",
+                pack.file_name, pack.file_size_display
+            )));
+            lines.push(Line::from(format!(
+                "State: {}",
+                if pack.is_active {
+                    "ACTIVE"
+                } else {
+                    "AVAILABLE"
+                }
+            )));
+            lines.push(Line::from("[a] actions  [esc] resource-pack list"));
+            if components.action_menu_open {
+                lines.push(Line::from(
+                    "ACTIONS  [a] activate  [c] clear active  [u] set URL  [x] remove",
+                ));
+            }
+        }
+    } else {
+        for (index, pack) in packs
+            .packs
+            .iter()
+            .chain(packs.geyser_packs.iter())
+            .enumerate()
+            .take(16)
+        {
+            lines.push(Line::from(format!(
+                "{} {}  {}  {}",
+                if index == components.selected {
+                    "›"
+                } else {
+                    " "
+                },
+                pack.name,
+                if pack.is_active {
+                    "ACTIVE"
+                } else {
+                    "AVAILABLE"
+                },
+                pack.pack_kind
+            )));
+        }
+        lines.push(Line::from("[j/k] choose  [enter] detail  [r] reload"));
+    }
+}
+
 fn render_activity(frame: &mut Frame, area: Rect, app: &App) {
     let activity = app.activity();
     let mut lines = vec![Line::from(
@@ -899,6 +1240,10 @@ fn render_small(frame: &mut Frame, area: Rect, app: &App) {
             }
             if app.active_tab() == 3 {
                 render_performance(frame, area, app);
+                return;
+            }
+            if app.active_tab() == 4 {
+                render_components(frame, area, app.components());
                 return;
             }
             let text = format!(

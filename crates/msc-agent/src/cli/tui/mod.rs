@@ -5,6 +5,7 @@
 pub mod activity;
 pub mod app;
 pub mod backups;
+pub mod components;
 pub mod confirm;
 pub mod console;
 pub mod layout;

@@ -268,7 +268,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.9 — Deliver the Components section
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/components.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_components.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Add a focused Components tab that preserves the desktop's distinct server-JAR/version, installed add-on, catalog/browse, update, enable/disable, remove, reveal/detail, cross-play/helper, resource-pack, and modpack state flows wherever the active host advertises them. Show operation progress and pack-managed or provider-unavailable responses as the API reports them; never present a control merely because a visual slot exists. Use searchable lists, selected-item detail, and explicit action menus rather than terminal dashboard tiles, and route every mutation through the shared confirmation/error path.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Tabs/components.png`.

@@ -9,6 +9,7 @@ use ratatui::layout::Rect;
 
 use super::activity::ActivityState;
 use super::backups::{BackupIntent, BackupMutation, BackupsState};
+use super::components::{ComponentIntent, ComponentMutation, ComponentsState};
 use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, ConfirmationState};
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
@@ -74,11 +75,13 @@ struct HostSession {
     performance: PerformanceState,
     worlds: WorldsState,
     backups: BackupsState,
+    components: ComponentsState,
 }
 
 enum AppIntent {
     World(WorldIntent),
     Backup(BackupIntent),
+    Component(ComponentIntent),
 }
 
 impl App {
@@ -129,6 +132,7 @@ impl App {
                 performance: PerformanceState::default(),
                 worlds: WorldsState::default(),
                 backups: BackupsState::default(),
+                components: ComponentsState::default(),
             }],
             active_host: 0,
             notes: BTreeMap::new(),
@@ -212,6 +216,17 @@ impl App {
                     .handle_key(key)
                     .map(AppIntent::World)
             };
+            if let Some(intent) = intent {
+                self.handle_app_intent(intent);
+            }
+            return false;
+        }
+        if self.active_tab == 4 && self.focus == FocusTarget::Content {
+            let intent = self
+                .current_session_mut()
+                .components
+                .handle_key(key)
+                .map(AppIntent::Component);
             if let Some(intent) = intent {
                 self.handle_app_intent(intent);
             }
@@ -335,6 +350,7 @@ impl App {
                 }
             }
             3 => self.load_performance_if_needed(),
+            4 => self.load_components_if_needed(),
             _ => {}
         }
     }
@@ -353,6 +369,10 @@ impl App {
 
     pub fn backups(&self) -> &BackupsState {
         &self.current_session().backups
+    }
+
+    pub fn components(&self) -> &ComponentsState {
+        &self.current_session().components
     }
 
     pub fn available_tabs(&self) -> Vec<usize> {
@@ -404,6 +424,7 @@ impl App {
             performance: PerformanceState::default(),
             worlds: WorldsState::default(),
             backups: BackupsState::default(),
+            components: ComponentsState::default(),
         });
         self.activity.start_notifications(
             self.sessions
@@ -626,6 +647,9 @@ impl App {
             ConfirmAction::BackupMutation(mutation) => {
                 self.execute_backup_mutation(client, mutation)
             }
+            ConfirmAction::ComponentMutation(mutation) => {
+                self.execute_component_mutation(client, mutation)
+            }
         }
     }
 
@@ -648,6 +672,53 @@ impl App {
             AppIntent::Backup(BackupIntent::Confirm(mutation)) => {
                 self.begin_backup_confirmation(mutation);
             }
+            AppIntent::Component(ComponentIntent::Search(query)) => {
+                self.search_components(&query);
+            }
+            AppIntent::Component(ComponentIntent::Confirm(mutation)) => {
+                self.begin_component_confirmation(mutation);
+            }
+        }
+    }
+
+    fn begin_component_confirmation(&mut self, mutation: ComponentMutation) {
+        if !self.has_permission(msc_api::dto::PermissionCategoryDto::Addons) {
+            self.last_action = Some("This credential cannot change components".to_string());
+            return;
+        }
+        let (target, consequence) = component_confirmation_details(&mutation);
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: self.overview().selected_server_name().to_string(),
+            target,
+            consequence,
+            action: ConfirmAction::ComponentMutation(mutation),
+        });
+    }
+
+    fn execute_component_mutation(&mut self, client: SharedClient, mutation: ComponentMutation) {
+        match run_blocking(super::components::execute(&client, mutation)) {
+            Ok(result) => {
+                self.current_session_mut().components.loaded = false;
+                self.last_action = Some(result.message);
+                if let Some(operation_id) = result.operation_id {
+                    self.activity.track_operation(client, operation_id.clone());
+                    self.last_action = Some(format!("Operation {operation_id} is being tracked"));
+                }
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn search_components(&mut self, query: &str) {
+        let Some(client) = self.current_session().client.clone() else {
+            self.last_action =
+                Some("Catalog search requires an authenticated host session".to_string());
+            return;
+        };
+        match run_blocking(self.current_session_mut().components.search(&client, query)) {
+            Ok(()) => self.last_action = Some(format!("Catalog search: {query}")),
+            Err(error) => self.last_action = Some(error.to_string()),
         }
     }
 
@@ -945,6 +1016,26 @@ impl App {
         }
     }
 
+    fn load_components_if_needed(&mut self) {
+        if self.current_session().components.loaded {
+            return;
+        }
+        let Some(client) = self.current_session().client.clone() else {
+            let state = &mut self.current_session_mut().components;
+            state.error = Some("Components require an authenticated host session".to_string());
+            state.loaded = true;
+            return;
+        };
+        match run_blocking(ComponentsState::load(&client)) {
+            Ok(state) => self.current_session_mut().components = state,
+            Err(error) => {
+                let state = &mut self.current_session_mut().components;
+                state.error = Some(error.to_string());
+                state.loaded = true;
+            }
+        }
+    }
+
     fn begin_cancel_confirmation(&mut self) {
         if !self.activity.selected_operation_is_active() {
             self.last_action = Some("Select a queued or running operation to cancel".to_string());
@@ -1096,6 +1187,71 @@ fn player_mutation_consequence(mutation: &PlayerMutation) -> String {
         PlayerMutation::ClearSessionLog => {
             "The agent will delete the selected server's recorded join/leave history.".to_string()
         }
+    }
+}
+
+fn component_confirmation_details(mutation: &ComponentMutation) -> (String, String) {
+    match mutation {
+        ComponentMutation::ChangeVersion { version_id } => (
+            version_id.clone(),
+            "The selected server JAR/version will change; the agent may require a restart."
+                .to_string(),
+        ),
+        ComponentMutation::UpdateAddon { jar_stem } => (
+            jar_stem.clone(),
+            "The agent will download and apply the selected add-on update.".to_string(),
+        ),
+        ComponentMutation::UpdateAllAddons => (
+            "all compatible add-ons".to_string(),
+            "The agent will update every compatible installed add-on.".to_string(),
+        ),
+        ComponentMutation::SetAddonEnabled { jar_stem, enabled } => (
+            jar_stem.clone(),
+            format!(
+                "The selected add-on will be {} for the next server launch.",
+                if *enabled { "enabled" } else { "disabled" }
+            ),
+        ),
+        ComponentMutation::RemoveAddon { jar_stem } => (
+            jar_stem.clone(),
+            "The selected installed add-on will be removed from this server.".to_string(),
+        ),
+        ComponentMutation::UpdateSystem { component } => (
+            component.clone(),
+            "The agent will update this installed system component if a compatible version exists."
+                .to_string(),
+        ),
+        ComponentMutation::InstallCatalog { title, .. } => (
+            title.clone(),
+            "The selected catalog add-on will be installed into this server.".to_string(),
+        ),
+        ComponentMutation::ActivateResourcePack { pack_id, .. } => (
+            pack_id.clone(),
+            "The selected resource pack will be activated for this server.".to_string(),
+        ),
+        ComponentMutation::ClearResourcePack => (
+            "active resource pack".to_string(),
+            "The active Java resource pack will be cleared from server settings.".to_string(),
+        ),
+        ComponentMutation::RemoveResourcePack { pack_id, .. } => (
+            pack_id.clone(),
+            "The selected resource pack will be removed from the agent-managed store.".to_string(),
+        ),
+        ComponentMutation::SetResourcePackUrl { url } => (
+            url.clone(),
+            "The server's resource-pack URL will be replaced with this value.".to_string(),
+        ),
+        ComponentMutation::Modpack { path, action } => (
+            path.display().to_string(),
+            format!(
+                "The agent will {} this staged modpack archive for the selected server.",
+                if action == "inspect" {
+                    "inspect"
+                } else {
+                    "import or replace"
+                }
+            ),
+        ),
     }
 }
 

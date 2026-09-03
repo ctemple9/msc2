@@ -7,17 +7,21 @@ use std::future::Future;
 use crossterm::event::KeyCode;
 use ratatui::layout::Rect;
 
+use super::access::{AccessIntent, AccessMutation, AccessState};
 use super::activity::ActivityState;
 use super::backups::{BackupIntent, BackupMutation, BackupsState};
 use super::components::{ComponentIntent, ComponentMutation, ComponentsState};
 use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, ConfirmationState};
+use super::connections::{ConnectionIntent, ConnectionMutation, ConnectionsState};
 use super::console::ConsoleView;
+use super::health::{HealthIntent, HealthMutation, HealthState};
 use super::layout::{LayoutMode, ShellLayout};
 use super::manage_servers::{ManageIntent, ManageMutation, ManageServersState};
 use super::overview::{OverviewState, TAB_NAMES};
 use super::performance::PerformanceState;
 use super::players::{PlayerIntent, PlayerMutation, PlayersState};
 use super::server_editor::{EditorIntent, EditorMutation, ServerEditorState};
+use super::settings::{SettingsIntent, SettingsMutation, SettingsState};
 use super::transport::SharedClient;
 use super::worlds::{WorldIntent, WorldMutation, WorldsState};
 use crate::cli::CommonArgs;
@@ -51,6 +55,15 @@ pub enum SmallSurface {
     Help,
 }
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum AdminSurface {
+    #[default]
+    Settings,
+    Connections,
+    Health,
+    Access,
+}
+
 #[derive(Debug, Clone)]
 pub struct App {
     sessions: Vec<HostSession>,
@@ -65,6 +78,7 @@ pub struct App {
     small_surface: SmallSurface,
     activity: ActivityState,
     confirmation: ConfirmationState,
+    settings_surface: AdminSurface,
 }
 
 #[derive(Debug, Clone)]
@@ -80,12 +94,23 @@ struct HostSession {
     components: ComponentsState,
     manage_servers: ManageServersState,
     editor: Option<ServerEditorState>,
+    settings: SettingsState,
+    connections: ConnectionsState,
+    health: HealthState,
+    access: AccessState,
 }
 
 enum AppIntent {
     World(WorldIntent),
     Backup(BackupIntent),
     Component(ComponentIntent),
+}
+
+enum AdminIntent {
+    Settings(SettingsIntent),
+    Connections(ConnectionIntent),
+    Health(HealthIntent),
+    Access(AccessIntent),
 }
 
 impl App {
@@ -140,6 +165,10 @@ impl App {
                 components: ComponentsState::default(),
                 manage_servers,
                 editor: None,
+                settings: SettingsState::default(),
+                connections: ConnectionsState::default(),
+                health: HealthState::default(),
+                access: AccessState::default(),
             }],
             active_host: 0,
             notes: BTreeMap::new(),
@@ -152,6 +181,7 @@ impl App {
             small_surface: SmallSurface::Overview,
             activity: ActivityState::default(),
             confirmation: ConfirmationState::default(),
+            settings_surface: AdminSurface::Settings,
         }
     }
 
@@ -257,11 +287,53 @@ impl App {
             }
             return false;
         }
+        if self.active_tab == 5 && self.focus == FocusTarget::Content {
+            let intent = match self.settings_surface {
+                AdminSurface::Settings => self
+                    .current_session_mut()
+                    .settings
+                    .handle_key(key)
+                    .map(AdminIntent::Settings),
+                AdminSurface::Connections => self
+                    .current_session_mut()
+                    .connections
+                    .handle_key(key)
+                    .map(AdminIntent::Connections),
+                AdminSurface::Health => self
+                    .current_session_mut()
+                    .health
+                    .handle_key(key)
+                    .map(AdminIntent::Health),
+                AdminSurface::Access => self
+                    .current_session_mut()
+                    .access
+                    .handle_key(key)
+                    .map(AdminIntent::Access),
+            };
+            if let Some(intent) = intent {
+                self.handle_admin_intent(intent);
+            }
+            return false;
+        }
         match key {
             KeyCode::Char('q') => return true,
             KeyCode::Char('m') => {
                 self.current_session_mut().manage_servers.open();
                 self.focus = FocusTarget::Content;
+            }
+            KeyCode::Char('v') if self.focus == FocusTarget::Rail => {
+                self.open_admin_surface(AdminSurface::Connections);
+                self.current_session_mut().connections.surface =
+                    super::connections::ConnectionSurface::Services;
+            }
+            KeyCode::Char('h') if self.focus == FocusTarget::Rail => {
+                self.open_admin_surface(AdminSurface::Connections);
+            }
+            KeyCode::Char('d') if self.focus == FocusTarget::Rail => {
+                self.open_admin_surface(AdminSurface::Health);
+            }
+            KeyCode::Char('u') if self.focus == FocusTarget::Rail => {
+                self.open_admin_surface(AdminSurface::Access);
             }
             KeyCode::Tab => self.advance_focus(),
             KeyCode::BackTab => self.reverse_focus(),
@@ -380,6 +452,7 @@ impl App {
             }
             3 => self.load_performance_if_needed(),
             4 => self.load_components_if_needed(),
+            5 => self.load_admin_if_needed(),
             _ => {}
         }
     }
@@ -410,6 +483,32 @@ impl App {
 
     pub fn editor(&self) -> Option<&ServerEditorState> {
         self.current_session().editor.as_ref()
+    }
+
+    pub fn settings_surface(&self) -> AdminSurface {
+        self.settings_surface
+    }
+
+    pub fn settings(&self) -> &SettingsState {
+        &self.current_session().settings
+    }
+
+    pub fn connections(&self) -> &ConnectionsState {
+        &self.current_session().connections
+    }
+
+    pub fn health(&self) -> &HealthState {
+        &self.current_session().health
+    }
+
+    pub fn access(&self) -> &AccessState {
+        &self.current_session().access
+    }
+
+    pub fn open_admin_surface(&mut self, surface: AdminSurface) {
+        self.settings_surface = surface;
+        self.active_tab = 5;
+        self.focus = FocusTarget::Content;
     }
 
     pub fn available_tabs(&self) -> Vec<usize> {
@@ -465,6 +564,10 @@ impl App {
             components: ComponentsState::default(),
             manage_servers,
             editor: None,
+            settings: SettingsState::default(),
+            connections: ConnectionsState::default(),
+            health: HealthState::default(),
+            access: AccessState::default(),
         });
         self.activity.start_notifications(
             self.sessions
@@ -845,6 +948,102 @@ impl App {
             ConfirmAction::EditorMutation(mutation) => {
                 self.execute_editor_mutation(client, mutation)
             }
+            ConfirmAction::SettingsMutation(mutation) => {
+                self.execute_settings_mutation(client, mutation)
+            }
+            ConfirmAction::ConnectionMutation(mutation) => {
+                self.execute_connection_mutation(client, mutation)
+            }
+            ConfirmAction::HealthMutation(mutation) => {
+                self.execute_health_mutation(client, mutation)
+            }
+            ConfirmAction::AccessMutation(mutation) => {
+                self.execute_access_mutation(client, mutation)
+            }
+        }
+    }
+
+    fn handle_admin_intent(&mut self, intent: AdminIntent) {
+        match intent {
+            AdminIntent::Settings(SettingsIntent::Confirm(mutation)) => {
+                if self.has_permission(msc_api::dto::PermissionCategoryDto::Settings) {
+                    self.confirmation.begin(ConfirmationRequest {
+                        host: self.host().to_string(),
+                        server: self.overview().selected_server_name().to_string(),
+                        target: "server settings".to_string(),
+                        consequence: "The agent will validate and apply these settings; a restart may be required.".to_string(),
+                        action: ConfirmAction::SettingsMutation(mutation),
+                    });
+                } else {
+                    self.last_action =
+                        Some("This credential cannot change server settings".to_string());
+                }
+            }
+            AdminIntent::Connections(ConnectionIntent::Confirm(mutation)) => {
+                let permission = match &mutation {
+                    ConnectionMutation::Playit { .. } => {
+                        msc_api::dto::PermissionCategoryDto::Networking
+                    }
+                    ConnectionMutation::Broadcast { .. }
+                    | ConnectionMutation::BroadcastAutostart { .. }
+                    | ConnectionMutation::BroadcastCredentials { .. } => {
+                        msc_api::dto::PermissionCategoryDto::Broadcast
+                    }
+                    ConnectionMutation::DuckDns { .. } => {
+                        msc_api::dto::PermissionCategoryDto::Settings
+                    }
+                };
+                if self.has_permission(permission) {
+                    let (target, consequence) = connection_confirmation_details(&mutation);
+                    self.confirmation.begin(ConfirmationRequest {
+                        host: self.host().to_string(),
+                        server: self.overview().selected_server_name().to_string(),
+                        target,
+                        consequence,
+                        action: ConfirmAction::ConnectionMutation(mutation),
+                    });
+                } else {
+                    self.last_action =
+                        Some("This credential cannot change that connection setting".to_string());
+                }
+            }
+            AdminIntent::Health(HealthIntent::Confirm(mutation)) => {
+                if self.has_permission(msc_api::dto::PermissionCategoryDto::Settings) {
+                    let (target, consequence) = health_confirmation_details(&mutation);
+                    self.confirmation.begin(ConfirmationRequest {
+                        host: self.host().to_string(),
+                        server: self.overview().selected_server_name().to_string(),
+                        target,
+                        consequence,
+                        action: ConfirmAction::HealthMutation(mutation),
+                    });
+                } else {
+                    self.last_action =
+                        Some("This credential cannot repair server health problems".to_string());
+                }
+            }
+            AdminIntent::Access(AccessIntent::Confirm(mutation)) => {
+                let permission = match &mutation {
+                    AccessMutation::AllowlistAdd { .. }
+                    | AccessMutation::AllowlistRemove { .. } => {
+                        msc_api::dto::PermissionCategoryDto::Players
+                    }
+                    AccessMutation::RevokeUser { .. } => msc_api::dto::PermissionCategoryDto::Admin,
+                };
+                if self.has_permission(permission) {
+                    let (target, consequence) = access_confirmation_details(&mutation);
+                    self.confirmation.begin(ConfirmationRequest {
+                        host: self.host().to_string(),
+                        server: self.overview().selected_server_name().to_string(),
+                        target,
+                        consequence,
+                        action: ConfirmAction::AccessMutation(mutation),
+                    });
+                } else {
+                    self.last_action =
+                        Some("This credential cannot change that access list".to_string());
+                }
+            }
         }
     }
 
@@ -1103,6 +1302,147 @@ impl App {
                 }
             }
             Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn execute_settings_mutation(&mut self, client: SharedClient, mutation: SettingsMutation) {
+        let SettingsMutation::Update { changes } = mutation;
+        match run_blocking(SettingsState::update(&client, changes)) {
+            Ok(result) => {
+                self.current_session_mut().settings.loaded = false;
+                self.last_action = Some(result.message);
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn execute_connection_mutation(&mut self, client: SharedClient, mutation: ConnectionMutation) {
+        let result = match mutation {
+            ConnectionMutation::Playit { start } => {
+                run_blocking(ConnectionsState::playit(&client, start))
+                    .map(|result| result.message.unwrap_or(result.result))
+            }
+            ConnectionMutation::Broadcast { start } => {
+                run_blocking(ConnectionsState::broadcast(&client, start))
+                    .map(|result| result.result)
+            }
+            ConnectionMutation::BroadcastAutostart { enabled } => {
+                run_blocking(ConnectionsState::set_autostart(&client, enabled))
+                    .map(|result| format!("Xbox Broadcast autostart: {}", result.enabled))
+            }
+            ConnectionMutation::BroadcastCredentials {
+                email,
+                password,
+                gamertag,
+            } => run_blocking(ConnectionsState::set_credentials(
+                &client, email, password, gamertag,
+            ))
+            .map(|result| result.result),
+            ConnectionMutation::DuckDns { hostname } => {
+                run_blocking(ConnectionsState::set_duckdns(&client, hostname)).map(|result| {
+                    result
+                        .message
+                        .unwrap_or_else(|| "DuckDNS updated".to_string())
+                })
+            }
+        };
+        match result {
+            Ok(message) => {
+                self.current_session_mut().connections.loaded = false;
+                self.last_action = Some(message);
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn execute_health_mutation(&mut self, client: SharedClient, mutation: HealthMutation) {
+        let HealthMutation::Repair { problem_id, action } = mutation;
+        match run_blocking(HealthState::repair(&client, problem_id, action)) {
+            Ok(result) => {
+                self.current_session_mut().health.loaded = false;
+                self.last_action = Some(result.message);
+                if let Some(operation_id) = result.operation_id {
+                    self.activity.track_operation(client, operation_id.clone());
+                    self.last_action = Some(format!("Operation {operation_id} is being tracked"));
+                }
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn execute_access_mutation(&mut self, client: SharedClient, mutation: AccessMutation) {
+        let result = match mutation {
+            AccessMutation::AllowlistAdd { name } => {
+                run_blocking(AccessState::mutate_allowlist(&client, true, name))
+            }
+            AccessMutation::AllowlistRemove { name } => {
+                run_blocking(AccessState::mutate_allowlist(&client, false, name))
+            }
+            AccessMutation::RevokeUser { user_id } => {
+                run_blocking(AccessState::revoke_user(&client, user_id))
+            }
+        };
+        match result {
+            Ok(_) => {
+                self.current_session_mut().access.loaded = false;
+                self.last_action = Some("Access request accepted".to_string());
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn load_admin_if_needed(&mut self) {
+        let Some(client) = self.current_session().client.clone() else {
+            let session = self.current_session_mut();
+            session.settings.error =
+                Some("Settings require an authenticated host session".to_string());
+            session.connections.error =
+                Some("Connections require an authenticated host session".to_string());
+            session.health.error =
+                Some("Health requires an authenticated host session".to_string());
+            session.access.error =
+                Some("Access requires an authenticated host session".to_string());
+            session.settings.loaded = true;
+            session.connections.loaded = true;
+            session.health.loaded = true;
+            session.access.loaded = true;
+            return;
+        };
+        if !self.current_session().settings.loaded {
+            match run_blocking(SettingsState::load(&client)) {
+                Ok(state) => self.current_session_mut().settings = state,
+                Err(error) => {
+                    self.current_session_mut().settings.error = Some(error.to_string());
+                    self.current_session_mut().settings.loaded = true;
+                }
+            }
+        }
+        if !self.current_session().connections.loaded {
+            match run_blocking(ConnectionsState::load(&client)) {
+                Ok(state) => self.current_session_mut().connections = state,
+                Err(error) => {
+                    self.current_session_mut().connections.error = Some(error.to_string());
+                    self.current_session_mut().connections.loaded = true;
+                }
+            }
+        }
+        if !self.current_session().health.loaded {
+            match run_blocking(HealthState::load(&client)) {
+                Ok(state) => self.current_session_mut().health = state,
+                Err(error) => {
+                    self.current_session_mut().health.error = Some(error.to_string());
+                    self.current_session_mut().health.loaded = true;
+                }
+            }
+        }
+        if !self.current_session().access.loaded {
+            match run_blocking(AccessState::load(&client)) {
+                Ok(state) => self.current_session_mut().access = state,
+                Err(error) => {
+                    self.current_session_mut().access.error = Some(error.to_string());
+                    self.current_session_mut().access.loaded = true;
+                }
+            }
         }
     }
 
@@ -1628,6 +1968,57 @@ fn run_blocking<T>(future: impl Future<Output = T>) -> T {
             .build()
             .expect("TUI temporary runtime builds")
             .block_on(future)
+    }
+}
+
+fn connection_confirmation_details(mutation: &ConnectionMutation) -> (String, String) {
+    match mutation {
+        ConnectionMutation::Playit { start } => (
+            "Playit tunnel".to_string(),
+            format!("The agent will {} the Playit tunnel.", if *start { "start" } else { "stop" }),
+        ),
+        ConnectionMutation::Broadcast { start } => (
+            "Xbox Broadcast".to_string(),
+            format!("The agent will {} Xbox Broadcast.", if *start { "start" } else { "stop" }),
+        ),
+        ConnectionMutation::BroadcastAutostart { enabled } => (
+            "Xbox Broadcast autostart".to_string(),
+            format!("The agent will {} automatic Xbox Broadcast startup.", if *enabled { "enable" } else { "disable" }),
+        ),
+        ConnectionMutation::BroadcastCredentials { .. } => (
+            "Xbox Broadcast credentials".to_string(),
+            "The agent will replace the stored account credentials; the password will not be returned or echoed.".to_string(),
+        ),
+        ConnectionMutation::DuckDns { hostname } => (
+            "DuckDNS hostname".to_string(),
+            format!("The agent will {} the DuckDNS hostname.", if hostname.is_some() { "set" } else { "clear" }),
+        ),
+    }
+}
+
+fn health_confirmation_details(mutation: &HealthMutation) -> (String, String) {
+    let HealthMutation::Repair { problem_id, action } = mutation;
+    (
+        problem_id.clone(),
+        format!("The agent will run the {action} repair. A running server may be refused."),
+    )
+}
+
+fn access_confirmation_details(mutation: &AccessMutation) -> (String, String) {
+    match mutation {
+        AccessMutation::AllowlistAdd { name } => (
+            name.clone(),
+            "The Bedrock allowlist will include this player.".to_string(),
+        ),
+        AccessMutation::AllowlistRemove { name } => (
+            name.clone(),
+            "The Bedrock allowlist will remove this player.".to_string(),
+        ),
+        AccessMutation::RevokeUser { user_id } => (
+            user_id.clone(),
+            "The named bearer credential will be revoked and cannot authenticate again."
+                .to_string(),
+        ),
     }
 }
 

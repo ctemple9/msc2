@@ -2,12 +2,15 @@
 //! presentation; authentication and all management behavior remain agent API
 //! responsibilities.
 
+pub mod access;
 pub mod activity;
 pub mod app;
 pub mod backups;
 pub mod components;
 pub mod confirm;
+pub mod connections;
 pub mod console;
+pub mod health;
 pub mod layout;
 pub mod manage_servers;
 pub mod overview;
@@ -16,6 +19,7 @@ pub mod players;
 pub mod render;
 pub mod server_editor;
 pub mod session;
+pub mod settings;
 pub mod transport;
 pub mod worlds;
 

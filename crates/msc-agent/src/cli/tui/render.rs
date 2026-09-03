@@ -9,16 +9,20 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph, Tabs, Wrap};
 
-use super::app::{App, FocusTarget, SmallSurface};
+use super::access::AccessSurface;
+use super::app::{AdminSurface, App, FocusTarget, SmallSurface};
 use super::backups::BackupsState;
 use super::components::{ComponentSurface, ComponentsState};
+use super::connections::ConnectionSurface;
 use super::console::ConsoleView;
+use super::health::HealthState;
 use super::layout::{LayoutMode, ShellLayout};
 use super::manage_servers::{ManageServersState, ManageSurface};
 use super::overview::TAB_NAMES;
 use super::performance::{TrendMetric, format_bytes, format_memory_mb, format_metric};
 use super::players::{PlayersState, profile_edition, profile_status};
 use super::server_editor::{EditorSurface, ServerEditorState};
+use super::settings::SettingsState;
 use super::worlds::WorldsState;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -105,7 +109,7 @@ fn render_rail(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.overview().selected_server_name();
     let action = app.last_action().unwrap_or("Ready");
     let text = format!(
-        "Host session\n{}\n\nSelected server\n{}\n\nLifecycle\n{}  [a] start  [x] stop\n\nManage Servers  [m]\nServices\nHow to connect\nMaintenance\nQuick commands\n\n{}",
+        "Host session\n{}\n\nSelected server\n{}\n\nLifecycle\n{}  [a] start  [x] stop\n\nManage Servers  [m]\nServices  [v]\nHow to connect  [h]\nMaintenance  [d]\nAccess  [u]\nQuick commands\n\n{}",
         app.host(),
         selected,
         lifecycle,
@@ -219,6 +223,10 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
         render_components(frame, area, app.components());
         return;
     }
+    if app.active_tab() == 5 {
+        render_admin(frame, area, app);
+        return;
+    }
     let body = if app.active_tab() == 0 {
         let health = overview.health_summary();
         let health_state = overview
@@ -262,6 +270,370 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
             .wrap(Wrap { trim: true }),
         area,
     );
+}
+
+fn render_admin(frame: &mut Frame, area: Rect, app: &App) {
+    let title = if app.focus() == FocusTarget::Content {
+        "› SETTINGS / ACCESS"
+    } else {
+        "SETTINGS / ACCESS"
+    };
+    let mut lines = vec![Line::from(
+        "[1] Settings  [2] Connections  [3] Health  [4] Access",
+    )];
+    lines.push(Line::from(
+        "Agent-provided capability, permission, and help state.",
+    ));
+    lines.push(Line::from(""));
+    match app.settings_surface() {
+        AdminSurface::Settings => render_settings_lines(&mut lines, app.settings()),
+        AdminSurface::Connections => render_connections_lines(&mut lines, app.connections()),
+        AdminSurface::Health => render_health_lines(&mut lines, app.health()),
+        AdminSurface::Access => render_access_lines(&mut lines, app.access()),
+    }
+    render_box(frame, area, title, lines);
+}
+
+fn render_settings_lines(lines: &mut Vec<Line<'static>>, settings: &SettingsState) {
+    lines.push(Line::from("SERVER SETTINGS · SCHEMA FROM AGENT"));
+    if let Some(error) = &settings.error {
+        lines.push(Line::from(format!("Settings unavailable: {error}")));
+    } else if !settings.loaded {
+        lines.push(Line::from("Loading settings…"));
+    } else if let Some(response) = &settings.response {
+        lines.push(Line::from(format!(
+            "{} · {} · {}",
+            response.server_name,
+            response.server_type,
+            if response.editable {
+                "editable"
+            } else {
+                "read-only"
+            }
+        )));
+        for (index, section) in response.sections.iter().enumerate() {
+            let marker = if index == settings.selected_section {
+                "›"
+            } else {
+                " "
+            };
+            lines.push(Line::from(format!(
+                "{marker} {} [{}]",
+                section.title,
+                index + 1
+            )));
+        }
+        if let Some(section) = response.sections.get(settings.selected_section) {
+            lines.push(Line::from(""));
+            lines.push(Line::from(format!(
+                "{} · [j/k] field  [enter] edit",
+                section.title
+            )));
+            for (index, field) in section.fields.iter().enumerate() {
+                let marker = if index == settings.selected_field {
+                    "›"
+                } else {
+                    " "
+                };
+                let unit = field.unit.as_deref().unwrap_or("");
+                lines.push(Line::from(format!(
+                    "{marker} {} = {}{}",
+                    field.label, field.value, unit
+                )));
+                if index == settings.selected_field {
+                    if let Some(help_id) = &field.help_id {
+                        lines.push(Line::from(format!("  Help: {help_id}")));
+                    }
+                    if let Some(options) = &field.options {
+                        lines.push(Line::from(format!(
+                            "  Options: {}",
+                            options
+                                .iter()
+                                .map(|option| option.label.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        )));
+                    }
+                }
+            }
+        }
+    }
+    if let Some((key, value)) = &settings.input {
+        lines.push(Line::from(format!("Edit {key}: {value}_")));
+    }
+    if let Some(status) = &settings.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+}
+
+fn render_connections_lines(
+    lines: &mut Vec<Line<'static>>,
+    connections: &super::connections::ConnectionsState,
+) {
+    lines.push(Line::from("CONNECTIONS · DIAGNOSTICS AND SERVICES"));
+    lines.push(Line::from("[1] connection  [2] services  [r] reload"));
+    if let Some(error) = &connections.error {
+        lines.push(Line::from(format!("Connections unavailable: {error}")));
+        return;
+    }
+    match connections.surface {
+        ConnectionSurface::Connection => {
+            if let Some(connection) = &connections.connectivity {
+                lines.push(Line::from(format!(
+                    "{} · {} · {}",
+                    connection.headline, connection.server_type, connection.severity
+                )));
+                lines.push(Line::from(format!(
+                    "Visibility: {}",
+                    if connection.join_address.is_none() {
+                        "HIDDEN"
+                    } else if connection.externally_reachable == Some(true)
+                        || connection
+                            .join_address_source
+                            .to_ascii_lowercase()
+                            .contains("public")
+                    {
+                        "PUBLIC"
+                    } else {
+                        "LOCAL"
+                    }
+                )));
+                lines.push(Line::from(format!(
+                    "Join: {} · method: {}",
+                    connection
+                        .join_address
+                        .as_deref()
+                        .unwrap_or("not advertised"),
+                    connection.method
+                )));
+                lines.push(Line::from(format!(
+                    "Local port: {} · Public port: {}",
+                    connection.port_diagnostics.local.outcome,
+                    connection.port_diagnostics.public.outcome
+                )));
+                if let Some(detail) = &connection.detail {
+                    lines.push(Line::from(format!("Detail: {detail}")));
+                }
+                if let Some(help_id) = &connection.help_id {
+                    lines.push(Line::from(format!("Help: {help_id}")));
+                }
+            } else {
+                lines.push(Line::from("Connectivity information unavailable."));
+            }
+            let duckdns = connections
+                .duckdns
+                .as_ref()
+                .and_then(|status| status.hostname.as_deref())
+                .unwrap_or("not configured");
+            lines.push(Line::from(format!("DuckDNS: {duckdns}  [d] edit")));
+            lines.push(Line::from(
+                "Java and Bedrock join addresses retain their agent labels.",
+            ));
+        }
+        ConnectionSurface::Services => {
+            let playit = connections.playit.as_ref().map_or("unavailable", |status| {
+                if status.is_running {
+                    "RUNNING"
+                } else {
+                    "STOPPED"
+                }
+            });
+            let broadcast = connections
+                .broadcast
+                .as_ref()
+                .map_or("unavailable", |status| {
+                    if status.xbox_broadcast_running {
+                        "RUNNING"
+                    } else {
+                        "STOPPED"
+                    }
+                });
+            let autostart = connections
+                .broadcast_autostart
+                .as_ref()
+                .map_or(
+                    "unknown",
+                    |status| if status.enabled { "ON" } else { "OFF" },
+                );
+            let credentials =
+                connections
+                    .broadcast_credentials
+                    .as_ref()
+                    .map_or("unavailable", |status| {
+                        if status.has_password {
+                            "stored"
+                        } else {
+                            "not stored"
+                        }
+                    });
+            lines.push(Line::from(format!("Playit: {playit}  [p] start/stop")));
+            lines.push(Line::from(format!(
+                "Xbox Broadcast: {broadcast}  [x] start/stop"
+            )));
+            lines.push(Line::from(format!(
+                "Broadcast autostart: {autostart}  [a] toggle"
+            )));
+            lines.push(Line::from(format!(
+                "Broadcast credentials: {credentials}  [e] replace (write-only password)"
+            )));
+            lines.push(Line::from(
+                "Management services are separate from literal Minecraft console commands.",
+            ));
+        }
+    }
+    if let Some((kind, value)) = &connections.input {
+        let shown = if *kind == super::connections::ConnectionInputKind::BroadcastCredentials {
+            value.chars().map(|_| '•').collect::<String>()
+        } else {
+            value.clone()
+        };
+        lines.push(Line::from(format!("{}: {}_", kind.prompt(), shown)));
+    }
+    if let Some(status) = &connections.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+}
+
+fn render_health_lines(lines: &mut Vec<Line<'static>>, health: &HealthState) {
+    lines.push(Line::from("HEALTH · DIAGNOSIS AND REPAIR"));
+    if let Some(error) = &health.error {
+        lines.push(Line::from(format!("Health unavailable: {error}")));
+    } else if let Some(response) = &health.health {
+        lines.push(Line::from(format!(
+            "Overall: {} · {} · {}",
+            response.overall_severity,
+            response.server_name,
+            if response.server_running {
+                "running"
+            } else {
+                "stopped"
+            }
+        )));
+        for card in &response.cards {
+            lines.push(Line::from(format!("{}: {}", card.title, card.severity)));
+            if let Some(detail) = &card.detail {
+                lines.push(Line::from(format!("  {detail}")));
+            }
+            if let Some(help_id) = &card.help_id {
+                lines.push(Line::from(format!("  Help: {help_id}")));
+            }
+        }
+    }
+    if let Some(problems) = &health.problems {
+        lines.push(Line::from(""));
+        lines.push(Line::from(format!(
+            "Startup problems: {}",
+            problems.problems.len()
+        )));
+        if problems.problems.is_empty() {
+            lines.push(Line::from(
+                problems
+                    .note
+                    .clone()
+                    .unwrap_or_else(|| "No repair needed.".to_string()),
+            ));
+        } else if health.detail_open {
+            if let Some(problem) = health.selected_problem() {
+                lines.push(Line::from(format!(
+                    "› {} · {}",
+                    problem.kind_title, problem.offender_name
+                )));
+                lines.push(Line::from(problem.raw_excerpt.clone()));
+                for (index, action) in problem.available_actions.iter().enumerate() {
+                    lines.push(Line::from(format!("[{}] repair: {action}", index + 1)));
+                }
+            }
+            lines.push(Line::from("[esc] back"));
+        } else {
+            for (index, problem) in problems.problems.iter().enumerate() {
+                let marker = if index == health.selected_problem {
+                    "›"
+                } else {
+                    " "
+                };
+                lines.push(Line::from(format!(
+                    "{marker} {} · {}",
+                    problem.kind_title, problem.offender_name
+                )));
+            }
+            lines.push(Line::from("[j/k] choose  [enter] details  [r] reload"));
+        }
+    }
+}
+
+fn render_access_lines(lines: &mut Vec<Line<'static>>, access: &super::access::AccessState) {
+    lines.push(Line::from("ACCESS · PLAYER ALLOWLIST AND NAMED TOKENS"));
+    lines.push(Line::from(
+        "[1] allowlist  [2] named users  [3] this credential  [r] reload",
+    ));
+    if let Some(error) = &access.error {
+        lines.push(Line::from(format!("Access unavailable: {error}")));
+        return;
+    }
+    match access.surface {
+        AccessSurface::Allowlist => {
+            lines.push(Line::from("Bedrock player access · [a] add  [x] remove"));
+            if access.allowlist.is_empty() {
+                lines.push(Line::from("No allowlist entries returned."));
+            } else {
+                for (index, entry) in access.allowlist.iter().enumerate() {
+                    lines.push(Line::from(format!(
+                        "{} {}",
+                        if index == access.selected { "›" } else { " " },
+                        entry.name
+                    )));
+                }
+            }
+        }
+        AccessSurface::Users => {
+            lines.push(Line::from(
+                "Named users · admin permission required · [x] revoke",
+            ));
+            if access.users.is_empty() {
+                lines.push(Line::from(
+                    "No named users returned, or this credential is not an admin.",
+                ));
+            } else {
+                for (index, user) in access.users.iter().enumerate() {
+                    lines.push(Line::from(format!(
+                        "{} {} · {} · {}{}",
+                        if index == access.selected { "›" } else { " " },
+                        user.label,
+                        user.role,
+                        if user.is_expired { "EXPIRED" } else { "active" },
+                        user.expires_at_iso8601
+                            .as_deref()
+                            .map(|value| format!(" · expires {value}"))
+                            .unwrap_or_default()
+                    )));
+                }
+            }
+        }
+        AccessSurface::Me => {
+            if let Some(identity) = &access.identity {
+                lines.push(Line::from(format!(
+                    "Credential: {} · role: {}",
+                    identity.name, identity.role
+                )));
+                lines.push(Line::from(format!(
+                    "Named token: {}",
+                    identity.is_named_token
+                )));
+                lines.push(Line::from(format!(
+                    "Permissions: {}",
+                    identity.permissions.join(", ")
+                )));
+            } else {
+                lines.push(Line::from("Credential identity unavailable."));
+            }
+        }
+    }
+    if let Some(value) = &access.input {
+        lines.push(Line::from(format!("Add Bedrock player: {value}_")));
+    }
+    if let Some(status) = &access.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
 }
 
 fn render_manage_servers(frame: &mut Frame, area: Rect, manage: &ManageServersState, app: &App) {
@@ -1586,6 +1958,10 @@ fn render_small(frame: &mut Frame, area: Rect, app: &App) {
             }
             if app.active_tab() == 4 {
                 render_components(frame, area, app.components());
+                return;
+            }
+            if app.active_tab() == 5 {
+                render_admin(frame, area, app);
                 return;
             }
             let text = format!(

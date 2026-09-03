@@ -6,11 +6,15 @@
 
 use crossterm::event::KeyCode;
 
+use super::access::AccessMutation;
 use super::backups::BackupMutation;
 use super::components::ComponentMutation;
+use super::connections::ConnectionMutation;
+use super::health::HealthMutation;
 use super::manage_servers::ManageMutation;
 use super::players::PlayerMutation;
 use super::server_editor::EditorMutation;
+use super::settings::SettingsMutation;
 use super::worlds::WorldMutation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -24,6 +28,10 @@ pub enum ConfirmAction {
     ComponentMutation(ComponentMutation),
     ManageMutation(ManageMutation),
     EditorMutation(EditorMutation),
+    SettingsMutation(SettingsMutation),
+    ConnectionMutation(ConnectionMutation),
+    HealthMutation(HealthMutation),
+    AccessMutation(AccessMutation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

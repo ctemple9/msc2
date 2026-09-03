@@ -286,7 +286,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.11 — Deliver Settings, Connections, Health, and Access sections
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/settings.rs`, `crates/msc-agent/src/cli/tui/connections.rs`, `crates/msc-agent/src/cli/tui/health.rs`, `crates/msc-agent/src/cli/tui/access.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_settings_connections.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Add the desktop Settings tab's schema-driven setting groups (including editable booleans, numbers, and values with supplied help), plus distinct Health/repair, connection, service, and player-access flows rather than hiding them behind raw command entry. Connection treatment retains local/public/hidden visibility, Java/Bedrock/console join instructions, reachability diagnosis, and supported Playit, Xbox Broadcast, and DuckDNS controls. The rail's Services and How to Connect disclosures lead to the same state, while Maintenance reports safe host-provided paths/log access without expanding filesystem authority. Render API-supplied help, timing, capability, and confirmation information rather than duplicating policy in the TUI. Treat credentials as write-only sensitive input, do not echo them in history or logs, and keep management-service controls distinct from Minecraft console commands.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Tabs/settings.png`; `/Users/camerontemple/Documents/msc2 pictures/SIdebar/services.png`; `/Users/camerontemple/Documents/msc2 pictures/SIdebar/howtoconnect.png`; `/Users/camerontemple/Documents/msc2 pictures/SIdebar/maintenance.png`.

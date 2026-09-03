@@ -131,6 +131,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.42: keep sidecar vm callbacks available`
 **Batch:** solo
 
+### P12.43 — Allow Bedrock provisioning after a stopped retry
+**Status:** awaiting verification
+**Files:** `crates/msc-application/src/bedrock_runtime.rs`, `crates/msc-application/tests/bedrock_runtime.rs`, `docs/msc2/rolling-plan.md`
+**What:** Allow the macOS sidecar runtime to provision from `Stopped`, matching the native Windows/Linux runtimes. A failed or manually stopped first-start attempt can then be retried instead of being rejected before the sidecar receives the provisioning request. Keep the existing `New` path unchanged.
+**Verify:** `cargo nextest run -p msc-application --test bedrock_runtime stopped_sidecar_can_be_reprovisioned_for_a_retry`
+**Commit:** `P12.43: allow bedrock reprovisioning after stop`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

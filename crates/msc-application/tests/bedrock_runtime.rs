@@ -46,6 +46,20 @@ fn frame_from_fixture(name: &str) -> SidecarFrame {
     serde_json::from_value(fixture["input"]["message"].clone()).unwrap()
 }
 
+fn provision_request() -> BedrockProvisionRequest {
+    BedrockProvisionRequest {
+        server_dir: "/srv/bedrock".to_owned(),
+        version: "1.26.32.2".to_owned(),
+    }
+}
+
+fn start_request() -> BedrockStartRequest {
+    BedrockStartRequest {
+        memory_gb: 2,
+        bedrock_port: 19132,
+    }
+}
+
 #[test]
 fn all_well_formed_sidecar_fixture_frames_encode_and_decode() {
     for entry in std::fs::read_dir(
@@ -228,4 +242,38 @@ fn lifecycle_order_is_rejected_without_sending_a_frame() {
         .expect_err("the queued terminated frame is not a provision response");
     assert!(matches!(error, BedrockRuntimeError::Protocol(_)));
     assert_eq!(runtime.state(), BedrockRuntimeState::New);
+}
+
+#[test]
+fn stopped_sidecar_can_be_reprovisioned_for_a_retry() {
+    let mut transport = FakeTransport::default();
+    transport.response(SidecarFrame::Provisioned {
+        ok: true,
+        reason: None,
+    });
+    transport.response(SidecarFrame::Started {
+        accepted: true,
+        reason: None,
+    });
+    transport.response(SidecarFrame::Terminated {
+        reason: BedrockTerminationReason::Clean,
+    });
+    transport.response(SidecarFrame::Provisioned {
+        ok: true,
+        reason: None,
+    });
+
+    let mut runtime = SidecarRuntime::new(transport);
+    runtime.provision(provision_request()).unwrap();
+    runtime.start(start_request()).unwrap();
+    assert!(matches!(
+        runtime.poll_event().unwrap(),
+        Some(BedrockRuntimeEvent::Terminated {
+            reason: BedrockTerminationReason::Clean
+        })
+    ));
+    assert_eq!(runtime.state(), BedrockRuntimeState::Stopped);
+
+    runtime.provision(provision_request()).unwrap();
+    assert_eq!(runtime.state(), BedrockRuntimeState::Provisioned);
 }

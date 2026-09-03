@@ -669,7 +669,10 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
     }
 
     fn provision(&mut self, request: BedrockProvisionRequest) -> Result<(), BedrockRuntimeError> {
-        self.require_state("provision", &[BedrockRuntimeState::New])?;
+        self.require_state(
+            "provision",
+            &[BedrockRuntimeState::New, BedrockRuntimeState::Stopped],
+        )?;
         self.send(SidecarFrame::Provision {
             server_dir: request.server_dir.clone(),
             version: request.version,

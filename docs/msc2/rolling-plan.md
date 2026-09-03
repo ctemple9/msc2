@@ -163,6 +163,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.46: restore release appliance validation inputs`
 **Batch:** solo
 
+### P12.47 — Stop Bedrock through its selected runtime during first start
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/lifecycle.rs`, `crates/msc-agent/tests/playit_routes.rs`, `docs/msc2/rolling-plan.md`
+**What:** Route automatic first-start shutdown through the Bedrock runtime when the active server is Bedrock, preserving the original lifecycle operation so clean sidecar termination can complete pass one or pass two. Keep Java first-start shutdown on the Java lifecycle service and fail the operation if a Bedrock stop request is rejected.
+**Verify:** `cargo nextest run -p msc-agent --test playit_routes && cargo fmt --all -- --check`
+**Commit:** `P12.47: stop bedrock through its selected runtime during first start`
+**Batch:** solo
+
 ---
 
 ## Phase 13 — Terminal UI

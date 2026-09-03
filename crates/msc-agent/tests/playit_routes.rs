@@ -214,6 +214,8 @@ fn first_start_uses_the_agent_owned_two_pass_lifecycle() {
         "prepare_first_start",
         "handle_server_ready",
         "enforce_first_start_safety_cap",
+        "stop_first_start_server",
+        "self.inner.bedrock_runtime.stop()",
         "firstStartPass1Complete",
         "firstStartComplete",
     ] {

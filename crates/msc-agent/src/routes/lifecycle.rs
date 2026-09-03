@@ -742,6 +742,24 @@ impl LifecycleRoutesState {
         }
     }
 
+    /// Stop the backend that actually owns the first-start process. The Java
+    /// lifecycle service is still the right owner for Java, but Bedrock lives
+    /// in the selected runtime (including the macOS VM sidecar).
+    fn stop_first_start_server(&self, server_id: &str) {
+        self.stop_helpers_for_server(server_id);
+        if self
+            .active_bedrock_server()
+            .is_some_and(|server| server.id == server_id)
+        {
+            if let Err(error) = self.inner.bedrock_runtime.stop() {
+                self.abort_first_start();
+                self.finish_active_lifecycle_operation_failure(&error.to_string());
+            }
+        } else {
+            let _ = self.inner.lifecycle.lock().unwrap().request_stop();
+        }
+    }
+
     fn stop_all_playit_helpers(&self) {
         if let Some(integration) = self.playit_lifecycle() {
             integration.stop_all();
@@ -1208,8 +1226,7 @@ impl LifecycleRoutesState {
             (run_server_id, should_stop)
         };
         if should_stop.1 {
-            self.stop_helpers_for_server(&should_stop.0);
-            let _ = self.inner.lifecycle.lock().unwrap().request_stop();
+            self.stop_first_start_server(&should_stop.0);
         }
         true
     }
@@ -1235,9 +1252,8 @@ impl LifecycleRoutesState {
 
         if should_stop {
             if let Some(server_id) = self.active_server_id() {
-                self.stop_helpers_for_server(&server_id);
+                self.stop_first_start_server(&server_id);
             }
-            let _ = self.inner.lifecycle.lock().unwrap().request_stop();
             if pass_one {
                 self.progress_first_start("First-start pass one is ready; stopping the server.");
             } else {
@@ -1655,9 +1671,8 @@ impl LifecycleRoutesState {
         };
         if should_stop {
             if let Some(server_id) = self.active_server_id() {
-                self.stop_helpers_for_server(&server_id);
+                self.stop_first_start_server(&server_id);
             }
-            let _ = self.inner.lifecycle.lock().unwrap().request_stop();
             self.progress_first_start(
                 "First-start safety limit reached; stopping the server and keeping the resolved state.",
             );

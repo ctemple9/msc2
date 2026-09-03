@@ -10,6 +10,8 @@ use msc_infrastructure::service::{
     ServiceInstallRequest, ServiceManager, ServiceManagerCommand, ServiceName, ServiceState,
     ServiceStatusReport,
 };
+#[cfg(target_os = "macos")]
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 use super::transport::SharedClient;
@@ -329,7 +331,7 @@ fn status_from_report(report: ServiceStatusReport) -> LocalAgentServiceStatus {
     }
 }
 
-fn local_service_status() -> LocalAgentServiceStatus {
+pub(crate) fn local_service_status() -> LocalAgentServiceStatus {
     let service_name = ServiceName::new(AGENT_SERVICE_NAME);
     match local_service_manager().and_then(|manager| {
         manager
@@ -347,10 +349,16 @@ fn local_service_status() -> LocalAgentServiceStatus {
 fn install_request() -> Result<ServiceInstallRequest, String> {
     let binary =
         std::env::current_exe().map_err(|error| format!("locating msc binary: {error}"))?;
-    let data_dir = std::env::var_os("MSC2_DATA_DIR")
-        .map(std::path::PathBuf::from)
-        .or_else(|| std::env::current_dir().ok())
-        .ok_or_else(|| "locating the agent data directory".to_string())?;
+    let data_dir = agent_data_dir()?;
+    std::fs::create_dir_all(data_dir.join("logs"))
+        .map_err(|error| format!("creating agent log directory: {error}"))?;
+    #[cfg(target_os = "macos")]
+    {
+        let secrets_dir = data_dir.join("secrets");
+        std::fs::create_dir_all(&secrets_dir)
+            .map_err(|error| format!("creating agent secret directory: {error}"))?;
+        ensure_local_bootstrap_key(&secrets_dir)?;
+    }
     let mut request = ServiceInstallRequest::new(
         AGENT_SERVICE_NAME,
         binary,
@@ -360,12 +368,67 @@ fn install_request() -> Result<ServiceInstallRequest, String> {
     )
     .args(["serve", "--bind", "127.0.0.1:48001"])
     .env("MSC2_DATA_DIR", data_dir.display().to_string());
+    if let Some(home) = std::env::var_os("HOME") {
+        request = request.env("HOME", home.to_string_lossy().into_owned());
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let secrets_dir = data_dir.join("secrets");
+        request = request
+            .env(
+                "MSC2_MACOS_SECRET_STORE_DIR",
+                secrets_dir.display().to_string(),
+            )
+            .env(
+                "MSC2_LOCAL_BOOTSTRAP_SOCKET",
+                data_dir.join("bootstrap.sock").display().to_string(),
+            );
+    }
     if let Some(user) = std::env::var_os("USER").or_else(|| std::env::var_os("USERNAME")) {
         if !user.is_empty() {
             request = request.run_user(user.to_string_lossy());
         }
     }
     Ok(request)
+}
+
+fn agent_data_dir() -> Result<std::path::PathBuf, String> {
+    if let Some(path) = std::env::var_os("MSC2_DATA_DIR") {
+        return Ok(path.into());
+    }
+    let home = std::env::var_os("HOME")
+        .map(std::path::PathBuf::from)
+        .ok_or_else(|| "HOME is not set; cannot locate the agent data directory".to_string())?;
+    #[cfg(target_os = "macos")]
+    return Ok(home.join("Library/Application Support/MSC 2"));
+    #[cfg(target_os = "windows")]
+    return Ok(home.join("AppData/Roaming/MSC2"));
+    #[cfg(target_os = "linux")]
+    return Ok(home.join(".local/share/msc2"));
+    #[allow(unreachable_code)]
+    Err("this platform has no default agent data directory".to_string())
+}
+
+#[cfg(target_os = "macos")]
+fn ensure_local_bootstrap_key(secrets_dir: &std::path::Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let path = msc_platform_macos::service::local_bootstrap_key_path(secrets_dir);
+    if path.is_file() {
+        return Ok(());
+    }
+    let mut bytes = [0_u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut bytes);
+    let mut key = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        key.push_str(&format!("{byte:02x}"));
+    }
+    std::fs::write(&path, key).map_err(|error| format!("writing bootstrap key: {error}"))?;
+    let mut permissions = std::fs::metadata(&path)
+        .map_err(|error| format!("reading bootstrap key permissions: {error}"))?
+        .permissions();
+    permissions.set_mode(0o600);
+    std::fs::set_permissions(path, permissions)
+        .map_err(|error| format!("restricting bootstrap key permissions: {error}"))
 }
 
 fn local_service_manager() -> Result<Box<dyn ServiceManager>, String> {

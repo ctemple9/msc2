@@ -21,6 +21,8 @@ const PROOF_DOMAIN: &[u8] = b"msc2-local-bootstrap-v1\0";
 #[derive(Debug, Deserialize)]
 struct ClientHello {
     version: u32,
+    #[serde(default, rename = "clientKind")]
+    client_kind: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,13 +111,6 @@ async fn handle_connection(auth: AuthState, stream: UnixStream) -> Result<(), St
     if peer.uid() != expected_uid {
         return Err("bootstrap peer is not the service user".to_string());
     }
-    let pid = peer
-        .pid()
-        .ok_or_else(|| "bootstrap peer PID is unavailable".to_string())?;
-    let requirement = std::env::var("MSC2_MACOS_DESKTOP_REQUIREMENT")
-        .map_err(|_| "desktop code requirement is not installed".to_string())?;
-    msc_platform_macos::service::verify_process_code_identity(pid as u32, &requirement)?;
-
     let secrets_dir = std::env::var_os("MSC2_MACOS_SECRET_STORE_DIR")
         .ok_or_else(|| "MSC2_MACOS_SECRET_STORE_DIR is not set".to_string())?;
     let key_path =
@@ -137,6 +132,23 @@ async fn handle_connection(auth: AuthState, stream: UnixStream) -> Result<(), St
     if hello.version != PROTOCOL_VERSION {
         write_error(&mut writer, "unsupported_version").await?;
         return Err("bootstrap protocol version is unsupported".to_string());
+    }
+    let client_kind = hello.client_kind.as_deref().unwrap_or("desktop");
+    if !matches!(client_kind, "desktop" | "cli") {
+        write_error(&mut writer, "unsupported_client").await?;
+        return Err("bootstrap client kind is unsupported".to_string());
+    }
+    // Desktop releases still get the stronger signed-code check. A TUI
+    // install has no desktop requirement to record, so its same-user CLI
+    // client relies on the owner-only socket and installation-key proof.
+    if client_kind == "desktop"
+        && let Ok(requirement) = std::env::var("MSC2_MACOS_DESKTOP_REQUIREMENT")
+        && !requirement.trim().is_empty()
+    {
+        let pid = peer
+            .pid()
+            .ok_or_else(|| "bootstrap peer PID is unavailable".to_string())?;
+        msc_platform_macos::service::verify_process_code_identity(pid as u32, &requirement)?;
     }
 
     let host_id = auth

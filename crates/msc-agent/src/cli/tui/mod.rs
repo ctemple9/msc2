@@ -16,6 +16,8 @@ pub mod files;
 pub mod handbook;
 pub mod health;
 pub mod layout;
+#[cfg(target_os = "macos")]
+pub(crate) mod local_bootstrap;
 pub mod manage_servers;
 pub mod overview;
 pub mod performance;

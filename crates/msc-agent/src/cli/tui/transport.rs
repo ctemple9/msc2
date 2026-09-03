@@ -32,6 +32,13 @@ pub(crate) struct SharedClient {
 }
 
 impl SharedClient {
+    pub(crate) fn from_parts(base_url: impl Into<String>, token: impl Into<String>) -> Self {
+        Self {
+            base_url: base_url.into().trim_end_matches('/').to_string(),
+            token: token.into(),
+        }
+    }
+
     pub(crate) fn with_token(&self, token: String) -> Self {
         Self {
             base_url: self.base_url.clone(),

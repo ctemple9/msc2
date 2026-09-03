@@ -20,6 +20,8 @@ use super::files::{FilesIntent, FilesState};
 use super::handbook::{HandbookIntent, HandbookState, HandbookSurface};
 use super::health::{HealthIntent, HealthMutation, HealthState};
 use super::layout::{LayoutMode, ShellLayout};
+#[cfg(target_os = "macos")]
+use super::local_bootstrap;
 use super::manage_servers::{ManageIntent, ManageMutation, ManageServersState};
 use super::overview::{OverviewState, TAB_NAMES};
 use super::performance::PerformanceState;
@@ -1168,8 +1170,17 @@ impl App {
                 Ok(status) => {
                     self.agent.service = status;
                     self.agent.status = Some(format!("Agent service {} completed", action.label()));
-                    if action == AgentServiceAction::Reconnect {
-                        self.replace_current_client_after_reconnect();
+                    if action == AgentServiceAction::Stop {
+                        self.current_session_mut().client = None;
+                        self.agent.status = Some(
+                            "Agent service stopped; the TUI session was disconnected.".to_string(),
+                        );
+                    } else if self.current_session().client.is_some() {
+                        if action == AgentServiceAction::Reconnect {
+                            self.replace_current_client_after_reconnect();
+                        }
+                    } else {
+                        self.connect_local_agent();
                     }
                 }
                 Err(error) => self.agent.error = Some(error),
@@ -1285,18 +1296,25 @@ impl App {
     }
 
     fn load_agent_support(&mut self) {
-        let Some(client) = self.current_session().client.clone() else {
-            self.agent.error =
-                Some("Agent support needs an authenticated host session".to_string());
-            self.agent.loaded = true;
-            return;
-        };
-        match run_blocking(AgentState::load(&client)) {
-            Ok(state) => self.agent = state,
-            Err(error) => {
-                self.agent.error = Some(error.to_string());
-                self.agent.loaded = true;
+        let service = super::agent::local_service_status();
+        if let Some(client) = self.current_session().client.clone() {
+            match run_blocking(AgentState::load(&client)) {
+                Ok(mut state) => {
+                    state.service = service;
+                    self.agent = state;
+                }
+                Err(error) => {
+                    self.agent.service = service;
+                    self.agent.error = Some(error.to_string());
+                    self.agent.loaded = true;
+                }
             }
+        } else {
+            self.agent.service = service;
+            self.agent.status = Some(
+                "No TUI session yet. Use I to install, S to start, or R to reconnect.".to_string(),
+            );
+            self.agent.loaded = true;
         }
     }
 
@@ -1320,6 +1338,53 @@ impl App {
             return;
         };
         self.reload_overview(&client);
+    }
+
+    fn connect_local_agent(&mut self) {
+        #[cfg(target_os = "macos")]
+        {
+            let mut connection = Err(String::new());
+            for attempt in 0..10 {
+                connection = local_bootstrap::connect_for_host(self.host());
+                if connection.is_ok() || attempt == 9 {
+                    break;
+                }
+                if !connection
+                    .as_ref()
+                    .err()
+                    .is_some_and(|error| error.starts_with("connecting to local agent"))
+                {
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+            match connection {
+                Ok(client) => {
+                    self.current_session_mut().client = Some(client.clone());
+                    self.reload_overview(&client);
+                    self.current_session_mut()
+                        .console
+                        .start_feed(client.clone());
+                    self.activity.start_notifications(client);
+                    self.agent.error = None;
+                    self.agent.status = Some(
+                        "Connected to the local agent; credential kept in memory.".to_string(),
+                    );
+                }
+                Err(error) => {
+                    self.agent.error = Some(format!(
+                        "Service action completed, but local bootstrap is not ready: {error}"
+                    ));
+                }
+            }
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            self.agent.error = Some(
+                "Automatic local bootstrap is currently supported on macOS; pass --token for this host."
+                    .to_string(),
+            );
+        }
     }
 
     fn handle_admin_intent(&mut self, intent: AdminIntent) {
@@ -2442,7 +2507,19 @@ impl OverviewState {
 
 #[cfg(not(test))]
 fn client_from_common(common: &CommonArgs) -> Option<SharedClient> {
-    SharedClient::from_common(common).ok()
+    if let Ok(client) = SharedClient::from_common(common) {
+        return Some(client);
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let host = common
+            .base_url
+            .clone()
+            .unwrap_or_else(|| format!("{}:{}", common.host, common.port));
+        return local_bootstrap::connect_for_host(&host).ok();
+    }
+    #[allow(unreachable_code)]
+    None
 }
 
 #[cfg(test)]

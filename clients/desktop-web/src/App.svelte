@@ -194,6 +194,7 @@
   async function switchHost(id: HostId): Promise<void> {
     if (id === hostId) return;
     hostStore.selectHost(id);
+    loadedSections = [];
     hostId = id;
     await initializeClient();
   }
@@ -294,7 +295,12 @@
   const screenApi: ScreenApi = createScreenApi();
 
   let activeSection = '';
-  let activeComponent: any;
+  // Keep visited tab instances alive for this server so their lightweight UI
+  // state and loaded responses are available immediately on return. The list
+  // is cleared before every accepted server/host switch, keeping memory and
+  // displayed data scoped to the current server.
+  type LoadedSection = { id: string; component: any };
+  let loadedSections: LoadedSection[] = [];
   let selectedServerId = '';
   let permissions: readonly string[] = [];
   let capabilities: Capabilities | null = null;
@@ -515,10 +521,14 @@
   async function selectServer(id: string): Promise<void> {
     try {
       await screenApi.post('/v1/active-server', { serverId: id });
+      loadedSections = [];
       selectedServerId = id;
       status = { ...status, activeServerId: id };
       const section = router.get(activeSection);
-      if (section) history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
+      if (section) {
+        history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
+        await selectSection(section.id, false);
+      }
     } catch (error) {
       shellMessage = `Unable to switch servers: ${String(error)}`;
     }
@@ -671,7 +681,12 @@
       return;
     }
     activeSection = section.id;
-    activeComponent = (await section.load()).default;
+    if (!loadedSections.some((loaded) => loaded.id === section.id)) {
+      loadedSections = [
+        ...loadedSections,
+        { id: section.id, component: (await section.load()).default },
+      ];
+    }
     if (updateUrl) {
       history.pushState({}, '', buildSectionPath(section, hostId, selectedServerId));
     }
@@ -687,11 +702,14 @@
     const resolution = router.resolve(window.location.pathname, context);
     if (resolution.kind !== 'section' || resolution.match.hostId !== hostId) {
       activeSection = '';
-      activeComponent = UnknownSection;
+      loadedSections = [{ id: 'unknown', component: UnknownSection }];
       shellMessage = 'This link is unavailable for the currently selected host.';
       return;
     }
-    if (resolution.match.serverId) selectedServerId = resolution.match.serverId;
+    if (resolution.match.serverId && resolution.match.serverId !== selectedServerId) {
+      loadedSections = [];
+      selectedServerId = resolution.match.serverId;
+    }
     await selectSection(resolution.descriptor.id, false);
   }
 
@@ -748,29 +766,41 @@
   onRefresh={() => void initializeClient()}
   onEditServer={activeServer ? () => (headerEditingServer = activeServer) : undefined}
 >
-  {#if activeComponent}
-    <svelte:component
-      this={activeComponent}
-      api={screenApi}
-      {hostId}
-      hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
-      hostBaseUrl={hostStore.getState(hostId).host.baseUrl}
-      {isDesktopShell}
-      isLocalHost={hostId === localAgentHostId}
-      serverId={selectedServerId}
-      {permissions}
-      readiness={agentReadiness}
-      {browserHandoffError}
-      onAgentRetry={() => void initializeClient()}
-      onPairAgain={(code: string) => pairAgain(code)}
-      onConnectHost={(label: string, baseUrl: string, code: string) =>
-        connectRemoteHost(label, baseUrl, code)}
-      onServerSelected={(id: string) => (selectedServerId = id)}
-      onFleet={() => (manageOpen = true)}
-      onWorlds={() => void selectSection('worlds')}
-      addressesVisible={activeSection === 'home' ? addressesVisible : false}
-      onToggleAddresses={toggleAddresses}
-    />
+  {#if loadedSections.length}
+    {#each loadedSections as loaded (loaded.id)}
+      <div
+        class="tab-pane"
+        class:tab-pane-active={loaded.id === activeSection}
+        aria-hidden={loaded.id !== activeSection}
+      >
+        <svelte:component
+          this={loaded.component}
+          api={screenApi}
+          {hostId}
+          hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
+          hostBaseUrl={hostStore.getState(hostId).host.baseUrl}
+          {isDesktopShell}
+          isLocalHost={hostId === localAgentHostId}
+          serverId={selectedServerId}
+          active={loaded.id === activeSection}
+          {permissions}
+          readiness={agentReadiness}
+          {browserHandoffError}
+          onAgentRetry={() => void initializeClient()}
+          onPairAgain={(code: string) => pairAgain(code)}
+          onConnectHost={(label: string, baseUrl: string, code: string) =>
+            connectRemoteHost(label, baseUrl, code)}
+          onServerSelected={(id: string) => {
+            if (id !== selectedServerId) loadedSections = [];
+            selectedServerId = id;
+          }}
+          onFleet={() => (manageOpen = true)}
+          onWorlds={() => void selectSection('worlds')}
+          addressesVisible={activeSection === 'home' ? addressesVisible : false}
+          onToggleAddresses={toggleAddresses}
+        />
+      </div>
+    {/each}
   {:else}
     <div class="dashboard" data-bundle-id={bundleIdentity.id} data-client-surface="shared">
       <p class="eyebrow">Minecraft Server Controller</p>
@@ -816,7 +846,11 @@
     onRemoveHost={(id) => removeRemoteHost(id)}
     onServersChanged={(updated) => (servers = updated)}
     onActivated={(id) => {
-      selectedServerId = id;
+      if (id !== selectedServerId) {
+        loadedSections = [];
+        selectedServerId = id;
+        void selectSection(activeSection, false);
+      }
       status = { ...status, activeServerId: id };
     }}
   />
@@ -880,5 +914,11 @@
   .intro-copy {
     color: var(--msc-muted);
     line-height: 1.6;
+  }
+  .tab-pane {
+    display: none;
+  }
+  .tab-pane-active {
+    display: contents;
   }
 </style>

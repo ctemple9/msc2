@@ -231,6 +231,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** P12.53: make imported modpacks ordinary mutable servers and update checks opt-in
 **Batch:** solo
 
+### P12.56 — Keep server tabs alive within the active server scope
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/{home/HomeSection.svelte,players-online/PlayersOnlineSection.svelte,worlds/WorldsSection.svelte,performance/PerformanceSection.svelte,components/ComponentsSection.svelte}`, `clients/desktop-web/tests/navigation/navigation.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Retain visited tab instances for the current host/server so returning to a tab is immediate, pause hidden live-tab polling, and clear the retained tab set before an accepted server, host, or deep-link context switch.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/sections/home/HomeSection.svelte src/lib/sections/players-online/PlayersOnlineSection.svelte src/lib/sections/worlds/WorldsSection.svelte src/lib/sections/performance/PerformanceSection.svelte src/lib/sections/components/ComponentsSection.svelte tests/navigation/navigation.test.ts && npm run test:navigation && npm run build`
+**Commit:** P12.56: keep server tabs alive within the active server scope
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

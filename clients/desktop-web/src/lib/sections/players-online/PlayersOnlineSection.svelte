@@ -24,6 +24,7 @@
   export let api: ScreenProps['api'] = undefined;
   export let hostId = 'local-agent';
   export let serverId = 'survival';
+  export let active = true;
 
   let online: Schema['PlayersResponseDTO'] = { count: 0, players: [] };
   let profiles: Schema['PlayerProfileDTO'][] = [];
@@ -124,14 +125,30 @@
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let mounted = false;
 
-  onMount(() => {
+  function startPolling(): void {
+    if (refreshTimer) return;
     void loadAll();
     refreshTimer = setInterval(() => void loadAll(), 8000);
+  }
+
+  function stopPolling(): void {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  }
+
+  onMount(() => {
+    mounted = true;
+    if (active) startPolling();
   });
   onDestroy(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
+    mounted = false;
+    stopPolling();
   });
+
+  $: if (mounted && active) startPolling();
+  $: if (mounted && !active) stopPolling();
 </script>
 
 <div class="players">

@@ -72,6 +72,7 @@
   // uniform with the other section-registry components.
   export let hostId = 'local-agent';
   export let serverId = 'survival';
+  export let active = true;
 
   let components: Schema['ComponentsStatusDTO'] = {
     components: [],
@@ -450,6 +451,7 @@
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let mounted = false;
   $: if (serverId && serverId !== loadedForServerId) {
     loadedForServerId = serverId;
     coreLoaded = false;
@@ -457,12 +459,24 @@
     void loadAll();
   }
   onMount(() => {
+    mounted = true;
     if (!serverId) void loadAll();
     refreshTimer = setInterval(() => void loadAll(), 10000);
   });
   onDestroy(() => {
+    mounted = false;
     if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = undefined;
   });
+
+  $: if (mounted && active && refreshTimer === undefined) {
+    void loadAll();
+    refreshTimer = setInterval(() => void loadAll(), 10000);
+  }
+  $: if (mounted && !active && refreshTimer !== undefined) {
+    clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  }
 </script>
 
 <div class="components">

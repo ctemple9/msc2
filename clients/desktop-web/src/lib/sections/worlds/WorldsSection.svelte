@@ -66,6 +66,7 @@
   // cutoff) -- kept only so the section registry can pass it uniformly.
   export const hostId = 'local-agent';
   export let serverId = 'survival';
+  export let active = true;
 
   let worlds: Schema['WorldSlotsResponseDTO'] = { slots: demoSlots, serverRunning: false };
   let backups: Schema['BackupItemDTO'][] = demoBackups;
@@ -456,13 +457,28 @@
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let mounted = false;
   onMount(() => {
-    void loadAll();
-    refreshTimer = setInterval(() => void loadAll(), 8000);
+    mounted = true;
+    if (active) {
+      void loadAll();
+      refreshTimer = setInterval(() => void loadAll(), 8000);
+    }
   });
   onDestroy(() => {
+    mounted = false;
     if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = undefined;
   });
+
+  $: if (mounted && active && refreshTimer === undefined) {
+    void loadAll();
+    refreshTimer = setInterval(() => void loadAll(), 8000);
+  }
+  $: if (mounted && !active && refreshTimer !== undefined) {
+    clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  }
 </script>
 
 <div class="worlds">

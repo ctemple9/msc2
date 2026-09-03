@@ -62,6 +62,7 @@
   export let api: ScreenProps['api'] = undefined;
   export let hostId = 'local-agent';
   export let serverId = 'survival';
+  export let active = true;
 
   let snapshot: Schema['PerformanceSnapshotDTO'] = { ts: new Date().toISOString() };
   let health: Schema['HealthResponseDTO'] = {
@@ -116,6 +117,7 @@
   let pollTimer: ReturnType<typeof setInterval> | undefined;
   let ramPollTimer: ReturnType<typeof setInterval> | undefined;
   let clockTimer: ReturnType<typeof setInterval> | undefined;
+  let mounted = false;
 
   let lastRamSampleMs = 0;
 
@@ -140,13 +142,27 @@
   }
 
   onMount(() => {
-    startPolling();
-    clockTimer = setInterval(() => (nowMs = Date.now()), 1000);
+    mounted = true;
+    if (active) {
+      startPolling();
+      clockTimer = setInterval(() => (nowMs = Date.now()), 1000);
+    }
   });
   onDestroy(() => {
+    mounted = false;
     stopPolling();
     if (clockTimer) clearInterval(clockTimer);
   });
+
+  $: if (mounted && active && pollTimer === undefined) {
+    startPolling();
+    clockTimer = setInterval(() => (nowMs = Date.now()), 1000);
+  }
+  $: if (mounted && !active) {
+    stopPolling();
+    if (clockTimer) clearInterval(clockTimer);
+    clockTimer = undefined;
+  }
 
   // Bedrock Load 1m/5m/15m: rolling averages over the same repeatedly-
   // polled cpuPercent (12/60/180 samples at the 5s poll cadence == 1m/5m/15m).

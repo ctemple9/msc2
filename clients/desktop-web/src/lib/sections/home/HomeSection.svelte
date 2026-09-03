@@ -21,6 +21,7 @@
   export let api: ScreenProps['api'] = undefined;
   export let hostId = 'local-agent';
   export let serverId = 'survival';
+  export let active = true;
   export let onWorlds: (() => void) | undefined = undefined;
   export let addressesVisible = false;
   export let onToggleAddresses: () => void = () => undefined;
@@ -77,17 +78,33 @@
   }
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
+  let mounted = false;
 
-  onMount(() => {
-    notesText = readNotes(hostId, serverId);
+  function startPolling(): void {
+    if (refreshTimer) return;
     void loadAll();
     refreshTimer = setInterval(() => void loadAll(), 8000);
+  }
+
+  function stopPolling(): void {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = undefined;
+  }
+
+  onMount(() => {
+    mounted = true;
+    notesText = readNotes(hostId, serverId);
+    if (active) startPolling();
   });
 
   onDestroy(() => {
-    if (refreshTimer) clearInterval(refreshTimer);
+    mounted = false;
+    stopPolling();
     if (notesTimer) clearTimeout(notesTimer);
   });
+
+  $: if (mounted && active) startPolling();
+  $: if (mounted && !active) stopPolling();
 
   $: isBedrock = activeServer?.serverType === 'bedrock';
 </script>

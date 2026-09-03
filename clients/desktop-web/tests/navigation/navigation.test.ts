@@ -138,12 +138,15 @@ describe('client navigation', () => {
   });
 
   it('boots the shared shell from host capabilities and token permissions', () => {
-    expect(appSource).toContain('client.getCapabilities()');
+    expect(appSource).toContain('selectedClient.getCapabilities()');
     expect(appSource).toContain("'/v1/me'");
     expect(appSource).toContain('router.visibleSections(navigationContext)');
     expect(appSource).toContain('buildSectionPath(section, hostId, selectedServerId)');
     expect(appSource).toContain("const localAgentHostId = 'local-agent'");
+    expect(appSource).toContain('let loadedSections: LoadedSection[] = []');
+    expect(appSource).toContain('active={loaded.id === activeSection}');
+    expect(appSource).toContain('loadedSections = []');
     expect(appSource).not.toContain('demo-agent');
-    expect(appSource).not.toContain('switchHost');
+    expect(appSource).toContain('switchHost');
   });
 });

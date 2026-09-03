@@ -8,7 +8,9 @@ use crossterm::event::KeyCode;
 
 use super::backups::BackupMutation;
 use super::components::ComponentMutation;
+use super::manage_servers::ManageMutation;
 use super::players::PlayerMutation;
+use super::server_editor::EditorMutation;
 use super::worlds::WorldMutation;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -20,6 +22,8 @@ pub enum ConfirmAction {
     WorldMutation(WorldMutation),
     BackupMutation(BackupMutation),
     ComponentMutation(ComponentMutation),
+    ManageMutation(ManageMutation),
+    EditorMutation(EditorMutation),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

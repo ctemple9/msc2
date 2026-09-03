@@ -277,7 +277,7 @@ anti-slop checklist before the terminal shell is accepted.
 **Batch:** solo
 
 ### P13.10 — Deliver fleet management and the server-editor workflow
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `crates/msc-agent/src/cli/tui/fleet.rs`, `crates/msc-agent/src/cli/tui/server_editor.rs`, `crates/msc-agent/src/cli/tui/app.rs`, `crates/msc-agent/tests/tui_fleet.rs`, `docs/msc2/client-capability-matrix.csv`
 **What:** Make the rail's Manage action a complete terminal fleet flow: list servers with active/lifecycle/type context; set active; create or import through the desktop flow's explicit staged choices rather than an opaque one-line command; rename; accept EULA; and delete through the shared confirmation surface. Provide the server editor as a focused General/Services/Java subflow: display name, server directory/path semantics, RAM, ports, storage size, EULA and deletion boundary; capability-backed Playit/Xbox service state; Java detect/path/version/arguments actions. A terminal may request a host-side path as text but must not pretend it can browse a remote host or reuse the local desktop's Finder picker. The selected server must update the entire shell consistently after every fleet action.
 **Visual reference:** `/Users/camerontemple/Documents/msc2 pictures/Edit Server/manageservers.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/editserver.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/generaltab2.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/java.png`; `/Users/camerontemple/Documents/msc2 pictures/Edit Server/services.png`.

@@ -13,9 +13,11 @@ use super::components::{ComponentIntent, ComponentMutation, ComponentsState};
 use super::confirm::{ConfirmAction, ConfirmationRequest, ConfirmationResult, ConfirmationState};
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
+use super::manage_servers::{ManageIntent, ManageMutation, ManageServersState};
 use super::overview::{OverviewState, TAB_NAMES};
 use super::performance::PerformanceState;
 use super::players::{PlayerIntent, PlayerMutation, PlayersState};
+use super::server_editor::{EditorIntent, EditorMutation, ServerEditorState};
 use super::transport::SharedClient;
 use super::worlds::{WorldIntent, WorldMutation, WorldsState};
 use crate::cli::CommonArgs;
@@ -76,6 +78,8 @@ struct HostSession {
     worlds: WorldsState,
     backups: BackupsState,
     components: ComponentsState,
+    manage_servers: ManageServersState,
+    editor: Option<ServerEditorState>,
 }
 
 enum AppIntent {
@@ -122,6 +126,7 @@ impl App {
     }
 
     fn with_session(host: String, client: Option<SharedClient>, overview: OverviewState) -> Self {
+        let manage_servers = ManageServersState::from_servers(overview.servers.clone());
         Self {
             sessions: vec![HostSession {
                 host,
@@ -133,6 +138,8 @@ impl App {
                 worlds: WorldsState::default(),
                 backups: BackupsState::default(),
                 components: ComponentsState::default(),
+                manage_servers,
+                editor: None,
             }],
             active_host: 0,
             notes: BTreeMap::new(),
@@ -179,6 +186,24 @@ impl App {
             return false;
         }
         if self.focus == FocusTarget::Console && self.handle_console_key(key) {
+            return false;
+        }
+        if self.editor().is_some() {
+            let intent = self
+                .current_session_mut()
+                .editor
+                .as_mut()
+                .and_then(|editor| editor.handle_key(key));
+            if let Some(intent) = intent {
+                self.handle_editor_intent(intent);
+            }
+            return false;
+        }
+        if self.manage_servers().is_open() {
+            let intent = self.current_session_mut().manage_servers.handle_key(key);
+            if let Some(intent) = intent {
+                self.handle_manage_intent(intent);
+            }
             return false;
         }
         if self.activity.is_open() {
@@ -234,6 +259,10 @@ impl App {
         }
         match key {
             KeyCode::Char('q') => return true,
+            KeyCode::Char('m') => {
+                self.current_session_mut().manage_servers.open();
+                self.focus = FocusTarget::Content;
+            }
             KeyCode::Tab => self.advance_focus(),
             KeyCode::BackTab => self.reverse_focus(),
             KeyCode::Char('r') if self.mode == LayoutMode::Medium => {
@@ -375,6 +404,14 @@ impl App {
         &self.current_session().components
     }
 
+    pub fn manage_servers(&self) -> &ManageServersState {
+        &self.current_session().manage_servers
+    }
+
+    pub fn editor(&self) -> Option<&ServerEditorState> {
+        self.current_session().editor.as_ref()
+    }
+
     pub fn available_tabs(&self) -> Vec<usize> {
         self.overview().available_tabs()
     }
@@ -413,6 +450,7 @@ impl App {
             .clone()
             .unwrap_or_else(|| format!("{}:{}", common.host, common.port));
         let overview = OverviewState::load_blocking(&client).map_err(|error| error.to_string())?;
+        let manage_servers = ManageServersState::from_servers(overview.servers.clone());
         let mut console = ConsoleView::from_lines(overview.console.clone());
         console.start_feed(client.clone());
         self.sessions.push(HostSession {
@@ -425,6 +463,8 @@ impl App {
             worlds: WorldsState::default(),
             backups: BackupsState::default(),
             components: ComponentsState::default(),
+            manage_servers,
+            editor: None,
         });
         self.activity.start_notifications(
             self.sessions
@@ -573,8 +613,157 @@ impl App {
         };
         match run_blocking(OverviewState::select_server(&client, selector)) {
             Ok(overview) => {
+                let servers = overview.servers.clone();
                 self.current_session_mut().overview = overview;
+                self.current_session_mut()
+                    .manage_servers
+                    .set_servers(servers);
                 self.last_action = Some(format!("Selected server {selector}"));
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn handle_manage_intent(&mut self, intent: ManageIntent) {
+        match intent {
+            ManageIntent::OpenEditor { server_id } => self.open_editor(&server_id),
+            ManageIntent::Confirm(mutation) => self.begin_manage_confirmation(mutation),
+        }
+    }
+
+    fn open_editor(&mut self, server_id: &str) {
+        let Some(server) = self
+            .manage_servers()
+            .servers
+            .iter()
+            .find(|server| server.id == server_id)
+            .cloned()
+        else {
+            self.last_action = Some("Selected server is no longer available".to_string());
+            return;
+        };
+        let Some(client) = self.current_session().client.clone() else {
+            self.last_action =
+                Some("Server editor requires an authenticated host session".to_string());
+            return;
+        };
+        match run_blocking(ServerEditorState::load(&client, server)) {
+            Ok(mut editor) => {
+                let playit_available = self
+                    .overview()
+                    .capabilities
+                    .as_ref()
+                    .is_some_and(|capabilities| capabilities.base.helpers.playit);
+                let broadcast_available =
+                    self.has_permission(msc_api::dto::PermissionCategoryDto::Broadcast);
+                editor.set_capabilities(playit_available, broadcast_available);
+                self.current_session_mut().editor = Some(editor);
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn begin_manage_confirmation(&mut self, mutation: ManageMutation) {
+        let permission = match &mutation {
+            ManageMutation::SetActive { .. } => msc_api::dto::PermissionCategoryDto::ServerControl,
+            ManageMutation::Create(_)
+            | ManageMutation::Import(_)
+            | ManageMutation::Rename { .. }
+            | ManageMutation::AcceptEula { .. }
+            | ManageMutation::Delete { .. } => msc_api::dto::PermissionCategoryDto::Fleet,
+        };
+        if !self.has_permission(permission) {
+            self.last_action = Some("This credential cannot manage the server fleet".to_string());
+            return;
+        }
+        let (target, consequence) = manage_confirmation_details(&mutation);
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: self.overview().selected_server_name().to_string(),
+            target,
+            consequence,
+            action: ConfirmAction::ManageMutation(mutation),
+        });
+    }
+
+    fn handle_editor_intent(&mut self, intent: EditorIntent) {
+        match intent {
+            EditorIntent::Back => self.current_session_mut().editor = None,
+            EditorIntent::Confirm(mutation) => self.begin_editor_confirmation(mutation),
+        }
+    }
+
+    fn begin_editor_confirmation(&mut self, mutation: EditorMutation) {
+        let permission = match &mutation {
+            EditorMutation::Rename { .. } | EditorMutation::SetDirectory { .. } => {
+                msc_api::dto::PermissionCategoryDto::Fleet
+            }
+            EditorMutation::UpdateRam { .. }
+            | EditorMutation::UpdatePort { .. }
+            | EditorMutation::SetJavaPath { .. }
+            | EditorMutation::SetJavaArguments { .. } => {
+                msc_api::dto::PermissionCategoryDto::Settings
+            }
+            EditorMutation::Playit { .. } => msc_api::dto::PermissionCategoryDto::Networking,
+            EditorMutation::XboxBroadcast { .. } => msc_api::dto::PermissionCategoryDto::Broadcast,
+        };
+        if !self.has_permission(permission) {
+            self.last_action =
+                Some("This credential cannot change that editor section".to_string());
+            return;
+        }
+        let (target, consequence) = editor_confirmation_details(&mutation);
+        self.confirmation.begin(ConfirmationRequest {
+            host: self.host().to_string(),
+            server: self.overview().selected_server_name().to_string(),
+            target,
+            consequence,
+            action: ConfirmAction::EditorMutation(mutation),
+        });
+    }
+
+    fn execute_manage_mutation(&mut self, client: SharedClient, mutation: ManageMutation) {
+        match run_blocking(super::manage_servers::execute(&client, mutation)) {
+            Ok(result) => {
+                self.last_action = Some(result.message);
+                if let Some(operation_id) = result.operation_id {
+                    self.activity
+                        .track_operation(client.clone(), operation_id.clone());
+                    self.last_action = Some(format!("Operation {operation_id} is being tracked"));
+                }
+                self.reload_overview(&client);
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn execute_editor_mutation(&mut self, client: SharedClient, mutation: EditorMutation) {
+        match run_blocking(super::server_editor::execute(&client, mutation)) {
+            Ok(result) => {
+                self.last_action = Some(result.message.clone());
+                if let Some(editor) = self.current_session_mut().editor.as_mut() {
+                    editor.status = Some(result.message);
+                    editor.loaded = false;
+                }
+                if let Some(operation_id) = result.operation_id {
+                    self.activity
+                        .track_operation(client.clone(), operation_id.clone());
+                    self.last_action = Some(format!("Operation {operation_id} is being tracked"));
+                }
+                self.reload_overview(&client);
+            }
+            Err(error) => self.last_action = Some(error.to_string()),
+        }
+    }
+
+    fn reload_overview(&mut self, client: &SharedClient) {
+        match run_blocking(OverviewState::load(client)) {
+            Ok(overview) => {
+                let servers = overview.servers.clone();
+                self.current_session_mut().overview = overview;
+                self.current_session_mut()
+                    .manage_servers
+                    .set_servers(servers);
             }
             Err(error) => self.last_action = Some(error.to_string()),
         }
@@ -649,6 +838,12 @@ impl App {
             }
             ConfirmAction::ComponentMutation(mutation) => {
                 self.execute_component_mutation(client, mutation)
+            }
+            ConfirmAction::ManageMutation(mutation) => {
+                self.execute_manage_mutation(client, mutation)
+            }
+            ConfirmAction::EditorMutation(mutation) => {
+                self.execute_editor_mutation(client, mutation)
             }
         }
     }
@@ -1337,6 +1532,88 @@ fn backup_confirmation_details(mutation: &BackupMutation) -> (String, String) {
             "backup schedule".to_string(),
             format!(
                 "The agent will set enabled={enabled:?}, interval={interval_minutes:?} minutes, retention={max_count:?} backups."
+            ),
+        ),
+    }
+}
+
+fn manage_confirmation_details(mutation: &ManageMutation) -> (String, String) {
+    match mutation {
+        ManageMutation::SetActive { server_id } => (
+            server_id.clone(),
+            "The selected server becomes the active server for lifecycle and editor requests."
+                .to_string(),
+        ),
+        ManageMutation::Create(draft) => (
+            draft.name.clone(),
+            format!(
+                "The agent will create a {} server and apply the staged port, world, and EULA choices.",
+                draft.server_type.as_deref().unwrap_or("java")
+            ),
+        ),
+        ManageMutation::Import(draft) => (
+            draft.source_path.clone(),
+            "The agent will scan and register this existing server source; no local desktop file picker is involved."
+                .to_string(),
+        ),
+        ManageMutation::Rename { server_id, name } => (
+            server_id.clone(),
+            format!("The registered server display name will change to {name}; its directory is untouched."),
+        ),
+        ManageMutation::AcceptEula { server_id } => (
+            server_id.clone(),
+            "The agent will record acceptance of Minecraft's EULA for this server.".to_string(),
+        ),
+        ManageMutation::Delete { server_id } => (
+            server_id.clone(),
+            "The selected registered server and its managed data will be deleted. This cannot be undone by the TUI."
+                .to_string(),
+        ),
+    }
+}
+
+fn editor_confirmation_details(mutation: &EditorMutation) -> (String, String) {
+    match mutation {
+        EditorMutation::Rename { server_id, name } => (
+            server_id.clone(),
+            format!("The server display name will change to {name}."),
+        ),
+        EditorMutation::SetDirectory {
+            server_id,
+            directory,
+        } => (
+            server_id.clone(),
+            format!("The agent will use {directory} as this server's host-side directory."),
+        ),
+        EditorMutation::UpdateRam { min, max } => (
+            "RAM allocation".to_string(),
+            format!("The agent will set minimum RAM to {min:?} GB and maximum RAM to {max:?} GB."),
+        ),
+        EditorMutation::UpdatePort { port } => (
+            port.to_string(),
+            "The agent will update the server port through its validated settings route."
+                .to_string(),
+        ),
+        EditorMutation::SetJavaPath { path } => (
+            path.clone(),
+            "The agent will use this Java executable path for server launches.".to_string(),
+        ),
+        EditorMutation::SetJavaArguments { arguments } => (
+            "Java arguments".to_string(),
+            format!("The agent will use these extra launch arguments: {arguments}"),
+        ),
+        EditorMutation::Playit { start } => (
+            "Playit".to_string(),
+            format!(
+                "The agent will request a Playit tunnel {}.",
+                if *start { "start" } else { "stop" }
+            ),
+        ),
+        EditorMutation::XboxBroadcast { start } => (
+            "Xbox Broadcast".to_string(),
+            format!(
+                "The agent will request Xbox Broadcast {}.",
+                if *start { "start" } else { "stop" }
             ),
         ),
     }

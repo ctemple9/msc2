@@ -14,9 +14,11 @@ use super::backups::BackupsState;
 use super::components::{ComponentSurface, ComponentsState};
 use super::console::ConsoleView;
 use super::layout::{LayoutMode, ShellLayout};
+use super::manage_servers::{ManageServersState, ManageSurface};
 use super::overview::TAB_NAMES;
 use super::performance::{TrendMetric, format_bytes, format_memory_mb, format_metric};
 use super::players::{PlayersState, profile_edition, profile_status};
+use super::server_editor::{EditorSurface, ServerEditorState};
 use super::worlds::WorldsState;
 
 pub fn render(frame: &mut Frame, app: &mut App) {
@@ -38,9 +40,11 @@ pub fn render(frame: &mut Frame, app: &mut App) {
 
 fn render_header(frame: &mut Frame, area: Rect, app: &App, mode: LayoutMode) {
     let controls = match mode {
-        LayoutMode::Wide => "[Tab] focus  [1-7] section  [a/x] lifecycle  [i] activity  [q] quit",
+        LayoutMode::Wide => {
+            "[Tab] focus  [1-7] section  [a/x] lifecycle  [m] manage  [i] activity  [q] quit"
+        }
         LayoutMode::Medium => {
-            "[r] rail  [c] console  [s] section  [a/x] lifecycle  [i] activity  [q] quit"
+            "[r] rail  [c] console  [s] section  [a/x] lifecycle  [m] manage  [q] quit"
         }
         LayoutMode::Small => "[s] sections  [c] console  [i] activity  [?] help  [q] quit",
     };
@@ -101,7 +105,7 @@ fn render_rail(frame: &mut Frame, area: Rect, app: &App) {
     let selected = app.overview().selected_server_name();
     let action = app.last_action().unwrap_or("Ready");
     let text = format!(
-        "Host session\n{}\n\nSelected server\n{}\n\nLifecycle\n{}  [a] start  [x] stop\n\nServices\nHow to connect\nMaintenance\nQuick commands\n\n{}",
+        "Host session\n{}\n\nSelected server\n{}\n\nLifecycle\n{}  [a] start  [x] stop\n\nManage Servers  [m]\nServices\nHow to connect\nMaintenance\nQuick commands\n\n{}",
         app.host(),
         selected,
         lifecycle,
@@ -181,6 +185,14 @@ fn render_section_selector(frame: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_content(frame: &mut Frame, area: Rect, app: &App) {
+    if let Some(editor) = app.editor() {
+        render_server_editor(frame, area, editor);
+        return;
+    }
+    if app.manage_servers().is_open() {
+        render_manage_servers(frame, area, app.manage_servers(), app);
+        return;
+    }
     let title = if app.focus() == FocusTarget::Content {
         format!("› {}", app.active_tab_name().to_uppercase())
     } else {
@@ -250,6 +262,328 @@ fn render_content(frame: &mut Frame, area: Rect, app: &App) {
             .wrap(Wrap { trim: true }),
         area,
     );
+}
+
+fn render_manage_servers(frame: &mut Frame, area: Rect, manage: &ManageServersState, app: &App) {
+    let title = if app.focus() == FocusTarget::Content {
+        "› MANAGE SERVERS"
+    } else {
+        "MANAGE SERVERS"
+    };
+    let mut lines = Vec::new();
+    match manage.surface {
+        Some(ManageSurface::List) => {
+            lines.push(Line::from("REGISTERED SERVERS"));
+            lines.push(Line::from(
+                "The agent owns these registrations and lifecycle states.",
+            ));
+            lines.push(Line::from(""));
+            if manage.servers.is_empty() {
+                lines.push(Line::from("No registered servers."));
+            } else {
+                for (index, server) in manage.servers.iter().enumerate() {
+                    let marker = if index == manage.selected { "›" } else { " " };
+                    let active = if app.overview().selected_server_id.as_deref() == Some(&server.id)
+                    {
+                        "ACTIVE"
+                    } else {
+                        "      "
+                    };
+                    lines.push(Line::from(format!(
+                        "{marker} {active}  {}  {}  {}",
+                        server.name, server.server_type, server.directory
+                    )));
+                }
+            }
+            lines.push(Line::from(""));
+            lines.push(Line::from(
+                "[j/k] choose  [enter] detail  [c] create  [i] import  [r] reload  [esc] close",
+            ));
+        }
+        Some(ManageSurface::Detail) => {
+            if let Some(server) = manage.selected_server() {
+                let active = app.overview().selected_server_id.as_deref() == Some(&server.id);
+                lines.push(Line::from(format!(
+                    "{}  ·  {}  ·  {}",
+                    server.name,
+                    server.server_type,
+                    if active { "ACTIVE" } else { "SAVED" }
+                )));
+                lines.push(Line::from(format!("Server ID: {}", server.id)));
+                lines.push(Line::from(format!("Host path: {}", server.directory)));
+                lines.push(Line::from(format!(
+                    "Ports: game {} · bedrock {}",
+                    server
+                        .game_port
+                        .map_or_else(|| "—".to_string(), |p| p.to_string()),
+                    server
+                        .bedrock_port
+                        .map_or_else(|| "—".to_string(), |p| p.to_string())
+                )));
+                lines.push(Line::from(format!(
+                    "Services: Playit {} · Xbox Broadcast {}",
+                    on_off(server.playit_enabled),
+                    on_off(server.xbox_broadcast_enabled)
+                )));
+                lines.push(Line::from(
+                    "EULA: accept through the agent · Delete: removes managed server data",
+                ));
+                lines.push(Line::from(""));
+                lines.push(Line::from(
+                    "[e] editor  [a] set active  [n] rename  [u] accept EULA  [d] delete  [esc] list",
+                ));
+            }
+        }
+        Some(ManageSurface::Create) => {
+            lines.push(Line::from("CREATE SERVER · STAGED CHOICES"));
+            lines.push(Line::from(format!(
+                "Name: {}  Type: {}  Flavor: {}  Port: {}  World: {}  EULA: {}",
+                empty_as_default(&manage.create_draft.name),
+                manage.create_draft.server_type.as_deref().unwrap_or("java"),
+                manage
+                    .create_draft
+                    .java_flavor
+                    .as_deref()
+                    .unwrap_or("default"),
+                manage
+                    .create_draft
+                    .port
+                    .map_or_else(|| "default".to_string(), |p| p.to_string()),
+                manage
+                    .create_draft
+                    .world_name
+                    .as_deref()
+                    .unwrap_or("default"),
+                if manage.create_draft.accept_eula {
+                    "yes"
+                } else {
+                    "no"
+                }
+            )));
+            lines.push(Line::from(
+                "Choices are reviewed before the create request is sent.",
+            ));
+            if manage.create_step_is_review() {
+                lines.push(Line::from("[enter] create server  [esc] cancel"));
+            }
+        }
+        Some(ManageSurface::Import) => {
+            lines.push(Line::from("IMPORT SERVER · STAGED CHOICES"));
+            lines.push(Line::from(format!(
+                "Source: {}  Type: {}  Name: {}  World: {}  EULA: {}",
+                empty_as_default(&manage.import_draft.source_path),
+                manage.import_draft.server_type.as_deref().unwrap_or("java"),
+                manage
+                    .import_draft
+                    .display_name
+                    .as_deref()
+                    .unwrap_or("detected"),
+                manage
+                    .import_draft
+                    .active_world_name
+                    .as_deref()
+                    .unwrap_or("detected"),
+                if manage.import_draft.accept_eula {
+                    "yes"
+                } else {
+                    "no"
+                }
+            )));
+            lines.push(Line::from(
+                "The source path is interpreted by the agent host.",
+            ));
+            if manage.import_step_is_review() {
+                lines.push(Line::from("[enter] import server  [esc] cancel"));
+            }
+        }
+        None => {}
+    }
+    if let Some((kind, value)) = &manage.input {
+        lines.push(Line::from(format!("{}: {}_", kind.prompt(), value)));
+    }
+    if let Some(status) = &manage.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    render_box(frame, area, title, lines);
+}
+
+fn render_server_editor(frame: &mut Frame, area: Rect, editor: &ServerEditorState) {
+    let mut lines = vec![Line::from(format!(
+        "{}  ·  {}",
+        editor.server_name(),
+        editor
+            .server
+            .as_ref()
+            .map_or("unknown", |server| server.server_type.as_str())
+    ))];
+    lines.push(Line::from(
+        "[1] General  [2] Services  [3] Java  [r] reload  [esc] back",
+    ));
+    lines.push(Line::from(""));
+    match editor.surface {
+        EditorSurface::General => {
+            if let Some(server) = &editor.server {
+                lines.push(Line::from("GENERAL"));
+                lines.push(Line::from(format!(
+                    "Display name: {}  [n] rename",
+                    server.name
+                )));
+                lines.push(Line::from(format!(
+                    "Directory: {}  [p] edit path",
+                    server.directory
+                )));
+                let ram = editor.ram.as_ref().map_or_else(
+                    || "unavailable".to_string(),
+                    |ram| format!("{}–{} GB", ram.min_ram_gb, ram.max_ram_gb),
+                );
+                lines.push(Line::from(format!("RAM: {ram}  [m] edit min|max GB")));
+                lines.push(Line::from(format!(
+                    "Ports: game {} · bedrock {}  [o] edit game port",
+                    server
+                        .game_port
+                        .map_or_else(|| "—".to_string(), |p| p.to_string()),
+                    server
+                        .bedrock_port
+                        .map_or_else(|| "—".to_string(), |p| p.to_string())
+                )));
+                lines.push(Line::from(format!(
+                    "Storage: {}",
+                    editor.storage_bytes.map_or_else(
+                        || "unavailable".to_string(),
+                        |bytes| format_bytes(bytes as f64)
+                    )
+                )));
+                lines.push(Line::from(
+                    "EULA: agent-managed acceptance in Manage Servers",
+                ));
+                lines.push(Line::from(
+                    "Deletion: Manage Servers confirms removal of managed data",
+                ));
+            }
+        }
+        EditorSurface::Services => {
+            lines.push(Line::from("SERVICES · CAPABILITY-BACKED"));
+            lines.push(Line::from(format!(
+                "Playit: {} · {}",
+                if editor.playit_available {
+                    "available"
+                } else {
+                    "unavailable"
+                },
+                editor
+                    .playit
+                    .as_ref()
+                    .map_or("state unavailable".to_string(), |status| {
+                        if status.is_running {
+                            "RUNNING [p] stop"
+                        } else {
+                            "STOPPED [p] start"
+                        }
+                        .to_string()
+                    })
+            )));
+            lines.push(Line::from(format!(
+                "Xbox Broadcast: {} · {}",
+                if editor.broadcast_available {
+                    "available"
+                } else {
+                    "unavailable"
+                },
+                editor
+                    .broadcast
+                    .as_ref()
+                    .map_or("state unavailable".to_string(), |status| {
+                        if status.xbox_broadcast_running {
+                            "RUNNING [x] stop"
+                        } else {
+                            "STOPPED [x] start"
+                        }
+                        .to_string()
+                    })
+            )));
+            lines.push(Line::from(
+                "Controls appear only when host capability and token permission allow them.",
+            ));
+        }
+        EditorSurface::Java => {
+            lines.push(Line::from("JAVA · DETECTED RUNTIMES"));
+            lines.push(Line::from(format!(
+                "Configured path: {}  [p] edit path",
+                editor
+                    .java_config
+                    .as_ref()
+                    .and_then(|config| config.executable_path.as_deref())
+                    .unwrap_or("default")
+            )));
+            lines.push(Line::from(format!(
+                "Extra arguments: {}  [a] edit",
+                editor
+                    .java_config
+                    .as_ref()
+                    .and_then(|config| config.extra_flags.as_deref())
+                    .unwrap_or("none")
+            )));
+            if editor.java_runtimes.is_empty() {
+                lines.push(Line::from("No Java runtimes detected. [d] check again"));
+            } else {
+                for (index, runtime) in editor.java_runtimes.iter().enumerate() {
+                    lines.push(Line::from(format!(
+                        "{} {} · {} · {}",
+                        if index == editor.selected_runtime {
+                            "›"
+                        } else {
+                            " "
+                        },
+                        runtime.name,
+                        runtime
+                            .major_version
+                            .map_or_else(|| "Java ?".to_string(), |major| format!("Java {major}")),
+                        runtime.executable_path
+                    )));
+                }
+                lines.push(Line::from(
+                    "[j/k] choose runtime  [enter] use it  [d] report detection",
+                ));
+            }
+        }
+    }
+    if let Some((kind, value)) = &editor.input {
+        lines.push(Line::from(format!("{}: {}_", kind.prompt(), value)));
+    }
+    if let Some(status) = &editor.status {
+        lines.push(Line::from(format!("Status: {status}")));
+    }
+    if let Some(settings) = &editor.settings {
+        lines.push(Line::from(format!(
+            "Settings schema: {} field(s) · {}",
+            settings
+                .sections
+                .iter()
+                .map(|section| section.fields.len())
+                .sum::<usize>(),
+            if settings.editable {
+                "editable"
+            } else {
+                "read-only"
+            }
+        )));
+    }
+    if let Some(error) = &editor.error {
+        lines.push(Line::from(format!("Editor data note: {error}")));
+    }
+    render_box(frame, area, "› SERVER EDITOR", lines);
+}
+
+fn empty_as_default(value: &str) -> &str {
+    if value.is_empty() { "(not set)" } else { value }
+}
+
+fn on_off(value: Option<bool>) -> &'static str {
+    match value {
+        Some(true) => "ON",
+        Some(false) => "OFF",
+        None => "unknown",
+    }
 }
 
 fn render_worlds(frame: &mut Frame, area: Rect, app: &App, worlds: &WorldsState) {
@@ -1222,6 +1556,14 @@ fn render_console(frame: &mut Frame, area: Rect, app: &App) {
 fn render_small(frame: &mut Frame, area: Rect, app: &App) {
     if app.activity().is_open() {
         render_activity(frame, area, app);
+        return;
+    }
+    if let Some(editor) = app.editor() {
+        render_server_editor(frame, area, editor);
+        return;
+    }
+    if app.manage_servers().is_open() {
+        render_manage_servers(frame, area, app.manage_servers(), app);
         return;
     }
     match app.small_surface() {

@@ -243,6 +243,33 @@ fn gate_filters_sections_by_advertised_permissions() {
     assert_eq!(full.available_tabs(), vec![0, 1, 2, 3, 4, 5, 6]);
 }
 
+#[test]
+fn global_navigation_remains_reachable_from_players_content() {
+    let permissions = vec![
+        PermissionCategoryDto::Players,
+        PermissionCategoryDto::Worlds,
+        PermissionCategoryDto::Addons,
+        PermissionCategoryDto::Settings,
+        PermissionCategoryDto::Admin,
+    ];
+
+    let mut app = App::with_overview("test-host", overview(permissions.clone()));
+    app.handle_key(KeyCode::Char('2'));
+    assert_eq!(app.active_tab(), 1);
+    assert!(app.handle_key(KeyCode::Char('q')));
+
+    let mut app = App::with_overview("test-host", overview(permissions.clone()));
+    app.handle_key(KeyCode::Char('2'));
+    let focus_before_tab = app.focus();
+    assert!(!app.handle_key(KeyCode::Tab));
+    assert_ne!(app.focus(), focus_before_tab);
+
+    let mut app = App::with_overview("test-host", overview(permissions));
+    app.handle_key(KeyCode::Char('2'));
+    app.handle_key(KeyCode::Char('/'));
+    assert!(!app.handle_key(KeyCode::Char('q')));
+}
+
 fn render_at(
     width: u16,
     height: u16,

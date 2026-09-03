@@ -298,6 +298,9 @@ impl App {
             }
             return false;
         }
+        if let Some(handled) = self.handle_global_navigation_key(key) {
+            return handled;
+        }
         if self.active_tab == 1 && self.focus == FocusTarget::Content {
             let intent = self.current_session_mut().players.handle_key(key);
             if let Some(intent) = intent {
@@ -457,6 +460,88 @@ impl App {
             _ => {}
         }
         false
+    }
+
+    /// Global navigation must remain reachable from ordinary content views,
+    /// but an active text field or detail/action surface owns its keystrokes.
+    fn handle_global_navigation_key(&mut self, key: KeyCode) -> Option<bool> {
+        if self.content_captures_keys() {
+            return None;
+        }
+
+        match key {
+            KeyCode::Char('q') => Some(true),
+            KeyCode::Tab => {
+                self.advance_focus();
+                Some(false)
+            }
+            KeyCode::BackTab => {
+                self.reverse_focus();
+                Some(false)
+            }
+            KeyCode::Char('?') => {
+                self.open_support(SupportSurface::Help);
+                Some(false)
+            }
+            KeyCode::Char('g') => {
+                self.open_support(SupportSurface::Handbook);
+                Some(false)
+            }
+            KeyCode::Char('A') => {
+                self.open_support(SupportSurface::Agent);
+                Some(false)
+            }
+            KeyCode::Char(',') => {
+                self.open_support(SupportSurface::AppSettings);
+                Some(false)
+            }
+            KeyCode::Char('m') => {
+                self.current_session_mut().manage_servers.open();
+                self.focus = FocusTarget::Content;
+                Some(false)
+            }
+            KeyCode::Char('1'..='7') if self.section_key_is_global() => {
+                let index = key_to_tab(key);
+                if self.overview().tab_is_available(index) {
+                    self.active_tab = index;
+                }
+                Some(false)
+            }
+            _ => None,
+        }
+    }
+
+    fn section_key_is_global(&self) -> bool {
+        !matches!(self.active_tab, 4 | 5)
+    }
+
+    fn content_captures_keys(&self) -> bool {
+        if self.focus != FocusTarget::Content {
+            return false;
+        }
+        match self.active_tab {
+            1 => {
+                let players = &self.current_session().players;
+                players.input.is_some() || players.detail_open
+            }
+            2 => {
+                let session = self.current_session();
+                session.worlds.input.is_some() || session.worlds.detail_open
+            }
+            4 => {
+                let components = &self.current_session().components;
+                components.input.is_some() || components.detail_open || components.action_menu_open
+            }
+            5 => {
+                let session = self.current_session();
+                session.settings.input.is_some()
+                    || session.connections.input.is_some()
+                    || session.health.detail_open
+                    || session.access.input.is_some()
+            }
+            6 => self.current_session().files.detail_open,
+            _ => false,
+        }
     }
 
     pub fn host(&self) -> &str {

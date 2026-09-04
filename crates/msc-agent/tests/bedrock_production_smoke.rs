@@ -96,11 +96,10 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
         );
     }
 
-    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+    if capabilities["serverTypes"]["bedrock"]["runtime"]["state"] != "available" {
         let (status, error) = fixture.http("POST", "/v1/start", Some("{}"));
-        assert_eq!(status, 409, "Apple Silicon start: {error}");
+        assert_eq!(status, 409, "unavailable Bedrock start: {error}");
         assert_eq!(error["code"], "capability_unavailable");
-        assert_eq!(error["details"]["reasonCode"], "no_test_hardware");
         fixture.stop(&mut agent);
         return;
     }
@@ -149,7 +148,7 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
     let (status, settings) = fixture.http(
         "POST",
         "/v1/settings",
-        Some(r#"{"changes":{"difficulty":"peaceful"}}"#),
+        Some(r#"{"changes":{"max-players":"12"}}"#),
     );
     assert_eq!(status, 200, "settings: {settings}");
     assert_eq!(settings["success"], true);
@@ -160,7 +159,13 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
         Some(r#"{"action":"add","name":"Casey"}"#),
     );
     assert_eq!(status, 200, "allowlist: {allowlist}");
-    assert_eq!(allowlist["entries"].as_array().unwrap().len(), 2);
+    assert!(
+        allowlist["entries"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|entry| entry["name"].as_str() == Some("Casey"))
+    );
 
     let (status, operation) =
         fixture.http("POST", "/v1/operations", Some(r#"{"type":"demo-install"}"#));

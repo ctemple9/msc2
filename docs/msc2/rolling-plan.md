@@ -361,6 +361,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.76: align production Bedrock fixture contracts`
 **Batch:** solo
 
+### P12.77 — Stabilize hosted contract assertions
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/bedrock_production_cli.rs`, `crates/msc-agent/tests/bedrock_production_smoke.rs`, `crates/msc-agent/tests/lifecycle_routes.rs`, `docs/msc2/rolling-plan.md`
+**What:** Match the hosted assertions to the production contract and fixture lifecycle: validate Bedrock allowlist shape and the newly added name instead of assuming a particular active server, edit a server-owned capacity setting, and update the lifecycle source-marker check to the helper method that actually exists.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --tests -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-agent --test lifecycle_routes && cargo test -p msc-agent --test bedrock_production_cli && cargo test -p msc-agent --test bedrock_production_smoke`
+**Commit:** `P12.77: stabilize hosted contract assertions`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

@@ -262,7 +262,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 ## Phase 12 amendment — Tauri and headless-agent beta release
 
 ### P12.59 — Freeze the beta release artifact contract
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
 **What:** Record the first-release boundary as the Tauri shell plus the Rust agent/CLI; explicitly leave iOS and the TUI out of the beta artifact set. Define the supported headless Linux baseline, the Ubuntu/Debian installation shape, service and credential-helper ownership, artifact names and target architectures, version/tag rules, unsigned beta limitations, checksum expectations, pairing-code workflow, SSH/Tailscale access pattern, and the physical Windows/Linux verification handoff. Keep the agent/API contract and the remote-client boundary unchanged: a remote Tauri client may control Minecraft servers through the agent but never install or stop the host's operating-system service.
 **Verify:** `test -f docs/msc2/clients/phase12-release.md && rg -n "Tauri|headless|pairing|systemd|checksum|unsigned|iOS|TUI" docs/msc2/clients/phase12-release.md`

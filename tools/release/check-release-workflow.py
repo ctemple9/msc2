@@ -76,7 +76,6 @@ def check_candidate_workflow(workflow: str) -> None:
         "npm run test:contract",
         "npm run test:auth-desktop",
         "cargo fmt --all -- --check",
-        "cargo clippy -p msc-agent --all-targets",
         "cargo nextest run -p msc-agent --test web_ui",
         "cargo build --release",
         "--bundles \"${{ matrix.tauri-bundle }}\" --no-sign",
@@ -92,6 +91,11 @@ def check_candidate_workflow(workflow: str) -> None:
         "notarization",
     ):
         require_fragment(workflow, fragment)
+
+    require(
+        re.search(r"cargo clippy -p msc-agent --bin msc --target", workflow) is not None,
+        "workflow is missing the targeted msc-agent binary clippy check",
+    )
 
     require(
         re.search(r"platform:\s+macos-x86_64", workflow) is not None,

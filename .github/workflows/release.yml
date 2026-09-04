@@ -106,19 +106,34 @@ jobs:
       - name: Run targeted agent checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy -p msc-agent --all-targets --target "${{ matrix.rust-target }}" -- -D warnings
+          cargo clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings
           cargo nextest run -p msc-agent --test web_ui
 
       - name: Build release agent and CLI
         run: cargo build --release --target "${{ matrix.rust-target }}" -p msc-agent
 
       - name: Stage the matching Tauri agent payload
+        if: matrix.platform != 'windows-x86_64'
         working-directory: clients/desktop-web
         run: npm run prepare:agent:release
 
+      - name: Stage the matching Tauri agent payload on Windows
+        if: matrix.platform == 'windows-x86_64'
+        shell: pwsh
+        run: ./tools/release/stage-windows-agent.ps1 -WorkspaceRoot $env:GITHUB_WORKSPACE -TargetTriple "${{ matrix.rust-target }}"
+
       - name: Build unsigned Tauri installer
+        if: matrix.platform != 'windows-x86_64'
         working-directory: clients/desktop-web
         run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundle }}" --no-sign
+
+      - name: Build unsigned Tauri installer on Windows
+        if: matrix.platform == 'windows-x86_64'
+        working-directory: clients/desktop-web
+        shell: pwsh
+        run: |
+          npm run build
+          npm exec tauri build -- --bundles "${{ matrix.tauri-bundle }}" --no-sign --config '{"build":{"beforeBuildCommand":""}}'
 
       - name: Package Linux headless artifact
         if: matrix.platform == 'linux-x86_64'

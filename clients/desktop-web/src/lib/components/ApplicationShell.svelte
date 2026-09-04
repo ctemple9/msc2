@@ -161,7 +161,6 @@
         serverType={activeServer?.serverType}
         javaFlavor={activeServer?.javaFlavor}
         directory={activeServer?.directory}
-        {running}
         {bannerColor}
         {onEditServer}
       />

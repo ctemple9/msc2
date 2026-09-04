@@ -1,16 +1,14 @@
 <script lang="ts">
-  // Selected-server identity row: name, type/flavor badges, running state,
-  // directory path. Wash = one of the four sanctioned bannerColor spots.
+  // Selected-server identity row: name, type/flavor badges, and directory path.
+  // Wash = one of the four sanctioned bannerColor spots.
   // docs/msc2/renderings/shell.html, MSC 1 DetailsHeaderSectionView.swift.
   import Badge from '../base/Badge.svelte';
-  import StatusDot from '../base/StatusDot.svelte';
   import { bannerColorAccent } from '../../styles/bannerColor';
 
   export let serverName: string;
   export let serverType: string | undefined = undefined;
   export let javaFlavor: string | undefined = undefined;
   export let directory: string | undefined = undefined;
-  export let running: boolean;
   export let bannerColor: string;
   export let onEditServer: (() => void) | undefined = undefined;
 
@@ -30,7 +28,6 @@
     {#if typeLabel}<Badge variant="category">{typeLabel}</Badge>{/if}
     {#if javaFlavor}<Badge variant="category">{javaFlavor}</Badge>{/if}
     <span class="fill"></span>
-    {#if running}<StatusDot tone="ok" label="Running" />{/if}
   </div>
   {#if directory}<p class="path">{directory}</p>{/if}
 </div>

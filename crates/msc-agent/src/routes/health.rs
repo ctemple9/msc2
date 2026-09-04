@@ -305,7 +305,7 @@ fn port_reachability_card(
         match local {
             DiagnosticResult::Open => (
                 format!(
-                    "Port {} ({})\nListening locally ✓\nPublic forwarding is not verified here.\nSee Networking for the internet-side check.",
+                    "Port {} ({})\nListening locally\nPublic access unverified.",
                     port, protocol
                 ),
                 "yellow",

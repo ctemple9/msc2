@@ -203,7 +203,7 @@
       {#if currentStep === 1}
         <div class="intro">
           <h2>How do you want to add this server?</h2>
-          <p>Import an existing server, create one from a modpack, or start from scratch.</p>
+          <p>Bring in an existing server or modpack, or start from scratch.</p>
         </div>
         <div class="paths" use:onboardingAnchor={'ob_wizard_path_picker'}>
           <button
@@ -213,21 +213,10 @@
             disabled={tourPathLocked}
             onclick={() => selectPath('importExisting')}
           >
-            <span class="path-title">Import Existing</span>
+            <span class="path-title">Import or Create from Modpack</span>
             <span class="path-subtitle"
-              >Drop a folder or .zip — MSC reads and configures it for you.</span
-            >
-          </button>
-          <button
-            type="button"
-            class="path-card"
-            class:selected={path === 'modpack'}
-            onclick={() => selectPath('modpack')}
-          >
-            <span class="path-title">Create from Modpack</span>
-            <span class="path-subtitle"
-              >Inspect a .mrpack or CurseForge archive, then create a new server from its pinned
-              files.</span
+              >Drop a server folder or .zip to import it, or choose a .mrpack or CurseForge archive
+              to create a new server from its pinned files.</span
             >
           </button>
           <button

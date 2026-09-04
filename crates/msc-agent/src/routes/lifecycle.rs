@@ -1303,6 +1303,21 @@ impl LifecycleRoutesState {
         }
     }
 
+    fn record_successful_bedrock_start(&self) {
+        let Some(server) = self.active_bedrock_server() else {
+            return;
+        };
+        msc_application::diagnostics::write_last_startup_result(
+            &StdFileSystem,
+            Path::new(&server.server_dir),
+            &iso8601_now(),
+            true,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+    }
+
     fn progress_first_start(&self, status_line: &str) {
         let Some(operation_id) = self
             .inner
@@ -1666,6 +1681,7 @@ impl LifecycleRoutesState {
                     if self.bedrock_operation_cancel_requested() {
                         let _ = self.inner.bedrock_runtime.stop();
                     } else {
+                        self.record_successful_bedrock_start();
                         self.handle_server_ready("Bedrock server is ready.");
                     }
                 }

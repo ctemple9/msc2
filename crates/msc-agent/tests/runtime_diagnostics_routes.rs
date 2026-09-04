@@ -80,6 +80,12 @@ fn runtime_diagnostics_routes_are_mounted_behind_bearer_auth() {
         response.lines().next().unwrap_or_default()
     );
     assert!(
+        response
+            .lines()
+            .any(|line| line.eq_ignore_ascii_case("cache-control: no-store")),
+        "/v1/health must not be served from an HTTP cache"
+    );
+    assert!(
         !response.contains("demo-card"),
         "/v1/health should no longer serve the Phase 2 canned card"
     );

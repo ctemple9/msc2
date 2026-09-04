@@ -510,6 +510,10 @@ pub async fn health(State(state): State<LifecycleRoutesState>) -> Response {
         axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
         axum::http::HeaderValue::from_static("*"),
     );
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
+    );
     response
 }
 
@@ -522,6 +526,10 @@ pub async fn healthz() -> Response {
     response.headers_mut().insert(
         axum::http::header::ACCESS_CONTROL_ALLOW_ORIGIN,
         axum::http::HeaderValue::from_static("*"),
+    );
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
     );
     response
 }
@@ -909,6 +917,10 @@ mod tests {
         let state = route_state();
         let response = health(State(state)).await;
         assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response.headers()[axum::http::header::CACHE_CONTROL],
+            "no-store"
+        );
         assert!(response_body(response).await.contains("No active server."));
     }
 
@@ -917,6 +929,10 @@ mod tests {
         let response = healthz().await;
         assert_eq!(response.status(), StatusCode::NO_CONTENT);
         assert_eq!(response.headers()["access-control-allow-origin"], "*");
+        assert_eq!(
+            response.headers()[axum::http::header::CACHE_CONTROL],
+            "no-store"
+        );
     }
 
     #[tokio::test]

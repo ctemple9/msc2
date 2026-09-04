@@ -21,6 +21,7 @@
   export let hostId = 'local-agent';
   export let serverId = 'survival';
   export let active = true;
+  export let healthRefreshVersion = 0;
   export let onWorlds: (() => void) | undefined = undefined;
   export let addressesVisible = false;
   export let onToggleAddresses: () => void = () => undefined;
@@ -49,8 +50,12 @@
   $: settingField = (key: string): string | undefined =>
     settings?.sections.flatMap((s) => s.fields).find((f) => f.key === key)?.value;
 
-  async function loadAll(): Promise<void> {
+  async function loadHealth(): Promise<void> {
     health = await call(api, health, '/v1/health');
+  }
+
+  async function loadAll(): Promise<void> {
+    await loadHealth();
     connectivity = await call(api, connectivity, '/v1/connectivity');
     performance = await call(api, performance, '/v1/performance');
     servers = await call(api, servers, '/v1/servers');
@@ -78,6 +83,7 @@
 
   let refreshTimer: ReturnType<typeof setInterval> | undefined;
   let mounted = false;
+  let appliedHealthRefreshVersion = 0;
 
   function startPolling(): void {
     if (refreshTimer) return;
@@ -104,6 +110,10 @@
 
   $: if (mounted && active) startPolling();
   $: if (mounted && !active) stopPolling();
+  $: if (mounted && active && healthRefreshVersion !== appliedHealthRefreshVersion) {
+    appliedHealthRefreshVersion = healthRefreshVersion;
+    void loadHealth();
+  }
 
   $: isBedrock = activeServer?.serverType === 'bedrock';
 </script>

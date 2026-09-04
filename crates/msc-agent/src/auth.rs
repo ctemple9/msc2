@@ -374,9 +374,7 @@ impl AuthState {
         let now = Instant::now();
         let ticket_record = {
             let mut tickets = self.inner.console_stream_tickets.lock().unwrap();
-            let Some(record) = tickets.get(ticket).cloned() else {
-                return None;
-            };
+            let record = tickets.get(ticket).cloned()?;
             if record.expires_at <= now {
                 tickets.remove(ticket);
                 return None;

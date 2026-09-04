@@ -309,6 +309,16 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.64: record physical beta release gate`
 **Batch:** stop-after
 
+## Phase 12 post-phase correction — startup health freshness
+
+### P12.68 — Persist successful startup health and refresh the Overview
+**Status:** awaiting verification
+**Files:** `crates/msc-application/src/{lifecycle.rs,diagnostics.rs}`, `crates/msc-application/tests/lifecycle_state.rs`, `crates/msc-agent/src/routes/{health.rs,lifecycle.rs}`, `clients/desktop-web/src/{App.svelte,lib/sections/home/HomeSection.svelte}`, `docs/msc2/rolling-plan.md`
+**What:** Record a clean startup when a Java or Bedrock server reaches readiness, replacing any earlier failed-start record while preserving Paper's later soft-failure warnings. Mark the dynamic health response as non-cacheable, and send a targeted Overview health refresh after every lifecycle attempt without discarding the retained tab instance or its page-cache behavior.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --bin msc -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-application --test lifecycle_state lifecycle_state_ready_start_replaces_previous_failed_start_record -- --exact && cargo check -p msc-agent --bin msc && cargo nextest run -p msc-agent --test runtime_diagnostics_routes -E 'test(runtime_diagnostics_routes_are_mounted_behind_bearer_auth)' && cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/sections/home/HomeSection.svelte && npm run check && npx vitest run tests/screens/overview.test.ts && npm run build && node ./tools/package-agent-bundle.mjs`
+**Commit:** `P12.68: persist successful startup health`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

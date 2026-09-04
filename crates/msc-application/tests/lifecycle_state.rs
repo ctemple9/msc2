@@ -190,6 +190,41 @@ fn lifecycle_state_ready_line_moves_starting_server_to_running() {
 }
 
 #[test]
+fn lifecycle_state_ready_start_replaces_previous_failed_start_record() {
+    let server = paper_server();
+    let repository = FakeRepository {
+        server: Some(server.clone()),
+    };
+    let process = FakeProcessSupervisor::default();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new();
+    diagnostics::write_last_startup_result(
+        &fs,
+        &server.directory,
+        "2026-08-19T00:00:00Z",
+        false,
+        vec!["Server stopped before reaching ready state.".to_string()],
+        Vec::new(),
+        Vec::new(),
+    );
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    service.start_active_server(launch_request()).unwrap();
+    service
+        .mark_ready(&server.id, "2026-08-20T00:00:00Z")
+        .unwrap();
+
+    let record = diagnostics::read_last_startup_result(&fs, &server.directory)
+        .expect("a ready server should persist its successful start");
+    assert_eq!(record.started_at, "2026-08-20T00:00:00Z");
+    assert!(record.was_clean);
+    assert!(record.fatal_errors.is_empty());
+    assert!(record.warnings.is_empty());
+    assert!(record.problems.is_none());
+}
+
+#[test]
 fn lifecycle_state_paper_soft_failure_keeps_source_accurate_400_line_window() {
     let server = paper_server();
     let repository = FakeRepository {
@@ -385,7 +420,7 @@ fn lifecycle_state_unrequested_exit_before_ready_records_generic_startup_failure
 }
 
 #[test]
-fn lifecycle_state_unrequested_exit_after_ready_writes_nothing() {
+fn lifecycle_state_unrequested_exit_after_ready_preserves_clean_start_record() {
     let server = paper_server();
     let repository = FakeRepository {
         server: Some(server.clone()),
@@ -408,12 +443,12 @@ fn lifecycle_state_unrequested_exit_after_ready_writes_nothing() {
         .unwrap();
 
     assert_eq!(service.state(), LifecycleState::Crashed);
-    assert_eq!(
-        diagnostics::read_last_startup_result(&fs, &server.directory),
-        None,
-        "a crash after a clean boot must not overwrite/create a startup record \
-         (the documented gap diagnose_unexpected_stop preserves from the oracle)"
-    );
+    let record = diagnostics::read_last_startup_result(&fs, &server.directory)
+        .expect("a crash after a clean boot should preserve the successful start record");
+    assert!(record.was_clean);
+    assert!(record.fatal_errors.is_empty());
+    assert!(record.warnings.is_empty());
+    assert!(record.problems.is_none());
 }
 
 #[test]
@@ -463,7 +498,7 @@ fn lifecycle_state_requested_stop_before_ready_records_generic_failure_without_c
 }
 
 #[test]
-fn lifecycle_state_requested_stop_after_ready_writes_nothing() {
+fn lifecycle_state_requested_stop_after_ready_preserves_clean_start_record() {
     let server = paper_server();
     let repository = FakeRepository {
         server: Some(server.clone()),
@@ -487,10 +522,12 @@ fn lifecycle_state_requested_stop_after_ready_writes_nothing() {
         .unwrap();
 
     assert_eq!(service.state(), LifecycleState::Stopped);
-    assert_eq!(
-        diagnostics::read_last_startup_result(&fs, &server.directory),
-        None
-    );
+    let record = diagnostics::read_last_startup_result(&fs, &server.directory)
+        .expect("a clean requested stop should preserve the successful start record");
+    assert!(record.was_clean);
+    assert!(record.fatal_errors.is_empty());
+    assert!(record.warnings.is_empty());
+    assert!(record.problems.is_none());
 }
 
 #[test]

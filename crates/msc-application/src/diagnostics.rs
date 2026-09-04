@@ -223,17 +223,20 @@ pub fn remove_repaired_problem(
 /// durable, actionable finding after a restart even when the failure was not
 /// a recognized mod/plugin problem. Reached ready state (not `isHardFail`)
 /// still writes nothing here, because that is a post-start crash rather than
-/// a failed start and belongs to a separate incident type.
+/// a failed start and belongs to a separate incident type. The readiness
+/// transition itself records the successful start before this function is
+/// called, so a later post-start crash preserves the latest successful start.
 ///
 /// The original source's three-way split was: problems found ->
 /// `wasClean:false` with per-problem summaries as `fatalErrors`; `isHardFail`
 /// but no problems found -> `wasClean:false` with the generic
 /// "stopped before reaching ready state" fatal error; reached ready state
-/// (not `isHardFail`) -> **nothing written at all**, the
+/// (not `isHardFail`) -> **nothing written by this function**, because the
+/// readiness transition already recorded the successful start, the
 /// real gap `fixtures/startup-problems/diagnose-unexpected-stop-reached-
 /// ready-state-no-persistence-but-alert-shown.json` and P7.8's own
 /// finding #5 both flag (a mid-session crash after a clean boot leaves
-/// the Last Startup card showing the prior clean result).
+/// the Last Startup card showing that clean result).
 #[allow(clippy::too_many_arguments)]
 pub fn diagnose_unexpected_stop(
     fs: &dyn FileSystem,

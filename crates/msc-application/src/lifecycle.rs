@@ -331,6 +331,21 @@ impl<'deps> LifecycleService<'deps> {
     pub fn mark_ready(&mut self, id: &ServerId, now: &str) -> Result<(), LifecycleError> {
         self.require_active_server(id)?;
         self.transition_to(LifecycleState::Running)?;
+        // Readiness is the boundary between a failed start and a successful
+        // one. Persist it before the optional Paper scan so a previous
+        // failure cannot remain the answer after the server starts cleanly;
+        // the scan may replace this clean record with soft warnings.
+        if let Ok(server) = self.load_server(id) {
+            diagnostics::write_last_startup_result(
+                self.fs,
+                &server.directory,
+                now,
+                true,
+                Vec::new(),
+                Vec::new(),
+                Vec::new(),
+            );
+        }
         self.scan_paper_plugins_once_ready(id, now);
         Ok(())
     }

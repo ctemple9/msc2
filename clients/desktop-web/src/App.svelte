@@ -308,6 +308,7 @@
   let shellMessage = 'Connecting to the selected host…';
   let servers: readonly Schema['ServerDTO'][] = [];
   let status: Schema['RemoteAPIStatus'] = defaultStatus;
+  let healthRefreshVersion = 0;
   let initiationServer: Schema['ServerDTO'] | undefined;
   let initiationVisible = false;
   let initiationComplete = false;
@@ -606,6 +607,11 @@
       } else {
         shellMessage = `Unable to ${action} the server: ${String(error)}`;
       }
+    } finally {
+      // The health card describes the completed lifecycle attempt, not just
+      // the shell's cached status snapshot. The Overview consumes this
+      // version as a targeted refresh signal while retaining its tab instance.
+      healthRefreshVersion += 1;
     }
   }
 
@@ -866,6 +872,7 @@
           onWorlds={() => void selectSection('worlds')}
           addressesVisible={activeSection === 'home' ? addressesVisible : false}
           onToggleAddresses={toggleAddresses}
+          {healthRefreshVersion}
         />
       </div>
     {/each}

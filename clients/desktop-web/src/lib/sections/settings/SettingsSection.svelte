@@ -181,7 +181,6 @@
 <div class="settings">
   <div class="section-header">
     <div class="overline">
-      <Icon name="gear" size={13} />
       <span class="msc2-type-overline">Server Properties</span>
     </div>
     <div class="header-actions">

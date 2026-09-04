@@ -4,7 +4,6 @@
   // "no gradients" rule) and without the tick-mark decoration (it carried
   // no information beyond the fill itself).
   import Card from '../../components/base/Card.svelte';
-  import Icon from '../../components/base/Icon.svelte';
   import type { Schema } from '../shared/types';
 
   export let snapshot: Schema['PerformanceSnapshotDTO'] | undefined = undefined;
@@ -68,7 +67,6 @@
 <Card padding="14px 16px">
   <div class="stats-body">
     <div class="overline">
-      <Icon name="waveform" size={12} />
       <span class="msc2-type-overline">Live Stats</span>
     </div>
 

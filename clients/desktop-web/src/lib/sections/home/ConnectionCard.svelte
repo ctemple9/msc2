@@ -7,7 +7,6 @@
   import Card from '../../components/base/Card.svelte';
   import SegmentedControl from '../../components/base/SegmentedControl.svelte';
   import Button from '../../components/base/Button.svelte';
-  import Icon from '../../components/base/Icon.svelte';
   import VisibilityIcon from '../../components/base/VisibilityIcon.svelte';
   import type { Schema } from '../shared/types';
 
@@ -164,7 +163,6 @@
 <Card padding="14px 16px">
   <div class="header">
     <div class="overline">
-      <Icon name="network" size={12} />
       <span class="msc2-type-overline">Connection Info</span>
     </div>
     <div class="header-actions">

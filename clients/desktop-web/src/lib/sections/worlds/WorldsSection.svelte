@@ -485,7 +485,6 @@
   <section class="zone">
     <div class="section-header">
       <div class="overline">
-        <Icon name="world" size={13} />
         <span class="msc2-type-overline">World Slots</span>
       </div>
       <div class="header-actions">

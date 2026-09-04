@@ -40,7 +40,6 @@
   <div class="header">
     <div class="title-block">
       <div class="overline">
-        <Icon name="id-card" size={13} />
         <span class="msc2-type-overline">Player Data</span>
       </div>
       {#if activeWorldName}<span class="world">Active world: {activeWorldName}</span>{/if}

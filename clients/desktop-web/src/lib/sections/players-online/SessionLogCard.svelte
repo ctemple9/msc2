@@ -56,7 +56,6 @@
 <Card>
   <div class="header">
     <div class="overline">
-      <Icon name="clock" size={13} />
       <span class="msc2-type-overline">Session Log</span>
     </div>
     {#if onClear}

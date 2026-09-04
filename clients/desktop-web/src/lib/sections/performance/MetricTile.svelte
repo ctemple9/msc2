@@ -1,17 +1,14 @@
 <script lang="ts">
   // MSC 1 DetailsPerformanceComponents.swift's enhancedMetricTile, rebuilt
   // to the S0 disciplined system (docs/msc2/antiAIslop.md): the oracle
-  // colors both a small status icon AND a strokeBorder by tone (rule #11's
+  // colors a small status icon and a strokeBorder by tone (rule #11's
   // "no side rails/accent bars", and rule #3's "no colored icon-in-box" by
-  // extension) -- dropped in favor of the same status vocabulary
-  // HealthGrid.svelte already established: a neutral scanning icon, a
-  // colored *value* (the design law's explicitly allowed "live-stat fill"),
-  // and a quiet text label. Value color is the only accent this tile spends.
-  import Icon from '../../components/base/Icon.svelte';
+  // extension). The icon is dropped here; a colored *value* (the design
+  // law's explicitly allowed "live-stat fill") and a quiet text label give
+  // each tile its hierarchy. Value color is the only accent this tile spends.
   import type { Tone } from './model';
   import { toneLabel } from './model';
 
-  export let icon: 'waveform' | 'people' | 'chip' | 'box' | 'world' | 'clock' | 'seal-check';
   export let title: string;
   export let value: string;
   export let tone: Tone = undefined;
@@ -26,7 +23,6 @@
 
 <div class="tile">
   <div class="tile-header">
-    <Icon name={icon} size={13} />
     <span class="title">{title}</span>
   </div>
   <p class="value" style={tone ? `color: ${toneColor[tone]};` : ''}>{value}</p>

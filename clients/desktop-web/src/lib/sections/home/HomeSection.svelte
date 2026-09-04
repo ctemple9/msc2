@@ -12,7 +12,6 @@
   import PlayersCard from './PlayersCard.svelte';
   import ActiveWorldCard from './ActiveWorldCard.svelte';
   import ChatCard from './ChatCard.svelte';
-  import Icon from '../../components/base/Icon.svelte';
   import { parseChatFeed, type ChatFeedMessage } from './chatFeed';
   import { readNotes, writeNotes } from './notes';
   import type { Schema, ScreenProps } from '../shared/types';
@@ -162,7 +161,6 @@
     </div>
     <Card padding="14px 16px">
       <div class="notes-header">
-        <Icon name="note" size={12} />
         <span class="notes-label">For this server</span>
       </div>
       <textarea

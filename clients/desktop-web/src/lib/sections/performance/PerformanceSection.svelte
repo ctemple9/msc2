@@ -37,7 +37,6 @@
   // reads "Running" (no fabricated duration) rather than "Offline" or a
   // guessed number.
   import { onDestroy, onMount } from 'svelte';
-  import Icon from '../../components/base/Icon.svelte';
   import MetricTile from './MetricTile.svelte';
   import PerformanceChart from './PerformanceChart.svelte';
   import type { Schema, ScreenProps } from '../shared/types';
@@ -208,21 +207,18 @@
     <div class="metrics-grid">
       {#if isBedrock}
         <MetricTile
-          icon="waveform"
           title="Load (1m)"
           value={formatPercent(load1m)}
           tone={cpuTone(load1m)}
           subtitle="Rolling average"
         />
         <MetricTile
-          icon="waveform"
           title="Load (5m avg)"
           value={formatPercent(load5m)}
           tone={cpuTone(load5m)}
           subtitle="Medium-term"
         />
         <MetricTile
-          icon="waveform"
           title="Load (15m avg)"
           value={formatPercent(load15m)}
           tone={cpuTone(load15m)}
@@ -230,21 +226,18 @@
         />
       {:else}
         <MetricTile
-          icon="waveform"
           title="TPS (1m)"
           value={formatTps(tps1m)}
           tone={tpsTone(tps1m)}
           subtitle="Target: 20.00"
         />
         <MetricTile
-          icon="waveform"
           title="TPS (5m avg)"
           value={formatTps(tps5m)}
           tone={tpsTone(tps5m)}
           subtitle="Medium-term"
         />
         <MetricTile
-          icon="waveform"
           title="TPS (15m avg)"
           value={formatTps(tps15m)}
           tone={tpsTone(tps15m)}
@@ -252,20 +245,17 @@
         />
       {/if}
       <MetricTile
-        icon="people"
         title="Players"
         value={`${snapshot.playersOnline ?? 0}`}
         subtitle="Currently online"
       />
       <MetricTile
-        icon="chip"
         title="CPU Usage"
         value={formatPercent(cpuValue)}
         tone={cpuTone(cpuValue)}
         subtitle={isBedrock ? 'Bedrock runtime' : 'Java process'}
       />
       <MetricTile
-        icon="box"
         title="Memory"
         value={formatRamCompact(ramUsed)}
         tone={ramTone(ramUsed, ramMax)}
@@ -276,7 +266,6 @@
     <div class="charts-row">
       <div class="chart-panel">
         <div class="panel-header">
-          <Icon name="waveform" size={13} />
           <span class="panel-title">{isBedrock ? 'CPU Over Time' : 'TPS Over Time'}</span>
           <span class="panel-value" style={css(isBedrock ? cpuTone(cpuValue) : tpsTone(tps1m))}>
             {isBedrock ? formatPercent(cpuValue) : formatTps(tps1m)}
@@ -309,7 +298,6 @@
 
       <div class="chart-panel">
         <div class="panel-header">
-          <Icon name="box" size={13} />
           <span class="panel-title">Memory Over Time</span>
           <span class="panel-value" style={css(ramTone(ramUsed, ramMax))}>
             {formatRamCompact(ramUsed)}
@@ -330,19 +318,16 @@
 
     <div class="footer-grid">
       <MetricTile
-        icon="world"
         title="World Size"
         value={bytesLabel((snapshot.worldSizeMB?.value ?? 0) * 1024 ** 2)}
         subtitle="3 dimensions"
       />
       <MetricTile
-        icon="clock"
         title="Uptime"
         value={uptimeValue}
         subtitle={health.serverRunning ? 'Since start' : ''}
       />
       <MetricTile
-        icon="seal-check"
         title="Status"
         value={health.serverRunning ? 'Online' : 'Offline'}
         tone={health.serverRunning ? 'ok' : 'error'}

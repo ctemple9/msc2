@@ -22,7 +22,6 @@
 
 <Card padding="14px 16px">
   <div class="overline">
-    <Icon name="chat" size={12} />
     <span class="msc2-type-overline">Chat</span>
   </div>
 

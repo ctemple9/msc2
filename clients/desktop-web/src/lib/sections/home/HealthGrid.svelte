@@ -3,8 +3,8 @@
   // (docs/msc2/renderings/status-card.html): no side rail, no colored
   // icon-in-box — status is a quiet label. Restores MSC 1's real
   // flip interaction (HealthGridCardTile's rotation3DEffect) that an
-  // earlier pass had flattened away: the front face is icon + title +
-  // status only, tapping flips to a back face carrying the detail line
+  // earlier pass had flattened away: the front face is title + status only,
+  // tapping flips to a back face carrying the detail line
   // and any repair action, one card flipped at a time (matching MSC 1's
   // single `flippedCardID`). Server Directory is dropped per Cameron's
   // 2026-08-26 call -- not useful enough to earn a card. The backend's
@@ -41,22 +41,6 @@
     return actionCode?.startsWith('openURL:') ? actionCode.slice('openURL:'.length) : undefined;
   }
 
-  const iconFor: Record<
-    string,
-    'folder' | 'cup' | 'chip' | 'seal-check' | 'network' | 'grid' | 'world'
-  > = {
-    ram: 'chip',
-    lastStartup: 'seal-check',
-    portReachability: 'network',
-    vmRuntime: 'chip',
-  };
-
-  function icon(
-    id: string,
-  ): 'folder' | 'cup' | 'chip' | 'seal-check' | 'network' | 'grid' | 'world' {
-    return iconFor[id] ?? 'grid';
-  }
-
   function label(severity: string): string {
     if (severity === 'green') return 'OK';
     if (severity === 'yellow') return 'Warn';
@@ -86,7 +70,6 @@
       <div class="tile-inner" class:flipped>
         <div class="face front">
           <div class="tile-header">
-            <Icon name={icon(card.id)} size={15} />
             <span class="title">{card.title}</span>
             <span class="hint" aria-hidden="true"><Icon name="chevron" size={11} /></span>
           </div>
@@ -94,7 +77,6 @@
         </div>
         <div class="face back">
           <div class="tile-header">
-            <Icon name={icon(card.id)} size={13} />
             <span class="title">{card.title}</span>
             <span class="hint back-hint" aria-hidden="true"><Icon name="chevron" size={11} /></span>
           </div>

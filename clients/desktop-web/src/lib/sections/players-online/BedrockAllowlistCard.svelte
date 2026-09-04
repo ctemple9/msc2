@@ -24,7 +24,6 @@
 <Card>
   <div class="header">
     <div class="overline">
-      <Icon name="seal-check" size={13} />
       <span class="msc2-type-overline">Allowlist</span>
     </div>
     <div class="header-actions">

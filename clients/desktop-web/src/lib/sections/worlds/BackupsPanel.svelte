@@ -60,7 +60,6 @@
 <Card>
   <div class="header">
     <div class="overline">
-      <Icon name="folder" size={13} />
       <span class="msc2-type-overline">Backups</span>
       {#if selectedSlot}<span class="slot-name">· {selectedSlot.name}</span>{/if}
     </div>

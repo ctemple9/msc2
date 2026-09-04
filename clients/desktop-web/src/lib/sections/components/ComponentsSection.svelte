@@ -482,7 +482,6 @@
 <div class="components">
   <div class="section-header">
     <div class="overline">
-      <Icon name="chip" size={13} />
       <span class="msc2-type-overline">Components</span>
     </div>
     <div class="header-actions">

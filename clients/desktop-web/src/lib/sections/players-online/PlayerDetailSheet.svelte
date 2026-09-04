@@ -8,7 +8,6 @@
   // rolling-plan.md's 2026-08-25 note).
   import { onMount } from 'svelte';
   import Sheet from '../../components/base/Sheet.svelte';
-  import Icon from '../../components/base/Icon.svelte';
   import Field from '../../components/base/Field.svelte';
   import Button from '../../components/base/Button.svelte';
   import InventoryGrid from './InventoryGrid.svelte';
@@ -196,7 +195,7 @@
   </div>
 
   <section class="block">
-    <h3><Icon name="id-card" size={12} />Skin Override</h3>
+    <h3>Skin Override</h3>
     <div class="skin-preview">
       <div class="skin-preview-item">
         <img class="skin-thumb" src={previewHeadUrl} alt="" />
@@ -218,7 +217,7 @@
   {#if actionSuccess}<p class="feedback success">{actionSuccess}</p>{/if}
 
   <section class="block">
-    <h3><Icon name="grid" size={12} />Stats</h3>
+    <h3>Stats</h3>
     {#if profile.stats}
       {@const stats = profile.stats}
       <div class="stats">
@@ -257,7 +256,7 @@
   </section>
 
   <section class="block">
-    <h3><Icon name="box" size={12} />Inventory</h3>
+    <h3>Inventory</h3>
     {#if profile.inventory.length === 0}
       <p class="hint">Inventory is empty.</p>
     {:else}
@@ -266,7 +265,7 @@
   </section>
 
   <section class="block">
-    <h3><Icon name="id-card" size={12} />Data Management</h3>
+    <h3>Data Management</h3>
     <div class="actions">
       {#if profile.isBedrockPlayer}
         {#if showIdentifyInput}

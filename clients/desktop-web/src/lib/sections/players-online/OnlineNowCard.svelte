@@ -3,7 +3,6 @@
   // the left, every distinct name seen this session on the right (a dot
   // shows which of those are still online).
   import Card from '../../components/base/Card.svelte';
-  import Icon from '../../components/base/Icon.svelte';
   import Button from '../../components/base/Button.svelte';
   import type { Schema } from '../shared/types';
 
@@ -17,7 +16,6 @@
 <Card>
   <div class="header">
     <div class="overline">
-      <Icon name="people" size={13} />
       <span class="msc2-type-overline">Players</span>
     </div>
     <div class="header-actions">

@@ -17,7 +17,6 @@
 <Card padding="14px 16px">
   <div class="header">
     <div class="overline">
-      <Icon name="people" size={12} />
       <span class="msc2-type-overline">Players</span>
     </div>
     <span class="count"

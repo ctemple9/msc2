@@ -78,7 +78,6 @@
 
 <Card padding="14px 16px">
   <div class="overline">
-    <Icon name="world" size={12} />
     <span class="msc2-type-overline">Active World</span>
   </div>
 
@@ -111,7 +110,6 @@
     </div>
   {:else}
     <div class="empty">
-      <Icon name="world" size={18} />
       <span>No active world yet.</span>
     </div>
   {/if}

@@ -686,8 +686,11 @@ impl ProductionFixture {
                 "msc2_bedrock-production-smoke_testsecret",
             )
             .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service)
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
+            // These fixtures exercise the real platform bootstrap path. Keep
+            // child diagnostics visible so a hosted startup failure names the
+            // platform call instead of degrading into a health timeout.
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit())
             .spawn()
             .unwrap()
     }

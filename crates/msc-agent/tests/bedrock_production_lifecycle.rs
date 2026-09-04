@@ -233,8 +233,10 @@ impl TestFixture {
             command.env("MSC2_BEDROCK_MANIFEST_URL", manifest_url);
         }
         command
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            // Preserve production-agent diagnostics for platform startup
+            // failures; otherwise the health timeout hides the root cause.
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .spawn()
             .unwrap()
     }

@@ -377,6 +377,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.78: repair final hosted contract timing and tui expectations`
 **Batch:** solo
 
+### P12.79 — Expose hosted production-agent startup diagnostics
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/{support/bedrock_smoke.rs,bedrock_production_cli.rs,bedrock_production_lifecycle.rs,bedrock_production_surfaces.rs}`, `docs/msc2/rolling-plan.md`
+**What:** Keep the real production-agent subprocess diagnostics visible for the cross-platform Bedrock fixtures so a Windows startup-health failure reports its underlying platform error rather than only a 20-second timeout.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --tests -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-agent --test bedrock_production_cli && cargo test -p msc-agent --test bedrock_production_lifecycle && cargo test -p msc-agent --test bedrock_production_smoke && cargo test -p msc-agent --test bedrock_production_surfaces`
+**Commit:** `P12.79: expose hosted production-agent startup diagnostics`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

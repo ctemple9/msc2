@@ -178,8 +178,10 @@ impl TestFixture {
                 "MSC2_BEDROCK_MANIFEST_URL",
                 "http://127.0.0.1:1/msc2-test-manifest.json",
             )
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            // Preserve production-agent diagnostics for platform startup
+            // failures; otherwise the health timeout hides the root cause.
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .spawn()
             .unwrap()
     }

@@ -269,8 +269,10 @@ impl Fixture {
             )
             .env("MSC2_TEST_BOOTSTRAP_TOKEN", TOKEN)
             .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service)
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
+            // Preserve production-agent diagnostics for platform startup
+            // failures; otherwise the health timeout hides the root cause.
+            .stdout(Stdio::inherit())
+            .stderr(Stdio::inherit())
             .spawn()
             .unwrap()
     }

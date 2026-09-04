@@ -159,6 +159,48 @@
         "x-permission-category": "fleet"
       }
     },
+    "/v1/servers/export": {
+      "post": {
+        "summary": "Stage all configured servers as a transfer file",
+        "x-permission-category": "fleet",
+        "responses": {
+          "200": {
+            "description": "Transfer file staged for download",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerTransferExportResultDTO"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "no_servers",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "conflict"
+          },
+          "500": {
+            "description": "transfer_export_failed / background_worker_failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "internal_error"
+          }
+        },
+        "x-notes": "The response contains a short-lived stagedDownloadId. Redeem it once through GET /v1/staged-downloads/{id}; the transfer archive is never embedded in JSON.",
+        "operationId": "exportServerTransfer"
+      }
+    },
     "/v1/servers/delete": {
       "post": {
         "summary": "Delete a server",
@@ -6969,6 +7011,33 @@
           "success",
           "message",
           "operationId"
+        ]
+      },
+      "ServerTransferExportResultDTO": {
+        "type": "object",
+        "properties": {
+          "stagedDownloadId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "serverCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stagedDownloadId",
+          "expiresAt",
+          "sizeBytes",
+          "fileName",
+          "serverCount"
         ]
       },
       "ServerDeleteRequestDTO": {

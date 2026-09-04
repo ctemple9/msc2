@@ -16,7 +16,7 @@ export interface ScreenApi {
     /** curseforge-manual-file only: which pending operation/file this upload resumes. */
     options?: { operationId?: string; fileId?: string },
   ): Promise<Schema['StagedUploadCompleteResultDTO']>;
-  download?(id: string): Promise<Uint8Array>;
+  download?(id: string, maxBytes?: number): Promise<Uint8Array>;
 }
 
 export type ScreenProps = {

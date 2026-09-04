@@ -114,6 +114,16 @@ pub struct ServerImportResultDto {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct ServerTransferExportResultDto {
+    pub staged_download_id: String,
+    pub expires_at: String,
+    pub size_bytes: i64,
+    pub file_name: String,
+    pub server_count: i64,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ServerDto {
     pub id: String,
     pub name: String,

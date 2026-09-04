@@ -1,7 +1,7 @@
 <script lang="ts">
   // Ports MSC 1 ManageServersView.swift: a flat, card-per-server list with a
   // header count, per-card context menu (Set as Active / Edit... / Remove),
-  // and a footer for Import.../Add Server... -- adapted for D-013 multi-host
+  // and a footer for Transfer.../Add Server... -- adapted for D-013 multi-host
   // (docs/msc2/msc2-decisions.md#D-013, 2026-08-27 design discussion).
   // "Edit..." (P12.12) opens ServerEditorSheet, the port of
   // ServerEditorView.swift's General/Broadcast tabs -- renaming now lives
@@ -20,9 +20,8 @@
   // - MSC 1's delete alert offers "Delete from Disk" vs "Remove Only";
   //   ServerDeleteRequestDTO (openapi.json) carries only `serverId`, no
   //   disk-delete flag, so only "Remove from Controller" is offered here.
-  // - MSC 1's footer has Export.../Import.../Add Server...; there is no
-  //   `/v1/servers/export` route in the contract at all, so Export is
-  //   omitted rather than wired to nothing.
+  // - MSC 1's footer has Export.../Import.../Add Server...; MSC 2 presents
+  //   those two transfer actions behind one Transfer... button.
   // - "Add Server..." opens AddServerWizard.svelte (P12.18a-i), a real port
   //   of MSC 1's multi-step AddServerWizardView. The Fresh path (shell,
   //   Choose Path, Configure, Network, World, Add-ons, and the real Confirm
@@ -35,10 +34,10 @@
   import Button from '../../components/base/Button.svelte';
   import Badge from '../../components/base/Badge.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
-  import Field from '../../components/base/Field.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
   import Menu from '../../components/base/Menu.svelte';
   import ServerEditorSheet from '../server-editor/ServerEditorSheet.svelte';
+  import TransferSheet from './TransferSheet.svelte';
   import AddServerWizard from './wizard/AddServerWizard.svelte';
   import type { HostId, HostRecord } from '../../hosts/types';
   import type { Schema, ScreenApi } from '../shared/types';
@@ -74,8 +73,7 @@
     permissions.includes('serverControl') ||
     permissions.includes('admin');
 
-  let importPath = '';
-  let showImport = false;
+  let showTransfer = false;
   let showWizard = false;
   let notice = '';
 
@@ -114,24 +112,6 @@
         serverId,
       });
       notice = result.message;
-      await refreshServers();
-    } catch (error) {
-      notice = errorMessage(error);
-    }
-  }
-
-  async function importServer(): Promise<void> {
-    const sourcePath = importPath.trim();
-    if (!sourcePath) return;
-    try {
-      const result = await mutate<Schema['ServerImportResultDTO']>(api, fleetMutationPaths.import, {
-        action: 'importExisting',
-        sourcePath,
-        acceptEula: false,
-      });
-      notice = result.message;
-      importPath = '';
-      showImport = false;
       await refreshServers();
     } catch (error) {
       notice = errorMessage(error);
@@ -279,8 +259,8 @@
     {/if}
 
     <div class="footer">
-      <Button variant="secondary" onclick={() => (showImport = !showImport)} disabled={!canControl}
-        >Import…</Button
+      <Button variant="secondary" onclick={() => (showTransfer = true)} disabled={!canControl}
+        >Transfer…</Button
       >
       <Button
         variant="primary"
@@ -289,17 +269,6 @@
         anchorId="ob_create_server">Add Server…</Button
       >
     </div>
-
-    {#if showImport}
-      <Card>
-        <div class="inline-form">
-          <Field bind:value={importPath} placeholder="/path/to/existing/server" />
-          <Button variant="primary" onclick={importServer} disabled={!importPath.trim()}
-            >Import</Button
-          >
-        </div>
-      </Card>
-    {/if}
   </div>
 </Sheet>
 
@@ -316,6 +285,15 @@
 
 {#if showWizard}
   <AddServerWizard {api} onClose={() => (showWizard = false)} onCreated={refreshServers} />
+{/if}
+
+{#if showTransfer}
+  <TransferSheet
+    {api}
+    {servers}
+    onClose={() => (showTransfer = false)}
+    onImported={() => void refreshServers()}
+  />
 {/if}
 
 <style>
@@ -424,10 +402,5 @@
     gap: 8px;
     padding-top: 8px;
     border-top: 1px solid var(--msc2-hairline-subtle);
-  }
-  .inline-form {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
 </style>

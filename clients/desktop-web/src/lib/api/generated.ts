@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 2fa7e01e2277a0d5be3d9de6dc97ee07d96c1277b6ef38610c8406b8c39afc13
+// Contract SHA-256: a6e466b66ad33d37cb426dbc781e1df42f67d8612536ea35b3d2f9dfc9550c34
 
 export interface paths {
   '/v1/active-server': {
@@ -4443,6 +4443,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/v1/servers/export': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Stage all configured servers as a transfer file */
+    post: operations['exportServerTransfer'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/v1/servers/import': {
     parameters: {
       query?: never;
@@ -7815,6 +7832,15 @@ export interface components {
     } & {
       [key: string]: unknown;
     };
+    ServerTransferExportResultDTO: {
+      expiresAt: string;
+      fileName: string;
+      serverCount: number;
+      sizeBytes: number;
+      stagedDownloadId: string;
+    } & {
+      [key: string]: unknown;
+    };
     SessionEventDTO: {
       eventType: string;
       id: string;
@@ -9312,6 +9338,44 @@ export interface operations {
         };
       };
       /** @description internal error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+    };
+  };
+  exportServerTransfer: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Transfer file staged for download */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ServerTransferExportResultDTO'];
+        };
+      };
+      /** @description no_servers */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ErrorDTO'];
+        };
+      };
+      /** @description transfer_export_failed / background_worker_failed */
       500: {
         headers: {
           [name: string]: unknown;

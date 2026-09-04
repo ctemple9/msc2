@@ -261,6 +261,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
 
     let lifecycle = Router::new()
         .route("/servers", get(routes::servers::list))
+        .route("/servers/export", post(routes::servers::export_transfer))
         .route("/servers/size", get(routes::servers::directory_size))
         .route("/servers/import", post(routes::servers::import))
         .route("/servers/create", post(routes::servers::create))

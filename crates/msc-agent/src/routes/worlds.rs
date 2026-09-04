@@ -103,7 +103,7 @@ const MAX_STAGED_UPLOAD_BYTES: u64 = 10 * 1024 * 1024 * 1024;
 /// How long a staged upload/download token stays redeemable before it
 /// expires — another of this step's own scoping decisions (§4 leaves the
 /// exact window to "P6.21 wiring").
-const STAGING_TTL_SECONDS: u64 = 30 * 60;
+pub(crate) const STAGING_TTL_SECONDS: u64 = 30 * 60;
 
 pub fn router(state: WorldsRoutesState) -> Router {
     Router::new()

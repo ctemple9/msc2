@@ -18,7 +18,7 @@ use msc_api::dto::{
     ServerDirectoryRequestDto, ServerDirectoryResultDto, ServerDirectorySizeResponseDto, ServerDto,
     ServerEulaRequestDto, ServerEulaResultDto, ServerImportRequestDto, ServerImportResultDto,
     ServerImportScanResponseDto, ServerImportWorldDto, ServerRenameRequestDto,
-    ServerRenameResultDto,
+    ServerRenameResultDto, ServerTransferExportResultDto,
 };
 use msc_application::fleet::{self, AcceptEulaError, DeleteServerError, RenameServerError};
 use msc_application::import::{
@@ -44,6 +44,7 @@ use msc_infrastructure::fs::{FileSystem, StdFileSystem};
 use msc_infrastructure::jar_provider::HttpTransport;
 use msc_infrastructure::java_runtime_detection;
 use msc_infrastructure::process::ProcessSupervisor;
+use uuid::Uuid;
 
 use crate::auth::{AuthenticatedCredential, production_secret_store};
 use crate::help::detect_local_ip;
@@ -80,6 +81,90 @@ pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerD
         })
         .collect();
     Json(servers)
+}
+
+pub async fn export_transfer(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Extension(staging): Extension<StagingStore>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+
+    let servers = state.export_inputs();
+    if servers.is_empty() {
+        return error_response(
+            StatusCode::CONFLICT,
+            "no_servers",
+            "There are no configured servers to export.",
+        );
+    }
+
+    let server_count = servers.len() as i64;
+    let id = Uuid::new_v4().to_string();
+    let file_name = format!("MinecraftServers-{}.msctransfer", &iso8601_now()[..10]);
+    let downloads_dir = staging_root(&state.servers_root()).join("downloads");
+    if let Err(error) = std::fs::create_dir_all(&downloads_dir) {
+        return error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            &format!("Could not prepare transfer staging: {error}"),
+        );
+    }
+    let destination = downloads_dir.join(format!("{id}.msctransfer"));
+    let request = TransferExportRequest {
+        servers,
+        created_at: iso8601_now(),
+        source_machine_name: agent_host_name(),
+        app_config_version: AppConfig::LATEST_CONFIG_VERSION,
+    };
+    let export_path = destination.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let file = std::fs::File::create(&export_path).map_err(|error| error.to_string())?;
+        export_server_transfer(&request, file).map_err(|error| error.to_string())?;
+        std::fs::metadata(&export_path)
+            .map(|metadata| metadata.len())
+            .map_err(|error| error.to_string())
+    })
+    .await;
+
+    let size_bytes = match result {
+        Ok(Ok(size_bytes)) => size_bytes,
+        Ok(Err(error)) => {
+            let _ = std::fs::remove_file(&destination);
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "transfer_export_failed",
+                &error,
+            );
+        }
+        Err(error) => {
+            let _ = std::fs::remove_file(&destination);
+            return error_response(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "background_worker_failed",
+                &error.to_string(),
+            );
+        }
+    };
+
+    let expires_at_unix = now_unix() + crate::routes::worlds::STAGING_TTL_SECONDS;
+    staging.downloads.lock().unwrap().insert(
+        id.clone(),
+        crate::routes::worlds::StagedDownload {
+            expires_at_unix,
+            path: destination,
+        },
+    );
+    Json(ServerTransferExportResultDto {
+        staged_download_id: id,
+        expires_at: crate::routes::worlds::unix_to_iso8601(expires_at_unix),
+        size_bytes: size_bytes as i64,
+        file_name,
+        server_count,
+    })
+    .into_response()
 }
 
 #[derive(Debug, Default, serde::Deserialize)]

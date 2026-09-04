@@ -127,7 +127,11 @@
           <p class="msc2-type-body muted">
             Try the advanced troubleshooting guide for deeper diagnostics.
           </p>
-          <Button size="sm" variant="secondary" onclick={() => onOpenGuide('advanced-troubleshooting')}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onclick={() => onOpenGuide('advanced-troubleshooting')}
+          >
             Open advanced troubleshooting
           </Button>
         </Card>

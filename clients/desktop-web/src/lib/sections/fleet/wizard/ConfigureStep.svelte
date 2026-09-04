@@ -308,7 +308,7 @@
         min={1}
         max={10000}
         width="80px"
-        onchange={(value) => (draft.bedrockMaxPlayers = Number(value) || 10)}
+        onValueChange={(value) => (draft.bedrockMaxPlayers = Number(value) || 10)}
       />
       <p class="hint">Port and connectivity options are on the next step.</p>
     </section>

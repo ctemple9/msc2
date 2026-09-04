@@ -67,7 +67,9 @@
     restoreGamemode?: string;
   };
 
-  function safetyPrompt(error: unknown): Omit<SafetyPrompt, 'command' | 'restoreGamemode'> | undefined {
+  function safetyPrompt(
+    error: unknown,
+  ): Omit<SafetyPrompt, 'command' | 'restoreGamemode'> | undefined {
     if (!(error instanceof ApiError) || error.error.code !== 'confirmation_required') return;
     const raw = (error.error.details as Record<string, unknown> | null | undefined)?.confirmation;
     if (!raw || typeof raw !== 'object') return;

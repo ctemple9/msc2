@@ -249,6 +249,16 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** P12.57: scan server archives without extraction
 **Batch:** solo
 
+## Phase 12 amendment — editor diagnostics
+
+### P12.58 — Clear stale frontend and test-target editor diagnostics
+**Status:** awaiting verification
+**Files:** `.vscode/settings.json`, `clients/desktop-web/src/lib/`, `clients/desktop-web/tests/auth/desktop/desktop.test.ts`, `docs/msc2/rolling-plan.md`
+**What:** Carry the `NumberField` callback rename through every frontend caller, correct the strict TypeScript boundary types, remove one unused performance prop, and format the affected client files. Configure rust-analyzer to check the production workspace targets instead of every integration-test target, so the intentionally deferred TUI scaffold does not multiply expected unused-code diagnostics across the Problems pane. Keep the full test and lint matrix available through the terminal and CI.
+**Verify:** `cd clients/desktop-web && npm run check && npm run format:check && npm run test:auth-desktop && cd ../.. && cargo check --workspace && cargo check --manifest-path clients/desktop-web/src-tauri/Cargo.toml`
+**Commit:** `P12.58: clear editor diagnostics`
+**Batch:** stop-after
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

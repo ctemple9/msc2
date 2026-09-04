@@ -72,7 +72,7 @@
           min={1}
           max={65535}
           width="120px"
-          onchange={(value) => (draft.bedrockPort = Number(value) || 19132)}
+          onValueChange={(value) => (draft.bedrockPort = Number(value) || 19132)}
         />
       </section>
     {:else}
@@ -86,7 +86,7 @@
             min={1}
             max={65535}
             width="120px"
-            onchange={(value) => (draft.javaPort = Number(value) || 25565)}
+            onValueChange={(value) => (draft.javaPort = Number(value) || 25565)}
           />
         </section>
         {#if draft.enableCrossPlay}
@@ -97,7 +97,7 @@
               min={1}
               max={65535}
               width="120px"
-              onchange={(value) => (draft.crossPlayBedrockPort = Number(value) || 19132)}
+              onValueChange={(value) => (draft.crossPlayBedrockPort = Number(value) || 19132)}
             />
           </section>
         {/if}

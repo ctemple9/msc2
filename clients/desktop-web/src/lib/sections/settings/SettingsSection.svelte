@@ -250,7 +250,7 @@
                     min={field.minInt}
                     max={field.maxInt}
                     width="80px"
-                    onchange={(value) => setValue(field.key, value)}
+                    onValueChange={(value) => setValue(field.key, value)}
                   />
                   {#if field.unit}<span class="unit">{field.unit}</span>{/if}
                 {:else}

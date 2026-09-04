@@ -16,7 +16,13 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true
   },
-  "rust-analyzer.check.command": "clippy",
+  // The TUI is intentionally scaffolded ahead of its Phase 13 wiring. Checking
+  // every test target here makes rust-analyzer repeat its unused-code warnings
+  // across each integration test, which turns a useful Problems list into
+  // hundreds of duplicates. CI still runs the complete lint/test matrix.
+  "rust-analyzer.check.command": "check",
+  "rust-analyzer.cargo.allTargets": false,
+  "rust-analyzer.check.allTargets": false,
 
   // Use the rust-analyzer that rustup installs, not the one the extension
   // tries to download. The extension ships no prebuilt server for some

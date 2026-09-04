@@ -410,7 +410,7 @@
               step={1}
               width="90px"
               disabled={!canControl || portSaving}
-              onchange={handleGamePortChange}
+              onValueChange={handleGamePortChange}
             />
           </div>
         </div>
@@ -425,7 +425,7 @@
                 step={1}
                 width="90px"
                 disabled={!canControl || portSaving}
-                onchange={handleBedrockPortChange}
+                onValueChange={handleBedrockPortChange}
               />
             </div>
           </div>

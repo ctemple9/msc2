@@ -60,7 +60,6 @@
   } from './model';
 
   export let api: ScreenProps['api'] = undefined;
-  export let hostId = 'local-agent';
   export let serverId = 'survival';
   export let active = true;
 

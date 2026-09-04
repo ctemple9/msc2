@@ -59,7 +59,7 @@ export function parseRoute(pathname: string): RouteMatch {
 }
 
 export function buildSectionPath(
-  descriptor: Pick<SectionDescriptor, 'scope' | 'segment'>,
+  descriptor: Pick<SectionDescriptor, 'scope' | 'segment' | 'routeFamily'>,
   hostId: string,
   serverId?: string,
   tail: readonly string[] = [],

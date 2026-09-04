@@ -2,14 +2,16 @@ import { describe, expect, it, vi } from 'vitest';
 import { ApiClient } from '../../../src/lib/api';
 import { DesktopSessionAuth, type DesktopCredentialBridge } from '../../../src/lib/auth/desktop';
 
-function bridge(): DesktopCredentialBridge {
+type AuthorizedRequest = Parameters<DesktopCredentialBridge['authorizedRequest']>[0];
+
+function bridge() {
   return {
     bootstrapLocal: vi.fn(async () => ({ agentHostId: 'agent-local' })),
     exchangePairing: vi.fn(async () => ({ agentHostId: 'agent-beta' })),
     forgetCredentials: vi.fn(async () => undefined),
     authorizedRequest: vi.fn(async () => ({
       status: 200,
-      headers: [['X-MSC-Api-Version', '1.0']],
+      headers: [['X-MSC-Api-Version', '1.0'] as [string, string]],
       body: [...new TextEncoder().encode('{"value":"beta"}')],
     })),
   };
@@ -56,7 +58,7 @@ describe('desktop credentials', () => {
       2,
       expect.objectContaining({ agentHostId: 'agent-alpha', path: '/v1/me' }),
     );
-    expect(JSON.stringify(native.authorizedRequest.mock.calls)).not.toContain('msc2_');
+    expect(JSON.stringify(vi.mocked(native.authorizedRequest).mock.calls)).not.toContain('msc2_');
   });
 
   it('forwards JSON request bodies through the native desktop transport', async () => {
@@ -72,7 +74,10 @@ describe('desktop credentials', () => {
       body: { minRamGB: 2, maxRamGB: 4.5 },
     });
 
-    const request = native.authorizedRequest.mock.calls[0]?.[0];
+    const calls = vi.mocked(native.authorizedRequest).mock.calls as unknown as Array<
+      [AuthorizedRequest]
+    >;
+    const request = calls[0]?.[0];
     expect(request?.path).toBe('/v1/config/ram');
     expect(JSON.parse(new TextDecoder().decode(request?.body))).toEqual({
       minRamGB: 2,

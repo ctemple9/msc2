@@ -65,10 +65,14 @@
     }
   }
 
-  function stepItems(resolved: ResolvedRouterGuide): Extract<RouterResolvedItem, { type: 'step' }>[] {
+  function stepItems(
+    resolved: ResolvedRouterGuide,
+  ): Extract<RouterResolvedItem, { type: 'step' }>[] {
     return resolved.sections
       .flatMap((section) => section.items)
-      .filter((item): item is Extract<RouterResolvedItem, { type: 'step' }> => item.type === 'step');
+      .filter(
+        (item): item is Extract<RouterResolvedItem, { type: 'step' }> => item.type === 'step',
+      );
   }
 
   function toggleStep(id: string): void {
@@ -121,7 +125,9 @@
   function isUnresolved(resolved: ResolvedRouterGuide, sectionId: string, bullet: string): boolean {
     const token = tokenForBullet(bullet);
     if (!token) return false;
-    return resolved.unresolvedTokens.some((entry) => entry.sectionId === sectionId && entry.token === token);
+    return resolved.unresolvedTokens.some(
+      (entry) => entry.sectionId === sectionId && entry.token === token,
+    );
   }
 </script>
 
@@ -193,7 +199,9 @@
               {#if isUnresolved(resolved, section.id, item.bullets[0] ?? '')}
                 <div class="ip-callout">
                   <p class="msc2-type-body">Your Mac's local IP could not be detected.</p>
-                  <p class="msc2-type-meta">This is the most important value you'll enter. To find it manually:</p>
+                  <p class="msc2-type-meta">
+                    This is the most important value you'll enter. To find it manually:
+                  </p>
                   <ol class="msc2-type-meta">
                     <li>Open System Settings</li>
                     <li>Go to Network</li>
@@ -267,7 +275,9 @@
                   <p class="msc2-type-card" class:muted={done}>{step.title}</p>
                   <p class="msc2-type-body step-desc muted">{step.body}</p>
                   {#if step.alternateTerms.length}
-                    <p class="msc2-type-meta aside">Also called: {step.alternateTerms.join(', ')}</p>
+                    <p class="msc2-type-meta aside">
+                      Also called: {step.alternateTerms.join(', ')}
+                    </p>
                   {/if}
                 </div>
               </div>

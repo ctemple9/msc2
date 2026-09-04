@@ -12,7 +12,11 @@
   import Field from '../../components/base/Field.svelte';
   import type { ScreenApi } from '../shared/types';
   import { call } from '../shared/types';
-  import type { RouterGuideCatalog, RouterGuideSearchResult, RouterGuideSummary } from '../../help/types';
+  import type {
+    RouterGuideCatalog,
+    RouterGuideSearchResult,
+    RouterGuideSummary,
+  } from '../../help/types';
   import { ROUTER_CATEGORY_ORDER } from './catalogOrder';
   import RouterGuideReader from './RouterGuideReader.svelte';
   import RouterGuideTroubleshooting from './RouterGuideTroubleshooting.svelte';
@@ -61,7 +65,8 @@
     stage = 'reader';
   }
   function openGenericGuide(): void {
-    const generic = catalog.guides.find((guide) => guide.family === 'generic_router') ?? catalog.guides[0];
+    const generic =
+      catalog.guides.find((guide) => guide.family === 'generic_router') ?? catalog.guides[0];
     if (generic) openGuide(generic.id);
   }
   function backToPicker(): void {
@@ -128,7 +133,12 @@
         {#if searchResult.suggestedFallbackGuide}
           {@const fallback = searchResult.suggestedFallbackGuide}
           <EmptyState title="No supported guide matched that search.">
-            <Button size="sm" variant="secondary" slot="action" onclick={() => openGuide(fallback.id)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              slot="action"
+              onclick={() => openGuide(fallback.id)}
+            >
               Open closest guide: {fallback.displayName}
             </Button>
           </EmptyState>
@@ -166,7 +176,9 @@
           <p class="msc2-type-overline">{group.label}</p>
           <Card padding="0">
             {#each group.guides as guide, index (guide.id)}
-              {@render guideRow(guide, index === group.guides.length - 1, () => openGuide(guide.id))}
+              {@render guideRow(guide, index === group.guides.length - 1, () =>
+                openGuide(guide.id),
+              )}
             {/each}
           </Card>
         </div>

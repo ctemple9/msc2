@@ -42,7 +42,8 @@
             min={1}
             max={1000}
             width="90px"
-            onchange={(value) => (draft.importMaxPlayers = Number(value) || draft.importMaxPlayers)}
+            onValueChange={(value) =>
+              (draft.importMaxPlayers = Number(value) || draft.importMaxPlayers)}
           />
         </div>
         <div class="row">

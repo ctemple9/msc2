@@ -42,10 +42,7 @@ export class DesktopSessionAuth {
     return this.bridge.bootstrapLocal();
   }
 
-  async forgetCredentials(
-    hostIds: readonly string[],
-    includeLocalHost = false,
-  ): Promise<void> {
+  async forgetCredentials(hostIds: readonly string[], includeLocalHost = false): Promise<void> {
     await this.bridge.forgetCredentials({ hostIds, includeLocalHost });
   }
 
@@ -68,7 +65,7 @@ export class DesktopSessionAuth {
       });
       return new Response(new Uint8Array(response.body), {
         status: response.status,
-        headers: response.headers,
+        headers: response.headers.map(([name, value]) => [name, value] as [string, string]),
       });
     };
   }

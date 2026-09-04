@@ -6,7 +6,7 @@
   let visible = true;
   let completed = false;
   let reducedMotion = false;
-  let splashTimer: ReturnType<typeof setTimeout> | undefined;
+  let splashTimer: number | undefined;
 
   function finish(): void {
     if (completed) return;

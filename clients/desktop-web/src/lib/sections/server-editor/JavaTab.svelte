@@ -273,12 +273,7 @@
       <div class="row">
         <span class="name">Extra JVM Flags</span>
         <div class="control">
-          <Field
-            bind:value={flagsDraft}
-            width="240px"
-            multiline
-            placeholder="e.g. -XX:+UseG1GC"
-          />
+          <Field bind:value={flagsDraft} width="240px" multiline placeholder="e.g. -XX:+UseG1GC" />
           <Button
             variant="secondary"
             size="sm"
@@ -289,8 +284,8 @@
       </div>
     </Card>
     <p class="hint">
-      Optional flags passed to Java when starting servers. Leave blank unless you know what
-      you're doing (e.g. GC tuning flags).
+      Optional flags passed to Java when starting servers. Leave blank unless you know what you're
+      doing (e.g. GC tuning flags).
     </p>
   </section>
 </div>

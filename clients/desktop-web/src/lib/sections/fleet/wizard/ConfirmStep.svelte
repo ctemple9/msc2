@@ -23,7 +23,6 @@
   // `wizardPath` the same way).
   import StatusDot from '../../../components/base/StatusDot.svelte';
   import Field from '../../../components/base/Field.svelte';
-  import Toggle from '../../../components/base/Toggle.svelte';
   import { onboardingAnchor } from '../../../help/tourAnchors';
   import {
     JAVA_CATEGORY_INFO,
@@ -311,24 +310,6 @@
       {/if}
     </section>
 
-    <section class="block preference-block">
-      <div class="preference-copy">
-        <p class="msc2-type-overline">Update checks</p>
-        <p class="preference-title">Check for mod/plugin updates</p>
-        <p class="hint">
-          Off by default. When enabled, MSC checks providers for compatible updates after the local
-          component list loads. This is especially useful for Paper servers using Geyser and
-          Floodgate for Bedrock cross-play.
-        </p>
-      </div>
-      <Toggle
-        checked={draft.checkAddonUpdates}
-        label="Check for mod/plugin updates"
-        disabled={isCreating}
-        onchange={(checked) => (draft.checkAddonUpdates = checked)}
-      />
-    </section>
-
     {#if isCreating}
       <div class="progress">
         <span class="spinner" aria-hidden="true"></span>
@@ -372,27 +353,6 @@
   }
   .block > .summary {
     width: 100%;
-  }
-
-  .preference-block {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-  }
-  .preference-copy {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .preference-copy .msc2-type-overline,
-  .preference-copy p {
-    margin: 0;
-  }
-  .preference-title {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--msc2-text-primary);
   }
 
   .summary {

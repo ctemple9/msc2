@@ -71,6 +71,13 @@ describe('add server wizard import scan transition', () => {
   });
 });
 
+describe('add server wizard update checks', () => {
+  it('does not expose provider update checks during creation or import', () => {
+    expect(confirmSource).not.toContain('Check for mod/plugin updates');
+    expect(confirmSource).not.toContain('Toggle');
+  });
+});
+
 describe('add server wizard onboarding anchors', () => {
   it('anchors the Xbox Broadcast card itself', () => {
     const anchor = "use:onboardingAnchor={'ob_server_xbox_broadcast'}";

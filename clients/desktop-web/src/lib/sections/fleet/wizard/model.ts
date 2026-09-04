@@ -225,8 +225,6 @@ export interface WizardDraft {
   /** `AddServerWizardView.swift`'s `enablePlayit` -- Network step's
    *  Port Forwarding vs Tunnel(playit.gg) choice. */
   enablePlayit: boolean;
-  /** Provider-backed mod/plugin update checks; deliberately off by default. */
-  checkAddonUpdates: boolean;
   /** `AddServerWizardView.swift`'s `javaPort` -- kept numeric (unlike the
    *  oracle's plain `String`) since `ServerCreateRequestDTO.port` and
    *  `crossPlayBedrockPort` are both numbers and `NumberField` already
@@ -385,7 +383,6 @@ export function defaultWizardDraft(): WizardDraft {
     bedrockVersion: 'LATEST',
     bedrockMaxPlayers: 10,
     enablePlayit: false,
-    checkAddonUpdates: false,
     javaPort: 25565,
     crossPlayBedrockPort: 19132,
     bedrockPort: 19132,
@@ -539,7 +536,6 @@ export function buildServerCreateRequest(
     difficulty: draft.worldDifficulty,
     gamemode: draft.worldGamemode,
   };
-  if (draft.checkAddonUpdates) body.checkAddonUpdates = true;
   if (draft.serverType === 'java' && hasStagedSimpleVoiceChat(draft)) {
     body.enableVoiceChat = true;
   }
@@ -764,7 +760,6 @@ export function buildImportRequest(
     acceptEula: draft.importEulaAccepted,
     enablePlayit: draft.enablePlayit,
   };
-  if (draft.checkAddonUpdates) body.checkAddonUpdates = true;
   const activeWorld = draft.importActiveWorldName ?? draft.importScan.defaultWorldName;
   if (activeWorld) body.activeWorldName = activeWorld;
   return body;

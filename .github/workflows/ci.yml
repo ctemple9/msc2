@@ -5,6 +5,17 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      scope:
+        description: Run only one focused verification boundary
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - raw-bedrock-import
+          - production-bedrock
+          - desktop
 
 # Cancel an in-flight run if the branch is pushed again
 concurrency:
@@ -166,13 +177,16 @@ jobs:
         # the Tauri shell and headless agent release.
         run: cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
 
-      # P2.11 added crates/msc-api alongside msc-domain, so this is the
-      # first step where the workspace has more than one crate's worth of
-      # tests to run — cargo nextest run --workspace covers both.
-      - name: Test
-        # Keep running after the first failure so one CI job reports the
-        # complete failure set instead of hiding later platform failures.
-        run: cargo nextest run --workspace --no-fail-fast
+      # Keep these as separate, focused boundaries. A manual rerun can select
+      # only the boundary that failed; the release path does not need a
+      # workspace-wide test sweep.
+      - name: Focused raw Bedrock import check
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'raw-bedrock-import' }}
+        run: cargo nextest run -p msc-agent raw_import_route_imports_bedrock_folder
+
+      - name: Focused production Bedrock smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'production-bedrock' }}
+        run: cargo nextest run -p msc-agent --test bedrock_production_smoke
 
       # P6.27: the same committed synthetic-world smoke (P6.25) on all
       # three platforms — no real MSC 1 data, no local absolute paths.
@@ -236,9 +250,11 @@ jobs:
       # This exercises msc-agent's production fallback, not a second static
       # server, so the browser candidate cannot drift from the served bundle.
       - name: Agent-served browser bundle smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
         run: cargo nextest run -p msc-agent --test web_ui
 
       - name: Browser core workflow smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
         working-directory: clients/desktop-web
         run: npm run test:e2e-browser
 

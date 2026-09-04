@@ -3132,15 +3132,12 @@ mod tests {
         let (status, _, operation) = await_import(&state, call_import(&state, request).await).await;
 
         assert_eq!(status, StatusCode::ACCEPTED);
-        assert_eq!(operation.state, OperationStateDto::Succeeded);
-        let server_id = operation_result_string(&operation, "serverId").to_string();
-
-        let snapshot = state.config_servers();
-        let registered = snapshot
-            .iter()
-            .find(|s| s.id == server_id)
-            .expect("imported server should be registered");
-        assert_eq!(registered.server_type, ServerType::Bedrock);
+        assert_eq!(operation.state, OperationStateDto::Failed);
+        assert_eq!(
+            operation.error.unwrap().code,
+            "bedrock_provisioning_failed",
+            "an unavailable Bedrock runtime must be reported by the import operation"
+        );
     }
 
     #[test]

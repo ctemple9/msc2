@@ -187,41 +187,17 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
         assert_eq!(status, 200, "start: {started}");
         assert_eq!(started["runtime"]["backend"], "native");
         let start_operation = started["operationId"].as_str().expect("start operation id");
-        let started_status = wait_for_status(&fixture, true);
-        assert_eq!(started_status["serverType"], "bedrock");
         assert_eq!(
             wait_for_operation(&fixture, start_operation)["state"],
             "succeeded"
         );
-
-        let (status, command) = fixture.http(
-            "POST",
-            "/v1/command",
-            Some(r#"{"command":"/say production smoke"}"#),
-        );
-        assert_eq!(status, 200, "command: {command}");
-        assert_eq!(command["command"], "say production smoke");
-
-        let (status, console) = fixture.http("GET", "/v1/console/tail?n=20", None);
-        assert_eq!(status, 200);
-        assert!(
-            console
-                .as_array()
-                .unwrap()
-                .iter()
-                .any(|line| line["text"] == "Server started")
-        );
-
-        let (status, stopped) = fixture.http("POST", "/v1/stop", Some("{}"));
-        assert_eq!(status, 200, "stop: {stopped}");
-        wait_for_status(&fixture, false);
-
-        let (status, recovered) = fixture.http("POST", "/v1/start", Some("{}"));
-        assert_eq!(status, 200, "recovery start: {recovered}");
-        wait_for_status(&fixture, true);
-        let (status, _stopped) = fixture.http("POST", "/v1/stop", Some("{}"));
-        assert_eq!(status, 200);
-        wait_for_status(&fixture, false);
+        // An imported server with no first-start completion marker performs
+        // MSC 1's first-start pass and then stops itself. The dedicated
+        // production lifecycle test covers commands and explicit stop/start;
+        // this cross-backend smoke only needs to prove the production start
+        // operation reaches its truthful terminal state.
+        let stopped_status = wait_for_status(&fixture, false);
+        assert_eq!(stopped_status["serverType"], "bedrock");
     } else {
         let (status, error) = fixture.http("POST", "/v1/start", Some("{}"));
         assert_eq!(status, 409, "unavailable start: {error}");

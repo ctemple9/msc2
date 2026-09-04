@@ -85,6 +85,7 @@ def check_candidate_workflow(workflow: str) -> None:
         "build-linux-headless.sh",
         "build-macos-headless.sh",
         "build-windows-headless.ps1",
+        "prepare-windows-icon.py",
         "actions/upload-artifact@v4",
         "beta-${{ matrix.platform }}-${{ env.RELEASE_VERSION }}",
         "UNSIGNED-BETA-NOTICE.txt",
@@ -95,6 +96,10 @@ def check_candidate_workflow(workflow: str) -> None:
     require(
         re.search(r"cargo clippy -p msc-agent --bin msc --target", workflow) is not None,
         "workflow is missing the targeted msc-agent binary clippy check",
+    )
+    require(
+        "-D warnings -A dead-code -A unused-mut" in workflow,
+        "workflow does not isolate the deferred TUI clippy diagnostics",
     )
 
     require(

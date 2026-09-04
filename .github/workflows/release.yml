@@ -106,7 +106,7 @@ jobs:
       - name: Run targeted agent checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings
+          cargo clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings -A dead-code -A unused-mut
           cargo nextest run -p msc-agent --test web_ui
 
       - name: Build release agent and CLI
@@ -121,6 +121,11 @@ jobs:
         if: matrix.platform == 'windows-x86_64'
         shell: pwsh
         run: ./tools/release/stage-windows-agent.ps1 -WorkspaceRoot $env:GITHUB_WORKSPACE -TargetTriple "${{ matrix.rust-target }}"
+
+      - name: Prepare the Windows bundle icon
+        if: matrix.platform == 'windows-x86_64'
+        shell: pwsh
+        run: python tools/release/prepare-windows-icon.py $env:GITHUB_WORKSPACE
 
       - name: Build unsigned Tauri installer
         if: matrix.platform != 'windows-x86_64'

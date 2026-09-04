@@ -281,3 +281,37 @@ Each evidence record names the OS release, architecture, artifact filename,
 SHA-256, installation identity, exact service state, and any expected
 unsigned warning. A green CI run or a successful local build is necessary
 but is not a substitute for this physical Linux/Windows handoff.
+
+## 9. Linux headless package implementation (P12.61)
+
+The Linux headless archive is assembled by
+`tools/release/build-linux-headless.sh`. It builds `msc-agent` with its
+optional browser bundle disabled, so the archive contains one native `msc`
+binary and no Tauri, WebKitGTK, or other desktop payload. The staged checker
+copy is `target/release-headless/linux/msc`; the release archive is named
+`msc2-headless-<version>-linux-x86_64.tar.gz`.
+
+The archive contains `install.sh`, `uninstall.sh`, and four systemd input
+definitions. The installer renders the installing user's UID, primary group,
+and data path into the definitions, installs the root-owned binary at
+`/usr/lib/msc2/msc`, creates the user-owned data, `logs`, and `servers`
+directories, and creates the root-owned credential store at
+`/var/lib/msc2/credentials`. It installs and enables
+`com.ctemple.msc2.agent.service` and `msc2-credential-helper.socket`; the
+helper service is socket-activated and runs the existing Rust
+`systemd-creds` backend as root, while `SO_PEERCRED` limits requests to the
+installing user's UID. The agent itself always runs as that user.
+
+The installer starts the helper socket and agent after enabling them for boot.
+It never creates a pairing code, writes a bearer token into a unit or ordinary
+configuration, or invokes pairing through `sudo`. The printed follow-up is the
+host-local command the operator runs as the installing user:
+
+```text
+msc pairing create --client-kind desktop
+```
+
+Uninstall stops and disables only these MSC units, removes the installed
+binary, unit definitions, and runtime-directory rule, and retains managed
+server data, logs, configuration, and credential blobs for an explicit later
+cleanup decision.

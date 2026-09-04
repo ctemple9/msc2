@@ -1,0 +1,26 @@
+[Unit]
+Description=MSC 2 headless agent
+Wants=network-online.target
+After=network-online.target
+Requires=msc2-credential-helper.socket
+After=msc2-credential-helper.socket
+
+[Service]
+Type=simple
+User=@MSC2_USER@
+Group=@MSC2_GROUP@
+WorkingDirectory="@MSC2_DATA_DIR@"
+Environment="MSC2_DATA_DIR=@MSC2_DATA_DIR@"
+ExecStart=/usr/lib/msc2/msc serve --bind 127.0.0.1:48001
+Restart=on-failure
+RestartSec=5s
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=msc2-agent
+
+[Install]
+WantedBy=multi-user.target

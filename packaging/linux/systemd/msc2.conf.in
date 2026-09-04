@@ -1,0 +1,2 @@
+# Keep the socket parent available before systemd starts the socket unit.
+d /run/msc2 0700 @MSC2_USER@ @MSC2_GROUP@ -

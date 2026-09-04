@@ -105,7 +105,7 @@ impl CredentialHelperInstall {
     pub fn render_socket_unit(&self) -> Result<String, String> {
         self.validate()?;
         Ok(format!(
-            "[Unit]\nDescription=MSC 2 credential helper socket\n\n[Socket]\nListenStream={}\nSocketUser={}\nSocketGroup={}\nSocketMode=0600\nRemoveOnStop=yes\n\n[Install]\nWantedBy=sockets.target\n",
+            "[Unit]\nDescription=MSC 2 credential helper socket\n\n[Socket]\nListenStream={}\nSocketUser={}\nSocketGroup={}\nSocketMode=0600\nDirectoryMode=0700\nRemoveOnStop=yes\n\n[Install]\nWantedBy=sockets.target\n",
             self.socket_path.display(),
             self.socket_user,
             self.socket_group,
@@ -115,7 +115,7 @@ impl CredentialHelperInstall {
     pub fn render_service_unit(&self) -> Result<String, String> {
         self.validate()?;
         Ok(format!(
-            "[Unit]\nDescription=MSC 2 credential helper\nRequires={SOCKET_UNIT_NAME}\nAfter=network.target\n\n[Service]\nType=simple\nUser=root\nGroup=root\nExecStart={} credential-helper serve --allowed-uid {} --store-dir {}\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\nProtectHome=yes\nReadWritePaths={}\nRuntimeDirectory=msc2\n\n[Install]\nWantedBy=multi-user.target\n",
+            "[Unit]\nDescription=MSC 2 credential helper\nRequires={SOCKET_UNIT_NAME}\nAfter=network.target\n\n[Service]\nType=simple\nUser=root\nGroup=root\nExecStart={} credential-helper serve --allowed-uid {} --store-dir {}\nNoNewPrivileges=yes\nPrivateTmp=yes\nProtectSystem=strict\nProtectHome=yes\nReadWritePaths={}\nRestrictAddressFamilies=AF_UNIX\nUMask=0077\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n",
             shell_quote_path(&self.binary_path),
             self.allowed_uid,
             shell_quote_path(&self.store_dir),

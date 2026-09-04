@@ -278,7 +278,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** stop-after
 
 ### P12.61 — Package the standalone Linux agent and systemd services
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `packaging/linux/`, `tools/release/`, `crates/msc-platform-linux/src/credential_helper.rs`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
 **What:** Build the Ubuntu/Debian headless package around the single `msc` binary and the existing Linux production credential path. Ship an install/uninstall path that places the binary, creates the agent data/log directories with the installing user's ownership, installs the agent `systemd` unit plus the restricted credential-helper socket/service units, enables the agent for boot, and leaves routine start/stop under `systemctl`. Include a post-install instruction for `msc pairing create --client-kind desktop`; never run pairing as root or put bearer tokens in the unit file, shell history, ordinary configuration, or release metadata. Keep the package free of Tauri/WebKit/desktop dependencies.
 **Verify:** `bash -n packaging/linux/install.sh packaging/linux/uninstall.sh && cargo nextest run -p msc-platform-linux --test systemd_unit && python3 tools/phase4/headless-link-check.py --all-artifacts target/release-headless`

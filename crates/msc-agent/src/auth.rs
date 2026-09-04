@@ -58,6 +58,7 @@ pub(crate) use browser::{
     BrowserSessionError, CreateBrowserPairing, cleared_session_cookie, request_has_exact_origin,
     request_uses_https, session_cookie,
 };
+#[allow(unused_imports)]
 pub(crate) use desktop::DesktopPairingError;
 
 const TOKEN_PREFIX: &str = "msc2";

@@ -329,6 +329,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.72: repair cross-platform CI gates`
 **Batch:** solo
 
+### P12.73 — Repair all-target authentication imports
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/auth.rs`, `docs/msc2/rolling-plan.md`
+**What:** Keep the shared desktop pairing error available to production routes and the desktop-auth integration test while allowing all-target CLI pairing tests to compile under Linux's strict unused-import lint.
+**Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-agent --test cli_pairing`
+**Commit:** `P12.73: repair all-target authentication imports`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

@@ -15,7 +15,9 @@ fn load(path: impl AsRef<Path>) -> Fixture {
 fn hex_bytes(raw: &str) -> Vec<u8> {
     assert!(raw.len().is_multiple_of(2), "hex input has odd length");
     raw.as_bytes()
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             let high = (pair[0] as char).to_digit(16).unwrap();
             let low = (pair[1] as char).to_digit(16).unwrap();

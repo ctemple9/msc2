@@ -337,6 +337,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.73: repair all-target authentication imports`
 **Batch:** solo
 
+### P12.74 — Modernize fixed-size hex fixture parsing
+**Status:** awaiting verification
+**Files:** `crates/msc-domain/tests/player_nbt.rs`, `docs/msc2/rolling-plan.md`
+**What:** Use the fixed-size slice-chunk API for the player-NBT hex fixture helper so the newer hosted Clippy toolchain accepts the existing test logic without changing its decoded bytes.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-domain --test player_nbt -- -D warnings && cargo test -p msc-domain --test player_nbt`
+**Commit:** `P12.74: modernize fixed-size hex fixture parsing`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

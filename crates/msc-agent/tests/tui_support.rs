@@ -86,7 +86,7 @@ fn client_reset_is_not_a_host_reset() {
     let mut app = App::new("host-a:48001");
     app.set_note("local reminder");
     app.handle_key(KeyCode::Char(','));
-    assert_eq!(app.handle_key(KeyCode::Char('c')), false);
+    assert!(!app.handle_key(KeyCode::Char('c')));
     assert!(app.notes_for_selected_server().is_none());
     assert!(app.overview().servers.is_empty());
 

@@ -17,10 +17,7 @@ use tokio_tungstenite::tungstenite::handshake::client::generate_key;
 use tokio_tungstenite::tungstenite::{Error as WebSocketError, Message};
 use tokio_tungstenite::{MaybeTlsStream, WebSocketStream, connect_async};
 
-#[cfg(not(test))]
-use super::super::{CliError, CommonArgs, resolve_base_url, resolve_token};
-#[cfg(test)]
-use crate::test_cli::{CliError, CommonArgs, resolve_base_url, resolve_token};
+use crate::cli::{CliError, CommonArgs, resolve_base_url, resolve_token};
 
 const INITIAL_RECONNECT_DELAY: Duration = Duration::from_millis(100);
 const MAX_RECONNECT_DELAY: Duration = Duration::from_secs(2);

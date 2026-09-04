@@ -136,6 +136,7 @@ fn provisioning_conformance_server_create_request() {
             enable_playit: Some(false),
             enable_voice_chat: None,
             enable_xbox_broadcast: Some(false),
+            check_addon_updates: None,
             difficulty: Some("normal".to_string()),
             gamemode: Some("survival".to_string()),
             world_name: Some("World 1".to_string()),

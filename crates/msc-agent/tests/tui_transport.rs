@@ -1,6 +1,10 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+mod cli {
+    pub use crate::test_cli::{CliError, CommonArgs, resolve_base_url, resolve_token};
+}
+
 mod test_cli {
     #[derive(Debug, Clone)]
     pub struct CommonArgs {
@@ -130,6 +134,7 @@ async fn shared_http_transport_preserves_bearer_and_api_errors() {
 }
 
 #[tokio::test]
+#[allow(clippy::result_large_err)]
 async fn websocket_transport_authenticates_and_decodes_console_frames() {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let address = listener.local_addr().unwrap();
@@ -187,7 +192,7 @@ async fn operation_terminal_close_is_not_reconnected() {
     let server = tokio::spawn(async move {
         let (stream, _) = listener.accept().await.unwrap();
         let mut socket = tokio_tungstenite::accept_async(stream).await.unwrap();
-        socket.send(Message::Text(payload.into())).await.unwrap();
+        socket.send(Message::Text(payload)).await.unwrap();
         socket.close(None).await.unwrap();
     });
 

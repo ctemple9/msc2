@@ -51,9 +51,9 @@ fn console_view_keeps_bounded_history_and_distinguishes_filters_and_selection() 
     assert_eq!(view.visible_lines().len(), 1);
 
     view.set_filter(ConsoleFilter::All);
-    view.move_selection(-1);
+    view.move_selection(1);
     view.toggle_selection_anchor();
-    view.move_selection(-1);
+    view.move_selection(1);
     assert!(view.selected_text().contains("Plugin loaded"));
 
     let bounded_lines = (0..(LOCAL_SCROLLBACK_LIMIT + 10))

@@ -225,11 +225,6 @@ fn restrictive_mode() -> u32 {
     0o600
 }
 
-#[cfg(not(unix))]
-fn restrictive_mode() -> u32 {
-    0
-}
-
 #[cfg(unix)]
 fn set_restrictive_permissions(path: &Path) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;

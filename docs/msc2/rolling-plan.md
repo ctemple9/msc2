@@ -319,6 +319,16 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.68: persist successful startup health`
 **Batch:** solo
 
+## Phase 12 post-phase correction — cross-platform CI release gate
+
+### P12.72 — Repair cross-platform CI gates
+**Status:** awaiting verification
+**Files:** `.github/workflows/ci.yml`, `crates/msc-api/tests/provisioning_conformance.rs`, `crates/msc-agent/src/cli/tui/transport.rs`, `crates/msc-agent/tests/{tui_console.rs,tui_support.rs,tui_transport.rs}`, `crates/msc-application/tests/raw_server_scan.rs`, `crates/msc-infrastructure/src/playit.rs`, `docs/msc2/rolling-plan.md`
+**What:** Use the published `tauri-driver` version in the Linux desktop-test setup, make the shared TUI transport compile in all-target integration tests, remove the Windows-only dead helper, and apply the already-established release Clippy policy that keeps the unfinished TUI outside the Tauri/agent beta quality gate.
+**Verify:** `cargo fmt --all -- --check && cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-agent --test cli_service && cargo test -p msc-agent --test tui_console && cargo test -p msc-agent --test tui_transport && cargo test -p msc-agent --test tui_support && python3 tools/release/check-release-workflow.py .github/workflows/release.yml`
+**Commit:** `P12.72: repair cross-platform CI gates`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

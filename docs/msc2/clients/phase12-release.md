@@ -315,3 +315,24 @@ Uninstall stops and disables only these MSC units, removes the installed
 binary, unit definitions, and runtime-directory rule, and retains managed
 server data, logs, configuration, and credential blobs for an explicit later
 cleanup decision.
+
+## 10. Candidate workflow implementation (P12.62)
+
+`.github/workflows/release.yml` is the artifact-only beta candidate workflow.
+It runs from manual dispatch on the selected ref or from a `v*` tag; a tag run
+fails unless the tag exactly matches the source, package, Tauri, and agent
+version. It uses native x86_64 runners: `macos-15-intel` for the Intel
+Virtualization.framework sidecar, `windows-latest` for the Windows Service
+target, and `ubuntu-latest` for the Linux headless target.
+
+Each matrix leg runs the focused shared-client checks, the `msc-agent` web
+bundle check, formatting and Clippy, then builds the release `msc` binary and
+CLI. Tauri is invoked with one platform bundle format — `dmg`, `msi`, or
+`deb` — and `--no-sign`. The macOS and Windows legs also archive their
+standalone headless binary; the Linux leg calls
+`tools/release/build-linux-headless.sh`, which includes the installer,
+uninstaller, and systemd definitions from P12.61. Every uploaded directory
+contains a platform-labelled installer/archive and an explicit unsigned-beta
+notice. No job publishes a GitHub release, creates a checksum manifest, or
+claims signing/notarization; those are separate release-publication and
+physical-handoff concerns.

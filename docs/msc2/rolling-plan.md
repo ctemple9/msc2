@@ -286,7 +286,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P12.62 — Build cross-platform beta artifacts in GitHub Actions
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/release.yml`, `tools/release/`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
 **What:** Add a manually dispatched and version-tagged release-candidate workflow with native macOS, Windows, and Linux runners. Run the targeted client/agent checks, build the release agent/CLI, build the Tauri shell with the correct platform bundle formats, build the Linux headless package, retain explicit no-signing/no-notarization evidence, and upload platform-labeled artifacts without including iOS or TUI outputs. Keep ordinary CI unchanged except for any small shared build-script seam required by the release profile.
 **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml && git diff --check`

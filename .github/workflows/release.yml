@@ -1,0 +1,167 @@
+name: Beta release candidate
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: beta-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-x86_64
+            os: macos-15-intel
+            rust-target: x86_64-apple-darwin
+            tauri-bundle: dmg
+            installer-extension: dmg
+          - platform: windows-x86_64
+            os: windows-latest
+            rust-target: x86_64-pc-windows-msvc
+            tauri-bundle: msi
+            installer-extension: msi
+          - platform: linux-x86_64
+            os: ubuntu-latest
+            rust-target: x86_64-unknown-linux-gnu
+            tauri-bundle: deb
+            installer-extension: deb
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: clients/desktop-web/package-lock.json
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
+          components: rustfmt, clippy
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@nextest
+
+      - name: Install Linux Tauri dependencies
+        if: matrix.platform == 'linux-x86_64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes \
+            build-essential \
+            file \
+            libappindicator3-dev \
+            librsvg2-dev \
+            libwebkit2gtk-4.1-dev \
+            patchelf
+
+      - name: Install shared client dependencies
+        working-directory: clients/desktop-web
+        run: npm ci
+
+      - name: Resolve and validate release identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          agent_version="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' crates/msc-agent/Cargo.toml)"
+          package_version="$(node -p "require('./clients/desktop-web/package.json').version")"
+          tauri_version="$(node -p "require('./clients/desktop-web/src-tauri/tauri.conf.json').version")"
+          shell_version="$(awk -F'"' '/^[[:space:]]*version[[:space:]]*=/ { print $2; exit }' clients/desktop-web/src-tauri/Cargo.toml)"
+          test -n "$agent_version"
+          test "$agent_version" = "$package_version"
+          test "$agent_version" = "$tauri_version"
+          test "$agent_version" = "$shell_version"
+
+          if [[ "${GITHUB_REF_TYPE:-}" == "tag" ]]; then
+            test "${GITHUB_REF_NAME}" = "v${agent_version}" || {
+              echo "tag ${GITHUB_REF_NAME} does not match source version v${agent_version}" >&2
+              exit 1
+            }
+          fi
+
+          echo "RELEASE_VERSION=$agent_version" >> "$GITHUB_ENV"
+          echo "release version: $agent_version"
+
+      - name: Run targeted client checks
+        working-directory: clients/desktop-web
+        run: |
+          npm run check
+          npm run test:contract
+          npm run test:auth-desktop
+
+      - name: Run targeted agent checks
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy -p msc-agent --all-targets --target "${{ matrix.rust-target }}" -- -D warnings
+          cargo nextest run -p msc-agent --test web_ui
+
+      - name: Build release agent and CLI
+        run: cargo build --release --target "${{ matrix.rust-target }}" -p msc-agent
+
+      - name: Stage the matching Tauri agent payload
+        working-directory: clients/desktop-web
+        run: npm run prepare:agent:release
+
+      - name: Build unsigned Tauri installer
+        working-directory: clients/desktop-web
+        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundle }}" --no-sign
+
+      - name: Package Linux headless artifact
+        if: matrix.platform == 'linux-x86_64'
+        run: bash tools/release/build-linux-headless.sh target/release-artifacts
+
+      - name: Package macOS headless artifact
+        if: matrix.platform == 'macos-x86_64'
+        run: bash tools/release/build-macos-headless.sh target/release-artifacts
+
+      - name: Package Windows headless artifact
+        if: matrix.platform == 'windows-x86_64'
+        shell: pwsh
+        run: ./tools/release/build-windows-headless.ps1 target/release-artifacts
+
+      - name: Collect platform-labeled Tauri installer
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p target/release-artifacts
+          bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/${{ matrix.tauri-bundle }}"
+          installer="$(find "$bundle_dir" -maxdepth 1 -type f -name "*.${{ matrix.installer-extension }}" -print -quit)"
+          test -n "$installer" || { echo "no Tauri installer found in $bundle_dir" >&2; exit 1; }
+          cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.${{ matrix.installer-extension }}"
+
+      - name: Record unsigned beta evidence
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > target/release-artifacts/UNSIGNED-BETA-NOTICE.txt <<EOF
+          MSC 2 beta candidate ${RELEASE_VERSION}
+          Platform: ${{ matrix.platform }}
+
+          This candidate has no release code signing, notarization, or publisher
+          identity. The Tauri build used --no-sign. Any macOS ad-hoc signature
+          on the Bedrock sidecar only satisfies Virtualization.framework's
+          entitlement requirement; it is not Developer ID signing or notarization.
+          Obtain this candidate from the intended release source and verify its
+          checksum before opening or installing it.
+          EOF
+
+      - name: Upload platform-labeled beta artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: beta-${{ matrix.platform }}-${{ env.RELEASE_VERSION }}
+          path: target/release-artifacts
+          if-no-files-found: error

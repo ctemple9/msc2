@@ -96,10 +96,18 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
         );
     }
 
-    if capabilities["serverTypes"]["bedrock"]["runtime"]["state"] != "available" {
+    let runtime_state = capabilities["serverTypes"]["bedrock"]["runtime"]["state"]
+        .as_str()
+        .expect("Bedrock runtime state");
+    if runtime_state == "unavailable" {
         let (status, error) = fixture.http("POST", "/v1/start", Some("{}"));
         assert_eq!(status, 409, "unavailable Bedrock start: {error}");
         assert_eq!(error["code"], "capability_unavailable");
+        fixture.stop(&mut agent);
+        return;
+    }
+    if runtime_state != "available" {
+        assert_eq!(runtime_state, "provisioning_required");
         fixture.stop(&mut agent);
         return;
     }

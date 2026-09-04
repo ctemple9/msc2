@@ -595,6 +595,13 @@ for flavor in vanilla paper purpur fabric neoforge forge; do
   [[ -f "${server_dir}/eula.txt" ]] || fail "${flavor}: eula.txt missing"
   [[ -f "${server_dir}/server.properties" ]] || fail "${flavor}: server.properties missing"
 
+  # This gate proves the normal launch shape for each family. Mark the
+  # disposable fixture as having completed MSC 1's first-start world pass so
+  # the coordinator does not auto-stop the process before the explicit stop
+  # assertion below.
+  mkdir -p "${server_dir}/world"
+  : >"${server_dir}/world/level.dat"
+
   add_on="$(add_on_dir_for "${flavor}")"
   if [[ -n "${add_on}" ]]; then
     [[ -d "${server_dir}/${add_on}" ]] || fail "${flavor}: add-on folder ${add_on}/ missing"

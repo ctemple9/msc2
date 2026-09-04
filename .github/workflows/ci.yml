@@ -15,6 +15,8 @@ on:
           - all
           - raw-bedrock-import
           - production-bedrock
+          - phase7
+          - failed-boundaries
           - desktop
 
 # Cancel an in-flight run if the branch is pushed again
@@ -185,7 +187,7 @@ jobs:
         run: cargo nextest run -p msc-agent raw_import_route_imports_bedrock_folder
 
       - name: Focused production Bedrock smoke
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'production-bedrock' }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'production-bedrock' || inputs.scope == 'failed-boundaries' }}
         run: cargo nextest run -p msc-agent --test bedrock_production_smoke
 
       # P6.27: the same committed synthetic-world smoke (P6.25) on all
@@ -193,6 +195,7 @@ jobs:
       # `shell: bash` runs it through Git Bash on the Windows runner, the
       # only leg that has never executed this script before.
       - name: Phase 6 restart-sensitive public-path smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: tools/phase6/phase6-gate-smoke.sh --synthetic
 
@@ -203,22 +206,26 @@ jobs:
       # mid-install, and a Windows-built `msc.exe` all go through this
       # leg for the first time.
       - name: Phase 7 provisioning and launch smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'phase7' || inputs.scope == 'failed-boundaries' }}
         shell: bash
         run: tools/phase7/phase7-gate-smoke.sh --synthetic
 
       # P8.27: add-on/modpack public-path smoke. Like the Phase 6/7
       # scripts, run the committed Bash driver on Git Bash for Windows.
       - name: Phase 8 add-on and modpack smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: tools/phase8/phase8-gate-smoke.sh --synthetic
 
       # P9.18: the Phase 9 gate and synthetic smoke are offline and use only
       # the committed fake transports, so they run on every toolchain leg.
       - name: Phase 9 networking and helper gate
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: python3 tools/phase9/phase9-check.py --gate
 
       - name: Phase 9 networking and helper smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: tools/phase9/phase9-smoke.sh --synthetic
 
@@ -226,24 +233,29 @@ jobs:
       # fixtures, and documentary evidence. Keep them on every toolchain leg
       # so the Phase 10 candidate proves the same contract on all platforms.
       - name: Phase 10 Bedrock synthetic smoke
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: bash tools/phase10/phase10-smoke.sh --synthetic
 
       - name: Phase 10 Bedrock production wiring check
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: python3 tools/phase10/phase10-production-check.py --check
 
       - name: Phase 10 Bedrock compatibility check
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: python3 tools/phase10/compatibility-check.py docs/msc2/bedrock/compatibility-matrix.csv
 
       - name: Phase 10 Bedrock evidence checks
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: |
           python3 tools/phase10/evidence-check.py --distribution
           python3 tools/phase10/evidence-check.py --runtimes
 
       - name: Validate the production shared client
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
         working-directory: clients/desktop-web
         run: npm run verify:scaffold
 
@@ -259,16 +271,17 @@ jobs:
         run: npm run test:e2e-browser
 
       - name: Build real Tauri candidate (macOS and Windows)
-        if: matrix.platform != 'linux'
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop') && matrix.platform != 'linux' }}
         working-directory: clients/desktop-web
         run: npm exec tauri build -- --debug --no-bundle
 
       - name: Exercise the Linux WebKitGTK Tauri candidate
-        if: matrix.platform == 'linux'
+        if: ${{ (github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop') && matrix.platform == 'linux' }}
         shell: bash
         run: bash tools/phase11/linux-webkitgtk-smoke.sh --native
 
       - name: Record desktop and web runner evidence
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
         shell: bash
         run: |
           bash tools/phase11/desktop-web-smoke.sh \
@@ -276,6 +289,7 @@ jobs:
             "target/phase11-client-evidence/${{ matrix.platform }}.md"
 
       - name: Upload desktop and web runner evidence
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' || inputs.scope == 'desktop' }}
         uses: actions/upload-artifact@v4
         with:
           name: desktop-web-evidence-${{ matrix.platform }}
@@ -283,6 +297,7 @@ jobs:
           if-no-files-found: error
 
       - name: Collect headless artifact
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         shell: bash
         run: |
           dest="target/phase4-headless/${{ matrix.platform }}"
@@ -290,6 +305,7 @@ jobs:
           cp "target/debug/${{ matrix.binary_name }}" "$dest/${{ matrix.binary_name }}"
 
       - name: Upload headless artifact
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
         uses: actions/upload-artifact@v4
         with:
           name: headless-${{ matrix.platform }}
@@ -298,6 +314,7 @@ jobs:
 
   headless-link:
     name: Headless no-GUI link check
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.scope == 'all' }}
     needs: toolchain
     runs-on: ubuntu-latest
     steps:

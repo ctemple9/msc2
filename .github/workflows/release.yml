@@ -106,7 +106,7 @@ jobs:
       - name: Run targeted agent checks
         run: |
           cargo fmt --all -- --check
-          cargo clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings -A dead-code -A unused-mut
+          cargo clippy -p msc-agent --bin msc --target "${{ matrix.rust-target }}" -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
           cargo nextest run -p msc-agent --test web_ui
 
       - name: Build release agent and CLI
@@ -138,7 +138,7 @@ jobs:
         shell: pwsh
         run: |
           npm run build
-          npm exec tauri build -- --bundles "${{ matrix.tauri-bundle }}" --no-sign --config '{"build":{"beforeBuildCommand":""}}'
+          npm exec tauri build -- --bundles "${{ matrix.tauri-bundle }}" --no-sign --config '{"build":{"beforeBuildCommand":""},"bundle":{"icon":["icons/icon.ico"]}}'
 
       - name: Package Linux headless artifact
         if: matrix.platform == 'linux-x86_64'

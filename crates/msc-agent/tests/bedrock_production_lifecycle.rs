@@ -122,6 +122,7 @@ struct TestFixture {
     config_path: PathBuf,
     servers_root: PathBuf,
     port: u16,
+    bedrock_port: u16,
     keychain_service: String,
 }
 
@@ -131,7 +132,7 @@ impl TestFixture {
         let fixture = Self::new();
         let server_dir = fixture.servers_root.join("bedrock").join("missing");
         fs::create_dir_all(&server_dir).unwrap();
-        fixture.write_config(server(&server_dir, 19132, false));
+        fixture.write_config(server(&server_dir, fixture.bedrock_port as i64, false));
         fixture
     }
 
@@ -160,10 +161,14 @@ impl TestFixture {
         fs::write(server_dir.join(".msc_bds_version"), "1.21.80.3").unwrap();
         fs::write(
             server_dir.join("server.properties"),
-            "level-name=Fixture\nserver-port=19132\nserver-portv6=19133\n",
+            format!(
+                "level-name=Fixture\nserver-port={}\nserver-portv6={}\n",
+                fixture.bedrock_port,
+                fixture.bedrock_port.saturating_add(1)
+            ),
         )
         .unwrap();
-        fixture.write_config(server(&server_dir, 19132, true));
+        fixture.write_config(server(&server_dir, fixture.bedrock_port as i64, true));
         fixture
     }
 
@@ -185,6 +190,7 @@ impl TestFixture {
                 unique_suffix()
             ),
             port: free_port(),
+            bedrock_port: free_udp_port(),
             root,
             data_dir,
             servers_root,
@@ -465,6 +471,14 @@ fn response_json(response: String) -> (u16, Value) {
 
 fn free_port() -> u16 {
     TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn free_udp_port() -> u16 {
+    std::net::UdpSocket::bind(("127.0.0.1", 0))
         .unwrap()
         .local_addr()
         .unwrap()

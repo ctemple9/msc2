@@ -345,6 +345,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.74: modernize fixed-size hex fixture parsing`
 **Batch:** solo
 
+### P12.75 — Repair cross-platform Bedrock smoke boundaries
+**Status:** awaiting verification
+**Files:** `crates/msc-application/src/bedrock_provisioning.rs`, `crates/msc-agent/tests/{bedrock_production_cli.rs,bedrock_production_lifecycle.rs}`, `crates/msc-agent/tests/support/bedrock_smoke.rs`, `docs/msc2/rolling-plan.md`
+**What:** Make fresh Bedrock promotion create the required world root, give parallel production fixtures independent UDP ports, and keep Apple Silicon CLI smoke on its documented unavailable-runtime path instead of entering Linux-only provisioning and lifecycle assertions.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-application -p msc-agent --tests -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-application --test bedrock_provisioning && cargo test -p msc-agent --test bedrock_production_cli && cargo test -p msc-agent --test bedrock_production_lifecycle`
+**Commit:** `P12.75: repair cross-platform Bedrock smoke boundaries`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

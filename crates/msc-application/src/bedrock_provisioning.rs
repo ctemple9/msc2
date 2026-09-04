@@ -281,6 +281,10 @@ fn promote(
         Path::new(""),
         existing_server_directory,
     )?;
+    // ZIP archives cannot reliably represent an empty directory, but Bedrock
+    // expects its world root to exist before the first server start.
+    fs.create_dir_all(&candidate.join("worlds"))
+        .map_err(|error| BedrockProvisioningError::Filesystem(error.to_string()))?;
     write_marker(fs, &candidate, version)?;
     write_provenance(fs, &candidate, release)?;
 

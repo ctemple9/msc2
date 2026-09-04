@@ -40,6 +40,31 @@ fn production_cli_decodes_bedrock_surfaces_and_unavailable_runtime() {
             capabilities["serverTypes"]["bedrock"]["runtime"]["state"],
             "available"
         );
+
+        let settings = fixture.cli_json(&["settings", "get"]);
+        assert_eq!(settings["serverType"], "bedrock");
+        assert!(settings["runtime"].is_object());
+        let players = fixture.cli_json(&["bedrock", "players"]);
+        assert_eq!(players["count"], 0);
+        assert!(players["runtime"].is_null());
+        let allowlist = fixture.cli_json(&["bedrock", "allowlist", "get"]);
+        assert_eq!(allowlist["serverType"], "bedrock");
+        assert_eq!(allowlist["entries"][0]["name"], "Alex");
+        let versions = fixture.cli_json(&["version", "list"]);
+        assert_eq!(versions["isBedrock"], true);
+        assert!(versions["runtime"].is_object());
+
+        let start = fixture.cli(&["server", "start"]);
+        assert!(
+            !start.status.success(),
+            "unavailable start unexpectedly succeeded"
+        );
+        let error: Value = serde_json::from_str(String::from_utf8_lossy(&start.stderr).trim())
+            .expect("unavailable CLI error JSON");
+        assert_eq!(error["code"], "capability_unavailable");
+        assert_eq!(error["details"]["serverType"], "bedrock");
+        fixture.stop(&mut agent);
+        return;
     }
 
     let create = fixture.cli_json(&[
@@ -133,6 +158,7 @@ struct Fixture {
     server_dir: PathBuf,
     import_source: PathBuf,
     port: u16,
+    bedrock_port: u16,
     keychain_service: String,
 }
 
@@ -158,6 +184,7 @@ impl Fixture {
                 unique_suffix()
             ),
             port: free_port(),
+            bedrock_port: free_udp_port(),
             root,
             data_dir,
             servers_root,
@@ -170,7 +197,10 @@ impl Fixture {
         fs::create_dir_all(directory.join("worlds/Realm/db")).unwrap();
         fs::write(
             directory.join("server.properties"),
-            "level-name=Realm\ndifficulty=normal\nserver-port=19132\nmax-players=10\n",
+            format!(
+                "level-name=Realm\ndifficulty=normal\nserver-port={}\nmax-players=10\n",
+                self.bedrock_port
+            ),
         )
         .unwrap();
         fs::write(
@@ -212,7 +242,7 @@ impl Fixture {
         );
         server.server_type = ServerType::Bedrock;
         server.bedrock_enabled = true;
-        server.bedrock_port = Some(19132);
+        server.bedrock_port = Some(self.bedrock_port as i64);
         server.bedrock_version = Some("1.21.80.3".to_owned());
         config.servers.push(server);
         config.active_server_id = config.servers.first().map(|server| server.id.clone());
@@ -334,6 +364,14 @@ fn http_request(port: u16, method: &str, path: &str, body: Option<&str>) -> Stri
 
 fn free_port() -> u16 {
     TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn free_udp_port() -> u16 {
+    std::net::UdpSocket::bind(("127.0.0.1", 0))
         .unwrap()
         .local_addr()
         .unwrap()

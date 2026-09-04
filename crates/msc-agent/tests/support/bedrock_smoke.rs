@@ -544,6 +544,7 @@ pub struct ProductionFixture {
     pub server_dir: std::path::PathBuf,
     pub import_source: std::path::PathBuf,
     pub port: u16,
+    bedrock_port: u16,
     keychain_service: String,
 }
 
@@ -569,6 +570,7 @@ impl ProductionFixture {
                 unique_suffix()
             ),
             port: free_port(),
+            bedrock_port: free_udp_port(),
             root,
             data_dir,
             servers_root,
@@ -603,7 +605,7 @@ impl ProductionFixture {
         );
         server.server_type = msc_domain::identity::ServerType::Bedrock;
         server.bedrock_enabled = true;
-        server.bedrock_port = Some(19132);
+        server.bedrock_port = Some(self.bedrock_port as i64);
         server.bedrock_version = Some("1.21.80.3".to_owned());
         config.servers.push(server);
         config.active_server_id = config.servers.first().map(|server| server.id.clone());
@@ -618,7 +620,10 @@ impl ProductionFixture {
         std::fs::create_dir_all(directory.join("worlds/Realm/db")).unwrap();
         std::fs::write(
             directory.join("server.properties"),
-            "level-name=Realm\ndifficulty=normal\nserver-port=19132\nmax-players=10\n",
+            format!(
+                "level-name=Realm\ndifficulty=normal\nserver-port={}\nmax-players=10\n",
+                self.bedrock_port
+            ),
         )
         .unwrap();
         std::fs::write(
@@ -756,6 +761,14 @@ fn raw_http(port: u16, method: &str, path: &str, body: Option<&str>) -> String {
 
 fn free_port() -> u16 {
     std::net::TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn free_udp_port() -> u16 {
+    std::net::UdpSocket::bind(("127.0.0.1", 0))
         .unwrap()
         .local_addr()
         .unwrap()

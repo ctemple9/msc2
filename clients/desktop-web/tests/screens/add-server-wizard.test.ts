@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import addWizardSource from '../../src/lib/sections/fleet/wizard/AddServerWizard.svelte?raw';
 import configureSource from '../../src/lib/sections/fleet/wizard/ConfigureStep.svelte?raw';
 import confirmSource from '../../src/lib/sections/fleet/wizard/ConfirmStep.svelte?raw';
+import uploadSource from '../../src/lib/sections/fleet/wizard/UploadStep.svelte?raw';
 import worldSource from '../../src/lib/sections/fleet/wizard/WorldStep.svelte?raw';
 import worldSettingsFormSource from '../../src/lib/sections/worlds/WorldSettingsForm.svelte?raw';
 import {
@@ -55,6 +57,17 @@ describe('add server wizard step labels', () => {
       'World',
       'Confirm',
     ]);
+  });
+});
+
+describe('add server wizard import scan transition', () => {
+  it('advances a successful existing-server scan to Review', () => {
+    expect(addWizardSource).toContain('function handleImportScanned(): void');
+    expect(addWizardSource).toContain(
+      '<UploadStep {api} bind:draft onScanned={handleImportScanned} />',
+    );
+    expect(uploadSource).toContain('export let onScanned: () => void = () => {};');
+    expect(uploadSource).toContain('onScanned();');
   });
 });
 

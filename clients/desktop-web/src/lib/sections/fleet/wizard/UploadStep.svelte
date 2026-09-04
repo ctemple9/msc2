@@ -16,6 +16,8 @@
 
   export let api: ScreenApi | undefined = undefined;
   export let draft: WizardDraft;
+  /** Called after an existing server folder/archive has been scanned. */
+  export let onScanned: () => void = () => {};
 
   let fileInput: HTMLInputElement;
   let isScanning = false;
@@ -83,6 +85,7 @@
         importEulaAccepted: scan.eulaAccepted ?? false,
         importActiveWorldName: scan.defaultWorldName,
       };
+      onScanned();
     } catch (error) {
       scanError = errorMessage(error);
     } finally {

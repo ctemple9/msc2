@@ -136,6 +136,10 @@
     if (currentStep < totalSteps && canContinue) currentStep += 1;
   }
 
+  function handleImportScanned(): void {
+    if (path === 'importExisting') currentStep = 3;
+  }
+
   function selectPath(next: WizardPath): void {
     path = next;
     draft = {
@@ -242,7 +246,7 @@
       {:else if currentStep === 2 && path === 'fresh'}
         <ConfigureStep {api} bind:draft />
       {:else if currentStep === 2 && (path === 'importExisting' || path === 'modpack')}
-        <UploadStep {api} bind:draft />
+        <UploadStep {api} bind:draft onScanned={handleImportScanned} />
       {:else if currentStep === 3 && path === 'fresh'}
         <NetworkStep bind:draft />
       {:else if currentStep === 3 && showModpack}

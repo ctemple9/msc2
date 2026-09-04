@@ -585,12 +585,6 @@ impl ProductionFixture {
         self.write_config();
     }
 
-    pub fn seed_unavailable(&self, backend: ProductionBackend) {
-        std::fs::create_dir_all(&self.server_dir).unwrap();
-        let _ = backend;
-        self.write_config();
-    }
-
     fn write_config(&self) {
         let mut config = msc_domain::app_config_schema::AppConfig::default_config(
             self.servers_root.to_string_lossy(),

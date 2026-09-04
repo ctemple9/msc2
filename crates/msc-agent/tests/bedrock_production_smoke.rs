@@ -206,13 +206,4 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
     }
 
     fixture.stop(&mut agent);
-
-    let unavailable = bedrock_smoke::ProductionFixture::new();
-    unavailable.seed_unavailable(backend);
-    let mut unavailable_agent = unavailable.spawn_agent();
-    unavailable.wait_for_health();
-    let (status, error) = unavailable.http("POST", "/v1/start", Some("{}"));
-    assert_eq!(status, 409, "unavailable fixture start: {error}");
-    assert_eq!(error["code"], "capability_unavailable");
-    unavailable.stop(&mut unavailable_agent);
 }

@@ -1,21 +1,23 @@
 //! `GET /v1/console/stream` — P0.24's one real MSC 1 WebSocket channel,
 //! carried forward at a versioned path per `websocket-v1.json` (P2.7):
-//! same bearer auth as every HTTP route (the existing middleware layer
-//! already runs before this handler, since the route sits inside
-//! `main.rs`'s auth-gated router), the 200-line-backfill-then-live
-//! delivery model, a 5000-line ring buffer, and a 64 KB inbound-frame cap.
+//! same bearer auth as every HTTP route (or a short-lived console ticket for
+//! desktop WebSocket clients), evaluated by the existing middleware before
+//! this handler, since the route sits inside `main.rs`'s auth-gated router;
+//! the 200-line-backfill-then-live delivery model, a 5000-line ring buffer,
+//! and a 64 KB inbound-frame cap.
 
 use std::sync::{Arc, Mutex};
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Query, State};
-use axum::response::Json;
-use axum::response::Response;
+use axum::extract::{Extension, Query, State};
+use axum::response::{IntoResponse, Json, Response};
 use msc_infrastructure::console_buffer::{
     CONSOLE_HISTORY_LIMIT, ConsoleBuffer, ConsoleLine, http_tail_count,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
+
+use crate::auth::{AuthState, AuthenticatedCredential};
 
 /// axum's inbound frame-size guard, matching `maxWebSocketClientFrameBytes`.
 const MAX_INBOUND_FRAME_BYTES: usize = 64 * 1024;
@@ -48,7 +50,7 @@ impl Default for ConsoleState {
 impl ConsoleState {
     pub fn push(&self, line: ConsoleLine) {
         let mut buffer = self.buffer.lock().expect("console buffer lock poisoned");
-        buffer.push(line.clone());
+        let line = buffer.push(line);
         drop(buffer);
         // No connected clients is the normal case; a send error just means
         // nobody's listening right now.
@@ -90,6 +92,27 @@ pub async fn tail(
     Query(query): Query<TailQuery>,
 ) -> Json<Vec<ConsoleLine>> {
     Json(state.tail(query.n.as_deref()))
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ConsoleStreamTicketResponse {
+    pub ticket: String,
+}
+
+pub async fn stream_ticket(
+    Extension(auth): Extension<AuthState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+) -> Response {
+    let mut response = Json(ConsoleStreamTicketResponse {
+        ticket: auth.issue_console_stream_ticket(&credential),
+    })
+    .into_response();
+    response.headers_mut().insert(
+        axum::http::header::CACHE_CONTROL,
+        axum::http::HeaderValue::from_static("no-store"),
+    );
+    response
 }
 
 async fn handle_socket(mut socket: WebSocket, state: ConsoleState) {

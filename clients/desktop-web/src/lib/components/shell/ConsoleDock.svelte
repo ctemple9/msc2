@@ -1,12 +1,17 @@
 <script lang="ts">
-  // The docked console — real behavior (P12.10): filter chips, search, a polled
-  // buffered tail, command input + Send, copy/clear. docs/msc2/renderings/shell.html,
+  // The docked console — real behavior (P12.10): filter chips, search, a live
+  // buffered stream, command input + Send, copy/clear. docs/msc2/renderings/shell.html,
   // MSC 1 ConsoleView/ConsoleManager, ~/Documents/MSCSS/Main View.
   import { onDestroy, onMount } from 'svelte';
   import Button from '../base/Button.svelte';
   import Toggle from '../base/Toggle.svelte';
   import CommandPaletteSheet from '../../sections/console/CommandPaletteSheet.svelte';
   import { onboardingAnchor } from '../../help/tourAnchors';
+  import {
+    BrowserWebSocketConnector,
+    ReconnectingStream,
+    type StreamState,
+  } from '../../streams/reconnecting';
   import type { ScreenApi, Schema } from '../../sections/shared/types';
   import {
     CONSOLE_CHIPS,
@@ -37,7 +42,8 @@
   // change was needed to get this here.
   export let serverType: string | undefined = undefined;
 
-  const POLL_INTERVAL_MS = 2000;
+  const FALLBACK_POLL_INTERVAL_MS = 2000;
+  const PLAYER_POLL_INTERVAL_MS = 5000;
 
   let lines: ConsoleLine[] = [];
   let chip: ConsoleChipId = 'all';
@@ -49,16 +55,42 @@
   let sendError = '';
   let logEl: HTMLDivElement | undefined;
   let followTail = true;
-  let pollTimer: ReturnType<typeof setInterval> | undefined;
+  let fallbackPollTimer: ReturnType<typeof setInterval> | undefined;
+  let playersPollTimer: ReturnType<typeof setInterval> | undefined;
+  let consoleStream: ReconnectingStream<ConsoleLine> | undefined;
+  let streamState: StreamState = 'idle';
+  let connectedApi: ScreenApi | undefined;
+  let componentMounted = false;
+  let stoppingStream = false;
+  let feedGeneration = 0;
   let clearVersion = 0;
   let clearedAt: number | undefined;
   const clearedLineKeys = new Set<string>();
   let playersResponse: Schema['PlayersResponseDTO'] = { count: 0, players: [] };
   let showPalette = false;
+  let hideAuto = false;
+  let showFilters = false;
 
-  $: visible = visibleConsoleLines(lines, chip, custom, search);
+  $: visible = visibleConsoleLines(lines, chip, custom, search, hideAuto);
   $: onlinePlayers = playersResponse.players;
   $: suggestions = command ? commandSuggestions(command, serverType, onlinePlayers) : [];
+  $: activeFilterCount =
+    Number(chip !== 'all' && chip !== 'custom') +
+    Number(hideAuto) +
+    Number(custom.origins.size > 0 || custom.levels.size > 0);
+
+  // The shell keeps this dock mounted while the selected host changes. Rebuild
+  // the stream at that boundary so one host's console history cannot bleed into
+  // another host's view.
+  $: if (componentMounted && api !== connectedApi) {
+    stopConsoleFeed();
+    connectedApi = api;
+    if (api) {
+      resetConsoleBoundary();
+      startConsoleFeed();
+      void refreshPlayers();
+    }
+  }
 
   $: if (logEl && visible.length && followTail) {
     const target = logEl;
@@ -67,31 +99,128 @@
     });
   }
 
-  async function poll(): Promise<void> {
-    if (!api) return;
+  async function pollTail(): Promise<void> {
+    const currentApi = api;
+    if (!currentApi) return;
     const version = clearVersion;
     try {
-      const fetchedLines = await api.get<ConsoleLine[]>(livePaths.tail);
+      const fetchedLines = await currentApi.get<ConsoleLine[]>(livePaths.tail);
       if (version === clearVersion) {
         lines = consoleLinesAfterClear(fetchedLines, clearedAt, clearedLineKeys);
       }
     } catch {
       // Agent unreachable this cycle — keep showing the last known buffer.
     }
+  }
+
+  async function refreshPlayers(): Promise<void> {
+    const currentApi = api;
+    if (!currentApi) return;
     try {
-      playersResponse = await api.get<Schema['PlayersResponseDTO']>(livePaths.players);
+      playersResponse = await currentApi.get<Schema['PlayersResponseDTO']>(livePaths.players);
     } catch {
       // Same as above — keep the last known roster.
     }
   }
 
+  async function streamUrl(currentApi: ScreenApi): Promise<string | undefined> {
+    if (!currentApi.resourceUrl || typeof WebSocket === 'undefined') return undefined;
+    try {
+      const url = new URL(currentApi.resourceUrl(livePaths.stream), window.location.href);
+      url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      try {
+        const result = await currentApi.post<{ ticket?: unknown }>(livePaths.streamTicket);
+        if (typeof result.ticket === 'string' && result.ticket) {
+          url.searchParams.set('ticket', result.ticket);
+        }
+      } catch {
+        // Older agents and browser sessions can still authenticate the socket
+        // directly; the ticket is an additive desktop-auth capability.
+      }
+      return url.toString();
+    } catch {
+      return undefined;
+    }
+  }
+
+  async function startConsoleFeed(): Promise<void> {
+    const currentApi = api;
+    const generation = ++feedGeneration;
+    if (!currentApi) {
+      streamState = 'closed';
+      return;
+    }
+    streamState = 'connecting';
+    const url = await streamUrl(currentApi);
+    if (!componentMounted || generation !== feedGeneration || api !== currentApi) return;
+    if (!url) {
+      streamState = 'closed';
+      startFallbackPolling();
+      void pollTail();
+      return;
+    }
+
+    consoleStream = new ReconnectingStream<ConsoleLine>({
+      connector: new BrowserWebSocketConnector<ConsoleLine>(url),
+      maxHistory: 200,
+      dedupeKey: consoleLineKey,
+      onUpdate: (history) => {
+        lines = consoleLinesAfterClear([...history], clearedAt, clearedLineKeys);
+      },
+      onState: (state) => {
+        streamState = state;
+        if (state === 'live') stopFallbackPolling();
+        if (state === 'closed' && !stoppingStream) {
+          startFallbackPolling();
+          void pollTail();
+        }
+      },
+    });
+    consoleStream.connect();
+  }
+
+  function stopConsoleFeed(): void {
+    feedGeneration += 1;
+    stoppingStream = true;
+    consoleStream?.close();
+    consoleStream = undefined;
+    stoppingStream = false;
+    stopFallbackPolling();
+  }
+
+  function startFallbackPolling(): void {
+    if (fallbackPollTimer) return;
+    fallbackPollTimer = setInterval(() => void pollTail(), FALLBACK_POLL_INTERVAL_MS);
+  }
+
+  function stopFallbackPolling(): void {
+    if (!fallbackPollTimer) return;
+    clearInterval(fallbackPollTimer);
+    fallbackPollTimer = undefined;
+  }
+
+  function resetConsoleBoundary(): void {
+    clearVersion += 1;
+    clearedAt = undefined;
+    clearedLineKeys.clear();
+    lines = [];
+    playersResponse = { count: 0, players: [] };
+  }
+
   onMount(() => {
-    void poll();
-    pollTimer = setInterval(() => void poll(), POLL_INTERVAL_MS);
+    componentMounted = true;
+    connectedApi = api;
+    if (api) {
+      startConsoleFeed();
+      void refreshPlayers();
+    }
+    playersPollTimer = setInterval(() => void refreshPlayers(), PLAYER_POLL_INTERVAL_MS);
   });
 
   onDestroy(() => {
-    if (pollTimer) clearInterval(pollTimer);
+    componentMounted = false;
+    stopConsoleFeed();
+    if (playersPollTimer) clearInterval(playersPollTimer);
   });
 
   function onLogScroll(): void {
@@ -101,10 +230,16 @@
 
   function selectChip(id: ConsoleChipId): void {
     if (id === 'custom') {
-      showCustomPanel = !showCustomPanel;
+      chip = 'custom';
+      showCustomPanel = true;
       return;
     }
     chip = id;
+    showCustomPanel = false;
+  }
+
+  function closeFilters(): void {
+    showFilters = false;
     showCustomPanel = false;
   }
 
@@ -140,7 +275,8 @@
     followTail = true;
     try {
       await api.post(livePaths.command, { command: trimmed });
-      void poll();
+      if (streamState !== 'live') void pollTail();
+      void refreshPlayers();
     } catch (error) {
       sendError = error instanceof Error ? error.message : 'The agent did not run that command.';
     }
@@ -186,7 +322,6 @@
       </svg>
     </button>
     <span class="label">Console</span>
-
     {#if !collapsed}
       <div class="search-field">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -200,95 +335,126 @@
         </svg>
         <input type="text" bind:value={search} placeholder="Search…" aria-label="Search console" />
       </div>
+      <button
+        type="button"
+        class="filter-trigger"
+        class:active={activeFilterCount > 0}
+        aria-expanded={showFilters}
+        aria-haspopup="dialog"
+        onclick={() => (showFilters = !showFilters)}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path
+            d="M4 7h16M7 12h10M10 17h4"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linecap="round"
+          />
+        </svg>
+        <span>Filters</span>
+        {#if activeFilterCount > 0}<span class="filter-count">{activeFilterCount}</span>{/if}
+      </button>
     {/if}
   </div>
 
-  {#if !collapsed}
-    <div class="filters">
-      {#each CONSOLE_CHIPS as item (item.id)}
-        {#if item.id === 'custom'}
-          <button
-            type="button"
-            class="chip custom"
-            class:active={chip === 'custom'}
-            aria-expanded={showCustomPanel}
-            onclick={() => selectChip(item.id)}
-          >
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path
-                d="M4 7h16M4 12h10M4 17h6"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-              />
-            </svg>
-            {item.label}
-          </button>
-        {:else}
-          <button
-            type="button"
-            class="chip"
-            class:active={chip === item.id}
-            onclick={() => selectChip(item.id)}
-          >
-            {item.label}
-          </button>
-        {/if}
-      {/each}
-    </div>
-
-    {#if showCustomPanel}
-      <div class="scrim" role="presentation" onclick={() => (showCustomPanel = false)}></div>
-      <div class="custom-panel" role="dialog" aria-label="Custom console filter">
-        <div class="custom-panel-header">
-          <span>Custom filter</span>
-          <button type="button" class="reset" onclick={resetCustom}>Reset</button>
-        </div>
-        <p class="group-label">Sources</p>
-        <div class="check-row">
-          <Toggle
-            checked={custom.origins.has('server')}
-            label="Server process"
-            onchange={(checked) => setOrigin('server', checked)}
-          />
-          <span>Server process</span>
-        </div>
-        <div class="check-row">
-          <Toggle
-            checked={custom.origins.has('controller')}
-            label="Controller"
-            onchange={(checked) => setOrigin('controller', checked)}
-          />
-          <span>Controller</span>
-        </div>
-        <p class="group-label">Levels</p>
-        <div class="check-row">
-          <Toggle
-            checked={custom.levels.has('info')}
-            label="Info"
-            onchange={(checked) => setLevel('info', checked)}
-          />
-          <span>Info</span>
-        </div>
-        <div class="check-row">
-          <Toggle
-            checked={custom.levels.has('warn')}
-            label="Warn"
-            onchange={(checked) => setLevel('warn', checked)}
-          />
-          <span>Warn</span>
-        </div>
-        <div class="check-row">
-          <Toggle
-            checked={custom.levels.has('error')}
-            label="Error"
-            onchange={(checked) => setLevel('error', checked)}
-          />
-          <span>Error</span>
-        </div>
+  {#if !collapsed && showFilters}
+    <div class="scrim" role="presentation" onclick={closeFilters}></div>
+    <div class="filter-panel" role="dialog" aria-label="Console filters">
+      <div class="filter-panel-header">
+        <span>Console filters</span>
+        <button type="button" class="reset" onclick={resetCustom}>Reset</button>
       </div>
-    {/if}
+      <div class="filters">
+        {#each CONSOLE_CHIPS as item (item.id)}
+          {#if item.id === 'custom'}
+            <button
+              type="button"
+              class="chip custom"
+              class:active={chip === 'custom'}
+              aria-expanded={showCustomPanel}
+              onclick={() => selectChip(item.id)}
+            >
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M4 7h16M4 12h10M4 17h6"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+              </svg>
+              {item.label}
+            </button>
+          {:else}
+            <button
+              type="button"
+              class="chip"
+              class:active={chip === item.id}
+              onclick={() => selectChip(item.id)}
+            >
+              {item.label}
+            </button>
+          {/if}
+        {/each}
+      </div>
+      <div class="auto-filter">
+        <Toggle
+          checked={hideAuto}
+          label="Hide automatic output"
+          onchange={(checked) => (hideAuto = checked)}
+        />
+        <span>Hide Auto</span>
+      </div>
 
+      {#if showCustomPanel}
+        <div class="custom-options">
+          <p class="group-label">Sources</p>
+          <div class="check-row">
+            <Toggle
+              checked={custom.origins.has('server')}
+              label="Server process"
+              onchange={(checked) => setOrigin('server', checked)}
+            />
+            <span>Server process</span>
+          </div>
+          <div class="check-row">
+            <Toggle
+              checked={custom.origins.has('controller')}
+              label="Controller"
+              onchange={(checked) => setOrigin('controller', checked)}
+            />
+            <span>Controller</span>
+          </div>
+          <p class="group-label">Levels</p>
+          <div class="check-row">
+            <Toggle
+              checked={custom.levels.has('info')}
+              label="Info"
+              onchange={(checked) => setLevel('info', checked)}
+            />
+            <span>Info</span>
+          </div>
+          <div class="check-row">
+            <Toggle
+              checked={custom.levels.has('warn')}
+              label="Warn"
+              onchange={(checked) => setLevel('warn', checked)}
+            />
+            <span>Warn</span>
+          </div>
+          <div class="check-row">
+            <Toggle
+              checked={custom.levels.has('error')}
+              label="Error"
+              onchange={(checked) => setLevel('error', checked)}
+            />
+            <span>Error</span>
+          </div>
+        </div>
+      {/if}
+    </div>
+  {/if}
+
+  {#if !collapsed}
     <div
       class="body"
       bind:this={logEl}
@@ -488,12 +654,44 @@
   .search-field input:focus {
     outline: none;
   }
+  .filter-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    padding: 5px 8px;
+    color: var(--msc2-text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  .filter-trigger:hover,
+  .filter-trigger[aria-expanded='true'] {
+    background: var(--msc2-neutral-elevated);
+    color: var(--msc2-text-primary);
+  }
+  .filter-trigger.active {
+    color: var(--msc2-text-primary);
+  }
+  .filter-trigger:focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.4);
+    outline-offset: 1px;
+  }
+  .filter-count {
+    min-width: 14px;
+    text-align: center;
+    color: var(--msc2-text-tertiary);
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+  }
   .filters {
     flex-shrink: 0;
     display: flex;
+    flex-wrap: wrap;
     gap: 2px;
-    overflow-x: auto;
-    margin-top: 7px;
   }
   .chip {
     display: inline-flex;
@@ -514,31 +712,53 @@
     background: var(--msc2-neutral-elevated);
     font-weight: 600;
   }
+  .filter-panel {
+    position: absolute;
+    top: 38px;
+    right: 12px;
+    z-index: 101;
+    width: min(520px, calc(100% - 24px));
+    box-sizing: border-box;
+    padding: 10px 12px;
+    background: var(--msc2-tier-chrome);
+    border: 1px solid var(--msc2-hairline);
+    border-radius: 8px;
+    box-shadow: var(--msc2-shadow-float);
+  }
+  .filter-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    color: var(--msc2-text-primary);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .auto-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding: 8px 4px 0;
+    color: var(--msc2-text-secondary);
+    font-size: 10px;
+    white-space: nowrap;
+    border-top: 1px solid var(--msc2-hairline-subtle);
+  }
+  .auto-filter :global(.track) {
+    transform: scale(0.68);
+    transform-origin: left center;
+    margin-right: -10px;
+  }
   .scrim {
     position: fixed;
     inset: 0;
     z-index: 100;
   }
-  .custom-panel {
-    position: absolute;
-    z-index: 101;
-    top: 62px;
-    left: 12px;
-    width: 200px;
-    background: var(--msc2-tier-chrome);
-    border: 1px solid var(--msc2-hairline);
-    border-radius: 10px;
-    box-shadow: var(--msc2-shadow-float);
-    padding: 10px 12px;
-  }
-  .custom-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--msc2-text-primary);
-    margin-bottom: 6px;
+  .custom-options {
+    margin-top: 8px;
+    padding: 4px 4px 0;
+    border-top: 1px solid var(--msc2-hairline-subtle);
   }
   .reset {
     font-size: 11px;

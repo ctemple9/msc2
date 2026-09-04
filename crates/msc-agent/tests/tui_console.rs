@@ -28,6 +28,7 @@ fn line(source: &str, level: Option<&str>, text: &str) -> ConsoleLine {
         ts: text.to_string(),
         source: source.to_string(),
         level: level.map(str::to_string),
+        auto: false,
         text: text.to_string(),
     }
 }

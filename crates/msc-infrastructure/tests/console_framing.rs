@@ -74,6 +74,7 @@ fn console_framing_history_limit_backfill_and_tail_clamps() {
             ts: index.to_string(),
             source: "server".to_string(),
             level: Some("info".to_string()),
+            auto: false,
             text: format!("line-{index}"),
         });
     }
@@ -136,4 +137,92 @@ fn console_framing_history_limit_backfill_and_tail_clamps() {
     let expected_three: Vec<String> =
         serde_json::from_value(expected["threeTailTexts"].clone()).unwrap();
     assert_eq!(three_tail_texts, expected_three);
+}
+
+#[test]
+fn console_auto_classifier_marks_metrics_as_a_bounded_family() {
+    let mut buffer = ConsoleBuffer::new();
+    let spark_lines = [
+        "[12:00:00] [spark/INFO]: TPS from last 5s, 10s, 1m, 5m, 15m:",
+        "[12:00:00] [spark/INFO]: *20.0, *20.0, *20.0, *20.0, 19.85",
+        "[12:00:00] [spark/INFO]:",
+        "[12:00:00] [spark/INFO]: Tick durations (min/med/95%ile/max ms) from last 10s, 1m:",
+        "[12:00:00] [spark/INFO]: 0.4/1.3/3.7/23.3; 0.4/1.3/2.6/23.3",
+        "[12:00:00] [spark/INFO]:",
+        "[12:00:00] [spark/INFO]: CPU usage from last 10s, 1m, 15m:",
+        "[12:00:00] [spark/INFO]: 47%, 46%, 62% (system)",
+        "[12:00:00] [spark/INFO]: 3%, 3%, 5% (process)",
+    ];
+
+    let classified = spark_lines
+        .into_iter()
+        .map(|text| buffer.push(ConsoleLine::new("stdout", None, text)).auto)
+        .collect::<Vec<_>>();
+
+    assert!(classified.into_iter().all(|is_auto| is_auto));
+    assert!(
+        !buffer
+            .push(ConsoleLine::new("stdout", None, "A player joined the game"))
+            .auto
+    );
+    assert!(
+        buffer
+            .push(ConsoleLine::new(
+                "stdout",
+                None,
+                "There are 0 of a max of 20 players online:"
+            ))
+            .auto
+    );
+    assert!(
+        buffer
+            .push(ConsoleLine::new(
+                "stdout",
+                None,
+                "[13:15:01 INFO] [Primary Session] Updated session!"
+            ))
+            .auto
+    );
+    assert!(
+        buffer
+            .push(ConsoleLine::new(
+                "stdout",
+                None,
+                "\u{fffd}[36;1m[Primary Session] Updated session!\u{fffd}[m"
+            ))
+            .auto
+    );
+}
+
+#[test]
+fn console_auto_classifier_hides_routine_helpers_but_keeps_attention_lines() {
+    let mut buffer = ConsoleBuffer::new();
+
+    assert!(
+        buffer
+            .push(ConsoleLine::new(
+                "xbox-broadcast",
+                None,
+                "Broadcast connected"
+            ))
+            .auto
+    );
+    assert!(
+        !buffer
+            .push(ConsoleLine::new(
+                "xbox-broadcast",
+                None,
+                "[Xbox Broadcast stderr] connection failed"
+            ))
+            .auto
+    );
+    assert!(
+        !buffer
+            .push(ConsoleLine::new(
+                "playit",
+                None,
+                "Please visit the login page"
+            ))
+            .auto
+    );
 }

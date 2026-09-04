@@ -20,7 +20,7 @@
         "failureResponse": "HTTP 400 with P2.4 §5's ErrorDTO (code: \"invalid_body\", message naming the missing/empty Sec-WebSocket-Key) if the upgrade headers are malformed — a deliberate P2.4 §6 (D-006 point 3) correction against the baseline's bespoke {\"error\": \"websocket_upgrade_failed\"} shape, not a wire-shape change to the channel itself"
       },
       "auth": {
-        "mechanism": "Identical bearer-token check applied to every /v1/ route (P2.3's fixed dev token this phase), evaluated before the WS-upgrade special case is reached",
+        "mechanism": "Bearer-token authentication is applied before upgrade; desktop shells may instead use the short-lived console-only ticket returned by POST /v1/console/stream-ticket as the `ticket` query parameter, because browser WebSocket APIs cannot attach the desktop bearer header",
         "requiredRole": "any authenticated role may connect — GET routes carry no additional per-path permission gate, per P2.1's finding carried into P2.8's vocabulary assignment",
         "failureResponse": "HTTP 401 with P2.4 §5's ErrorDTO (code: \"unauthorized\") for a missing/invalid token — same correction as failureResponse above, replacing the baseline's bespoke failure body with the one contract-wide envelope"
       },
@@ -30,6 +30,7 @@
           "ts": "string",
           "source": "string",
           "level": "string, optional",
+          "auto": "boolean, optional — true for routine automatic output",
           "text": "string"
         },
         "framing": "one JSON-encoded ConsoleLineDTO per WebSocket text frame (opcode 0x1, FIN bit set) — unchanged from P0.24"

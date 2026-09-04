@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   MINECRAFT_COMMANDS,
+  EMPTY_CUSTOM_FILTER,
   buildCommand,
   commandSuggestions,
   commandSyntaxHint,
   commandsFor,
   hasRequiredArgs,
+  visibleConsoleLines,
 } from './model';
 
 describe('command palette registry', () => {
@@ -80,5 +82,27 @@ describe('command palette registry', () => {
   it('suggests nothing past the last argument slot or for a free-text slot', () => {
     expect(commandSuggestions('/stop ', 'java', [])).toEqual([]);
     expect(commandSuggestions('/say hello ', 'java', [])).toEqual([]);
+  });
+
+  it('hides Paper metrics and ANSI-wrapped broadcast noise without hiding normal output', () => {
+    const lines = [
+      { ts: '1', source: 'stdout', text: 'A player joined the game' },
+      {
+        ts: '2',
+        source: 'stdout',
+        text: 'TPS from last 1m, 5m, 15m: 19.9, 19.9, 19.9',
+      },
+      {
+        ts: '3',
+        source: 'stdout',
+        text: '\uFFFD[m\uFFFD[36;1mINFO\uFFFD[m\uFFFD[39m[Primary Session] Updated session!\uFFFD[m',
+      },
+      { ts: '4', source: 'stdout', text: 'There are 0 of a max of 20 players online:' },
+      { ts: '5', source: 'stdout', text: 'Server stopped unexpectedly', auto: true },
+    ];
+
+    expect(
+      visibleConsoleLines(lines, 'all', EMPTY_CUSTOM_FILTER, '', true).map((line) => line.text),
+    ).toEqual(['A player joined the game']);
   });
 });

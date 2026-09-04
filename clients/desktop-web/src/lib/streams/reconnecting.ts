@@ -153,16 +153,33 @@ export class BrowserWebSocketConnector<T> implements StreamConnector<T> {
 
   connect(handlers: Parameters<StreamConnector<T>['connect']>[0]): StreamHandle {
     const socket = new WebSocket(this.url, this.protocols);
+    let ended = false;
+    const fail = (error: unknown) => {
+      if (ended) return;
+      ended = true;
+      handlers.onError(error);
+      socket.close();
+    };
     socket.onopen = () => handlers.onOpen();
     socket.onmessage = (event) => {
       try {
         handlers.onMessage(JSON.parse(String(event.data)) as T);
       } catch (error) {
-        handlers.onError(error);
+        fail(error);
       }
     };
-    socket.onclose = () => handlers.onClose();
-    socket.onerror = () => handlers.onError(new Error('WebSocket error'));
-    return { close: () => socket.close() };
+    socket.onclose = () => {
+      if (ended) return;
+      ended = true;
+      handlers.onClose();
+    };
+    socket.onerror = () => fail(new Error('WebSocket error'));
+    return {
+      close: () => {
+        if (ended) return;
+        ended = true;
+        socket.close();
+      },
+    };
   }
 }

@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: a6e466b66ad33d37cb426dbc781e1df42f67d8612536ea35b3d2f9dfc9550c34
+// Contract SHA-256: fecc0599c3bf361bfec8d680c0365165cc0e8b1c1b06c1ffdb44f10fa84b6912
 
 export interface paths {
   '/v1/active-server': {
@@ -1972,6 +1972,42 @@ export interface paths {
     };
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/v1/console/stream-ticket': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Create a short-lived console WebSocket ticket */
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description console WebSocket ticket */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ConsoleStreamTicketDTO'];
+          };
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -6637,10 +6673,18 @@ export interface components {
       [key: string]: unknown;
     };
     ConsoleLineDTO: {
+      /** @description True when the agent identifies the line as routine automatic output. */
+      auto?: boolean;
       level?: string;
       source: string;
       text: string;
       ts: string;
+    } & {
+      [key: string]: unknown;
+    };
+    ConsoleStreamTicketDTO: {
+      /** @description Short-lived, console-only WebSocket capability; never a bearer credential. */
+      ticket: string;
     } & {
       [key: string]: unknown;
     };

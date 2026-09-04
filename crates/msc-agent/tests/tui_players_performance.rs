@@ -113,12 +113,14 @@ fn bedrock_session_history_is_derived_from_the_existing_console_tail() {
             ts: "2026-09-02T12:00:00Z".to_string(),
             source: "server".to_string(),
             level: None,
+            auto: false,
             text: "Alex joined the game".to_string(),
         },
         ConsoleLine {
             ts: "2026-09-02T12:02:00Z".to_string(),
             source: "server".to_string(),
             level: None,
+            auto: false,
             text: "Alex left the game".to_string(),
         },
     ];

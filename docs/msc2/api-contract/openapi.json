@@ -4235,6 +4235,24 @@
         "x-permission-category": "none"
       }
     },
+    "/v1/console/stream-ticket": {
+      "post": {
+        "summary": "Create a short-lived console WebSocket ticket",
+        "responses": {
+          "200": {
+            "description": "console WebSocket ticket",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsoleStreamTicketDTO"
+                }
+              }
+            }
+          }
+        },
+        "x-permission-category": "none"
+      }
+    },
     "/v1/components": {
       "get": {
         "summary": "Installed system components (Paper/Geyser/Floodgate/flavor jar) and update status",
@@ -9948,6 +9966,10 @@
           "level": {
             "type": "string"
           },
+          "auto": {
+            "type": "boolean",
+            "description": "True when the agent identifies the line as routine automatic output."
+          },
           "text": {
             "type": "string"
           }
@@ -9956,6 +9978,18 @@
           "ts",
           "source",
           "text"
+        ]
+      },
+      "ConsoleStreamTicketDTO": {
+        "type": "object",
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "description": "Short-lived, console-only WebSocket capability; never a bearer credential."
+          }
+        },
+        "required": [
+          "ticket"
         ]
       },
       "ComponentStatusDTO": {

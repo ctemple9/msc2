@@ -66,6 +66,8 @@ export function rememberCommand(history: readonly string[], command: string, max
 
 export const livePaths = {
   command: '/v1/command',
+  stream: '/v1/console/stream',
+  streamTicket: '/v1/console/stream-ticket',
   tail: '/v1/console/tail?n=200',
   performance: '/v1/performance',
   operations: '/v1/operations',
@@ -199,9 +201,8 @@ export function matchesChip(line: ConsoleLine, chip: ConsoleChipId): boolean {
   }
 }
 
-/** The reduced form of MSC 1's Custom filters popover (Sources + Levels groups) --
- *  Tags and Hide Auto have no equivalent since the agent sends neither a tag nor an
- *  auto-attribution flag. An empty set means "no restriction," matching MSC 1. */
+/** The reduced form of MSC 1's Custom filters popover (Sources + Levels groups).
+ * An empty set means "no restriction," matching MSC 1. */
 export interface CustomFilter {
   origins: ReadonlySet<ConsoleOrigin>;
   levels: ReadonlySet<ConsoleLevel>;
@@ -224,17 +225,127 @@ export function matchesSearch(line: ConsoleLine, search: string): boolean {
   return !needle || line.text.toLowerCase().includes(needle);
 }
 
+/**
+ * Returns the lines MSC 1 would classify as automatic output. New agents carry
+ * the decision in `auto`; the text/source fallback keeps the dock useful while
+ * an older agent is still running. The fallback recognizes stable output
+ * families only, never arbitrary repetition.
+ */
+export function automaticConsoleLineKeys(lines: readonly ConsoleLine[]): ReadonlySet<string> {
+  const automatic = new Set<string>();
+  let sparkState: 'idle' | 'values' | 'body' = 'idle';
+  let sparkGuard = 0;
+  let sparkCpuValuesRemaining = 0;
+
+  for (const line of lines) {
+    const lower = stripAnsi(line.text).toLowerCase();
+    const explicitlyAutomatic = line.auto === true;
+    const helperAutomatic = routineHelperLine(line.source, lower);
+
+    if (explicitlyAutomatic || helperAutomatic || knownMetricLine(lower)) {
+      automatic.add(consoleLineKey(line));
+    }
+
+    if (lower.includes('tps from last 5s, 10s, 1m, 5m, 15m')) {
+      automatic.add(consoleLineKey(line));
+      sparkState = 'values';
+      sparkGuard = 12;
+      sparkCpuValuesRemaining = 0;
+      continue;
+    }
+
+    if (sparkState === 'values') {
+      if (hasFiveDecimalValues(line.text)) {
+        automatic.add(consoleLineKey(line));
+        sparkState = 'body';
+        sparkGuard -= 1;
+      } else {
+        sparkState = 'idle';
+      }
+      continue;
+    }
+
+    if (sparkState !== 'body') continue;
+    if (sparkGuard <= 0) {
+      sparkState = 'idle';
+      continue;
+    }
+    automatic.add(consoleLineKey(line));
+    sparkGuard -= 1;
+    if (lower.includes('cpu usage from last 10s, 1m, 15m')) {
+      sparkCpuValuesRemaining = 2;
+    } else if (sparkCpuValuesRemaining > 0) {
+      sparkCpuValuesRemaining -= 1;
+      if (sparkCpuValuesRemaining === 0) sparkState = 'idle';
+    } else if (sparkGuard === 0) {
+      sparkState = 'idle';
+    }
+  }
+
+  return automatic;
+}
+
+function knownMetricLine(lower: string): boolean {
+  return (
+    lower.includes('tps from last 1m, 5m, 15m') ||
+    (lower.includes('mean tick time') && lower.includes('mean tps')) ||
+    (lower.includes('overall:') && lower.includes('tps (') && lower.includes('ms/tick')) ||
+    lower.includes('average time per tick') ||
+    lower.includes('target tick rate') ||
+    lower.includes('percentiles: p50') ||
+    (lower.includes('there are') && lower.includes('players online')) ||
+    lower.includes('[primary session] updated session')
+  );
+}
+
+function routineHelperLine(source: string, lower: string): boolean {
+  if (source !== 'playit' && source !== 'xbox-broadcast') return false;
+  return ![
+    'stderr',
+    'error',
+    'warn',
+    'failed',
+    'failure',
+    'unable',
+    'invalid',
+    'denied',
+    'refused',
+    'timeout',
+    'timed out',
+    'please',
+    'visit ',
+    'device code',
+    'sign in',
+    'authenticate',
+    'password',
+    'token',
+  ].some((marker) => lower.includes(marker));
+}
+
+function hasFiveDecimalValues(text: string): boolean {
+  return (text.match(/\d+\.\d+/g) ?? []).length >= 5;
+}
+
+function stripAnsi(text: string): string {
+  // A few terminal bridges replace the non-printing ESC byte with U+FFFD,
+  // leaving visible fragments such as "�[36;1m" in the received line.
+  return text.replace(/(?:\x1b|\uFFFD)\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
 export function visibleConsoleLines(
   lines: readonly ConsoleLine[],
   chip: ConsoleChipId,
   custom: CustomFilter,
   search: string,
+  hideAuto = false,
 ): ConsoleLine[] {
+  const automatic = hideAuto ? automaticConsoleLineKeys(lines) : undefined;
   return lines.filter(
     (line) =>
       matchesChip(line, chip) &&
       (chip !== 'custom' || matchesCustomFilter(line, custom)) &&
-      matchesSearch(line, search),
+      matchesSearch(line, search) &&
+      (!automatic || !automatic.has(consoleLineKey(line))),
   );
 }
 

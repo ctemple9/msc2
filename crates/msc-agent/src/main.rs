@@ -226,6 +226,7 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
 
     let console = Router::new()
         .route("/console/stream", get(ws::console::upgrade))
+        .route("/console/stream-ticket", post(ws::console::stream_ticket))
         .route("/console/tail", get(ws::console::tail))
         .with_state(console_state);
 

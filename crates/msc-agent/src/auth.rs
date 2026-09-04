@@ -67,6 +67,7 @@ const AUTH_FAILURE_WINDOW: Duration = Duration::from_secs(60);
 const AUTH_FAILURE_LIMIT: usize = 10;
 const PAIRING_CREATE_WINDOW: Duration = Duration::from_secs(5);
 const PAIRING_CREATE_LIMIT: usize = 10;
+const CONSOLE_STREAM_TICKET_TTL: Duration = Duration::from_secs(60 * 60);
 const PAIRING_INDEX_KEY: &str = "remote-api.pairing-index";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -185,10 +186,17 @@ struct AuthStateInner {
     pairing_creations: Mutex<HashMap<String, VecDeque<Instant>>>,
     pairing_keys: Mutex<HashSet<String>>,
     session_keys: Mutex<HashSet<String>>,
+    console_stream_tickets: Mutex<HashMap<String, ConsoleStreamTicket>>,
     audit_events: Mutex<Vec<AuthAuditEvent>>,
     /// Where the non-secret registry is durably persisted, if at all --
     /// `None` for the in-memory-only constructors tests use.
     credential_store: Option<CredentialRegistryStore>,
+}
+
+#[derive(Debug, Clone)]
+struct ConsoleStreamTicket {
+    credential_id: String,
+    expires_at: Instant,
 }
 
 /// `fs` must outlive the process: `AuthState` is cloned into axum's
@@ -308,6 +316,7 @@ impl AuthState {
                 pairing_creations: Mutex::new(HashMap::new()),
                 pairing_keys: Mutex::new(HashSet::new()),
                 session_keys: Mutex::new(HashSet::new()),
+                console_stream_tickets: Mutex::new(HashMap::new()),
                 audit_events: Mutex::new(Vec::new()),
                 credential_store,
             }),
@@ -333,6 +342,63 @@ impl AuthState {
         CredentialRepository::new(store.fs, store.path.clone())
             .save(&entries)
             .map_err(|err| SecretStoreError(err.to_string()))
+    }
+
+    /// Issues a one-hour, in-memory ticket for the console WebSocket. The
+    /// desktop shell can receive this narrow capability through its existing
+    /// authenticated HTTP bridge without receiving the host bearer token.
+    pub(crate) fn issue_console_stream_ticket(
+        &self,
+        credential: &AuthenticatedCredential,
+    ) -> String {
+        let now = Instant::now();
+        let ticket = random_secret();
+        let mut tickets = self.inner.console_stream_tickets.lock().unwrap();
+        tickets.retain(|_, value| value.expires_at > now);
+        tickets.insert(
+            ticket.clone(),
+            ConsoleStreamTicket {
+                credential_id: credential.credential_id.clone(),
+                expires_at: now + CONSOLE_STREAM_TICKET_TTL,
+            },
+        );
+        ticket
+    }
+
+    /// Re-checks the credential registry when a stream ticket is presented,
+    /// so revoking or expiring the issuing credential also closes its access.
+    pub(crate) fn authenticate_console_stream_ticket(
+        &self,
+        ticket: &str,
+    ) -> Option<AuthenticatedCredential> {
+        let now = Instant::now();
+        let ticket_record = {
+            let mut tickets = self.inner.console_stream_tickets.lock().unwrap();
+            let Some(record) = tickets.get(ticket).cloned() else {
+                return None;
+            };
+            if record.expires_at <= now {
+                tickets.remove(ticket);
+                return None;
+            }
+            record
+        };
+
+        let registry = self.inner.registry.lock().unwrap();
+        let record = registry.get(&ticket_record.credential_id)?;
+        if record.revoked
+            || record
+                .expires_at
+                .is_some_and(|expires_at| SystemTime::now() >= expires_at)
+        {
+            return None;
+        }
+        Some(AuthenticatedCredential {
+            credential_id: ticket_record.credential_id,
+            label: record.label.clone(),
+            role: record.role,
+            permissions: record.permissions.clone(),
+        })
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -966,6 +1032,13 @@ pub(crate) async fn require_management_auth(
     mut request: Request,
     next: Next,
 ) -> Response {
+    if let Some(ticket) = console_stream_ticket(request.uri())
+        && let Some(credential) = auth.authenticate_console_stream_ticket(ticket)
+    {
+        request.extensions_mut().insert(credential);
+        return next.run(request).await;
+    }
+
     let bearer_was_present = request.headers().contains_key(header::AUTHORIZATION);
     if bearer_was_present {
         return match auth.authenticate_headers(request.headers(), "unknown-client") {
@@ -1041,6 +1114,16 @@ fn bearer_token(headers: &HeaderMap) -> Option<&str> {
         .and_then(|value| value.strip_prefix("Bearer "))
         .map(str::trim)
         .filter(|value| !value.is_empty())
+}
+
+fn console_stream_ticket(uri: &axum::http::Uri) -> Option<&str> {
+    if uri.path() != "/v1/console/stream" {
+        return None;
+    }
+    uri.query()?.split('&').find_map(|part| {
+        part.strip_prefix("ticket=")
+            .filter(|ticket| !ticket.is_empty())
+    })
 }
 
 fn parse_token(token: &str) -> Option<(&str, &str)> {
@@ -1444,6 +1527,33 @@ mod tests {
         assert_eq!(credential.label, "owner-admin");
         assert_eq!(credential.role, CredentialRole::Admin);
         assert_eq!(credential.permissions, all_permissions());
+    }
+
+    #[test]
+    fn console_stream_tickets_follow_credential_revocation() {
+        let state = test_state();
+        let issued = state
+            .issue_credential(
+                "owner-admin",
+                CredentialRole::Admin,
+                all_permissions(),
+                None,
+            )
+            .unwrap();
+        let credential = state
+            .authenticate_headers(&headers_with_bearer(&issued.token), "test-client")
+            .unwrap();
+        let ticket = state.issue_console_stream_ticket(&credential);
+
+        assert_eq!(
+            state
+                .authenticate_console_stream_ticket(&ticket)
+                .unwrap()
+                .credential_id,
+            issued.credential_id
+        );
+        state.revoke_for_test(&issued.credential_id);
+        assert!(state.authenticate_console_stream_ticket(&ticket).is_none());
     }
 
     #[test]

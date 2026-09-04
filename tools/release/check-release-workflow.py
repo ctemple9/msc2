@@ -129,10 +129,30 @@ def check_candidate_workflow(workflow: str) -> None:
 
 def check_publish_guard(workflow: str) -> None:
     require(re.search(r"(?m)^\s+publish:", workflow) is not None, "publish job is missing")
-    require("github.event_name" in workflow, "publish job is not event-guarded")
-    require("refs/tags/v" in workflow, "publish job is not tag-guarded")
+    publish_start = re.search(r"(?m)^  publish:\s*$", workflow)
+    require(publish_start is not None, "publish job is not a top-level job")
+    publish_job = workflow[publish_start.start() :]
+    require("needs: build" in publish_job, "publish job does not require the full build matrix")
+    require("needs.build.result == 'success'" in publish_job, "publish job does not require a successful matrix")
+    require("github.event_name == 'push'" in publish_job, "publish job is not push-guarded")
+    require("github.event_name == 'workflow_dispatch'" in publish_job, "publish job lacks manual-dispatch handling")
+    require("inputs.publish == true" in publish_job, "manual publication is not explicitly opted in")
+    require("startsWith(github.ref, 'refs/tags/v')" in publish_job, "publish job is not tag-guarded")
+    require("permissions:" in publish_job and "contents: write" in publish_job, "publish job lacks release permission")
+    require("actions/download-artifact@v4" in publish_job, "publish job does not collect matrix artifacts")
     require("verify-artifact-manifest.py" in workflow, "manifest verifier is not wired")
-    require("sha256" in workflow.lower(), "SHA-256 manifest generation is not wired")
+    require("--write" in publish_job and "SHA256SUMS" in publish_job, "SHA-256 manifest generation is not wired")
+    require("softprops/action-gh-release@v2" in publish_job, "publish job does not create a GitHub release")
+    require("prerelease: true" in publish_job, "GitHub publication is not marked as a prerelease")
+    require("fail_on_unmatched_files: true" in publish_job, "release publication does not fail on missing assets")
+
+
+def split_publish_job(workflow: str) -> tuple[str, str]:
+    """Return the candidate workflow and the optional publication job."""
+    match = re.search(r"(?m)^  publish:\s*$", workflow)
+    if match is None:
+        return workflow, ""
+    return workflow[: match.start()], workflow[match.start() :]
 
 
 def main() -> int:
@@ -148,7 +168,8 @@ def main() -> int:
     try:
         workflow = read_workflow(path)
         check_yaml(path)
-        check_candidate_workflow(workflow)
+        candidate_workflow, _ = split_publish_job(workflow)
+        check_candidate_workflow(candidate_workflow)
         if args.expect_publish_guard:
             check_publish_guard(workflow)
     except WorkflowError as error:

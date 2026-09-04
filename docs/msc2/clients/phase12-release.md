@@ -333,6 +333,29 @@ standalone headless binary; the Linux leg calls
 `tools/release/build-linux-headless.sh`, which includes the installer,
 uninstaller, and systemd definitions from P12.61. Every uploaded directory
 contains a platform-labelled installer/archive and an explicit unsigned-beta
-notice. No job publishes a GitHub release, creates a checksum manifest, or
-claims signing/notarization; those are separate release-publication and
-physical-handoff concerns.
+notice. The candidate matrix is also the required build for the guarded
+publication job described below; it does not weaken the candidate checks or
+change ordinary CI.
+
+## 11. Tag publication workflow (P12.63)
+
+The same workflow has a separate `publish` job. It requires the complete
+three-platform matrix to succeed, so a failed or partial candidate cannot
+reach publication. On a `v*` tag push it creates a GitHub prerelease. A manual
+dispatch remains artifact-only by default; a manual run may publish only when
+the selected ref is an exact `v*` tag and the operator explicitly enables the
+`publish` input. Branches and untagged refs cannot publish.
+
+The publication job downloads the three platform artifacts, selects the six
+Tauri installer and headless archive files named by the platform matrix, and
+fails if any asset is missing or duplicated. It generates `SHA256SUMS` from
+those final bytes and verifies the flat manifest before uploading all seven
+release assets to the prerelease. The manifest uses lowercase SHA-256 and the
+standard two-space filename separator; it is an integrity aid, not a
+signature, and is not included in its own hash.
+
+The beta remains deliberately unsigned. This workflow does not claim code
+signing, notarization, a signed coordinated-update manifest, or production
+auto-update support. The prerelease action only publishes the bytes produced
+by the successful matrix and the checksum metadata needed to compare a
+download with those bytes.

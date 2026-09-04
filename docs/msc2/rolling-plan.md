@@ -294,7 +294,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** stop-after
 
 ### P12.63 — Publish checksummed beta releases from tags
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `.github/workflows/release.yml`, `tools/release/`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
 **What:** Extend the successful candidate workflow with a guarded tag-only publication job that creates a GitHub prerelease, uploads the Tauri installers and headless packages, and publishes a single SHA-256 manifest covering every asset. Keep manual dispatch available for artifact-only runs, require an explicit publish input where appropriate, and make failed or partial matrix builds unable to publish. Do not claim code signing, notarization, a signed coordinated-update manifest, or production auto-update support until those keys and checks exist.
 **Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && python3 tools/release/verify-artifact-manifest.py --help`

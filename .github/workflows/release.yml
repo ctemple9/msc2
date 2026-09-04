@@ -2,6 +2,12 @@ name: Beta release candidate
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish a prerelease when the selected ref is an exact v* tag
+        required: true
+        default: false
+        type: boolean
   push:
     tags:
       - 'v*'
@@ -185,3 +191,75 @@ jobs:
           name: beta-${{ matrix.platform }}-${{ env.RELEASE_VERSION }}
           path: target/release-artifacts
           if-no-files-found: error
+
+  publish:
+    name: Publish ${{ github.ref_name }}
+    if: >-
+      needs.build.result == 'success' &&
+      startsWith(github.ref, 'refs/tags/v') &&
+      (
+        github.event_name == 'push' ||
+        (github.event_name == 'workflow_dispatch' && inputs.publish == true)
+      )
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Download successful platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: beta-*
+          path: target/release-downloads
+          merge-multiple: false
+
+      - name: Assemble release assets
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p target/release-assets
+          asset_count=0
+          while IFS= read -r -d '' source; do
+            filename="$(basename "$source")"
+            destination="target/release-assets/$filename"
+            test ! -e "$destination" || {
+              echo "duplicate release asset: $filename" >&2
+              exit 1
+            }
+            cp "$source" "$destination"
+            asset_count=$((asset_count + 1))
+          done < <(
+            find target/release-downloads -type f \( \
+              -name '*.dmg' -o \
+              -name '*.msi' -o \
+              -name '*.deb' -o \
+              -name '*.tar.gz' -o \
+              -name '*.zip' \
+            \) -print0
+          )
+          test "$asset_count" -eq 6 || {
+            echo "expected six desktop/headless release assets, found $asset_count" >&2
+            exit 1
+          }
+
+      - name: Generate and verify SHA-256 manifest
+        run: |
+          python3 tools/release/verify-artifact-manifest.py \
+            --manifest target/release-assets/SHA256SUMS \
+            --artifacts target/release-assets \
+            --write
+
+      - name: Publish unsigned GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: MSC 2 ${{ github.ref_name }}
+          prerelease: true
+          draft: false
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          files: target/release-assets/*

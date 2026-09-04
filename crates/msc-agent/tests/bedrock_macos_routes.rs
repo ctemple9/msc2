@@ -83,6 +83,7 @@ impl SidecarTransport for FakeSidecarTransport {
             | SidecarFrame::Ready { .. }
             | SidecarFrame::CommandResult { .. }
             | SidecarFrame::ConsoleLine { .. }
+            | SidecarFrame::Metrics { .. }
             | SidecarFrame::Terminated { .. } => {}
         }
         Ok(())
@@ -234,6 +235,7 @@ impl From<BedrockRuntimeEvent> for JsonValueEvent {
                     "type": "metrics",
                     "cpuPercent": metrics.cpu_percent,
                     "ramUsedMb": metrics.ram_used_mb,
+                    "ramMaxMb": metrics.ram_max_mb,
                 }
             }),
             BedrockRuntimeEvent::Terminated { reason } => json!({
@@ -343,6 +345,24 @@ async fn macos_routes_wait_for_dhcp_relay_and_complete_sidecar_lifecycle() {
         request(address, "GET", "/v1/status", "{}").await.1["running"],
         true
     );
+
+    {
+        let mut state = state.lock().unwrap();
+        state
+            .runtime
+            .sidecar_mut()
+            .transport_mut()
+            .push(SidecarFrame::Metrics {
+                cpu_percent: Some(12.5),
+                ram_used_mb: Some(512.0),
+                ram_max_mb: Some(2048.0),
+            });
+    }
+    let (_, metrics) = request(address, "GET", "/v1/events", "{}").await;
+    assert_eq!(metrics["event"]["type"], "metrics");
+    assert_eq!(metrics["event"]["cpuPercent"], 12.5);
+    assert_eq!(metrics["event"]["ramUsedMb"], 512.0);
+    assert_eq!(metrics["event"]["ramMaxMb"], 2048.0);
 
     let (_, command) = request(
         address,

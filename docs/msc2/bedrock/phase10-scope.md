@@ -83,12 +83,13 @@ shared runtime states. The Swift sidecar owns only the VZ-specific work:
   relay;
 - translate guest clean stop, VM error, boot failure, and forced stop into one
   terminal event; and
-- parse and consume sidecar-only `[MSCSTATS]` lines.
+- parse and consume sidecar-only `[MSCSTATS]` lines, forwarding the numeric
+  sample as a private `metrics` sidecar frame.
 
 The sidecar is not a second management API and must not persist Bedrock state
 outside the shared server directory. The existing contract's `provision`,
-`start`, `ready`, `stop`, `force-stop`, `terminated`, `console-line`, and
-`command` messages remain the only process boundary.
+`start`, `ready`, `stop`, `force-stop`, `terminated`, `console-line`,
+`metrics`, and `command` messages remain the only process boundary.
 
 P10.17's `sidecar/bedrock/BedrockSidecar` executable implements that boundary
 over stdin/stdout JSON lines. Its controller validates the Intel host

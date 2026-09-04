@@ -93,10 +93,12 @@ enum SidecarResponse: Encodable, Equatable {
     case ready(guestIP: String, port: UInt16, relayUp: Bool)
     case commandResult(ok: Bool, reason: String?)
     case consoleLine(String)
+    case metrics(cpuPercent: Double?, ramUsedMB: Double?, ramMaxMB: Double?)
     case terminated(String)
 
     private enum CodingKeys: String, CodingKey {
         case type, ok, reason, accepted, guestIP = "guest_ip", port, relayUp = "relay_up", command, line
+        case cpuPercent = "cpu_percent", ramUsedMB = "ram_used_mb", ramMaxMB = "ram_max_mb"
     }
 
     func encode(to encoder: Encoder) throws {
@@ -122,11 +124,22 @@ enum SidecarResponse: Encodable, Equatable {
         case .consoleLine(let line):
             try container.encode("console-line", forKey: .type)
             try container.encode(line, forKey: .line)
+        case .metrics(let cpuPercent, let ramUsedMB, let ramMaxMB):
+            try container.encode("metrics", forKey: .type)
+            try container.encodeIfPresent(cpuPercent, forKey: .cpuPercent)
+            try container.encodeIfPresent(ramUsedMB, forKey: .ramUsedMB)
+            try container.encodeIfPresent(ramMaxMB, forKey: .ramMaxMB)
         case .terminated(let reason):
             try container.encode("terminated", forKey: .type)
             try container.encode(reason, forKey: .reason)
         }
     }
+}
+
+struct BedrockGuestMetrics: Equatable {
+    let cpuPercent: Double?
+    let ramUsedMB: Double?
+    let ramMaxMB: Double?
 }
 
 protocol ApplianceResourceProvider {
@@ -365,6 +378,13 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
     }
 
     private func processGuestLine(_ line: String) {
+        if let metrics = Self.parseStats(line) {
+            send(.metrics(
+                cpuPercent: metrics.cpuPercent,
+                ramUsedMB: metrics.ramUsedMB,
+                ramMaxMB: metrics.ramMaxMB))
+            return
+        }
         if line.contains("[MSCSTATS]") { return }
         if guestIP == nil, line.contains("[appliance] dhcp:"), let ip = Self.parseGuestIP(line) {
             guestIP = ip
@@ -439,6 +459,31 @@ final class BedrockSidecarController: NSObject, @unchecked Sendable {
 
     static func isBedrockServerReadyLine(_ line: String) -> Bool {
         line.range(of: "Server started", options: .caseInsensitive) != nil
+    }
+
+    static func parseStats(_ line: String) -> BedrockGuestMetrics? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("[MSCSTATS]") else { return nil }
+
+        var cpuPercent: Double?
+        var ramUsedMB: Double?
+        var ramMaxMB: Double?
+        for field in trimmed.dropFirst("[MSCSTATS]".count).split(whereSeparator: \.isWhitespace) {
+            guard let separator = field.firstIndex(of: "=") else { continue }
+            let key = field[..<separator]
+            let value = String(field[field.index(after: separator)...])
+            switch key {
+            case "cpu": cpuPercent = Double(value)
+            case "memUsedMB": ramUsedMB = Double(value)
+            case "memTotalMB": ramMaxMB = Double(value)
+            default: break
+            }
+        }
+        guard cpuPercent != nil || ramUsedMB != nil || ramMaxMB != nil else { return nil }
+        return BedrockGuestMetrics(
+            cpuPercent: cpuPercent,
+            ramUsedMB: ramUsedMB,
+            ramMaxMB: ramMaxMB)
     }
 
     #if arch(x86_64)

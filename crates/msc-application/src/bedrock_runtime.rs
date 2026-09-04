@@ -350,6 +350,7 @@ pub struct BedrockStartRequest {
 pub struct BedrockRuntimeMetrics {
     pub cpu_percent: Option<f64>,
     pub ram_used_mb: Option<f64>,
+    pub ram_max_mb: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -489,7 +490,7 @@ impl SidecarDirectoryMapping {
 
 /// The frozen JSON-lines frames. The Swift sidecar sees the same objects, so
 /// no Rust process or macOS VM type appears in the wire model.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type")]
 #[serde(rename_all = "kebab-case")]
 #[serde(deny_unknown_fields)]
@@ -529,6 +530,14 @@ pub enum SidecarFrame {
     },
     ConsoleLine {
         line: String,
+    },
+    Metrics {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        cpu_percent: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ram_used_mb: Option<f64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        ram_max_mb: Option<f64>,
     },
     Terminated {
         #[serde(with = "termination_reason_wire")]
@@ -788,6 +797,25 @@ impl<T: SidecarTransport> BedrockRuntime for SidecarRuntime<T> {
                     ],
                 )?;
                 Ok(Some(BedrockRuntimeEvent::ConsoleLine(line)))
+            }
+            SidecarFrame::Metrics {
+                cpu_percent,
+                ram_used_mb,
+                ram_max_mb,
+            } => {
+                self.require_state(
+                    "accept metrics",
+                    &[
+                        BedrockRuntimeState::Starting,
+                        BedrockRuntimeState::Running,
+                        BedrockRuntimeState::Stopping,
+                    ],
+                )?;
+                Ok(Some(BedrockRuntimeEvent::Metrics(BedrockRuntimeMetrics {
+                    cpu_percent,
+                    ram_used_mb,
+                    ram_max_mb,
+                })))
             }
             SidecarFrame::Terminated { reason } => {
                 self.require_state(

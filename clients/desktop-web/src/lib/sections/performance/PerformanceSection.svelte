@@ -291,7 +291,7 @@
             valueLabel={(v) => `${Math.round(v)}%`}
             sampleIntervalMs={POLL_INTERVAL_MS}
             emptyIcon="waveform"
-            emptyMessage="Start server to collect Docker metrics"
+            emptyMessage="Start server to collect Bedrock metrics"
           />
         {:else}
           <PerformanceChart

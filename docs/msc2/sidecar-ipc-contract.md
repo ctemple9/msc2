@@ -188,6 +188,7 @@ are the only process-boundary messages:
 | agent → sidecar | `command` | `command` | Send raw command text to BDS. |
 | sidecar → agent | `command-result` | `ok`, optional `reason` | Command accepted or rejected. |
 | sidecar → agent | `console-line` | `line` | One already-framed guest console line. |
+| sidecar → agent | `metrics` | optional `cpu_percent`, `ram_used_mb`, `ram_max_mb` | Numeric sample parsed from the private guest stats line. |
 | sidecar → agent | `terminated` | `reason` | `clean`, `guest-error:<message>`, or `start-failed:<message>`. |
 
 The Rust shared runtime exposes readiness, console, command, termination,

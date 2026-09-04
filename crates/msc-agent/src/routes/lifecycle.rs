@@ -1451,6 +1451,15 @@ impl LifecycleRoutesState {
     pub fn performance_snapshot(&self) -> PerformanceSnapshot {
         if self.active_bedrock_server().is_some() {
             self.drain_bedrock_events();
+            let runtime_state = self.inner.bedrock_runtime.state();
+            let guest_metrics = matches!(
+                runtime_state,
+                BedrockRuntimeState::Starting
+                    | BedrockRuntimeState::Running
+                    | BedrockRuntimeState::Stopping
+            )
+            .then(|| self.inner.bedrock_runtime.latest_metrics())
+            .flatten();
             let usage = self.inner.bedrock_runtime.process_id().and_then(|pid| {
                 msc_infrastructure::metrics::ProcessMetricsProvider::process_usage(
                     &self.inner.metrics,
@@ -1463,9 +1472,15 @@ impl LifecycleRoutesState {
                 tps_5m: None,
                 tps_15m: None,
                 players_online: Some(0),
-                cpu_percent: usage.as_ref().and_then(|value| value.cpu_percent),
-                ram_used_mb: usage.as_ref().and_then(|value| value.ram_used_mb),
-                ram_max_mb: None,
+                cpu_percent: guest_metrics
+                    .as_ref()
+                    .and_then(|metrics| metrics.cpu_percent)
+                    .or_else(|| usage.as_ref().and_then(|value| value.cpu_percent)),
+                ram_used_mb: guest_metrics
+                    .as_ref()
+                    .and_then(|metrics| metrics.ram_used_mb)
+                    .or_else(|| usage.as_ref().and_then(|value| value.ram_used_mb)),
+                ram_max_mb: guest_metrics.and_then(|metrics| metrics.ram_max_mb),
                 world_size_mb: None,
                 server_type: Some("bedrock".to_owned()),
             };
@@ -1654,7 +1669,10 @@ impl LifecycleRoutesState {
                         self.handle_server_ready("Bedrock server is ready.");
                     }
                 }
-                BedrockRuntimeEvent::Metrics(_) => {}
+                BedrockRuntimeEvent::Metrics(_) => {
+                    // BedrockRuntimeSelection caches the latest backend-neutral
+                    // sample while polling the sidecar or native runtime.
+                }
                 BedrockRuntimeEvent::Terminated { reason } => match reason {
                     BedrockTerminationReason::Clean => {
                         if self.bedrock_operation_cancel_requested() {

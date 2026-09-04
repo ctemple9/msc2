@@ -11,8 +11,8 @@ use msc_api::dto::{BedrockBackendDto, BedrockRuntimeStateDto, HostOsDto};
 use msc_application::bedrock_runtime::{
     BedrockHost, BedrockProvisionRequest, BedrockRuntime, BedrockRuntimeBackend,
     BedrockRuntimeEligibility, BedrockRuntimeEligibilityState, BedrockRuntimeError,
-    BedrockRuntimeEvent, BedrockRuntimePaths, BedrockRuntimeState, BedrockSidecarResources,
-    BedrockStartRequest,
+    BedrockRuntimeEvent, BedrockRuntimeMetrics, BedrockRuntimePaths, BedrockRuntimeState,
+    BedrockSidecarResources, BedrockStartRequest,
 };
 use msc_domain::identity::ServerType;
 use msc_infrastructure::bedrock_distribution::BedrockPlatform;
@@ -158,6 +158,7 @@ pub struct BedrockRuntimeSelection {
     eligibility: Arc<Mutex<BedrockRuntimeEligibility>>,
     runtime: Arc<Mutex<BedrockRuntimeHandle>>,
     bound_server_dir: Arc<Mutex<Option<PathBuf>>>,
+    latest_metrics: Arc<Mutex<Option<BedrockRuntimeMetrics>>>,
 }
 
 impl BedrockRuntimeSelection {
@@ -434,6 +435,7 @@ impl BedrockRuntimeSelection {
     }
 
     pub fn start(&self, request: BedrockStartRequest) -> Result<(), BedrockRuntimeError> {
+        *self.latest_metrics.lock().unwrap() = None;
         self.runtime.lock().unwrap().start(request)
     }
 
@@ -446,7 +448,21 @@ impl BedrockRuntimeSelection {
     }
 
     pub fn poll_event(&self) -> Result<Option<BedrockRuntimeEvent>, BedrockRuntimeError> {
-        self.runtime.lock().unwrap().poll_event()
+        let event = self.runtime.lock().unwrap().poll_event()?;
+        match &event {
+            Some(BedrockRuntimeEvent::Metrics(metrics)) => {
+                *self.latest_metrics.lock().unwrap() = Some(metrics.clone());
+            }
+            Some(BedrockRuntimeEvent::Terminated { .. }) => {
+                *self.latest_metrics.lock().unwrap() = None;
+            }
+            _ => {}
+        }
+        Ok(event)
+    }
+
+    pub fn latest_metrics(&self) -> Option<BedrockRuntimeMetrics> {
+        self.latest_metrics.lock().unwrap().clone()
     }
 
     pub fn process_id(&self) -> Option<msc_infrastructure::process::ProcessId> {
@@ -458,6 +474,7 @@ impl BedrockRuntimeSelection {
             eligibility: Arc::new(Mutex::new(eligibility)),
             runtime: Arc::new(Mutex::new(runtime)),
             bound_server_dir: Arc::new(Mutex::new(None)),
+            latest_metrics: Arc::new(Mutex::new(None)),
         }
     }
 }

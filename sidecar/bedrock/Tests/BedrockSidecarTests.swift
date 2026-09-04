@@ -27,6 +27,8 @@ final class BedrockSidecarTests: XCTestCase {
         XCTAssertEqual(String(decoding: ready, as: UTF8.self), #"{"guest_ip":"192.168.64.7","port":19132,"relay_up":true,"type":"ready"}"#)
         let terminated = try encoder.encode(SidecarResponse.terminated("guest-error:boot failed"))
         XCTAssertEqual(String(decoding: terminated, as: UTF8.self), #"{"reason":"guest-error:boot failed","type":"terminated"}"#)
+        let metrics = try encoder.encode(SidecarResponse.metrics(cpuPercent: 12.5, ramUsedMB: 512, ramMaxMB: 2048))
+        XCTAssertEqual(String(decoding: metrics, as: UTF8.self), #"{"cpu_percent":12.5,"ram_max_mb":2048,"ram_used_mb":512,"type":"metrics"}"#)
     }
 
     func testIntelPreconditionAndProvisionKeepStateHostOwned() throws {
@@ -95,5 +97,13 @@ final class BedrockSidecarTests: XCTestCase {
         XCTAssertTrue(BedrockSidecarController.isBedrockServerReadyLine("server STARTED"))
         XCTAssertFalse(BedrockSidecarController.isBedrockServerReadyLine("[appliance] dhcp: 192.168.64.7/24"))
         XCTAssertFalse(BedrockSidecarController.isBedrockServerReadyLine("BDS exited — powering off"))
+    }
+
+    func testGuestStatsParserProducesSidecarMetricsAndConsumesUnknownFields() {
+        XCTAssertEqual(
+            BedrockSidecarController.parseStats("[MSCSTATS] cpu=12.5 memUsedMB=512 memTotalMB=2048 extra=7"),
+            BedrockGuestMetrics(cpuPercent: 12.5, ramUsedMB: 512, ramMaxMB: 2048))
+        XCTAssertNil(BedrockSidecarController.parseStats("[MSCSTATS] cpu=bad extra=7"))
+        XCTAssertNil(BedrockSidecarController.parseStats("[Server] Server started."))
     }
 }

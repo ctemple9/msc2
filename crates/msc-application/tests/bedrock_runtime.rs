@@ -117,6 +117,7 @@ fn sidecar_runtime_uses_shared_lifecycle_and_event_vocabulary() {
     });
     transport.response(frame_from_fixture("ready-round-trip"));
     transport.response(frame_from_fixture("console-line-round-trip"));
+    transport.response(frame_from_fixture("metrics-round-trip"));
     transport.response(SidecarFrame::CommandResult {
         ok: true,
         reason: None,
@@ -163,6 +164,14 @@ fn sidecar_runtime_uses_shared_lifecycle_and_event_vocabulary() {
         runtime.poll_event().unwrap(),
         Some(BedrockRuntimeEvent::ConsoleLine(line)) if line == "Player connected: Alex"
     ));
+    assert_eq!(
+        runtime.poll_event().unwrap(),
+        Some(BedrockRuntimeEvent::Metrics(BedrockRuntimeMetrics {
+            cpu_percent: Some(12.5),
+            ram_used_mb: Some(512.0),
+            ram_max_mb: Some(2048.0),
+        }))
+    );
     runtime.command("say hello").unwrap();
     assert!(matches!(
         runtime.poll_event().unwrap(),

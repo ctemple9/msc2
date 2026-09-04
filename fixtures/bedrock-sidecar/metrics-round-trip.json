@@ -1,0 +1,8 @@
+{
+  "domain": "bedrock-sidecar",
+  "case": "metrics-round-trip",
+  "source": {"file": "sidecar-ipc-contract.md", "test": "metrics section", "line": 191},
+  "input": {"direction": "sidecar-to-agent", "message": {"type": "metrics", "cpu_percent": 12.5, "ram_used_mb": 512, "ram_max_mb": 2048}},
+  "expected": {"agent_event": "metrics", "cpu_percent": 12.5, "ram_used_mb": 512, "ram_max_mb": 2048},
+  "notes": "The sidecar converts its private [MSCSTATS] guest line into numeric values; it is never emitted as a console line."
+}

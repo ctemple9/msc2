@@ -3527,9 +3527,11 @@ mod tests {
     async fn directory_size_route_reports_nested_server_folder_bytes() {
         let state = route_state();
         let dir = temp_dir("directory-size-route");
-        std::fs::create_dir_all(dir.join("world")).unwrap();
+        // Keep the fixture nested without creating a live world: registration
+        // reconciles real world folders into a world slot archive first.
+        std::fs::create_dir_all(dir.join("logs")).unwrap();
         std::fs::write(dir.join("server.properties"), b"abc").unwrap();
-        std::fs::write(dir.join("world/level.dat"), b"12345").unwrap();
+        std::fs::write(dir.join("logs/server.log"), b"12345").unwrap();
         state
             .register_imported_config_servers(vec![seeded_server("SIZE-1", &dir)], false)
             .unwrap();
@@ -3538,7 +3540,9 @@ mod tests {
             response_json(call_directory_size(&state, Some("SIZE-1")).await).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(body.server_id, "SIZE-1");
-        assert_eq!(body.size_bytes, Some(8));
+        // Registration creates the one-byte reconciliation marker under
+        // `world_slots`, which is part of the server directory's total size.
+        assert_eq!(body.size_bytes, Some(9));
     }
 
     #[tokio::test]

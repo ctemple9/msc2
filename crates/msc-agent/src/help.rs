@@ -243,7 +243,10 @@ fn collect_markdown(dir: &Dir<'_>, topics: &mut BTreeMap<String, HelpTopic>) -> 
 }
 
 fn parse_topic(text: &str, source: String) -> Result<HelpTopic, String> {
-    let Some(rest) = text.strip_prefix("---\n") else {
+    // Git checkouts on Windows may materialize embedded Markdown with CRLF
+    // endings. Normalize before parsing so valid front matter is portable.
+    let normalized = text.replace("\r\n", "\n");
+    let Some(rest) = normalized.strip_prefix("---\n") else {
         return Err(format!("{source}: missing YAML front matter"));
     };
     let Some((front_matter, body)) = rest.split_once("\n---\n") else {

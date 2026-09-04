@@ -2,6 +2,7 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     ServerId,
 };
+use msc_domain::identity::JavaServerFlavor;
 use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::metrics::{
     BoundedMetricHistory, ProcessMetricsProvider, ProcessResourceUsage,
@@ -138,6 +139,52 @@ fn status_metrics_snapshot_reports_active_paper_process_state() {
     assert_eq!(exited_snapshot.cpu_percent, None);
     assert_eq!(exited_snapshot.ram_used_mb, None);
     assert_eq!(exited_snapshot.ram_max_mb, None);
+
+    fs::remove_dir_all(server_dir).unwrap();
+}
+
+#[test]
+fn status_metrics_snapshot_reports_armed_spark_tps() {
+    let server_dir = temp_server_dir("spark");
+    let mut server = ImportedJavaServer::paper("fabric-1", "Fabric", &server_dir);
+    server.flavor = JavaServerFlavor::Fabric;
+    let repository = FakeRepository {
+        server: server.clone(),
+    };
+    let process = FakeProcessSupervisor::new();
+    let console = FakeConsole::default();
+    let fs = FakeFileSystem::new();
+    let mut service = service(&repository, &process, &console, &fs);
+
+    service.select_active_server(server.id.clone()).unwrap();
+    let pid = service
+        .start_active_server(ProcessSpawnRequest::new("/usr/bin/java", &server_dir))
+        .unwrap();
+    service.expect_spark_tps_reply();
+    service
+        .ingest_console_line(
+            "[08:02:10] [Server thread/INFO]: TPS from last 5s, 10s, 1m, 5m, 15m:",
+            "2026-08-20T00:00:00Z",
+        )
+        .unwrap();
+    service
+        .ingest_console_line(
+            "[08:02:10] [Server thread/INFO]: 20.0, 20.0, 19.8, 19.5, 18.0",
+            "2026-08-20T00:00:00Z",
+        )
+        .unwrap();
+
+    let metrics = FakeMetrics {
+        pid,
+        usage: ProcessResourceUsage {
+            cpu_percent: None,
+            ram_used_mb: None,
+        },
+    };
+    let snapshot = service.performance_snapshot(&metrics, "ts").unwrap();
+    assert_eq!(snapshot.tps_1m, Some(19.8));
+    assert_eq!(snapshot.tps_5m, Some(19.5));
+    assert_eq!(snapshot.tps_15m, Some(18.0));
 
     fs::remove_dir_all(server_dir).unwrap();
 }

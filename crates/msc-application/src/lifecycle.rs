@@ -409,6 +409,13 @@ impl<'deps> LifecycleService<'deps> {
         Ok(())
     }
 
+    /// Tells the console reducer that the next `spark tps` response is an
+    /// automatic metrics poll, rather than an arbitrary line pasted by the
+    /// operator.
+    pub fn expect_spark_tps_reply(&mut self) {
+        self.output_reducer.expect_spark_tps_reply();
+    }
+
     pub fn ingest_console_line(
         &mut self,
         clean: &str,

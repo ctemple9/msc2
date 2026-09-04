@@ -25,6 +25,11 @@ pub enum UnexpectedStopKind {
 pub struct JavaOutputReducer {
     reached_ready: bool,
     online_players: Vec<String>,
+    expecting_auto_spark_block: bool,
+    in_spark_block: bool,
+    expect_spark_tps_values: bool,
+    spark_cpu_values_remaining: usize,
+    spark_block_guard: usize,
 }
 
 impl JavaOutputReducer {
@@ -40,6 +45,14 @@ impl JavaOutputReducer {
         &self.online_players
     }
 
+    /// Arms the reducer for the multi-line reply produced by `spark tps`.
+    /// Spark's values are only accepted after this explicit request so an
+    /// unrelated log line cannot become a false TPS sample.
+    pub fn expect_spark_tps_reply(&mut self) {
+        self.end_spark_block();
+        self.expecting_auto_spark_block = true;
+    }
+
     pub fn process_line(&mut self, clean: &str) -> Vec<OutputEvent> {
         let mut events = Vec::new();
 
@@ -49,6 +62,10 @@ impl JavaOutputReducer {
         }
 
         if let Some(sample) = tps::parse(clean) {
+            events.push(OutputEvent::TpsSample(sample));
+        }
+
+        if let Some(sample) = self.consume_spark_tps_line(clean) {
             events.push(OutputEvent::TpsSample(sample));
         }
 
@@ -86,6 +103,59 @@ impl JavaOutputReducer {
     fn remove_online_player(&mut self, name: &str) {
         self.online_players
             .retain(|existing| !existing.eq_ignore_ascii_case(name));
+    }
+
+    fn consume_spark_tps_line(&mut self, clean: &str) -> Option<tps::Sample> {
+        if tps::is_spark_tps_header(clean) {
+            if self.expecting_auto_spark_block && !self.in_spark_block {
+                self.expecting_auto_spark_block = false;
+                self.in_spark_block = true;
+                self.expect_spark_tps_values = true;
+                self.spark_cpu_values_remaining = 0;
+                // Bound the state machine so a truncated spark reply cannot
+                // consume unrelated console output forever.
+                self.spark_block_guard = 12;
+            }
+            return None;
+        }
+
+        if !self.in_spark_block {
+            return None;
+        }
+
+        self.spark_block_guard = self.spark_block_guard.saturating_sub(1);
+        let mut end_block = false;
+        let sample = if self.expect_spark_tps_values {
+            let sample = tps::parse_spark_values(clean);
+            if sample.is_some() {
+                self.expect_spark_tps_values = false;
+            }
+            sample
+        } else if clean.contains("CPU usage from last 10s, 1m, 15m") {
+            self.spark_cpu_values_remaining = 2;
+            None
+        } else if self.spark_cpu_values_remaining > 0 {
+            self.spark_cpu_values_remaining -= 1;
+            if self.spark_cpu_values_remaining == 0 {
+                end_block = true;
+            }
+            None
+        } else {
+            None
+        };
+
+        if self.spark_block_guard == 0 || end_block {
+            self.end_spark_block();
+        }
+        sample
+    }
+
+    fn end_spark_block(&mut self) {
+        self.expecting_auto_spark_block = false;
+        self.in_spark_block = false;
+        self.expect_spark_tps_values = false;
+        self.spark_cpu_values_remaining = 0;
+        self.spark_block_guard = 0;
     }
 }
 

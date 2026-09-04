@@ -155,6 +155,47 @@ fn server_identity_tps_poll_command_empty_version() {
     assert_tps_poll_command_case("tps-poll-command-empty-version");
 }
 
+#[test]
+fn server_identity_tps_poll_command_with_spark_preserves_flavor_priority() {
+    let native_commands = [
+        (JavaServerFlavor::Paper, "tps"),
+        (JavaServerFlavor::Purpur, "tps"),
+        (JavaServerFlavor::Pufferfish, "tps"),
+        (JavaServerFlavor::Spigot, "tps"),
+        (JavaServerFlavor::Forge, "forge tps"),
+        (JavaServerFlavor::NeoForge, "neoforge tps"),
+    ];
+    for (flavor, expected) in native_commands {
+        assert_eq!(
+            flavor.tps_poll_command_with_spark(Some("1.20.1"), true),
+            Some(expected),
+            "native command must win for {flavor:?}"
+        );
+    }
+
+    for flavor in [
+        JavaServerFlavor::Vanilla,
+        JavaServerFlavor::Fabric,
+        JavaServerFlavor::Quilt,
+    ] {
+        assert_eq!(
+            flavor.tps_poll_command_with_spark(Some("1.20.1"), true),
+            Some("spark tps"),
+            "spark fallback must cover {flavor:?}"
+        );
+        assert_eq!(
+            flavor.tps_poll_command_with_spark(Some("1.20.3"), false),
+            Some("tick query"),
+            "new vanilla query must remain the fallback for {flavor:?}"
+        );
+        assert_eq!(
+            flavor.tps_poll_command_with_spark(Some("1.20.1"), false),
+            None,
+            "old server without spark must remain unpolled for {flavor:?}"
+        );
+    }
+}
+
 fn assert_create_flow_choices_case(case: &str) {
     let fixture = load(case);
     let category = match fixture.input["category"].as_str().unwrap() {

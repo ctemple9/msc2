@@ -260,6 +260,21 @@ impl JavaServerFlavor {
         }
     }
 
+    /// Selects the automatic TPS command when the server has the spark mod.
+    /// Native loader commands stay highest priority; spark fills the gap for
+    /// older Fabric/Quilt/Vanilla servers before `/tick query` is available.
+    pub fn tps_poll_command_with_spark(
+        self,
+        minecraft_version: Option<&str>,
+        has_spark: bool,
+    ) -> Option<&'static str> {
+        if self.auto_tps_command().is_none() && has_spark {
+            Some("spark tps")
+        } else {
+            self.tps_poll_command(minecraft_version)
+        }
+    }
+
     /// Highlighted as the recommended default within its category.
     pub fn is_recommended(self) -> bool {
         matches!(self, Self::Paper | Self::Fabric)

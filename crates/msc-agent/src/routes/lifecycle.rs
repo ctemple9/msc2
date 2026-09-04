@@ -1719,15 +1719,19 @@ impl LifecycleRoutesState {
             return;
         }
 
+        let has_spark = server_has_spark_mod(self.inner.app_config.fs, &server.server_dir);
         let tps_command = server
             .java_flavor
-            .tps_poll_command(server.minecraft_version.as_deref());
+            .tps_poll_command_with_spark(server.minecraft_version.as_deref(), has_spark);
         let mut lifecycle = self.inner.lifecycle.lock().unwrap();
         if lifecycle.active_process() != Some(pid) || lifecycle.state() != LifecycleState::Running {
             return;
         }
         let _ = lifecycle.send_command("list");
         if let Some(command) = tps_command {
+            if command == "spark tps" {
+                lifecycle.expect_spark_tps_reply();
+            }
             let _ = lifecycle.send_command(command);
         }
     }
@@ -2741,6 +2745,19 @@ fn default_process_supervisor() -> Box<dyn ProcessSupervisor + Send + Sync> {
     }
 }
 
+fn server_has_spark_mod(fs: &dyn FileSystem, server_dir: &str) -> bool {
+    let mods_dir = Path::new(server_dir).join("mods");
+    fs.list(&mods_dir).is_ok_and(|entries| {
+        entries.into_iter().any(|path| {
+            let Some(file_name) = path.file_name() else {
+                return false;
+            };
+            let file_name = file_name.to_string_lossy().to_ascii_lowercase();
+            file_name.starts_with("spark-") && file_name.ends_with(".jar")
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3048,6 +3065,23 @@ mod tests {
         assert!(!servers_root.starts_with(std::env::temp_dir()));
         assert!(app_config_path.ends_with("server_config_swift.json"));
         assert!(servers_root.ends_with("servers"));
+    }
+
+    #[test]
+    fn spark_mod_detection_requires_an_active_spark_jar() {
+        let active = FakeFileSystem::new().with_file(
+            "/srv/testpak/mods/Spark-1.10.53-Fabric.JAR",
+            Vec::new(),
+            false,
+        );
+        assert!(server_has_spark_mod(&active, "/srv/testpak"));
+
+        let disabled = FakeFileSystem::new().with_file(
+            "/srv/testpak/mods/spark-1.10.53-fabric.jar.disabled",
+            Vec::new(),
+            false,
+        );
+        assert!(!server_has_spark_mod(&disabled, "/srv/testpak"));
     }
 
     #[test]

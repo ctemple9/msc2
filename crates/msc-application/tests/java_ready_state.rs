@@ -154,6 +154,38 @@ fn java_ready_state_tps_line_hands_off_to_phase1_parser() {
 }
 
 #[test]
+fn java_ready_state_armed_spark_reply_emits_tps_sample() {
+    let mut reducer = JavaOutputReducer::new();
+    reducer.expect_spark_tps_reply();
+
+    assert!(
+        reducer
+            .process_line("[08:02:10] [Server thread/INFO]: TPS from last 5s, 10s, 1m, 5m, 15m:")
+            .is_empty()
+    );
+    assert_eq!(
+        reducer.process_line("[08:02:10] [Server thread/INFO]: 20.0, 20.0, 19.8, 19.5, 18.0"),
+        vec![OutputEvent::TpsSample(msc_domain::tps::Sample {
+            t1: 19.8,
+            t5: Some(19.5),
+            t15: Some(18.0),
+        })]
+    );
+}
+
+#[test]
+fn java_ready_state_unarmed_spark_reply_is_ignored() {
+    let mut reducer = JavaOutputReducer::new();
+    reducer.process_line("[08:02:10] [Server thread/INFO]: TPS from last 5s, 10s, 1m, 5m, 15m:");
+
+    assert!(
+        reducer
+            .process_line("[08:02:10] [Server thread/INFO]: 20.0, 20.0, 19.8, 19.5, 18.0")
+            .is_empty()
+    );
+}
+
+#[test]
 fn java_ready_state_bedrock_and_world_time_lines_are_ignored() {
     let (case, events) = assert_events("bedrock-and-world-time-lines-ignored");
     assert!(events.is_empty());

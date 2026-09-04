@@ -1086,19 +1086,34 @@ impl LifecycleRoutesState {
             registered.minecraft_version.as_deref(),
             &probe,
         ) {
-            let _ = self.inner.operations.fail(
-                &operation_id,
-                "unusable_java_runtime",
-                unusable.to_string(),
+            let message = unusable.to_string();
+            msc_application::diagnostics::record_startup_failure(
+                &StdFileSystem,
+                Path::new(&registered.server_dir),
+                &iso8601_now(),
+                &message,
+                &[],
             );
+            let _ = self
+                .inner
+                .operations
+                .fail(&operation_id, "unusable_java_runtime", message);
             return Err(LifecycleRouteError::UnusableJavaRuntime(unusable));
         }
 
         let launch = build_launch_request(&registered, &java_path).inspect_err(|error| {
+            let message = error.to_string();
+            msc_application::diagnostics::record_startup_failure(
+                &StdFileSystem,
+                Path::new(&registered.server_dir),
+                &iso8601_now(),
+                &message,
+                &[],
+            );
             let _ = self
                 .inner
                 .operations
-                .fail(&operation_id, "lifecycle_error", error.to_string());
+                .fail(&operation_id, "lifecycle_error", message);
         })?;
         let pid = match self
             .inner
@@ -1109,10 +1124,18 @@ impl LifecycleRoutesState {
         {
             Ok(pid) => pid,
             Err(error) => {
-                let _ =
-                    self.inner
-                        .operations
-                        .fail(&operation_id, "lifecycle_error", error.to_string());
+                let message = error.to_string();
+                msc_application::diagnostics::record_startup_failure(
+                    &StdFileSystem,
+                    Path::new(&registered.server_dir),
+                    &iso8601_now(),
+                    &message,
+                    &[],
+                );
+                let _ = self
+                    .inner
+                    .operations
+                    .fail(&operation_id, "lifecycle_error", message);
                 return Err(error.into());
             }
         };
@@ -1550,6 +1573,14 @@ impl LifecycleRoutesState {
             })
         });
         if let Err(error) = result {
+            let message = error.to_string();
+            msc_application::diagnostics::record_startup_failure(
+                &StdFileSystem,
+                Path::new(&active.server_dir),
+                &iso8601_now(),
+                &message,
+                &[],
+            );
             let code = if matches!(&error, BedrockRuntimeError::Provisioning(_)) {
                 "bedrock_provisioning_failed"
             } else if self.bedrock_runtime_state().state != "available" {
@@ -1557,10 +1588,7 @@ impl LifecycleRoutesState {
             } else {
                 "bedrock_start_failed"
             };
-            let _ = self
-                .inner
-                .operations
-                .fail(&operation_id, code, error.to_string());
+            let _ = self.inner.operations.fail(&operation_id, code, message);
             return Err(self.bedrock_runtime_error(error));
         }
         let _ = self

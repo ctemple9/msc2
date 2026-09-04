@@ -471,18 +471,11 @@ fn diagnose_unexpected_stop_modded_crash_analyzer_attributes_problems() {
     let record = diagnostics::read_last_startup_result(&fs, Path::new("/servers/java/box"))
         .expect("a record was written on hard fail");
     assert!(!record.was_clean);
-    if !problems.is_empty() {
-        assert_eq!(record.problems, Some(problems));
-    } else {
-        assert_eq!(
-            record.fatal_errors,
-            vec!["Server stopped before reaching ready state.".to_string()]
-        );
-    }
+    assert_eq!(record.problems, Some(problems));
 }
 
 #[test]
-fn diagnose_unexpected_stop_non_modded_skips_analysis() {
+fn diagnose_unexpected_stop_non_modded_gets_generic_finding() {
     let _fixture = load("diagnose-unexpected-stop-non-modded-skips-analysis");
     let fs = FakeFileSystem::new();
     let problems = diagnostics::diagnose_unexpected_stop(
@@ -495,7 +488,9 @@ fn diagnose_unexpected_stop_non_modded_skips_analysis() {
         &["some server output".to_string()],
         &[],
     );
-    assert!(problems.is_empty());
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].kind, StartupProblemKind::Unknown);
+    assert_eq!(problems[0].offender_name, "Server startup");
     let record = diagnostics::read_last_startup_result(&fs, Path::new("/servers/java/box"))
         .expect("hard fail still writes the generic record");
     assert!(!record.was_clean);
@@ -503,7 +498,35 @@ fn diagnose_unexpected_stop_non_modded_skips_analysis() {
         record.fatal_errors,
         vec!["Server stopped before reaching ready state.".to_string()]
     );
-    assert_eq!(record.problems, None);
+    assert_eq!(record.problems, Some(problems));
+}
+
+#[test]
+fn record_startup_failure_persists_actionable_fallback() {
+    let fs = FakeFileSystem::new();
+    diagnostics::record_startup_failure(
+        &fs,
+        Path::new("/servers/java/box"),
+        "2026-08-18T10:15:00Z",
+        "Java exited before the server process could start.",
+        &["Error: unable to access jarfile server.jar".to_string()],
+    );
+
+    let record = diagnostics::read_last_startup_result(&fs, Path::new("/servers/java/box"))
+        .expect("pre-process failures are persisted");
+    assert!(!record.was_clean);
+    assert_eq!(
+        record.fatal_errors,
+        vec!["Java exited before the server process could start.".to_string()]
+    );
+    let problems = record.problems.expect("fallback finding is persisted");
+    assert_eq!(problems.len(), 1);
+    assert_eq!(problems[0].kind, StartupProblemKind::Unknown);
+    assert_eq!(problems[0].offender_name, "Server startup");
+    assert_eq!(
+        problems[0].raw_excerpt,
+        "Error: unable to access jarfile server.jar"
+    );
 }
 
 #[test]

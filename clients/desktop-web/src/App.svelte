@@ -8,6 +8,7 @@
   import { createClientRouter } from './routes/router';
   import UnknownSection from './routes/UnknownSection.svelte';
   import FirstStartSheet from './lib/sections/server-editor/FirstStartSheet.svelte';
+  import StartupFailureSheet from './lib/sections/server-editor/StartupFailureSheet.svelte';
   import ServerEditorSheet from './lib/sections/server-editor/ServerEditorSheet.svelte';
   import { buildSectionPath } from './lib/navigation/route';
   import {
@@ -310,6 +311,13 @@
   let initiationServer: Schema['ServerDTO'] | undefined;
   let initiationVisible = false;
   let initiationComplete = false;
+  let startupFailure:
+    | {
+        serverName: string;
+        errorCode: string;
+        message: string;
+      }
+    | undefined;
   let preloadTabs = readTabPreloadPreference();
   let cancelTabPreload: (() => void) | undefined;
 
@@ -489,6 +497,26 @@
     return 'unavailable';
   }
 
+  async function waitForStartOperation(
+    operationId: string,
+  ): Promise<Schema['OperationDTO'] | undefined> {
+    const deadline = Date.now() + 10_000;
+    for (;;) {
+      const operation = await screenApi.get<Schema['OperationDTO']>(
+        `/v1/operations/${encodeURIComponent(operationId)}`,
+      );
+      if (
+        operation.state === 'succeeded' ||
+        operation.state === 'failed' ||
+        operation.state === 'cancelled'
+      ) {
+        return operation;
+      }
+      if (Date.now() >= deadline) return undefined;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+  }
+
   async function restoreHostContext(): Promise<boolean> {
     try {
       const selectedClient = requireClient();
@@ -536,14 +564,54 @@
 
   async function lifecycle(action: 'start' | 'stop'): Promise<void> {
     try {
-      await screenApi.post(action === 'start' ? '/v1/start' : '/v1/stop');
-      status = await waitForRunningState(
+      const accepted = await screenApi.post<Schema['SimpleResult']>(
+        action === 'start' ? '/v1/start' : '/v1/stop',
+      );
+      if (action === 'start' && accepted.operationId) {
+        const operation = await waitForStartOperation(accepted.operationId);
+        if (operation?.state === 'failed' || operation?.state === 'cancelled') {
+          startupFailure = {
+            serverName: activeServer?.name ?? 'Server',
+            errorCode: operation.error?.code ?? 'server_start_failed',
+            message: operation.error?.message ?? 'The server did not become ready.',
+          };
+          shellMessage = startupFailure.message;
+          return;
+        }
+      }
+      const nextStatus = await waitForRunningState(
         () => screenApi.get<Schema['RemoteAPIStatus']>('/v1/status'),
         action === 'start',
       );
+      status = nextStatus;
+      if (action === 'start' && !nextStatus.running) {
+        startupFailure = {
+          serverName: activeServer?.name ?? 'Server',
+          errorCode: 'server_startup_timeout',
+          message: accepted.operationId
+            ? 'The server did not become ready before the start check timed out.'
+            : 'The server did not become ready after the start request.',
+        };
+        shellMessage = startupFailure.message;
+      }
     } catch (error) {
-      shellMessage = `Unable to ${action} the server: ${String(error)}`;
+      if (action === 'start') {
+        const apiError = error instanceof ApiError ? error.error : undefined;
+        startupFailure = {
+          serverName: activeServer?.name ?? 'Server',
+          errorCode: apiError?.code ?? 'server_start_failed',
+          message: apiError?.message ?? (error instanceof Error ? error.message : String(error)),
+        };
+        shellMessage = startupFailure.message;
+      } else {
+        shellMessage = `Unable to ${action} the server: ${String(error)}`;
+      }
     }
+  }
+
+  async function retryStartup(): Promise<void> {
+    startupFailure = undefined;
+    await lifecycle('start');
   }
 
   function openInitiation(): void {
@@ -828,6 +896,19 @@
       initiationComplete = true;
       void refreshServerSnapshot();
     }}
+  />
+{/if}
+
+{#if startupFailure}
+  <StartupFailureSheet
+    api={screenApi}
+    serverName={startupFailure.serverName}
+    operationKind="start"
+    errorCode={startupFailure.errorCode}
+    failureMessage={startupFailure.message}
+    visible
+    onClose={() => (startupFailure = undefined)}
+    onRetry={retryStartup}
   />
 {/if}
 

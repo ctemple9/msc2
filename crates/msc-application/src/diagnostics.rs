@@ -217,11 +217,19 @@ pub fn remove_repaired_problem(
 /// family string (`crash_analysis::analyze`'s own parameter shape, P1.7),
 /// not the full `JavaServerFlavor` enum.
 ///
-/// Persistence exactly matches source's three-way split: problems found
-/// -> `wasClean:false` with per-problem summaries as `fatalErrors`;
-/// `isHardFail` but no problems found -> `wasClean:false` with the
-/// generic "stopped before reaching ready state" fatal error; reached
-/// ready state (not `isHardFail`) -> **nothing written at all**, the
+/// Persistence keeps the source's hard-failure behavior, but strengthens the
+/// no-finding branch: every pre-ready failure now gets an `Unknown`
+/// `StartupProblem` as well as the generic fatal error. That gives clients a
+/// durable, actionable finding after a restart even when the failure was not
+/// a recognized mod/plugin problem. Reached ready state (not `isHardFail`)
+/// still writes nothing here, because that is a post-start crash rather than
+/// a failed start and belongs to a separate incident type.
+///
+/// The original source's three-way split was: problems found ->
+/// `wasClean:false` with per-problem summaries as `fatalErrors`; `isHardFail`
+/// but no problems found -> `wasClean:false` with the generic
+/// "stopped before reaching ready state" fatal error; reached ready state
+/// (not `isHardFail`) -> **nothing written at all**, the
 /// real gap `fixtures/startup-problems/diagnose-unexpected-stop-reached-
 /// ready-state-no-persistence-but-alert-shown.json` and P7.8's own
 /// finding #5 both flag (a mid-session crash after a clean boot leaves
@@ -239,14 +247,25 @@ pub fn diagnose_unexpected_stop(
 ) -> Vec<StartupProblem> {
     let is_hard_fail = !reached_ready_state;
     let should_analyze = is_hard_fail && is_modded;
-    let problems = if should_analyze {
+    let mut problems = if should_analyze {
         crash_analysis::analyze(flavor, console_excerpt, installed_mods)
     } else {
         Vec::new()
     };
 
+    if is_hard_fail && problems.is_empty() {
+        problems.push(generic_startup_problem(
+            "The process stopped before the server became ready.",
+            console_excerpt,
+        ));
+    }
+
     if !problems.is_empty() {
-        let summaries: Vec<String> = problems.iter().map(problem_summary_line).collect();
+        let summaries = if problems.len() == 1 && problems[0].kind == StartupProblemKind::Unknown {
+            vec!["Server stopped before reaching ready state.".to_string()]
+        } else {
+            problems.iter().map(problem_summary_line).collect()
+        };
         write_last_startup_result(
             fs,
             server_dir,
@@ -268,6 +287,55 @@ pub fn diagnose_unexpected_stop(
         );
     }
     problems
+}
+
+/// A durable fallback for a pre-ready exit that no specialized analyzer can
+/// attribute. Keeping the raw tail attached means the UI can explain what was
+/// checked without pretending that the last log line proves a root cause.
+fn generic_startup_problem(requirement: &str, console_excerpt: &[String]) -> StartupProblem {
+    let raw_excerpt = console_excerpt
+        .iter()
+        .rev()
+        .take(40)
+        .cloned()
+        .collect::<Vec<_>>()
+        .into_iter()
+        .rev()
+        .collect::<Vec<_>>()
+        .join("\n");
+    StartupProblem {
+        kind: StartupProblemKind::Unknown,
+        offender_name: "Server startup".to_string(),
+        offender_id: None,
+        installed_file: None,
+        installed_jar_stem: None,
+        requirement: Some(requirement.to_string()),
+        missing_dependency: None,
+        raw_excerpt,
+    }
+}
+
+/// Persists a failure that happened before the supervised process could write
+/// a useful exit record, such as an unusable Java runtime or Bedrock
+/// provisioning failure. The same `StartupProblem` shape lets every client
+/// render it beside console-attributed failures after an app/agent restart.
+pub fn record_startup_failure(
+    fs: &dyn FileSystem,
+    server_dir: &Path,
+    now: &str,
+    message: &str,
+    console_excerpt: &[String],
+) {
+    let problem = generic_startup_problem(message, console_excerpt);
+    write_last_startup_result(
+        fs,
+        server_dir,
+        now,
+        false,
+        vec![message.to_string()],
+        Vec::new(),
+        vec![problem],
+    );
 }
 
 /// `"\(offenderName): \(requirement ?? kind.title)"` (source line 213,

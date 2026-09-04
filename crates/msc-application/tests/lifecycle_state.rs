@@ -3,6 +3,7 @@ use msc_application::lifecycle::{
     ConsoleSink, ImportedJavaServer, JavaServerRepository, LifecycleError, LifecycleService,
     LifecycleState, ServerId,
 };
+use msc_domain::crash_analysis::StartupProblemKind;
 use msc_domain::identity::JavaServerFlavor;
 use msc_infrastructure::fs::FakeFileSystem;
 use msc_infrastructure::process::{FakeProcessSupervisor, ProcessSpawnRequest};
@@ -376,7 +377,11 @@ fn lifecycle_state_unrequested_exit_before_ready_records_generic_startup_failure
         record.fatal_errors,
         vec!["Server stopped before reaching ready state.".to_string()]
     );
-    assert_eq!(record.problems, None);
+    assert_eq!(record.problems.as_ref().map(Vec::len), Some(1));
+    assert_eq!(
+        record.problems.as_ref().map(|problems| problems[0].kind),
+        Some(StartupProblemKind::Unknown)
+    );
 }
 
 #[test]
@@ -449,9 +454,11 @@ fn lifecycle_state_requested_stop_before_ready_records_generic_failure_without_c
         record.fatal_errors,
         vec!["Server stopped before reaching ready state.".to_string()]
     );
+    assert_eq!(record.problems.as_ref().map(Vec::len), Some(1));
     assert_eq!(
-        record.problems, None,
-        "a user-requested stop must skip crash analysis entirely, even for a modded server"
+        record.problems.as_ref().map(|problems| problems[0].kind),
+        Some(StartupProblemKind::Unknown),
+        "a user-requested stop still gets a generic finding without mod analysis"
     );
 }
 

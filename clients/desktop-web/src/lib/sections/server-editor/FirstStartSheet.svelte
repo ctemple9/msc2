@@ -8,6 +8,7 @@
   import StatusDot from '../../components/base/StatusDot.svelte';
   import PlayitSetupSheet from './PlayitSetupSheet.svelte';
   import BroadcastAuthSheet from './BroadcastAuthSheet.svelte';
+  import StartupFailurePanel from './StartupFailurePanel.svelte';
   import { errorMessage, mutate } from '../shared/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { pollOperation, serverEditorPaths } from './model';
@@ -47,6 +48,9 @@
   let operationId = '';
   let statusLine = '';
   let error = '';
+  let failureCode = '';
+  let failureMessage = '';
+  let failureProblems: Schema['StartupProblemDTO'][] = [];
   let showPlayitSetup = false;
   let showBroadcastAuth = false;
   let playitSetupVoiceOnly = false;
@@ -83,6 +87,43 @@
   $: allTransportsResolved = Object.values(transport).every((state) => state !== 'waiting');
   $: serverReady = /ready/i.test(statusLine);
   $: broadcastUnlocked = !playitEnabled || playitAttempted;
+
+  function errorCodeFrom(caught: unknown): string {
+    if (typeof caught === 'object' && caught !== null && 'error' in caught) {
+      const apiError = (caught as { error?: { code?: unknown } }).error;
+      if (typeof apiError?.code === 'string') return apiError.code;
+    }
+    return 'server_start_failed';
+  }
+
+  async function refreshFailureProblems(): Promise<void> {
+    if (!api || failureCode !== 'lifecycle_error') return;
+    try {
+      const response = await api.get<Schema['HealthProblemsResponseDTO']>('/v1/health/problems');
+      failureProblems = response.problems;
+    } catch {
+      // The operation error and console remain available if the health route
+      // is briefly unreachable after the process exits.
+    }
+  }
+
+  function failWithMessage(caught: unknown): void {
+    failureCode = errorCodeFrom(caught);
+    failureMessage = errorMessage(caught);
+    error = failureMessage;
+    failureProblems = [];
+    phase = 'failed';
+    void refreshFailureProblems();
+  }
+
+  function failWithOperation(operation: Schema['OperationDTO'], fallback: string): void {
+    failureCode = operation.error?.code ?? fallback;
+    failureMessage = operation.error?.message ?? 'The server stopped before it became ready.';
+    error = failureMessage;
+    failureProblems = [];
+    phase = 'failed';
+    void refreshFailureProblems();
+  }
 
   function localEndpoint(host: string | undefined, port: number): string {
     if (!host) return `local address:${port}`;
@@ -163,8 +204,7 @@
       }
       await startPassOne();
     } catch (caught) {
-      error = errorMessage(caught);
-      phase = 'failed';
+      failWithMessage(caught);
     }
   }
 
@@ -179,7 +219,12 @@
       statusLine = tick.statusLine ?? statusLine;
     });
     if (operation?.state !== 'succeeded') {
-      throw new Error(operation?.error?.message ?? 'The first server start did not complete.');
+      if (operation) {
+        failWithOperation(operation, 'server_start_failed');
+      } else {
+        failWithMessage(new Error('The first server start did not complete.'));
+      }
+      return;
     }
     if (
       operation.result &&
@@ -319,8 +364,7 @@
       phase = 'waiting';
       void monitorPassTwo();
     } catch (caught) {
-      error = errorMessage(caught);
-      phase = 'failed';
+      failWithMessage(caught);
     }
   }
 
@@ -393,8 +437,7 @@
       statusLine = operation.statusLine ?? statusLine;
       await Promise.all([refreshPlayit(), refreshBroadcast()]);
       if (operation.state === 'failed' || operation.state === 'cancelled') {
-        error = operation.error?.message ?? 'The second first-start pass did not complete.';
-        phase = 'failed';
+        failWithOperation(operation, 'server_start_failed');
         return;
       }
       if (operation.state === 'succeeded') {
@@ -431,6 +474,16 @@
     phase = 'complete';
     statusLine = 'First-start setup is complete.';
     onComplete();
+  }
+
+  function retryAfterFailure(): void {
+    error = '';
+    failureCode = '';
+    failureMessage = '';
+    failureProblems = [];
+    statusLine = '';
+    eulaAccepted = serverType === 'java';
+    phase = 'eula';
   }
 
   function clearConsole(): void {
@@ -615,24 +668,15 @@
     </div>
   {:else}
     <div class="stack">
-      <p class="msc2-type-overline">First Start</p>
-      <h2>Setup needs another try</h2>
-      <StatusDot tone="error" label="Not completed" />
-      <p class="copy">
-        {error || 'The first run stopped before it finished. Choose Initiate to try it again.'}
-      </p>
-      <div class="actions">
-        <span class="action-spacer"></span>
-        <Button variant="secondary" onclick={onClose}>Close</Button>
-        <Button
-          variant="primary"
-          onclick={() => {
-            phase = 'eula';
-            eulaAccepted = false;
-            error = '';
-          }}>Try again</Button
-        >
-      </div>
+      <StartupFailurePanel
+        {api}
+        {serverName}
+        operationKind="initiate"
+        errorCode={failureCode}
+        failureMessage={failureMessage || error}
+        problems={failureProblems}
+        onRetry={retryAfterFailure}
+      />
     </div>
   {/if}
   {#if phase !== 'eula'}

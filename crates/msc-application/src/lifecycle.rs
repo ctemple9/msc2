@@ -516,14 +516,19 @@ impl<'deps> LifecycleService<'deps> {
         };
         if was_user_requested_stop {
             if !reached_ready_state {
-                diagnostics::write_last_startup_result(
+                // A requested stop during initiation is still a failed
+                // start from the user's perspective. Reuse the generic
+                // diagnostic path, with mod analysis disabled, so the
+                // failure remains actionable after the client closes.
+                diagnostics::diagnose_unexpected_stop(
                     self.fs,
                     &server.directory,
                     now,
                     false,
-                    vec!["Server stopped before reaching ready state.".to_string()],
-                    Vec::new(),
-                    Vec::new(),
+                    false,
+                    server.flavor.raw_value(),
+                    &self.recent_console_lines,
+                    &[],
                 );
             }
             return;

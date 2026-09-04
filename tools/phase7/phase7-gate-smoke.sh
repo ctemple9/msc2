@@ -767,6 +767,11 @@ PAPER_DIAG_PORT="$(( PORT_COUNTER++ ))"
 create_json="$(run_msc_json server create "${PAPER_DIAG_NAME}" --flavor paper --port "${PAPER_DIAG_PORT}")"
 PAPER_DIAG_DIR="${SERVERS_ROOT}/java/${PAPER_DIAG_NAME}"
 mkdir -p "${PAPER_DIAG_DIR}/plugins"
+# This section is testing startup diagnostics after normal first-start setup;
+# give the disposable server the same generated-world evidence as the main
+# launch-shape loop so the coordinator does not auto-stop it.
+mkdir -p "${PAPER_DIAG_DIR}/world"
+: >"${PAPER_DIAG_DIR}/world/level.dat"
 # Two independent installed plugins, so repairing one proves the other's
 # own problem survives untouched.
 jar cf "${PAPER_DIAG_DIR}/plugins/BrokenPluginA-1.0.jar" -C "${BUILD_DIR}" server-manifest.txt
@@ -804,6 +809,8 @@ FABRIC_CRASH_PORT="$(( PORT_COUNTER++ ))"
 create_json="$(run_msc_json server create "${FABRIC_CRASH_NAME}" --flavor fabric --port "${FABRIC_CRASH_PORT}")"
 FABRIC_CRASH_DIR="${SERVERS_ROOT}/java/${FABRIC_CRASH_NAME}"
 mkdir -p "${FABRIC_CRASH_DIR}/mods"
+mkdir -p "${FABRIC_CRASH_DIR}/world"
+: >"${FABRIC_CRASH_DIR}/world/level.dat"
 jar cf "${FABRIC_CRASH_DIR}/mods/CoolMod-1.0.jar" -C "${BUILD_DIR}" server-manifest.txt
 cat > "${FABRIC_CRASH_DIR}/smoke-mod-crash.txt" <<'CRASH'
 Mod 'CoolMod' (coolmod) 1.0 requires version 1.21 of fabric-api, which is missing!

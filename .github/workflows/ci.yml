@@ -170,7 +170,9 @@ jobs:
       # first step where the workspace has more than one crate's worth of
       # tests to run — cargo nextest run --workspace covers both.
       - name: Test
-        run: cargo nextest run --workspace
+        # Keep running after the first failure so one CI job reports the
+        # complete failure set instead of hiding later platform failures.
+        run: cargo nextest run --workspace --no-fail-fast
 
       # P6.27: the same committed synthetic-world smoke (P6.25) on all
       # three platforms — no real MSC 1 data, no local absolute paths.

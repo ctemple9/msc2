@@ -359,3 +359,55 @@ signing, notarization, a signed coordinated-update manifest, or production
 auto-update support. The prerelease action only publishes the bytes produced
 by the successful matrix and the checksum metadata needed to compare a
 download with those bytes.
+
+## 12. Physical beta release gate (P12.64)
+
+The physical handoff is recorded in
+`docs/msc2/clients/phase12-release-evidence/`. It is required for the beta
+release gate and is intentionally separate from the GitHub candidate and
+publication jobs. CI proves that the matrix produced the expected artifacts;
+it cannot prove that a clean physical partition boots the service, preserves
+the installing user's ownership, survives client closure or sign-out, or
+shows the expected unsigned warning.
+
+The operator must run the artifact verifier against the exact downloaded
+release bytes before installing anything:
+
+```text
+python3 tools/release/verify-artifact-manifest.py \
+  --manifest target/release/sha256sums.txt \
+  --artifacts target/release/artifacts
+```
+
+For this physical-run layout, the verifier requires the six x86_64 assets in
+the platform matrix above, one desktop and one headless asset for each of
+macOS, Windows, and Linux, all sharing one release version. It rejects extra
+files, symlinks, nested entries, duplicate or malformed manifest lines, and
+changed bytes. The public release file remains named `SHA256SUMS`; the
+lowercase local copy in the command above avoids making the worksheet depend
+on a case-sensitive filesystem.
+
+The gate remains open until all of these records are complete:
+
+1. A clean physical x86_64 Ubuntu Server or qualifying Linux partition has no
+   graphical desktop packages, installs the headless package, starts the
+   installing-user agent at boot, accepts local pairing-code creation, and
+   exposes the management connection only through the chosen SSH or Tailscale
+   path from another network.
+2. A Tauri desktop pairs with that host, reconnects after the client closes,
+   starts and stops a disposable remote Minecraft server, and reconnects after
+   an agent stop/start recovery. Linux service state, credential-helper
+   ownership, and `journalctl` output are recorded.
+3. A clean physical x86_64 Windows partition launches the downloaded Tauri
+   installer, records the expected unsigned warning, pairs and reconnects,
+   and shows the Windows Service owned by the installing user rather than
+   `LocalSystem`, including after sign-out and sign-in.
+4. The Windows-side Tauri client can start and stop a disposable remote
+   Minecraft server without gaining authority to install, stop, or uninstall
+   the host operating-system service.
+5. `signing.md` explicitly records the unavailable signing/notarization and
+   the fact that a checksum comparison is not publisher authentication.
+
+The evidence worksheets deliberately contain no fabricated results. A green
+GitHub build or a successful local manifest comparison is necessary, but it
+cannot close the physical Linux/Windows acceptance gate by itself.

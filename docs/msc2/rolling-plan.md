@@ -302,7 +302,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P12.64 — Record the physical beta release gate
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `docs/msc2/clients/phase12-release.md`, `docs/msc2/clients/phase12-release-evidence/`, `tools/release/verify-artifact-manifest.py`, `docs/msc2/rolling-plan.md`
 **What:** Add the release evidence checklist and artifact verifier for Cameron's physical-partition run. The gate must cover a clean Ubuntu Server install with no desktop packages, boot-time agent start, SSH access from another network through the chosen tunnel, local pairing-code display, Tauri desktop pairing and reconnect, remote Minecraft start/stop, agent stop/start recovery, Linux logs, Windows installer launch, Windows service ownership after sign-out, and explicit unavailable signing evidence. A green GitHub build is necessary but cannot replace the hands-on Windows/Linux acceptance run.
 **Verify:** `python3 tools/release/verify-artifact-manifest.py --manifest target/release/sha256sums.txt --artifacts target/release/artifacts`

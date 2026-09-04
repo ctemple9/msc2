@@ -11,6 +11,21 @@ from pathlib import Path
 
 
 MANIFEST_LINE = re.compile(r"^([0-9a-f]{64})  (.+)$")
+RELEASE_VERSION = r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
+EXPECTED_BETA_ASSETS = {
+    "macos desktop": re.compile(rf"^msc2-(?P<version>{RELEASE_VERSION})-macos-x86_64\.dmg$"),
+    "macos headless": re.compile(
+        rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-macos-x86_64\.tar\.gz$"
+    ),
+    "windows desktop": re.compile(rf"^msc2-(?P<version>{RELEASE_VERSION})-windows-x86_64\.msi$"),
+    "windows headless": re.compile(
+        rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-windows-x86_64\.zip$"
+    ),
+    "linux desktop": re.compile(rf"^msc2-(?P<version>{RELEASE_VERSION})-linux-x86_64\.deb$"),
+    "linux headless": re.compile(
+        rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-linux-x86_64\.tar\.gz$"
+    ),
+}
 CHUNK_SIZE = 1024 * 1024
 
 
@@ -48,6 +63,32 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def validate_beta_assets(assets: list[Path]) -> None:
+    """Require the complete, architecture-labeled first-beta asset set."""
+    require(
+        len(assets) == len(EXPECTED_BETA_ASSETS),
+        f"expected {len(EXPECTED_BETA_ASSETS)} beta assets, found {len(assets)}",
+    )
+
+    matched: dict[str, str] = {}
+    for path in assets:
+        matches = [
+            (label, pattern.fullmatch(path.name))
+            for label, pattern in EXPECTED_BETA_ASSETS.items()
+        ]
+        label, match = next(((label, match) for label, match in matches if match), (None, None))
+        require(label is not None and match is not None, f"unexpected beta asset name: {path.name}")
+        require(label not in matched, f"duplicate beta asset role: {label}")
+        matched[label] = match.group("version")
+
+    require(
+        set(matched) == set(EXPECTED_BETA_ASSETS),
+        "beta asset set is incomplete: " + ", ".join(sorted(set(EXPECTED_BETA_ASSETS) - set(matched))),
+    )
+    versions = set(matched.values())
+    require(len(versions) == 1, "beta assets do not share one release version")
+
+
 def write_manifest(manifest: Path, assets: list[Path]) -> None:
     manifest.parent.mkdir(parents=True, exist_ok=True)
     contents = "".join(f"{sha256(path)}  {path.name}\n" for path in assets)
@@ -74,6 +115,7 @@ def read_manifest(manifest: Path) -> dict[str, str]:
 
 def verify_manifest(manifest: Path, artifacts: Path) -> None:
     assets = asset_files(artifacts, manifest)
+    validate_beta_assets(assets)
     actual = {path.name: path for path in assets}
     expected = read_manifest(manifest)
 

@@ -78,6 +78,15 @@ describe('add server wizard update checks', () => {
   });
 });
 
+describe('add server wizard CurseForge inspection status', () => {
+  it('shows API-key guidance only when the agent could not resolve the pack', () => {
+    expect(uploadSource).toContain(
+      "inspection.format === 'curseforge' && inspection.curseforgeLookupAvailable === false",
+    );
+    expect(uploadSource).not.toContain('CurseForge packs need an API key before creation.');
+  });
+});
+
 describe('add server wizard onboarding anchors', () => {
   it('anchors the Xbox Broadcast card itself', () => {
     const anchor = "use:onboardingAnchor={'ob_server_xbox_broadcast'}";

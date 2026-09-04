@@ -341,6 +341,10 @@ pub struct ModpackInspectionResultDto {
     pub override_file_count: i64,
     pub files: Vec<ModpackFileDto>,
     pub manual_files: Vec<ModpackManualFileDto>,
+    /// Whether CurseForge file IDs were resolved during inspection. Optional
+    /// on the wire so newer clients can still read responses from older agents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub curseforge_lookup_available: Option<bool>,
     pub warnings: Vec<String>,
 }
 

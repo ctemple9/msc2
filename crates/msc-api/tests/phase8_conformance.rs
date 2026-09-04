@@ -176,6 +176,7 @@ fn phase8_conformance_modpack_inspection_result_curseforge_with_manual_files() {
                     "projectName": "Entity Culling"
                 }
             ],
+            "curseforgeLookupAvailable": true,
             "warnings": ["1 file requires manual completion before this pack can finish importing."]
         }),
     );

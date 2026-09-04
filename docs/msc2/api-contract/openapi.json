@@ -12586,6 +12586,10 @@
             },
             "description": "CurseForge files this pack references whose authors block API distribution (D-027). Empty for an mrpack, or a CurseForge pack with no blocked files."
           },
+          "curseforgeLookupAvailable": {
+            "type": "boolean",
+            "description": "Whether MSC successfully resolved this CurseForge pack's file IDs during inspection. False means the file list is unknown, usually because no API key is configured or the provider lookup failed. Omitted by older agents for backward compatibility."
+          },
           "warnings": {
             "type": "array",
             "items": {

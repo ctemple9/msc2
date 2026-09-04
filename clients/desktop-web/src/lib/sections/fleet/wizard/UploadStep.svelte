@@ -278,10 +278,10 @@
       </ul>
     {/if}
 
-    {#if inspection.format === 'curseforge'}
+    {#if inspection.format === 'curseforge' && inspection.curseforgeLookupAvailable === false}
       <p class="hint warn">
-        CurseForge packs need an API key before creation. Save it in MSC Settings → Modpack Imports,
-        then return here to retry.
+        MSC could not check this pack's CurseForge files. Verify the API key in MSC Settings →
+        Modpack Imports, then choose the file again to retry.
       </p>
     {:else if inspection.format === 'mrpack'}
       <p class="hint">

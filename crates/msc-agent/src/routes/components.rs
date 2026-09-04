@@ -1855,6 +1855,11 @@ fn modpack_inspection_response(
                 project_name: file.mod_name.clone(),
             })
             .collect(),
+        curseforge_lookup_available: matches!(
+            &inspection.format,
+            modpacks::InspectedFormat::CurseForge(_)
+        )
+        .then_some(inspection.curseforge_lookup_available),
         warnings: if inspection.manual_downloads.is_empty() {
             Vec::new()
         } else {

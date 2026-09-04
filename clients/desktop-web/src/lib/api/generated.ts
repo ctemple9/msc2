@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: fecc0599c3bf361bfec8d680c0365165cc0e8b1c1b06c1ffdb44f10fa84b6912
+// Contract SHA-256: 68038044616636459308f361f8e6da97d61322011600e332b6adb78ad6dca7dc
 
 export interface paths {
   '/v1/active-server': {
@@ -7031,6 +7031,8 @@ export interface components {
     ModpackInspectionResultDTO: {
       /** @description Files this pack's own precedence chain (manifest/Modrinth/embedded-jar/known-list, phase8-scope.md) will skip or disable -- reported so a client can show 'N files' vs 'N will actually install' before committing to import. */
       clientOnlyFileCount?: number;
+      /** @description Whether MSC successfully resolved this CurseForge pack's file IDs during inspection. False means the file list is unknown, usually because no API key is configured or the provider lookup failed. Omitted by older agents for backward compatibility. */
+      curseforgeLookupAvailable?: boolean;
       fileCount: number;
       /** @description Manifest files available for an mrpack inspection. CurseForge packs leave this empty because their file ids need provider resolution. */
       files: components['schemas']['ModpackFileDTO'][];

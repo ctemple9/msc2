@@ -259,6 +259,56 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.58: clear editor diagnostics`
 **Batch:** stop-after
 
+## Phase 12 amendment — Tauri and headless-agent beta release
+
+### P12.59 — Freeze the beta release artifact contract
+**Status:** not started
+**Files:** `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
+**What:** Record the first-release boundary as the Tauri shell plus the Rust agent/CLI; explicitly leave iOS and the TUI out of the beta artifact set. Define the supported headless Linux baseline, the Ubuntu/Debian installation shape, service and credential-helper ownership, artifact names and target architectures, version/tag rules, unsigned beta limitations, checksum expectations, pairing-code workflow, SSH/Tailscale access pattern, and the physical Windows/Linux verification handoff. Keep the agent/API contract and the remote-client boundary unchanged: a remote Tauri client may control Minecraft servers through the agent but never install or stop the host's operating-system service.
+**Verify:** `test -f docs/msc2/clients/phase12-release.md && rg -n "Tauri|headless|pairing|systemd|checksum|unsigned|iOS|TUI" docs/msc2/clients/phase12-release.md`
+**Commit:** `P12.59: freeze beta release artifact contract`
+**Batch:** solo
+
+### P12.60 — Make Tauri release builds stage a release agent
+**Status:** not started
+**Files:** `clients/desktop-web/tools/prepare-agent-dev.mjs`, `clients/desktop-web/package.json`, `clients/desktop-web/src-tauri/tauri.conf.json`, `docs/msc2/rolling-plan.md`
+**What:** Make the existing agent-staging command understand the Tauri build profile instead of always compiling `target/debug/msc`. Development keeps its fast debug path; `tauri build` stages the matching `target/release` agent and preserves the macOS Intel Bedrock sidecar/resource validation. Keep the packaged agent and the Tauri shell on one version and fail before bundling if the expected profile binary or required sidecar input is absent. Do not change the agent's headless feature boundary or add the TUI to desktop packaging.
+**Verify:** `cd clients/desktop-web && npm run prepare:agent -- --release && test -f src-tauri/target/package/agent/msc && npm exec tauri build -- --no-sign`
+**Commit:** `P12.60: stage release agent for tauri builds`
+**Batch:** stop-after
+
+### P12.61 — Package the standalone Linux agent and systemd services
+**Status:** not started
+**Files:** `packaging/linux/`, `tools/release/`, `crates/msc-platform-linux/src/credential_helper.rs`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
+**What:** Build the Ubuntu/Debian headless package around the single `msc` binary and the existing Linux production credential path. Ship an install/uninstall path that places the binary, creates the agent data/log directories with the installing user's ownership, installs the agent `systemd` unit plus the restricted credential-helper socket/service units, enables the agent for boot, and leaves routine start/stop under `systemctl`. Include a post-install instruction for `msc pairing create --client-kind desktop`; never run pairing as root or put bearer tokens in the unit file, shell history, ordinary configuration, or release metadata. Keep the package free of Tauri/WebKit/desktop dependencies.
+**Verify:** `bash -n packaging/linux/install.sh packaging/linux/uninstall.sh && cargo nextest run -p msc-platform-linux --test systemd_unit && python3 tools/phase4/headless-link-check.py --all-artifacts target/release-headless`
+**Commit:** `P12.61: package linux headless agent`
+**Batch:** solo
+
+### P12.62 — Build cross-platform beta artifacts in GitHub Actions
+**Status:** not started
+**Files:** `.github/workflows/release.yml`, `tools/release/`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
+**What:** Add a manually dispatched and version-tagged release-candidate workflow with native macOS, Windows, and Linux runners. Run the targeted client/agent checks, build the release agent/CLI, build the Tauri shell with the correct platform bundle formats, build the Linux headless package, retain explicit no-signing/no-notarization evidence, and upload platform-labeled artifacts without including iOS or TUI outputs. Keep ordinary CI unchanged except for any small shared build-script seam required by the release profile.
+**Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml && git diff --check`
+**Commit:** `P12.62: add cross-platform beta workflow`
+**Batch:** stop-after
+
+### P12.63 — Publish checksummed beta releases from tags
+**Status:** not started
+**Files:** `.github/workflows/release.yml`, `tools/release/`, `docs/msc2/clients/phase12-release.md`, `docs/msc2/rolling-plan.md`
+**What:** Extend the successful candidate workflow with a guarded tag-only publication job that creates a GitHub prerelease, uploads the Tauri installers and headless packages, and publishes a single SHA-256 manifest covering every asset. Keep manual dispatch available for artifact-only runs, require an explicit publish input where appropriate, and make failed or partial matrix builds unable to publish. Do not claim code signing, notarization, a signed coordinated-update manifest, or production auto-update support until those keys and checks exist.
+**Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml --expect-publish-guard && python3 tools/release/verify-artifact-manifest.py --help`
+**Commit:** `P12.63: publish checksummed beta releases`
+**Batch:** solo
+
+### P12.64 — Record the physical beta release gate
+**Status:** not started
+**Files:** `docs/msc2/clients/phase12-release.md`, `docs/msc2/clients/phase12-release-evidence/`, `tools/release/verify-artifact-manifest.py`, `docs/msc2/rolling-plan.md`
+**What:** Add the release evidence checklist and artifact verifier for Cameron's physical-partition run. The gate must cover a clean Ubuntu Server install with no desktop packages, boot-time agent start, SSH access from another network through the chosen tunnel, local pairing-code display, Tauri desktop pairing and reconnect, remote Minecraft start/stop, agent stop/start recovery, Linux logs, Windows installer launch, Windows service ownership after sign-out, and explicit unavailable signing evidence. A green GitHub build is necessary but cannot replace the hands-on Windows/Linux acceptance run.
+**Verify:** `python3 tools/release/verify-artifact-manifest.py --manifest target/release/sha256sums.txt --artifacts target/release/artifacts`
+**Commit:** `P12.64: record physical beta release gate`
+**Batch:** stop-after
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

@@ -385,6 +385,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.79: expose hosted production-agent startup diagnostics`
 **Batch:** solo
 
+### P12.80 — Record owner test-execution boundary
+**Status:** awaiting verification
+**Files:** `AGENTS.md`, `CLAUDE.md`, `docs/msc2/rolling-plan.md`
+**What:** Make Cameron's explicit boundary authoritative: agents must not run tests or create new tests unless he specifically approves the exact test work, and implementation verification must use inspection, static checks, builds, or Cameron's own manual verification.
+**Verify:** `diff <(tail -n +4 AGENTS.md) <(tail -n +4 CLAUDE.md)` → identical instructions after the filename-specific line
+**Commit:** `P12.80: record owner test-execution boundary`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

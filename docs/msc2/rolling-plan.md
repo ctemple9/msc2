@@ -270,7 +270,7 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Batch:** solo
 
 ### P12.60 — Make Tauri release builds stage a release agent
-**Status:** not started
+**Status:** awaiting verification
 **Files:** `clients/desktop-web/tools/prepare-agent-dev.mjs`, `clients/desktop-web/package.json`, `clients/desktop-web/src-tauri/tauri.conf.json`, `docs/msc2/rolling-plan.md`
 **What:** Make the existing agent-staging command understand the Tauri build profile instead of always compiling `target/debug/msc`. Development keeps its fast debug path; `tauri build` stages the matching `target/release` agent and preserves the macOS Intel Bedrock sidecar/resource validation. Keep the packaged agent and the Tauri shell on one version and fail before bundling if the expected profile binary or required sidecar input is absent. Do not change the agent's headless feature boundary or add the TUI to desktop packaging.
 **Verify:** `cd clients/desktop-web && npm run prepare:agent -- --release && test -f src-tauri/target/package/agent/msc && npm exec tauri build -- --no-sign`

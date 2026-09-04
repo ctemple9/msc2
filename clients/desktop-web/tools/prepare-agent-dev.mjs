@@ -6,7 +6,15 @@ import { spawnSync } from 'node:child_process';
 const clientRoot = resolve(new URL('..', import.meta.url).pathname);
 const workspaceRoot = resolve(clientRoot, '../..');
 const agentName = process.platform === 'win32' ? 'msc.exe' : 'msc';
-const source = join(workspaceRoot, 'target', 'debug', agentName);
+const arguments_ = process.argv.slice(2);
+const unsupportedArguments = arguments_.filter((argument) => argument !== '--release');
+if (unsupportedArguments.length > 0) {
+  fail(`unsupported argument(s): ${unsupportedArguments.join(', ')}`);
+}
+
+const profile = arguments_.includes('--release') ? 'release' : 'debug';
+const cargoProfileArguments = profile === 'release' ? ['--release'] : [];
+const source = join(workspaceRoot, 'target', profile, agentName);
 const destinationRoot = join(clientRoot, 'src-tauri', 'target');
 const packageAgentDirectory = join(destinationRoot, 'package', 'agent');
 
@@ -15,24 +23,26 @@ const applianceChecksums = {
   'appliance-initramfs.gz': '4a67a927c406ff45fa64ad00dc1b541a13d8b7bb0a1d40258697c28731166bb2',
 };
 
-const build = spawnSync('cargo', ['build', '-p', 'msc-agent'], {
+const version = verifyVersions();
+const build = spawnSync('cargo', ['build', '-p', 'msc-agent', ...cargoProfileArguments], {
   cwd: workspaceRoot,
   stdio: 'inherit',
 });
 if (build.status !== 0) {
   process.exit(build.status ?? 1);
 }
+if (!existsSync(source)) {
+  fail(`expected ${profile} msc-agent executable is missing: ${source}`);
+}
 
 const destination =
   process.platform === 'darwin'
     ? join(destinationRoot, 'Resources', 'agent', agentName)
-    : process.platform === 'win32'
-      ? join(destinationRoot, 'debug', 'agent', agentName)
-      : join(destinationRoot, 'debug', 'agent', agentName);
+    : join(destinationRoot, profile, 'agent', agentName);
 
 stageFile(source, destination);
 stageFile(source, join(packageAgentDirectory, agentName));
-console.log(`staged current msc-agent at ${destination}`);
+console.log(`staged ${profile} msc-agent ${version} at ${destination}`);
 
 if (process.platform === 'darwin') {
   stageMacosSidecar();
@@ -134,7 +144,49 @@ function requireFile(path) {
   }
 }
 
+function verifyVersions() {
+  const packageVersion = readJsonVersion(join(clientRoot, 'package.json'));
+  const tauriVersion = readJsonVersion(join(clientRoot, 'src-tauri', 'tauri.conf.json'));
+  const shellVersion = readCargoPackageVersion(join(clientRoot, 'src-tauri', 'Cargo.toml'));
+  const agentVersion = readCargoPackageVersion(
+    join(workspaceRoot, 'crates', 'msc-agent', 'Cargo.toml'),
+  );
+  const versions = [
+    ['desktop package', packageVersion],
+    ['Tauri config', tauriVersion],
+    ['Tauri shell', shellVersion],
+    ['agent', agentVersion],
+  ];
+
+  if (new Set(versions.map(([, value]) => value)).size !== 1) {
+    fail(`version mismatch: ${versions.map(([name, value]) => `${name}=${value}`).join(', ')}`);
+  }
+
+  return packageVersion;
+}
+
+function readJsonVersion(path) {
+  try {
+    const manifest = JSON.parse(readFileSync(path, 'utf8'));
+    if (typeof manifest.version !== 'string') {
+      fail(`version is missing from ${path}`);
+    }
+    return manifest.version;
+  } catch (error) {
+    fail(`could not read version from ${path}: ${error.message}`);
+  }
+}
+
+function readCargoPackageVersion(path) {
+  const manifest = requireFile(path).toString('utf8');
+  const match = manifest.match(/^\s*version\s*=\s*"([^"]+)"/m);
+  if (!match) {
+    fail(`version is missing from ${path}`);
+  }
+  return match[1];
+}
+
 function fail(message) {
-  console.error(`Bedrock packaging failed: ${message}`);
+  console.error(`MSC 2 agent packaging failed: ${message}`);
   process.exit(1);
 }

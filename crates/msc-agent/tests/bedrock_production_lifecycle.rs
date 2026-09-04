@@ -376,7 +376,7 @@ fn bedrock_archive() -> Vec<u8> {
     bytes.into_inner()
 }
 
-fn server(directory: &Path, port: i64, _fixture: bool) -> ConfigServer {
+fn server(directory: &Path, port: i64, fixture: bool) -> ConfigServer {
     let mut server = ConfigServer::new(
         "bedrock-production",
         "Production Bedrock",
@@ -389,6 +389,7 @@ fn server(directory: &Path, port: i64, _fixture: bool) -> ConfigServer {
     server.bedrock_enabled = true;
     server.bedrock_port = Some(port);
     server.bedrock_version = Some("1.21.80.3".to_owned());
+    server.has_shown_first_start_popup = fixture;
     server
 }
 

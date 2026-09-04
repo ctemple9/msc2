@@ -96,6 +96,15 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
         );
     }
 
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        let (status, error) = fixture.http("POST", "/v1/start", Some("{}"));
+        assert_eq!(status, 409, "Apple Silicon start: {error}");
+        assert_eq!(error["code"], "capability_unavailable");
+        assert_eq!(error["details"]["reasonCode"], "no_test_hardware");
+        fixture.stop(&mut agent);
+        return;
+    }
+
     let create = output_json(
         fixture.cli(&[
             "server",
@@ -132,7 +141,7 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
     for path in ["/v1/settings", "/v1/players", "/v1/allowlist", "/v1/status"] {
         let (status, body) = fixture.http("GET", path, None);
         assert_eq!(status, 200, "{path}: {body}");
-        if path != "/v1/status" {
+        if path != "/v1/status" && path != "/v1/players" {
             assert!(body["runtime"].is_object(), "{path} omitted runtime state");
         }
     }

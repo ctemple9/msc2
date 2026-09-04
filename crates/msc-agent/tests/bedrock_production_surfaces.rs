@@ -87,6 +87,7 @@ struct TestFixture {
     servers_root: PathBuf,
     server_dir: PathBuf,
     port: u16,
+    bedrock_port: u16,
     keychain_service: String,
 }
 
@@ -110,6 +111,7 @@ impl TestFixture {
                 unique_suffix()
             ),
             port: free_port(),
+            bedrock_port: free_udp_port(),
             root,
             data_dir,
             servers_root,
@@ -120,7 +122,10 @@ impl TestFixture {
     fn seed_server(&self) {
         fs::write(
             self.server_dir.join("server.properties"),
-            "level-name=Realm\ndifficulty=normal\nserver-port=19132\n",
+            format!(
+                "level-name=Realm\ndifficulty=normal\nserver-port={}\n",
+                self.bedrock_port
+            ),
         )
         .unwrap();
         fs::write(
@@ -140,7 +145,7 @@ impl TestFixture {
         );
         server.server_type = ServerType::Bedrock;
         server.bedrock_enabled = true;
-        server.bedrock_port = Some(19132);
+        server.bedrock_port = Some(i64::from(self.bedrock_port));
         server.bedrock_version = Some("1.21.80.3".to_owned());
         config.servers.push(server);
         config.active_server_id = config.servers.first().map(|server| server.id.clone());
@@ -167,6 +172,12 @@ impl TestFixture {
             )
             .env("MSC2_TEST_BOOTSTRAP_TOKEN", TOKEN)
             .env("MSC2_MACOS_USER_KEYCHAIN_SERVICE", &self.keychain_service)
+            // Keep this fixture focused on the unavailable-runtime contract;
+            // a hosted runner must not turn it into a real download test.
+            .env(
+                "MSC2_BEDROCK_MANIFEST_URL",
+                "http://127.0.0.1:1/msc2-test-manifest.json",
+            )
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn()
@@ -235,6 +246,14 @@ fn response_json(response: String) -> (u16, Value) {
 
 fn free_port() -> u16 {
     TcpListener::bind(("127.0.0.1", 0))
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+fn free_udp_port() -> u16 {
+    std::net::UdpSocket::bind(("127.0.0.1", 0))
         .unwrap()
         .local_addr()
         .unwrap()

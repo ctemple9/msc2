@@ -353,6 +353,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.75: repair cross-platform Bedrock smoke boundaries`
 **Batch:** solo
 
+### P12.76 — Align production Bedrock fixture contracts
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/tests/bedrock_production_cli.rs`, `crates/msc-agent/tests/bedrock_production_lifecycle.rs`, `crates/msc-agent/tests/bedrock_production_smoke.rs`, `crates/msc-agent/tests/bedrock_production_surfaces.rs`, `docs/msc2/rolling-plan.md`
+**What:** Keep the hosted production fixtures deterministic and aligned with the real API: player responses do not advertise runtime state, Apple Silicon exercises the unavailable path before Linux-only create/start work, the unavailable-runtime fixture cannot download a live Bedrock archive, and the lifecycle fixture starts outside the first-start auto-stop flow.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --tests -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-agent --test bedrock_production_cli && cargo test -p msc-agent --test bedrock_production_surfaces && cargo test -p msc-agent --test bedrock_production_lifecycle`
+**Commit:** `P12.76: align production Bedrock fixture contracts`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

@@ -101,7 +101,7 @@ fn production_cli_decodes_bedrock_surfaces_and_unavailable_runtime() {
 
     let players = fixture.cli_json(&["bedrock", "players"]);
     assert_eq!(players["count"], 0);
-    assert!(players["runtime"].is_object());
+    assert!(players["runtime"].is_null());
 
     let allowlist = fixture.cli_json(&["bedrock", "allowlist", "get"]);
     assert_eq!(allowlist["serverType"], "bedrock");

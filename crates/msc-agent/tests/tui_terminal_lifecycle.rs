@@ -101,7 +101,7 @@ fn shell_renders_every_required_wide_medium_and_small_structure_without_clipping
         "Settings",
         "Files",
         "Connection and live stats",
-        "Server health",
+        "Server Health",
         "Activity",
         "CONSOLE",
     ] {
@@ -172,8 +172,8 @@ fn resize_and_keys_keep_focus_and_every_small_surface_reachable() {
         app.resize(70, 20);
         app.handle_key(KeyCode::Char('?'));
     });
-    assert!(help.contains("› HELP"));
-    assert!(help.contains("[s] section switcher"));
+    assert!(help.contains("› KEYBOARD HELP"));
+    assert!(help.contains("[1-7] server sections"));
 }
 
 fn run_until_error(events: Rc<RefCell<Vec<&'static str>>>) -> Result<(), ()> {

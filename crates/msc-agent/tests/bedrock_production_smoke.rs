@@ -63,6 +63,23 @@ fn wait_for_status(fixture: &bedrock_smoke::ProductionFixture, expected_running:
     }
 }
 
+fn wait_for_bedrock_runtime(fixture: &bedrock_smoke::ProductionFixture) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let (status, capabilities) = fixture.http("GET", "/v1/capabilities", None);
+        assert_eq!(status, 200, "capabilities lookup: {capabilities}");
+        let runtime = capabilities["serverTypes"]["bedrock"]["runtime"].clone();
+        if runtime["state"] == "running" {
+            return runtime;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "Bedrock runtime did not become ready: {runtime}"
+        );
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
 #[test]
 fn production_router_covers_the_bedrock_cross_backend_contract() {
     let labels: Vec<_> = bedrock_smoke::ProductionBackend::ALL
@@ -188,6 +205,7 @@ fn production_router_covers_the_bedrock_cross_backend_contract() {
         assert_eq!(started["runtime"]["backend"], "native");
         let started_status = wait_for_status(&fixture, true);
         assert_eq!(started_status["serverType"], "bedrock");
+        wait_for_bedrock_runtime(&fixture);
 
         let (status, command) = fixture.http(
             "POST",

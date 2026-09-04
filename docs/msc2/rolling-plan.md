@@ -369,6 +369,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.77: stabilize hosted contract assertions`
 **Batch:** solo
 
+### P12.78 — Repair final hosted contract timing and TUI expectations
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/tests/{bedrock_production_smoke.rs,startup_secret_migration.rs,tui_terminal_lifecycle.rs}`, `docs/msc2/rolling-plan.md`
+**What:** Match the TUI lifecycle assertion to the current keyboard-help modal title, wait for native Bedrock runtime readiness before issuing a console command, and complete legacy owner-token migration after config loading has placed the token in the secret store so the real-process restart proof receives its one-time bearer output.
+**Verify:** `cargo fmt --all -- --check && cargo clippy -p msc-agent --tests -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format && cargo test -p msc-agent --test tui_terminal_lifecycle && cargo test -p msc-agent --test bedrock_production_smoke && cargo test -p msc-agent --test startup_secret_migration`
+**Commit:** `P12.78: repair final hosted contract timing and tui expectations`
+**Batch:** solo
+
 ## Phase 13 — Terminal UI
 
 **Entry gate.** Phase 12's redesign gate is complete. Before execution begins,

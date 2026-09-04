@@ -135,6 +135,19 @@ fn build_app_with_auth(auth_state: auth::AuthState) -> Router {
         )
         .expect("failed to load durable MSC 2 application config"),
     ));
+    // Config migration writes a legacy owner token into the secret store, so
+    // the auth migration must run after the config has been loaded. The
+    // earlier auth construction still handles legacy secrets that already
+    // existed before this process started.
+    if let Some(issued) = auth_state
+        .migrate_owner_credential()
+        .unwrap_or_else(|error| panic!("failed to migrate legacy owner credential: {error}"))
+    {
+        println!(
+            "msc: migrated the legacy owner API token to credential {} -- new bearer token (shown once): {}",
+            issued.credential_id, issued.token
+        );
+    }
     let console_state = ws::console::ConsoleState::default();
     let notification_state = ws::notifications::NotificationState::default();
     let bedrock_runtime = routes::bedrock_runtime::BedrockRuntimeSelection::production(app_config);

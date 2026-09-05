@@ -145,6 +145,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.86: persist eula status and scope duckdns to port forwarding`
 **Batch:** solo
 
+### P12.87 — Align the Xbox Broadcast password field
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Keep the Microsoft email, Xbox gamertag, and password inputs the same width and right alignment. Place the password visibility control inside the password field so it does not change that field's outer dimensions.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/app-settings/AppSettingsSheet.svelte && npm run check && npm run build`
+**Commit:** `P12.87: align xbox broadcast password field`
+**Batch:** solo
+
 ---
 
 ## Phases

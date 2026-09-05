@@ -480,24 +480,33 @@
           </div>
         {/if}
       </Card>
-      {#if servicesNotice}<p class="hint" role="status">{servicesNotice}</p>{/if}
     </section>
 
-    <section class="zone">
-      <p class="msc2-type-overline">DuckDNS</p>
-      <p class="hint">This hostname is shared by the agent and can be used by every server.</p>
-      <Card padding="0">
-        <div class="row">
-          <span class="name">Hostname</span>
-          <div class="control">
-            <Field bind:value={duckHost} placeholder="example.duckdns.org" width="220px" />
-            <Button variant="secondary" size="sm" disabled={duckBusy} onclick={saveDuckDns}>
-              {duckBusy ? 'Saving…' : 'Save'}
-            </Button>
+    {#if showDuckDns}
+      <section class="zone">
+        <p class="msc2-type-overline">DuckDNS</p>
+        <p class="hint">
+          This hostname is used for port-forwarded servers that are not using Playit.
+        </p>
+        <Card padding="0">
+          <div class="row">
+            <span class="name">Hostname</span>
+            <div class="control">
+              <Field bind:value={duckHost} placeholder="example.duckdns.org" width="220px" />
+              <Button variant="secondary" size="sm" disabled={duckBusy} onclick={saveDuckDns}>
+                {duckBusy ? 'Saving…' : 'Save'}
+              </Button>
+              {#if duckdns.isConfigured}
+                <Button variant="secondary" size="sm" disabled={duckBusy} onclick={removeDuckDns}>
+                  Remove
+                </Button>
+              {/if}
+            </div>
           </div>
-        </div>
-      </Card>
-    </section>
+        </Card>
+        {#if duckdnsNotice}<p class="hint" role="status">{duckdnsNotice}</p>{/if}
+      </section>
+    {/if}
 
     <section class="zone">
       <p class="msc2-type-overline">Data &amp; Folders</p>

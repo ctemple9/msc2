@@ -479,9 +479,8 @@
         <summary>Need help making it reachable?</summary>
         <div class="secondary-content">
           <p class="detail">
-            The address is the route to the agent. Use a private network address only when the agent
-            has been configured to listen there. If it listens only on its own computer, use an SSH
-            tunnel instead.
+            The simplest way to connect is with an SSH tunnel. It lets this computer reach an agent
+            that is listening only on the other computer.
           </p>
           <div class="help-option">
             <strong>SSH tunnel</strong>
@@ -508,13 +507,6 @@
             <p class="detail">
               If you do not know them, run <span class="mono">whoami</span> on the other computer to
               find its username and <span class="mono">hostname -I</span> to find its network address.
-            </p>
-          </div>
-          <div class="help-option">
-            <strong>Private network address</strong>
-            <p class="detail">
-              If the agent is intentionally reachable on your private network, enter an address such
-              as <span class="mono">http://192.168.1.20:48001</span> below.
             </p>
           </div>
         </div>
@@ -822,10 +814,6 @@
     display: grid;
     gap: 12px;
     padding-top: 10px;
-  }
-  .help-option + .help-option {
-    padding-top: 12px;
-    border-top: 1px solid var(--msc2-hairline-faint);
   }
   .help-option > strong {
     color: var(--msc2-text-primary);

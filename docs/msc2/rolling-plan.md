@@ -327,6 +327,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.67: clarify the SSH connection placeholder`
 **Batch:** solo
 
+### P12.69 — Simplify remote connection teaching
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Remove the private-network-address alternative from the remote connection help so first-time users are taught one clear path: open an SSH tunnel, use the local forwarded address, and enter the pairing code from the other computer. Keep the remote address field and existing connection behavior unchanged.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.69: simplify remote connection teaching`
+**Batch:** solo
+
 ## Phase 12 post-phase correction — startup health freshness
 
 ### P12.68 — Persist successful startup health and refresh the Overview

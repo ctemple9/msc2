@@ -52,6 +52,7 @@ use crate::routes::lifecycle::{
     LifecycleRoutesState, TryMutateError, error_response, invalid_body, require_permission,
 };
 use crate::routes::operations::operation_error_response;
+use crate::routes::versions::minecraft_version_from_selection;
 use crate::routes::worlds::{StagedUpload, StagingStore, now_unix, staging_root};
 
 pub async fn list(State(state): State<LifecycleRoutesState>) -> Json<Vec<ServerDto>> {
@@ -1734,6 +1735,70 @@ fn run_create_bedrock_server(
     }
 }
 
+fn java_runtime_host_os() -> msc_infrastructure::java_runtime_detection::HostOs {
+    #[cfg(target_os = "macos")]
+    {
+        msc_infrastructure::java_runtime_detection::HostOs::Mac
+    }
+    #[cfg(target_os = "linux")]
+    {
+        msc_infrastructure::java_runtime_detection::HostOs::Linux
+    }
+    #[cfg(target_os = "windows")]
+    {
+        msc_infrastructure::java_runtime_detection::HostOs::Windows
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        msc_infrastructure::java_runtime_detection::HostOs::Linux
+    }
+}
+
+/// The Preferences path is a user choice, but it may be an older runtime
+/// left over from a previous server. Before create commits to that path,
+/// inspect the same installed-runtime roots exposed by `GET /v1/java-runtimes`
+/// and use the first detected executable that passes the exact Minecraft
+/// compatibility guard. This keeps the recovery dialog for the genuine case
+/// where the host really has no usable Java version.
+fn select_compatible_detected_java(
+    supervisor: &'static (dyn ProcessSupervisor + Send + Sync),
+    configured_path: &str,
+    minecraft_version: Option<&str>,
+) -> Option<String> {
+    let configured_probe =
+        java_runtime_detection::run_java_version_probe(supervisor, configured_path);
+    if msc_domain::java_runtime::evaluate_java_runtime_guard(
+        configured_path,
+        minecraft_version,
+        &configured_probe,
+    )
+    .is_ok()
+    {
+        return None;
+    }
+
+    let roots = msc_infrastructure::java_runtime_detection::default_java_runtime_search_roots(
+        java_runtime_host_os(),
+        &agent_home_dir(),
+    );
+    msc_infrastructure::java_runtime_detection::detect_installed_java_runtimes(
+        &StdFileSystem,
+        &roots,
+    )
+    .into_iter()
+    .find_map(|runtime| {
+        let probe =
+            java_runtime_detection::run_java_version_probe(supervisor, &runtime.executable_path);
+        msc_domain::java_runtime::evaluate_java_runtime_guard(
+            &runtime.executable_path,
+            minecraft_version,
+            &probe,
+        )
+        .ok()
+        .map(|_| runtime.executable_path)
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_create_server(
     state: LifecycleRoutesState,
@@ -1771,6 +1836,26 @@ fn run_create_server(
             "Server creation cancelled before it started.",
         );
         return;
+    }
+    let configured_java_path = java_path;
+    let java_path = if staged_modpack.is_some() {
+        configured_java_path.clone()
+    } else {
+        let selected_minecraft_version =
+            minecraft_version_from_selection(Some(flavor), specific_version_id.clone());
+        select_compatible_detected_java(
+            state.process_supervisor(),
+            &configured_java_path,
+            selected_minecraft_version.as_deref(),
+        )
+        .unwrap_or_else(|| configured_java_path.clone())
+    };
+    if java_path != configured_java_path {
+        let selected_java_path = java_path.clone();
+        let _ = state.try_mutate_config(|config| {
+            config.java_path = selected_java_path;
+            Ok::<(), ()>(())
+        });
     }
     let now = iso8601_now();
     let request = NewServerRequest {

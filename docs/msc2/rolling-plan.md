@@ -121,6 +121,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.83: recover create flow from unusable java runtime`
 **Batch:** solo
 
+### P12.84 — Select an installed compatible Java runtime during create
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/routes/servers.rs`, `docs/msc2/rolling-plan.md`
+**What:** Before creating a regular Java server, validate the configured executable against the selected Minecraft version. If it is too old, search the same installed-runtime roots used by the Java runtimes screen, probe each executable, silently select and persist the first compatible runtime, and continue creation. Leave the recovery popup as the fallback when no installed runtime can satisfy the requirement; keep modpack and Bedrock creation on their existing paths.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent`
+**Commit:** `P12.84: select installed compatible java during create`
+**Batch:** solo
+
 ---
 
 ## Phases

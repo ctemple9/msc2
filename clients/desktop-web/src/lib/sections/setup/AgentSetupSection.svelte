@@ -65,6 +65,32 @@
   const savedHostsStorageKey = 'msc2.agents.saved-hosts-expanded';
   const pairingCommand = 'msc pairing create --client-kind desktop';
   const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 username@ip-address';
+  const linuxServiceName = '<agent-service-name>';
+  const linuxServiceNotes = [
+    {
+      label: 'Find the agent service name',
+      command: "systemctl list-unit-files --type=service | grep -i 'msc.*agent'",
+      note: 'Use the unit name shown by this command in place of <agent-service-name> below.',
+    },
+    { label: 'Start', command: `sudo systemctl start ${linuxServiceName}` },
+    { label: 'Stop', command: `sudo systemctl stop ${linuxServiceName}` },
+    { label: 'Restart', command: `sudo systemctl restart ${linuxServiceName}` },
+    {
+      label: 'Check status',
+      command: `systemctl status ${linuxServiceName} --no-pager -l`,
+      note: 'Look for “Active: active (running)”.',
+    },
+    {
+      label: 'Start automatically after boot',
+      command: `sudo systemctl enable --now ${linuxServiceName}`,
+      note: 'This is already enabled for a normal installation.',
+    },
+    {
+      label: 'Watch live agent logs',
+      command: `journalctl -u ${linuxServiceName} -f`,
+      note: 'Press Ctrl+C to stop watching logs. This does not stop the agent.',
+    },
+  ];
 
   let status: AgentServiceStatus | undefined;
   let busy = false;
@@ -764,6 +790,35 @@
               {remotePairingBusy ? 'Connecting…' : 'Connect agent'}
             </Button>
           </div>
+          <details class="secondary-disclosure extra-notes">
+            <summary>Extra notes</summary>
+            <div class="secondary-content">
+              <p class="detail">
+                On Linux, these commands manage the MSC 2 agent on the computer where your Minecraft
+                servers run. The service name can vary by installation; run the first command to
+                find it, then replace <span class="mono">&lt;agent-service-name&gt;</span> in the commands
+                below.
+              </p>
+              <div class="extra-notes-list">
+                {#each linuxServiceNotes as item (item.command)}
+                  <div class="extra-note">
+                    <span class="extra-note-label">{item.label}</span>
+                    <div class="command-row">
+                      <Field value={item.command} />
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onclick={() => void copyCommand(item.command)}
+                      >
+                        {copiedCommand === item.command ? 'Copied' : 'Copy'}
+                      </Button>
+                    </div>
+                    {#if item.note}<p class="detail extra-note-detail">{item.note}</p>{/if}
+                  </div>
+                {/each}
+              </div>
+            </div>
+          </details>
         {:else}
           <p class="service-explanation">
             Connecting to another agent is available from the desktop app. This browser can manage
@@ -1236,6 +1291,24 @@
     display: grid;
     gap: 12px;
     padding-top: 10px;
+  }
+  .extra-notes-list {
+    display: grid;
+    gap: 14px;
+  }
+  .extra-note {
+    display: grid;
+    gap: 6px;
+  }
+  .extra-note-label {
+    color: var(--msc2-text-primary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .extra-note-detail {
+    margin: 0;
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
   }
   .pairing-expiry {
     margin-top: 7px;

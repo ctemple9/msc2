@@ -153,6 +153,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.87: align xbox broadcast password field`
 **Batch:** solo
 
+### P12.88 — Add Linux agent service extra notes
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Add a clickable Extra notes section beneath the remote Connect agent button. Explain that the commands apply to the Linux computer hosting the agent, provide a generic service-name discovery command instead of exposing a package-owner identifier, and provide copyable systemd commands for starting, stopping, restarting, checking status, enabling at boot, and watching live logs, including the status and Ctrl+C guidance.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run check && npm run build`
+**Commit:** `P12.88: add linux agent service extra notes`
+**Batch:** solo
+
 ---
 
 ## Phases

@@ -41,6 +41,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 
 **A step whose Verify only counts things is `stop-after` at best.** Counting proves something exists, not that it is right.
 
+### P12.74 — Remember remote hosts across desktop restarts
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/hosts/saved.ts`, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Persist remote host names and addresses in the desktop client so paired hosts return after MSC is reopened. Keep bearer credentials in the existing native secure store, never in browser storage. Add a Saved hosts section on the agent setup page with connection state, host switching, and removal that also forgets the native credential. Keep SSH tunnel instructions explicit: a remembered host can still require its tunnel to be opened again.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/hosts/saved.ts src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.74: remember remote hosts across desktop restarts`
+**Batch:** solo
+
 ---
 
 ## Phases

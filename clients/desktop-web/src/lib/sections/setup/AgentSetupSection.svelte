@@ -3,6 +3,7 @@
   import Badge from '../../components/base/Badge.svelte';
   import Button from '../../components/base/Button.svelte';
   import Card from '../../components/base/Card.svelte';
+  import ConfirmDialog from '../../components/ConfirmDialog.svelte';
   import Field from '../../components/base/Field.svelte';
   import StatusDot from '../../components/base/StatusDot.svelte';
   import {
@@ -11,6 +12,7 @@
     type AgentServiceAction,
     type AgentServiceStatus,
   } from '../../platform';
+  import type { HostId, HostRecord } from '../../hosts/types';
   import type { Schema, ScreenApi } from '../shared/types';
 
   export let readiness: AgentReadiness = 'starting';
@@ -18,6 +20,10 @@
   export let hostId = '';
   export let hostLabel = 'Local agent';
   export let hostBaseUrl = 'http://127.0.0.1:48001';
+  export let hosts: readonly HostRecord[] = [];
+  export let activeHostId: HostId = '';
+  export let hostSummaries: ReadonlyMap<HostId, { connection: string; serverCount: number }> =
+    new Map();
   export let isDesktopShell = false;
   export let isLocalHost = true;
   export let browserHandoffError = '';
@@ -25,6 +31,9 @@
   export let onConnectHost:
     ((label: string, baseUrl: string, pairingCode: string) => Promise<void>) | undefined =
     undefined;
+  export let onRemoveHost: (() => Promise<void>) | undefined = undefined;
+  export let onSwitchHost: ((hostId: HostId) => void) | undefined = undefined;
+  export let onRemoveSavedHost: ((hostId: HostId) => Promise<void>) | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
 
   const readinessTitles: Record<AgentReadiness, string> = {
@@ -50,6 +59,8 @@
     'msc service stop --service-name msc-agent',
   ];
   const howItWorksStorageKey = 'msc2.agents.how-it-works-expanded';
+  const manageLocalStorageKey = 'msc2.agents.manage-local-expanded';
+  const connectAnotherStorageKey = 'msc2.agents.connect-another-expanded';
   const pairingCommand = 'msc pairing create --client-kind desktop';
   const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 username@ip-address';
 
@@ -65,12 +76,18 @@
   let remoteHostUrl = '';
   let remotePairingCode = '';
   let remotePairingBusy = false;
+  let removeHostOpen = false;
+  let removeHostBusy = false;
   let copiedCommand = '';
   let howItWorksExpanded = true;
+  let manageLocalExpanded = true;
+  let connectAnotherExpanded = true;
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
   let inspectedHostId: string | undefined;
   let refreshedReadyHostId: string | undefined;
+  let removeHostId = '';
+  let removeHostLabel = '';
 
   $: readinessTitle = readinessTitles[readiness];
   $: readinessMessage = readinessMessages[readiness];
@@ -81,15 +98,34 @@
   $: statusTone =
     status?.state === 'running' ? 'ok' : status?.state === 'unavailable' ? 'error' : 'warn';
   $: serviceState = status?.state ?? 'checking';
+  $: savedHosts = hosts.filter((host) => host.id !== 'local-agent');
 
   onMount(() => {
     const stored = localStorage.getItem(howItWorksStorageKey);
     if (stored === 'true' || stored === 'false') howItWorksExpanded = stored === 'true';
+    const storedManageLocal = localStorage.getItem(manageLocalStorageKey);
+    if (storedManageLocal === 'true' || storedManageLocal === 'false') {
+      manageLocalExpanded = storedManageLocal === 'true';
+    }
+    const storedConnectAnother = localStorage.getItem(connectAnotherStorageKey);
+    if (storedConnectAnother === 'true' || storedConnectAnother === 'false') {
+      connectAnotherExpanded = storedConnectAnother === 'true';
+    }
   });
 
   function toggleHowItWorks(): void {
     howItWorksExpanded = !howItWorksExpanded;
     localStorage.setItem(howItWorksStorageKey, String(howItWorksExpanded));
+  }
+
+  function toggleManageLocal(): void {
+    manageLocalExpanded = !manageLocalExpanded;
+    localStorage.setItem(manageLocalStorageKey, String(manageLocalExpanded));
+  }
+
+  function toggleConnectAnother(): void {
+    connectAnotherExpanded = !connectAnotherExpanded;
+    localStorage.setItem(connectAnotherStorageKey, String(connectAnotherExpanded));
   }
 
   $: {
@@ -213,6 +249,29 @@
     }
   }
 
+  function openRemoveHost(hostId: HostId, label: string): void {
+    removeHostId = hostId;
+    removeHostLabel = label;
+    removeHostOpen = true;
+  }
+
+  async function removeConfirmedHost(): Promise<void> {
+    if (!removeHostId || removeHostBusy) return;
+    removeHostBusy = true;
+    errorMessage = '';
+    try {
+      if (removeHostId === activeHostId) await onRemoveHost?.();
+      else await onRemoveSavedHost?.(removeHostId);
+      removeHostOpen = false;
+      removeHostId = '';
+      removeHostLabel = '';
+    } catch (error) {
+      errorMessage = String(error);
+    } finally {
+      removeHostBusy = false;
+    }
+  }
+
   function loopbackHost(baseUrl: string): boolean {
     try {
       const { hostname } = new URL(baseUrl);
@@ -220,6 +279,20 @@
     } catch {
       return false;
     }
+  }
+
+  function savedHostStatus(host: HostRecord): string {
+    if (host.id === activeHostId) return readinessTitle;
+    const connection = hostSummaries.get(host.id)?.connection;
+    if (connection === 'connected') return 'Connected';
+    if (connection === 'error') return 'Needs attention';
+    return 'Saved';
+  }
+
+  function savedHostTone(host: HostRecord): 'ok' | 'warn' | 'error' {
+    if (host.id === activeHostId) return readinessTone;
+    const connection = hostSummaries.get(host.id)?.connection;
+    return connection === 'connected' ? 'ok' : connection === 'error' ? 'error' : 'warn';
   }
 
   async function copyCommand(command: string): Promise<void> {
@@ -301,85 +374,183 @@
             <strong>Closing this window is safe.</strong> It does not stop the agent or a running server.
           </p>
         </div>
+        <p class="agent-location-hint">
+          Not connected to an agent yet? Decide where MSC’s engine should run: on this computer, or
+          on another computer that hosts your servers.
+        </p>
       </div>
     {/if}
   </Card>
 
   {#if isCurrentLocalAgent}
-    <Card as="section">
-      <div class="path-heading">
-        <div>
-          <p class="msc2-type-overline">Agent on this computer</p>
-          <h2>Manage the local agent</h2>
-        </div>
-        <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
-      </div>
-      <p class="detail">
-        Use this path when the Minecraft servers and this MSC control panel are on the same
-        computer.
-      </p>
+    <Card as="section" padding="0">
+      <button
+        type="button"
+        class="disclosure-header"
+        aria-expanded={manageLocalExpanded}
+        aria-controls="manage-local-agent"
+        onclick={toggleManageLocal}
+      >
+        <span class="disclosure-title">
+          <span class="msc2-type-overline">Agent on this computer</span>
+          <strong>Manage the local agent</strong>
+        </span>
+        <span class="disclosure-trailing">
+          <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
+          <span class="disclosure-action">{manageLocalExpanded ? 'Hide' : 'Show'}</span>
+        </span>
+      </button>
 
-      {#if isLocalDesktopHost}
-        <p class="service-explanation">
-          Install, start, stop, or repair the background service. The service continues running when
-          you close this window.
-        </p>
-        <div class="actions">
-          {#if readiness === 'missing' || status?.state === 'not-installed'}
-            <Button variant="primary" disabled={busy} onclick={() => manage('install')}
-              >Install and Continue</Button
-            >
-          {:else if readiness === 'stopped' || status?.state === 'stopped'}
-            <Button variant="primary" disabled={busy} onclick={() => manage('start')}
-              >Start and Continue</Button
-            >
-          {:else if readiness === 'incompatible'}
-            <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
-              >Repair service</Button
-            >
-          {:else}
-            <Button
-              variant="start"
-              disabled={busy || status?.state === 'running'}
-              onclick={() => manage('start')}>Start agent</Button
-            >
-            <Button
-              variant="stop"
-              disabled={busy || status?.state !== 'running'}
-              onclick={() => manage('stop')}>Stop agent</Button
-            >
-          {/if}
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
-            >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
-          >
-          {#if readiness !== 'missing' && status?.state !== 'not-installed' && readiness !== 'stopped' && status?.state !== 'stopped' && readiness !== 'incompatible'}
-            <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
-              >Repair service</Button
-            >
-          {/if}
-        </div>
-      {:else if !isDesktopShell}
-        {#if status?.state === 'not-installed'}
-          <h3>Install the headless package first</h3>
-          <p class="detail">Install the agent package, then return here and reconnect.</p>
-        {:else}
-          <p class="service-explanation">
-            This browser can reach the local agent. Run service controls in Terminal on this
+      {#if manageLocalExpanded}
+        <div id="manage-local-agent" class="agent-content">
+          <p class="detail">
+            Use this path when the Minecraft servers and this MSC control panel are on the same
             computer.
           </p>
-          <div class="command-list">
-            {#each serviceCommands as command (command)}
-              <div class="command-row">
-                <Field value={command} />
-                <Button size="sm" variant="secondary" onclick={() => void copyCommand(command)}>
-                  {copiedCommand === command ? 'Copied' : 'Copy'}
-                </Button>
+
+          {#if isLocalDesktopHost}
+            <p class="service-explanation">
+              Install, start, stop, or repair the background service. The service continues running
+              when you close this window.
+            </p>
+            <div class="actions">
+              {#if readiness === 'missing' || status?.state === 'not-installed'}
+                <Button variant="primary" disabled={busy} onclick={() => manage('install')}
+                  >Install and Continue</Button
+                >
+              {:else if readiness === 'stopped' || status?.state === 'stopped'}
+                <Button variant="primary" disabled={busy} onclick={() => manage('start')}
+                  >Start and Continue</Button
+                >
+              {:else if readiness === 'incompatible'}
+                <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
+                  >Repair service</Button
+                >
+              {:else}
+                <Button
+                  variant="start"
+                  disabled={busy || status?.state === 'running'}
+                  onclick={() => manage('start')}>Start agent</Button
+                >
+                <Button
+                  variant="stop"
+                  disabled={busy || status?.state !== 'running'}
+                  onclick={() => manage('stop')}>Stop agent</Button
+                >
+              {/if}
+              <Button
+                variant="secondary"
+                disabled={busy}
+                onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
+                >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
+              >
+              {#if readiness !== 'missing' && status?.state !== 'not-installed' && readiness !== 'stopped' && status?.state !== 'stopped' && readiness !== 'incompatible'}
+                <Button variant="secondary" disabled={busy} onclick={() => manage('repair')}
+                  >Repair service</Button
+                >
+              {/if}
+            </div>
+          {:else if !isDesktopShell}
+            {#if status?.state === 'not-installed'}
+              <h3>Install the headless package first</h3>
+              <p class="detail">Install the agent package, then return here and reconnect.</p>
+            {:else}
+              <p class="service-explanation">
+                This browser can reach the local agent. Run service controls in Terminal on this
+                computer.
+              </p>
+              <div class="command-list">
+                {#each serviceCommands as command (command)}
+                  <div class="command-row">
+                    <Field value={command} />
+                    <Button size="sm" variant="secondary" onclick={() => void copyCommand(command)}>
+                      {copiedCommand === command ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                {/each}
               </div>
-            {/each}
-          </div>
+              <div class="actions reconnect-only">
+                <Button
+                  variant="secondary"
+                  onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
+                  >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
+                >
+              </div>
+            {/if}
+          {/if}
+
+          {#if isDesktopShell}
+            <details class="secondary-disclosure">
+              <summary>Pair another client with this agent</summary>
+              <div class="secondary-content">
+                <p class="detail">
+                  Start the agent first, then create a one-use code for another desktop, browser, or
+                  phone to connect to {hostLabel}.
+                </p>
+                {#if localPairingCode}
+                  <div class="pairing-code-row">
+                    <Field value={localPairingCode} />
+                    <Button variant="secondary" onclick={() => void copyPairingCode()}>
+                      {copiedPairingCode ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                  <p class="pairing-expiry">
+                    This code expires automatically and can be used once.
+                  </p>
+                {:else}
+                  <Button
+                    variant="secondary"
+                    disabled={readiness !== 'ready' || localPairingBusy}
+                    onclick={() => void createPairingCode()}
+                  >
+                    {readiness === 'ready' ? 'Create pairing code' : 'Start agent to create a code'}
+                  </Button>
+                {/if}
+              </div>
+            </details>
+          {/if}
+        </div>
+      {/if}
+    </Card>
+  {:else}
+    <Card as="section" padding="0">
+      <button
+        type="button"
+        class="disclosure-header"
+        aria-expanded={manageLocalExpanded}
+        aria-controls="manage-current-agent"
+        onclick={toggleManageLocal}
+      >
+        <span class="disclosure-title">
+          <span class="msc2-type-overline">Current agent</span>
+          <strong>Manage the agent on {hostLabel}</strong>
+        </span>
+        <span class="disclosure-trailing">
+          <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
+          <span class="disclosure-action">{manageLocalExpanded ? 'Hide' : 'Show'}</span>
+        </span>
+      </button>
+
+      {#if manageLocalExpanded}
+        <div id="manage-current-agent" class="agent-content">
+          <p class="detail">
+            This agent runs on another computer. Start, stop, and repair it on that computer; this
+            client can manage its Minecraft servers once the connection is available.
+          </p>
+          {#if isDesktopShell && onPairAgain}
+            <p class="service-explanation">
+              To replace this client’s credential, run <span class="mono">{pairingCommand}</span> on
+              {hostLabel}, then paste the new code here.
+            </p>
+            <div class="pairing-row">
+              <Field bind:value={pairingCode} placeholder="pair_…" />
+              <Button
+                variant="primary"
+                disabled={pairingBusy || !pairingCode.trim()}
+                onclick={() => void pairAgain()}>Pair again</Button
+              >
+            </div>
+          {/if}
           <div class="actions reconnect-only">
             <Button
               variant="secondary"
@@ -387,241 +558,260 @@
               >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
             >
           </div>
-        {/if}
-      {/if}
-
-      {#if isDesktopShell}
-        <details class="secondary-disclosure">
-          <summary>Pair another client with this agent</summary>
-          <div class="secondary-content">
-            <p class="detail">
-              Start the agent first, then create a one-use code for another desktop, browser, or
-              phone to connect to {hostLabel}.
-            </p>
-            {#if localPairingCode}
-              <div class="pairing-code-row">
-                <Field value={localPairingCode} />
-                <Button variant="secondary" onclick={() => void copyPairingCode()}>
-                  {copiedPairingCode ? 'Copied' : 'Copy'}
-                </Button>
-              </div>
-              <p class="pairing-expiry">This code expires automatically and can be used once.</p>
-            {:else}
+          {#if isDesktopShell && !isLocalHost && onRemoveHost}
+            <div class="remove-host-action">
               <Button
-                variant="secondary"
-                disabled={readiness !== 'ready' || localPairingBusy}
-                onclick={() => void createPairingCode()}
+                variant="destructive"
+                disabled={removeHostBusy}
+                onclick={() => openRemoveHost(activeHostId, hostLabel)}>Remove paired host</Button
               >
-                {readiness === 'ready' ? 'Create pairing code' : 'Start agent to create a code'}
-              </Button>
-            {/if}
-          </div>
-        </details>
-      {/if}
-    </Card>
-  {:else}
-    <Card as="section">
-      <div class="path-heading">
-        <div>
-          <p class="msc2-type-overline">Current agent</p>
-          <h2>Manage the agent on {hostLabel}</h2>
-        </div>
-        <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
-      </div>
-      <p class="detail">
-        This agent runs on another computer. Start, stop, and repair it on that computer; this
-        client can manage its Minecraft servers once the connection is available.
-      </p>
-      {#if isDesktopShell && onPairAgain}
-        <p class="service-explanation">
-          To replace this client’s credential, run <span class="mono">{pairingCommand}</span> on
-          {hostLabel}, then paste the new code here.
-        </p>
-        <div class="pairing-row">
-          <Field bind:value={pairingCode} placeholder="pair_…" />
-          <Button
-            variant="primary"
-            disabled={pairingBusy || !pairingCode.trim()}
-            onclick={() => void pairAgain()}>Pair again</Button
-          >
+            </div>
+          {/if}
         </div>
       {/if}
-      <div class="actions reconnect-only">
-        <Button variant="secondary" onclick={() => void (onAgentRetry ? onAgentRetry() : refresh())}
-          >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
-        >
-      </div>
     </Card>
   {/if}
 
-  <Card as="section">
-    <div class="path-heading">
-      <div>
-        <p class="msc2-type-overline">Agent on another computer</p>
-        <h2>Connect another agent</h2>
-      </div>
-      {#if isDesktopShell}<span class="quiet-label">Desktop app</span>{/if}
-    </div>
-    <p class="detail">
-      Use this path when the Minecraft servers live somewhere else. The other computer must have the
-      agent installed and running.
-      <span class="instruction-hint">(Click each step for more information.)</span>
-    </p>
+  <Card as="section" padding="0">
+    <button
+      type="button"
+      class="disclosure-header"
+      aria-expanded={connectAnotherExpanded}
+      aria-controls="connect-another-agent"
+      onclick={toggleConnectAnother}
+    >
+      <span class="disclosure-title">
+        <span class="msc2-type-overline">Agent on another computer</span>
+        <strong>Connect another agent</strong>
+      </span>
+      <span class="disclosure-trailing">
+        {#if isDesktopShell}<span class="quiet-label">Desktop app</span>{/if}
+        <span class="disclosure-action">{connectAnotherExpanded ? 'Hide' : 'Show'}</span>
+      </span>
+    </button>
 
-    {#if isDesktopShell}
-      <ol class="connection-steps">
-        <li>
-          <details class="connection-step" open>
-            <summary>
-              <span class="step-number">1</span>
-              <span class="step-title">Start the agent on the other computer</span>
-            </summary>
-            <div class="step-content">
-              <p class="detail">
-                Go to the computer where the Minecraft servers will run. The agent must be running
-                there before this computer can connect to it.
-              </p>
-              <p class="detail">
-                If that computer has the MSC app, open it and click <strong>Start agent</strong>. If
-                it is running the headless agent, open Terminal there and run:
-              </p>
-              <div class="command-row">
-                <Field value={serviceCommands[1]} />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onclick={() => void copyCommand(serviceCommands[1])}
-                >
-                  {copiedCommand === serviceCommands[1] ? 'Copied' : 'Copy'}
-                </Button>
-              </div>
-              <p class="detail">
-                If the agent is not installed yet, install the headless agent package first.
-              </p>
-            </div>
-          </details>
-        </li>
-        <li>
-          <details class="connection-step">
-            <summary>
-              <span class="step-number">2</span>
-              <span class="step-title">Make the agent reachable from this computer</span>
-            </summary>
-            <div class="step-content">
-              <p class="detail">
-                Run the following command on this computer—the one where you are using the MSC
-                desktop app:
-              </p>
-              <div class="command-row">
-                <Field value={sshTunnelCommand} />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onclick={() => void copyCommand(sshTunnelCommand)}
-                >
-                  {copiedCommand === sshTunnelCommand ? 'Copied' : 'Copy'}
-                </Button>
-              </div>
-              <p class="detail">
-                Keep this Terminal window open while using MSC. The tunnel carries this computer’s
-                local address <span class="mono">127.0.0.1:48002</span> to the agent’s address on the
-                other computer.
-              </p>
-              <p class="detail">
-                Replace <span class="mono">username@ip-address</span> with the username you use to
-                sign in to the other computer, followed by <span class="mono">@</span> and that
-                computer’s IP address. For example:
-                <span class="mono">camerontemple@10.0.0.156</span>.
-              </p>
-              <p class="detail">
-                If you do not know them, run <span class="mono">whoami</span> on the other computer
-                to find its username and <span class="mono">hostname -I</span> to find its network address.
-              </p>
-            </div>
-          </details>
-        </li>
-        <li>
-          <details class="connection-step">
-            <summary>
-              <span class="step-number">3</span>
-              <span class="step-title">Create a pairing code on the other computer</span>
-            </summary>
-            <div class="step-content">
-              <p class="detail">
-                Open Terminal on the computer running the agent—or SSH into it—and run this command
-                there:
-              </p>
-              <div class="command-row">
-                <Field value={pairingCommand} />
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onclick={() => void copyCommand(pairingCommand)}
-                >
-                  {copiedCommand === pairingCommand ? 'Copied' : 'Copy'}
-                </Button>
-              </div>
-              <p class="detail">
-                Copy the one-use code that appears. Do not run this command on the computer running
-                this MSC desktop app. The code expires automatically and is exchanged for a lasting
-                client credential.
-              </p>
-            </div>
-          </details>
-        </li>
-        <li>
-          <details class="connection-step">
-            <summary>
-              <span class="step-number">4</span>
-              <span class="step-title">Enter the address and pairing code below</span>
-            </summary>
-            <div class="step-content">
-              <p class="detail">
-                For the SSH tunnel above, enter
-                <span class="mono">http://127.0.0.1:48002</span> as the agent address. This is the local
-                end of the tunnel, not the other computer’s IP address.
-              </p>
-              <p class="detail">
-                Enter a name for the host, paste the pairing code from step 3, and click
-                <strong>Connect agent</strong>. The name is how this computer will identify the host
-                in MSC.
-              </p>
-            </div>
-          </details>
-        </li>
-      </ol>
+    {#if connectAnotherExpanded}
+      <div id="connect-another-agent" class="agent-content">
+        <p class="detail">
+          Use this path when the Minecraft servers live somewhere else. The other computer must have
+          the agent installed and running.
+          <span class="instruction-hint">(Click each step for more information.)</span>
+        </p>
 
-      <div class="remote-pairing-form">
-        <label class="field-label">
-          Host name
-          <Field bind:value={remoteHostLabel} placeholder="Home server" />
-        </label>
-        <label class="field-label">
-          Agent address
-          <Field bind:value={remoteHostUrl} placeholder="http://127.0.0.1:48002" />
-        </label>
-        <label class="field-label">
-          Pairing code
-          <Field bind:value={remotePairingCode} placeholder="Code from the other computer" />
-        </label>
-        <Button
-          variant="primary"
-          disabled={remotePairingBusy ||
-            !remoteHostLabel.trim() ||
-            !remoteHostUrl.trim() ||
-            !remotePairingCode.trim()}
-          onclick={() => void connectHost()}
-        >
-          {remotePairingBusy ? 'Connecting…' : 'Connect agent'}
-        </Button>
+        {#if isDesktopShell}
+          <ol class="connection-steps">
+            <li>
+              <details class="connection-step" open>
+                <summary>
+                  <span class="step-number">1</span>
+                  <span class="step-title">Start the agent on the other computer</span>
+                </summary>
+                <div class="step-content">
+                  <p class="detail">
+                    Go to the computer where the Minecraft servers will run. The agent must be
+                    running there before this computer can connect to it.
+                  </p>
+                  <p class="detail">
+                    If that computer has the MSC app, open it and click <strong>Start agent</strong
+                    >. If it is running the headless agent, open Terminal there and run:
+                  </p>
+                  <div class="command-row">
+                    <Field value={serviceCommands[1]} />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onclick={() => void copyCommand(serviceCommands[1])}
+                    >
+                      {copiedCommand === serviceCommands[1] ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                  <p class="detail">
+                    If the agent is not installed yet, install the headless agent package first.
+                  </p>
+                </div>
+              </details>
+            </li>
+            <li>
+              <details class="connection-step">
+                <summary>
+                  <span class="step-number">2</span>
+                  <span class="step-title">Make the agent reachable from this computer</span>
+                </summary>
+                <div class="step-content">
+                  <p class="detail">
+                    Run the following command on this computer—the one where you are using the MSC
+                    desktop app:
+                  </p>
+                  <div class="command-row">
+                    <Field value={sshTunnelCommand} />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onclick={() => void copyCommand(sshTunnelCommand)}
+                    >
+                      {copiedCommand === sshTunnelCommand ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                  <p class="detail">
+                    Keep this Terminal window open while using MSC. The tunnel carries this
+                    computer’s local address <span class="mono">127.0.0.1:48002</span> to the agent’s
+                    address on the other computer.
+                  </p>
+                  <p class="detail">
+                    Replace <span class="mono">username@ip-address</span> with the username you use
+                    to sign in to the other computer, followed by <span class="mono">@</span> and
+                    that computer’s IP address. For example:
+                    <span class="mono">camerontemple@10.0.0.156</span>.
+                  </p>
+                  <p class="detail">
+                    If you do not know them, run <span class="mono">whoami</span> on the other
+                    computer to find its username and <span class="mono">hostname -I</span> to find its
+                    network address.
+                  </p>
+                </div>
+              </details>
+            </li>
+            <li>
+              <details class="connection-step">
+                <summary>
+                  <span class="step-number">3</span>
+                  <span class="step-title">Create a pairing code on the other computer</span>
+                </summary>
+                <div class="step-content">
+                  <p class="detail">
+                    Open Terminal on the computer running the agent—or SSH into it—and run this
+                    command there:
+                  </p>
+                  <div class="command-row">
+                    <Field value={pairingCommand} />
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onclick={() => void copyCommand(pairingCommand)}
+                    >
+                      {copiedCommand === pairingCommand ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                  <p class="detail">
+                    Copy the one-use code that appears. Do not run this command on the computer
+                    running this MSC desktop app. The code expires automatically and is exchanged
+                    for a lasting client credential.
+                  </p>
+                </div>
+              </details>
+            </li>
+            <li>
+              <details class="connection-step">
+                <summary>
+                  <span class="step-number">4</span>
+                  <span class="step-title">Enter the address and pairing code below</span>
+                </summary>
+                <div class="step-content">
+                  <p class="detail">
+                    For the SSH tunnel above, enter
+                    <span class="mono">http://127.0.0.1:48002</span> as the agent address. This is the
+                    local end of the tunnel, not the other computer’s IP address.
+                  </p>
+                  <p class="detail">
+                    Enter a name for the host, paste the pairing code from step 3, and click
+                    <strong>Connect agent</strong>. The name is how this computer will identify the
+                    host in MSC.
+                  </p>
+                </div>
+              </details>
+            </li>
+          </ol>
+
+          <div class="remote-pairing-form">
+            <label class="field-label">
+              Host name
+              <Field bind:value={remoteHostLabel} placeholder="Home server" />
+            </label>
+            <label class="field-label">
+              Agent address
+              <Field bind:value={remoteHostUrl} placeholder="http://127.0.0.1:48002" />
+            </label>
+            <label class="field-label">
+              Pairing code
+              <Field bind:value={remotePairingCode} placeholder="Code from the other computer" />
+            </label>
+            <Button
+              variant="primary"
+              disabled={remotePairingBusy ||
+                !remoteHostLabel.trim() ||
+                !remoteHostUrl.trim() ||
+                !remotePairingCode.trim()}
+              onclick={() => void connectHost()}
+            >
+              {remotePairingBusy ? 'Connecting…' : 'Connect agent'}
+            </Button>
+          </div>
+        {:else}
+          <p class="service-explanation">
+            Connecting to another agent is available from the desktop app. This browser can manage
+            the current host once it is connected.
+          </p>
+        {/if}
       </div>
-    {:else}
-      <p class="service-explanation">
-        Connecting to another agent is available from the desktop app. This browser can manage the
-        current host once it is connected.
-      </p>
     {/if}
   </Card>
+
+  {#if isDesktopShell}
+    <Card as="section">
+      <div class="path-heading">
+        <div>
+          <p class="msc2-type-overline">Saved hosts</p>
+          <h2>Remote hosts remembered on this computer</h2>
+        </div>
+        <span class="quiet-label">{savedHosts.length} saved</span>
+      </div>
+      <p class="detail">
+        Host names and addresses are saved here so you can reconnect after reopening MSC.
+        Credentials stay in secure storage. An SSH tunnel still needs to be open before a saved host
+        can connect.
+      </p>
+
+      {#if savedHosts.length}
+        <div class="saved-host-list">
+          {#each savedHosts as savedHost (savedHost.id)}
+            <div class="saved-host-row">
+              <div class="saved-host-info">
+                <StatusDot tone={savedHostTone(savedHost)} label={savedHostStatus(savedHost)} />
+                <strong>{savedHost.label}</strong>
+                <span class="saved-host-address">{savedHost.baseUrl}</span>
+                <span class="saved-host-servers">
+                  {hostSummaries.get(savedHost.id)?.serverCount ?? 0} servers known
+                </span>
+              </div>
+              <div class="saved-host-actions">
+                {#if savedHost.id !== activeHostId}
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!onSwitchHost}
+                    onclick={() => onSwitchHost?.(savedHost.id)}>Switch</Button
+                  >
+                {:else}
+                  <Badge variant="status" tone="ok">Current</Badge>
+                {/if}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={removeHostBusy}
+                  onclick={() => openRemoveHost(savedHost.id, savedHost.label)}>Remove</Button
+                >
+              </div>
+            </div>
+          {/each}
+        </div>
+      {:else}
+        <p class="saved-host-empty">
+          Remote hosts you connect will appear here. This section will not store pairing codes or
+          bearer credentials.
+        </p>
+      {/if}
+    </Card>
+  {/if}
 
   <Card as="section">
     <div class="status-summary">
@@ -666,6 +856,16 @@
   {/if}
 </div>
 
+<ConfirmDialog
+  open={removeHostOpen}
+  context={`Host: ${removeHostLabel}`}
+  title="Remove this paired host?"
+  message="This removes the saved connection from this desktop and forgets its credential. Nothing on the other computer or its Minecraft servers will be deleted."
+  confirmLabel={removeHostBusy ? 'Removing…' : 'Remove host'}
+  onConfirm={() => void removeConfirmedHost()}
+  onClose={removeHostBusy ? undefined : () => (removeHostOpen = false)}
+/>
+
 <style>
   .heading {
     display: grid;
@@ -674,7 +874,6 @@
   .breadcrumb,
   .msc2-type-overline,
   h1,
-  h2,
   h3,
   p {
     margin: 0;
@@ -685,7 +884,6 @@
     font-weight: 500;
   }
   .heading-row,
-  .path-heading,
   .card-heading {
     display: flex;
     align-items: center;
@@ -696,6 +894,12 @@
   .heading-copy {
     display: grid;
     gap: 6px;
+  }
+  .path-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
   }
   h1 {
     font-size: 22px;
@@ -765,9 +969,17 @@
     font-size: 15px;
     font-weight: 500;
   }
+  .disclosure-trailing {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
   .disclosure-action {
     color: var(--msc2-text-secondary);
     font-size: 12px;
+  }
+  .agent-content {
+    padding: 0 16px 16px;
   }
   .how-content {
     display: grid;
@@ -835,8 +1047,13 @@
     color: var(--msc2-text-primary);
     font-weight: 500;
   }
-  .path-heading {
-    align-items: flex-start;
+  .agent-location-hint {
+    margin: 0;
+    padding-top: 14px;
+    border-top: 1px solid var(--msc2-hairline-faint);
+    color: var(--msc2-text-secondary);
+    font-size: 12px;
+    line-height: 1.5;
   }
   .actions {
     display: grid;
@@ -849,6 +1066,56 @@
   }
   .actions.reconnect-only {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .remove-host-action {
+    margin-top: 10px;
+  }
+  .remove-host-action :global(.btn) {
+    width: 100%;
+  }
+  .saved-host-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .saved-host-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px;
+    background: var(--msc2-tier-chrome);
+    border-radius: 9px;
+  }
+  .saved-host-info {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+  }
+  .saved-host-info strong {
+    color: var(--msc2-text-primary);
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .saved-host-address,
+  .saved-host-servers {
+    color: var(--msc2-text-secondary);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+  .saved-host-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .saved-host-empty {
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid var(--msc2-hairline-faint);
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
   }
   .command-list,
   .remote-pairing-form {
@@ -973,6 +1240,16 @@
     .means-grid,
     .status-summary {
       grid-template-columns: 1fr;
+    }
+    .saved-host-row {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+    .saved-host-actions {
+      width: 100%;
+    }
+    .saved-host-actions :global(.btn) {
+      flex: 1;
     }
     .architecture-link {
       transform: rotate(90deg);

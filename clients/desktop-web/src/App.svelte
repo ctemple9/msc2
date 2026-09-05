@@ -24,6 +24,7 @@
   import { redeemBrowserHandoff } from './lib/auth/browser-handoff';
   import { DesktopSessionAuth, loadTauriDesktopCredentialBridge } from './lib/auth/desktop';
   import { clearClientPreferences, HostStore } from './lib/hosts/registry';
+  import { forgetSavedRemoteHost, loadSavedRemoteHosts, saveRemoteHost } from './lib/hosts/saved';
   import type { HostId, HostRecord } from './lib/hosts/types';
   import ManageSheet from './lib/sections/fleet/ManageSheet.svelte';
   import AppSettingsSheet from './lib/sections/app-settings/AppSettingsSheet.svelte';
@@ -159,11 +160,11 @@
   const router = createClientRouter(sections);
   const localAgentHostId = 'local-agent';
 
-  // Keeps every host's connection/credential/cache state (D-013). A browser
-  // tab only ever has this one Local entry -- createAgentTransport's browser
-  // branch always targets window.location.origin, with no per-host baseUrl,
-  // so a second host is unreachable from a browser regardless of what's
-  // registered here. Add Host / host switching UI is gated on isDesktopShell.
+  // Keeps every host's connection/credential/cache state (D-013). Tauri
+  // rehydrates remote host metadata from localStorage on startup; credentials
+  // are never put there and remain in the native secret store. A browser tab
+  // only ever has this one Local entry because its transport targets the
+  // origin that served the page.
   const hostStore = new HostStore();
   let hosts: readonly HostRecord[] = [];
   let hostId = localAgentHostId;
@@ -207,7 +208,11 @@
   ): Promise<string> {
     const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
     const result = await auth.redeemRemotePairing(baseUrl, pairingCode);
-    hostStore.addHost({ id: result.agentHostId, label, baseUrl });
+    const host = { id: result.agentHostId, label, baseUrl };
+    const existing = hostStore.listHosts().find((registered) => registered.id === host.id);
+    if (existing) hostStore.updateHost(host);
+    else hostStore.addHost(host);
+    saveRemoteHost(host);
     refreshHosts();
     return result.agentHostId;
   }
@@ -235,23 +240,37 @@
     await auth.forgetCredentials([previousHost.id], false);
     const result = await auth.redeemRemotePairing(previousHost.baseUrl, pairingCode);
 
-    hostStore.removeHost(previousHost.id);
-    hostStore.addHost({
+    const replacementHost = {
       id: result.agentHostId,
       label: previousHost.label,
       baseUrl: previousHost.baseUrl,
-    });
+    };
+    hostStore.removeHost(previousHost.id);
+    hostStore.addHost(replacementHost);
+    forgetSavedRemoteHost(previousHost.id);
+    saveRemoteHost(replacementHost);
     hostStore.selectHost(result.agentHostId);
     hostId = result.agentHostId;
     refreshHosts();
     await initializeClient();
   }
 
-  function removeRemoteHost(id: HostId): void {
+  async function removeRemoteHost(id: HostId): Promise<void> {
     if (id === localAgentHostId) return;
-    if (id === hostId) void switchHost(localAgentHostId);
+    const auth = new DesktopSessionAuth(await loadTauriDesktopCredentialBridge());
+    await auth.forgetCredentials([id], false);
+    if (id === hostId) await switchHost(localAgentHostId);
     hostStore.removeHost(id);
+    forgetSavedRemoteHost(id);
     refreshHosts();
+  }
+
+  async function removeCurrentRemoteHost(): Promise<void> {
+    if (!isDesktopShell || hostId === localAgentHostId) {
+      throw new Error('The local agent cannot be removed from this desktop.');
+    }
+    await removeRemoteHost(hostId);
+    await selectSection('agent-setup');
   }
 
   function openReset(): void {
@@ -741,6 +760,9 @@
       label: 'Local agent',
       baseUrl: isDesktopShell ? LOCAL_AGENT_ORIGIN : window.location.origin,
     });
+    if (isDesktopShell) {
+      for (const host of loadSavedRemoteHosts()) hostStore.addHost(host);
+    }
     refreshHosts();
     await initializeClient();
   }
@@ -851,6 +873,9 @@
           this={loaded.component}
           api={screenApi}
           {hostId}
+          {hosts}
+          activeHostId={hostId}
+          hostSummaries={currentHostSummaries}
           hostLabel={hosts.find((host) => host.id === hostId)?.label ?? 'Local agent'}
           hostBaseUrl={hostStore.getState(hostId).host.baseUrl}
           {isDesktopShell}
@@ -864,6 +889,11 @@
           onPairAgain={(code: string) => pairAgain(code)}
           onConnectHost={(label: string, baseUrl: string, code: string) =>
             connectRemoteHost(label, baseUrl, code)}
+          onRemoveHost={isDesktopShell && hostId !== localAgentHostId
+            ? removeCurrentRemoteHost
+            : undefined}
+          onSwitchHost={(id: string) => void switchHost(id)}
+          onRemoveSavedHost={(id: string) => void removeRemoteHost(id)}
           onServerSelected={(id: string) => {
             if (id !== selectedServerId) loadedSections = [];
             selectedServerId = id;
@@ -931,7 +961,7 @@
     {isDesktopShell}
     onClose={() => (manageOpen = false)}
     onSwitchHost={(id) => void switchHost(id)}
-    onRemoveHost={(id) => removeRemoteHost(id)}
+    onRemoveHost={(id) => void removeRemoteHost(id)}
     onServersChanged={(updated) => (servers = updated)}
     onActivated={(id) => {
       if (id !== selectedServerId) {

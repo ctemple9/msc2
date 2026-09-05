@@ -24,6 +24,8 @@ export const serverEditorPaths = {
     `/v1/servers/size?serverId=${encodeURIComponent(serverId)}`,
   delete: '/v1/servers/delete',
   eula: '/v1/servers/eula',
+  eulaStatus: (serverId: string): string =>
+    `/v1/servers/eula?serverId=${encodeURIComponent(serverId)}`,
   settings: '/v1/settings',
   geyser: '/v1/config/geyser',
   active: '/v1/active-server',

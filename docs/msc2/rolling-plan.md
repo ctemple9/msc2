@@ -137,6 +137,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.85: remove setup status signal dots`
 **Batch:** solo
 
+### P12.86 — Persist EULA status and scope DuckDNS to port forwarding
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/src/main.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `crates/msc-agent/src/routes/servers.rs`, `docs/msc2/api-contract/openapi.json`, `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/api/generated.ts`, `clients/desktop-web/src/lib/sections/app-settings/AppSettingsSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/GeneralTab.svelte`, `clients/desktop-web/src/lib/sections/server-editor/model.ts`, `docs/msc2/rolling-plan.md`
+**What:** Read the persisted Java `eula.txt` state when opening Edit Server so an EULA accepted during first-start is shown as accepted. Move DuckDNS feedback into its own section, add an explicit remove action, hide the setting for the selected server when Playit is enabled, and keep connectivity diagnostics from using DuckDNS for Playit servers.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent && cd clients/desktop-web && npm run api:check && npx prettier --check src/App.svelte src/lib/sections/app-settings/AppSettingsSheet.svelte src/lib/sections/server-editor/GeneralTab.svelte src/lib/sections/server-editor/model.ts && npm run check && npm run build`
+**Commit:** `P12.86: persist eula status and scope duckdns to port forwarding`
+**Batch:** solo
+
 ---
 
 ## Phases

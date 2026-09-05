@@ -408,6 +408,54 @@
       }
     },
     "/v1/servers/eula": {
+      "get": {
+        "summary": "Read the Minecraft EULA status for a server",
+        "parameters": [
+          {
+            "name": "serverId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current EULA status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServerEULAResultDTO"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "missing_server_id / unsupported_server_type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "invalid_body"
+          },
+          "404": {
+            "description": "server_not_found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorDTO"
+                }
+              }
+            },
+            "x-error-code": "not_found"
+          }
+        },
+        "x-permission-category": "fleet"
+      },
       "post": {
         "summary": "Accept the Minecraft EULA for a server",
         "requestBody": {

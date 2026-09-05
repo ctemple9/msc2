@@ -20,7 +20,9 @@ use msc_api::dto::{
     ServerImportScanResponseDto, ServerImportWorldDto, ServerRenameRequestDto,
     ServerRenameResultDto, ServerTransferExportResultDto,
 };
-use msc_application::fleet::{self, AcceptEulaError, DeleteServerError, RenameServerError};
+use msc_application::fleet::{
+    self, AcceptEulaError, DeleteServerError, EulaState, RenameServerError,
+};
 use msc_application::import::{
     DetectedWorld, RawImportError, RawImportOverrides, RawImportRequest, RawImportSource,
     ScannedServerInfo, StdRawImportFileSystem, import_raw_server, rescan_and_import_servers,
@@ -171,6 +173,12 @@ pub async fn export_transfer(
 #[derive(Debug, Default, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServerDirectorySizeQuery {
+    pub server_id: Option<String>,
+}
+
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerEulaQuery {
     pub server_id: Option<String>,
 }
 
@@ -2333,6 +2341,58 @@ fn rename_server_error_response(error: RenameServerError) -> Response {
             "Server not found.",
         ),
     }
+}
+
+// ---------- P12.86: GET /v1/servers/eula ----------
+
+pub async fn eula_status(
+    State(state): State<LifecycleRoutesState>,
+    Extension(credential): Extension<AuthenticatedCredential>,
+    Query(query): Query<ServerEulaQuery>,
+) -> Response {
+    if let Some(response) = require_permission(&credential, PermissionCategoryDto::Fleet) {
+        return response;
+    }
+    let server_id = query
+        .server_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|id| !id.is_empty());
+    let Some(server_id) = server_id else {
+        return invalid_body("missing_server_id", "serverId is required.");
+    };
+    let Some(server) = state
+        .servers()
+        .into_iter()
+        .find(|server| server.id == server_id)
+    else {
+        return error_response(
+            StatusCode::NOT_FOUND,
+            "server_not_found",
+            "Server not found.",
+        );
+    };
+    if server.server_type != ServerType::Java.raw_value() {
+        return invalid_body(
+            "unsupported_server_type",
+            "EULA status only applies to Java servers.",
+        );
+    }
+    let accepted = matches!(
+        fleet::read_eula(&StdFileSystem, Path::new(&server.directory)),
+        EulaState::Accepted
+    );
+    Json(ServerEulaResultDto {
+        success: true,
+        message: if accepted {
+            "EULA accepted.".to_string()
+        } else {
+            "EULA not accepted.".to_string()
+        },
+        server_id: Some(server_id.to_string()),
+        accepted: Some(accepted),
+    })
+    .into_response()
 }
 
 // ---------- P7.23: POST /v1/servers/eula ----------

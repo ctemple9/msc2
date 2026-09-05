@@ -89,7 +89,12 @@ pub async fn connectivity(
     } else {
         DiagnosticResult::NotAttempted
     };
-    let public_ip = if config.duckdns_hostname.is_some() {
+    let duckdns_hostname = if server.playit_enabled {
+        None
+    } else {
+        config.duckdns_hostname.as_deref()
+    };
+    let public_ip = if duckdns_hostname.is_some() {
         None
     } else {
         let configured = server
@@ -106,7 +111,7 @@ pub async fn connectivity(
         }
     };
     let summary = connectivity_summary_with_public_ip(
-        config.duckdns_hostname.as_deref(),
+        duckdns_hostname,
         public_ip.as_deref(),
         port,
         local,

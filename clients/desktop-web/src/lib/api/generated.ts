@@ -1,5 +1,5 @@
 // Generated from docs/msc2/api-contract/openapi.json. Do not edit by hand.
-// Contract SHA-256: 68038044616636459308f361f8e6da97d61322011600e332b6adb78ad6dca7dc
+// Contract SHA-256: 8041d0eed4c7f12aee5fb8249033d2c06160aaef4b812e289c127bee236d3b04
 
 export interface paths {
   '/v1/active-server': {
@@ -4419,7 +4419,47 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /** Read the Minecraft EULA status for a server */
+    get: {
+      parameters: {
+        query: {
+          serverId: string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description Current EULA status */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ServerEULAResultDTO'];
+          };
+        };
+        /** @description missing_server_id / unsupported_server_type */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+        /** @description server_not_found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            'application/json': components['schemas']['ErrorDTO'];
+          };
+        };
+      };
+    };
     put?: never;
     /** Accept the Minecraft EULA for a server */
     post: {

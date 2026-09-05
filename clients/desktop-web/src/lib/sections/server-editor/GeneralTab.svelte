@@ -64,6 +64,8 @@
 
   let eulaAccepted: boolean | undefined;
   let eulaBusy = false;
+  let eulaLoading = false;
+  let loadedEulaFor = '';
 
   let confirmingDelete = false;
   let deleting = false;
@@ -87,12 +89,31 @@
     loadedDirectorySizeKey = directorySizeKey;
     void loadDirectorySize(directorySizeKey);
   }
+  $: if (server.id !== loadedEulaFor) {
+    loadedEulaFor = server.id;
+    eulaAccepted = undefined;
+    void loadEula(server.id);
+  }
 
   async function loadRam(): Promise<void> {
     ram = await call(api, ram, serverEditorPaths.ram);
     if (ram) {
       minRamDraft = String(ram.minRamGB);
       maxRamDraft = String(ram.maxRamGB);
+    }
+  }
+
+  async function loadEula(serverId: string): Promise<void> {
+    eulaLoading = true;
+    try {
+      const result = await call<Schema['ServerEULAResultDTO']>(
+        api,
+        { success: false, message: 'EULA status unavailable.' },
+        serverEditorPaths.eulaStatus(serverId),
+      );
+      eulaAccepted = result.accepted;
+    } finally {
+      eulaLoading = false;
     }
   }
 

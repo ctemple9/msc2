@@ -41,6 +41,7 @@
   export let hostId: string;
   export let serverId: string | undefined = undefined;
   export let serverLabel: string | undefined = undefined;
+  export let serverUsesPlayit: boolean | undefined = undefined;
   export let onClose: () => void;
   export let onAccentColorSaved: () => void = () => {};
   export let preloadTabs = true;
@@ -80,11 +81,12 @@
     voiceChatEnabled: false,
   };
   let showPlayitSetup = false;
-  let servicesNotice = '';
-
   let duckdns: Schema['DuckDNSStatusResponseDTO'] = { isConfigured: false };
   let duckHost = '';
   let duckBusy = false;
+  let duckdnsNotice = '';
+
+  $: showDuckDns = serverUsesPlayit === false;
 
   $: colorDirty = !!serverId && colorDraft !== bannerColorFor(hostId, serverId);
 
@@ -235,20 +237,29 @@
   }
 
   async function saveDuckDns(): Promise<void> {
+    await saveDuckDnsValue(duckHost.trim());
+  }
+
+  async function saveDuckDnsValue(hostname: string): Promise<void> {
     if (duckBusy) return;
     duckBusy = true;
-    servicesNotice = '';
+    duckdnsNotice = '';
     try {
       const result = await mutate<Schema['DuckDNSUpdateResultDTO']>(api, '/v1/duckdns', {
-        hostname: duckHost.trim(),
+        hostname,
       });
       duckdns = { isConfigured: !!result.hostname, hostname: result.hostname };
-      servicesNotice = result.message ?? 'DuckDNS hostname saved.';
+      duckHost = result.hostname ?? '';
+      duckdnsNotice = result.hostname ? 'DuckDNS hostname saved.' : 'DuckDNS hostname removed.';
     } catch (error) {
-      servicesNotice = errorMessage(error);
+      duckdnsNotice = errorMessage(error);
     } finally {
       duckBusy = false;
     }
+  }
+
+  function removeDuckDns(): void {
+    void saveDuckDnsValue('');
   }
 
   function refreshPlayit(): void {
@@ -322,7 +333,7 @@
                 bind:value={broadcastPassword}
                 type={broadcastPasswordVisible ? 'text' : 'password'}
                 placeholder={broadcastCredentials?.hasPassword ? 'Saved — enter to replace' : ''}
-                width="220px"
+                width="100%"
               />
               <button
                 type="button"
@@ -589,16 +600,25 @@
     flex-shrink: 0;
   }
   .password-control {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    position: relative;
+    width: 220px;
     flex-shrink: 0;
   }
+  .password-control :global(.field) {
+    width: 100% !important;
+    padding-right: 34px;
+  }
   .visibility-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 2px;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    transform: translateY(-50%);
     color: var(--msc2-text-tertiary);
     background: transparent;
     border: none;

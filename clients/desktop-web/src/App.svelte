@@ -1000,6 +1000,7 @@
     {hostId}
     serverId={selectedServerId || undefined}
     serverLabel={servers.find((server) => server.id === selectedServerId)?.name}
+    serverUsesPlayit={servers.find((server) => server.id === selectedServerId)?.playitEnabled}
     onClose={() => (settingsOpen = false)}
     onAccentColorSaved={() => (bannerColorAccentVersion += 1)}
     {preloadTabs}

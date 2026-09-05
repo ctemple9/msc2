@@ -339,7 +339,6 @@
           servers.
         </p>
       </div>
-      <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
     </div>
   </div>
 
@@ -416,7 +415,6 @@
           <strong>Manage the local agent</strong>
         </span>
         <span class="disclosure-trailing">
-          <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
           <span class="disclosure-action">{manageLocalExpanded ? 'Hide' : 'Show'}</span>
         </span>
       </button>
@@ -546,7 +544,6 @@
           <strong>Manage the agent on {hostLabel}</strong>
         </span>
         <span class="disclosure-trailing">
-          <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
           <span class="disclosure-action">{manageLocalExpanded ? 'Hide' : 'Show'}</span>
         </span>
       </button>

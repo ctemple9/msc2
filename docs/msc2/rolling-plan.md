@@ -89,6 +89,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.79: remove the saved hosts status dot`
 **Batch:** safe
 
+### P12.80 — Keep connection badges in the status cards
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Remove repeated Agent connected badges from the page heading and agent management disclosures. Keep the Connection and Background service cards as the single status summary surface at the bottom of the page.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.80: keep connection badges in the status cards`
+**Batch:** safe
+
 ---
 
 ## Phases

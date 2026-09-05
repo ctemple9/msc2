@@ -51,7 +51,7 @@
   ];
   const howItWorksStorageKey = 'msc2.agents.how-it-works-expanded';
   const pairingCommand = 'msc pairing create --client-kind desktop';
-  const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 user@agent-host';
+  const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 username@ip-address';
 
   let status: AgentServiceStatus | undefined;
   let busy = false;
@@ -500,8 +500,14 @@
             </div>
             <p class="detail">
               Then use <span class="mono">http://127.0.0.1:48002</span> as the address below.
-              Replace
-              <span class="mono">user@agent-host</span> with the SSH login and address of the other computer.
+              Replace <span class="mono">username@ip-address</span> with the username you use to
+              sign in to the other computer, followed by <span class="mono">@</span> and that
+              computer’s IP address. For example:
+              <span class="mono">camerontemple@10.0.0.156</span>.
+            </p>
+            <p class="detail">
+              If you do not know them, run <span class="mono">whoami</span> on the other computer to
+              find its username and <span class="mono">hostname -I</span> to find its network address.
             </p>
           </div>
           <div class="help-option">

@@ -319,6 +319,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.66: redesign the agent connection page`
 **Batch:** solo
 
+### P12.67 — Clarify the SSH connection placeholder
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Replace the abstract `user@agent-host` SSH placeholder with `username@ip-address`, explain that it means the username used to sign in to the other computer followed by `@` and that computer’s IP address, show a concrete example, and give `whoami` and `hostname -I` commands for users who do not know those values.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.67: clarify the SSH connection placeholder`
+**Batch:** solo
+
 ## Phase 12 post-phase correction — startup health freshness
 
 ### P12.68 — Persist successful startup health and refresh the Overview

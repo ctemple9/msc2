@@ -1011,7 +1011,10 @@ pub fn create_download_and_go_server(
     claim_new_server_directory(fs, &new_dir, &folder_name)?;
 
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {
-        let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new("paper.jar"));
+        let jar_dest = join_forward_slash(
+            &new_dir,
+            std::ffi::OsStr::new(provisioning::primary_jar_filename(request.flavor)),
+        );
         let resolved = acquire_jar(
             transport,
             fs,
@@ -1691,7 +1694,10 @@ pub fn create_server_from_pack(
     let outcome = (|| -> Result<CreatedFromPack, CreateFromPackError> {
         let (resolved_build, resolved_loader, primary_jar_path) = match flavor {
             JavaServerFlavor::Fabric => {
-                let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new("paper.jar"));
+                let jar_dest = join_forward_slash(
+                    &new_dir,
+                    std::ffi::OsStr::new(provisioning::primary_jar_filename(flavor)),
+                );
                 jar_provider::fabric_download_version(
                     jar_transport,
                     fs,

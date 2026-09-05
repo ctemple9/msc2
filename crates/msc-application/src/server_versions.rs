@@ -255,13 +255,18 @@ pub fn change_version(
     }
 }
 
-/// `let trimmed = cfg.paperJarPath...; let destURL = trimmed.isEmpty ?
-/// serverDir/paper.jar : URL(fileURLWithPath: trimmed)` (source line
-/// 438-441).
+/// Use the configured primary jar path when present. For older configs that
+/// left it empty, fall back to the flavor-specific filename used by new
+/// provisioning rather than silently recreating `paper.jar` for Fabric,
+/// Vanilla, or Purpur.
 fn jar_destination(request: &ChangeVersionRequest) -> std::path::PathBuf {
     let trimmed = request.paper_jar_path.trim();
     if trimmed.is_empty() {
-        request.server_dir.join("paper.jar")
+        request
+            .server_dir
+            .join(msc_domain::provisioning::primary_jar_filename(
+                request.flavor,
+            ))
     } else {
         std::path::PathBuf::from(trimmed)
     }

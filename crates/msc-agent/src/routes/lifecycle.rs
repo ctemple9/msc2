@@ -2625,11 +2625,10 @@ pub fn error_response(status: StatusCode, code: &str, message: &str) -> Response
 /// actually produced (P7.14's `run_loader_installer` already wrote it;
 /// this rediscovers it the same way `run_loader_installer` verifies it
 /// right after the installer exits), every other flavor keeps the
-/// existing `-jar <jar> --nogui` Paper-shaped path unchanged --
-/// `registered.paper_jar_path` already holds each download-and-go
-/// flavor's real staged jar (always named `paper.jar` on disk per
-/// `create_download_and_go_server`, regardless of flavor), so this
-/// branch never needed flavor-specific handling in the first place.
+/// existing `-jar <jar> --nogui` path unchanged. New provisioning stores a
+/// flavor-specific primary jar path; an empty legacy path gets the same
+/// flavor-specific fallback so a Fabric/Vanilla/Purpur server is never
+/// launched by guessing `paper.jar`.
 fn build_launch_request(
     registered: &ConfigServer,
     java_path: &str,
@@ -2673,10 +2672,17 @@ fn build_launch_request(
         });
     }
 
+    let jar_path = if registered.paper_jar_path.trim().is_empty() {
+        server_dir.join(msc_domain::provisioning::primary_jar_filename(
+            registered.java_flavor,
+        ))
+    } else {
+        PathBuf::from(&registered.paper_jar_path)
+    };
     let request = PaperLaunchRequest::new(
         ValidatedJavaLaunch::new(java_path, Vec::<String>::new()),
         server_dir,
-        PathBuf::from(&registered.paper_jar_path),
+        jar_path,
         registered.min_ram_gb,
         registered.max_ram_gb,
         "",

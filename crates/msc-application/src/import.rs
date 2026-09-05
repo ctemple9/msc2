@@ -848,6 +848,15 @@ fn detect_java_flavor(fs: &dyn RawImportFileSystem, dir: &Path) -> DetectedJavaF
         };
     }
 
+    if let Some(jar) = jars.iter().find(|n| n.to_lowercase() == "vanilla.jar") {
+        return DetectedJavaFlavor {
+            flavor: JavaServerFlavor::Vanilla,
+            mc_version: None,
+            loader_version: None,
+            primary_jar_path: Some((*jar).clone()),
+        };
+    }
+
     if let Some(jar) = jars
         .iter()
         .find(|n| n.to_lowercase().starts_with("minecraft_server"))

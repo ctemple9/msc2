@@ -450,9 +450,10 @@ pub fn create_server_from_template(
     fs.create_dir_all(&new_dir)?;
 
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {
-        let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new("paper.jar"));
+        let primary_jar_filename = msc_domain::provisioning::primary_jar_filename(flavor);
+        let jar_dest = join_forward_slash(&new_dir, std::ffi::OsStr::new(primary_jar_filename));
         let bytes = fs.read(template_path)?;
-        let dest = path_safety::safe_path(fs, &new_dir, Some("paper.jar"), home_dir)?;
+        let dest = path_safety::safe_path(fs, &new_dir, Some(primary_jar_filename), home_dir)?;
         fs.write(&dest, &bytes)?;
 
         let parsed = parse_paper_jar_filename(template_filename);

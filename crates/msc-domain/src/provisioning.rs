@@ -50,6 +50,24 @@ pub fn add_on_folder_name(flavor: JavaServerFlavor) -> Option<&'static str> {
     flavor.add_on_kind().map(AddOnKind::folder_name)
 }
 
+/// The stable filename for a newly provisioned Java server's primary jar.
+/// This is deliberately flavor-specific: `ConfigServer.paper_jar_path` is a
+/// legacy field name, but it stores the actual launch jar path for every
+/// download-based Java flavor rather than implying that every server is Paper.
+pub fn primary_jar_filename(flavor: JavaServerFlavor) -> &'static str {
+    match flavor {
+        JavaServerFlavor::Paper => "paper.jar",
+        JavaServerFlavor::Purpur => "purpur.jar",
+        JavaServerFlavor::Pufferfish => "pufferfish.jar",
+        JavaServerFlavor::Vanilla => "vanilla.jar",
+        JavaServerFlavor::Fabric => "fabric-server-launch.jar",
+        JavaServerFlavor::NeoForge => "neoforge.jar",
+        JavaServerFlavor::Spigot => "spigot.jar",
+        JavaServerFlavor::Forge => "forge.jar",
+        JavaServerFlavor::Quilt => "quilt-server-launch.jar",
+    }
+}
+
 /// The `ConfigServer` initializer's RAM default (2/4 GB), overridden to
 /// 3/6 GB for any modded-category flavor
 /// (`AppViewModel+ServerCreation.swift:339,345-348`).

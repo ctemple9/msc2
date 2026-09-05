@@ -169,6 +169,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.89: bump coordinated prerelease version`
 **Batch:** solo
 
+### P12.90 — Fix absolute Linux systemd working directory rendering
+**Status:** awaiting verification
+**Files:** `packaging/linux/systemd/com.ctemple.msc2.agent.service.in`, `docs/msc2/rolling-plan.md`
+**What:** Remove the unit-value quotes around `WorkingDirectory` so the Linux headless installer renders an absolute path that systemd accepts. The release builder was checked and copies this source template; the service identity, user ownership, data directory, bind address, credential-helper behavior, and quoted `Environment=` setting remain unchanged.
+**Verify:** `grep -qx 'WorkingDirectory=@MSC2_DATA_DIR@' packaging/linux/systemd/com.ctemple.msc2.agent.service.in && bash -n packaging/linux/install.sh && git diff --check`
+**Commit:** `P12.90: fix linux systemd working directory`
+**Batch:** solo
+
 ---
 
 ## Phases

@@ -9,7 +9,7 @@ After=msc2-credential-helper.socket
 Type=simple
 User=@MSC2_USER@
 Group=@MSC2_GROUP@
-WorkingDirectory="@MSC2_DATA_DIR@"
+WorkingDirectory=@MSC2_DATA_DIR@
 Environment="MSC2_DATA_DIR=@MSC2_DATA_DIR@"
 ExecStart=/usr/lib/msc2/msc serve --bind 127.0.0.1:48001
 Restart=on-failure

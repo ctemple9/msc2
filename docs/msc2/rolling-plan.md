@@ -105,6 +105,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.81: open agent setup after switching hosts`
 **Batch:** safe
 
+### P12.82 — Resolve public addresses for port-forwarded servers
+**Status:** awaiting verification
+**Files:** `crates/msc-infrastructure/src/public_ip.rs`, `crates/msc-infrastructure/src/lib.rs`, `crates/msc-application/src/network_diagnostics.rs`, `crates/msc-agent/src/routes/network_diagnostics.rs`, `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `docs/msc2/rolling-plan.md`
+**What:** When DuckDNS or Playit is not supplying a public join address, resolve the host’s public IP through a bounded third-party lookup and expose it as the existing `public_ip` connectivity source. Honor an existing per-server public host override, use each server’s real configured port, and show the resulting Java or Bedrock port-forwarding address in the sidebar, Overview connection card, and completed first-start summary. Keep public reachability separate from address discovery so MSC does not claim a router rule works without proving it.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-application -p msc-agent && cd clients/desktop-web && npx prettier --check src/lib/sections/server-editor/FirstStartSheet.svelte && npm run build`
+**Commit:** `P12.82: resolve public addresses for port-forwarded servers`
+**Batch:** solo
+
 ---
 
 ## Phases

@@ -55,6 +55,7 @@
   let showBroadcastAuth = false;
   let playitSetupVoiceOnly = false;
   let playit: Schema['PlayitStatusResponseDTO'] | undefined;
+  let connectivity: Schema['ConnectivityResponseDTO'] | undefined;
   let broadcast: Schema['BroadcastStatusDTO'] | undefined;
   let broadcastAuth: Schema['BroadcastAuthPromptDTO'] | undefined;
   let broadcastAuthPromptKey = '';
@@ -132,6 +133,42 @@
   }
 
   $: localAddress = localEndpoint(hostAddress, localPort);
+
+  type Endpoint = { host: string; port?: number };
+
+  function splitEndpoint(value: string | undefined): Endpoint | undefined {
+    const trimmed = value?.trim();
+    if (!trimmed) return undefined;
+    if (trimmed.startsWith('[')) {
+      const close = trimmed.indexOf(']');
+      if (close > 0) {
+        const portText = trimmed.slice(close + 1).replace(/^:/, '');
+        return {
+          host: trimmed.slice(1, close),
+          port: /^\d+$/.test(portText) ? Number(portText) : undefined,
+        };
+      }
+    }
+    if ((trimmed.match(/:/g) ?? []).length !== 1) return { host: trimmed };
+    const separator = trimmed.lastIndexOf(':');
+    const portText = separator > 0 ? trimmed.slice(separator + 1) : '';
+    return separator > 0 && /^\d+$/.test(portText)
+      ? { host: trimmed.slice(0, separator), port: Number(portText) }
+      : { host: trimmed };
+  }
+
+  function publicEndpoint(value: string | undefined, port: number): string | undefined {
+    const endpoint = splitEndpoint(value);
+    if (!endpoint) return undefined;
+    const host = endpoint.host.includes(':') ? `[${endpoint.host}]` : endpoint.host;
+    return `${host}:${port}`;
+  }
+
+  $: publicMethod = connectivity?.joinAddressSource === 'duckdns' ? 'DuckDNS' : 'port forwarding';
+  $: publicServerAddress = publicEndpoint(connectivity?.joinAddress, localPort);
+  $: publicBedrockAddress = localBedrockPort
+    ? publicEndpoint(connectivity?.joinAddress, localBedrockPort)
+    : undefined;
 
   async function refreshConsole(): Promise<void> {
     if (!api) return;
@@ -384,6 +421,16 @@
     }
   }
 
+  async function refreshConnectivity(): Promise<void> {
+    if (!api) return;
+    try {
+      connectivity = await api.get<Schema['ConnectivityResponseDTO']>('/v1/connectivity');
+    } catch {
+      // The first-start result still shows local and Playit addresses if the
+      // optional public-address lookup is temporarily unavailable.
+    }
+  }
+
   async function refreshBroadcast(): Promise<void> {
     if (!api || !broadcastEnabled) return;
     try {
@@ -471,6 +518,7 @@
   async function finishComplete(): Promise<void> {
     if (api && playitEnabled) await refreshPlayit();
     if (api && broadcastEnabled) await refreshBroadcast();
+    await refreshConnectivity();
     phase = 'complete';
     statusLine = 'First-start setup is complete.';
     onComplete();
@@ -623,6 +671,24 @@
           {/if}
           {#if playit?.javaAddress && serverType === 'java'}
             <div><span>Java — anywhere (playit.gg)</span><code>{playit.javaAddress}</code></div>
+          {/if}
+          {#if publicServerAddress && serverType === 'java'}
+            <div><span>Java — public ({publicMethod})</span><code>{publicServerAddress}</code></div>
+          {/if}
+          {#if publicServerAddress && serverType === 'bedrock'}
+            <div>
+              <span>Bedrock — public ({publicMethod})</span><code>{publicServerAddress}</code>
+            </div>
+          {/if}
+          {#if playit?.bedrockAddress && serverType === 'java' && localBedrockPort}
+            <div>
+              <span>Bedrock — anywhere (playit.gg)</span><code>{playit.bedrockAddress}</code>
+            </div>
+          {/if}
+          {#if publicBedrockAddress && serverType === 'java'}
+            <div>
+              <span>Bedrock — public ({publicMethod})</span><code>{publicBedrockAddress}</code>
+            </div>
           {/if}
           {#if playit?.bedrockAddress && serverType === 'bedrock'}
             <div>

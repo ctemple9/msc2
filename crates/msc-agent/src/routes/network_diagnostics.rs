@@ -14,10 +14,12 @@ use msc_api::dto::{
     DuckDnsStatusResponseDto, DuckDnsUpdateRequestDto, DuckDnsUpdateResultDto,
     PermissionCategoryDto,
 };
-use msc_application::network_diagnostics::connectivity_summary;
+use msc_application::network_diagnostics::connectivity_summary_with_public_ip;
 use msc_domain::networking::DiagnosticResult;
-use msc_infrastructure::{duckdns::normalize_hostname, port_diagnostics::probe_tcp};
-use std::time::Duration;
+use msc_infrastructure::{
+    duckdns::normalize_hostname, port_diagnostics::probe_tcp, public_ip::detect as detect_public_ip,
+};
+use std::{path::Path, time::Duration};
 
 pub async fn duckdns_status(
     State(state): State<LifecycleRoutesState>,
@@ -77,7 +79,7 @@ pub async fn connectivity(
     let port = if server.server_type == msc_domain::identity::ServerType::Bedrock {
         server.bedrock_port.unwrap_or(19132) as u16
     } else {
-        25565
+        java_server_port(Path::new(&server.server_dir)).unwrap_or(25565)
     };
     let running = state.status_snapshot().running;
     let local = if running {
@@ -87,8 +89,25 @@ pub async fn connectivity(
     } else {
         DiagnosticResult::NotAttempted
     };
-    let summary = connectivity_summary(
+    let public_ip = if config.duckdns_hostname.is_some() {
+        None
+    } else {
+        let configured = server
+            .public_host_override
+            .as_deref()
+            .map(str::trim)
+            .filter(|host| !host.is_empty())
+            .map(str::to_owned);
+        match configured {
+            Some(host) => Some(host),
+            None => tokio::task::spawn_blocking(|| detect_public_ip(Duration::from_secs(2)))
+                .await
+                .unwrap_or(None),
+        }
+    };
+    let summary = connectivity_summary_with_public_ip(
         config.duckdns_hostname.as_deref(),
+        public_ip.as_deref(),
         port,
         local,
         if running {
@@ -127,6 +146,14 @@ pub async fn connectivity(
         note: None,
         help_id: None,
     })
+}
+
+fn java_server_port(server_dir: &Path) -> Option<u16> {
+    std::fs::read_to_string(server_dir.join("server.properties"))
+        .ok()?
+        .lines()
+        .find_map(|line| line.strip_prefix("server-port="))
+        .and_then(|value| value.trim().parse().ok())
 }
 fn diagnostic(result: DiagnosticResult) -> ConnectivityPortDiagnosticDto {
     ConnectivityPortDiagnosticDto {

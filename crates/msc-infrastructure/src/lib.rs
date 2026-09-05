@@ -30,6 +30,7 @@ pub mod playit_api;
 pub mod port_diagnostics;
 pub mod power;
 pub mod process;
+pub mod public_ip;
 pub mod resource_pack_store;
 pub mod secret_store;
 pub mod service;

@@ -273,6 +273,14 @@
     await selectSection('agent-setup');
   }
 
+  async function disconnectCurrentRemoteHost(): Promise<void> {
+    if (!isDesktopShell || hostId === localAgentHostId) {
+      throw new Error('The local agent is already selected on this desktop.');
+    }
+    await switchHost(localAgentHostId);
+    await selectSection('agent-setup');
+  }
+
   function openReset(): void {
     settingsOpen = false;
     resetOpen = true;
@@ -891,6 +899,9 @@
             connectRemoteHost(label, baseUrl, code)}
           onRemoveHost={isDesktopShell && hostId !== localAgentHostId
             ? removeCurrentRemoteHost
+            : undefined}
+          onDisconnectHost={isDesktopShell && hostId !== localAgentHostId
+            ? disconnectCurrentRemoteHost
             : undefined}
           onSwitchHost={(id: string) => void switchHost(id)}
           onRemoveSavedHost={(id: string) => void removeRemoteHost(id)}

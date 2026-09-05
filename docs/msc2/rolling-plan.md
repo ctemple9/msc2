@@ -57,6 +57,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.75: make saved hosts collapsible`
 **Batch:** solo
 
+### P12.76 — Separate remote disconnect from host removal
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Replace the current remote agent’s destructive Remove paired host action with a non-destructive Disconnect action. Disconnect returns the client to the local agent while preserving the saved host and secure credential; permanent removal remains available from Saved hosts.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.76: separate remote disconnect from host removal`
+**Batch:** solo
+
 ---
 
 ## Phases

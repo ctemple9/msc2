@@ -32,6 +32,7 @@
     ((label: string, baseUrl: string, pairingCode: string) => Promise<void>) | undefined =
     undefined;
   export let onRemoveHost: (() => Promise<void>) | undefined = undefined;
+  export let onDisconnectHost: (() => Promise<void>) | undefined = undefined;
   export let onSwitchHost: ((hostId: HostId) => void) | undefined = undefined;
   export let onRemoveSavedHost: ((hostId: HostId) => Promise<void>) | undefined = undefined;
   export let api: ScreenApi | undefined = undefined;
@@ -79,6 +80,7 @@
   let remotePairingBusy = false;
   let removeHostOpen = false;
   let removeHostBusy = false;
+  let disconnectBusy = false;
   let copiedCommand = '';
   let howItWorksExpanded = true;
   let manageLocalExpanded = true;
@@ -280,6 +282,19 @@
       errorMessage = String(error);
     } finally {
       removeHostBusy = false;
+    }
+  }
+
+  async function disconnectHost(): Promise<void> {
+    if (!onDisconnectHost || disconnectBusy) return;
+    disconnectBusy = true;
+    errorMessage = '';
+    try {
+      await onDisconnectHost();
+    } catch (error) {
+      errorMessage = String(error);
+    } finally {
+      disconnectBusy = false;
     }
   }
 
@@ -569,12 +584,13 @@
               >{onAgentRetry ? 'Reconnect' : 'Refresh status'}</Button
             >
           </div>
-          {#if isDesktopShell && !isLocalHost && onRemoveHost}
-            <div class="remove-host-action">
+          {#if isDesktopShell && !isLocalHost && onDisconnectHost}
+            <div class="disconnect-host-action">
               <Button
-                variant="destructive"
-                disabled={removeHostBusy}
-                onclick={() => openRemoveHost(activeHostId, hostLabel)}>Remove paired host</Button
+                variant="secondary"
+                disabled={disconnectBusy}
+                onclick={() => void disconnectHost()}
+                >{disconnectBusy ? 'Disconnecting…' : 'Disconnect'}</Button
               >
             </div>
           {/if}
@@ -1081,10 +1097,10 @@
   .actions.reconnect-only {
     grid-template-columns: minmax(0, 1fr);
   }
-  .remove-host-action {
+  .disconnect-host-action {
     margin-top: 10px;
   }
-  .remove-host-action :global(.btn) {
+  .disconnect-host-action :global(.btn) {
     width: 100%;
   }
   .saved-host-list {

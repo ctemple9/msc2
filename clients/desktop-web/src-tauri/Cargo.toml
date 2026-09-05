@@ -1,6 +1,6 @@
 [package]
 name = "msc2-desktop-web"
-version = "0.1.0"
+version = "0.1.1"
 description = "Thin Tauri shell for the shared MSC 2 client"
 authors = ["Cameron Temple"]
 edition = "2021"

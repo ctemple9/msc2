@@ -161,6 +161,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.88: add linux agent service extra notes`
 **Batch:** solo
 
+### P12.89 — Bump the coordinated prerelease version
+**Status:** awaiting verification
+**Files:** `crates/msc-agent/Cargo.toml`, `Cargo.lock`, `clients/desktop-web/package.json`, `clients/desktop-web/package-lock.json`, `clients/desktop-web/src-tauri/Cargo.toml`, `clients/desktop-web/src-tauri/Cargo.lock`, `clients/desktop-web/src-tauri/tauri.conf.json`, `docs/msc2/rolling-plan.md`
+**What:** Increment the synchronized desktop, embedded agent, and headless package version from 0.1.0 to 0.1.1 so the next prerelease tag and every generated artifact carry the same release identity.
+**Verify:** `python3 tools/release/check-release-workflow.py .github/workflows/release.yml && git diff --check`
+**Commit:** `P12.89: bump coordinated prerelease version`
+**Batch:** solo
+
 ---
 
 ## Phases

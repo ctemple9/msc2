@@ -854,8 +854,8 @@
     </Card>
   {/if}
 
-  <Card as="section">
-    <div class="status-summary">
+  <div class="status-summary">
+    <Card as="section">
       <div class="status-item">
         <div class="card-heading">
           <span class="msc2-type-overline">Connection</span>
@@ -864,6 +864,8 @@
         <StatusDot tone={readinessTone} label={readinessTitle} />
         <p class="detail">{readinessMessage}</p>
       </div>
+    </Card>
+    <Card as="section">
       <div class="status-item">
         <div class="card-heading">
           <span class="msc2-type-overline">Background service</span>
@@ -887,8 +889,8 @@
           </p>
         {/if}
       </div>
-    </div>
-  </Card>
+    </Card>
+  </div>
 
   {#if errorMessage || browserHandoffError}
     <p class="error" role="alert">

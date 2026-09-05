@@ -65,6 +65,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.76: separate remote disconnect from host removal`
 **Batch:** solo
 
+### P12.77 — Separate connection and service status cards
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Render Connection and Background service as two equal cards instead of two columns inside one shared card, preserving their content and stacking them on narrow windows.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.77: separate connection and service status cards`
+**Batch:** solo
+
 ---
 
 ## Phases

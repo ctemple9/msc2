@@ -351,6 +351,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.71: remove duplicate remote-step numbering`
 **Batch:** solo
 
+### P12.73 — Add a hint for expandable remote steps
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Add a quiet inline hint beneath the remote-agent introduction telling users that each numbered step can be clicked for more information.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.73: add a hint for expandable remote steps`
+**Batch:** solo
+
 ## Phase 12 post-phase correction — startup health freshness
 
 ### P12.68 — Persist successful startup health and refresh the Overview

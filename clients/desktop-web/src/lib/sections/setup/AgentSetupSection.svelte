@@ -465,6 +465,7 @@
     <p class="detail">
       Use this path when the Minecraft servers live somewhere else. The other computer must have the
       agent installed and running.
+      <span class="instruction-hint">(Click each step for more information.)</span>
     </p>
 
     {#if isDesktopShell}
@@ -726,6 +727,12 @@
     margin-top: 8px;
     font-size: 13px;
     line-height: 1.5;
+  }
+  .instruction-hint {
+    display: block;
+    margin-top: 4px;
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
   }
   .quiet-label {
     font-size: 12px;

@@ -30,18 +30,17 @@ jobs:
           - platform: macos-x86_64
             os: macos-15-intel
             rust-target: x86_64-apple-darwin
-            tauri-bundle: dmg
+            tauri-bundles: dmg
             installer-extension: dmg
           - platform: windows-x86_64
             os: windows-latest
             rust-target: x86_64-pc-windows-msvc
-            tauri-bundle: msi
+            tauri-bundles: msi
             installer-extension: msi
           - platform: linux-x86_64
             os: ubuntu-latest
             rust-target: x86_64-unknown-linux-gnu
-            tauri-bundle: deb
-            installer-extension: deb
+            tauri-bundles: deb,rpm
 
     steps:
       - name: Check out source
@@ -73,7 +72,8 @@ jobs:
             libappindicator3-dev \
             librsvg2-dev \
             libwebkit2gtk-4.1-dev \
-            patchelf
+            patchelf \
+            rpm
 
       - name: Install shared client dependencies
         working-directory: clients/desktop-web
@@ -136,7 +136,7 @@ jobs:
       - name: Build unsigned Tauri installer
         if: matrix.platform != 'windows-x86_64'
         working-directory: clients/desktop-web
-        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundle }}" --no-sign
+        run: npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign
 
       - name: Build unsigned Tauri installer on Windows
         if: matrix.platform == 'windows-x86_64'
@@ -144,7 +144,7 @@ jobs:
         shell: pwsh
         run: |
           npm run build
-          npm exec tauri build -- --bundles "${{ matrix.tauri-bundle }}" --no-sign --config '{"build":{"beforeBuildCommand":""},"bundle":{"icon":["icons/icon.ico"]}}'
+          npm exec tauri build -- --bundles "${{ matrix.tauri-bundles }}" --no-sign --config '{"build":{"beforeBuildCommand":""},"bundle":{"icon":["icons/icon.ico"]}}'
 
       - name: Package Linux headless artifact
         if: matrix.platform == 'linux-x86_64'
@@ -164,10 +164,19 @@ jobs:
         run: |
           set -Eeuo pipefail
           mkdir -p target/release-artifacts
-          bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/${{ matrix.tauri-bundle }}"
-          installer="$(find "$bundle_dir" -maxdepth 1 -type f -name "*.${{ matrix.installer-extension }}" -print -quit)"
-          test -n "$installer" || { echo "no Tauri installer found in $bundle_dir" >&2; exit 1; }
-          cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.${{ matrix.installer-extension }}"
+          if [[ "${{ matrix.platform }}" == "linux-x86_64" ]]; then
+            for installer_extension in deb rpm; do
+              bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/$installer_extension"
+              installer="$(find "$bundle_dir" -maxdepth 1 -type f -name "*.$installer_extension" -print -quit)"
+              test -n "$installer" || { echo "no Tauri installer found in $bundle_dir" >&2; exit 1; }
+              cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.$installer_extension"
+            done
+          else
+            bundle_dir="clients/desktop-web/src-tauri/target/release/bundle/${{ matrix.installer-extension }}"
+            installer="$(find "$bundle_dir" -maxdepth 1 -type f -name "*.${{ matrix.installer-extension }}" -print -quit)"
+            test -n "$installer" || { echo "no Tauri installer found in $bundle_dir" >&2; exit 1; }
+            cp "$installer" "target/release-artifacts/msc2-${RELEASE_VERSION}-${{ matrix.platform }}.${{ matrix.installer-extension }}"
+          fi
 
       - name: Record unsigned beta evidence
         shell: bash
@@ -237,12 +246,13 @@ jobs:
               -name '*.dmg' -o \
               -name '*.msi' -o \
               -name '*.deb' -o \
+              -name '*.rpm' -o \
               -name '*.tar.gz' -o \
               -name '*.zip' \
             \) -print0
           )
-          test "$asset_count" -eq 6 || {
-            echo "expected six desktop/headless release assets, found $asset_count" >&2
+          test "$asset_count" -eq 7 || {
+            echo "expected seven desktop/headless release assets, found $asset_count" >&2
             exit 1
           }
 

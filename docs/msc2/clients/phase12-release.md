@@ -50,7 +50,8 @@ beta support claim.
 | macOS headless | `x86_64-apple-darwin` | `msc2-headless-<release>-macos-x86_64.tar.gz` | Includes the agent/CLI and Intel Bedrock sidecar/resources. |
 | Windows desktop | `x86_64-pc-windows-msvc` | `msc2-<release>-windows-x86_64.msi` | Includes the agent/CLI; no sidecar. |
 | Windows headless | `x86_64-pc-windows-msvc` | `msc2-headless-<release>-windows-x86_64.zip` | Includes the agent/CLI; no sidecar. |
-| Linux desktop | `x86_64-unknown-linux-gnu` | `msc2-<release>-linux-x86_64.deb` | Tauri desktop package for supported Debian/Ubuntu systems. |
+| Linux desktop (Debian/Ubuntu) | `x86_64-unknown-linux-gnu` | `msc2-<release>-linux-x86_64.deb` | Tauri desktop package for Debian/Ubuntu systems. |
+| Linux desktop (Fedora) | `x86_64-unknown-linux-gnu` | `msc2-<release>-linux-x86_64.rpm` | Tauri desktop package for Fedora and other RPM-based systems. |
 | Linux headless | `x86_64-unknown-linux-gnu` | `msc2-headless-<release>-linux-x86_64.tar.gz` | Contains the single `msc` binary, installer, uninstaller, and service definitions. |
 
 `<release>` is the release ID without the leading `v`, for example
@@ -327,8 +328,8 @@ target, and `ubuntu-latest` for the Linux headless target.
 
 Each matrix leg runs the focused shared-client checks, the `msc-agent` web
 bundle check, formatting and Clippy, then builds the release `msc` binary and
-CLI. Tauri is invoked with one platform bundle format — `dmg`, `msi`, or
-`deb` — and `--no-sign`. The macOS and Windows legs also archive their
+CLI. Tauri is invoked with the platform bundle formats — `dmg`, `msi`, or
+both `deb` and `rpm` on Linux — and `--no-sign`. The macOS and Windows legs also archive their
 standalone headless binary; the Linux leg calls
 `tools/release/build-linux-headless.sh`, which includes the installer,
 uninstaller, and systemd definitions from P12.61. Every uploaded directory
@@ -346,7 +347,7 @@ dispatch remains artifact-only by default; a manual run may publish only when
 the selected ref is an exact `v*` tag and the operator explicitly enables the
 `publish` input. Branches and untagged refs cannot publish.
 
-The publication job downloads the three platform artifacts, selects the six
+The publication job downloads the three platform artifacts, selects the seven
 Tauri installer and headless archive files named by the platform matrix, and
 fails if any asset is missing or duplicated. It generates `SHA256SUMS` from
 those final bytes and verifies the flat manifest before uploading all seven
@@ -379,9 +380,10 @@ python3 tools/release/verify-artifact-manifest.py \
   --artifacts target/release/artifacts
 ```
 
-For this physical-run layout, the verifier requires the six x86_64 assets in
-the platform matrix above, one desktop and one headless asset for each of
-macOS, Windows, and Linux, all sharing one release version. It rejects extra
+For this physical-run layout, the verifier requires the seven x86_64 assets in
+the platform matrix above, one desktop asset for macOS and Windows, both Linux
+desktop formats, and one headless asset for each platform, all sharing one
+release version. It rejects extra
 files, symlinks, nested entries, duplicate or malformed manifest lines, and
 changed bytes. The public release file remains named `SHA256SUMS`; the
 lowercase local copy in the command above avoids making the worksheet depend

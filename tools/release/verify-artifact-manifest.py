@@ -21,7 +21,12 @@ EXPECTED_BETA_ASSETS = {
     "windows headless": re.compile(
         rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-windows-x86_64\.zip$"
     ),
-    "linux desktop": re.compile(rf"^msc2-(?P<version>{RELEASE_VERSION})-linux-x86_64\.deb$"),
+    "linux desktop deb": re.compile(
+        rf"^msc2-(?P<version>{RELEASE_VERSION})-linux-x86_64\.deb$"
+    ),
+    "linux desktop rpm": re.compile(
+        rf"^msc2-(?P<version>{RELEASE_VERSION})-linux-x86_64\.rpm$"
+    ),
     "linux headless": re.compile(
         rf"^msc2-headless-(?P<version>{RELEASE_VERSION})-linux-x86_64\.tar\.gz$"
     ),

@@ -78,10 +78,12 @@ def check_candidate_workflow(workflow: str) -> None:
         "cargo fmt --all -- --check",
         "cargo nextest run -p msc-agent --test web_ui",
         "cargo build --release",
-        "--bundles \"${{ matrix.tauri-bundle }}\" --no-sign",
-        "tauri-bundle: dmg",
-        "tauri-bundle: msi",
-        "tauri-bundle: deb",
+        "--bundles \"${{ matrix.tauri-bundles }}\" --no-sign",
+        "tauri-bundles: dmg",
+        "tauri-bundles: msi",
+        "tauri-bundles: deb,rpm",
+        "patchelf \\",
+        "rpm",
         "build-linux-headless.sh",
         "build-macos-headless.sh",
         "build-windows-headless.ps1",
@@ -142,6 +144,8 @@ def check_publish_guard(workflow: str) -> None:
     require("actions/download-artifact@v4" in publish_job, "publish job does not collect matrix artifacts")
     require("verify-artifact-manifest.py" in workflow, "manifest verifier is not wired")
     require("--write" in publish_job and "SHA256SUMS" in publish_job, "SHA-256 manifest generation is not wired")
+    require("-name '*.rpm'" in publish_job, "publication does not collect RPM assets")
+    require('test "$asset_count" -eq 7' in publish_job, "publication does not require seven release assets")
     require("softprops/action-gh-release@v2" in publish_job, "publish job does not create a GitHub release")
     require("prerelease: true" in publish_job, "GitHub publication is not marked as a prerelease")
     require("fail_on_unmatched_files: true" in publish_job, "release publication does not fail on missing assets")

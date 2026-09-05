@@ -861,7 +861,6 @@
           <span class="msc2-type-overline">Connection</span>
           <Badge variant="status" tone={readinessTone}>{readinessTitle}</Badge>
         </div>
-        <StatusDot tone={readinessTone} label={readinessTitle} />
         <p class="detail">{readinessMessage}</p>
       </div>
     </Card>
@@ -874,7 +873,6 @@
           >
         </div>
         {#if isLocalDesktopHost}
-          <StatusDot tone={statusTone} label={serviceState} />
           <p class="detail">{status?.detail ?? 'Looking for the local service.'}</p>
           {#if status?.pid}<p class="detail">Service process: {status.pid}</p>{/if}
         {:else if !isDesktopShell && isLoopbackHost}

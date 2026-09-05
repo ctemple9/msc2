@@ -73,6 +73,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.77: separate connection and service status cards`
 **Batch:** solo
 
+### P12.78 — Remove duplicate status dots
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Remove the redundant signal dots from the Connection and Background service cards because each card already presents the same state in its badge and status text.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.78: remove duplicate status dots`
+**Batch:** safe
+
 ---
 
 ## Phases

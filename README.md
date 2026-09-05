@@ -1,7 +1,148 @@
 # MSC 2
 Built by ctemple9
 
->**Hi. I recognize this readme is kinda long, but if you are interested in hosting a Minecraft server on your own stuff, and know nothing, it think it is worth the read. If you know what your doing, here's the quick stuff:     " WILL BE ADDING LATER"**
+> **MSC 2 is currently an unsigned prerelease.**
+>
+> The current release supports x86_64/Intel computers:
+>
+> - Intel macOS
+> - 64-bit Windows
+> - 64-bit Linux
+>
+> Apple Silicon macOS and ARM Linux/Windows are not part of this prerelease.
+> The release is unsigned, so macOS, Windows, or Linux may show a security
+> warning the first time you open or install it.
+>
+> [Download MSC 2 v0.1.1](https://github.com/ctemple9/msc2/releases/tag/v0.1.1)
+
+## Download and install
+
+Choose the installation that matches how you want to use MSC 2.
+
+- Use the **desktop app** if you want to manage the server from the same computer with a graphical interface.
+- Use the **headless agent** if the server computer has no monitor or desktop environment. You can manage it from another computer, phone, or browser.
+
+The desktop app already includes the MSC 2 agent. You do not need to download both.
+
+### macOS desktop — Intel Macs
+
+Download the disk image:
+
+```sh
+curl -fL -o msc2-0.1.1-macos-x86_64.dmg \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-macos-x86_64.dmg
+```
+
+Then open the downloaded `.dmg` file and drag MSC 2 into your Applications folder.
+
+```sh
+open msc2-0.1.1-macos-x86_64.dmg
+```
+
+### Windows desktop — 64-bit Windows
+
+Download the installer:
+
+```powershell
+curl.exe -fL -o msc2-0.1.1-windows-x86_64.msi `
+  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-windows-x86_64.msi
+```
+
+Open the `.msi` file and follow the installation prompts.
+
+### Debian or Ubuntu desktop
+
+Download the `.deb` package:
+
+```sh
+curl -fL -o msc2-0.1.1-linux-x86_64.deb \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-linux-x86_64.deb
+```
+
+Install it with:
+
+```sh
+sudo apt install ./msc2-0.1.1-linux-x86_64.deb
+```
+
+### Fedora or other RPM-based Linux
+
+Download the `.rpm` package:
+
+```sh
+curl -fL -o msc2-0.1.1-linux-x86_64.rpm \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-0.1.1-linux-x86_64.rpm
+```
+
+Install it with:
+
+```sh
+sudo dnf install ./msc2-0.1.1-linux-x86_64.rpm
+```
+
+### Linux headless agent
+
+Use this on a Linux computer that will host the Minecraft servers without a graphical desktop.
+
+The current Linux headless package is intended for Debian 12, Ubuntu, and other mainstream distributions using systemd 250 or newer.
+
+Download the archive and checksum file:
+
+```sh
+curl -fLO \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.1/msc2-headless-0.1.1-linux-x86_64.tar.gz
+
+curl -fLO \
+  https://github.com/ctemple9/msc2/releases/download/v0.1.1/SHA256SUMS
+```
+
+Verify the download:
+
+```sh
+sha256sum --ignore-missing -c SHA256SUMS
+```
+
+Install MSC 2:
+
+```sh
+mkdir msc2-headless
+tar -xzf msc2-headless-0.1.1-linux-x86_64.tar.gz -C msc2-headless
+cd msc2-headless
+./install.sh
+```
+
+Run `install.sh` as your normal user. It requests administrator permission when needed and installs the agent as your user instead of running your Minecraft servers as root.
+
+After installation, the agent starts automatically and is configured to start again after reboot.
+
+Check its status with:
+
+```sh
+systemctl status com.ctemple.msc2.agent.service --no-pager -l
+```
+
+## Start your first server
+
+After installing MSC 2:
+
+1. Open the desktop app, or connect to the headless agent from another device.
+2. Choose **Add Server**.
+3. Select Java or Bedrock.
+4. Choose the Minecraft version and server software.
+5. Configure the world and network connection.
+6. Create the server.
+7. Start the server.
+8. Complete the EULA and connection setup when MSC 2 asks you to.
+
+For a first Java server, **Paper** is a good default. For a first Bedrock server, choose **Bedrock Dedicated Server**.
+
+More detailed guides:
+
+- [Your first Java server](content/help/handbook/first-server.md)
+- [Your first Bedrock server](content/help/handbook/first-bedrock-server.md)
+- [How Minecraft servers connect](content/help/handbook/networking-basics.md)
+- [Port forwarding](content/help/handbook/port-forwarding-duckdns.md)
+- [Using Playit.gg](content/help/handbook/playit.md)
 
 I wanted running a Minecraft server to feel like running an app.
 
@@ -16,12 +157,6 @@ They're all controlling the same thing. The desktop app doesn't have its own ver
 MSC 2 is being built to run on **macOS, Windows, and Linux**, and it does not need a graphical interface to work.
 
 So if you have an old laptop sitting closed in a closet with no monitor attached to it, that's a completely normal way to run MSC 2. You can install the engine there and control it from another computer or your phone.
-
-> **MSC 2 is still in active development.**
->
-> The engine already runs and manages real Java and Bedrock servers. The desktop and web apps are currently being rebuilt around it and aren't packaged into a one-click install yet.
->
-> If you're here because you want to download MSC 2 and use it, check back soon. If you're interested in how it works or want to contribute, the documentation below is current.
 
 ## What it does
 

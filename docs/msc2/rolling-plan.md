@@ -177,6 +177,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.90: fix linux systemd working directory`
 **Batch:** solo
 
+### P12.91 — Add release installation quick start to the README
+**Status:** awaiting verification
+**Files:** `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Replace the outdated prerelease notice with direct v0.1.1 desktop and headless download links, curl installation commands, checksum verification, platform requirements, and a short first-server walkthrough.
+**Verify:** `git diff --check && rg -n 'Download and install|Linux headless agent|Start your first server|v0\.1\.1' README.md`
+**Commit:** `P12.91: add release installation quick start to readme`
+**Batch:** solo
+
 ---
 
 ## Phases

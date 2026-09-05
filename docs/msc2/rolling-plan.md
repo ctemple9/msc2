@@ -335,6 +335,14 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.69: simplify remote connection teaching`
 **Batch:** solo
 
+### P12.70 — Expand remote connection steps
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Turn the four remote-agent checklist items into expandable instructions. Explain how to start the agent through the desktop app or headless terminal command, place the SSH tunnel command inside the reachability step, explain where the pairing command runs and what its one-use code does, and clarify that the forwarded local address belongs in the connection form. Keep the four-step sequence and existing pairing/service behavior.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.70: expand remote connection steps`
+**Batch:** solo
+
 ## Phase 12 post-phase correction — startup health freshness
 
 ### P12.68 — Persist successful startup health and refresh the Overview

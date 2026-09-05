@@ -469,48 +469,126 @@
 
     {#if isDesktopShell}
       <ol class="connection-steps">
-        <li>Start the agent on the other computer.</li>
-        <li>Make this computer able to reach that agent.</li>
-        <li>Run <span class="mono">{pairingCommand}</span> on the other computer.</li>
-        <li>Enter the address and one-use pairing code below.</li>
-      </ol>
-
-      <details class="secondary-disclosure remote-help">
-        <summary>Need help making it reachable?</summary>
-        <div class="secondary-content">
-          <p class="detail">
-            The simplest way to connect is with an SSH tunnel. It lets this computer reach an agent
-            that is listening only on the other computer.
-          </p>
-          <div class="help-option">
-            <strong>SSH tunnel</strong>
-            <p class="detail">
-              Run this on the control-panel computer and keep the Terminal window open:
-            </p>
-            <div class="command-row">
-              <Field value={sshTunnelCommand} />
-              <Button
-                size="sm"
-                variant="secondary"
-                onclick={() => void copyCommand(sshTunnelCommand)}
-              >
-                {copiedCommand === sshTunnelCommand ? 'Copied' : 'Copy'}
-              </Button>
+        <li>
+          <details class="connection-step" open>
+            <summary>
+              <span class="step-number">1</span>
+              <span class="step-title">Start the agent on the other computer</span>
+            </summary>
+            <div class="step-content">
+              <p class="detail">
+                Go to the computer where the Minecraft servers will run. The agent must be running
+                there before this computer can connect to it.
+              </p>
+              <p class="detail">
+                If that computer has the MSC app, open it and click <strong>Start agent</strong>. If
+                it is running the headless agent, open Terminal there and run:
+              </p>
+              <div class="command-row">
+                <Field value={serviceCommands[1]} />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onclick={() => void copyCommand(serviceCommands[1])}
+                >
+                  {copiedCommand === serviceCommands[1] ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+              <p class="detail">
+                If the agent is not installed yet, install the headless agent package first.
+              </p>
             </div>
-            <p class="detail">
-              Then use <span class="mono">http://127.0.0.1:48002</span> as the address below.
-              Replace <span class="mono">username@ip-address</span> with the username you use to
-              sign in to the other computer, followed by <span class="mono">@</span> and that
-              computer’s IP address. For example:
-              <span class="mono">camerontemple@10.0.0.156</span>.
-            </p>
-            <p class="detail">
-              If you do not know them, run <span class="mono">whoami</span> on the other computer to
-              find its username and <span class="mono">hostname -I</span> to find its network address.
-            </p>
-          </div>
-        </div>
-      </details>
+          </details>
+        </li>
+        <li>
+          <details class="connection-step">
+            <summary>
+              <span class="step-number">2</span>
+              <span class="step-title">Make the agent reachable from this computer</span>
+            </summary>
+            <div class="step-content">
+              <p class="detail">
+                Run the following command on this computer—the one where you are using the MSC
+                desktop app:
+              </p>
+              <div class="command-row">
+                <Field value={sshTunnelCommand} />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onclick={() => void copyCommand(sshTunnelCommand)}
+                >
+                  {copiedCommand === sshTunnelCommand ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+              <p class="detail">
+                Keep this Terminal window open while using MSC. The tunnel carries this computer’s
+                local address <span class="mono">127.0.0.1:48002</span> to the agent’s address on the
+                other computer.
+              </p>
+              <p class="detail">
+                Replace <span class="mono">username@ip-address</span> with the username you use to
+                sign in to the other computer, followed by <span class="mono">@</span> and that
+                computer’s IP address. For example:
+                <span class="mono">camerontemple@10.0.0.156</span>.
+              </p>
+              <p class="detail">
+                If you do not know them, run <span class="mono">whoami</span> on the other computer
+                to find its username and <span class="mono">hostname -I</span> to find its network address.
+              </p>
+            </div>
+          </details>
+        </li>
+        <li>
+          <details class="connection-step">
+            <summary>
+              <span class="step-number">3</span>
+              <span class="step-title">Create a pairing code on the other computer</span>
+            </summary>
+            <div class="step-content">
+              <p class="detail">
+                Open Terminal on the computer running the agent—or SSH into it—and run this command
+                there:
+              </p>
+              <div class="command-row">
+                <Field value={pairingCommand} />
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onclick={() => void copyCommand(pairingCommand)}
+                >
+                  {copiedCommand === pairingCommand ? 'Copied' : 'Copy'}
+                </Button>
+              </div>
+              <p class="detail">
+                Copy the one-use code that appears. Do not run this command on the computer running
+                this MSC desktop app. The code expires automatically and is exchanged for a lasting
+                client credential.
+              </p>
+            </div>
+          </details>
+        </li>
+        <li>
+          <details class="connection-step">
+            <summary>
+              <span class="step-number">4</span>
+              <span class="step-title">Enter the address and pairing code below</span>
+            </summary>
+            <div class="step-content">
+              <p class="detail">
+                For the SSH tunnel above, enter
+                <span class="mono">http://127.0.0.1:48002</span> as the agent address. This is the local
+                end of the tunnel, not the other computer’s IP address.
+              </p>
+              <p class="detail">
+                Enter a name for the host, paste the pairing code from step 3, and click
+                <strong>Connect agent</strong>. The name is how this computer will identify the host
+                in MSC.
+              </p>
+            </div>
+          </details>
+        </li>
+      </ol>
 
       <div class="remote-pairing-form">
         <label class="field-label">
@@ -793,6 +871,50 @@
     font-size: 13px;
     line-height: 1.5;
   }
+  .connection-step {
+    padding-left: 4px;
+  }
+  .connection-step summary {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 8px;
+    align-items: center;
+    color: var(--msc2-text-primary);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    list-style: none;
+  }
+  .connection-step summary::-webkit-details-marker {
+    display: none;
+  }
+  .step-number {
+    display: inline-grid;
+    width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    color: var(--msc2-text-secondary);
+    background: var(--msc2-tier-chrome);
+    border-radius: 50%;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .connection-step[open] .step-number {
+    color: var(--msc2-neutral-fill-ink);
+    background: var(--msc2-neutral-fill);
+  }
+  .step-title {
+    min-width: 0;
+  }
+  .step-content {
+    display: grid;
+    gap: 10px;
+    padding: 4px 0 8px 30px;
+  }
+  .step-content .detail {
+    margin-top: 0;
+  }
   .connection-steps .mono,
   .mono {
     color: var(--msc2-text-primary);
@@ -814,11 +936,6 @@
     display: grid;
     gap: 12px;
     padding-top: 10px;
-  }
-  .help-option > strong {
-    color: var(--msc2-text-primary);
-    font-size: 12px;
-    font-weight: 500;
   }
   .pairing-expiry {
     margin-top: 7px;

@@ -458,14 +458,19 @@
           <div class="eula-info">
             <StatusDot
               tone={eulaAccepted ? 'ok' : 'warn'}
-              label={eulaAccepted ? 'Accepted' : 'Not confirmed here yet'}
+              label={eulaLoading
+                ? 'Checking…'
+                : eulaAccepted
+                  ? 'Accepted'
+                  : 'Not confirmed here yet'}
+              showDot={false}
             />
             <span class="hint">Minecraft End User License Agreement</span>
           </div>
           <Button
             variant="primary"
             size="sm"
-            disabled={eulaBusy || !canControl}
+            disabled={eulaBusy || eulaLoading || !canControl}
             onclick={acceptEula}
             anchorId="ob_accept_eula">{eulaAccepted ? 'Accepted' : 'Accept EULA'}</Button
           >

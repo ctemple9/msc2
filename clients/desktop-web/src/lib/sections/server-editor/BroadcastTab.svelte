@@ -135,6 +135,7 @@
           <StatusDot
             tone={broadcastRunning ? 'ok' : 'warn'}
             label={broadcastRunning ? 'Running' : 'Stopped'}
+            showDot={false}
           />
           <Button
             variant="secondary"
@@ -154,6 +155,7 @@
             <StatusDot
               tone={playit?.isRunning ? 'ok' : 'warn'}
               label={playit?.isRunning ? 'Running' : 'Stopped'}
+              showDot={false}
             />
             <span class="setup-state"
               >{playit?.hasSecretKey ? 'Account configured' : 'Setup required'}</span

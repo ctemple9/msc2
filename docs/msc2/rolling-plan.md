@@ -129,6 +129,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.84: select installed compatible java during create`
 **Batch:** solo
 
+### P12.85 — Remove connection status signal dots from setup surfaces
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/components/base/StatusDot.svelte`, `clients/desktop-web/src/lib/sections/server-editor/FirstStartSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/GeneralTab.svelte`, `clients/desktop-web/src/lib/sections/server-editor/BroadcastTab.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Keep the status labels and controls in the first-start connection check, EULA, and Services tab, but remove the small signal dots from those surfaces. Preserve the shared status component's dotted presentation for other screens that still use it.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/components/base/StatusDot.svelte src/lib/sections/server-editor/FirstStartSheet.svelte src/lib/sections/server-editor/GeneralTab.svelte src/lib/sections/server-editor/BroadcastTab.svelte && npm run check && npm run build`
+**Commit:** `P12.85: remove setup status signal dots`
+**Batch:** solo
+
 ---
 
 ## Phases

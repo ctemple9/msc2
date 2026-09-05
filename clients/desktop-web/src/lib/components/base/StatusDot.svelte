@@ -3,10 +3,11 @@
   // (docs/msc2/antiAIslop.md tell #12). docs/msc2/renderings/status-card.html
   export let tone: 'ok' | 'warn' | 'error' | 'bedrock' = 'ok';
   export let label: string;
+  export let showDot = true;
 </script>
 
-<span class="status-dot">
-  <span class="dot {tone}" aria-hidden="true"></span>
+<span class="status-dot" class:no-dot={!showDot}>
+  {#if showDot}<span class="dot {tone}" aria-hidden="true"></span>{/if}
   <span class="label {tone}">{label}</span>
 </span>
 

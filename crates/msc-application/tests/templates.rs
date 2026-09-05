@@ -499,6 +499,8 @@ fn create_download_and_go_server_still_resolves_version_after_option_widening() 
     let request = NewServerRequest {
         name: "Regression",
         initial_world_name: None,
+        specific_version_id: None,
+        specific_loader_version: None,
         flavor: JavaServerFlavor::Vanilla,
         port: 25565,
         enable_cross_play: false,

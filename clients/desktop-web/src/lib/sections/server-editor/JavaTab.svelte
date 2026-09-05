@@ -15,9 +15,9 @@
   // MSC 2 installs Java itself (D-006's P7.1 addendum) via
   // POST /v1/java-runtimes/install{major}, which always returns an
   // operationId -- polled the same way VersionPickerSheet.svelte polls a
-  // version change. The four offered majors (25/21/17/8) are
-  // msc_domain::java_runtime::MINECRAFT_INSTALL_OPTIONS's fixed table,
-  // hand-copied here since it's a static four-row list not worth a route.
+  // version change. The four offered majors (25/21/17/8) are kept in the
+  // shared JavaInstallSheet so the same installer surface can be used during
+  // server creation recovery.
   //
   // The executable path and extra-flags fields save independently (each
   // its own Field + Save), so `POST /v1/config/java-runtime` had to stop
@@ -29,33 +29,15 @@
   import Button from '../../components/base/Button.svelte';
   import Field from '../../components/base/Field.svelte';
   import EmptyState from '../../components/base/EmptyState.svelte';
+  import JavaInstallSheet from './JavaInstallSheet.svelte';
   import { getPlatform } from '../../platform';
   import type { PlatformKind } from '../../platform/types';
   import type { Schema, ScreenApi } from '../shared/types';
   import { call, errorMessage, mutate } from '../shared/types';
-  import { pollOperation, serverEditorPaths } from './model';
+  import { serverEditorPaths } from './model';
 
   export let api: ScreenApi | undefined = undefined;
   export let canControl = true;
-
-  // JavaInstaller.minecraftInstallOptions / MINECRAFT_INSTALL_OPTIONS,
-  // newest (and recommended) first.
-  const installOptions = [
-    {
-      major: 25,
-      title: 'Java 25',
-      minecraftRange: 'Minecraft 26.1 (latest) and newer',
-      recommended: true,
-    },
-    {
-      major: 21,
-      title: 'Java 21',
-      minecraftRange: 'Minecraft 1.20.5 – 1.21.x',
-      recommended: false,
-    },
-    { major: 17, title: 'Java 17', minecraftRange: 'Minecraft 1.17 – 1.20.4', recommended: false },
-    { major: 8, title: 'Java 8', minecraftRange: 'Minecraft 1.16.5 and older', recommended: false },
-  ] as const;
 
   let platformKind: PlatformKind | null = null;
   let currentPath = 'java';
@@ -74,10 +56,6 @@
   let detectError = '';
 
   let showInstallPicker = false;
-  let selectedMajor: number = installOptions[0].major;
-  let installBusy = false;
-  let installStatusLine = '';
-  let installFailure = '';
 
   $: pathDirty = pathDraft.trim() !== currentPath;
   $: flagsDirty = flagsDraft.trim() !== currentFlags;
@@ -186,40 +164,23 @@
     }
   }
 
-  async function startInstall(): Promise<void> {
-    if (installBusy) return;
-    installBusy = true;
-    installFailure = '';
-    installStatusLine = 'Starting install…';
-    try {
-      const result = await mutate<Schema['JavaRuntimeInstallResultDTO']>(
-        api,
-        serverEditorPaths.javaRuntimeInstall,
-        { major: selectedMajor },
-      );
-      const operation = await pollOperation(api, result.operationId, (tick) => {
-        installStatusLine = tick.statusLine ?? installStatusLine;
-      });
-      if (!operation || operation.state !== 'succeeded') {
-        installFailure =
-          operation?.error?.message ?? result.message ?? 'The install did not complete.';
-        installBusy = false;
-        return;
-      }
-      notice = "Java installed. Click Detect to select it as this host's executable.";
-      showInstallPicker = false;
-      installBusy = false;
-    } catch (error) {
-      installFailure = errorMessage(error);
-      installBusy = false;
+  async function handleJavaInstalled(event: {
+    major: number;
+    runtimePath?: string;
+  }): Promise<void> {
+    if (!event.runtimePath) {
+      notice = `Java ${event.major} installed. Click Detect to select it as this host's executable.`;
+      return;
     }
+    const ok = await saveExecutablePath(
+      event.runtimePath,
+      `Java ${event.major} installed and selected for this host.`,
+    );
+    if (!ok) throw new Error(notice);
   }
 
   function closeInstallPicker(): void {
-    if (installBusy) return;
     showInstallPicker = false;
-    installStatusLine = '';
-    installFailure = '';
   }
 </script>
 
@@ -336,41 +297,12 @@
 {/if}
 
 {#if showInstallPicker}
-  <Sheet title="Install Java" size="sm" onClose={installBusy ? undefined : closeInstallPicker}>
-    <p class="explain">
-      Pick the version that matches your Minecraft version. MSC downloads and installs it for this
-      host.
-    </p>
-    <div class="list" role="radiogroup" aria-label="Java version to install">
-      {#each installOptions as option (option.major)}
-        <button
-          type="button"
-          class="row"
-          class:selected={selectedMajor === option.major}
-          disabled={installBusy}
-          onclick={() => (selectedMajor = option.major)}
-        >
-          <span class="runtime-info">
-            <span class="runtime-heading">
-              <span class="runtime-version">{option.title}</span>
-              {#if option.recommended}<span class="tag">Recommended</span>{/if}
-            </span>
-            <span class="runtime-path">{option.minecraftRange}</span>
-          </span>
-        </button>
-      {/each}
-    </div>
-    {#if installStatusLine && installBusy}<p class="explain">{installStatusLine}</p>{/if}
-    {#if installFailure}<p class="explain warn">{installFailure}</p>{/if}
-    <div class="footer">
-      <Button variant="secondary" disabled={installBusy} onclick={closeInstallPicker}>Close</Button>
-      <Button
-        variant="primary"
-        disabled={installBusy || !canControl}
-        onclick={() => void startInstall()}>{installBusy ? 'Installing…' : 'Install'}</Button
-      >
-    </div>
-  </Sheet>
+  <JavaInstallSheet
+    {api}
+    {canControl}
+    onClose={closeInstallPicker}
+    onInstalled={handleJavaInstalled}
+  />
 {/if}
 
 <style>
@@ -414,84 +346,5 @@
     margin: 0;
     font-size: 12px;
     color: var(--msc2-text-tertiary);
-  }
-  .explain {
-    margin: 0 0 12px;
-    font-size: 12px;
-    line-height: 1.5;
-    color: var(--msc2-text-tertiary);
-  }
-  .explain.warn {
-    color: var(--msc2-status-warn);
-  }
-  .list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    max-height: 260px;
-    overflow-y: auto;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-    margin-bottom: 12px;
-  }
-  .list::-webkit-scrollbar {
-    display: none;
-    width: 0;
-  }
-  .list .row {
-    background: var(--msc2-tier-chrome);
-    border: 1px solid transparent;
-    border-radius: 8px;
-    color: var(--msc2-text-primary);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-  .list .row:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-  .list .row.selected {
-    border-color: rgba(255, 255, 255, 0.28);
-  }
-  .runtime-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-  }
-  .runtime-heading {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
-  }
-  .runtime-version {
-    font-weight: 500;
-    color: var(--msc2-text-primary);
-  }
-  .runtime-name {
-    color: var(--msc2-text-tertiary);
-  }
-  .runtime-path {
-    overflow: hidden;
-    color: var(--msc2-text-tertiary);
-    font-family: var(--msc2-font-mono, monospace);
-    font-size: 11px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .tag {
-    flex-shrink: 0;
-    font-size: 9px;
-    font-weight: 600;
-    letter-spacing: 0.4px;
-    text-transform: uppercase;
-    color: var(--msc2-text-tertiary);
-  }
-  .footer {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
   }
 </style>

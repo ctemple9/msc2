@@ -483,6 +483,16 @@ export const operationPath = (id: string): string => `/v1/operations/${id}`;
 
 const OPERATION_POLL_MS = 900;
 
+export class ServerCreationError extends Error {
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ServerCreationError';
+  }
+}
+
 export async function pollOperation(
   api: ScreenApi | undefined,
   operationId: string,
@@ -651,7 +661,10 @@ export async function createServerFromDraft(
     if (tick.statusLine) onProgress?.(tick.statusLine);
   });
   if (operation?.state !== 'succeeded') {
-    throw new Error(operation?.error?.message ?? 'Failed to create server.');
+    throw new ServerCreationError(
+      operation?.error?.code ?? 'create_failed',
+      operation?.error?.message ?? 'Failed to create server.',
+    );
   }
 
   const warnings: string[] = [];
@@ -788,7 +801,10 @@ export async function importServerFromDraft(
     if (tick.statusLine) onProgress?.(tick.statusLine);
   });
   if (operation?.state !== 'succeeded') {
-    throw new Error(operation?.error?.message ?? 'Failed to import server.');
+    throw new ServerCreationError(
+      operation?.error?.code ?? 'import_failed',
+      operation?.error?.message ?? 'Failed to import server.',
+    );
   }
   return { warnings: [] };
 }

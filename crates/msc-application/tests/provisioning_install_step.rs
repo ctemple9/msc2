@@ -118,6 +118,8 @@ fn base_request<'a>(
     NewServerRequest {
         name: "Modded Server",
         initial_world_name: None,
+        specific_version_id: None,
+        specific_loader_version: None,
         flavor,
         port: 25565,
         enable_cross_play: false,

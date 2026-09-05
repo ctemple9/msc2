@@ -318,17 +318,22 @@ pub fn sweep_orphaned_server_directory(
     let _ = fs.remove(&dir);
 }
 
-/// `AppViewModel.createNewServer`'s parameters, minus `specificVersion`
-/// (no `fixtures/server-creation` case exercises pinning a non-latest
-/// version at create time — this module only builds "download latest,"
-/// matching the `Not in this phase`/scope notes this phase's own
-/// preamble draws elsewhere rather than adding untested surface) and
-/// `stagedAddOns` (Phase 8, per this phase's own "Not in this phase"
-/// list).
+/// `AppViewModel.createNewServer`'s parameters, minus `stagedAddOns` (Phase
+/// 8, per this phase's own "Not in this phase" list).
 #[derive(Debug, Clone)]
 pub struct NewServerRequest<'a> {
     pub name: &'a str,
     pub initial_world_name: Option<&'a str>,
+    /// The create-flow version selection. `None` and `__latest__` both mean
+    /// resolve the provider's latest stable version; other values are the
+    /// selected catalog id. Forge and NeoForge ids include the loader build
+    /// after an em dash, so the installer path can honor the exact row the
+    /// user picked rather than silently installing the newest Minecraft.
+    pub specific_version_id: Option<&'a str>,
+    /// Optional explicit loader version for callers that have it separately
+    /// from the catalog id (for example the CLI). The web wizard's paired
+    /// Forge/NeoForge id is sufficient on its own.
+    pub specific_loader_version: Option<&'a str>,
     /// [`create_download_and_go_server`] refuses any flavor whose
     /// `provisioning_kind()` isn't `DownloadAndGo`; the install-step
     /// families (Forge, NeoForge) go through [`create_install_step_server`]
@@ -659,30 +664,46 @@ pub(crate) fn download_flavor_jar(
     transport: &dyn Transport,
     fs: &dyn FileSystem,
     flavor: JavaServerFlavor,
+    specific_version_id: Option<&str>,
     jar_dest: &Path,
 ) -> Result<ResolvedJar, CreateServerError> {
+    let pinned = specific_version_id
+        .map(str::trim)
+        .filter(|version| !version.is_empty() && *version != "__latest__");
     match flavor {
         JavaServerFlavor::Vanilla => {
-            let cached = jar_provider::vanilla_download_latest(transport, fs, jar_dest)?;
-            Ok(ResolvedJar {
-                version: cached.version,
-                build: "release".to_string(),
-                loader_version: None,
-            })
+            if let Some(version) = pinned {
+                jar_provider::vanilla_download_version(transport, fs, version, jar_dest)?;
+                Ok(ResolvedJar {
+                    version: version.to_string(),
+                    build: "release".to_string(),
+                    loader_version: None,
+                })
+            } else {
+                let cached = jar_provider::vanilla_download_latest(transport, fs, jar_dest)?;
+                Ok(ResolvedJar {
+                    version: cached.version,
+                    build: "release".to_string(),
+                    loader_version: None,
+                })
+            }
         }
         JavaServerFlavor::Purpur => {
-            let raw_versions = jar_provider::purpur_raw_version_list(transport)?;
-            let paper_stable = jar_provider::paper_resolve_latest_stable(transport)
-                .ok()
-                .flatten()
-                .map(|(version, _)| version);
-            let target =
+            let target = if let Some(version) = pinned {
+                version.to_string()
+            } else {
+                let raw_versions = jar_provider::purpur_raw_version_list(transport)?;
+                let paper_stable = jar_provider::paper_resolve_latest_stable(transport)
+                    .ok()
+                    .flatten()
+                    .map(|(version, _)| version);
                 server_versions::purpur_pick_target_version(&raw_versions, paper_stable.as_deref())
                     .ok_or_else(|| {
                         CreateServerError::Download(JarProviderError::Network(
                             "No Purpur versions found.".to_string(),
                         ))
-                    })?;
+                    })?
+            };
             let build = jar_provider::purpur_latest_build_label(transport, &target)?;
             jar_provider::purpur_download_version(transport, fs, &target, jar_dest)?;
             Ok(ResolvedJar {
@@ -692,27 +713,40 @@ pub(crate) fn download_flavor_jar(
             })
         }
         JavaServerFlavor::Paper => {
-            let (version, selection) = jar_provider::paper_resolve_latest_stable(transport)?
-                .ok_or_else(|| {
-                    CreateServerError::Download(JarProviderError::Network(
-                        "No stable Paper builds found.".to_string(),
-                    ))
-                })?;
-            jar_provider::paper_download_build(
-                transport,
-                fs,
-                &version,
-                selection.build_id,
-                jar_dest,
-            )?;
-            Ok(ResolvedJar {
-                version,
-                build: selection.build_id.to_string(),
-                loader_version: None,
-            })
+            if let Some(version) = pinned {
+                let (_cached, build_id) =
+                    jar_provider::paper_download_pinned_version(transport, fs, version, jar_dest)?;
+                Ok(ResolvedJar {
+                    version: version.to_string(),
+                    build: build_id.to_string(),
+                    loader_version: None,
+                })
+            } else {
+                let (version, selection) = jar_provider::paper_resolve_latest_stable(transport)?
+                    .ok_or_else(|| {
+                        CreateServerError::Download(JarProviderError::Network(
+                            "No stable Paper builds found.".to_string(),
+                        ))
+                    })?;
+                jar_provider::paper_download_build(
+                    transport,
+                    fs,
+                    &version,
+                    selection.build_id,
+                    jar_dest,
+                )?;
+                Ok(ResolvedJar {
+                    version,
+                    build: selection.build_id.to_string(),
+                    loader_version: None,
+                })
+            }
         }
         JavaServerFlavor::Fabric => {
-            let game = jar_provider::fabric_latest_stable_game_version(transport)?;
+            let game = pinned
+                .map(str::to_owned)
+                .map(Ok)
+                .unwrap_or_else(|| jar_provider::fabric_latest_stable_game_version(transport))?;
             let loader = jar_provider::fabric_resolve_loader(transport, &game)?;
             jar_provider::fabric_download_version(transport, fs, &game, Some(&loader), jar_dest)?;
             Ok(ResolvedJar {
@@ -723,6 +757,12 @@ pub(crate) fn download_flavor_jar(
         }
         other => Err(CreateServerError::UnsupportedFlavor(other)),
     }
+}
+
+fn request_uses_latest_version(specific_version_id: Option<&str>) -> bool {
+    specific_version_id
+        .map(str::trim)
+        .is_none_or(|version| version.is_empty() || version == "__latest__")
 }
 
 /// The whole non-install-step jar acquisition step (source lines 240-
@@ -739,19 +779,21 @@ fn acquire_jar(
     home_dir: &Path,
     paper_template_dir: &Path,
     flavor: JavaServerFlavor,
+    specific_version_id: Option<&str>,
     jar_dest: &Path,
     save_downloaded_jars: bool,
     now: &str,
 ) -> Result<ResolvedJar, CreateServerError> {
     if flavor == JavaServerFlavor::Paper
         && save_downloaded_jars
+        && request_uses_latest_version(specific_version_id)
         && let Some(hit) =
             try_paper_archive_hit(transport, fs, home_dir, paper_template_dir, jar_dest, now)
     {
         return Ok(hit);
     }
 
-    let resolved = download_flavor_jar(transport, fs, flavor, jar_dest)?;
+    let resolved = download_flavor_jar(transport, fs, flavor, specific_version_id, jar_dest)?;
 
     if flavor == JavaServerFlavor::Paper
         && let Ok(build_int) = resolved.build.parse::<i64>()
@@ -1021,6 +1063,7 @@ pub fn create_download_and_go_server(
             home_dir,
             paper_template_dir,
             request.flavor,
+            request.specific_version_id,
             &jar_dest,
             request.save_downloaded_jars,
             now,
@@ -1327,7 +1370,10 @@ pub fn create_install_step_server(
     let outcome = (|| -> Result<CreatedServer, CreateServerError> {
         let (resolved_version, resolved_loader) = match request.flavor {
             JavaServerFlavor::NeoForge => {
-                let version = jar_provider::neoforge_latest_stable(transport)?;
+                let version = match requested_loader_version(request) {
+                    Some(version) => version,
+                    None => jar_provider::neoforge_latest_stable(transport)?,
+                };
                 let mc_version = server_versions::neoforge_minecraft_version(&version);
                 // P7.31: refuse an unusable Java executable before the
                 // installer -- which itself needs to spawn
@@ -1372,8 +1418,18 @@ pub fn create_install_step_server(
                 (mc_version, version)
             }
             JavaServerFlavor::Forge => {
-                let (mc_version, forge_version) =
-                    jar_provider::forge_latest_recommended(transport)?;
+                let (mc_version, forge_version) = if let Some(loader_version) =
+                    requested_loader_version(request)
+                {
+                    let mc_version = requested_minecraft_version(request).ok_or_else(|| {
+                        CreateServerError::Download(JarProviderError::Network(
+                            "A pinned Forge version must include a Minecraft version.".to_string(),
+                        ))
+                    })?;
+                    (mc_version, loader_version)
+                } else {
+                    jar_provider::forge_latest_recommended(transport)?
+                };
                 // P7.31: same guard, same reasoning as the NeoForge arm
                 // above.
                 java_compatibility_warning =
@@ -1442,6 +1498,43 @@ pub fn create_install_step_server(
         let _ = fs.remove(&new_dir);
     }
     outcome
+}
+
+fn requested_version_id(request: &NewServerRequest<'_>) -> Option<String> {
+    request
+        .specific_version_id
+        .map(str::trim)
+        .filter(|version| !version.is_empty() && *version != "__latest__")
+        .map(str::to_owned)
+}
+
+fn requested_minecraft_version(request: &NewServerRequest<'_>) -> Option<String> {
+    let version_id = requested_version_id(request)?;
+    Some(
+        version_id
+            .split('\u{2014}')
+            .next()
+            .unwrap_or(&version_id)
+            .trim()
+            .to_string(),
+    )
+}
+
+fn requested_loader_version(request: &NewServerRequest<'_>) -> Option<String> {
+    request
+        .specific_loader_version
+        .map(str::trim)
+        .filter(|version| !version.is_empty())
+        .map(str::to_owned)
+        .or_else(|| {
+            requested_version_id(request)
+                .and_then(|version| {
+                    version
+                        .split_once('\u{2014}')
+                        .map(|(_, loader)| loader.trim().to_owned())
+                })
+                .filter(|version| !version.is_empty())
+        })
 }
 
 // ---------------------------------------------------------------------
@@ -1819,6 +1912,8 @@ pub fn create_server_from_pack(
             &NewServerRequest {
                 name: request.name,
                 initial_world_name: request.initial_world_name,
+                specific_version_id: None,
+                specific_loader_version: None,
                 flavor,
                 port: request.port,
                 enable_cross_play: request.enable_cross_play,

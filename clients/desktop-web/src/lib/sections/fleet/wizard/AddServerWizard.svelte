@@ -43,9 +43,12 @@
   import UploadStep from './UploadStep.svelte';
   import ReviewStep from './ReviewStep.svelte';
   import ConfirmStep from './ConfirmStep.svelte';
+  import JavaInstallSheet from '../../server-editor/JavaInstallSheet.svelte';
+  import { ApiError } from '../../../api/client';
   import { onboardingAnchor } from '../../../help/tourAnchors';
-  import type { ScreenApi } from '../../shared/types';
-  import { errorMessage } from '../../shared/types';
+  import type { Schema, ScreenApi } from '../../shared/types';
+  import { errorMessage, mutate } from '../../shared/types';
+  import { serverEditorPaths } from '../../server-editor/model';
   import {
     canAdvanceConfigure,
     canAdvanceNetwork,
@@ -57,6 +60,7 @@
     hasAddOnsStep,
     importDisplayNameFromPath,
     importServerFromDraft,
+    ServerCreationError,
     wizardStepLabels,
     type WizardPath,
   } from './model';
@@ -77,6 +81,10 @@
   let statusMessage = '';
   let createSucceeded = false;
   let createWarnings: string[] = [];
+  let showJavaRecovery = false;
+  let showJavaInstall = false;
+  let javaRequiredMajor = 25;
+  let javaFailureMessage = '';
 
   $: tourPathLocked = $activeTourStep === 'choose-path';
   $: if (tourPathLocked && path !== 'fresh') selectPath('fresh');
@@ -171,14 +179,68 @@
       tourServerCreated.set(true);
       onCreated();
     } catch (error) {
-      statusMessage = errorMessage(error);
+      if (!offerJavaRecovery(error)) statusMessage = errorMessage(error);
     } finally {
       isCreating = false;
     }
   }
+
+  function requiredJavaMajor(message: string): number {
+    const match = message.match(/needs Java (\d+)/i);
+    const major = match ? Number(match[1]) : NaN;
+    return [8, 17, 21, 25].includes(major) ? major : 25;
+  }
+
+  function offerJavaRecovery(error: unknown): boolean {
+    const code =
+      error instanceof ServerCreationError
+        ? error.code
+        : error instanceof ApiError
+          ? error.error.code
+          : undefined;
+    if (code !== 'unusable_java_runtime') {
+      return false;
+    }
+    const message = error instanceof ApiError ? error.error.message : errorMessage(error);
+    javaFailureMessage = message;
+    javaRequiredMajor = requiredJavaMajor(message);
+    showJavaRecovery = true;
+    statusMessage = '';
+    return true;
+  }
+
+  function cancelJavaRecovery(): void {
+    showJavaRecovery = false;
+    javaFailureMessage = '';
+  }
+
+  function openJavaInstall(): void {
+    showJavaRecovery = false;
+    showJavaInstall = true;
+  }
+
+  function closeJavaInstall(): void {
+    showJavaInstall = false;
+  }
+
+  async function selectInstalledJava(event: {
+    major: number;
+    runtimePath?: string;
+  }): Promise<void> {
+    if (!event.runtimePath) {
+      throw new Error(`Java ${event.major} installed, but MSC could not select its runtime path.`);
+    }
+    await mutate<Schema['JavaConfigResponseDTO']>(api, serverEditorPaths.javaConfig, {
+      executablePath: event.runtimePath,
+    });
+  }
 </script>
 
-<Sheet title="Add Server" size="lg" onClose={isCreating ? undefined : onClose}>
+<Sheet
+  title="Add Server"
+  size="lg"
+  onClose={isCreating || showJavaRecovery || showJavaInstall ? undefined : onClose}
+>
   <div class="wizard" use:onboardingAnchor={'ob_wizard_sheet'}>
     <div class="steps" role="list" aria-label="Add Server progress">
       {#each labels as label, index (label)}
@@ -293,6 +355,32 @@
     </div>
   </div>
 </Sheet>
+
+{#if showJavaRecovery}
+  <Sheet title="Java version required" size="sm" onClose={cancelJavaRecovery}>
+    <div class="recovery-copy">
+      <p class="recovery-title">This Minecraft version needs Java {javaRequiredMajor}.</p>
+      <p>{javaFailureMessage}</p>
+      <p>
+        Download Java {javaRequiredMajor} from Adoptium now, and MSC will select it for this host. Your
+        server choices are still here when you return.
+      </p>
+    </div>
+    <div class="recovery-actions">
+      <Button variant="secondary" onclick={cancelJavaRecovery}>Cancel</Button>
+      <Button variant="primary" onclick={openJavaInstall}>Download Java {javaRequiredMajor}</Button>
+    </div>
+  </Sheet>
+{/if}
+
+{#if showJavaInstall}
+  <JavaInstallSheet
+    {api}
+    initialMajor={javaRequiredMajor}
+    onClose={closeJavaInstall}
+    onInstalled={selectInstalledJava}
+  />
+{/if}
 
 <style>
   .wizard {
@@ -429,5 +517,28 @@
   }
   .spacer {
     flex: 1;
+  }
+
+  .recovery-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .recovery-copy p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--msc2-text-tertiary);
+  }
+  .recovery-copy .recovery-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--msc2-text-primary);
+  }
+  .recovery-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 20px;
   }
 </style>

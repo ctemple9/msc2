@@ -113,6 +113,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.82: resolve public addresses for port-forwarded servers`
 **Batch:** solo
 
+### P12.83 — Recover create flow from an unusable Java runtime
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/fleet/wizard/AddServerWizard.svelte`, `clients/desktop-web/src/lib/sections/fleet/wizard/model.ts`, `clients/desktop-web/src/lib/sections/server-editor/JavaInstallSheet.svelte`, `clients/desktop-web/src/lib/sections/server-editor/JavaTab.svelte`, `crates/msc-application/src/provisioning.rs`, `crates/msc-application/src/templates.rs`, `crates/msc-application/tests/provisioning.rs`, `crates/msc-application/tests/provisioning_install_step.rs`, `crates/msc-application/tests/templates.rs`, `crates/msc-agent/src/routes/servers.rs`, `crates/msc-infrastructure/src/jar_provider.rs`, `docs/msc2/rolling-plan.md`
+**What:** Preserve the Add Server wizard and its draft when creation fails with `unusable_java_runtime`. Show the exact required Java major and failure explanation with Cancel or Download; open the shared Adoptium installer with the required major preselected; after a successful install, save the managed runtime path as the host Java executable, show a clear success acknowledgement, and return to the unchanged create confirmation step. Preserve the existing Java settings install entry point by extracting it into the shared sheet. Honor the wizard's selected Java version during provisioning so the runtime guard checks and creates the requested Minecraft version instead of silently downloading latest; keep modpack-pinned provisioning and Bedrock creation unchanged.
+**Verify:** `cargo fmt --all -- --check && cargo check -p msc-infrastructure -p msc-application -p msc-agent && cargo clippy -p msc-infrastructure -p msc-application --lib -- -D warnings && cd clients/desktop-web && npx prettier --check src/lib/sections/fleet/wizard/AddServerWizard.svelte src/lib/sections/fleet/wizard/model.ts src/lib/sections/server-editor/JavaInstallSheet.svelte src/lib/sections/server-editor/JavaTab.svelte src/lib/sections/server-editor/FirstStartSheet.svelte && npm run check && npm run build`
+**Commit:** `P12.83: recover create flow from unusable java runtime`
+**Batch:** solo
+
 ---
 
 ## Phases

@@ -466,6 +466,8 @@ pub fn create_server_from_template(
         let inner_request = NewServerRequest {
             name: request.name,
             initial_world_name: request.initial_world_name,
+            specific_version_id: None,
+            specific_loader_version: None,
             flavor,
             port: request.port,
             enable_cross_play: request.enable_cross_play,

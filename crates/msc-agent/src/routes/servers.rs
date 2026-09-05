@@ -1492,6 +1492,16 @@ pub async fn create(
         }
     };
 
+    let specific_version_id = body
+        .version_id
+        .clone()
+        .or_else(|| body.minecraft_version.clone())
+        .filter(|version| !version.trim().is_empty());
+    let specific_loader_version = body
+        .loader_version
+        .clone()
+        .filter(|version| !version.trim().is_empty());
+
     let port: u16 = match body.port.unwrap_or(25565).try_into() {
         Ok(port) => port,
         Err(_) => return invalid_body("invalid_body", "port must be between 0 and 65535."),
@@ -1563,6 +1573,8 @@ pub async fn create(
                 worker_operation_id,
                 safe_name,
                 flavor,
+                specific_version_id,
+                specific_loader_version,
                 port,
                 enable_cross_play,
                 cross_play_bedrock_port,
@@ -1728,6 +1740,8 @@ fn run_create_server(
     operation_id: OperationId,
     safe_name: String,
     flavor: JavaServerFlavor,
+    specific_version_id: Option<String>,
+    specific_loader_version: Option<String>,
     port: u16,
     enable_cross_play: bool,
     cross_play_bedrock_port: Option<u16>,
@@ -1762,6 +1776,8 @@ fn run_create_server(
     let request = NewServerRequest {
         name: &safe_name,
         initial_world_name: initial_world_name.as_deref(),
+        specific_version_id: specific_version_id.as_deref(),
+        specific_loader_version: specific_loader_version.as_deref(),
         flavor,
         port,
         enable_cross_play,

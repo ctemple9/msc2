@@ -604,8 +604,8 @@ fn paper_entry_download(
 /// from [`paper_download_build`] (needs a build id already known) and
 /// from [`paper_select_build`]/[`paper_version_entry_from_builds`] (both
 /// channel-aware). P7.19's version-change is this function's first
-/// caller; nothing in the create flow ever pins a specific Paper version
-/// (see `provisioning.rs`'s own "download latest only" scope note).
+/// caller; the create flow uses the same helper when the user pins a
+/// specific Paper version but does not choose a particular build.
 /// Returns the staged jar alongside the resolved build id directly —
 /// P7.19's caller (`msc-application/src/server_versions.rs`) needs it
 /// separately for `ConfigServer.serverBuild`/the Paper sidecar, and

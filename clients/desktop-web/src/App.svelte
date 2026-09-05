@@ -199,6 +199,7 @@
     loadedSections = [];
     hostId = id;
     await initializeClient();
+    await selectSection('agent-setup');
   }
 
   async function addRemoteHost(
@@ -224,7 +225,6 @@
   ): Promise<void> {
     const remoteHostId = await addRemoteHost(label, baseUrl, pairingCode);
     await switchHost(remoteHostId);
-    await selectSection('agent-setup');
   }
 
   async function pairAgain(pairingCode: string): Promise<void> {
@@ -270,7 +270,6 @@
       throw new Error('The local agent cannot be removed from this desktop.');
     }
     await removeRemoteHost(hostId);
-    await selectSection('agent-setup');
   }
 
   async function disconnectCurrentRemoteHost(): Promise<void> {
@@ -278,7 +277,6 @@
       throw new Error('The local agent is already selected on this desktop.');
     }
     await switchHost(localAgentHostId);
-    await selectSection('agent-setup');
   }
 
   function openReset(): void {

@@ -97,6 +97,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.80: keep connection badges in the status cards`
 **Batch:** safe
 
+### P12.81 — Open Agent setup after switching hosts
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/App.svelte`, `docs/msc2/rolling-plan.md`
+**What:** After an accepted host switch, clear the previous host’s retained tabs, initialize the new host, and open Agent setup so the selected host’s connection state is immediately visible instead of leaving an empty content area.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/App.svelte && npm run build`
+**Commit:** `P12.81: open agent setup after switching hosts`
+**Batch:** safe
+
 ---
 
 ## Phases

@@ -309,6 +309,16 @@ Gates are in `msc2-port-plan.md`. This is the map, not the detail.
 **Commit:** `P12.64: record physical beta release gate`
 **Batch:** stop-after
 
+## Phase 12 post-phase correction — agent connection teaching flow
+
+### P12.66 — Redesign the agent connection page
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Reorganize the Agents page around the client/agent model and the two setup paths: an agent on this computer and an agent on another computer. Move the existing “MSC has two parts” explanation to a remembered collapsible section, keep service maintenance and secondary pairing actions progressively disclosed, and add concise remote connection teaching that distinguishes the agent address from the one-use pairing code and explains the SSH-tunnel path without changing the pairing or service APIs.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.66: redesign the agent connection page`
+**Batch:** solo
+
 ## Phase 12 post-phase correction — startup health freshness
 
 ### P12.68 — Persist successful startup health and refresh the Overview

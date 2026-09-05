@@ -61,6 +61,7 @@
   const howItWorksStorageKey = 'msc2.agents.how-it-works-expanded';
   const manageLocalStorageKey = 'msc2.agents.manage-local-expanded';
   const connectAnotherStorageKey = 'msc2.agents.connect-another-expanded';
+  const savedHostsStorageKey = 'msc2.agents.saved-hosts-expanded';
   const pairingCommand = 'msc pairing create --client-kind desktop';
   const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 username@ip-address';
 
@@ -82,6 +83,7 @@
   let howItWorksExpanded = true;
   let manageLocalExpanded = true;
   let connectAnotherExpanded = true;
+  let savedHostsExpanded = true;
   let readinessTone: 'ok' | 'warn' | 'error' = 'warn';
   let statusTone: 'ok' | 'warn' | 'error' = 'warn';
   let inspectedHostId: string | undefined;
@@ -111,6 +113,10 @@
     if (storedConnectAnother === 'true' || storedConnectAnother === 'false') {
       connectAnotherExpanded = storedConnectAnother === 'true';
     }
+    const storedSavedHosts = localStorage.getItem(savedHostsStorageKey);
+    if (storedSavedHosts === 'true' || storedSavedHosts === 'false') {
+      savedHostsExpanded = storedSavedHosts === 'true';
+    }
   });
 
   function toggleHowItWorks(): void {
@@ -126,6 +132,11 @@
   function toggleConnectAnother(): void {
     connectAnotherExpanded = !connectAnotherExpanded;
     localStorage.setItem(connectAnotherStorageKey, String(connectAnotherExpanded));
+  }
+
+  function toggleSavedHosts(): void {
+    savedHostsExpanded = !savedHostsExpanded;
+    localStorage.setItem(savedHostsStorageKey, String(savedHostsExpanded));
   }
 
   $: {
@@ -757,58 +768,72 @@
   </Card>
 
   {#if isDesktopShell}
-    <Card as="section">
-      <div class="path-heading">
-        <div>
-          <p class="msc2-type-overline">Saved hosts</p>
-          <h2>Remote hosts remembered on this computer</h2>
-        </div>
-        <span class="quiet-label">{savedHosts.length} saved</span>
-      </div>
-      <p class="detail">
-        Host names and addresses are saved here so you can reconnect after reopening MSC.
-        Credentials stay in secure storage. An SSH tunnel still needs to be open before a saved host
-        can connect.
-      </p>
+    <Card as="section" padding="0">
+      <button
+        type="button"
+        class="disclosure-header"
+        aria-expanded={savedHostsExpanded}
+        aria-controls="saved-hosts"
+        onclick={toggleSavedHosts}
+      >
+        <span class="disclosure-title">
+          <span class="msc2-type-overline">Saved hosts</span>
+          <strong>Remote hosts remembered on this computer</strong>
+        </span>
+        <span class="disclosure-trailing">
+          <span class="quiet-label">{savedHosts.length} saved</span>
+          <span class="disclosure-action">{savedHostsExpanded ? 'Hide' : 'Show'}</span>
+        </span>
+      </button>
 
-      {#if savedHosts.length}
-        <div class="saved-host-list">
-          {#each savedHosts as savedHost (savedHost.id)}
-            <div class="saved-host-row">
-              <div class="saved-host-info">
-                <StatusDot tone={savedHostTone(savedHost)} label={savedHostStatus(savedHost)} />
-                <strong>{savedHost.label}</strong>
-                <span class="saved-host-address">{savedHost.baseUrl}</span>
-                <span class="saved-host-servers">
-                  {hostSummaries.get(savedHost.id)?.serverCount ?? 0} servers known
-                </span>
-              </div>
-              <div class="saved-host-actions">
-                {#if savedHost.id !== activeHostId}
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    disabled={!onSwitchHost}
-                    onclick={() => onSwitchHost?.(savedHost.id)}>Switch</Button
-                  >
-                {:else}
-                  <Badge variant="status" tone="ok">Current</Badge>
-                {/if}
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={removeHostBusy}
-                  onclick={() => openRemoveHost(savedHost.id, savedHost.label)}>Remove</Button
-                >
-              </div>
+      {#if savedHostsExpanded}
+        <div id="saved-hosts" class="agent-content">
+          <p class="detail">
+            Host names and addresses are saved here so you can reconnect after reopening MSC.
+            Credentials stay in secure storage. An SSH tunnel still needs to be open before a saved
+            host can connect.
+          </p>
+
+          {#if savedHosts.length}
+            <div class="saved-host-list">
+              {#each savedHosts as savedHost (savedHost.id)}
+                <div class="saved-host-row">
+                  <div class="saved-host-info">
+                    <StatusDot tone={savedHostTone(savedHost)} label={savedHostStatus(savedHost)} />
+                    <strong>{savedHost.label}</strong>
+                    <span class="saved-host-address">{savedHost.baseUrl}</span>
+                    <span class="saved-host-servers">
+                      {hostSummaries.get(savedHost.id)?.serverCount ?? 0} servers known
+                    </span>
+                  </div>
+                  <div class="saved-host-actions">
+                    {#if savedHost.id !== activeHostId}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={!onSwitchHost}
+                        onclick={() => onSwitchHost?.(savedHost.id)}>Switch</Button
+                      >
+                    {:else}
+                      <Badge variant="status" tone="ok">Current</Badge>
+                    {/if}
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={removeHostBusy}
+                      onclick={() => openRemoveHost(savedHost.id, savedHost.label)}>Remove</Button
+                    >
+                  </div>
+                </div>
+              {/each}
             </div>
-          {/each}
+          {:else}
+            <p class="saved-host-empty">
+              Remote hosts you connect will appear here. This section will not store pairing codes
+              or bearer credentials.
+            </p>
+          {/if}
         </div>
-      {:else}
-        <p class="saved-host-empty">
-          Remote hosts you connect will appear here. This section will not store pairing codes or
-          bearer credentials.
-        </p>
       {/if}
     </Card>
   {/if}
@@ -895,20 +920,9 @@
     display: grid;
     gap: 6px;
   }
-  .path-heading {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 16px;
-  }
   h1 {
     font-size: 22px;
     font-weight: 600;
-  }
-  h2 {
-    margin-top: 6px;
-    font-size: 17px;
-    font-weight: 500;
   }
   h3 {
     margin-top: 14px;

@@ -49,6 +49,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.74: remember remote hosts across desktop restarts`
 **Batch:** solo
 
+### P12.75 — Make Saved hosts collapsible
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Make the Saved hosts section collapsible using the same remembered disclosure behavior as the other agent setup sections. Keep the saved-host count visible while collapsed so experienced users can reduce the page without losing context.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.75: make saved hosts collapsible`
+**Batch:** solo
+
 ---
 
 ## Phases

@@ -866,10 +866,11 @@
     display: grid;
     gap: 7px;
     margin: 16px 0 0;
-    padding-left: 20px;
+    padding-left: 0;
     color: var(--msc2-text-secondary);
     font-size: 13px;
     line-height: 1.5;
+    list-style: none;
   }
   .connection-step {
     padding-left: 4px;

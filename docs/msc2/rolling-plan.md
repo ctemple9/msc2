@@ -81,6 +81,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.78: remove duplicate status dots`
 **Batch:** safe
 
+### P12.79 — Remove the Saved hosts status dot
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src/lib/sections/setup/AgentSetupSection.svelte`, `docs/msc2/rolling-plan.md`
+**What:** Remove the Saved hosts row’s status dot while retaining its short plain-text state label, host identity, address, server count, and management actions.
+**Verify:** `cd clients/desktop-web && npx prettier --check src/lib/sections/setup/AgentSetupSection.svelte && npm run build`
+**Commit:** `P12.79: remove the saved hosts status dot`
+**Batch:** safe
+
 ---
 
 ## Phases

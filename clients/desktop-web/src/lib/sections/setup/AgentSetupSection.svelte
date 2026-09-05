@@ -315,12 +315,6 @@
     return 'Saved';
   }
 
-  function savedHostTone(host: HostRecord): 'ok' | 'warn' | 'error' {
-    if (host.id === activeHostId) return readinessTone;
-    const connection = hostSummaries.get(host.id)?.connection;
-    return connection === 'connected' ? 'ok' : connection === 'error' ? 'error' : 'warn';
-  }
-
   async function copyCommand(command: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(command);
@@ -815,7 +809,7 @@
               {#each savedHosts as savedHost (savedHost.id)}
                 <div class="saved-host-row">
                   <div class="saved-host-info">
-                    <StatusDot tone={savedHostTone(savedHost)} label={savedHostStatus(savedHost)} />
+                    <span class="saved-host-status">{savedHostStatus(savedHost)}</span>
                     <strong>{savedHost.label}</strong>
                     <span class="saved-host-address">{savedHost.baseUrl}</span>
                     <span class="saved-host-servers">
@@ -1126,6 +1120,10 @@
     color: var(--msc2-text-primary);
     font-size: 13px;
     font-weight: 500;
+  }
+  .saved-host-status {
+    color: var(--msc2-text-secondary);
+    font-size: 11px;
   }
   .saved-host-address,
   .saved-host-servers {

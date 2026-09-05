@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import Sheet from '../components/base/Sheet.svelte';
   import Button from '../components/base/Button.svelte';
   import Card from '../components/base/Card.svelte';
   import StatusDot from '../components/base/StatusDot.svelte';
   import type { Capabilities } from '../navigation/types';
   import { getPlatform, openExternal } from '../platform';
   import type { PlatformKind } from '../platform/types';
-  import type { ScreenApi } from '../sections/shared/types';
+  import { errorMessage, mutate } from '../sections/shared/types';
+  import type { Schema, ScreenApi } from '../sections/shared/types';
+  import { pollOperation, serverEditorPaths } from '../sections/server-editor/model';
   import {
     ACCENT_PRESETS,
     applyAccent,
@@ -27,6 +30,23 @@
     ['Fabric', 'Lightweight mods. Fast updates, great for optimization.'],
     ['Forge', 'Classic modding platform. Widest mod selection.'],
     ['NeoForge', 'Forge’s modern successor. More active development.'],
+  ] as const;
+
+  const javaInstallOptions = [
+    {
+      major: 25,
+      title: 'Java 25',
+      minecraftRange: 'Minecraft 26.1 (latest) and newer',
+      recommended: true,
+    },
+    {
+      major: 21,
+      title: 'Java 21',
+      minecraftRange: 'Minecraft 1.20.5 – 1.21.x',
+      recommended: false,
+    },
+    { major: 17, title: 'Java 17', minecraftRange: 'Minecraft 1.17 – 1.20.4', recommended: false },
+    { major: 8, title: 'Java 8', minecraftRange: 'Minecraft 1.16.5 and older', recommended: false },
   ] as const;
 
   const pageMeta = [
@@ -55,6 +75,11 @@
   let javaRuntimes: Array<{ executablePath: string; majorVersion?: number }> = [];
   let rootPickerBusy = false;
   let javaPickerBusy = false;
+  let showJavaInstallPicker = false;
+  let selectedJavaMajor: number = javaInstallOptions[0].major;
+  let javaInstallBusy = false;
+  let javaInstallStatusLine = '';
+  let javaInstallFailure = '';
   let xboxStatus: 'checking' | 'installed' | 'not-installed' | 'downloading' | 'unavailable' =
     'checking';
   let xboxFilename = '';
@@ -290,6 +315,46 @@
     } finally {
       javaPickerBusy = false;
     }
+  }
+
+  async function installJava(): Promise<void> {
+    if (!api || javaInstallBusy) return;
+    javaInstallBusy = true;
+    javaInstallFailure = '';
+    javaInstallStatusLine = 'Starting install…';
+    try {
+      const result = await mutate<Schema['JavaRuntimeInstallResultDTO']>(
+        api,
+        serverEditorPaths.javaRuntimeInstall,
+        { major: selectedJavaMajor },
+      );
+      const operation = await pollOperation(api, result.operationId, (tick) => {
+        javaInstallStatusLine = tick.statusLine ?? javaInstallStatusLine;
+      });
+      if (!operation || operation.state !== 'succeeded') {
+        javaInstallFailure =
+          operation?.error?.message ?? result.message ?? 'The install did not complete.';
+        javaInstallBusy = false;
+        return;
+      }
+      showJavaInstallPicker = false;
+      javaInstallBusy = false;
+      javaInstallStatusLine = '';
+      await probeJava();
+      if (javaStatus !== 'found') {
+        javaMessage = 'Java was installed. Click Check for Java to refresh the detected runtimes.';
+      }
+    } catch (caught) {
+      javaInstallFailure = errorMessage(caught);
+      javaInstallBusy = false;
+    }
+  }
+
+  function closeJavaInstallPicker(): void {
+    if (javaInstallBusy) return;
+    showJavaInstallPicker = false;
+    javaInstallStatusLine = '';
+    javaInstallFailure = '';
   }
 
   async function validateAndSaveHost(): Promise<void> {
@@ -611,6 +676,14 @@
                 }}>Use PATH</Button
               >
             </div>
+            <div class="field-row">
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!api || javaInstallBusy}
+                onclick={() => (showJavaInstallPicker = true)}>Install Java…</Button
+              >
+            </div>
             <StatusDot tone={javaTone} label={javaLabel} />
             {#if javaStatus === 'not-found'}<p class="hint warn">
                 {javaMessage} Install the current Temurin LTS or choose an existing JDK 21+ executable,
@@ -790,6 +863,52 @@
       {/if}
     </div>
   {/key}
+
+  {#if showJavaInstallPicker}
+    <Sheet
+      title="Install Java"
+      size="sm"
+      onClose={javaInstallBusy ? undefined : closeJavaInstallPicker}
+    >
+      <p class="explain">
+        Pick the version that matches your Minecraft version. MSC downloads and installs it for this
+        host.
+      </p>
+      <div class="list" role="radiogroup" aria-label="Java version to install">
+        {#each javaInstallOptions as option (option.major)}
+          <button
+            type="button"
+            class="install-option"
+            class:selected={selectedJavaMajor === option.major}
+            disabled={javaInstallBusy}
+            onclick={() => (selectedJavaMajor = option.major)}
+          >
+            <span class="runtime-info">
+              <span class="runtime-heading">
+                <span class="runtime-version">{option.title}</span>
+                {#if option.recommended}<span class="tag">Recommended</span>{/if}
+              </span>
+              <span class="runtime-path">{option.minecraftRange}</span>
+            </span>
+          </button>
+        {/each}
+      </div>
+      {#if javaInstallStatusLine && javaInstallBusy}<p class="explain">
+          {javaInstallStatusLine}
+        </p>{/if}
+      {#if javaInstallFailure}<p class="explain warn">{javaInstallFailure}</p>{/if}
+      <div class="footer">
+        <Button variant="secondary" disabled={javaInstallBusy} onclick={closeJavaInstallPicker}
+          >Close</Button
+        >
+        <Button
+          variant="primary"
+          disabled={javaInstallBusy || !api}
+          onclick={() => void installJava()}>{javaInstallBusy ? 'Installing…' : 'Install'}</Button
+        >
+      </div>
+    </Sheet>
+  {/if}
 
   {#if completionMessage}<p class="hint warn" role="alert">{completionMessage}</p>{/if}
   <div class="setup-actions">
@@ -1058,6 +1177,73 @@
   }
   .hint.warn {
     color: var(--msc2-status-warn);
+  }
+  .explain {
+    margin: 0 0 12px;
+    color: var(--msc2-text-tertiary);
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .explain.warn {
+    color: var(--msc2-status-warn);
+  }
+  .list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .install-option {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 14px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--msc2-text-primary);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  .install-option:hover,
+  .install-option.selected {
+    border-color: var(--msc2-hairline);
+    background: var(--msc2-tier-content);
+  }
+  .runtime-info {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .runtime-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .runtime-version {
+    color: var(--msc2-text-primary);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .runtime-path {
+    overflow: hidden;
+    color: var(--msc2-text-tertiary);
+    font-family: var(--msc2-font-mono);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tag {
+    color: var(--msc2-text-tertiary);
+    font-size: 10px;
+  }
+  .footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
   }
   .link-button {
     display: inline-flex;

@@ -185,6 +185,14 @@ Every step also carries a **Batch:** field, telling an agent whether it may be r
 **Commit:** `P12.91: add release installation quick start to readme`
 **Batch:** solo
 
+### P12.92 — Fix Fedora desktop agent resource lookup
+**Status:** awaiting verification
+**Files:** `clients/desktop-web/src-tauri/src/lib.rs`, `packaging/agent-service-layout.json`, `tools/phase12/bedrock-package-check.py`, coordinated version manifests and locks, `README.md`, `docs/msc2/rolling-plan.md`
+**What:** Align the Linux desktop shell with Tauri v2's actual Debian/RPM resource directory, `/usr/lib/MSC 2/agent/msc`, which is derived from the product name rather than the executable name. Keep the development/AppImage resource path as a fallback, update the package contract and checker, and bump the coordinated prerelease from 0.1.1 to 0.1.2 so Fedora receives the fix in the next release.
+**Verify:** `rg -n '\.\./lib/MSC 2/agent/msc|v0\.1\.2' clients/desktop-web/src-tauri/src/lib.rs packaging/agent-service-layout.json README.md && cargo fmt --all -- --check && cargo clippy --manifest-path clients/desktop-web/src-tauri/Cargo.toml --lib -- -D warnings && git diff --check`
+**Commit:** `P12.92: fix fedora desktop agent resource lookup`
+**Batch:** solo
+
 ---
 
 ## Phases

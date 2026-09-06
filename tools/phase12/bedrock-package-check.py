@@ -84,7 +84,7 @@ def check_layout() -> list[str]:
         },
         "linux": {
             "manager": "systemd",
-            "agentPath": "../lib/msc2-desktop-web/agent/msc",
+            "agentPath": "../lib/MSC 2/agent/msc",
             "sidecarPath": None,
             "dataPath": "~/.local/share/msc2",
         },
@@ -190,6 +190,7 @@ def check_rust_lookup() -> list[str]:
         "directory.join(\"../Resources/agent/sidecar\")",
         '"BedrockSidecar", "vmlinuz-kata", "appliance-initramfs.gz"',
         'let development_path = directory.join("agent/msc")',
+        "../lib/MSC 2/agent/msc",
         "../lib/msc2-desktop-web/agent/msc",
     ]
     text = read_text(relative)

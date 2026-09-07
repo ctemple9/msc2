@@ -2,7 +2,8 @@
 //!
 //! Named CLI commands use the same management API as the desktop and browser
 //! clients. This module owns only request construction and response decoding;
-//! terminal presentation and WebSocket streams belong to the retiring TUI.
+//! WebSocket streams remain agent routes for the graphical clients, not part of
+//! this one-shot command transport.
 
 use axum::http::{Method, StatusCode, Uri};
 use serde::Serialize;

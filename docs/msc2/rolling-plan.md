@@ -792,3 +792,11 @@ steps.
 **Verify:** `cargo fmt --all -- --check && cargo check -p msc-agent --bin msc && cargo clippy -p msc-agent --bin msc -- -D warnings`
 **Commit:** `P12.115: gate linux package update variants by target`
 **Batch:** solo
+
+### P12.116 — Remove stale terminal-client references
+**Status:** awaiting verification
+**Files:** `.github/workflows/ci.yml`, `.vscode/settings.json`, `crates/msc-agent/src/cli/transport.rs`, `docs/msc2/client-capability-matrix.csv`, `docs/msc2/lifecycle/phase4-scope.md`, `docs/msc2/rolling-plan.md`
+**What:** Remove active comments and capability/scope notes that still describe the retired full-screen terminal client as scaffolded, retiring, or client-specific. Keep D-034, the retirement audit, the retired Phase 13 note, and other historical records that intentionally document the decision and its provenance.
+**Verify:** `git diff --check && if rg -n -i -P '\\bTUI\\b|terminal UI|terminal dashboard|ratatui|crossterm|tui_status' .github .vscode crates/msc-agent/src docs/msc2/client-capability-matrix.csv docs/msc2/lifecycle/phase4-scope.md; then exit 1; fi`
+**Commit:** `P12.116: remove stale terminal-client references`
+**Batch:** solo

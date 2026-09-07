@@ -118,7 +118,7 @@ Phase 4 CLI commands are limited to the vertical slice:
 - `msc console tail`.
 - `--json` output where `msc2-engineering.md` requires scriptable output.
 
-No CLI commands for creation, backups, worlds, mods, players, networking, Bedrock, desktop install UX, or TUI behavior are in this phase.
+No CLI commands for creation, backups, worlds, mods, players, networking, Bedrock, or desktop install UX are in this phase.
 
 ## Historical Mobile Slice
 

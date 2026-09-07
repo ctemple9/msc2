@@ -173,10 +173,6 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: Clippy
-        # The TUI is intentionally outside this beta's release boundary. Its
-        # scaffold is still compiled by the all-targets check, but its
-        # deferred dead-code and presentation-only lint noise must not block
-        # the Tauri shell and headless agent release.
         run: cargo clippy --workspace --all-targets -- -D warnings -A dead-code -A unused-mut -A clippy::needless-return -A clippy::collapsible-if -A clippy::derivable-impls -A clippy::useless-format
 
       # Keep these as separate, focused boundaries. A manual rerun can select

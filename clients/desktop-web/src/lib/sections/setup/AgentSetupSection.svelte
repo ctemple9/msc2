@@ -66,30 +66,20 @@
   const pairingCommand = 'msc pairing create --client-kind desktop';
   const sshTunnelCommand = 'ssh -N -L 48002:127.0.0.1:48001 username@ip-address';
   const linuxServiceName = '<agent-service-name>';
+  const commonServiceCommands = [
+    `msc service status --service-name ${linuxServiceName}`,
+    `msc service start --service-name ${linuxServiceName}`,
+    `msc service stop --service-name ${linuxServiceName}`,
+  ];
   const linuxServiceNotes = [
     {
       label: 'Find the agent service name',
       command: "systemctl list-unit-files --type=service | grep -i 'msc.*agent'",
-      note: 'Use the unit name shown by this command in place of <agent-service-name> below.',
+      note: 'Use the unit name shown by this command without its trailing .service suffix in place of <agent-service-name> below.',
     },
-    { label: 'Start', command: `sudo systemctl start ${linuxServiceName}` },
-    { label: 'Stop', command: `sudo systemctl stop ${linuxServiceName}` },
-    { label: 'Restart', command: `sudo systemctl restart ${linuxServiceName}` },
-    {
-      label: 'Check status',
-      command: `systemctl status ${linuxServiceName} --no-pager -l`,
-      note: 'Look for “Active: active (running)”.',
-    },
-    {
-      label: 'Start automatically after boot',
-      command: `sudo systemctl enable --now ${linuxServiceName}`,
-      note: 'This is already enabled for a normal installation.',
-    },
-    {
-      label: 'Watch live agent logs',
-      command: `journalctl -u ${linuxServiceName} -f`,
-      note: 'Press Ctrl+C to stop watching logs. This does not stop the agent.',
-    },
+    { label: 'Check status', command: commonServiceCommands[0] },
+    { label: 'Start', command: commonServiceCommands[1] },
+    { label: 'Stop', command: commonServiceCommands[2] },
   ];
 
   let status: AgentServiceStatus | undefined;
@@ -653,18 +643,10 @@
                   </p>
                   <p class="detail">
                     If that computer has the MSC app, open it and click <strong>Start agent</strong
-                    >. If it is running the headless agent, open Terminal there and run:
+                    >. If you are managing the computer remotely, use the common MSC service
+                    commands in Extra notes to start the installed agent service. The app does not
+                    need to remain open after the agent is running.
                   </p>
-                  <div class="command-row">
-                    <Field value={serviceCommands[1]} />
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onclick={() => void copyCommand(serviceCommands[1])}
-                    >
-                      {copiedCommand === serviceCommands[1] ? 'Copied' : 'Copy'}
-                    </Button>
-                  </div>
                   <p class="detail">
                     If the agent is not installed yet, install the headless agent package first.
                   </p>
@@ -790,10 +772,9 @@
             <summary>Extra notes</summary>
             <div class="secondary-content">
               <p class="detail">
-                On Linux, these commands manage the MSC 2 agent on the computer where your Minecraft
-                servers run. The service name can vary by installation; run the first command to
-                find it, then replace <span class="mono">&lt;agent-service-name&gt;</span> in the commands
-                below.
+                These commands manage the MSC 2 agent on the computer where your Minecraft servers
+                run. The service name can vary by installation; run the first command to find it,
+                then replace <span class="mono">&lt;agent-service-name&gt;</span> in the commands below.
               </p>
               <div class="extra-notes-list">
                 {#each linuxServiceNotes as item (item.command)}
